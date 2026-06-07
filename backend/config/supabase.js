@@ -3,6 +3,11 @@ const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
+// Polyfill WebSocket for Node.js < 22 to support Supabase Realtime
+if (typeof global.WebSocket === 'undefined') {
+  global.WebSocket = require('ws');
+}
+
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -15,7 +20,10 @@ if (!isLocalDB) {
   console.log('🔌 Connecting to remote Supabase instance...');
   supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
-    realtime: { transport: require('ws') }
+    realtime: {
+      webSocket: global.WebSocket,
+      transport: global.WebSocket
+    }
   });
 } else {
   console.log('📂 No remote database configured. Initializing local JSON Database (db.json)...');
