@@ -14,7 +14,8 @@ let supabase;
 if (!isLocalDB) {
   console.log('🔌 Connecting to remote Supabase instance...');
   supabase = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { persistSession: false, autoRefreshToken: false }
+    auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { transport: require('ws') }
   });
 } else {
   console.log('📂 No remote database configured. Initializing local JSON Database (db.json)...');
