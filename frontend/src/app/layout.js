@@ -14,7 +14,7 @@ const outfit = Outfit({
 });
 
 export const metadata = {
-  title: "Greenvelope - Premium Digital Invitations & RSVP Tracking",
+  title: "Fancy RSVP - Premium Digital Invitations & RSVP Tracking",
   description: "Create and send premium online invitations with animated envelopes, built-in RSVP tracking, surveys, and background music.",
 };
 

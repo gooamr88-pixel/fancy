@@ -62,11 +62,28 @@ const FeatureIcon = ({ name, className = "w-8 h-8 text-brand-green" }) => {
   }
 };
 
+// --- Animated Audio Wave Visualizer ---
+const AudioWaveform = ({ isPlaying }) => {
+  return (
+    <div className="flex items-end gap-[3px] h-6 w-9 px-1">
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-3 ${isPlaying ? "animate-wave-1" : "h-1"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-5 ${isPlaying ? "animate-wave-2" : "h-1"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-6 ${isPlaying ? "animate-wave-3" : "h-2"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-4 ${isPlaying ? "animate-wave-4" : "h-1"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-3 ${isPlaying ? "animate-wave-5" : "h-1"}`}></div>
+    </div>
+  );
+};
+
 export default function Home() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [activeSection, setActiveSection] = useState("overview");
   const [subHeaderSticky, setSubHeaderSticky] = useState(false);
+
+  // Audio Playback Simulation States
+  const [isPlayingHeroAudio, setIsPlayingHeroAudio] = useState(false);
+  const [playingCarouselAudio, setPlayingCarouselAudio] = useState(null);
 
   // Carousel & Design States
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -98,7 +115,6 @@ export default function Home() {
       // Handle subheader stickiness
       if (subHeaderRef.current) {
         const offset = subHeaderRef.current.offsetTop;
-        // Adjust buffer slightly for seamless transition
         if (window.scrollY >= offset - 80) {
           setSubHeaderSticky(true);
         } else {
@@ -107,7 +123,7 @@ export default function Home() {
       }
 
       // Scroll Spy - Highlight active section link
-      const scrollPosition = window.scrollY + 250; // offset buffer
+      const scrollPosition = window.scrollY + 250; 
       for (const section in sectionRefs) {
         const ref = sectionRefs[section].current;
         if (ref) {
@@ -157,10 +173,18 @@ export default function Home() {
 
   // Carousel Navigation
   const handlePrevSlide = () => {
-    setCarouselIndex((prev) => (prev === 0 ? 1 : 0)); // simple page toggle for demo
+    setCarouselIndex((prev) => (prev === 0 ? 1 : 0));
   };
   const handleNextSlide = () => {
     setCarouselIndex((prev) => (prev === 1 ? 0 : 1));
+  };
+
+  // Audio Toggle Helpers
+  const toggleHeroAudio = () => {
+    setIsPlayingHeroAudio(!isPlayingHeroAudio);
+  };
+  const toggleCarouselAudio = (cardId) => {
+    setPlayingCarouselAudio((prev) => (prev === cardId ? null : cardId));
   };
 
   return (
@@ -169,8 +193,8 @@ export default function Home() {
       {/* --- Main Header / Navigation (Logo + Login/Register) --- */}
       <header className="w-full bg-white/95 backdrop-blur-md border-b border-zinc-100 py-4 px-6 md:px-12 flex justify-between items-center sticky top-0 z-50 transition-all duration-300">
         <div className="flex items-center gap-1">
-          <span className="font-sans text-xl md:text-2xl font-bold tracking-[0.25em] text-brand-green hover:opacity-90 transition-opacity cursor-pointer">
-            GREEN<span className="font-light text-zinc-400">|</span>VELOPE
+          <span className="font-sans text-xl md:text-2xl font-bold tracking-[0.25em] text-brand-green hover:opacity-90 transition-all cursor-pointer flex items-center">
+            FANCY<span className="font-light text-amber-500 mx-1">|</span>RSVP
           </span>
         </div>
         
@@ -180,7 +204,7 @@ export default function Home() {
           </a>
           <button 
             onClick={() => scrollToSection("overview")}
-            className="bg-brand-green hover:bg-brand-green-hover text-white px-5 py-2.5 rounded-md font-medium text-sm md:text-base transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
+            className="bg-brand-green hover:bg-brand-green-hover text-white px-5 py-2.5 rounded-md font-medium text-sm md:text-base transition-all shadow-md hover:shadow-lg active:scale-[0.98] border-b-2 border-emerald-700"
           >
             Get Started
           </button>
@@ -189,9 +213,14 @@ export default function Home() {
 
       {/* --- Hero Section --- */}
       <section className="relative w-full max-w-7xl mx-auto px-6 md:px-12 pt-12 pb-24 md:py-24 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+        
         {/* Left Side: Mock Tablet & Animation */}
-        <div className="lg:col-span-6 flex justify-center items-center w-full">
-          <div className="relative w-full max-w-lg aspect-[4/3] bg-zinc-900 rounded-[2.5rem] p-4 shadow-2xl border-4 border-zinc-800 flex items-center justify-center overflow-hidden">
+        <div className="lg:col-span-6 flex justify-center items-center w-full relative">
+          
+          {/* Subtle decorative backing behind tablet */}
+          <div className="absolute w-[80%] h-[80%] bg-gradient-to-tr from-emerald-50 to-amber-50 rounded-full filter blur-3xl opacity-60 z-0"></div>
+          
+          <div className="relative z-10 w-full max-w-lg aspect-[4/3] bg-zinc-900 rounded-[2.5rem] p-4 shadow-2xl border-[5px] border-zinc-800 flex items-center justify-center overflow-hidden transition-transform duration-500 hover:scale-[1.01] hover:shadow-emerald-900/10">
             {/* Tablet Camera & Bezel Details */}
             <div className="absolute top-1/2 left-3 w-1.5 h-1.5 bg-zinc-700 rounded-full -translate-y-1/2"></div>
             <div className="absolute top-1/2 right-3 w-1.5 h-1.5 bg-zinc-700 rounded-full -translate-y-1/2"></div>
@@ -199,13 +228,27 @@ export default function Home() {
             {/* Tablet Screen */}
             <div className="w-full h-full bg-[#f6f6f3] rounded-[1.8rem] overflow-hidden relative flex flex-col items-center justify-center p-6 md:p-8 select-none">
               
+              {/* Audio visualizer bar inside tablet */}
+              <button 
+                onClick={toggleHeroAudio}
+                className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border border-zinc-200/60 shadow-sm flex items-center gap-1.5 text-xs text-zinc-600 hover:text-brand-green transition-colors z-30 cursor-pointer"
+              >
+                <span className="font-semibold text-[10px] uppercase tracking-wider">
+                  {isPlayingHeroAudio ? "Music On" : "Preview Music"}
+                </span>
+                <AudioWaveform isPlaying={isPlayingHeroAudio} />
+              </button>
+
               {/* Envelope Container Mock */}
-              <div className="relative w-full max-w-[280px] md:max-w-[320px] aspect-[1.4/1] flex flex-col items-center justify-end">
-                {/* Envelope Flap Back (Sage/Olive Green Theme) */}
-                <div className="absolute bottom-0 w-[95%] h-[80%] bg-[#b8cfc2] rounded-t-md shadow-inner"></div>
+              <div className="relative w-full max-w-[280px] md:max-w-[320px] aspect-[1.4/1] flex flex-col items-center justify-end group">
+                
+                {/* Envelope Back / Golden Foil Inner Liner */}
+                <div className="absolute bottom-0 w-[95%] h-[80%] bg-[#b8cfc2] rounded-t-md shadow-inner border-t border-amber-300">
+                  <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-400 via-amber-600 to-transparent"></div>
+                </div>
                 
                 {/* Emerging Invitation Card */}
-                <div className="absolute bottom-4 w-[85%] aspect-[1.5/1] bg-[#faf8f5] shadow-lg rounded-sm p-4 flex flex-col items-center justify-center border border-zinc-100 transition-transform duration-[1200ms] hover:-translate-y-12 animate-pulse hover:animate-none group cursor-pointer">
+                <div className="absolute bottom-4 w-[85%] aspect-[1.5/1] bg-[#faf8f5] shadow-xl rounded-sm p-4 flex flex-col items-center justify-center border-t-2 border-amber-400 border-x border-b border-zinc-100 transition-transform duration-[800ms] cubic-bezier(0.16, 1, 0.3, 1) group-hover:-translate-y-14 cursor-pointer">
                   {/* Card Art Shapes (Abstract watercolor brushstrokes) */}
                   <div className="absolute inset-0 opacity-15 overflow-hidden rounded-sm">
                     <div className="absolute -top-4 -left-4 w-24 h-24 bg-rose-300 rounded-full filter blur-xl"></div>
@@ -216,18 +259,18 @@ export default function Home() {
                   {/* Card Content */}
                   <div className="relative z-10 flex flex-col items-center text-center">
                     <span className="font-serif italic text-[0.7rem] md:text-xs text-zinc-500 tracking-wider mb-0.5">please join us for</span>
-                    <span className="font-serif text-lg md:text-2xl font-semibold text-zinc-800 tracking-widest uppercase border-y border-zinc-300 py-1.5 px-3 mb-1">
+                    <span className="font-serif text-lg md:text-2xl font-semibold text-zinc-800 tracking-widest uppercase border-y border-amber-200 py-1.5 px-4 mb-1">
                       COCKTAILS
                     </span>
-                    <span className="font-sans text-[0.55rem] md:text-[0.65rem] text-zinc-400 uppercase tracking-widest">Saturday, June 20 at 7:00 PM</span>
+                    <span className="font-sans text-[0.55rem] md:text-[0.65rem] text-zinc-400 uppercase tracking-widest font-semibold">FANCY RSVP PREVIEW</span>
                   </div>
                 </div>
 
-                {/* Envelope Front Overlay (Sage Cover) */}
-                <div className="absolute bottom-0 w-full h-[55%] bg-[#a5c0b1] rounded-b-md shadow-md z-20 flex items-center justify-center">
-                  {/* Mock Gold Wax Seal */}
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-600 shadow-md flex items-center justify-center border border-yellow-400">
-                    <span className="text-white text-[10px] font-bold">G</span>
+                {/* Envelope Front Overlay (Sage Cover with Shadow) */}
+                <div className="absolute bottom-0 w-full h-[55%] bg-[#a5c0b1] rounded-b-md shadow-lg z-20 flex items-center justify-center border-t border-[#b6cfc1]">
+                  {/* Mock Gold Wax Seal with metallic gradient shine */}
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-700 shadow-md flex items-center justify-center border border-yellow-300 active:scale-95 transition-transform cursor-pointer">
+                    <span className="text-white text-[11px] font-bold text-shadow-premium">F</span>
                   </div>
                 </div>
               </div>
@@ -239,16 +282,42 @@ export default function Home() {
         </div>
 
         {/* Right Side: Hero Content & Email Capture */}
-        <div className="lg:col-span-6 flex flex-col gap-6 text-center lg:text-left">
+        <div className="lg:col-span-6 flex flex-col gap-6 text-center lg:text-left relative">
+          
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-5xl font-semibold leading-[1.15] text-zinc-900 tracking-tight">
             Make & Send Your Online Invitation In Minutes. <span className="text-brand-green">Easy, Real-Time RSVP Tracking.</span>
           </h1>
-          <p className="text-lg text-zinc-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+          <p className="text-lg text-zinc-600 leading-relaxed max-w-xl mx-auto lg:mx-0 font-light">
             Enjoy One-of-a-kind Designs, RSVP Tracking, & More. Custom creations crafted for weddings, birthdays, baby showers, and premium corporate events.
           </p>
 
-          {/* Email Capture Form */}
-          <div className="w-full max-w-md mx-auto lg:mx-0 mt-2">
+          {/* Email Capture Form with Confetti Particles */}
+          <div className="w-full max-w-md mx-auto lg:mx-0 mt-2 relative">
+            
+            {/* Confetti Particle Generator */}
+            {isSubmitted && (
+              <div className="absolute inset-0 pointer-events-none overflow-hidden z-30 h-48">
+                {[...Array(20)].map((_, i) => {
+                  const colors = ["bg-amber-400", "bg-emerald-500", "bg-indigo-400", "bg-rose-400", "bg-yellow-400", "bg-teal-400"];
+                  const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                  const leftOffset = `${Math.random() * 100}%`;
+                  const animDelay = `${Math.random() * 1.5}s`;
+                  const size = Math.random() > 0.5 ? "w-2.5 h-2.5" : "w-1.5 h-3.5";
+                  return (
+                    <div 
+                      key={i} 
+                      className={`absolute ${size} ${randomColor} rounded-sm animate-confetti`}
+                      style={{
+                        left: leftOffset,
+                        animationDelay: animDelay,
+                        top: 0
+                      }}
+                    ></div>
+                  );
+                })}
+              </div>
+            )}
+
             {!isSubmitted ? (
               <form onSubmit={handleEmailSubmit} className="flex flex-col sm:flex-row gap-3 w-full">
                 <input
@@ -261,13 +330,13 @@ export default function Home() {
                 />
                 <button
                   type="submit"
-                  className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-4 rounded-lg font-semibold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer"
+                  className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-4 rounded-lg font-semibold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700"
                 >
                   Let's Go!
                 </button>
               </form>
             ) : (
-              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-800 text-left flex items-start gap-3 animate-fade-in">
+              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-lg text-emerald-800 text-left flex items-start gap-3 animate-fade-in shadow-inner">
                 <svg className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -280,7 +349,7 @@ export default function Home() {
           </div>
 
           <div className="flex items-center justify-center lg:justify-start gap-2 text-zinc-400 mt-6 text-sm font-medium animate-bounce">
-            <span>Scroll to explore what sets Greenvelope apart</span>
+            <span>Scroll to explore what sets Fancy RSVP apart</span>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
@@ -338,12 +407,12 @@ export default function Home() {
         ref={sectionRefs.overview}
         className="w-full py-24 bg-[#fcfcfb] border-b border-zinc-100"
       >
-        <div className="max-w-4xl mx-auto px-6 text-center flex flex-col gap-6">
+        <div className="max-w-4xl mx-auto px-6 text-center flex flex-col gap-6 reveal-on-scroll">
           <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-semibold leading-tight text-zinc-900 tracking-tight max-w-3xl mx-auto">
             Premium Digital Invitations with Animated Envelopes, Built-In RSVP Tracking & Background Music
           </h2>
           <p className="text-base sm:text-lg text-zinc-500 leading-relaxed max-w-4xl mx-auto font-light">
-            Greenvelope invitations arrive with a signature animated envelope opening - complete with a personalized liner, stamp, and background music that sets the tone before guests even read a word. Upload your own design or customize one of our exclusive designer suites, then send via email or text with built-in RSVP tracking and real-time guest list management. From weddings and baby showers to corporate events, every detail is handled on an ad-free platform with zero paper waste.
+            Fancy RSVP invitations arrive with a signature animated envelope opening - complete with a personalized liner, stamp, and background music that sets the tone before guests even read a word. Upload your own design or customize one of our exclusive designer suites, then send via email or text with built-in RSVP tracking and real-time guest list management. From weddings and baby showers to corporate events, every detail is handled on an ad-free platform with zero paper waste.
           </p>
         </div>
       </section>
@@ -372,7 +441,7 @@ export default function Home() {
               {
                 id: "guest-list",
                 title: "Importing Guest List",
-                desc: "Easily import contacts from a spreadsheet, directly from your email, or by using your Greenvelope address book.",
+                desc: "Easily import contacts from a spreadsheet, directly from your email, or by using your Fancy RSVP address book.",
               },
               {
                 id: "messaging",
@@ -404,10 +473,11 @@ export default function Home() {
                 title: "Auto-Reminders",
                 desc: "Schedule and send reminders to guests who haven't opened your invitation or RSVP'd yet.",
               },
-            ].map((feat) => (
+            ].map((feat, index) => (
               <div 
                 key={feat.id} 
-                className="flex flex-col items-center text-center p-6 rounded-2xl hover:bg-zinc-50/50 transition-all group duration-300"
+                className="flex flex-col items-center text-center p-6 rounded-2xl border border-transparent hover:border-zinc-100 hover:bg-zinc-50/70 hover:shadow-xl hover:shadow-emerald-950/[0.02] hover:-translate-y-2.5 transition-all group duration-500 cursor-pointer"
+                style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="w-16 h-16 bg-[#eefaf4] rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-sm border border-brand-green/10">
                   <FeatureIcon name={feat.id} className="w-8 h-8 text-brand-green" />
@@ -441,7 +511,7 @@ export default function Home() {
               Our in-house team partners with a global community of independent illustrators, calligraphers, and artists to create exclusive, contemporary designs that reflect your unique style — without the waste. Every digital invite is a beautiful, eco-conscious choice that helps protect nature while celebrating what matters. Celebrate beautifully. Invite sustainably.
             </p>
             <div className="pt-2">
-              <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-md font-semibold tracking-wide transition-all shadow hover:shadow-md active:scale-[0.98] cursor-pointer">
+              <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-md font-semibold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700">
                 See All Designs
               </button>
             </div>
@@ -456,7 +526,7 @@ export default function Home() {
               {/* Left Arrow Button */}
               <button 
                 onClick={handlePrevSlide}
-                className="w-10 h-10 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 shadow-sm flex items-center justify-center text-zinc-500 hover:text-zinc-800 transition-colors z-10 shrink-0 cursor-pointer"
+                className="w-10 h-10 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 shadow-sm flex items-center justify-center text-zinc-500 hover:text-zinc-800 transition-all z-10 shrink-0 cursor-pointer hover:scale-105 active:scale-95"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -482,6 +552,16 @@ export default function Home() {
                           
                           {/* Outer Envelope Boundary (Click area) */}
                           <div className="relative w-full h-[80%] flex flex-col justify-end overflow-visible select-none">
+                            
+                            {/* Soundwave hover player button */}
+                            <button
+                              onClick={() => toggleCarouselAudio("chic")}
+                              className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm p-1 rounded-full border border-zinc-200/50 shadow-sm hover:text-brand-green z-30 transition-transform cursor-pointer"
+                              title="Music Preview"
+                            >
+                              <AudioWaveform isPlaying={playingCarouselAudio === "chic"} />
+                            </button>
+
                             {/* Envelope Back / Gold glitter liner */}
                             <div className={`absolute bottom-0 w-[95%] h-[85%] rounded-t-md shadow-inner transition-colors duration-500 ${
                               chicStripesColor === "navy" ? "bg-amber-100/80 border-t border-amber-300" :
@@ -492,11 +572,11 @@ export default function Home() {
                               "bg-gradient-to-r from-red-100 via-amber-100 to-emerald-100"
                             }`}>
                               {/* Sparkling gold liner pattern */}
-                              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-400 via-yellow-600 to-transparent"></div>
+                              <div className="absolute inset-0 opacity-25 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-400 via-yellow-600 to-transparent"></div>
                             </div>
 
                             {/* Sliding Invitation Card */}
-                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-white shadow-lg rounded-sm p-3 border border-zinc-100 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-10">
+                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-white shadow-xl rounded-sm p-3 border-t-2 border-amber-300 border-x border-b border-zinc-100 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-10">
                               {/* Chic Stripes Card Content */}
                               <div className="w-full h-full flex flex-col items-center justify-between py-1 relative">
                                 {/* Side stripes */}
@@ -507,7 +587,7 @@ export default function Home() {
                                       className={`w-full h-1.5 transition-colors duration-500 ${
                                         chicStripesColor === "navy" ? "bg-blue-900" :
                                         chicStripesColor === "emerald" ? "bg-emerald-800" :
-                                        chicStripesColor === "burgundy" ? "bg-red-900" :
+                                        chicStripesColor === "burgundy" ? "bg-red-950" :
                                         chicStripesColor === "black" ? "bg-black" :
                                         chicStripesColor === "pink" ? "bg-rose-400" :
                                         "bg-indigo-600"
@@ -522,7 +602,7 @@ export default function Home() {
                                       className={`w-full h-1.5 transition-colors duration-500 ${
                                         chicStripesColor === "navy" ? "bg-blue-900" :
                                         chicStripesColor === "emerald" ? "bg-emerald-800" :
-                                        chicStripesColor === "burgundy" ? "bg-red-900" :
+                                        chicStripesColor === "burgundy" ? "bg-red-950" :
                                         chicStripesColor === "black" ? "bg-black" :
                                         chicStripesColor === "pink" ? "bg-rose-400" :
                                         "bg-pink-600"
@@ -538,13 +618,13 @@ export default function Home() {
                                     HEART GALA & AUCTION
                                   </h4>
                                   <div className="w-8 h-[1px] bg-amber-400 my-0.5"></div>
-                                  <span className="text-[7px] text-zinc-500 uppercase tracking-widest leading-none font-bold">CYPRESS SPRINGS GRILLE</span>
+                                  <span className="text-[6px] text-zinc-500 uppercase tracking-widest leading-none font-bold">CYPRESS SPRINGS GRILLE</span>
                                 </div>
                               </div>
                             </div>
 
                             {/* Envelope Front Layer */}
-                            <div className="absolute bottom-0 w-full h-[55%] bg-zinc-300 rounded-b-md shadow-md z-20">
+                            <div className="absolute bottom-0 w-full h-[55%] bg-zinc-300 rounded-b-md shadow-lg z-20 border-t border-zinc-200">
                               {/* Diagonal flap fold line mock */}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent rounded-b-md"></div>
                             </div>
@@ -593,7 +673,7 @@ export default function Home() {
                         {[
                           { id: "navy", color: "bg-blue-900 ring-blue-900/30" },
                           { id: "emerald", color: "bg-emerald-800 ring-emerald-800/30" },
-                          { id: "burgundy", color: "bg-red-900 ring-red-900/30" },
+                          { id: "burgundy", color: "bg-red-950 ring-red-950/30" },
                           { id: "black", color: "bg-black ring-black/30" },
                           { id: "pink", color: "bg-rose-400 ring-rose-400/30" },
                         ].map((dot) => (
@@ -617,8 +697,8 @@ export default function Home() {
                 ) : (
                   <div className="flex flex-col items-center w-full">
                     {/* Placeholder for design slide page 2 - Autumn / Cozy Theme */}
-                    <div className="relative w-full max-w-[200px] aspect-[0.75/1] bg-amber-50/40 rounded-xl border border-zinc-200/60 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
-                      <div className="aspect-[1.5/1] bg-amber-100 rounded-lg flex items-center justify-center text-amber-800 font-serif text-[10px] tracking-widest uppercase shadow-inner">
+                    <div className="relative w-full max-w-[200px] aspect-[0.75/1] bg-amber-50/45 rounded-xl border border-zinc-200/60 p-4 flex flex-col justify-between shadow-md hover:shadow-lg transition-all">
+                      <div className="aspect-[1.5/1] bg-amber-100 rounded-lg flex items-center justify-center text-amber-800 font-serif text-[10px] tracking-widest uppercase shadow-inner border-t border-amber-300">
                         Harvest Invite
                       </div>
                       <div className="text-center mt-2">
@@ -645,6 +725,16 @@ export default function Home() {
                           
                           {/* Outer Envelope Boundary (Click area) */}
                           <div className="relative w-full h-[80%] flex flex-col justify-end overflow-visible select-none">
+                            
+                            {/* Soundwave hover player button */}
+                            <button
+                              onClick={() => toggleCarouselAudio("fireworks")}
+                              className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm p-1 rounded-full border border-zinc-200/50 shadow-sm hover:text-brand-green z-30 transition-transform cursor-pointer"
+                              title="Music Preview"
+                            >
+                              <AudioWaveform isPlaying={playingCarouselAudio === "fireworks"} />
+                            </button>
+
                             {/* Envelope Back / Inner glitter liner */}
                             <div className={`absolute bottom-0 w-[95%] h-[85%] rounded-t-md shadow-inner transition-colors duration-500 ${
                               fireworksColor === "red" ? "bg-red-950/90 border-t border-red-800" :
@@ -673,15 +763,15 @@ export default function Home() {
                                   PARTY
                                   <div className="h-[1px] bg-red-500 w-12 mx-auto mt-1"></div>
                                 </span>
-                                <span className="text-[6px] text-zinc-400 uppercase tracking-widest mt-1">FOOD, FRIENDS, FUN & FIREWORKS</span>
+                                <span className="text-[6px] text-zinc-400 uppercase tracking-widest mt-1 font-semibold">FOOD, FRIENDS, & FIREWORKS</span>
                               </div>
                             </div>
 
                             {/* Envelope Front Layer */}
-                            <div className={`absolute bottom-0 w-full h-[55%] rounded-b-md shadow-md z-20 transition-colors duration-500 ${
-                              fireworksColor === "red" ? "bg-red-800" :
-                              fireworksColor === "blue" ? "bg-blue-800" :
-                              "bg-zinc-800"
+                            <div className={`absolute bottom-0 w-full h-[55%] rounded-b-md shadow-lg z-20 transition-colors duration-500 border-t ${
+                              fireworksColor === "red" ? "bg-red-800 border-red-700" :
+                              fireworksColor === "blue" ? "bg-blue-800 border-blue-700" :
+                              "bg-zinc-800 border-zinc-700"
                             }`}>
                               {/* Diagonal flap fold line mock */}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-b-md"></div>
@@ -747,8 +837,8 @@ export default function Home() {
                 ) : (
                   <div className="flex flex-col items-center w-full">
                     {/* Placeholder for slide page 2 - Winter / Elegant Theme */}
-                    <div className="relative w-full max-w-[200px] aspect-[0.75/1] bg-sky-50/40 rounded-xl border border-zinc-200/60 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
-                      <div className="aspect-[1.5/1] bg-sky-100 rounded-lg flex items-center justify-center text-sky-800 font-serif text-[10px] tracking-widest uppercase shadow-inner">
+                    <div className="relative w-full max-w-[200px] aspect-[0.75/1] bg-sky-50/45 rounded-xl border border-zinc-200/60 p-4 flex flex-col justify-between shadow-md hover:shadow-lg transition-all">
+                      <div className="aspect-[1.5/1] bg-sky-100 rounded-lg flex items-center justify-center text-sky-800 font-serif text-[10px] tracking-widest uppercase shadow-inner border-t border-sky-300">
                         Gala Invite
                       </div>
                       <div className="text-center mt-2">
@@ -775,11 +865,21 @@ export default function Home() {
                           
                           {/* Outer Envelope Boundary (Click area) */}
                           <div className="relative w-full h-[80%] flex flex-col justify-end overflow-visible select-none">
+                            
+                            {/* Soundwave hover player button */}
+                            <button
+                              onClick={() => toggleCarouselAudio("remembrance")}
+                              className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm p-1 rounded-full border border-zinc-200/50 shadow-sm hover:text-brand-green z-30 transition-transform cursor-pointer"
+                              title="Music Preview"
+                            >
+                              <AudioWaveform isPlaying={playingCarouselAudio === "remembrance"} />
+                            </button>
+
                             {/* Envelope Back / Inner liner */}
                             <div className="absolute bottom-0 w-[95%] h-[85%] bg-zinc-100 rounded-t-md border-t border-zinc-200 shadow-inner"></div>
 
                             {/* Sliding Invitation Card */}
-                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-[#fafafa] shadow-lg rounded-sm p-2.5 border border-zinc-100 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-10">
+                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-[#fafafa] shadow-xl rounded-sm p-2.5 border-t border-zinc-200 border-x border-b flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-10">
                               {/* Photo style card */}
                               <div className="w-full flex-1 relative bg-zinc-200 rounded-sm mb-2 overflow-hidden flex items-center justify-center">
                                 {/* Simulated B&W Photograph */}
@@ -803,12 +903,12 @@ export default function Home() {
                             </div>
 
                             {/* Envelope Front Layer */}
-                            <div className={`absolute bottom-0 w-full h-[55%] rounded-b-md shadow-md z-20 transition-colors duration-500 ${
-                              remembranceColor === "white" ? "bg-zinc-200" :
-                              remembranceColor === "sage" ? "bg-[#b8cfc2]" :
-                              remembranceColor === "navy" ? "bg-slate-700" :
-                              remembranceColor === "grey" ? "bg-zinc-300" :
-                              "bg-red-950"
+                            <div className={`absolute bottom-0 w-full h-[55%] rounded-b-md shadow-lg z-20 transition-colors duration-500 border-t ${
+                              remembranceColor === "white" ? "bg-zinc-200 border-zinc-300" :
+                              remembranceColor === "sage" ? "bg-[#b8cfc2] border-[#a5c0b1]" :
+                              remembranceColor === "navy" ? "bg-slate-700 border-slate-600" :
+                              remembranceColor === "grey" ? "bg-zinc-300 border-zinc-200" :
+                              "bg-red-950 border-red-900"
                             }`}>
                               {/* Diagonal flap fold line mock */}
                               <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent rounded-b-md"></div>
@@ -876,8 +976,8 @@ export default function Home() {
                 ) : (
                   <div className="flex flex-col items-center w-full">
                     {/* Placeholder for slide page 2 - Summer / Kids Theme */}
-                    <div className="relative w-full max-w-[200px] aspect-[0.75/1] bg-yellow-50/40 rounded-xl border border-zinc-200/60 p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow">
-                      <div className="aspect-[1.5/1] bg-yellow-100 rounded-lg flex items-center justify-center text-yellow-800 font-serif text-[10px] tracking-widest uppercase shadow-inner">
+                    <div className="relative w-full max-w-[200px] aspect-[0.75/1] bg-yellow-50/45 rounded-xl border border-zinc-200/60 p-4 flex flex-col justify-between shadow-md hover:shadow-lg transition-all">
+                      <div className="aspect-[1.5/1] bg-yellow-100 rounded-lg flex items-center justify-center text-yellow-800 font-serif text-[10px] tracking-widest uppercase shadow-inner border-t border-yellow-300">
                         Birthday Invite
                       </div>
                       <div className="text-center mt-2">
@@ -893,7 +993,7 @@ export default function Home() {
               {/* Right Arrow Button */}
               <button 
                 onClick={handleNextSlide}
-                className="w-10 h-10 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 shadow-sm flex items-center justify-center text-zinc-500 hover:text-zinc-800 transition-colors z-10 shrink-0 cursor-pointer"
+                className="w-10 h-10 rounded-full border border-zinc-200 bg-white hover:bg-zinc-50 shadow-sm flex items-center justify-center text-zinc-500 hover:text-zinc-800 transition-all z-10 shrink-0 cursor-pointer hover:scale-105 active:scale-95"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
@@ -966,9 +1066,9 @@ export default function Home() {
             Over 1.5 Million Trees Saved Since Inception
           </h2>
           <p className="text-emerald-800/80 leading-relaxed font-light text-sm md:text-base max-w-xl">
-            By shifting to digital invites, Greenvelope users protect forests, conserve water, and eliminate waste. A portion of every transaction is donated directly to forest preservation initiatives around the globe.
+            By shifting to digital invites, Fancy RSVP users protect forests, conserve water, and eliminate waste. A portion of every transaction is donated directly to forest preservation initiatives around the globe.
           </p>
-          <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-md font-semibold tracking-wide transition-all shadow hover:shadow-md mt-2 cursor-pointer">
+          <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-md font-semibold tracking-wide transition-all shadow-md hover:shadow-lg mt-2 cursor-pointer">
             Read Our Eco-Pledge
           </button>
         </div>
@@ -978,10 +1078,10 @@ export default function Home() {
       <footer className="w-full py-12 px-6 bg-zinc-950 text-zinc-400 text-center border-t border-zinc-900 text-sm">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <span className="font-sans font-bold tracking-[0.2em] text-white">
-            GREEN<span className="text-zinc-700">|</span>VELOPE
+            FANCY<span className="text-zinc-700">|</span>RSVP
           </span>
           <p className="font-light">
-            © {new Date().getFullYear()} Greenvelope Replicant project. Built for validation testing. All rights reserved.
+            © {new Date().getFullYear()} Fancy RSVP Validation project. All rights reserved.
           </p>
         </div>
       </footer>
