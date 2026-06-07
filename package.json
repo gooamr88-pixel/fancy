@@ -1,0 +1,15 @@
+{
+  "name": "fancy-rsvp",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "start:backend": "npm start --workspace=backend",
+    "start:frontend": "npm start --workspace=frontend"
+  }
+}

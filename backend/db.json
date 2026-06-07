@@ -1,0 +1,175 @@
+{
+  "organizations": [
+    {
+      "id": "demo-org",
+      "name": "Demo Organization",
+      "email": "organizer@fancyrsvp.com",
+      "stripe_customer_id": "cust_demo"
+    }
+  ],
+  "events": [
+    {
+      "id": "demo-event",
+      "org_id": "demo-org",
+      "slug": "demo",
+      "title": "Sophia & Julian Wedding Gala",
+      "title_ar": "حفل زفاف صوفيا وجوليان الأنيق",
+      "description": "Join us as we celebrate our love and write the next chapter of our story together.",
+      "description_ar": "يسعدنا انضمامكم إلينا لمشاركتنا فرحة العمر والاحتفال بعهد حبنا الجديد.",
+      "event_date": "2026-08-05T19:12:01.935Z",
+      "location_name": "The Glasshouse Chelsea",
+      "location_address": "545 W 25th St, New York, NY 10001",
+      "template_type": "wedding",
+      "dress_code": "Black Tie Optional",
+      "dress_code_ar": "ملابس رسمية أنيقة (Black Tie)",
+      "is_paid": true,
+      "status": "active",
+      "created_at": "2026-06-06T19:12:01.936Z"
+    }
+  ],
+  "rsvp_form_fields": [
+    {
+      "id": "field-1",
+      "event_id": "demo-event",
+      "field_key": "meal",
+      "field_label": "Meal Choice",
+      "field_label_ar": "وجبة العشاء المفضلة",
+      "field_type": "select",
+      "options": [
+        "Beef Tenderloin",
+        "Pan-Seared Salmon",
+        "Wild Mushroom Risotto (V)",
+        "Kids Meal"
+      ],
+      "options_ar": [
+        "شريحة لحم فيليه فاخرة",
+        "سمك السلمون الأطلسي",
+        "ريزوتو الفطر البري (نباتي)",
+        "وجبة أطفال"
+      ],
+      "is_required": true
+    },
+    {
+      "id": "field-2",
+      "event_id": "demo-event",
+      "field_key": "allergies",
+      "field_label": "Dietary Restrictions / Allergies",
+      "field_label_ar": "الحساسية من بعض الأطعمة",
+      "field_type": "text",
+      "is_required": false
+    }
+  ],
+  "tables": [
+    {
+      "id": "t-1",
+      "event_id": "demo-event",
+      "table_name": "VIP Table",
+      "max_capacity": 8,
+      "shape": "round",
+      "position_x": 20,
+      "position_y": 20
+    },
+    {
+      "id": "t-2",
+      "event_id": "demo-event",
+      "table_name": "Table 1",
+      "max_capacity": 10,
+      "shape": "round",
+      "position_x": 60,
+      "position_y": 20
+    },
+    {
+      "id": "t-3",
+      "event_id": "demo-event",
+      "table_name": "Table 2",
+      "max_capacity": 10,
+      "shape": "rectangular",
+      "position_x": 20,
+      "position_y": 60
+    }
+  ],
+  "rsvps": [
+    {
+      "id": "r-1",
+      "event_id": "demo-event",
+      "guest_name": "Elizabeth Bennet",
+      "email": "elizabeth@bennet.com",
+      "phone": "555-1234",
+      "response": "yes",
+      "party_size": 2,
+      "notes": "Excited!"
+    },
+    {
+      "id": "r-2",
+      "event_id": "demo-event",
+      "guest_name": "Fitzwilliam Darcy",
+      "email": "darcy@pemberley.com",
+      "phone": "555-4321",
+      "response": "yes",
+      "party_size": 1,
+      "notes": "Attending."
+    },
+    {
+      "id": "r-3",
+      "event_id": "demo-event",
+      "guest_name": "Charles Bingley",
+      "email": "charles@bingley.com",
+      "phone": "555-5555",
+      "response": "pending",
+      "party_size": 2,
+      "notes": ""
+    }
+  ],
+  "rsvp_guests": [
+    {
+      "id": "rg-1",
+      "rsvp_id": "r-1",
+      "full_name": "Elizabeth Bennet",
+      "is_primary": true,
+      "meal_selection": "Atlantic Salmon"
+    },
+    {
+      "id": "rg-2",
+      "rsvp_id": "r-1",
+      "full_name": "Jane Bennet",
+      "is_primary": false,
+      "meal_selection": "Wild Mushroom Risotto (V)"
+    },
+    {
+      "id": "rg-3",
+      "rsvp_id": "r-2",
+      "full_name": "Fitzwilliam Darcy",
+      "is_primary": true,
+      "meal_selection": "Prime Beef Filet"
+    }
+  ],
+  "seating_assignments": [
+    {
+      "id": "sa-1",
+      "event_id": "demo-event",
+      "rsvp_id": "r-1",
+      "table_id": "t-1"
+    }
+  ],
+  "check_ins": [],
+  "event_payments": [],
+  "sms_credit_wallets": [
+    {
+      "id": "w-1",
+      "event_id": "demo-event",
+      "credits_purchased": 300,
+      "credits_used": 10,
+      "updated_at": "2026-06-06T22:36:29.216Z"
+    }
+  ],
+  "sms_credit_ledger": [],
+  "super_admin_config": [
+    {
+      "id": "admin-config",
+      "pricing_tiers": [],
+      "sms_rate_cents_per_credit": 8
+    }
+  ],
+  "activity_logs": [],
+  "custom_answers": []
+}
