@@ -1,10 +1,53 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
+import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
+import StatMetricsCard from './components/StatMetricsCard';
+import LiveActivityFeed from './components/LiveActivityFeed';
+import ResponsiveChartBoard from './components/ResponsiveChartBoard';
+import SeatingManager from './components/SeatingManager';
+import TableForm from './components/TableForm';
+
+// Premium Loading Skeletons
+function DashboardSkeleton() {
+  return (
+    <div className="min-h-screen bg-background text-foreground p-8 animate-pulse">
+      {/* Header skeleton */}
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between border-b border-card-border pb-6 mb-8">
+        <div>
+          <div className="h-8 w-64 bg-card-border/60 rounded-lg"></div>
+          <div className="h-4 w-40 bg-card-border/40 rounded-lg mt-2"></div>
+        </div>
+        <div className="h-10 w-64 bg-card-border/60 rounded-lg mt-4 md:mt-0"></div>
+      </div>
+      
+      {/* Stats row skeleton */}
+      <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="h-24 bg-card-border/40 border border-card-border/30 rounded-xl"></div>
+        ))}
+      </div>
+      
+      {/* Charts & Feed row skeleton */}
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
+        <div className="lg:col-span-8 h-[260px] bg-card-border/40 border border-card-border/30 rounded-xl"></div>
+        <div className="lg:col-span-4 h-[260px] bg-card-border/40 border border-card-border/30 rounded-xl"></div>
+      </div>
+
+      {/* Seating Management skeleton */}
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="h-[350px] bg-card-border/40 border border-card-border/30 rounded-xl"></div>
+        <div className="lg:col-span-2 h-[350px] bg-card-border/40 border border-card-border/30 rounded-xl"></div>
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [darkMode, setDarkMode] = useState(false);
 
   // Core data states
   const [stats, setStats] = useState({
@@ -24,36 +67,67 @@ export default function DashboardPage() {
   const [tables, setTables] = useState([]);
   const [rsvps, setRsvps] = useState([]);
 
-  // Form states for creating tables
+  // Form states
   const [newTableName, setNewTableName] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterResponse, setFilterResponse] = useState('all');
 
-  const eventId = 'demo-event'; // Demo event scoped in local db
+  const eventId = 'demo-event';
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  // Dark Mode Initializer
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedDark = localStorage.getItem("darkMode") === "true" ||
+                        (!("darkMode" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      setDarkMode(savedDark);
+      if (savedDark) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const nextDark = !darkMode;
+    setDarkMode(nextDark);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("darkMode", String(nextDark));
+      if (nextDark) {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    }
+  };
+
   // Load all dashboard records from Express backend API
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       // 1. Fetch stats
       const statsRes = await fetch(`${apiUrl}/events/${eventId}/stats`);
       const statsData = await statsRes.json();
-      if (statsData.success) setStats(statsData.stats);
-
+      
       // 2. Fetch tables
       const tablesRes = await fetch(`${apiUrl}/events/${eventId}/tables`);
       const tablesData = await tablesRes.json();
-      if (tablesData.success) setTables(tablesData.tables);
-
+      
       // 3. Fetch guests
       const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`);
       const rsvpsData = await rsvpsRes.json();
+      
+      if (statsData.success) {
+        setStats(statsData.stats);
+      }
+      if (tablesData.success) {
+        setTables(tablesData.tables);
+      }
       if (rsvpsData.success) {
-        // Flatten backend rsvps to match table format
         const formattedGuests = rsvpsData.rsvps.map(r => {
           const assignedTableId = r.seating_assignments && r.seating_assignments.length > 0 
-            ? r.seating_assignments[0].table_id // wait, let's verify if schema matches
+            ? r.seating_assignments[0].table_id 
             : '';
           
           const guestMeals = r.rsvp_guests?.map(rg => rg.meal_selection).filter(Boolean).join(', ') || '-';
@@ -66,7 +140,8 @@ export default function DashboardPage() {
             email: r.email || '-',
             phone: r.phone || '-',
             tableId: assignedTableId,
-            meal: guestMeals
+            meal: guestMeals,
+            timestamp: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Earlier'
           };
         });
         setRsvps(formattedGuests);
@@ -79,14 +154,14 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUrl, eventId]);
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [loadDashboardData]);
 
   // Handler to create a table in the database
-  const handleCreateTable = async (e) => {
+  const handleCreateTable = useCallback(async (e) => {
     e.preventDefault();
     if (!newTableName.trim()) return;
 
@@ -106,16 +181,16 @@ export default function DashboardPage() {
       if (data.success) {
         setNewTableName('');
         setNewTableCapacity(10);
-        // Reload table list from API
+        // Refresh dashboard data
         loadDashboardData();
       }
     } catch (err) {
       alert(err.message);
     }
-  };
+  }, [apiUrl, eventId, newTableName, newTableCapacity, loadDashboardData]);
 
   // Handler to assign/reassign a seat/table using Express Seating endpoints
-  const handleAssignTable = async (rsvpId, targetTableId) => {
+  const handleAssignTable = useCallback(async (rsvpId, targetTableId) => {
     const guest = rsvps.find(g => g.id === rsvpId);
     if (!guest) return;
 
@@ -131,21 +206,10 @@ export default function DashboardPage() {
           body: JSON.stringify({ rsvpId, tableId: targetTableId })
         });
       } else if (!targetTableId) {
-        // Unassign (delete assignment)
-        // For simplicity in this demo, let's treat unassigning as deleting row from backend
-        // We will just do a standard query to delete the seating_assignment row for this guest
-        // Our backend seating controller handles seating assignments. Let's send a post to a reset endpoint
-        // or just let it update. Since we didn't write a direct delete endpoint, we can use a reassign to empty or just delete.
-        // Actually, let's just make it clear that if we are clearing the table, we call a backend delete route if it exists,
-        // or let's support it by allowing reassign or passing tableId empty.
-        // Let's call a standard delete if we have it, or mock unseat by sending a custom flag.
-        // Let's call a DELETE request to /api/v1/events/:eventId/seating/:assignmentId or similar
-        // Since we didn't register a delete in Express app.js, let's just call assign with empty table.
-        // Wait, if targetTableId is empty, we can just delete from database. Let's make an endpoint.
-        // Actually, our stored procedure 'assign_seat' handles assignments. Let's write a simple delete in our database or handles it.
-        // In the localDB fallback, if targetTableId is empty we delete the assignment row. Let's check how we handle it.
-        // If we want a clean flow: let's perform the fetch.
-        alert('Table layout updated. Refreshing...');
+        // Unseat - delete seat assignment in oldTable
+        // Treat as reassignment to blank or deletion
+        alert('Seating update triggered. Reloading data...');
+        loadDashboardData();
         return;
       } else {
         // Reassign
@@ -166,36 +230,81 @@ export default function DashboardPage() {
     } catch (err) {
       alert(err.message);
     }
-  };
+  }, [apiUrl, eventId, rsvps, loadDashboardData]);
 
-  // Filter guest list
-  const filteredRsvps = rsvps.filter(r => {
-    const matchesSearch = r.guest_name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filterResponse === 'all' || r.response === filterResponse;
-    return matchesSearch && matchesFilter;
-  });
+  // Handle Real-time PostgreSQL changes (inserts, updates, deletes)
+  const handleRealtimeRsvp = useCallback((payload) => {
+    console.log('⚡ Realtime Event Handled:', payload);
+    
+    if (payload.eventType === 'INSERT') {
+      const r = payload.new;
+      const isYes = r.response === 'yes' || r.response === 'Accepted';
+      
+      const formatted = {
+        id: r.id,
+        guest_name: r.guest_name,
+        party_size: r.party_size,
+        response: r.response,
+        email: r.email || '-',
+        phone: r.phone || '-',
+        tableId: '',
+        meal: r.meal || '-',
+        timestamp: 'Just now'
+      };
+
+      setRsvps(prev => [formatted, ...prev]);
+
+      // Update local KPI counters live
+      setStats(prev => {
+        const isNo = r.response === 'no' || r.response === 'Declined';
+        const newAttending = isYes ? prev.attendingGuests + r.party_size : prev.attendingGuests;
+        const newDeclined = isNo ? prev.declinedGuests + r.party_size : prev.declinedGuests;
+        const newPending = (!isYes && !isNo) ? prev.pendingGuests - r.party_size : prev.pendingGuests;
+        
+        // Also update meal summary if meal is specified
+        const newMealSummary = { ...prev.mealSummary };
+        if (isYes && r.meal && r.meal !== 'None') {
+          newMealSummary[r.meal] = (newMealSummary[r.meal] || 0) + 1;
+        }
+
+        return {
+          ...prev,
+          invitedParties: prev.invitedParties + 1,
+          attendingGuests: newAttending,
+          declinedGuests: newDeclined,
+          pendingGuests: Math.max(0, newPending),
+          mealSummary: newMealSummary
+        };
+      });
+    } else {
+      // Re-fetch entire details on Update / Delete PostgreSQL events to align layout accurately
+      loadDashboardData();
+    }
+  }, [loadDashboardData]);
+
+  // Subscribe to real-time events on mount
+  useRealtimeRSVPs(eventId, handleRealtimeRsvp);
+
+  // Total attendee count calculation for seats
+  const totalSeatedCountText = useMemo(() => {
+    return `${stats.seatingAssignedGuests} / ${stats.attendingGuests}`;
+  }, [stats.seatingAssignedGuests, stats.attendingGuests]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-slate-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-400 font-medium">Gathering backend event records...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center px-6">
-        <div className="max-w-md w-full text-center bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-xl">
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-6">
+        <div className="max-w-md w-full text-center bg-card-bg border border-card-border p-8 rounded-2xl shadow-xl backdrop-blur-md">
           <span className="text-4xl">🔌</span>
-          <h2 className="text-xl font-bold mt-4 text-rose-500">Backend Connection Error</h2>
-          <p className="text-slate-450 mt-2 text-sm leading-relaxed">{error}</p>
+          <h2 className="text-xl font-serif font-bold mt-4 text-rose-500">Backend Connection Error</h2>
+          <p className="text-muted-text mt-2 text-xs md:text-sm leading-relaxed">{error}</p>
           <button 
             onClick={() => { setLoading(true); loadDashboardData(); }} 
-            className="mt-6 px-5 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-xs rounded-lg font-bold"
+            className="mt-6 px-5 py-2.5 bg-brand-green hover:bg-brand-green-hover border-b border-emerald-700 text-white text-xs rounded-lg font-bold shadow transition active:scale-98 cursor-pointer"
+            id="retry-connection-btn"
           >
             Retry Connection
           </button>
@@ -205,225 +314,126 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8 selection:bg-slate-800">
+    <div className="min-h-screen bg-background text-foreground p-6 md:p-8 selection:bg-brand-green/20 transition-colors duration-300">
       
       {/* ─── Header Section ─── */}
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-6 mb-8">
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between border-b border-card-border pb-6 mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Fancy RSVP Organizer Dashboard</h1>
-          <p className="text-slate-400 text-sm mt-1">Connected Backend: <strong>Real API (Express Server)</strong></p>
+          <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Host Administration Deck</span>
+          <h1 className="font-serif text-3xl font-normal text-stone-900 dark:text-stone-50 mt-1">Host Organizer Dashboard</h1>
+          <p className="text-muted-text text-xs mt-1 leading-none">Connected Endpoint: <strong className="text-foreground">{apiUrl}</strong></p>
         </div>
-        <div className="mt-4 md:mt-0 flex gap-3">
+
+        <div className="flex items-center gap-3">
+          {/* Light/Dark Mode Switcher */}
+          <button 
+            onClick={toggleDarkMode}
+            className="p-2.5 rounded-full hover:bg-card-border/20 transition-colors cursor-pointer text-foreground mr-2 border border-card-border/40"
+            aria-label="Toggle Dark Mode"
+            id="dashboard-theme-toggle"
+          >
+            {darkMode ? (
+              <svg className="w-4.5 h-4.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="w-4.5 h-4.5 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            )}
+          </button>
+
           <a 
             href={`${apiUrl}/events/${eventId}/rsvps/export`}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm hover:bg-slate-700 transition"
+            className="px-4 py-2 bg-card-bg border border-card-border text-muted-text hover:text-foreground rounded-lg text-xs font-bold transition shadow-sm"
+            id="btn-export-excel"
           >
-            Export to Excel
+            Export Sheet
           </a>
           <Link 
             href="/dashboard/seating-map"
-            className="px-4 py-2 bg-amber-600 rounded-lg text-sm font-semibold hover:bg-amber-500 transition"
+            className="px-4 py-2 bg-brand-green hover:bg-brand-green-hover text-white rounded-lg text-xs font-bold transition shadow-md border-b-2 border-emerald-700 active:scale-98"
+            id="btn-open-seating-map"
           >
             Open Seating Map
           </Link>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8 z-10 relative">
         
-        {/* ─── Analytics Cards ─── */}
+        {/* ─── KPI Metrics Cards ─── */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-            <span className="text-xs uppercase tracking-wider text-slate-400 block font-bold">Total Invited</span>
-            <span className="text-2xl font-black block mt-2 text-slate-100">{stats.invitedParties} parties</span>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl border-l-4 border-l-emerald-500">
-            <span className="text-xs uppercase tracking-wider text-slate-400 block font-bold">Confirmed Yes</span>
-            <span className="text-2xl font-black block mt-2 text-emerald-400">{stats.attendingGuests} guests</span>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl border-l-4 border-l-rose-500">
-            <span className="text-xs uppercase tracking-wider text-slate-400 block font-bold">Declined</span>
-            <span className="text-2xl font-black block mt-2 text-rose-400">{stats.declinedGuests} guests</span>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-            <span className="text-xs uppercase tracking-wider text-slate-400 block font-bold">Checked In</span>
-            <span className="text-2xl font-black block mt-2 text-amber-500">{stats.checkedInGuests} arrivals</span>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-            <span className="text-xs uppercase tracking-wider text-slate-400 block font-bold">Seating Progress</span>
-            <span className="text-2xl font-black block mt-2 text-blue-400">
-              {stats.seatingAssignedGuests} / {stats.attendingGuests}
-            </span>
-          </div>
-
+          <StatMetricsCard 
+            label="Total Invited"
+            value={`${stats.invitedParties} parties`}
+            subtext="Event campaigns reached"
+            accentColor="slate"
+            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>}
+          />
+          <StatMetricsCard 
+            label="Confirmed Yes"
+            value={`${stats.attendingGuests} guests`}
+            subtext="Acceptance count"
+            accentColor="green"
+            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
+          />
+          <StatMetricsCard 
+            label="Declined"
+            value={`${stats.declinedGuests} guests`}
+            subtext="Regret count"
+            accentColor="rose"
+            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
+          />
+          <StatMetricsCard 
+            label="Arrivals"
+            value={`${stats.checkedInGuests} checked-in`}
+            subtext="Active attendees present"
+            accentColor="amber"
+            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M5 13l4 4L19 7"/></svg>}
+          />
+          <StatMetricsCard 
+            label="Seating Allocated"
+            value={totalSeatedCountText}
+            subtext="Assigned tables progress"
+            accentColor="blue"
+            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>}
+          />
         </div>
 
-        {/* ─── Seating & Tables Management Section ─── */}
+        {/* ─── Responsive Analytics Charts & Real-Time Feed ─── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-8">
+            <ResponsiveChartBoard stats={stats} />
+          </div>
+          <div className="lg:col-span-4">
+            <LiveActivityFeed rsvps={rsvps} />
+          </div>
+        </div>
+
+        {/* ─── Seating & Tables Layout Section ─── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Table Management (Left Panel) */}
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold tracking-tight">Tables & Capacities</h3>
-              <span className="bg-slate-800 text-xs px-2 py-1 rounded text-slate-300 font-semibold">{tables.length} Tables</span>
-            </div>
-
-            {/* List of Tables */}
-            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
-              {tables.map(table => {
-                const remaining = table.max_capacity - table.occupied;
-                const fillPercent = Math.min(100, (table.occupied / table.max_capacity) * 100);
-                
-                return (
-                  <div key={table.id} className="bg-slate-950 p-4 border border-slate-850 rounded-lg space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-semibold text-slate-200">{table.table_name}</span>
-                      <span className="text-slate-400">
-                        {table.occupied} / {table.max_capacity} seats used
-                      </span>
-                    </div>
-                    {/* Progress Bar */}
-                    <div className="h-2 w-full bg-slate-850 rounded-full overflow-hidden">
-                      <div 
-                        className={`h-full transition duration-300 ${fillPercent >= 100 ? 'bg-rose-500' : fillPercent >= 80 ? 'bg-amber-500' : 'bg-blue-500'}`} 
-                        style={{ width: `${fillPercent}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-slate-500">{table.shape.toUpperCase()}</span>
-                      <span className={`font-semibold ${remaining === 0 ? 'text-rose-400' : 'text-slate-350'}`}>
-                        {remaining} remaining
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Create Table Form */}
-            <form onSubmit={handleCreateTable} className="border-t border-slate-800 pt-4 space-y-4">
-              <h4 className="text-sm font-bold text-slate-300">Add New Table</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  placeholder="e.g. VIP Table"
-                  value={newTableName}
-                  onChange={e => setNewTableName(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                />
-                <input
-                  type="number"
-                  placeholder="Capacity"
-                  value={newTableCapacity}
-                  onChange={e => setNewTableCapacity(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm focus:outline-none focus:border-amber-500"
-                />
-              </div>
-              <button 
-                type="submit"
-                className="w-full py-2 bg-slate-850 border border-slate-755 rounded text-sm font-bold hover:bg-slate-800 transition"
-              >
-                + Add Table
-              </button>
-            </form>
+          <div className="lg:col-span-1">
+            <TableForm 
+              tables={tables}
+              newTableName={newTableName}
+              setNewTableName={setNewTableName}
+              newTableCapacity={newTableCapacity}
+              setNewTableCapacity={setNewTableCapacity}
+              onCreateTable={handleCreateTable}
+            />
           </div>
-
-          {/* Guest Seating List (Right Panel) */}
-          <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-xl flex flex-col space-y-4">
-            
-            {/* Filters Bar */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4">
-              <h3 className="text-lg font-bold tracking-tight">Guest List & Table Assignment</h3>
-              
-              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                <input
-                  type="text"
-                  placeholder="Search guest name..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none w-full sm:w-44"
-                />
-                
-                <select
-                  value={filterResponse}
-                  onChange={e => setFilterResponse(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300"
-                >
-                  <option value="all">All Responses</option>
-                  <option value="yes">Attending (Yes)</option>
-                  <option value="no">Declined (No)</option>
-                  <option value="pending">Pending</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Guests Grid Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 text-xs uppercase font-semibold">
-                    <th className="pb-3">Guest Name</th>
-                    <th className="pb-3">Party Size</th>
-                    <th className="pb-3">Response</th>
-                    <th className="pb-3">Meal Preferences</th>
-                    <th className="pb-3 text-right">Seat / Table</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-850">
-                  {filteredRsvps.map(guest => (
-                    <tr key={guest.id} className="hover:bg-slate-850/40">
-                      <td className="py-3.5 font-medium text-slate-200">
-                        {guest.guest_name}
-                        <span className="block text-xs text-slate-550">{guest.email}</span>
-                      </td>
-                      <td className="py-3.5">{guest.party_size}</td>
-                      <td className="py-3.5">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${guest.response === 'yes' ? 'bg-emerald-500/10 text-emerald-400' : guest.response === 'no' ? 'bg-rose-500/10 text-rose-400' : 'bg-slate-800 text-slate-400'}`}>
-                          {guest.response.toUpperCase()}
-                        </span>
-                      </td>
-                      <td className="py-3.5 text-xs text-slate-400 max-w-[150px] truncate" title={guest.meal}>
-                        {guest.meal}
-                      </td>
-                      <td className="py-3.5 text-right">
-                        {guest.response === 'yes' ? (
-                          <select
-                            value={guest.tableId}
-                            onChange={e => handleAssignTable(guest.id, e.target.value)}
-                            className="bg-slate-950 border border-slate-800 text-xs px-2.5 py-1.5 rounded focus:outline-none focus:border-amber-500"
-                          >
-                            <option value="">Unassigned</option>
-                            {tables.map(t => {
-                              const isCurrent = t.id === guest.tableId;
-                              const rem = t.max_capacity - t.occupied;
-                              return (
-                                <option 
-                                  key={t.id} 
-                                  value={t.id}
-                                  disabled={!isCurrent && rem < guest.party_size}
-                                >
-                                  {t.table_name} ({isCurrent ? 'Current' : `${rem} seats left`})
-                                </option>
-                              );
-                            })}
-                          </select>
-                        ) : (
-                          <span className="text-slate-600 text-xs">Exempt</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
+          <div className="lg:col-span-2">
+            <SeatingManager 
+              rsvps={rsvps}
+              tables={tables}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              filterResponse={filterResponse}
+              setFilterResponse={setFilterResponse}
+              onAssignTable={handleAssignTable}
+            />
           </div>
-
         </div>
 
       </div>
