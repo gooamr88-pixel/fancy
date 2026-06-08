@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { startSynth, stopSynth } from "./utils/synth";
 
 // --- Custom SVGs for Feature Icons ---
-const FeatureIcon = ({ name, className = "w-7 h-7 text-brand-gold" }) => {
+const FeatureIcon = ({ name, className = "w-7 h-7 text-brand-green" }) => {
   switch (name) {
     case "personalization":
       return (
@@ -67,33 +67,14 @@ const FeatureIcon = ({ name, className = "w-7 h-7 text-brand-gold" }) => {
 const AudioWaveform = ({ isPlaying }) => {
   return (
     <div className="flex items-end gap-[3px] h-5 w-9 px-1">
-      <div className={`w-[3px] bg-brand-gold rounded-full origin-bottom h-2.5 ${isPlaying ? "animate-wave-1" : "h-1"}`}></div>
-      <div className={`w-[3px] bg-brand-gold rounded-full origin-bottom h-4 ${isPlaying ? "animate-wave-2" : "h-1"}`}></div>
-      <div className={`w-[3px] bg-brand-gold rounded-full origin-bottom h-5 ${isPlaying ? "animate-wave-3" : "h-1.5"}`}></div>
-      <div className={`w-[3px] bg-brand-gold rounded-full origin-bottom h-3 ${isPlaying ? "animate-wave-4" : "h-1"}`}></div>
-      <div className={`w-[3px] bg-brand-gold rounded-full origin-bottom h-2.5 ${isPlaying ? "animate-wave-5" : "h-1"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-2.5 ${isPlaying ? "animate-wave-1" : "h-1"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-4 ${isPlaying ? "animate-wave-2" : "h-1"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-5 ${isPlaying ? "animate-wave-3" : "h-1.5"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-3 ${isPlaying ? "animate-wave-4" : "h-1"}`}></div>
+      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-2.5 ${isPlaying ? "animate-wave-5" : "h-1"}`}></div>
     </div>
   );
 };
-
-// Testimonials list static data
-const testimonials = [
-  {
-    quote: "Fancy RSVP was a complete game-changer for our wedding. The opening envelope visual set such an elegant, exclusive tone, and the Web Audio background synthesizer arpeggios had everyone talking before they even clicked attend!",
-    author: "Eleanor & James Vance",
-    tag: "Wedding Suite"
-  },
-  {
-    quote: "The automated address validation saved us countless bouncebacks. Having all dietary preferences and meal options updated in a real-time graph made event catering planning completely stress-free.",
-    author: "Marcus Chen, Creative Lead",
-    tag: "Corporate Charity Gala"
-  },
-  {
-    quote: "Finally, a way to invite guests sustainably without sacrificing design aesthetics. Our baby shower invitations felt incredibly personal, high-end, and saved trees while doing it.",
-    author: "Sienna & Lucas Keller",
-    tag: "Baby Shower Suite"
-  }
-];
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -118,9 +99,9 @@ export default function Home() {
     date: "Saturday, August 15, 2026",
     time: "5:00 PM EST",
     venue: "The Glass Greenhouse, Brooklyn",
-    theme: "sage-watercolor", // sage-watercolor, midnight-star, gold-foil
+    theme: "sage-watercolor", // sage-watercolor, midnight-star, gold-foil, modern-minimal
     linerPattern: "gold-glitter", // gold-glitter, solid, striped
-    envelopeColor: "#8ba897", // Preset color
+    envelopeColor: "#8ba897", // Preset natural envelope color
   });
 
   // Carousel & Design States
@@ -258,7 +239,7 @@ export default function Home() {
       setTimeout(() => {
         setIsSubmitted(false);
         setEmail("");
-      }, 5500);
+      }, 5000);
     }
   };
 
@@ -327,7 +308,7 @@ export default function Home() {
   // Preset envelope color presets
   const ENVELOPE_COLORS = [
     { name: "Sage Forest", hex: "#8ba897", theme: "sage-watercolor" },
-    { name: "Obsidian Black", hex: "#1c1c1f", theme: "modern-minimal" },
+    { name: "Obsidian Black", hex: "#1a1a1c", theme: "modern-minimal" },
     { name: "Imperial Gold", hex: "#d8c7b0", theme: "gold-foil" },
     { name: "Midnight Purple", hex: "#2b233a", theme: "midnight-star" },
   ];
@@ -339,6 +320,25 @@ export default function Home() {
       envelopeColor: colorPreset.hex
     }));
   };
+
+  // Testimonials list
+  const testimonials = [
+    {
+      quote: "Fancy RSVP was a complete game-changer for our wedding. The opening envelope visual set such an elegant, exclusive tone, and the Web Audio background synthesizer arpeggios had everyone talking before they even clicked attend!",
+      author: "Eleanor & James Vance",
+      tag: "Wedding Suite"
+    },
+    {
+      quote: "The automated address validation saved us countless bouncebacks. Having all dietary preferences and meal options updated in a real-time graph made event catering planning completely stress-free.",
+      author: "Marcus Chen, Creative Lead",
+      tag: "Corporate Charity Gala"
+    },
+    {
+      quote: "Finally, a way to invite guests sustainably without sacrificing design aesthetics. Our baby shower invitations felt incredibly personal, high-end, and saved trees while doing it.",
+      author: "Sienna & Lucas Keller",
+      tag: "Baby Shower Suite"
+    }
+  ];
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground font-sans selection:bg-brand-green/20 selection:text-brand-green transition-colors duration-300 relative overflow-x-hidden">
@@ -353,8 +353,8 @@ export default function Home() {
       {/* --- Main Header / Navigation --- */}
       <header className="w-full bg-nav-bg border-b border-card-border/40 py-5 px-6 md:px-12 flex justify-between items-center sticky top-0 z-50 transition-all duration-300 backdrop-blur-md">
         <div className="flex items-center gap-1 z-10">
-          <span className="font-sans text-xl md:text-2xl font-bold tracking-[0.3em] text-brand-green dark:text-brand-gold hover:opacity-90 transition-all cursor-pointer flex items-center">
-            FANCY<span className="font-light text-brand-gold/75 mx-1.5">|</span>RSVP
+          <span className="font-sans text-xl md:text-2xl font-bold tracking-[0.3em] text-brand-green hover:opacity-90 transition-all cursor-pointer flex items-center">
+            FANCY<span className="font-light text-amber-500/75 mx-1.5">|</span>RSVP
           </span>
         </div>
         
@@ -367,7 +367,7 @@ export default function Home() {
             id="theme-toggle"
           >
             {darkMode ? (
-              <svg className="w-5 h-5 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             ) : (
@@ -377,15 +377,15 @@ export default function Home() {
             )}
           </button>
 
-          <a href="#login" className="text-muted-text hover:text-brand-gold font-medium text-sm md:text-base transition-colors">
+          <a href="#login" className="text-muted-text hover:text-brand-green font-medium text-sm md:text-base transition-colors">
             Log In
           </a>
           <button 
             onClick={() => scrollToSection("customizer")}
-            className="bg-brand-green dark:bg-brand-gold hover:bg-brand-green-hover dark:hover:bg-brand-gold/90 text-white dark:text-stone-950 px-5.5 py-2.5 rounded-xl font-semibold text-sm md:text-base transition-all shadow-md hover:shadow-lg active:scale-[0.98] border-b-2 border-emerald-950 dark:border-amber-600 cursor-pointer"
+            className="bg-brand-green hover:bg-brand-green-hover text-white px-5.5 py-2.5 rounded-md font-semibold text-sm md:text-base transition-all shadow-md hover:shadow-lg active:scale-[0.98] border-b-2 border-emerald-700 cursor-pointer"
             id="header-cta"
           >
-            Design Studio
+            Design Live
           </button>
         </div>
       </header>
@@ -396,13 +396,13 @@ export default function Home() {
         {/* Left Side: Hero Content & Email Capture */}
         <div className="lg:col-span-7 flex flex-col gap-8 text-center lg:text-left relative">
           
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-gold/10 border border-brand-gold/25 text-brand-gold dark:text-brand-gold text-xs font-bold self-center lg:self-start w-fit">
-            <span>✨ Introducing: 3D Envelope Customizer &amp; Web Audio Synth Scores</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs font-bold self-center lg:self-start w-fit">
+            <span>✨ Introducing: 3D Envelope Customizer & Web Audio Synth Scores</span>
           </div>
 
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6.5xl font-normal leading-[1.12] tracking-tight text-stone-900 dark:text-stone-50">
             Make &amp; Send Your <span className="italic font-light">Online Invitation</span> In Minutes. 
-            <span className="block text-brand-green dark:text-brand-gold font-sans font-semibold mt-4 text-3xl sm:text-4xl lg:text-5.5xl tracking-normal uppercase">Real-Time RSVP Tracking.</span>
+            <span className="block text-brand-green font-sans font-semibold mt-4 text-3xl sm:text-4xl lg:text-5xl tracking-normal uppercase">Real-Time RSVP Tracking.</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-text leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light">
             Enjoy premium designer suites, animated opening envelopes, custom survey questions, and immersive local soundscapes. Crafted beautifully for wedding events, corporate galas, and fine celebrations.
@@ -442,15 +442,15 @@ export default function Home() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Your Email Address"
-                  className="flex-1 px-5 py-4 border border-card-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-gold/30 focus:border-brand-gold bg-card-bg text-foreground placeholder-muted-text/70 font-medium shadow-sm transition-all"
+                  className="flex-1 px-5 py-4 border border-card-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green bg-card-bg text-foreground placeholder-muted-text/70 font-medium shadow-sm transition-all"
                   id="hero-email-input"
                 />
                 <button
                   type="submit"
-                  className="bg-brand-green dark:bg-brand-gold hover:bg-brand-green-hover dark:hover:bg-brand-gold/90 text-white dark:text-stone-950 px-8 py-4 rounded-xl font-bold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-950 dark:border-amber-600"
+                  className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-4 rounded-xl font-bold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700"
                   id="hero-email-submit"
                 >
-                  Create Invitation
+                  Create Card
                 </button>
               </form>
             ) : (
@@ -468,7 +468,7 @@ export default function Home() {
 
           <div className="flex items-center justify-center lg:justify-start gap-2.5 text-muted-text mt-4 text-sm font-semibold tracking-wide animate-bounce cursor-pointer" onClick={() => scrollToSection("customizer")}>
             <span>Try the interactive editor below</span>
-            <svg className="w-4 h-4 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg className="w-4 h-4 text-brand-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
           </div>
@@ -491,7 +491,7 @@ export default function Home() {
                   {/* Envelope Back / Liner */}
                   <div className="absolute inset-0 bg-[#fbfaf7] dark:bg-[#1a191d] rounded-lg shadow-inner z-10 overflow-hidden border border-stone-200/10">
                     {customizer.linerPattern === "gold-glitter" && (
-                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-250 via-yellow-600 to-transparent opacity-35 dark:opacity-20"></div>
+                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-200 via-yellow-600 to-transparent opacity-35 dark:opacity-20"></div>
                     )}
                     {customizer.linerPattern === "striped" && (
                       <div className="absolute inset-0 opacity-10 bg-repeating-linear-gradient from-transparent via-transparent to-stone-500 dark:to-stone-400 rotate-45" style={{ backgroundSize: "20px 20px" }}></div>
@@ -516,7 +516,7 @@ export default function Home() {
                   </div>
                   
                   {/* Sliding Invitation Card */}
-                  <div className={`absolute left-[6%] w-[88%] aspect-[1.28/1] bg-card-bg shadow-2xl rounded-sm transition-all duration-750 ease-out z-15 ${
+                  <div className={`absolute left-[6%] w-[88%] aspect-[1.28/1] bg-card-bg shadow-2xl rounded-sm border border-card-border/60 transition-all duration-750 ease-out z-15 ${
                     envelopeOpen ? "-translate-y-[55%] scale-[1.04]" : "translate-y-0 scale-100 opacity-90"
                   }`}>
                     
@@ -533,12 +533,6 @@ export default function Home() {
                         <div className="absolute inset-0 bg-[#0f172a] text-slate-100 pointer-events-none">
                           <div className="absolute top-2 left-4 w-0.5 h-0.5 bg-white rounded-full"></div>
                           <div className="absolute top-6 right-8 w-1 h-1 bg-yellow-200 rounded-full animate-pulse"></div>
-                        </div>
-                      )}
-                      {customizer.theme === "gold-foil" && (
-                        <div className="absolute inset-0 bg-stone-50 border-[2px] border-amber-300/30 m-0.5 pointer-events-none">
-                          <div className="absolute top-0 bottom-0 left-1 w-[1px] bg-amber-450/25"></div>
-                          <div className="absolute top-0 bottom-0 right-1 w-[1px] bg-amber-450/25"></div>
                         </div>
                       )}
                       
@@ -563,18 +557,18 @@ export default function Home() {
                     <div className="absolute inset-0 bg-black/5" style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%, 100% 0, 50% 40%)" }}></div>
                   </div>
                   
-                  {/* Gold Wax Seal Button */}
+                  {/* Gold Wax Seal Open Trigger */}
                   <button 
                     onClick={() => setEnvelopeOpen(true)}
-                    className={`absolute left-1/2 w-11 h-11 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-305 via-amber-505 to-amber-800 shadow-[0_4px_12px_rgba(180,135,40,0.4)] border border-yellow-300 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
+                    className={`absolute left-1/2 w-10 h-10 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-700 shadow-[0_4px_12px_rgba(180,135,40,0.4)] border border-yellow-300 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
                       envelopeOpen ? "bottom-[42%] scale-0 opacity-0 z-5" : "bottom-[42%] z-30"
                     }`}
                     style={{ transition: "all 0.5s ease" }}
                     aria-label="Open Invitation Envelope"
                     id="envelope-seal"
                   >
-                    {/* Detailed emblem inside wax seal */}
-                    <svg className="w-5 h-5 text-amber-100 drop-shadow-[0_1.5px_1px_rgba(0,0,0,0.4)]" fill="currentColor" viewBox="0 0 24 24">
+                    {/* Exquisite SVG Emblem inside seal */}
+                    <svg className="w-4 h-4 text-amber-100 drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 10h3l-4 4-4-4h3V8h2v4z"/>
                     </svg>
                   </button>
@@ -583,7 +577,7 @@ export default function Home() {
                   {envelopeOpen && (
                     <button 
                       onClick={() => setEnvelopeOpen(false)}
-                      className="absolute top-0 right-[-30px] z-40 bg-card-bg hover:bg-stone-100 text-zinc-650 hover:text-brand-green p-1.5 rounded-full border border-card-border shadow-md transition-colors text-xs font-semibold cursor-pointer"
+                      className="absolute top-0 right-[-30px] z-40 bg-card-bg hover:bg-stone-100 text-zinc-600 hover:text-brand-green p-1.5 rounded-full border border-card-border shadow-md transition-colors text-xs font-semibold cursor-pointer"
                       title="Close invitation"
                       id="envelope-close"
                     >
@@ -663,9 +657,9 @@ export default function Home() {
         className="w-full py-28 bg-sec-bg/30 border-b border-card-border/40"
       >
         <div className="max-w-4xl mx-auto px-6 text-center flex flex-col gap-6 reveal-on-scroll">
-          <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">The Digital Invite Re-Imagined</span>
+          <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">The Digital Invite Re-Imagined</span>
           <h2 className="font-serif text-3xl sm:text-4xl md:text-5.5xl font-normal leading-tight tracking-tight max-w-3xl mx-auto text-foreground">
-            Premium Digital Invitations with 3D Envelopes, Real-Time RSVP Tracking &amp; Ambient Music
+            Premium Digital Invitations with 3D Envelopes, Real-Time RSVP Tracking & Ambient Music
           </h2>
           <p className="text-base sm:text-lg text-muted-text leading-relaxed max-w-3xl mx-auto font-light">
             Fancy RSVP invitations arrive with a signature animated envelope opening—complete with customizable liners, seals, stamps, and a background score that sets the mood. Send via custom link, email, or text, collect meal choices or song requests, and manage it all inside an ad-free host dashboard. Zero paper waste, infinite style.
@@ -682,7 +676,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           
           <div className="text-center max-w-2xl mx-auto mb-20">
-            <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">Interactive Design Studio</span>
+            <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Interactive Design Studio</span>
             <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight mt-2 text-foreground">
               Try It Live: Design Your Invitation
             </h2>
@@ -697,7 +691,7 @@ export default function Home() {
             {/* Customizer Controls (Left Column) */}
             <div className="lg:col-span-6 flex flex-col gap-8 bg-sec-bg/40 dark:bg-zinc-900/30 border border-card-border/70 p-8 rounded-2xl shadow-sm">
               <div>
-                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">1. Wording &amp; Typography</h4>
+                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">1. Wording & Typography</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor="custom-title" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Event Title / Names</label>
@@ -751,7 +745,7 @@ export default function Home() {
                       onClick={() => handleThemeChange(preset)}
                       className={`px-4 py-2 border rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all hover:shadow-sm ${
                         customizer.theme === preset.theme 
-                          ? "border-brand-green dark:border-brand-gold bg-brand-green/5 dark:bg-brand-gold/10 text-brand-green dark:text-brand-gold font-bold shadow-sm" 
+                          ? "border-brand-green bg-brand-green/10 text-brand-green font-bold shadow-sm" 
                           : "border-card-border bg-card-bg text-muted-text hover:border-card-border/80"
                       }`}
                       id={`theme-btn-${preset.theme}`}
@@ -776,7 +770,7 @@ export default function Home() {
                       onClick={() => setCustomizer({...customizer, linerPattern: patt.id})}
                       className={`flex-1 py-2.5 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
                         customizer.linerPattern === patt.id 
-                          ? "border-brand-green dark:border-brand-gold bg-brand-green/10 dark:bg-brand-gold/10 text-brand-green dark:text-brand-gold shadow-sm" 
+                          ? "border-brand-green bg-brand-green/10 text-brand-green shadow-sm" 
                           : "border-card-border bg-card-bg text-muted-text hover:bg-card-bg/50"
                       }`}
                       id={`liner-btn-${patt.id}`}
@@ -789,7 +783,7 @@ export default function Home() {
 
               <div>
                 <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-3 border-b border-card-border/40 pb-2">4. Ambient Melodic Score</h4>
-                <p className="text-[11px] text-muted-text mb-3 font-light">Pick an instrument style. Our local MIDI synth engine synthesizes soft arpeggios using Web Audio.</p>
+                <p className="text-[11px] text-muted-text mb-3">Pick an instrument style. Our local MIDI synth engine synthesizes soft arpeggios using Web Audio.</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {[
                     { id: "romantic", label: "Romantic Plucks" },
@@ -800,9 +794,9 @@ export default function Home() {
                     <button
                       key={g.id}
                       onClick={() => handleGenreChange(g.id)}
-                      className={`py-2.5 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                      className={`py-2 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
                         audioGenre === g.id 
-                          ? "border-brand-green dark:border-brand-gold bg-brand-green/10 dark:bg-brand-gold/10 text-brand-green dark:text-brand-gold font-bold shadow-sm" 
+                          ? "border-brand-green bg-brand-green/10 text-brand-green font-bold shadow-sm" 
                           : "border-card-border bg-card-bg text-muted-text hover:bg-card-bg/50"
                       }`}
                       id={`genre-btn-${g.id}`}
@@ -818,7 +812,7 @@ export default function Home() {
                     className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-2 ${
                       isPlayingAudio 
                         ? "bg-red-500 hover:bg-red-600 text-white border-red-600" 
-                        : "bg-brand-green dark:bg-brand-gold hover:bg-brand-green-hover dark:hover:bg-brand-gold/90 text-white dark:text-stone-950 border-emerald-800 dark:border-amber-600"
+                        : "bg-brand-green hover:bg-brand-green-hover text-white border-emerald-700"
                     }`}
                     id="synth-play-toggle"
                   >
@@ -845,7 +839,7 @@ export default function Home() {
             <div className="lg:col-span-6 flex flex-col items-center justify-center relative">
               <span className="text-xs font-bold text-muted-text/80 uppercase tracking-widest mb-3">Studio Presentation Deck</span>
               
-              <div className="w-full max-w-md aspect-[1.28/1] bg-[#f2efe6] dark:bg-zinc-800/85 border border-card-border/70 rounded-2xl shadow-xl flex items-center justify-center p-8 relative overflow-hidden">
+              <div className="w-full max-w-md aspect-[1.28/1] bg-[#f2efe6] dark:bg-zinc-800/80 border border-card-border rounded-2xl shadow-xl flex items-center justify-center p-8 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/20 via-transparent to-transparent opacity-60"></div>
                 
                 {/* 3D Envelope */}
@@ -910,7 +904,7 @@ export default function Home() {
                           customizer.theme === "midnight-star" ? "text-slate-100" : "text-stone-850 dark:text-stone-900"
                         }`}>
                           <span className="font-serif italic text-[7.5px] uppercase tracking-wider text-muted-text/80">{customizer.subtitle}</span>
-                          <h3 className="font-serif text-base font-bold uppercase tracking-widest my-0.5 border-y border-amber-300/30 py-0.5 px-3">
+                          <h3 className="font-serif text-sm font-bold uppercase tracking-widest my-0.5 border-y border-amber-300/30 py-0.5 px-3">
                             {customizer.title}
                           </h3>
                           <span className="text-[7.5px] uppercase tracking-widest font-bold">{customizer.date}</span>
@@ -929,7 +923,7 @@ export default function Home() {
                     {/* Gold Wax Seal Button */}
                     <button 
                       onClick={() => setEnvelopeOpen(true)}
-                      className={`absolute left-1/2 w-11 h-11 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-amber-500 to-amber-800 shadow-[0_6px_16px_rgba(180,135,40,0.4)] border border-yellow-300 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
+                      className={`absolute left-1/2 w-11 h-11 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-amber-500 to-amber-800 shadow-[0_6px_16px_rgba(180,135,40,0.4)] border border-amber-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
                         envelopeOpen ? "bottom-[42%] scale-0 opacity-0 z-5" : "bottom-[42%] z-30"
                       }`}
                       style={{ transition: "all 0.5s ease" }}
@@ -945,7 +939,7 @@ export default function Home() {
                     {envelopeOpen && (
                       <button 
                         onClick={() => setEnvelopeOpen(false)}
-                        className="absolute top-0 right-[-32px] z-40 bg-card-bg hover:bg-stone-100 text-zinc-655 hover:text-brand-green p-1.5 rounded-full border border-card-border shadow-md transition-colors text-xs font-semibold cursor-pointer"
+                        className="absolute top-0 right-[-32px] z-40 bg-card-bg hover:bg-stone-100 text-zinc-650 hover:text-brand-green p-1.5 rounded-full border border-card-border shadow-md transition-colors text-xs font-semibold cursor-pointer"
                         title="Close invitation"
                         id="customizer-close-btn"
                       >
@@ -960,7 +954,7 @@ export default function Home() {
                 <button
                   onClick={() => setEnvelopeOpen(true)}
                   className={`px-5 py-2.5 border rounded-full text-xs font-bold transition-all cursor-pointer ${
-                    envelopeOpen ? "bg-card-border/50 text-muted-text border-transparent" : "bg-brand-green dark:bg-brand-gold hover:bg-brand-green-hover dark:hover:bg-brand-gold/90 text-white dark:text-stone-950 border-emerald-800 dark:border-amber-600 shadow-sm"
+                    envelopeOpen ? "bg-card-border/50 text-muted-text border-transparent" : "bg-brand-green hover:bg-brand-green-hover text-white border-emerald-700 shadow-sm"
                   }`}
                   id="preview-open-envelope-btn"
                 >
@@ -990,7 +984,7 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           <div className="text-center max-w-2xl mx-auto mb-20">
-            <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">Full Host Toolkit</span>
+            <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Full Host Toolkit</span>
             <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight mt-2 text-foreground">
               Powerful Features to Customize &amp; Track
             </h2>
@@ -1042,11 +1036,11 @@ export default function Home() {
             ].map((feat, index) => (
               <div 
                 key={feat.id} 
-                className="flex flex-col items-center text-center p-6 rounded-2xl border border-card-border/50 bg-card-bg hover:border-brand-gold/30 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 group cursor-pointer"
+                className="flex flex-col items-center text-center p-6 rounded-2xl border border-card-border/50 bg-card-bg hover:border-brand-green/30 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 group cursor-pointer"
                 id={`feature-card-${feat.id}`}
               >
-                <div className="w-14 h-14 bg-brand-gold/5 dark:bg-brand-gold/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-115 transition-transform duration-350 shadow-sm border border-brand-gold/10">
-                  <FeatureIcon name={feat.id} className="w-7 h-7 text-brand-gold" />
+                <div className="w-14 h-14 bg-brand-green/5 dark:bg-brand-green/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-115 transition-transform duration-350 shadow-sm border border-brand-green/10">
+                  <FeatureIcon name={feat.id} className="w-7 h-7 text-brand-green" />
                 </div>
                 <h3 className="font-semibold text-lg text-foreground mb-3 tracking-wide">
                   {feat.title}
@@ -1069,7 +1063,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           
           <div className="text-center max-w-2xl mx-auto mb-20">
-            <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">Simulate Live Flow</span>
+            <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Simulate Live Flow</span>
             <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight mt-2 text-foreground">
               Experience Guest RSVP &amp; Host Dashboard Side-by-Side
             </h2>
@@ -1085,7 +1079,7 @@ export default function Home() {
             <div className="lg:col-span-5 flex flex-col items-center">
               <span className="text-xs font-bold text-muted-text/80 uppercase tracking-widest mb-3">📱 Guest View (Mobile)</span>
               
-              <div className="w-full max-w-[340px] border-[8px] border-zinc-800 dark:border-zinc-700 rounded-[2.5rem] bg-[#fbfaf7] dark:bg-zinc-900 shadow-2xl p-6 relative flex flex-col justify-between overflow-hidden" style={{ minHeight: "530px" }}>
+              <div className="w-full max-w-[340px] border-[8px] border-zinc-800 dark:border-zinc-700 rounded-[2.5rem] bg-card-bg shadow-2xl p-6 relative flex flex-col justify-between overflow-hidden" style={{ minHeight: "530px" }}>
                 {/* Speaker & camera mock */}
                 <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-4 bg-zinc-850 dark:bg-zinc-800 rounded-full flex items-center justify-center gap-1.5 px-3 z-30">
                   <div className="w-1.5 h-1.5 bg-zinc-600 rounded-full"></div>
@@ -1099,7 +1093,7 @@ export default function Home() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
-                    <h4 className="font-serif text-lg font-bold text-stone-900 dark:text-stone-100">RSVP Saved!</h4>
+                    <h4 className="font-serif text-lg font-bold text-foreground">RSVP Saved!</h4>
                     <p className="text-xs text-muted-text mt-2">
                       Thank you! Your response has been securely saved. The organizer's live dashboard has been updated.
                     </p>
@@ -1108,13 +1102,13 @@ export default function Home() {
                 ) : (
                   <form onSubmit={handleSimulatedRSVP} className="flex-1 flex flex-col justify-between gap-4 mt-6">
                     <div>
-                      <div className="border-b border-stone-200/60 dark:border-stone-800 pb-2 mb-3 text-center">
-                        <span className="font-serif italic text-[10.5px] text-brand-gold uppercase tracking-wide">Aria &amp; Julian's Wedding</span>
-                        <h4 className="text-xs font-semibold text-stone-900 dark:text-stone-100 mt-1">Guest RSVP Form</h4>
+                      <div className="border-b border-card-border pb-2 mb-3 text-center">
+                        <span className="font-serif italic text-[10.5px] text-brand-green uppercase tracking-wide">Aria &amp; Julian's Wedding</span>
+                        <h4 className="text-xs font-semibold text-foreground mt-1">Guest RSVP Form</h4>
                       </div>
 
                       <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1">
                           <label htmlFor="sim-name" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Full Name</label>
                           <input 
                             id="sim-name"
@@ -1123,19 +1117,19 @@ export default function Home() {
                             placeholder="e.g. Samuel Finch"
                             value={guestForm.name}
                             onChange={(e) => setGuestForm({...guestForm, name: e.target.value})}
-                            className="px-3.5 py-2 border border-card-border rounded-lg bg-card-bg text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-gold shadow-inner"
+                            className="px-3 py-2 border border-card-border rounded-lg bg-sec-bg/30 text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-green"
                           />
                         </div>
 
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-col gap-1">
                           <label className="text-[10px] font-bold text-muted-text uppercase tracking-wider mb-1">Will You Attend?</label>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={() => setGuestForm({...guestForm, status: "Accepted"})}
-                              className={`py-2 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                              className={`py-2 border rounded-lg text-xs font-semibold cursor-pointer transition-all ${
                                 guestForm.status === "Accepted" 
-                                  ? "bg-brand-gold/15 border-brand-gold text-brand-gold-hover dark:text-brand-gold font-bold shadow-sm" 
+                                  ? "bg-brand-green/10 border-brand-green text-brand-green font-bold shadow-sm" 
                                   : "border-card-border bg-card-bg text-muted-text"
                               }`}
                               id="sim-attend-yes"
@@ -1145,9 +1139,9 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => setGuestForm({...guestForm, status: "Declined"})}
-                              className={`py-2 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
+                              className={`py-2 border rounded-lg text-xs font-semibold cursor-pointer transition-all ${
                                 guestForm.status === "Declined" 
-                                  ? "bg-red-500/10 border-red-500 text-red-500 font-bold shadow-sm" 
+                                  ? "bg-red-500/10 border-red-500 text-red-550 font-bold shadow-sm" 
                                   : "border-card-border bg-card-bg text-muted-text"
                               }`}
                               id="sim-attend-no"
@@ -1165,7 +1159,7 @@ export default function Home() {
                                 id="sim-meal"
                                 value={guestForm.meal}
                                 onChange={(e) => setGuestForm({...guestForm, meal: e.target.value})}
-                                className="px-2.5 py-2 border border-card-border rounded-lg bg-card-bg text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-gold cursor-pointer"
+                                className="px-2.5 py-2 border border-card-border rounded-lg bg-card-bg text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-green cursor-pointer"
                               >
                                 <option>Herb Crusted Salmon</option>
                                 <option>Filet Mignon</option>
@@ -1191,7 +1185,7 @@ export default function Home() {
                                   placeholder="Plus One Full Name"
                                   value={guestForm.plusOneName}
                                   onChange={(e) => setGuestForm({...guestForm, plusOneName: e.target.value})}
-                                  className="px-2.5 py-1.5 border border-card-border rounded-lg bg-card-bg text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-gold mt-1.5 animate-fade-in"
+                                  className="px-2.5 py-1.5 border border-card-border rounded-lg bg-card-bg text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-green mt-1.5 animate-fade-in"
                                   id="sim-plusone-name"
                                 />
                               )}
@@ -1205,9 +1199,9 @@ export default function Home() {
                                     key={diet}
                                     type="button"
                                     onClick={() => handleDietToggle(diet)}
-                                    className={`px-3 py-1.5 border rounded-full text-[9px] font-bold cursor-pointer transition-all ${
+                                    className={`px-3 py-1 border rounded-full text-[9px] font-bold cursor-pointer transition-all ${
                                       guestForm.diet.includes(diet) 
-                                        ? "bg-brand-gold text-stone-950 border-brand-gold font-bold shadow-sm" 
+                                        ? "bg-brand-green text-white border-brand-green shadow-sm" 
                                         : "border-card-border bg-card-bg text-muted-text"
                                     }`}
                                     id={`sim-diet-${diet}`}
@@ -1224,7 +1218,7 @@ export default function Home() {
 
                     <button
                       type="submit"
-                      className="w-full bg-brand-green dark:bg-brand-gold hover:bg-brand-green-hover dark:hover:bg-brand-gold/90 text-white dark:text-stone-950 py-2.5 rounded-lg font-bold text-xs shadow-md active:scale-98 transition-all border-b-2 border-emerald-950 dark:border-amber-600 cursor-pointer"
+                      className="w-full bg-brand-green hover:bg-brand-green-hover text-white py-2.5 rounded-lg font-bold text-xs shadow-md active:scale-98 transition-all border-b-2 border-emerald-700 cursor-pointer"
                       id="sim-submit-rsvp"
                     >
                       Submit Response
@@ -1241,7 +1235,7 @@ export default function Home() {
             <div className="lg:col-span-7 flex flex-col items-center">
               <span className="text-xs font-bold text-muted-text/80 uppercase tracking-widest mb-3">💻 Host Dashboard (Desktop)</span>
               
-              <div className="w-full border border-card-border/80 rounded-2xl bg-card-bg/60 dark:bg-[#121211]/90 backdrop-blur-md shadow-2xl p-6 flex flex-col gap-6" style={{ minHeight: "530px" }}>
+              <div className="w-full border border-card-border rounded-2xl bg-card-bg shadow-2xl p-6 flex flex-col gap-6" style={{ minHeight: "530px" }}>
                 
                 {/* Header info */}
                 <div className="flex justify-between items-center border-b border-card-border/60 pb-3">
@@ -1249,8 +1243,8 @@ export default function Home() {
                     <h4 className="font-serif font-normal text-lg text-foreground">Aria &amp; Julian's Wedding</h4>
                     <p className="text-[10px] text-muted-text">Live RSVP Organizer Analytics Dashboard</p>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-green/10 text-brand-green dark:text-brand-gold text-[10px] font-bold border border-brand-green/20 animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-green dark:bg-brand-gold"></span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-brand-green text-[10px] font-bold border border-emerald-100/50 dark:border-emerald-900/30 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-green"></span>
                     Live Syncing
                   </span>
                 </div>
@@ -1259,18 +1253,18 @@ export default function Home() {
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { label: "Total RSVPs", count: guests.length, color: "text-foreground" },
-                    { label: "Attending", count: guests.filter(g => g.status === "Accepted").length, color: "text-brand-green dark:text-brand-gold" },
+                    { label: "Attending", count: guests.filter(g => g.status === "Accepted").length, color: "text-brand-green" },
                     { label: "Declines", count: guests.filter(g => g.status === "Declined").length, color: "text-red-500" }
                   ].map((counter) => (
-                    <div key={counter.label} className="p-3.5 bg-sec-bg/25 border border-card-border/50 rounded-xl text-center shadow-sm">
+                    <div key={counter.label} className="p-3 bg-sec-bg/25 border border-card-border/50 rounded-xl text-center shadow-sm">
                       <span className="text-[10px] font-bold text-muted-text uppercase tracking-wider block">{counter.label}</span>
-                      <span className={`text-2.5xl font-semibold ${counter.color} block mt-1`}>{counter.count}</span>
+                      <span className={`text-2xl font-semibold ${counter.color} block mt-1`}>{counter.count}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* Analytics Detail Columns */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   
                   {/* Meal Breakdown Charts */}
                   <div className="flex flex-col gap-3">
@@ -1292,7 +1286,7 @@ export default function Home() {
                             </div>
                             <div className="w-full h-2 bg-sec-bg rounded-full overflow-hidden border border-card-border/20">
                               <div 
-                                className="h-full bg-brand-green dark:bg-brand-gold rounded-full transition-all duration-750" 
+                                className="h-full bg-brand-green rounded-full transition-all duration-750" 
                                 style={{ width: `${percentage}%` }}
                               ></div>
                             </div>
@@ -1312,10 +1306,10 @@ export default function Home() {
                         return (
                           <div 
                             key={diet}
-                            className="px-3.5 py-2 bg-sec-bg/30 border border-card-border/40 rounded-xl flex items-center justify-between gap-4 text-xs flex-1 min-w-[100px] shadow-sm"
+                            className="px-3 py-2 bg-sec-bg/40 border border-card-border/40 rounded-xl flex items-center justify-between gap-4 text-xs flex-1 min-w-[100px] shadow-sm"
                           >
                             <span className="font-medium text-foreground">{diet}</span>
-                            <span className="w-5 h-5 rounded-full bg-brand-gold/10 border border-brand-gold/20 text-brand-gold-hover dark:text-brand-gold font-bold flex items-center justify-center text-[10px]">
+                            <span className="w-5 h-5 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green font-bold flex items-center justify-center text-[10px]">
                               {count}
                             </span>
                           </div>
@@ -1323,7 +1317,7 @@ export default function Home() {
                       })}
                     </div>
 
-                    <div className="mt-4 p-3.5 bg-brand-green/5 dark:bg-brand-gold/5 border border-brand-green/10 dark:border-brand-gold/15 rounded-xl text-[11px] text-brand-green dark:text-brand-gold-hover leading-relaxed">
+                    <div className="mt-4 p-3.5 bg-brand-green/5 border border-brand-green/10 rounded-xl text-[11px] text-brand-green leading-relaxed">
                       💡 <strong>Organizer Summary:</strong> {guests.filter(g => g.plusOne !== "None").length} Plus Ones registered. Total guest seating count is {guests.filter(g => g.status === "Accepted").length + guests.filter(g => g.status === "Accepted" && g.plusOne !== "None").length} seats.
                     </div>
                   </div>
@@ -1340,8 +1334,9 @@ export default function Home() {
                         className="p-2 border border-card-border/50 bg-sec-bg/15 rounded-xl flex justify-between items-center text-xs animate-fade-in"
                       >
                         <div className="flex items-center gap-2.5">
+                          {/* Circular monogram avatar */}
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                            g.status === "Accepted" ? "bg-emerald-100 dark:bg-emerald-950/40 text-brand-green dark:text-brand-gold" : "bg-red-100 dark:bg-red-950/40 text-red-500"
+                            g.status === "Accepted" ? "bg-emerald-100 text-brand-green" : "bg-red-100 text-red-550"
                           }`}>
                             {g.name.split(" ").map(n => n[0]).join("").toUpperCase()}
                           </div>
@@ -1375,7 +1370,7 @@ export default function Home() {
           
           {/* Left: Designs Text Column */}
           <div className="lg:col-span-4 flex flex-col gap-6 text-center lg:text-left">
-            <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">Curated Designer Suites</span>
+            <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Curated Designer Suites</span>
             <h2 className="font-serif text-3xl sm:text-4xl lg:text-4.5xl font-normal leading-tight tracking-tight text-stone-900 dark:text-stone-50">
               Thoughtfully Designed, Sustainably Crafted
             </h2>
@@ -1383,7 +1378,7 @@ export default function Home() {
               Our in-house design lab partners with a global network of indie illustrators, calligraphers, and visual artists to curate elegant suites—without the waste. Click the flip button to view the back cover details of each invitation card.
             </p>
             <div className="pt-2">
-              <button className="bg-brand-green dark:bg-brand-gold hover:bg-brand-green-hover dark:hover:bg-brand-gold/90 text-white dark:text-stone-950 px-8 py-3.5 rounded-xl font-bold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-950 dark:border-amber-600" id="explore-designs-btn">
+              <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-xl font-bold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700" id="explore-designs-btn">
                 See All Suites (50+)
               </button>
             </div>
@@ -1471,7 +1466,7 @@ export default function Home() {
                             </div>
 
                             {/* Envelope Front Cover */}
-                            <div className="absolute bottom-0 w-full h-[55%] bg-stone-300 dark:bg-stone-700 rounded-b-md shadow-lg z-20 border-t border-stone-200/30">
+                            <div className="absolute bottom-0 w-full h-[55%] bg-stone-350 dark:bg-stone-750 rounded-b-md shadow-lg z-20 border-t border-stone-200/30">
                               <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent rounded-b-md"></div>
                             </div>
                           </div>
@@ -1559,7 +1554,7 @@ export default function Home() {
                             
                             {/* Envelope Back / Liner */}
                             <div className={`absolute bottom-0 w-[95%] h-[85%] rounded-t-md shadow-inner transition-colors duration-500 ${
-                              fireworksColor === "red" ? "bg-red-955/20 border-t border-red-900" :
+                              fireworksColor === "red" ? "bg-red-950/20 border-t border-red-900" :
                               "bg-blue-955/20 border-t border-blue-900"
                             }`}>
                               <div className="absolute inset-0 opacity-35 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-400 via-zinc-800 to-transparent"></div>
@@ -1670,14 +1665,14 @@ export default function Home() {
                             <div className="absolute bottom-0 w-[95%] h-[85%] bg-stone-100 dark:bg-stone-850 rounded-t-md border-t border-stone-200 dark:border-stone-700 shadow-inner"></div>
 
                             {/* Sliding Invitation Card */}
-                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-[#fafafa] dark:bg-zinc-850 shadow-xl rounded-sm p-2 border border-stone-200 dark:border-zinc-750 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-15 bg-paper border-double border-4 border-amber-300/35 shadow-inner">
+                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-[#fafafa] dark:bg-zinc-800 shadow-xl rounded-sm p-2 border border-stone-200 dark:border-zinc-700 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-15 bg-paper border-double border-4 border-amber-300/35 shadow-inner">
                               <div className="w-full flex-1 relative bg-zinc-200 dark:bg-zinc-700 rounded-sm mb-1.5 overflow-hidden flex items-center justify-center">
                                 <div className={`absolute inset-0 bg-gradient-to-br from-zinc-400 to-zinc-550 flex flex-col items-center justify-center text-white/90 p-1 text-center transition-all ${
                                   remembranceColor === "sepia" ? "sepia saturate-120" :
                                   remembranceColor === "cool" ? "hue-rotate-15" : ""
                                 }`}>
                                   <svg className="w-6 h-6 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159" />
                                   </svg>
                                 </div>
                               </div>
@@ -1692,7 +1687,7 @@ export default function Home() {
 
                             {/* Envelope Front Cover */}
                             <div className={`absolute bottom-0 w-full h-[55%] rounded-b-md shadow-lg z-20 border-t ${
-                              remembranceColor === "white" ? "bg-stone-200 dark:bg-zinc-750 border-stone-300 dark:border-zinc-650" :
+                              remembranceColor === "white" ? "bg-stone-200 dark:bg-zinc-700 border-stone-300 dark:border-zinc-650" :
                               remembranceColor === "sage" ? "bg-[#b8cfc2] border-[#a5c0b1]" :
                               "bg-slate-700 border-slate-650"
                             }`}>
@@ -1738,7 +1733,7 @@ export default function Home() {
 
                       <div className="flex gap-1.5 mt-3">
                         {[
-                          { id: "white", color: "bg-stone-50 border-stone-300 ring-stone-300/40" },
+                          { id: "white", color: "bg-stone-50 border-stone-350 ring-stone-300/40" },
                           { id: "sage", color: "bg-[#b8cfc2] ring-[#b8cfc2]/40" },
                           { id: "navy", color: "bg-slate-700 ring-slate-700/40" },
                         ].map((dot) => (
@@ -1806,7 +1801,7 @@ export default function Home() {
       {/* --- TESTIMONIALS SLIDER SECTION --- */}
       <section className="w-full py-28 bg-card-bg border-b border-card-border/40">
         <div className="max-w-4xl mx-auto px-6 text-center flex flex-col items-center">
-          <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">Customer Stories</span>
+          <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Customer Stories</span>
           <h2 className="font-serif text-3xl font-normal text-foreground mt-2 mb-12">What Hosts Say</h2>
           
           <div className="w-full min-h-[180px] flex flex-col justify-between items-center relative">
@@ -1854,7 +1849,7 @@ export default function Home() {
         className="w-full py-28 bg-sec-bg/10 border-b border-card-border/40 text-center"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12 flex flex-col items-center gap-6">
-          <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">Simple Tier Pricing</span>
+          <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Simple Tier Pricing</span>
           <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-foreground">
             Simple, Flat Rate Pricing Packages
           </h2>
@@ -1865,7 +1860,7 @@ export default function Home() {
           <div className="mt-8 flex flex-wrap justify-center gap-6 w-full max-w-5xl">
             {[
               { title: "Single Celebration", price: "19", limit: "Up to 50 guests", desc: "Perfect for intimate birthdays, baby showers, or dinner dinner parties.", color: "border-card-border bg-card-bg" },
-              { title: "Grand Premier", price: "49", limit: "Up to 250 guests", desc: "Our most popular tier. Designed for weddings, reunions, and anniversary dinners.", color: "border-brand-gold bg-card-bg shadow-lg relative" },
+              { title: "Grand Premier", price: "49", limit: "Up to 250 guests", desc: "Our most popular tier. Designed for weddings, reunions, and anniversary dinners.", color: "border-brand-green bg-card-bg shadow-lg relative" },
               { title: "Enterprise Suite", price: "199", limit: "Unlimited guests", desc: "Designed for premium corporations, non-profits, and large-scale charity galas.", color: "border-card-border bg-card-bg" }
             ].map((pkg) => (
               <div 
@@ -1874,14 +1869,14 @@ export default function Home() {
                 id={`price-card-${pkg.title.toLowerCase().replace(/\s+/g, '-')}`}
               >
                 {pkg.title === "Grand Premier" && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-gold text-stone-950 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-green text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow">
                     Most Popular
                   </span>
                 )}
                 <div>
                   <h4 className="font-bold text-xs uppercase text-muted-text tracking-widest">{pkg.title}</h4>
                   <p className="font-serif text-4xl font-semibold mt-4 text-foreground">${pkg.price}</p>
-                  <span className="text-[10px] text-brand-green dark:text-brand-gold font-bold block mt-1">{pkg.limit}</span>
+                  <span className="text-[10px] text-brand-green font-bold block mt-1">{pkg.limit}</span>
                   <p className="text-xs text-muted-text mt-3 leading-relaxed font-light">{pkg.desc}</p>
                 </div>
                 <button className="mt-8 w-full border border-card-border bg-card-bg hover:border-brand-green hover:bg-brand-green hover:text-white py-2.5 rounded-lg font-bold text-xs transition-all duration-200 cursor-pointer shadow-sm active:scale-98" id={`btn-choose-${pkg.title.toLowerCase().replace(/\s+/g, '-')}`}>
@@ -1905,14 +1900,14 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">Our Green Commitment</span>
+          <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Our Green Commitment</span>
           <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-foreground">
             Over 1.5 Million Trees Saved Since Inception
           </h2>
           <p className="text-emerald-800/80 dark:text-emerald-350/80 leading-relaxed font-light text-sm md:text-base max-w-xl">
             By shifting invitations online, Fancy RSVP hosts preserve natural forests, reduce water use, and prevent tons of waste. We pledge 1% of every transaction to global tree reforestation networks.
           </p>
-          <button className="bg-brand-green dark:bg-brand-gold hover:bg-brand-green-hover dark:hover:bg-brand-gold/90 text-white dark:text-stone-955 px-8 py-3.5 rounded-md font-bold tracking-wide transition-all shadow-md hover:shadow-lg mt-2 cursor-pointer border-b-2 border-emerald-700" id="read-eco-pledge">
+          <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-md font-bold tracking-wide transition-all shadow-md hover:shadow-lg mt-2 cursor-pointer border-b-2 border-emerald-700" id="read-eco-pledge">
             Read Our Eco Pledge
           </button>
         </div>
@@ -1923,7 +1918,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-6">
           
           <div className="text-center max-w-2xl mx-auto mb-20">
-            <span className="text-brand-gold uppercase tracking-widest text-xs font-bold font-sans">Common Questions</span>
+            <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Common Questions</span>
             <h2 className="font-serif text-3xl font-normal tracking-tight mt-2 text-foreground">
               Frequently Asked Questions
             </h2>

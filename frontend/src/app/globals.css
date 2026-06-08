@@ -1,36 +1,32 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbfaf7;
+  --background: #fafaf9;
   --foreground: #1c1917;
-  --brand-green: #132e1d;
-  --brand-green-hover: #1c3a27;
-  --brand-gold: #c5a880;
-  --brand-gold-hover: #b89047;
+  --brand-green: #31a673;
+  --brand-green-hover: #268f60;
   
   --card-bg: #ffffff;
   --card-border: #e7e5e4;
   --muted-text: #78716c;
-  --sec-bg: #f5f5f2;
-  --nav-bg: rgba(251, 250, 247, 0.92);
+  --sec-bg: #f5f5f4;
+  --nav-bg: rgba(255, 255, 255, 0.95);
   
   --font-serif: var(--font-playfair), Georgia, serif;
   --font-sans: var(--font-outfit), sans-serif;
 }
 
 .dark {
-  --background: #0c0c0b;
+  --background: #0c0a09;
   --foreground: #f5f5f4;
   --brand-green: #10b981;
   --brand-green-hover: #059669;
-  --brand-gold: #d8c7b0;
-  --brand-gold-hover: #c5a880;
   
-  --card-bg: #151413;
-  --card-border: #2c2826;
+  --card-bg: #1c1917;
+  --card-border: #2e2a28;
   --muted-text: #a8a29e;
-  --sec-bg: #121211;
-  --nav-bg: rgba(12, 12, 11, 0.92);
+  --sec-bg: #171515;
+  --nav-bg: rgba(12, 10, 9, 0.95);
 }
 
 @theme inline {
@@ -41,15 +37,12 @@
   
   --color-brand-green: var(--brand-green);
   --color-brand-green-hover: var(--brand-green-hover);
-  --color-brand-gold: var(--brand-gold);
-  --color-brand-gold-hover: var(--brand-gold-hover);
   --color-card-bg: var(--card-bg);
   --color-card-border: var(--card-border);
   --color-muted-text: var(--muted-text);
   --color-sec-bg: var(--sec-bg);
   --color-nav-bg: var(--nav-bg);
 }
-
 
 body {
   background: var(--background);
