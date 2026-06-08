@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { startSynth, stopSynth } from "./utils/synth";
 
 // --- Custom SVGs for Feature Icons ---
-const FeatureIcon = ({ name, className = "w-8 h-8 text-brand-green" }) => {
+const FeatureIcon = ({ name, className = "w-7 h-7 text-brand-green" }) => {
   switch (name) {
     case "personalization":
       return (
@@ -101,7 +101,7 @@ export default function Home() {
     venue: "The Glass Greenhouse, Brooklyn",
     theme: "sage-watercolor", // sage-watercolor, midnight-star, gold-foil, modern-minimal
     linerPattern: "gold-glitter", // gold-glitter, solid, striped
-    envelopeColor: "#a5c0b1", // preset colors
+    envelopeColor: "#8ba897", // Preset natural envelope color
   });
 
   // Carousel & Design States
@@ -307,10 +307,10 @@ export default function Home() {
 
   // Preset envelope color presets
   const ENVELOPE_COLORS = [
-    { name: "Sage", hex: "#a5c0b1", theme: "sage-watercolor" },
-    { name: "Charcoal", hex: "#1e1e24", theme: "modern-minimal" },
-    { name: "Cream & Gold", hex: "#e2d5c3", theme: "gold-foil" },
-    { name: "Midnight", hex: "#1e1b4b", theme: "midnight-star" },
+    { name: "Sage Forest", hex: "#8ba897", theme: "sage-watercolor" },
+    { name: "Obsidian Black", hex: "#1a1a1c", theme: "modern-minimal" },
+    { name: "Imperial Gold", hex: "#d8c7b0", theme: "gold-foil" },
+    { name: "Midnight Purple", hex: "#2b233a", theme: "midnight-star" },
   ];
 
   const handleThemeChange = (colorPreset) => {
@@ -324,37 +324,37 @@ export default function Home() {
   // Testimonials list
   const testimonials = [
     {
-      quote: "Fancy RSVP was a complete game-changer for our wedding of 220 guests. The envelope animation set such a luxury tone, and the Web Audio background music had everyone talking before the day even started!",
+      quote: "Fancy RSVP was a complete game-changer for our wedding. The opening envelope visual set such an elegant, exclusive tone, and the Web Audio background synthesizer arpeggios had everyone talking before they even clicked attend!",
       author: "Eleanor & James Vance",
       tag: "Wedding Suite"
     },
     {
-      quote: "The address validation features saved us dozen of bouncebacks, and having all dietary preferences and meal options updated in a real-time graph made catering planning stress-free.",
-      author: "Marcus Aurelius Chen",
+      quote: "The automated address validation saved us countless bouncebacks. Having all dietary preferences and meal options updated in a real-time graph made event catering planning completely stress-free.",
+      author: "Marcus Chen, Creative Lead",
       tag: "Corporate Charity Gala"
     },
     {
-      quote: "Sustainably invite without sacrificing elegance. Our baby shower invitations felt incredibly personal, and we saved trees while doing it. Absolutely gorgeous experience.",
+      quote: "Finally, a way to invite guests sustainably without sacrificing design aesthetics. Our baby shower invitations felt incredibly personal, high-end, and saved trees while doing it.",
       author: "Sienna & Lucas Keller",
       tag: "Baby Shower Suite"
     }
   ];
 
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground font-sans selection:bg-brand-green/20 selection:text-brand-green transition-colors duration-300 relative">
+    <div className="flex flex-col min-h-screen bg-background text-foreground font-sans selection:bg-brand-green/20 selection:text-brand-green transition-colors duration-300 relative overflow-x-hidden">
       
       {/* Floating Organic Blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[10%] left-[-15%] w-[45rem] h-[45rem] rounded-full bg-emerald-100/30 dark:bg-emerald-950/10 filter blur-3xl animate-float-1"></div>
-        <div className="absolute top-[40%] right-[-15%] w-[50rem] h-[50rem] rounded-full bg-amber-100/25 dark:bg-amber-900/10 filter blur-3xl animate-float-2"></div>
-        <div className="absolute bottom-[5%] left-[5%] w-[35rem] h-[35rem] rounded-full bg-teal-100/20 dark:bg-teal-900/10 filter blur-3xl animate-float-3"></div>
+        <div className="absolute top-[8%] left-[-12%] w-[40rem] h-[40rem] rounded-full bg-emerald-100/30 dark:bg-emerald-950/15 filter blur-3xl animate-float-1"></div>
+        <div className="absolute top-[35%] right-[-10%] w-[45rem] h-[45rem] rounded-full bg-amber-100/20 dark:bg-amber-900/10 filter blur-3xl animate-float-2"></div>
+        <div className="absolute bottom-[8%] left-[8%] w-[32rem] h-[32rem] rounded-full bg-teal-100/15 dark:bg-teal-900/10 filter blur-3xl animate-float-3"></div>
       </div>
 
       {/* --- Main Header / Navigation --- */}
-      <header className="w-full bg-nav-bg border-b border-card-border/40 py-4 px-6 md:px-12 flex justify-between items-center sticky top-0 z-50 transition-all duration-300 backdrop-blur-md">
+      <header className="w-full bg-nav-bg border-b border-card-border/40 py-5 px-6 md:px-12 flex justify-between items-center sticky top-0 z-50 transition-all duration-300 backdrop-blur-md">
         <div className="flex items-center gap-1 z-10">
-          <span className="font-sans text-xl md:text-2xl font-bold tracking-[0.25em] text-brand-green hover:opacity-90 transition-all cursor-pointer flex items-center">
-            FANCY<span className="font-light text-amber-500 mx-1">|</span>RSVP
+          <span className="font-sans text-xl md:text-2xl font-bold tracking-[0.3em] text-brand-green hover:opacity-90 transition-all cursor-pointer flex items-center">
+            FANCY<span className="font-light text-amber-500/75 mx-1.5">|</span>RSVP
           </span>
         </div>
         
@@ -362,16 +362,16 @@ export default function Home() {
           {/* Theme switcher */}
           <button 
             onClick={toggleDarkMode}
-            className="p-2.5 rounded-full hover:bg-card-border/20 transition-colors cursor-pointer text-foreground"
+            className="p-2.5 rounded-full hover:bg-card-border/20 transition-all cursor-pointer text-foreground hover:scale-105 active:scale-95"
             aria-label="Toggle Dark Mode"
             id="theme-toggle"
           >
             {darkMode ? (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             ) : (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-5 h-5 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
               </svg>
             )}
@@ -382,7 +382,7 @@ export default function Home() {
           </a>
           <button 
             onClick={() => scrollToSection("customizer")}
-            className="bg-brand-green hover:bg-brand-green-hover text-white px-5 py-2.5 rounded-md font-medium text-sm md:text-base transition-all shadow-md hover:shadow-lg active:scale-[0.98] border-b-2 border-emerald-700"
+            className="bg-brand-green hover:bg-brand-green-hover text-white px-5.5 py-2.5 rounded-md font-semibold text-sm md:text-base transition-all shadow-md hover:shadow-lg active:scale-[0.98] border-b-2 border-emerald-700 cursor-pointer"
             id="header-cta"
           >
             Design Live
@@ -391,24 +391,25 @@ export default function Home() {
       </header>
 
       {/* --- Hero Section --- */}
-      <section className="relative w-full max-w-7xl mx-auto px-6 md:px-12 pt-16 pb-24 md:py-24 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center z-10">
+      <section className="relative w-full max-w-7xl mx-auto px-6 md:px-12 pt-16 pb-24 lg:py-32 grid grid-cols-1 lg:grid-cols-12 gap-16 items-center z-10">
         
         {/* Left Side: Hero Content & Email Capture */}
-        <div className="lg:col-span-7 flex flex-col gap-6 text-center lg:text-left relative">
+        <div className="lg:col-span-7 flex flex-col gap-8 text-center lg:text-left relative">
           
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs font-semibold self-center lg:self-start w-fit">
-            <span>✨ Now Live: 3D Animated Custom Suites & Ambient Music</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs font-bold self-center lg:self-start w-fit">
+            <span>✨ Introducing: 3D Envelope Customizer & Web Audio Synth Scores</span>
           </div>
 
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-semibold leading-[1.12] tracking-tight">
-            Make & Send Your Online Invitation In Minutes. <span className="text-brand-green">Real-Time RSVP Tracking.</span>
+          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6.5xl font-normal leading-[1.12] tracking-tight text-stone-900 dark:text-stone-50">
+            Make &amp; Send Your <span className="italic font-light">Online Invitation</span> In Minutes. 
+            <span className="block text-brand-green font-sans font-semibold mt-4 text-3xl sm:text-4xl lg:text-5xl tracking-normal uppercase">Real-Time RSVP Tracking.</span>
           </h1>
-          <p className="text-lg text-muted-text leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light">
-            Enjoy one-of-a-kind designs, animated opening envelopes, custom survey questions, and immersive local soundscapes. Crafted beautifully for weddings, corporate events, and celebrations.
+          <p className="text-lg md:text-xl text-muted-text leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light">
+            Enjoy premium designer suites, animated opening envelopes, custom survey questions, and immersive local soundscapes. Crafted beautifully for wedding events, corporate galas, and fine celebrations.
           </p>
 
           {/* Email Capture Form with Confetti Particles */}
-          <div className="w-full max-w-md mx-auto lg:mx-0 mt-2 relative">
+          <div className="w-full max-w-md mx-auto lg:mx-0 relative">
             
             {isSubmitted && (
               <div className="absolute inset-0 pointer-events-none overflow-hidden z-30 h-48">
@@ -441,33 +442,33 @@ export default function Home() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Your Email Address"
-                  className="flex-1 px-5 py-4 border border-card-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green bg-card-bg hover:bg-card-bg/90 transition-all placeholder-muted-text/75 font-medium shadow-sm"
+                  className="flex-1 px-5 py-4 border border-card-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green bg-card-bg text-foreground placeholder-muted-text/70 font-medium shadow-sm transition-all"
                   id="hero-email-input"
                 />
                 <button
                   type="submit"
-                  className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-4 rounded-lg font-semibold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700"
+                  className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-4 rounded-xl font-bold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700"
                   id="hero-email-submit"
                 >
-                  Let's Go!
+                  Create Card
                 </button>
               </form>
             ) : (
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/30 rounded-lg text-emerald-800 dark:text-emerald-300 text-left flex items-start gap-3 animate-fade-in shadow-inner">
+              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-emerald-800 dark:text-emerald-300 text-left flex items-start gap-3 animate-fade-in shadow-inner">
                 <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div>
                   <h4 className="font-bold text-emerald-950 dark:text-emerald-200">Awesome, let's get started!</h4>
-                  <p className="text-sm mt-0.5">Scroll down to customize your invitation directly on our real-time design deck.</p>
+                  <p className="text-sm mt-0.5">Scroll down to customize your invitation directly on our design deck.</p>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="flex items-center justify-center lg:justify-start gap-2 text-muted-text mt-4 text-sm font-medium animate-bounce cursor-pointer" onClick={() => scrollToSection("customizer")}>
-            <span>Try the Live Customizer below</span>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="flex items-center justify-center lg:justify-start gap-2.5 text-muted-text mt-4 text-sm font-semibold tracking-wide animate-bounce cursor-pointer" onClick={() => scrollToSection("customizer")}>
+            <span>Try the interactive editor below</span>
+            <svg className="w-4 h-4 text-brand-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
           </div>
@@ -476,12 +477,12 @@ export default function Home() {
         {/* Right Side: Mock Tablet & Premium 3D Envelope */}
         <div className="lg:col-span-5 flex justify-center items-center w-full relative">
           
-          <div className="relative z-10 w-full max-w-md aspect-[4/3] bg-stone-900 dark:bg-zinc-800 rounded-[2rem] p-3 shadow-2xl border-[4px] border-zinc-700/80 flex items-center justify-center overflow-hidden transition-transform duration-500 hover:scale-[1.01]">
-            <div className="absolute top-1/2 left-2 w-1 h-1 bg-zinc-600 rounded-full -translate-y-1/2"></div>
-            <div className="absolute top-1/2 right-2 w-1 h-1 bg-zinc-600 rounded-full -translate-y-1/2"></div>
+          <div className="relative z-10 w-full max-w-md aspect-[4/3] bg-[#1a191d] dark:bg-zinc-800 rounded-[2.2rem] p-3.5 shadow-[0_24px_50px_rgba(0,0,0,0.25)] border-[4px] border-zinc-700/85 flex items-center justify-center overflow-hidden transition-transform duration-500 hover:scale-[1.01]">
+            <div className="absolute top-1/2 left-2 w-1.5 h-1.5 bg-zinc-650 rounded-full -translate-y-1/2"></div>
+            <div className="absolute top-1/2 right-2 w-1.5 h-1.5 bg-zinc-650 rounded-full -translate-y-1/2"></div>
             
             {/* Tablet Screen */}
-            <div className="w-full h-full bg-[#f4f2eb] dark:bg-zinc-900 rounded-[1.6rem] overflow-hidden relative flex flex-col items-center justify-center p-6 select-none border border-stone-200/20">
+            <div className="w-full h-full bg-[#f4f2eb] dark:bg-zinc-900 rounded-[1.8rem] overflow-hidden relative flex flex-col items-center justify-center p-6 select-none border border-stone-200/20">
               
               {/* Envelope Container */}
               <div className="relative w-full max-w-[270px] aspect-[1.3/1] perspective-1000 mt-2">
@@ -498,7 +499,7 @@ export default function Home() {
                   </div>
                   
                   {/* 3D Envelope Flap */}
-                  <div className={`envelope-flap absolute top-0 left-0 w-full h-[55%] origin-top transition-all duration-700 ${
+                  <div className={`envelope-flap absolute top-0 left-0 w-full h-[55%] origin-top transition-all duration-750 ${
                     envelopeOpen ? "is-open" : "is-closed"
                   }`}>
                     {/* Flap Front (Color) */}
@@ -515,14 +516,15 @@ export default function Home() {
                   </div>
                   
                   {/* Sliding Invitation Card */}
-                  <div className={`absolute left-[6%] w-[88%] aspect-[1.28/1] bg-card-bg shadow-2xl rounded-sm p-4 border border-card-border/60 transition-all duration-700 ease-out z-15 ${
+                  <div className={`absolute left-[6%] w-[88%] aspect-[1.28/1] bg-card-bg shadow-2xl rounded-sm border border-card-border/60 transition-all duration-750 ease-out z-15 ${
                     envelopeOpen ? "-translate-y-[55%] scale-[1.04]" : "translate-y-0 scale-100 opacity-90"
                   }`}>
                     
-                    <div className="w-full h-full flex flex-col items-center justify-between text-center relative overflow-hidden">
-                      {/* Watercolor blobs background */}
+                    {/* Double Gold Foil Border Frame & paper texture */}
+                    <div className="w-full h-full flex flex-col items-center justify-between text-center relative overflow-hidden bg-paper p-4 border-double border-4 border-amber-300/35 m-0 shadow-inner">
+                      
                       {customizer.theme === "sage-watercolor" && (
-                        <div className="absolute inset-0 opacity-15 dark:opacity-10 pointer-events-none">
+                        <div className="absolute inset-0 opacity-15 pointer-events-none">
                           <div className="absolute -top-6 -left-6 w-16 h-16 bg-emerald-300 rounded-full filter blur-xl"></div>
                           <div className="absolute -bottom-6 -right-6 w-16 h-16 bg-amber-200 rounded-full filter blur-xl"></div>
                         </div>
@@ -531,14 +533,6 @@ export default function Home() {
                         <div className="absolute inset-0 bg-[#0f172a] text-slate-100 pointer-events-none">
                           <div className="absolute top-2 left-4 w-0.5 h-0.5 bg-white rounded-full"></div>
                           <div className="absolute top-6 right-8 w-1 h-1 bg-yellow-200 rounded-full animate-pulse"></div>
-                          <div className="absolute bottom-4 left-10 w-0.5 h-0.5 bg-white rounded-full"></div>
-                          <div className="absolute bottom-8 right-6 w-0.5 h-0.5 bg-white/70 rounded-full"></div>
-                        </div>
-                      )}
-                      {customizer.theme === "gold-foil" && (
-                        <div className="absolute inset-0 bg-stone-50 border-[2px] border-amber-300/30 m-0.5 pointer-events-none">
-                          <div className="absolute top-0 bottom-0 left-1 w-[1px] bg-amber-450/25"></div>
-                          <div className="absolute top-0 bottom-0 right-1 w-[1px] bg-amber-450/25"></div>
                         </div>
                       )}
                       
@@ -546,13 +540,13 @@ export default function Home() {
                       <div className={`relative z-10 flex flex-col items-center justify-center h-full w-full gap-1 ${
                         customizer.theme === "midnight-star" ? "text-slate-100" : "text-stone-850 dark:text-stone-900"
                       }`}>
-                        <span className="font-serif italic text-[7px] uppercase tracking-wider text-muted-text/80">{customizer.subtitle}</span>
+                        <span className="font-serif italic text-[7.5px] uppercase tracking-wider text-muted-text/80">{customizer.subtitle}</span>
                         <h3 className="font-serif text-sm font-bold uppercase tracking-widest my-0.5 border-y border-amber-300/30 py-0.5 px-3">
                           {customizer.title}
                         </h3>
-                        <span className="text-[7px] uppercase tracking-widest font-bold">{customizer.date}</span>
+                        <span className="text-[7.5px] uppercase tracking-widest font-bold">{customizer.date}</span>
                         <span className="text-[6.5px] text-muted-text/80 tracking-widest">{customizer.time}</span>
-                        <div className="w-5 h-[0.5px] bg-amber-400 my-0.5"></div>
+                        <div className="w-5 h-[0.5px] bg-amber-400/60 my-0.5"></div>
                         <span className="text-[6.5px] tracking-widest uppercase font-semibold text-center leading-none">{customizer.venue}</span>
                       </div>
                     </div>
@@ -563,17 +557,20 @@ export default function Home() {
                     <div className="absolute inset-0 bg-black/5" style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%, 100% 0, 50% 40%)" }}></div>
                   </div>
                   
-                  {/* Gold Wax Seal (Open Trigger) */}
+                  {/* Gold Wax Seal Open Trigger */}
                   <button 
                     onClick={() => setEnvelopeOpen(true)}
-                    className={`absolute left-1/2 w-9 h-9 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-700 shadow-md border border-yellow-300 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
-                      envelopeOpen ? "bottom-[42%] z-5 scale-0 opacity-0" : "bottom-[42%] z-30"
+                    className={`absolute left-1/2 w-10 h-10 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-700 shadow-[0_4px_12px_rgba(180,135,40,0.4)] border border-yellow-300 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
+                      envelopeOpen ? "bottom-[42%] scale-0 opacity-0 z-5" : "bottom-[42%] z-30"
                     }`}
                     style={{ transition: "all 0.5s ease" }}
                     aria-label="Open Invitation Envelope"
                     id="envelope-seal"
                   >
-                    <span className="text-white text-[9px] font-bold text-shadow-premium">OPEN</span>
+                    {/* Exquisite SVG Emblem inside seal */}
+                    <svg className="w-4 h-4 text-amber-100 drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 10h3l-4 4-4-4h3V8h2v4z"/>
+                    </svg>
                   </button>
 
                   {/* Close Invitation Button */}
@@ -593,11 +590,11 @@ export default function Home() {
               {/* Music Player Indicator Widget */}
               <button 
                 onClick={() => handleToggleMusic()}
-                className="mt-6 bg-card-bg border border-card-border/60 px-3.5 py-1.5 rounded-full shadow-sm flex items-center gap-2 text-xs text-muted-text hover:text-brand-green transition-all hover:shadow cursor-pointer z-30"
+                className="mt-6 bg-card-bg border border-card-border/60 px-4 py-2 rounded-full shadow-sm flex items-center gap-2 text-xs text-muted-text hover:text-brand-green transition-all hover:shadow cursor-pointer z-30"
                 id="music-preview-btn"
               >
-                <span className="font-semibold text-[9px] uppercase tracking-wider">
-                  {isPlayingAudio ? `${audioGenre} music active` : "preview theme music"}
+                <span className="font-semibold text-[9.5px] uppercase tracking-wider">
+                  {isPlayingAudio ? `${audioGenre} score active` : "preview score music"}
                 </span>
                 <AudioWaveform isPlaying={isPlayingAudio} />
               </button>
@@ -622,14 +619,14 @@ export default function Home() {
               { id: "customizer", label: "Design Deck" },
               { id: "features", label: "Features" },
               { id: "simulator", label: "RSVP Simulator" },
-              { id: "designs", label: "Designs" },
+              { id: "designs", label: "Suites" },
               { id: "pricing", label: "Pricing" },
               { id: "nature", label: "Nature" },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => scrollToSection(tab.id)}
-                className={`h-16 flex items-center border-b-2 font-medium text-sm md:text-base tracking-wide transition-all px-1 shrink-0 cursor-pointer ${
+                className={`h-16 flex items-center border-b-2 font-semibold text-sm md:text-base tracking-wide transition-all px-1 shrink-0 cursor-pointer ${
                   activeSection === tab.id
                     ? "border-brand-green text-brand-green font-bold"
                     : "border-transparent text-muted-text hover:text-foreground"
@@ -644,7 +641,7 @@ export default function Home() {
           {subHeaderSticky && (
             <button 
               onClick={() => scrollToSection("customizer")}
-              className="bg-brand-green hover:bg-brand-green-hover text-white px-4 py-2 rounded-md font-medium text-xs md:text-sm transition-all shadow active:scale-[0.98] border-b border-emerald-700"
+              className="bg-brand-green hover:bg-brand-green-hover text-white px-4.5 py-2 rounded-md font-semibold text-xs md:text-sm transition-all shadow active:scale-[0.98] border-b border-emerald-700 cursor-pointer"
               id="sticky-cta"
             >
               Design Suite
@@ -657,11 +654,11 @@ export default function Home() {
       <section 
         id="overview" 
         ref={sectionRefs.overview}
-        className="w-full py-24 bg-sec-bg/40 border-b border-card-border/40"
+        className="w-full py-28 bg-sec-bg/30 border-b border-card-border/40"
       >
         <div className="max-w-4xl mx-auto px-6 text-center flex flex-col gap-6 reveal-on-scroll">
           <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">The Digital Invite Re-Imagined</span>
-          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-semibold leading-tight tracking-tight max-w-3xl mx-auto text-foreground">
+          <h2 className="font-serif text-3xl sm:text-4xl md:text-5.5xl font-normal leading-tight tracking-tight max-w-3xl mx-auto text-foreground">
             Premium Digital Invitations with 3D Envelopes, Real-Time RSVP Tracking & Ambient Music
           </h2>
           <p className="text-base sm:text-lg text-muted-text leading-relaxed max-w-3xl mx-auto font-light">
@@ -674,13 +671,13 @@ export default function Home() {
       <section 
         id="customizer" 
         ref={sectionRefs.customizer}
-        className="w-full py-24 bg-card-bg border-b border-card-border/40"
+        className="w-full py-28 bg-card-bg border-b border-card-border/40"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           
-          <div className="text-center max-w-2xl mx-auto mb-16">
+          <div className="text-center max-w-2xl mx-auto mb-20">
             <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Interactive Design Studio</span>
-            <h2 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight mt-2 text-foreground">
+            <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight mt-2 text-foreground">
               Try It Live: Design Your Invitation
             </h2>
             <p className="text-muted-text font-light text-sm md:text-base mt-2">
@@ -689,71 +686,71 @@ export default function Home() {
             <div className="w-12 h-0.5 bg-brand-green mx-auto rounded-full mt-4"></div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
             
             {/* Customizer Controls (Left Column) */}
-            <div className="lg:col-span-6 flex flex-col gap-6 bg-sec-bg/50 dark:bg-[#151419]/50 border border-card-border p-6 rounded-2xl shadow-sm">
+            <div className="lg:col-span-6 flex flex-col gap-8 bg-sec-bg/40 dark:bg-zinc-900/30 border border-card-border/70 p-8 rounded-2xl shadow-sm">
               <div>
-                <h4 className="font-bold text-base tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">1. Wording & Typography</h4>
+                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">1. Wording & Typography</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1">
-                    <label htmlFor="custom-title" className="text-xs font-bold text-muted-text uppercase">Event Title / Names</label>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="custom-title" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Event Title / Names</label>
                     <input 
                       id="custom-title"
                       type="text" 
                       value={customizer.title}
                       onChange={(e) => setCustomizer({...customizer, title: e.target.value})}
-                      className="px-3.5 py-2 border border-card-border rounded bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green"
+                      className="px-3.5 py-2.5 border border-card-border rounded-lg bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
                     />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label htmlFor="custom-subtitle" className="text-xs font-bold text-muted-text uppercase">Subtitle Tag</label>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="custom-subtitle" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Subtitle Tag</label>
                     <input 
                       id="custom-subtitle"
                       type="text" 
                       value={customizer.subtitle}
                       onChange={(e) => setCustomizer({...customizer, subtitle: e.target.value})}
-                      className="px-3.5 py-2 border border-card-border rounded bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green"
+                      className="px-3.5 py-2.5 border border-card-border rounded-lg bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
                     />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label htmlFor="custom-date" className="text-xs font-bold text-muted-text uppercase">Event Date</label>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="custom-date" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Event Date</label>
                     <input 
                       id="custom-date"
                       type="text" 
                       value={customizer.date}
                       onChange={(e) => setCustomizer({...customizer, date: e.target.value})}
-                      className="px-3.5 py-2 border border-card-border rounded bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green"
+                      className="px-3.5 py-2.5 border border-card-border rounded-lg bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
                     />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label htmlFor="custom-venue" className="text-xs font-bold text-muted-text uppercase">Venue Location</label>
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="custom-venue" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Venue Location</label>
                     <input 
                       id="custom-venue"
                       type="text" 
                       value={customizer.venue}
                       onChange={(e) => setCustomizer({...customizer, venue: e.target.value})}
-                      className="px-3.5 py-2 border border-card-border rounded bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green"
+                      className="px-3.5 py-2.5 border border-card-border rounded-lg bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
                     />
                   </div>
                 </div>
               </div>
 
               <div>
-                <h4 className="font-bold text-base tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">2. Color Theme & Presets</h4>
+                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">2. Color Theme Preset</h4>
                 <div className="flex flex-wrap gap-3">
                   {ENVELOPE_COLORS.map((preset) => (
                     <button
                       key={preset.name}
                       onClick={() => handleThemeChange(preset)}
-                      className={`px-4 py-2 border rounded-full text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all hover:shadow-sm ${
+                      className={`px-4 py-2 border rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all hover:shadow-sm ${
                         customizer.theme === preset.theme 
-                          ? "border-brand-green bg-brand-green/10 text-brand-green" 
-                          : "border-card-border bg-card-bg text-muted-text"
+                          ? "border-brand-green bg-brand-green/10 text-brand-green font-bold shadow-sm" 
+                          : "border-card-border bg-card-bg text-muted-text hover:border-card-border/80"
                       }`}
                       id={`theme-btn-${preset.theme}`}
                     >
-                      <span className="w-3.5 h-3.5 rounded-full border border-stone-200/50" style={{ backgroundColor: preset.hex }}></span>
+                      <span className="w-3.5 h-3.5 rounded-full border border-stone-200/50 shadow-inner" style={{ backgroundColor: preset.hex }}></span>
                       {preset.name}
                     </button>
                   ))}
@@ -761,7 +758,7 @@ export default function Home() {
               </div>
 
               <div>
-                <h4 className="font-bold text-base tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">3. Envelope Liner Pattern</h4>
+                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">3. Envelope Liner Pattern</h4>
                 <div className="flex gap-4">
                   {[
                     { id: "gold-glitter", label: "Golden Sparkle" },
@@ -771,9 +768,9 @@ export default function Home() {
                     <button
                       key={patt.id}
                       onClick={() => setCustomizer({...customizer, linerPattern: patt.id})}
-                      className={`flex-1 py-2 border rounded text-xs font-semibold cursor-pointer transition-all ${
+                      className={`flex-1 py-2.5 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
                         customizer.linerPattern === patt.id 
-                          ? "border-brand-green bg-brand-green/10 text-brand-green" 
+                          ? "border-brand-green bg-brand-green/10 text-brand-green shadow-sm" 
                           : "border-card-border bg-card-bg text-muted-text hover:bg-card-bg/50"
                       }`}
                       id={`liner-btn-${patt.id}`}
@@ -785,7 +782,7 @@ export default function Home() {
               </div>
 
               <div>
-                <h4 className="font-bold text-base tracking-wide text-foreground mb-3 border-b border-card-border/40 pb-2">4. Ambient Melodic Score</h4>
+                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-3 border-b border-card-border/40 pb-2">4. Ambient Melodic Score</h4>
                 <p className="text-[11px] text-muted-text mb-3">Pick an instrument style. Our local MIDI synth engine synthesizes soft arpeggios using Web Audio.</p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {[
@@ -797,9 +794,9 @@ export default function Home() {
                     <button
                       key={g.id}
                       onClick={() => handleGenreChange(g.id)}
-                      className={`py-2 border rounded text-xs font-semibold cursor-pointer transition-all ${
+                      className={`py-2 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
                         audioGenre === g.id 
-                          ? "border-brand-green bg-brand-green/10 text-brand-green font-bold" 
+                          ? "border-brand-green bg-brand-green/10 text-brand-green font-bold shadow-sm" 
                           : "border-card-border bg-card-bg text-muted-text hover:bg-card-bg/50"
                       }`}
                       id={`genre-btn-${g.id}`}
@@ -809,10 +806,10 @@ export default function Home() {
                   ))}
                 </div>
                 
-                <div className="mt-4 flex items-center gap-3 bg-card-bg border border-card-border p-3 rounded-lg">
+                <div className="mt-4 flex items-center gap-3 bg-card-bg border border-card-border/70 p-3.5 rounded-xl shadow-sm">
                   <button
                     onClick={() => handleToggleMusic()}
-                    className={`px-4 py-2 rounded text-xs font-bold transition-all border cursor-pointer flex items-center gap-2 ${
+                    className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-2 ${
                       isPlayingAudio 
                         ? "bg-red-500 hover:bg-red-600 text-white border-red-600" 
                         : "bg-brand-green hover:bg-brand-green-hover text-white border-emerald-700"
@@ -822,12 +819,12 @@ export default function Home() {
                     {isPlayingAudio ? (
                       <>
                         <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                        Mute Music
+                        Mute Score
                       </>
                     ) : (
                       <>
                         <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                        Play Preview Music
+                        Play Score
                       </>
                     )}
                   </button>
@@ -840,7 +837,7 @@ export default function Home() {
 
             {/* Customizer Preview Screen (Right Column) */}
             <div className="lg:col-span-6 flex flex-col items-center justify-center relative">
-              <span className="text-xs font-bold text-muted-text/80 uppercase tracking-widest mb-3">Live Presentation Deck</span>
+              <span className="text-xs font-bold text-muted-text/80 uppercase tracking-widest mb-3">Studio Presentation Deck</span>
               
               <div className="w-full max-w-md aspect-[1.28/1] bg-[#f2efe6] dark:bg-zinc-800/80 border border-card-border rounded-2xl shadow-xl flex items-center justify-center p-8 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/20 via-transparent to-transparent opacity-60"></div>
@@ -860,7 +857,7 @@ export default function Home() {
                     </div>
                     
                     {/* 3D Envelope Flap */}
-                    <div className={`envelope-flap absolute top-0 left-0 w-full h-[55%] origin-top transition-all duration-700 ${
+                    <div className={`envelope-flap absolute top-0 left-0 w-full h-[55%] origin-top transition-all duration-750 ${
                       envelopeOpen ? "is-open" : "is-closed"
                     }`}>
                       {/* Flap Front (Color) */}
@@ -877,13 +874,14 @@ export default function Home() {
                     </div>
                     
                     {/* Sliding Invitation Card */}
-                    <div className={`absolute left-[6%] w-[88%] aspect-[1.28/1] bg-card-bg shadow-2xl rounded-sm p-4 border border-card-border/60 transition-all duration-700 ease-out z-15 ${
+                    <div className={`absolute left-[6%] w-[88%] aspect-[1.28/1] bg-card-bg shadow-2xl rounded-sm transition-all duration-750 ease-out z-15 ${
                       envelopeOpen ? "-translate-y-[55%] scale-[1.04]" : "translate-y-0 scale-100 opacity-90"
                     }`}>
                       
-                      <div className="w-full h-full flex flex-col items-center justify-between text-center relative overflow-hidden">
+                      {/* Elegant double gold frame and paper overlay */}
+                      <div className="w-full h-full flex flex-col items-center justify-between text-center relative overflow-hidden bg-paper p-4 border-double border-4 border-amber-300/35 m-0 shadow-inner">
                         {customizer.theme === "sage-watercolor" && (
-                          <div className="absolute inset-0 opacity-15 dark:opacity-10 pointer-events-none">
+                          <div className="absolute inset-0 opacity-15 pointer-events-none">
                             <div className="absolute -top-6 -left-6 w-16 h-16 bg-emerald-300 rounded-full filter blur-xl"></div>
                             <div className="absolute -bottom-6 -right-6 w-16 h-16 bg-amber-200 rounded-full filter blur-xl"></div>
                           </div>
@@ -892,7 +890,6 @@ export default function Home() {
                           <div className="absolute inset-0 bg-[#0f172a] text-slate-100 pointer-events-none">
                             <div className="absolute top-2 left-4 w-0.5 h-0.5 bg-white rounded-full"></div>
                             <div className="absolute top-6 right-8 w-1 h-1 bg-yellow-200 rounded-full animate-pulse"></div>
-                            <div className="absolute bottom-4 left-10 w-0.5 h-0.5 bg-white rounded-full"></div>
                           </div>
                         )}
                         {customizer.theme === "gold-foil" && (
@@ -903,11 +900,11 @@ export default function Home() {
                         )}
                         
                         {/* Wording text */}
-                        <div className={`relative z-10 flex flex-col items-center justify-center h-full w-full gap-1 ${
+                        <div className={`relative z-10 flex flex-col items-center justify-center h-full w-full gap-1.5 ${
                           customizer.theme === "midnight-star" ? "text-slate-100" : "text-stone-850 dark:text-stone-900"
                         }`}>
                           <span className="font-serif italic text-[7.5px] uppercase tracking-wider text-muted-text/80">{customizer.subtitle}</span>
-                          <h3 className="font-serif text-base font-bold uppercase tracking-widest my-0.5 border-y border-amber-300/30 py-0.5 px-3">
+                          <h3 className="font-serif text-sm font-bold uppercase tracking-widest my-0.5 border-y border-amber-300/30 py-0.5 px-3">
                             {customizer.title}
                           </h3>
                           <span className="text-[7.5px] uppercase tracking-widest font-bold">{customizer.date}</span>
@@ -926,21 +923,23 @@ export default function Home() {
                     {/* Gold Wax Seal Button */}
                     <button 
                       onClick={() => setEnvelopeOpen(true)}
-                      className={`absolute left-1/2 w-10 h-10 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-700 shadow-lg border border-yellow-300 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
+                      className={`absolute left-1/2 w-11 h-11 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-amber-500 to-amber-800 shadow-[0_6px_16px_rgba(180,135,40,0.4)] border border-amber-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
                         envelopeOpen ? "bottom-[42%] scale-0 opacity-0 z-5" : "bottom-[42%] z-30"
                       }`}
                       style={{ transition: "all 0.5s ease" }}
                       aria-label="Open Custom Invitation"
                       id="customizer-open-seal"
                     >
-                      <span className="text-white text-[9.5px] font-bold text-shadow-premium">OPEN</span>
+                      <svg className="w-5 h-5 text-amber-100 drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 10h3l-4 4-4-4h3V8h2v4z"/>
+                      </svg>
                     </button>
                     
                     {/* Close Invitation Button */}
                     {envelopeOpen && (
                       <button 
                         onClick={() => setEnvelopeOpen(false)}
-                        className="absolute top-0 right-[-32px] z-40 bg-card-bg hover:bg-[#eaeae2] text-zinc-650 hover:text-brand-green p-1.5 rounded-full border border-card-border shadow-md transition-colors text-xs font-semibold cursor-pointer"
+                        className="absolute top-0 right-[-32px] z-40 bg-card-bg hover:bg-stone-100 text-zinc-650 hover:text-brand-green p-1.5 rounded-full border border-card-border shadow-md transition-colors text-xs font-semibold cursor-pointer"
                         title="Close invitation"
                         id="customizer-close-btn"
                       >
@@ -951,10 +950,10 @@ export default function Home() {
                 </div>
               </div>
               
-              <div className="flex gap-4 mt-6">
+              <div className="flex gap-4 mt-8">
                 <button
                   onClick={() => setEnvelopeOpen(true)}
-                  className={`px-4 py-2 border rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-5 py-2.5 border rounded-full text-xs font-bold transition-all cursor-pointer ${
                     envelopeOpen ? "bg-card-border/50 text-muted-text border-transparent" : "bg-brand-green hover:bg-brand-green-hover text-white border-emerald-700 shadow-sm"
                   }`}
                   id="preview-open-envelope-btn"
@@ -963,12 +962,12 @@ export default function Home() {
                 </button>
                 <button
                   onClick={() => setEnvelopeOpen(false)}
-                  className={`px-4 py-2 border rounded-full text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-5 py-2.5 border rounded-full text-xs font-bold transition-all cursor-pointer ${
                     !envelopeOpen ? "bg-card-border/50 text-muted-text border-transparent" : "bg-card-bg hover:bg-stone-50 border-card-border text-foreground shadow-sm"
                   }`}
                   id="preview-close-envelope-btn"
                 >
-                  Close & Tuck
+                  Close &amp; Tuck
                 </button>
               </div>
             </div>
@@ -981,13 +980,13 @@ export default function Home() {
       <section 
         id="features" 
         ref={sectionRefs.features}
-        className="w-full py-24 bg-sec-bg/20 border-b border-card-border/40"
+        className="w-full py-28 bg-sec-bg/20 border-b border-card-border/40"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12">
-          <div className="text-center max-w-2xl mx-auto mb-16">
+          <div className="text-center max-w-2xl mx-auto mb-20">
             <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Full Host Toolkit</span>
-            <h2 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight mt-2 text-foreground">
-              Powerful Features to Customize & Track
+            <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight mt-2 text-foreground">
+              Powerful Features to Customize &amp; Track
             </h2>
             <div className="w-12 h-0.5 bg-brand-green mx-auto rounded-full mt-4"></div>
           </div>
@@ -1059,14 +1058,14 @@ export default function Home() {
       <section 
         id="simulator" 
         ref={sectionRefs.simulator}
-        className="w-full py-24 bg-card-bg border-b border-card-border/40 relative"
+        className="w-full py-28 bg-card-bg border-b border-card-border/40 relative"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           
-          <div className="text-center max-w-2xl mx-auto mb-16">
+          <div className="text-center max-w-2xl mx-auto mb-20">
             <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Simulate Live Flow</span>
-            <h2 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight mt-2 text-foreground">
-              Experience Guest RSVP & Host Dashboard Side-by-Side
+            <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight mt-2 text-foreground">
+              Experience Guest RSVP &amp; Host Dashboard Side-by-Side
             </h2>
             <p className="text-muted-text font-light text-sm md:text-base mt-2">
               Fill out the guest form on the left, click submit, and watch the host organizer's dashboard on the right update instantly in real time!
@@ -1074,7 +1073,7 @@ export default function Home() {
             <div className="w-12 h-0.5 bg-brand-green mx-auto rounded-full mt-4"></div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-stretch">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-stretch">
             
             {/* Guest Perspective - Left Column (Simulated Phone) */}
             <div className="lg:col-span-5 flex flex-col items-center">
@@ -1094,7 +1093,7 @@ export default function Home() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     </div>
-                    <h4 className="font-serif text-lg font-bold text-foreground">RSVP Submitted!</h4>
+                    <h4 className="font-serif text-lg font-bold text-foreground">RSVP Saved!</h4>
                     <p className="text-xs text-muted-text mt-2">
                       Thank you! Your response has been securely saved. The organizer's live dashboard has been updated.
                     </p>
@@ -1104,13 +1103,13 @@ export default function Home() {
                   <form onSubmit={handleSimulatedRSVP} className="flex-1 flex flex-col justify-between gap-4 mt-6">
                     <div>
                       <div className="border-b border-card-border pb-2 mb-3 text-center">
-                        <span className="font-serif italic text-[10px] text-brand-green uppercase tracking-wide">Aria & Julian's Wedding</span>
-                        <h4 className="text-sm font-semibold text-foreground">Guest RSVP Form</h4>
+                        <span className="font-serif italic text-[10.5px] text-brand-green uppercase tracking-wide">Aria &amp; Julian's Wedding</span>
+                        <h4 className="text-xs font-semibold text-foreground mt-1">Guest RSVP Form</h4>
                       </div>
 
                       <div className="flex flex-col gap-3">
                         <div className="flex flex-col gap-1">
-                          <label htmlFor="sim-name" className="text-[10px] font-bold text-muted-text uppercase">Full Name</label>
+                          <label htmlFor="sim-name" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Full Name</label>
                           <input 
                             id="sim-name"
                             required
@@ -1118,36 +1117,36 @@ export default function Home() {
                             placeholder="e.g. Samuel Finch"
                             value={guestForm.name}
                             onChange={(e) => setGuestForm({...guestForm, name: e.target.value})}
-                            className="px-3 py-1.5 border border-card-border rounded text-xs bg-sec-bg/30 text-foreground focus:outline-none focus:ring-1 focus:ring-brand-green"
+                            className="px-3 py-2 border border-card-border rounded-lg bg-sec-bg/30 text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-green"
                           />
                         </div>
 
                         <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-muted-text uppercase mb-1">Will You Attend?</label>
+                          <label className="text-[10px] font-bold text-muted-text uppercase tracking-wider mb-1">Will You Attend?</label>
                           <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={() => setGuestForm({...guestForm, status: "Accepted"})}
-                              className={`py-1.5 border rounded text-xs font-semibold cursor-pointer transition-all ${
+                              className={`py-2 border rounded-lg text-xs font-semibold cursor-pointer transition-all ${
                                 guestForm.status === "Accepted" 
-                                  ? "bg-brand-green/10 border-brand-green text-brand-green font-bold" 
+                                  ? "bg-brand-green/10 border-brand-green text-brand-green font-bold shadow-sm" 
                                   : "border-card-border bg-card-bg text-muted-text"
                               }`}
                               id="sim-attend-yes"
                             >
-                              Joyfully Accept
+                              Accepts
                             </button>
                             <button
                               type="button"
                               onClick={() => setGuestForm({...guestForm, status: "Declined"})}
-                              className={`py-1.5 border rounded text-xs font-semibold cursor-pointer transition-all ${
+                              className={`py-2 border rounded-lg text-xs font-semibold cursor-pointer transition-all ${
                                 guestForm.status === "Declined" 
-                                  ? "bg-red-500/10 border-red-500 text-red-500 font-bold" 
+                                  ? "bg-red-500/10 border-red-500 text-red-550 font-bold shadow-sm" 
                                   : "border-card-border bg-card-bg text-muted-text"
                               }`}
                               id="sim-attend-no"
                             >
-                              Regretfully Decline
+                              Declines
                             </button>
                           </div>
                         </div>
@@ -1155,12 +1154,12 @@ export default function Home() {
                         {guestForm.status === "Accepted" && (
                           <div className="flex flex-col gap-3 animate-fade-in">
                             <div className="flex flex-col gap-1">
-                              <label htmlFor="sim-meal" className="text-[10px] font-bold text-muted-text uppercase">Meal Preference</label>
+                              <label htmlFor="sim-meal" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Meal Choice</label>
                               <select 
                                 id="sim-meal"
                                 value={guestForm.meal}
                                 onChange={(e) => setGuestForm({...guestForm, meal: e.target.value})}
-                                className="px-2.5 py-1.5 border border-card-border rounded text-xs bg-card-bg text-foreground focus:outline-none focus:ring-1 focus:ring-brand-green"
+                                className="px-2.5 py-2 border border-card-border rounded-lg bg-card-bg text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-green cursor-pointer"
                               >
                                 <option>Herb Crusted Salmon</option>
                                 <option>Filet Mignon</option>
@@ -1168,9 +1167,9 @@ export default function Home() {
                               </select>
                             </div>
 
-                            <div className="flex flex-col gap-1.5 border border-card-border/50 p-2 rounded bg-sec-bg/20">
+                            <div className="flex flex-col gap-1.5 border border-card-border/50 p-2.5 rounded-lg bg-sec-bg/25">
                               <div className="flex items-center justify-between">
-                                <label htmlFor="sim-plusone-toggle" className="text-[10px] font-bold text-muted-text uppercase cursor-pointer">Bringing a Plus One?</label>
+                                <label htmlFor="sim-plusone-toggle" className="text-[10px] font-bold text-muted-text uppercase tracking-wider cursor-pointer">Register a Plus One?</label>
                                 <input 
                                   id="sim-plusone-toggle"
                                   type="checkbox"
@@ -1183,26 +1182,26 @@ export default function Home() {
                                 <input 
                                   required
                                   type="text" 
-                                  placeholder="Plus One Name"
+                                  placeholder="Plus One Full Name"
                                   value={guestForm.plusOneName}
                                   onChange={(e) => setGuestForm({...guestForm, plusOneName: e.target.value})}
-                                  className="px-2.5 py-1 border border-card-border rounded text-xs bg-card-bg text-foreground focus:outline-none focus:ring-1 focus:ring-brand-green mt-1 animate-fade-in"
+                                  className="px-2.5 py-1.5 border border-card-border rounded-lg bg-card-bg text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-brand-green mt-1.5 animate-fade-in"
                                   id="sim-plusone-name"
                                 />
                               )}
                             </div>
 
-                            <div className="flex flex-col gap-1">
-                              <span className="text-[10px] font-bold text-muted-text uppercase">Dietary Requirements</span>
-                              <div className="flex flex-wrap gap-2 mt-1">
+                            <div className="flex flex-col gap-1.5">
+                              <span className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Dietary Requirements</span>
+                              <div className="flex flex-wrap gap-2">
                                 {["Gluten-Free", "Vegan", "Nut-Free"].map((diet) => (
                                   <button
                                     key={diet}
                                     type="button"
                                     onClick={() => handleDietToggle(diet)}
-                                    className={`px-2.5 py-1 border rounded-full text-[9px] font-bold cursor-pointer transition-all ${
+                                    className={`px-3 py-1 border rounded-full text-[9px] font-bold cursor-pointer transition-all ${
                                       guestForm.diet.includes(diet) 
-                                        ? "bg-brand-green text-white border-brand-green" 
+                                        ? "bg-brand-green text-white border-brand-green shadow-sm" 
                                         : "border-card-border bg-card-bg text-muted-text"
                                     }`}
                                     id={`sim-diet-${diet}`}
@@ -1219,32 +1218,32 @@ export default function Home() {
 
                     <button
                       type="submit"
-                      className="w-full bg-brand-green hover:bg-brand-green-hover text-white py-2 rounded-lg font-bold text-xs shadow-md active:scale-98 transition-all border-b-2 border-emerald-700 cursor-pointer"
+                      className="w-full bg-brand-green hover:bg-brand-green-hover text-white py-2.5 rounded-lg font-bold text-xs shadow-md active:scale-98 transition-all border-b-2 border-emerald-700 cursor-pointer"
                       id="sim-submit-rsvp"
                     >
-                      Send RSVP Response
+                      Submit Response
                     </button>
                   </form>
                 )}
                 
                 {/* Home Indicator */}
-                <div className="w-16 h-1 bg-zinc-300 dark:bg-zinc-700 rounded-full mx-auto mt-4 opacity-50 shrink-0"></div>
+                <div className="w-16 h-1 bg-zinc-350 dark:bg-zinc-700 rounded-full mx-auto mt-4 opacity-50 shrink-0"></div>
               </div>
             </div>
 
             {/* Host Perspective - Right Column (Simulated Admin Panel) */}
             <div className="lg:col-span-7 flex flex-col items-center">
-              <span className="text-xs font-bold text-muted-text/80 uppercase tracking-widest mb-3">💻 Host Dashboard (Tablet/Laptop)</span>
+              <span className="text-xs font-bold text-muted-text/80 uppercase tracking-widest mb-3">💻 Host Dashboard (Desktop)</span>
               
-              <div className="w-full border border-card-border rounded-2xl bg-card-bg shadow-2xl p-5 flex flex-col gap-6" style={{ minHeight: "530px" }}>
+              <div className="w-full border border-card-border rounded-2xl bg-card-bg shadow-2xl p-6 flex flex-col gap-6" style={{ minHeight: "530px" }}>
                 
                 {/* Header info */}
                 <div className="flex justify-between items-center border-b border-card-border/60 pb-3">
                   <div>
-                    <h4 className="font-serif font-bold text-base text-foreground">Aria & Julian's Wedding</h4>
+                    <h4 className="font-serif font-normal text-lg text-foreground">Aria &amp; Julian's Wedding</h4>
                     <p className="text-[10px] text-muted-text">Live RSVP Organizer Analytics Dashboard</p>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-brand-green text-[10px] font-bold animate-pulse">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-brand-green text-[10px] font-bold border border-emerald-100/50 dark:border-emerald-900/30 animate-pulse">
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-green"></span>
                     Live Syncing
                   </span>
@@ -1254,12 +1253,12 @@ export default function Home() {
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { label: "Total RSVPs", count: guests.length, color: "text-foreground" },
-                    { label: "Accepted", count: guests.filter(g => g.status === "Accepted").length, color: "text-brand-green" },
-                    { label: "Declined", count: guests.filter(g => g.status === "Declined").length, color: "text-red-500" }
+                    { label: "Attending", count: guests.filter(g => g.status === "Accepted").length, color: "text-brand-green" },
+                    { label: "Declines", count: guests.filter(g => g.status === "Declined").length, color: "text-red-500" }
                   ].map((counter) => (
-                    <div key={counter.label} className="p-3 bg-sec-bg/30 border border-card-border/50 rounded-xl text-center">
-                      <span className="text-[10px] font-bold text-muted-text uppercase block">{counter.label}</span>
-                      <span className={`text-2xl font-bold ${counter.color} block mt-1`}>{counter.count}</span>
+                    <div key={counter.label} className="p-3 bg-sec-bg/25 border border-card-border/50 rounded-xl text-center shadow-sm">
+                      <span className="text-[10px] font-bold text-muted-text uppercase tracking-wider block">{counter.label}</span>
+                      <span className={`text-2xl font-semibold ${counter.color} block mt-1`}>{counter.count}</span>
                     </div>
                   ))}
                 </div>
@@ -1269,7 +1268,7 @@ export default function Home() {
                   
                   {/* Meal Breakdown Charts */}
                   <div className="flex flex-col gap-3">
-                    <h5 className="text-[11px] font-bold text-muted-text uppercase tracking-wide border-b border-card-border/40 pb-1">Meal Choices</h5>
+                    <h5 className="text-[10px] font-bold text-muted-text uppercase tracking-wider border-b border-card-border/40 pb-1">Meal Splits</h5>
                     
                     <div className="flex flex-col gap-3.5 mt-1">
                       {[
@@ -1283,11 +1282,11 @@ export default function Home() {
                           <div key={meal.name} className="flex flex-col gap-1 text-xs">
                             <div className="flex justify-between font-medium text-foreground">
                               <span>{meal.name}</span>
-                              <span className="font-bold">{meal.count} <span className="text-[10px] text-muted-text">({Math.round(percentage)}%)</span></span>
+                              <span className="font-bold">{meal.count} <span className="text-[10px] text-muted-text font-normal">({Math.round(percentage)}%)</span></span>
                             </div>
-                            <div className="w-full h-2 bg-sec-bg rounded-full overflow-hidden border border-card-border/30">
+                            <div className="w-full h-2 bg-sec-bg rounded-full overflow-hidden border border-card-border/20">
                               <div 
-                                className="h-full bg-brand-green rounded-full transition-all duration-700" 
+                                className="h-full bg-brand-green rounded-full transition-all duration-750" 
                                 style={{ width: `${percentage}%` }}
                               ></div>
                             </div>
@@ -1299,7 +1298,7 @@ export default function Home() {
 
                   {/* Dietary Requirements Summary */}
                   <div className="flex flex-col gap-3">
-                    <h5 className="text-[11px] font-bold text-muted-text uppercase tracking-wide border-b border-card-border/40 pb-1">Dietary Restrictions</h5>
+                    <h5 className="text-[10px] font-bold text-muted-text uppercase tracking-wider border-b border-card-border/40 pb-1">Dietary Requirements</h5>
                     
                     <div className="flex flex-wrap gap-2 mt-1">
                       {["Gluten-Free", "Vegan", "Nut-Free"].map((diet) => {
@@ -1307,7 +1306,7 @@ export default function Home() {
                         return (
                           <div 
                             key={diet}
-                            className="px-3 py-1.5 bg-sec-bg/50 border border-card-border/50 rounded-lg flex items-center justify-between gap-4 text-xs flex-1 min-w-[100px]"
+                            className="px-3 py-2 bg-sec-bg/40 border border-card-border/40 rounded-xl flex items-center justify-between gap-4 text-xs flex-1 min-w-[100px] shadow-sm"
                           >
                             <span className="font-medium text-foreground">{diet}</span>
                             <span className="w-5 h-5 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green font-bold flex items-center justify-center text-[10px]">
@@ -1318,29 +1317,32 @@ export default function Home() {
                       })}
                     </div>
 
-                    <div className="mt-4 p-3 bg-brand-green/5 border border-brand-green/10 rounded-lg text-[11px] text-brand-green leading-relaxed">
-                      💡 <strong>Organizer Alert:</strong> {guests.filter(g => g.plusOne !== "None").length} Plus Ones registered. Total guest seating count is {guests.filter(g => g.status === "Accepted").length + guests.filter(g => g.status === "Accepted" && g.plusOne !== "None").length} seats.
+                    <div className="mt-4 p-3.5 bg-brand-green/5 border border-brand-green/10 rounded-xl text-[11px] text-brand-green leading-relaxed">
+                      💡 <strong>Organizer Summary:</strong> {guests.filter(g => g.plusOne !== "None").length} Plus Ones registered. Total guest seating count is {guests.filter(g => g.status === "Accepted").length + guests.filter(g => g.status === "Accepted" && g.plusOne !== "None").length} seats.
                     </div>
                   </div>
                 </div>
 
                 {/* Real-time Guest Feed */}
                 <div className="flex flex-col gap-2 flex-1 overflow-hidden">
-                  <h5 className="text-[11px] font-bold text-muted-text uppercase tracking-wide border-b border-card-border/40 pb-1">Recent Activity Feed</h5>
+                  <h5 className="text-[10px] font-bold text-muted-text uppercase tracking-wider border-b border-card-border/40 pb-1">Live Feed</h5>
                   
                   <div className="overflow-y-auto no-scrollbar flex flex-col gap-2 max-h-[140px] pr-1">
                     {guests.map((g) => (
                       <div 
                         key={g.id} 
-                        className="p-2 border border-card-border/60 bg-sec-bg/20 rounded-lg flex justify-between items-center text-xs animate-fade-in"
+                        className="p-2 border border-card-border/50 bg-sec-bg/15 rounded-xl flex justify-between items-center text-xs animate-fade-in"
                       >
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2.5 h-2.5 rounded-full border ${
-                            g.status === "Accepted" ? "bg-brand-green border-emerald-400" : "bg-red-500 border-red-400"
-                          }`}></div>
+                        <div className="flex items-center gap-2.5">
+                          {/* Circular monogram avatar */}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
+                            g.status === "Accepted" ? "bg-emerald-100 text-brand-green" : "bg-red-100 text-red-550"
+                          }`}>
+                            {g.name.split(" ").map(n => n[0]).join("").toUpperCase()}
+                          </div>
                           <div>
                             <span className="font-bold text-foreground">{g.name}</span>
-                            <span className="text-[10px] text-muted-text block leading-none mt-0.5">
+                            <span className="text-[10px] text-muted-text block leading-none mt-1">
                               {g.status === "Accepted" ? `Meal: ${g.meal} | Plus One: ${g.plusOne}` : "Declined invitation"}
                             </span>
                           </div>
@@ -1362,21 +1364,21 @@ export default function Home() {
       <section 
         id="designs" 
         ref={sectionRefs.designs}
-        className="w-full py-24 bg-sec-bg/40 border-b border-card-border/40"
+        className="w-full py-28 bg-sec-bg/30 border-b border-card-border/40"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
           
           {/* Left: Designs Text Column */}
           <div className="lg:col-span-4 flex flex-col gap-6 text-center lg:text-left">
             <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Curated Designer Suites</span>
-            <h2 className="font-serif text-3xl sm:text-4xl lg:text-4xl font-semibold leading-tight tracking-tight text-foreground animate-pulse">
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-4.5xl font-normal leading-tight tracking-tight text-stone-900 dark:text-stone-50">
               Thoughtfully Designed, Sustainably Crafted
             </h2>
             <p className="text-muted-text leading-relaxed text-sm md:text-base font-light">
               Our in-house design lab partners with a global network of indie illustrators, calligraphers, and visual artists to curate elegant suites—without the waste. Click the flip button to view the back cover details of each invitation card.
             </p>
             <div className="pt-2">
-              <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-md font-semibold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700" id="explore-designs-btn">
+              <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-xl font-bold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700" id="explore-designs-btn">
                 See All Suites (50+)
               </button>
             </div>
@@ -1419,14 +1421,13 @@ export default function Home() {
                             <div className={`absolute bottom-0 w-[95%] h-[85%] rounded-t-md shadow-inner transition-colors duration-500 ${
                               chicStripesColor === "navy" ? "bg-blue-900/10 border-t border-blue-300" :
                               chicStripesColor === "emerald" ? "bg-emerald-900/10 border-t border-emerald-350" :
-                              chicStripesColor === "burgundy" ? "bg-rose-950/15 border-t border-red-300" :
-                              "bg-slate-200 border-t border-slate-350"
+                              "bg-rose-955/15 border-t border-red-300"
                             }`}>
                               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-400 via-yellow-600 to-transparent"></div>
                             </div>
 
                             {/* Sliding Invitation Card */}
-                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-card-bg shadow-xl rounded-sm p-3 border-t-2 border-amber-300 border-x border-b border-card-border flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-15">
+                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-card-bg shadow-xl rounded-sm p-3 border-t-2 border-amber-300 border-x border-b border-card-border flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-15 bg-paper border-double border-4 border-amber-300/35 shadow-inner">
                               <div className="w-full h-full flex flex-col items-center justify-between py-1 relative">
                                 <div className="absolute left-0 top-0 bottom-0 w-2.5 flex flex-col justify-between">
                                   {[...Array(6)].map((_, i) => (
@@ -1435,8 +1436,7 @@ export default function Home() {
                                       className={`w-full h-1.5 transition-colors duration-500 ${
                                         chicStripesColor === "navy" ? "bg-blue-900" :
                                         chicStripesColor === "emerald" ? "bg-emerald-800" :
-                                        chicStripesColor === "burgundy" ? "bg-red-900" :
-                                        "bg-zinc-800"
+                                        "bg-red-900"
                                       }`}
                                     ></div>
                                   ))}
@@ -1448,8 +1448,7 @@ export default function Home() {
                                       className={`w-full h-1.5 transition-colors duration-500 ${
                                         chicStripesColor === "navy" ? "bg-blue-900" :
                                         chicStripesColor === "emerald" ? "bg-emerald-800" :
-                                        chicStripesColor === "burgundy" ? "bg-red-900" :
-                                        "bg-zinc-800"
+                                        "bg-red-900"
                                       }`}
                                     ></div>
                                   ))}
@@ -1458,7 +1457,7 @@ export default function Home() {
                                 <div className="px-3 text-center flex flex-col items-center justify-center h-full gap-0.5">
                                   <span className="font-serif italic text-[7px] text-muted-text">please join us at</span>
                                   <h4 className="font-serif text-[9px] font-bold text-foreground uppercase tracking-wider leading-none text-center">
-                                    HEART GALA & AUCTION
+                                    HEART GALA &amp; AUCTION
                                   </h4>
                                   <div className="w-6 h-[0.5px] bg-amber-400 my-0.5"></div>
                                   <span className="text-[5.5px] text-muted-text uppercase tracking-widest leading-none font-bold">CYPRESS SPRINGS GRILLE</span>
@@ -1467,7 +1466,7 @@ export default function Home() {
                             </div>
 
                             {/* Envelope Front Cover */}
-                            <div className="absolute bottom-0 w-full h-[55%] bg-stone-300 dark:bg-stone-700 rounded-b-md shadow-lg z-20 border-t border-stone-200/40">
+                            <div className="absolute bottom-0 w-full h-[55%] bg-stone-350 dark:bg-stone-750 rounded-b-md shadow-lg z-20 border-t border-stone-200/30">
                               <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent rounded-b-md"></div>
                             </div>
                           </div>
@@ -1484,7 +1483,7 @@ export default function Home() {
                           </div>
                           <div className="border-t border-card-border pt-2 flex flex-col gap-1.5">
                             <span className="text-[8.5px] text-foreground font-bold">Dress Code: Black Tie</span>
-                            <button className="bg-brand-green text-white text-[9px] font-bold py-1 rounded hover:bg-brand-green-hover transition-colors shadow-sm">
+                            <button className="bg-brand-green text-white text-[9px] font-bold py-1 rounded-lg hover:bg-brand-green-hover transition-colors shadow-sm">
                               Preview RSVP Info
                             </button>
                           </div>
@@ -1512,7 +1511,7 @@ export default function Home() {
                         {[
                           { id: "navy", color: "bg-blue-900 ring-blue-900/30" },
                           { id: "emerald", color: "bg-emerald-800 ring-emerald-800/30" },
-                          { id: "burgundy", color: "bg-red-950 ring-red-950/30" },
+                          { id: "burgundy", color: "bg-red-955 ring-red-950/30" },
                         ].map((dot) => (
                           <button
                             key={dot.id}
@@ -1556,14 +1555,13 @@ export default function Home() {
                             {/* Envelope Back / Liner */}
                             <div className={`absolute bottom-0 w-[95%] h-[85%] rounded-t-md shadow-inner transition-colors duration-500 ${
                               fireworksColor === "red" ? "bg-red-950/20 border-t border-red-900" :
-                              fireworksColor === "blue" ? "bg-blue-950/20 border-t border-blue-900" :
-                              "bg-[#151419] border-t border-stone-800"
+                              "bg-blue-955/20 border-t border-blue-900"
                             }`}>
                               <div className="absolute inset-0 opacity-35 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-zinc-400 via-zinc-800 to-transparent"></div>
                             </div>
 
                             {/* Sliding Invitation Card */}
-                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-[#09090b] shadow-xl rounded-sm p-3 border border-zinc-850 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-15 overflow-hidden">
+                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-[#09090b] shadow-xl rounded-sm p-3 border border-zinc-850 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-15 overflow-hidden border-double border-4 border-amber-300/35 shadow-inner">
                               <div className="absolute inset-0 bg-black pointer-events-none opacity-40">
                                 <div className="absolute top-2 left-6 w-12 h-12 border border-dashed border-red-500/20 rounded-full animate-ping"></div>
                                 <div className="absolute top-3 right-4 w-10 h-10 border border-dashed border-yellow-500/25 rounded-full animate-ping duration-1000"></div>
@@ -1572,13 +1570,13 @@ export default function Home() {
                               <div className="relative z-10 w-full h-full flex flex-col items-center justify-center gap-0.5 py-1 text-slate-100">
                                 <h4 className="font-serif italic text-base text-yellow-300 leading-none">Midnight</h4>
                                 <span className="text-[6px] tracking-widest font-sans uppercase">NYE Celebration</span>
-                                <div className="w-5 h-[0.5px] bg-red-500 my-0.5"></div>
+                                <div className="w-5 h-[0.5px] bg-red-550 my-0.5"></div>
                                 <span className="text-[5px] text-slate-400 tracking-widest leading-none">8:00 PM EST</span>
                               </div>
                             </div>
 
                             {/* Envelope Front Cover */}
-                            <div className="absolute bottom-0 w-full h-[55%] bg-stone-300 dark:bg-stone-700 rounded-b-md shadow-lg z-20 border-t border-stone-200/40">
+                            <div className="absolute bottom-0 w-full h-[55%] bg-stone-300 dark:bg-stone-700 rounded-b-md shadow-lg z-20 border-t border-stone-200/30">
                               <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent rounded-b-md"></div>
                             </div>
                           </div>
@@ -1595,7 +1593,7 @@ export default function Home() {
                           </div>
                           <div className="border-t border-card-border pt-2 flex flex-col gap-1.5">
                             <span className="text-[8.5px] text-foreground font-bold">Midnight Champagne toast</span>
-                            <button className="bg-brand-green text-white text-[9px] font-bold py-1 rounded hover:bg-brand-green-hover transition-colors shadow-sm">
+                            <button className="bg-brand-green text-white text-[9px] font-bold py-1 rounded-lg hover:bg-brand-green-hover transition-colors shadow-sm">
                               Reserve Spot
                             </button>
                           </div>
@@ -1621,9 +1619,8 @@ export default function Home() {
 
                       <div className="flex gap-1.5 mt-3">
                         {[
-                          { id: "red", color: "bg-red-750 ring-red-750/30" },
-                          { id: "blue", color: "bg-blue-750 ring-blue-750/30" },
-                          { id: "black", color: "bg-zinc-850 ring-zinc-850/30" },
+                          { id: "red", color: "bg-red-700 ring-red-700/30" },
+                          { id: "blue", color: "bg-blue-700 ring-blue-700/30" },
                         ].map((dot) => (
                           <button
                             key={dot.id}
@@ -1665,17 +1662,17 @@ export default function Home() {
                           <div className="relative w-full h-[80%] flex flex-col justify-end overflow-visible select-none">
                             
                             {/* Envelope Back */}
-                            <div className="absolute bottom-0 w-[95%] h-[85%] bg-stone-100 dark:bg-stone-800 rounded-t-md border-t border-stone-200 dark:border-stone-700 shadow-inner"></div>
+                            <div className="absolute bottom-0 w-[95%] h-[85%] bg-stone-100 dark:bg-stone-850 rounded-t-md border-t border-stone-200 dark:border-stone-700 shadow-inner"></div>
 
                             {/* Sliding Invitation Card */}
-                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-[#fafafa] dark:bg-zinc-800 shadow-xl rounded-sm p-2 border border-stone-200 dark:border-zinc-700 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-15">
+                            <div className="absolute bottom-2 left-[7.5%] w-[85%] aspect-[0.72/1] bg-[#fafafa] dark:bg-zinc-800 shadow-xl rounded-sm p-2 border border-stone-200 dark:border-zinc-700 flex flex-col items-center justify-between transition-transform duration-500 ease-out group-hover:-translate-y-20 z-15 bg-paper border-double border-4 border-amber-300/35 shadow-inner">
                               <div className="w-full flex-1 relative bg-zinc-200 dark:bg-zinc-700 rounded-sm mb-1.5 overflow-hidden flex items-center justify-center">
                                 <div className={`absolute inset-0 bg-gradient-to-br from-zinc-400 to-zinc-550 flex flex-col items-center justify-center text-white/90 p-1 text-center transition-all ${
                                   remembranceColor === "sepia" ? "sepia saturate-120" :
                                   remembranceColor === "cool" ? "hue-rotate-15" : ""
                                 }`}>
                                   <svg className="w-6 h-6 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159" />
                                   </svg>
                                 </div>
                               </div>
@@ -1690,7 +1687,7 @@ export default function Home() {
 
                             {/* Envelope Front Cover */}
                             <div className={`absolute bottom-0 w-full h-[55%] rounded-b-md shadow-lg z-20 border-t ${
-                              remembranceColor === "white" ? "bg-stone-200 dark:bg-zinc-700 border-stone-300 dark:border-zinc-600" :
+                              remembranceColor === "white" ? "bg-stone-200 dark:bg-zinc-700 border-stone-300 dark:border-zinc-650" :
                               remembranceColor === "sage" ? "bg-[#b8cfc2] border-[#a5c0b1]" :
                               "bg-slate-700 border-slate-650"
                             }`}>
@@ -1710,7 +1707,7 @@ export default function Home() {
                           </div>
                           <div className="border-t border-card-border pt-2 flex flex-col gap-1.5">
                             <span className="text-[8.5px] text-foreground font-bold">June 15 at 1:00 PM</span>
-                            <button className="bg-brand-green text-white text-[9px] font-bold py-1 rounded hover:bg-brand-green-hover transition-colors shadow-sm">
+                            <button className="bg-brand-green text-white text-[9px] font-bold py-1 rounded-lg hover:bg-brand-green-hover transition-colors shadow-sm">
                               Send Memory details
                             </button>
                           </div>
@@ -1736,7 +1733,7 @@ export default function Home() {
 
                       <div className="flex gap-1.5 mt-3">
                         {[
-                          { id: "white", color: "bg-stone-50 border-stone-300 ring-stone-300/40" },
+                          { id: "white", color: "bg-stone-50 border-stone-350 ring-stone-300/40" },
                           { id: "sage", color: "bg-[#b8cfc2] ring-[#b8cfc2]/40" },
                           { id: "navy", color: "bg-slate-700 ring-slate-700/40" },
                         ].map((dot) => (
@@ -1755,7 +1752,7 @@ export default function Home() {
                 ) : (
                   <div className="flex flex-col items-center w-full" id="card-circus-party">
                     <div className="relative w-full max-w-[200px] aspect-[0.75/1] bg-yellow-50/20 border border-card-border p-4 flex flex-col justify-between shadow-md hover:shadow-lg rounded-xl transition-all">
-                      <div className="aspect-[1.4/1] bg-yellow-100 dark:bg-yellow-950/40 rounded-lg flex items-center justify-center text-yellow-800 dark:text-yellow-350 font-serif text-[9px] tracking-widest uppercase shadow-inner border border-yellow-300/20">
+                      <div className="aspect-[1.4/1] bg-yellow-100 dark:bg-yellow-950/40 rounded-lg flex items-center justify-center text-yellow-800 dark:text-yellow-355 font-serif text-[9px] tracking-widest uppercase shadow-inner border border-yellow-300/20">
                         Birthday Invite
                       </div>
                       <div className="text-center mt-2">
@@ -1802,21 +1799,21 @@ export default function Home() {
       </section>
 
       {/* --- TESTIMONIALS SLIDER SECTION --- */}
-      <section className="w-full py-24 bg-card-bg border-b border-card-border/40">
+      <section className="w-full py-28 bg-card-bg border-b border-card-border/40">
         <div className="max-w-4xl mx-auto px-6 text-center flex flex-col items-center">
           <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Customer Stories</span>
-          <h2 className="font-serif text-3xl font-semibold text-foreground mt-2 mb-12">What Hosts Say</h2>
+          <h2 className="font-serif text-3xl font-normal text-foreground mt-2 mb-12">What Hosts Say</h2>
           
           <div className="w-full min-h-[180px] flex flex-col justify-between items-center relative">
             
             {/* Sliding quote */}
             <div className="animate-fade-in flex flex-col items-center gap-6" key={testimonialIdx}>
-              <p className="font-serif text-lg md:text-xl lg:text-2xl text-foreground italic leading-relaxed max-w-2xl text-center">
+              <p className="font-serif text-xl md:text-2xl text-foreground italic leading-relaxed max-w-3xl text-center">
                 “{testimonials[testimonialIdx].quote}”
               </p>
               <div>
                 <h4 className="font-bold text-sm text-foreground">{testimonials[testimonialIdx].author}</h4>
-                <span className="text-[10px] text-brand-green font-semibold uppercase tracking-wider mt-1 block">
+                <span className="text-[10px] text-brand-green font-bold uppercase tracking-wider mt-1 block">
                   {testimonials[testimonialIdx].tag}
                 </span>
               </div>
@@ -1849,11 +1846,11 @@ export default function Home() {
       <section 
         id="pricing" 
         ref={sectionRefs.pricing}
-        className="w-full py-24 bg-sec-bg/10 border-b border-card-border/40 text-center"
+        className="w-full py-28 bg-sec-bg/10 border-b border-card-border/40 text-center"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12 flex flex-col items-center gap-6">
           <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Simple Tier Pricing</span>
-          <h2 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight text-foreground">
+          <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-foreground">
             Simple, Flat Rate Pricing Packages
           </h2>
           <p className="text-muted-text leading-relaxed max-w-xl font-light text-sm md:text-base">
@@ -1895,7 +1892,7 @@ export default function Home() {
       <section 
         id="nature" 
         ref={sectionRefs.nature}
-        className="w-full py-24 bg-emerald-50/50 dark:bg-emerald-950/20 text-center border-b border-card-border/40"
+        className="w-full py-28 bg-emerald-50/50 dark:bg-emerald-950/20 text-center border-b border-card-border/40"
       >
         <div className="max-w-3xl mx-auto px-6 flex flex-col items-center gap-6">
           <div className="w-12 h-12 rounded-full bg-brand-green/10 flex items-center justify-center mb-2 border border-brand-green/10">
@@ -1904,25 +1901,25 @@ export default function Home() {
             </svg>
           </div>
           <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Our Green Commitment</span>
-          <h2 className="font-serif text-3xl sm:text-4xl font-semibold tracking-tight text-foreground">
+          <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight text-foreground">
             Over 1.5 Million Trees Saved Since Inception
           </h2>
           <p className="text-emerald-800/80 dark:text-emerald-350/80 leading-relaxed font-light text-sm md:text-base max-w-xl">
             By shifting invitations online, Fancy RSVP hosts preserve natural forests, reduce water use, and prevent tons of waste. We pledge 1% of every transaction to global tree reforestation networks.
           </p>
-          <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-md font-semibold tracking-wide transition-all shadow-md hover:shadow-lg mt-2 cursor-pointer border-b-2 border-emerald-700" id="read-eco-pledge">
+          <button className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-3.5 rounded-md font-bold tracking-wide transition-all shadow-md hover:shadow-lg mt-2 cursor-pointer border-b-2 border-emerald-700" id="read-eco-pledge">
             Read Our Eco Pledge
           </button>
         </div>
       </section>
 
       {/* --- FAQ ACCORDION SECTION --- */}
-      <section className="w-full py-24 bg-card-bg">
+      <section className="w-full py-28 bg-card-bg">
         <div className="max-w-4xl mx-auto px-6">
           
-          <div className="text-center max-w-2xl mx-auto mb-16">
+          <div className="text-center max-w-2xl mx-auto mb-20">
             <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Common Questions</span>
-            <h2 className="font-serif text-3xl font-semibold tracking-tight mt-2 text-foreground">
+            <h2 className="font-serif text-3xl font-normal tracking-tight mt-2 text-foreground">
               Frequently Asked Questions
             </h2>
             <div className="w-12 h-0.5 bg-brand-green mx-auto rounded-full mt-4"></div>
@@ -1931,7 +1928,7 @@ export default function Home() {
           <div className="flex flex-col gap-4">
             {[
               {
-                q: "Does Fancy RSVP support actual video or audio uploads?",
+                q: "Does Fancy RSVP support custom background music?",
                 a: "Yes! Our premium packages let you upload custom mp3/wav audio loops or select from our catalog. You can also embed personal Vimeo or YouTube video links that display instantly on the guest landing card."
               },
               {

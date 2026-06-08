@@ -174,4 +174,38 @@ html {
   scrollbar-width: none;
 }
 
+/* Subtle premium paper texture simulation */
+.bg-paper {
+  position: relative;
+}
+.bg-paper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.035;
+  pointer-events: none;
+  background-image: radial-gradient(circle, #000 1px, transparent 1px);
+  background-size: 3px 3px;
+  z-index: 1;
+}
+.dark .bg-paper::before {
+  opacity: 0.085;
+  background-image: radial-gradient(circle, #fff 1px, transparent 1px);
+}
+
+/* Elegant gold leaf accents */
+.border-gold {
+  border-color: rgba(212, 175, 55, 0.25);
+}
+.hover\:border-gold:hover {
+  border-color: rgba(212, 175, 55, 0.45);
+}
+
+/* Soft luxury radial gradients */
+.bg-radial-luxury {
+  background: radial-gradient(circle at top, var(--card-bg) 60%, var(--sec-bg));
+}
+
 
