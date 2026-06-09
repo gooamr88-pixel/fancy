@@ -141,7 +141,10 @@ if (!isLocalDB) {
       this.orderBy = null;
     }
 
-    select(columns) { return this; }
+    select(columns, options) {
+      this.selectOptions = options;
+      return this;
+    }
 
     eq(column, value) {
       this.filters.push({ type: 'eq', column, value });
@@ -210,6 +213,31 @@ if (!isLocalDB) {
             if (!row.created_at) row.created_at = new Date().toISOString();
             return row;
           });
+
+          // Enforce unique constraints in mock LocalDB
+          if (this.tableName === 'event_payments') {
+            for (const row of newRows) {
+              if (row.stripe_checkout_session_id) {
+                const dup = (db.event_payments || []).find(p => p.stripe_checkout_session_id === row.stripe_checkout_session_id);
+                if (dup) {
+                  const errRes = { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } };
+                  return onfulfilled ? onfulfilled(errRes) : errRes;
+                }
+              }
+            }
+          }
+          if (this.tableName === 'sms_credit_ledger') {
+            for (const row of newRows) {
+              if (row.transaction_type === 'purchase' && row.stripe_payment_intent_id) {
+                const dup = (db.sms_credit_ledger || []).find(l => l.transaction_type === 'purchase' && l.stripe_payment_intent_id === row.stripe_payment_intent_id);
+                if (dup) {
+                  const errRes = { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } };
+                  return onfulfilled ? onfulfilled(errRes) : errRes;
+                }
+              }
+            }
+          }
+
           db[this.tableName] = [...(db[this.tableName] || []), ...newRows];
           saveDB(db);
 
@@ -351,7 +379,12 @@ if (!isLocalDB) {
           result = rows.slice(0, this.limitCount);
         }
 
-        const resolved = onfulfilled ? onfulfilled({ data: result, error: null }) : { data: result, error: null };
+        let response = { data: result, error: null };
+        if (this.selectOptions?.count) {
+          response.count = rows.length;
+        }
+
+        const resolved = onfulfilled ? onfulfilled(response) : response;
         return resolved;
       } catch (err) {
         console.error('LocalDB Query Error:', err);
@@ -454,6 +487,88 @@ if (!isLocalDB) {
             saveDB(db);
           }
           return { data: null, error: null };
+        }
+
+        if (fnName === 'deduct_sms_credit_atomic') {
+          const { p_event_id, p_phone } = params;
+          const wallet = db.sms_credit_wallets.find(w => w.event_id === p_event_id);
+          if (!wallet) {
+            return { data: { success: false, error: 'NO_WALLET' }, error: null };
+          }
+          const remaining = (wallet.credits_purchased || 0) - (wallet.credits_used || 0);
+          if (remaining < 1) {
+            return { data: { success: false, error: 'INSUFFICIENT_CREDITS' }, error: null };
+          }
+          wallet.credits_used = (wallet.credits_used || 0) + 1;
+          wallet.updated_at = new Date().toISOString();
+          
+          const ledgerEntry = {
+            id: 'led-' + Math.random().toString(36).substring(2, 9),
+            wallet_id: wallet.id,
+            event_id: p_event_id,
+            transaction_type: 'consumption',
+            credits: -1,
+            sms_recipient: p_phone,
+            sms_sid: null,
+            created_at: new Date().toISOString()
+          };
+          db.sms_credit_ledger.push(ledgerEntry);
+          saveDB(db);
+          
+          return { data: { success: true, wallet_id: wallet.id, ledger_id: ledgerEntry.id }, error: null };
+        }
+
+        if (fnName === 'refund_sms_credit_atomic') {
+          const { p_wallet_id, p_event_id, p_ledger_id } = params;
+          const wallet = db.sms_credit_wallets.find(w => w.id === p_wallet_id);
+          if (wallet) {
+            wallet.credits_used = Math.max(0, (wallet.credits_used || 0) - 1);
+            wallet.updated_at = new Date().toISOString();
+          }
+          db.sms_credit_ledger = db.sms_credit_ledger.filter(l => l.id !== p_ledger_id);
+          saveDB(db);
+          return { data: null, error: null };
+        }
+
+        if (fnName === 'approve_event_cash') {
+          const { p_event_id, p_approved_by, p_amount_cents } = params;
+          const event = db.events.find(e => e.id === p_event_id);
+          if (!event) {
+            return { data: { success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' }, error: null };
+          }
+          
+          event.is_paid = true;
+          event.status = 'active';
+          event.updated_at = new Date().toISOString();
+          
+          const paymentId = 'pay-' + Math.random().toString(36).substring(2, 9);
+          db.event_payments.push({
+            id: paymentId,
+            event_id: p_event_id,
+            stripe_checkout_session_id: null,
+            stripe_payment_intent_id: null,
+            amount_cents: p_amount_cents,
+            currency: 'usd',
+            status: 'completed',
+            payment_method: 'cash_manual',
+            approved_by: p_approved_by,
+            completed_at: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          });
+          
+          db.activity_logs.push({
+            id: 'act-' + Math.random().toString(36).substring(2, 9),
+            event_id: p_event_id,
+            actor_id: p_approved_by,
+            action: 'event_payment_manual_approved',
+            entity_type: 'event_payment',
+            entity_id: paymentId,
+            metadata: { amount_cents: p_amount_cents },
+            created_at: new Date().toISOString()
+          });
+          
+          saveDB(db);
+          return { data: { success: true, payment_id: paymentId }, error: null };
         }
       } catch (err) {
         return { data: null, error: err };

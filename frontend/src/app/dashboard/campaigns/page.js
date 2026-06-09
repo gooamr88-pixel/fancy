@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
@@ -17,14 +18,35 @@ export default function CampaignsPage() {
   const [sending, setSending] = useState(false);
   const [campaignReport, setCampaignReport] = useState(null);
 
-  const eventId = 'demo-event';
+  const [token, setToken] = useState('');
+  const [eventId, setEventId] = useState('');
+  const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  // Auth and event initializer
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedToken = localStorage.getItem('auth_token');
+      if (!savedToken) {
+        router.push('/login');
+        return;
+      }
+      setTimeout(() => {
+        setToken(savedToken);
+        const savedEventId = localStorage.getItem('active_event_id') || 'demo-event';
+        setEventId(savedEventId);
+      }, 0);
+    }
+  }, [router]);
+
   // Load campaign wallet, ledger, and calculate targets
-  const loadCampaignData = async () => {
+  const loadCampaignData = useCallback(async () => {
+    if (!eventId) return;
     try {
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
       // 1. Fetch wallet and history
-      const historyRes = await fetch(`${apiUrl}/events/${eventId}/campaigns/history`);
+      const historyRes = await fetch(`${apiUrl}/events/${eventId}/campaigns/history`, { headers });
       const historyData = await historyRes.json();
       if (historyData.success) {
         setCreditsPurchased(historyData.wallet.credits_purchased || 0);
@@ -44,7 +66,7 @@ export default function CampaignsPage() {
       }
 
       // 2. Fetch RSVPs to calculate pending counts
-      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`);
+      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { headers });
       const rsvpsData = await rsvpsRes.json();
       if (rsvpsData.success) {
         // Calculate number of guests who are response === 'pending' and have a phone number
@@ -59,15 +81,19 @@ export default function CampaignsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [apiUrl, eventId, token]);
 
   useEffect(() => {
-    loadCampaignData();
-  }, []);
+    if (!eventId) return;
+    setTimeout(() => {
+      loadCampaignData();
+    }, 0);
+  }, [loadCampaignData, eventId]);
 
   // Handle campaign dispatch API call
   const handleLaunchCampaign = async (e) => {
     e.preventDefault();
+    if (!eventId) return;
     if (recipientCount > creditsRemaining) {
       alert(`Insufficient credits. You need ${recipientCount} credits, but only have ${creditsRemaining} remaining.`);
       return;
@@ -77,7 +103,10 @@ export default function CampaignsPage() {
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/send-sms`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({ messageTemplate })
       });
 
@@ -148,7 +177,7 @@ export default function CampaignsPage() {
         </div>
 
         <div className="mt-4 md:mt-0 flex gap-3">
-          <button className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm hover:bg-slate-700 transition">
+          <button className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm hover:bg-slate-700 transition cursor-pointer text-slate-200">
             Buy SMS Credits
           </button>
         </div>
@@ -170,7 +199,7 @@ export default function CampaignsPage() {
               <span className="text-xl font-black block mt-2 text-slate-350">{creditsUsed}</span>
             </div>
             <div className="border-l border-slate-800">
-              <span className="text-xs uppercase text-slate-450 font-bold block">Remaining Balance</span>
+              <span className="text-xs uppercase text-slate-455 font-bold block">Remaining Balance</span>
               <span className="text-2xl font-black block mt-1.5 text-amber-400">{creditsRemaining} Credits</span>
             </div>
           </div>
@@ -186,7 +215,7 @@ export default function CampaignsPage() {
                   value={messageTemplate}
                   onChange={e => setMessageTemplate(e.target.value)}
                   rows={4}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500 leading-relaxed"
+                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500 leading-relaxed bg-background text-foreground"
                 />
                 <span className="text-[10px] text-slate-550 block leading-relaxed mt-1">
                   Supported dynamic tags: <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-500 font-mono">{`{name}`}</code> for guest name, <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-500 font-mono">{`{url}`}</code> for direct unique guest RSVP invitation links.
@@ -206,7 +235,7 @@ export default function CampaignsPage() {
                 </div>
               ) : (
                 <div className="bg-slate-950/30 p-4 border border-slate-850 rounded-xl text-center">
-                  <p className="text-xs text-slate-500">All pending guest lists have already been notified. No pending SMS targets left.</p>
+                  <p className="text-xs text-slate-550">All pending guest lists have already been notified. No pending SMS targets left.</p>
                 </div>
               )}
 
@@ -214,7 +243,7 @@ export default function CampaignsPage() {
                 <button
                   type="submit"
                   disabled={sending}
-                  className="w-full py-3 bg-amber-600 font-bold rounded-xl text-sm hover:bg-amber-500 transition disabled:opacity-50 shadow-lg shadow-amber-950/10"
+                  className="w-full py-3 bg-amber-600 font-bold rounded-xl text-sm hover:bg-amber-500 transition disabled:opacity-50 shadow-lg shadow-amber-950/10 cursor-pointer text-white"
                 >
                   {sending ? 'Dispatching campaign...' : `Launch SMS Campaign to ${recipientCount} Guests`}
                 </button>

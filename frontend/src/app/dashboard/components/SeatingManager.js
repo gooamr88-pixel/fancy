@@ -1,6 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, memo } from "react";
 
-export default function SeatingManager({
+const SeatingManager = memo(function SeatingManager({
   rsvps,
   tables,
   searchQuery,
@@ -138,4 +138,6 @@ export default function SeatingManager({
 
     </div>
   );
-}
+});
+
+export default SeatingManager;

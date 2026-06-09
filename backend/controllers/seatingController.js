@@ -1,5 +1,5 @@
 const { supabase } = require('../config/supabase');
-const { sendQRTicketEmailHelper } = require('./notificationController');
+const notificationService = require('../utils/notificationService');
 
 /**
  * Assigns a guest party to a table atomically.
@@ -59,7 +59,7 @@ const assignSeat = async (req, res, next) => {
 
     // Auto-fire QR ticket email on successful seating assignment
     try {
-      await sendQRTicketEmailHelper(eventId, rsvpId);
+      await notificationService.sendQRTicketEmail(eventId, rsvpId);
     } catch (emailErr) {
       console.error(`Failed to auto-send QR ticket email for RSVP ${rsvpId}:`, emailErr.message);
     }
@@ -133,7 +133,7 @@ const reassignSeat = async (req, res, next) => {
 
     // Auto-fire updated QR ticket email on successful reassignment
     try {
-      await sendQRTicketEmailHelper(eventId, rsvpId);
+      await notificationService.sendQRTicketEmail(eventId, rsvpId);
     } catch (emailErr) {
       console.error(`Failed to auto-send updated QR ticket email for RSVP ${rsvpId}:`, emailErr.message);
     }

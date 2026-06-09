@@ -1,14 +1,14 @@
 const { supabase } = require('../config/supabase');
-const { sendConfirmationEmail } = require('./notificationController');
+const notificationService = require('../utils/notificationService');
 const { parseCSV, generateCSV } = require('../utils/excelHelper');
 
 /**
- * Handles guest RSVP form submissions.
+ * Handles guest RSVP form submissions (supports both inserts and updates).
  * POST /api/v1/public/events/:slug/rsvp
  */
 const submitPublicRSVP = async (req, res, next) => {
   const { slug } = req.params;
-  const { guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, customAnswers } = req.body;
+  const { rsvpId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, customAnswers } = req.body;
 
   if (!guestName || !response) {
     return res.status(400).json({
@@ -39,24 +39,81 @@ const submitPublicRSVP = async (req, res, next) => {
       });
     }
 
-    // 3. Insert into rsvps table
+    // Validate additional guests names if attending with a party size > 1
+    if (response === 'yes') {
+      const size = partySize || 1;
+      if (size > 1) {
+        if (!additionalGuests || !Array.isArray(additionalGuests) || additionalGuests.length < size - 1) {
+          return res.status(400).json({
+            success: false,
+            error: 'VALIDATION_ERROR',
+            message: `Please provide details for all ${size - 1} additional guests.`
+          });
+        }
+        for (let idx = 0; idx < size - 1; idx++) {
+          const g = additionalGuests[idx];
+          if (!g || !g.fullName || !g.fullName.trim()) {
+            return res.status(400).json({
+              success: false,
+              error: 'VALIDATION_ERROR',
+              message: `Guest #${idx + 2} must have a valid full name.`
+            });
+          }
+        }
+      }
+    }
+
     const computedPartySize = response === 'yes' ? (partySize || 1) : 1;
+    let rsvp;
 
-    const { data: rsvp, error: rsvpError } = await supabase
-      .from('rsvps')
-      .insert({
-        event_id: event.id,
-        guest_name: guestName,
-        email,
-        phone,
-        response,
-        party_size: computedPartySize,
-        notes
-      })
-      .select()
-      .single();
+    if (rsvpId) {
+      // 3. Update existing RSVP record
+      const { data: updatedRsvp, error: rsvpError } = await supabase
+        .from('rsvps')
+        .update({
+          guest_name: guestName,
+          email,
+          phone,
+          response,
+          party_size: computedPartySize,
+          notes,
+          updated_at: new Date()
+        })
+        .eq('id', rsvpId)
+        .eq('event_id', event.id)
+        .select()
+        .single();
 
-    if (rsvpError) throw rsvpError;
+      if (rsvpError) throw rsvpError;
+      rsvp = updatedRsvp;
+
+      // Clean up child records to allow clean updates
+      await supabase.from('rsvp_guests').delete().eq('rsvp_id', rsvp.id);
+      await supabase.from('custom_answers').delete().eq('rsvp_id', rsvp.id);
+
+      // If updating response to 'no', remove seating assignments
+      if (response === 'no') {
+        await supabase.from('seating_assignments').delete().eq('rsvp_id', rsvp.id);
+      }
+    } else {
+      // 3. Insert new RSVP record
+      const { data: insertedRsvp, error: rsvpError } = await supabase
+        .from('rsvps')
+        .insert({
+          event_id: event.id,
+          guest_name: guestName,
+          email,
+          phone,
+          response,
+          party_size: computedPartySize,
+          notes
+        })
+        .select()
+        .single();
+
+      if (rsvpError) throw rsvpError;
+      rsvp = insertedRsvp;
+    }
 
     // 4. Insert detailed guest records if attending
     if (response === 'yes') {
@@ -115,16 +172,64 @@ const submitPublicRSVP = async (req, res, next) => {
 
     // 7. Trigger confirmation email asynchronously if email exists
     if (email) {
-      // Create mock req/res objects for direct execution
-      const mockReq = { params: { eventId: event.id }, body: { rsvpId: rsvp.id } };
-      const mockRes = { json: () => {}, status: () => ({ json: () => {} }) };
-      sendConfirmationEmail(mockReq, mockRes, (err) => console.error('Confirmation email err:', err));
+      notificationService.sendConfirmationEmail(event.id, rsvp.id)
+        .catch((err) => console.error('Confirmation email err:', err));
     }
 
     return res.status(201).json({
       success: true,
-      message: 'RSVP submitted successfully.',
+      message: rsvpId ? 'RSVP updated successfully.' : 'RSVP submitted successfully.',
       rsvpId: rsvp.id
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Searches pre-registered guest invitations by name (public endpoint).
+ * GET /api/v1/public/events/:slug/rsvp/search
+ */
+const searchPublicGuests = async (req, res, next) => {
+  const { slug } = req.params;
+  const { query } = req.query;
+
+  if (!query || !query.trim()) {
+    return res.json({ success: true, results: [] });
+  }
+
+  try {
+    // 1. Resolve event from slug
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id')
+      .eq('slug', slug)
+      .single();
+
+    if (eventError || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+
+    // 2. Search guests matching query prefix/substring
+    const { data, error } = await supabase
+      .from('rsvps')
+      .select('id, guest_name, email, phone, response, party_size')
+      .eq('event_id', event.id)
+      .ilike('guest_name', `%${query.trim()}%`)
+      .limit(10);
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      results: data.map(item => ({
+        id: item.id,
+        guestName: item.guest_name,
+        email: item.email,
+        phone: item.phone,
+        response: item.response,
+        partySize: item.party_size
+      }))
     });
   } catch (err) {
     next(err);
@@ -233,5 +338,6 @@ module.exports = {
   submitPublicRSVP,
   getRSVPs,
   importGuestsCSV,
-  exportGuestsCSV
+  exportGuestsCSV,
+  searchPublicGuests
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, use } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { translations } from '../../utils/translations';
@@ -30,11 +30,66 @@ function RSVPFormContent({ slug }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
 
+  const [rsvpId, setRsvpId] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchPerformed, setSearchPerformed] = useState(false);
+
   useEffect(() => {
-    if (langParam) {
-      setLang(langParam);
+    setTimeout(() => {
+      setSearchPerformed(false);
+      setSearchResults([]);
+      setRsvpId(null);
+    }, 0);
+  }, [guestName]);
+
+  const handleSearchName = async () => {
+    if (!guestName.trim()) return;
+
+    if (slug === 'demo-wedding' || slug === 'demo') {
+      setSearching(true);
+      setTimeout(() => {
+        setSearching(false);
+        setSearchPerformed(true);
+        if (guestName.toLowerCase().includes('alice') || guestName.toLowerCase().includes('bob')) {
+          setSearchResults([
+            {
+              id: 'demo-pre-registered-id',
+              guestName: guestName.toLowerCase().includes('alice') ? 'Alice Smith' : 'Bob Jones',
+              email: guestName.toLowerCase().includes('alice') ? 'alice@example.com' : 'bob@example.com',
+              phone: '555-0199',
+              partySize: 2,
+              response: 'pending'
+            }
+          ]);
+        } else {
+          setSearchResults([]);
+        }
+      }, 600);
+      return;
     }
-  }, [langParam]);
+
+    setSearching(true);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      const res = await fetch(`${apiUrl}/public/events/${slug}/rsvp/search?query=${encodeURIComponent(guestName.trim())}`);
+      if (!res.ok) throw new Error('Search failed');
+      const data = await res.json();
+      setSearchResults(data.results || []);
+    } catch (err) {
+      console.error(err);
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+      setSearchPerformed(true);
+    }
+  };
+
+  const [prevLangParam, setPrevLangParam] = useState(langParam);
+  if (langParam !== prevLangParam) {
+    setPrevLangParam(langParam);
+    setLang(langParam);
+  }
 
   useEffect(() => {
     if (!slug) return;
@@ -76,22 +131,26 @@ function RSVPFormContent({ slug }) {
   useEffect(() => {
     const size = parseInt(partySize) || 1;
     if (size <= 1) {
-      setAdditionalGuests([]);
+      setTimeout(() => {
+        setAdditionalGuests([]);
+      }, 0);
       return;
     }
 
     const diff = size - 1;
-    setAdditionalGuests(prev => {
-      const copy = [...prev];
-      if (copy.length < diff) {
-        while (copy.length < diff) {
-          copy.push({ fullName: '', mealSelection: '', dietaryNotes: '' });
+    setTimeout(() => {
+      setAdditionalGuests(prev => {
+        const copy = [...prev];
+        if (copy.length < diff) {
+          while (copy.length < diff) {
+            copy.push({ fullName: '', mealSelection: '', dietaryNotes: '' });
+          }
+        } else if (copy.length > diff) {
+          copy.splice(diff);
         }
-      } else if (copy.length > diff) {
-        copy.splice(diff);
-      }
-      return copy;
-    });
+        return copy;
+      });
+    }, 0);
   }, [partySize]);
 
   if (loading) {
@@ -123,6 +182,8 @@ function RSVPFormContent({ slug }) {
   // Dynamic Event Info
   const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
 
+  const isContinueDisabled = partySize > 1 && additionalGuests.some(g => !g.fullName || !g.fullName.trim());
+
   // Form submit handler
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -130,6 +191,7 @@ function RSVPFormContent({ slug }) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
       
       const payload = {
+        rsvpId,
         guestName,
         email,
         phone,
@@ -212,22 +274,108 @@ function RSVPFormContent({ slug }) {
             <div className="space-y-6">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-stone-700 block">{t.enter_name}</label>
-                <input 
-                  type="text" 
-                  value={guestName} 
-                  onChange={e => setGuestName(e.target.value)}
-                  placeholder={t.name_placeholder} 
-                  className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-base"
-                />
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={guestName} 
+                    onChange={e => setGuestName(e.target.value)}
+                    placeholder={t.name_placeholder} 
+                    className="flex-1 px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none text-base"
+                    disabled={searching}
+                  />
+                  {!searchPerformed && (
+                    <button
+                      disabled={!guestName.trim() || searching}
+                      onClick={handleSearchName}
+                      className="px-6 py-3 text-white font-medium rounded-xl transition duration-150 disabled:opacity-50 flex items-center justify-center min-w-[100px]"
+                      style={{ backgroundColor: themeColor }}
+                    >
+                      {searching ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        isRTL ? 'بحث' : 'Search'
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
-              <button
-                disabled={!guestName.trim()}
-                onClick={() => setStep(2)}
-                className="w-full py-3 text-white font-medium rounded-xl transition duration-150 disabled:opacity-50"
-                style={{ backgroundColor: themeColor }}
-              >
-                {t.continue}
-              </button>
+
+              {searching && (
+                <div className="text-center py-4">
+                  <div className="w-8 h-8 border-4 border-stone-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-stone-500 text-sm">{isRTL ? 'جاري البحث عن دعوتك...' : 'Searching for your invitation...'}</p>
+                </div>
+              )}
+
+              {searchPerformed && !searching && (
+                <div className="space-y-4 pt-2 border-t border-stone-100">
+                  {searchResults.length > 0 ? (
+                    <>
+                      <p className="text-sm text-stone-600 font-medium">
+                        {isRTL 
+                          ? `لقد وجدنا دعوتك! يرجى اختيار اسمك لتأكيد الحضور:` 
+                          : `We found your invitation! Please select your name below:`}
+                      </p>
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {searchResults.map(result => (
+                          <button
+                            key={result.id}
+                            onClick={() => {
+                              setRsvpId(result.id);
+                              setGuestName(result.guestName);
+                              if (result.email) setEmail(result.email);
+                              if (result.phone) setPhone(result.phone);
+                              if (result.partySize) setPartySize(result.partySize);
+                              // Advance to step 2
+                              setStep(2);
+                            }}
+                            className="w-full text-left px-4 py-3 border border-stone-200 rounded-xl hover:bg-stone-50 hover:border-amber-500 transition duration-150 flex justify-between items-center bg-white"
+                          >
+                            <div className="flex flex-col text-left">
+                              <span className="font-semibold text-stone-800">{result.guestName}</span>
+                              <span className="text-xs text-stone-400">
+                                {result.email || (isRTL ? 'لا يوجد بريد مسجل' : 'No email registered')}
+                              </span>
+                            </div>
+                            <span className="text-xs font-bold px-2 py-1 bg-stone-100 rounded text-stone-600">
+                              {isRTL ? `مرافقين: ${result.partySize}` : `Party: ${result.partySize}`}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="text-center pt-2">
+                        <button
+                          onClick={() => {
+                            setRsvpId(null);
+                            setStep(2);
+                          }}
+                          className="text-sm text-stone-500 hover:text-amber-600 font-semibold underline"
+                        >
+                          {isRTL ? 'اسمي ليس في القائمة (المتابعة كضيف جديد)' : "My name isn't listed (Continue as a new guest)"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="text-sm text-stone-600 bg-amber-50 border border-amber-200 p-4 rounded-xl">
+                        ⚠️ {isRTL 
+                          ? `لم نجد اسماً مطابقاً لـ "${guestName}" في قائمة المدعوين. لا تقلق، يمكنك الاستمرار والتسجيل كضيف جديد.` 
+                          : `We couldn't find an invitation matching "${guestName}". No worries, you can still RSVP as a new guest.`}
+                      </p>
+                      <button
+                        onClick={() => {
+                          setRsvpId(null);
+                          setStep(2);
+                        }}
+                        className="w-full py-3 text-white font-medium rounded-xl transition duration-150"
+                        style={{ backgroundColor: themeColor }}
+                      >
+                        {isRTL ? 'المتابعة كضيف جديد' : 'Continue as a New Guest'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -372,8 +520,9 @@ function RSVPFormContent({ slug }) {
                   {isRTL ? 'رجوع' : 'Back'}
                 </button>
                 <button
+                  disabled={isContinueDisabled}
                   onClick={() => setStep(4)}
-                  className="px-6 py-2 text-white text-sm font-medium rounded-lg"
+                  className="px-6 py-2 text-white text-sm font-medium rounded-lg disabled:opacity-50"
                   style={{ backgroundColor: themeColor }}
                 >
                   {t.continue}
@@ -501,23 +650,8 @@ function RSVPFormContent({ slug }) {
 
 // Main page component wrapped in Suspense
 export default function RSVPFormPage({ params }) {
-  const [slug, setSlug] = useState('');
-
-  useEffect(() => {
-    async function resolveParams() {
-      const resolvedParams = await params;
-      setSlug(resolvedParams.slug);
-    }
-    resolveParams();
-  }, [params]);
-
-  if (!slug) {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <p className="text-stone-600 font-medium">Resolving URL path parameters...</p>
-      </div>
-    );
-  }
+  const resolvedParams = use(params);
+  const slug = resolvedParams.slug;
 
   return (
     <Suspense fallback={

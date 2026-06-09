@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import Link from "next/link";
 import { startSynth, stopSynth } from "./utils/synth";
 
 // --- Custom SVGs for Feature Icons ---
@@ -145,22 +146,51 @@ export default function Home() {
   });
 
   const subHeaderRef = useRef(null);
-  const sectionRefs = {
-    overview: useRef(null),
-    customizer: useRef(null),
-    features: useRef(null),
-    simulator: useRef(null),
-    designs: useRef(null),
-    pricing: useRef(null),
-    nature: useRef(null),
-  };
+  const overviewRef = useRef(null);
+  const customizerRef = useRef(null);
+  const featuresRef = useRef(null);
+  const simulatorRef = useRef(null);
+  const designsRef = useRef(null);
+  const pricingRef = useRef(null);
+  const natureRef = useRef(null);
+
+  const sectionRefs = useMemo(() => ({
+    overview: overviewRef,
+    customizer: customizerRef,
+    features: featuresRef,
+    simulator: simulatorRef,
+    designs: designsRef,
+    pricing: pricingRef,
+    nature: natureRef,
+  }), []);
+
+  const confettiParticles = useMemo(() => {
+    const trigger = isSubmitted;
+    const colors = ["bg-amber-400", "bg-emerald-500", "bg-indigo-400", "bg-rose-400", "bg-yellow-400", "bg-teal-400"];
+    return [...Array(20)].map((_, i) => {
+      const color = colors[(i * 7) % colors.length];
+      const leftOffset = `${(i * 19) % 100}%`;
+      const animDelay = `${((i * 3) % 15) / 10}s`;
+      const size = (i % 2 === 0) ? "w-2.5 h-2.5" : "w-1.5 h-3.5";
+      return {
+        id: i,
+        color,
+        leftOffset,
+        animDelay,
+        size,
+        trigger
+      };
+    });
+  }, [isSubmitted]);
 
   // Dark Mode Initializer
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedDark = localStorage.getItem("darkMode") === "true" ||
                         (!("darkMode" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      setDarkMode(savedDark);
+      setTimeout(() => {
+        setDarkMode(savedDark);
+      }, 0);
       if (savedDark) {
         document.documentElement.classList.add("dark");
       } else {
@@ -210,7 +240,7 @@ export default function Home() {
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [sectionRefs]);
 
   // Music Synth toggle
   const handleToggleMusic = (genre = audioGenre) => {
@@ -377,9 +407,12 @@ export default function Home() {
             )}
           </button>
 
-          <a href="#login" className="text-muted-text hover:text-brand-green font-medium text-sm md:text-base transition-colors">
+          <Link href="/login" className="text-muted-text hover:text-brand-green font-medium text-sm md:text-base transition-colors">
             Log In
-          </a>
+          </Link>
+          <Link href="/register" className="text-muted-text hover:text-brand-green font-medium text-sm md:text-base transition-colors">
+            Sign Up
+          </Link>
           <button 
             onClick={() => scrollToSection("customizer")}
             className="bg-brand-green hover:bg-brand-green-hover text-white px-5.5 py-2.5 rounded-md font-semibold text-sm md:text-base transition-all shadow-md hover:shadow-lg active:scale-[0.98] border-b-2 border-emerald-700 cursor-pointer"
@@ -413,24 +446,17 @@ export default function Home() {
             
             {isSubmitted && (
               <div className="absolute inset-0 pointer-events-none overflow-hidden z-30 h-48">
-                {[...Array(20)].map((_, i) => {
-                  const colors = ["bg-amber-400", "bg-emerald-500", "bg-indigo-400", "bg-rose-400", "bg-yellow-400", "bg-teal-400"];
-                  const randomColor = colors[Math.floor(Math.random() * colors.length)];
-                  const leftOffset = `${Math.random() * 100}%`;
-                  const animDelay = `${Math.random() * 1.5}s`;
-                  const size = Math.random() > 0.5 ? "w-2.5 h-2.5" : "w-1.5 h-3.5";
-                  return (
-                    <div 
-                      key={i} 
-                      className={`absolute ${size} ${randomColor} rounded-sm animate-confetti`}
-                      style={{
-                        left: leftOffset,
-                        animationDelay: animDelay,
-                        top: 0
-                      }}
-                    ></div>
-                  );
-                })}
+                {confettiParticles.map((particle) => (
+                  <div 
+                    key={particle.id} 
+                    className={`absolute ${particle.size} ${particle.color} rounded-sm animate-confetti`}
+                    style={{
+                      left: particle.leftOffset,
+                      animationDelay: particle.animDelay,
+                      top: 0
+                    }}
+                  ></div>
+                ))}
               </div>
             )}
 
@@ -459,7 +485,7 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div>
-                  <h4 className="font-bold text-emerald-950 dark:text-emerald-200">Awesome, let's get started!</h4>
+                  <h4 className="font-bold text-emerald-950 dark:text-emerald-200">Awesome, let&apos;s get started!</h4>
                   <p className="text-sm mt-0.5">Scroll down to customize your invitation directly on our design deck.</p>
                 </div>
               </div>
@@ -653,7 +679,7 @@ export default function Home() {
       {/* --- Overview Section --- */}
       <section 
         id="overview" 
-        ref={sectionRefs.overview}
+        ref={overviewRef}
         className="w-full py-28 bg-sec-bg/30 border-b border-card-border/40"
       >
         <div className="max-w-4xl mx-auto px-6 text-center flex flex-col gap-6 reveal-on-scroll">
@@ -670,7 +696,7 @@ export default function Home() {
       {/* --- LIVE DESIGN CUSTOMIZER STUDIO --- */}
       <section 
         id="customizer" 
-        ref={sectionRefs.customizer}
+        ref={customizerRef}
         className="w-full py-28 bg-card-bg border-b border-card-border/40"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12">
@@ -979,7 +1005,7 @@ export default function Home() {
       {/* --- Features Section --- */}
       <section 
         id="features" 
-        ref={sectionRefs.features}
+        ref={featuresRef}
         className="w-full py-28 bg-sec-bg/20 border-b border-card-border/40"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12">
@@ -1057,7 +1083,7 @@ export default function Home() {
       {/* --- GUEST VS HOST EXPERIENCE SIMULATOR --- */}
       <section 
         id="simulator" 
-        ref={sectionRefs.simulator}
+        ref={simulatorRef}
         className="w-full py-28 bg-card-bg border-b border-card-border/40 relative"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12">
@@ -1068,7 +1094,7 @@ export default function Home() {
               Experience Guest RSVP &amp; Host Dashboard Side-by-Side
             </h2>
             <p className="text-muted-text font-light text-sm md:text-base mt-2">
-              Fill out the guest form on the left, click submit, and watch the host organizer's dashboard on the right update instantly in real time!
+              Fill out the guest form on the left, click submit, and watch the host organizer&apos;s dashboard on the right update instantly in real time!
             </p>
             <div className="w-12 h-0.5 bg-brand-green mx-auto rounded-full mt-4"></div>
           </div>
@@ -1095,7 +1121,7 @@ export default function Home() {
                     </div>
                     <h4 className="font-serif text-lg font-bold text-foreground">RSVP Saved!</h4>
                     <p className="text-xs text-muted-text mt-2">
-                      Thank you! Your response has been securely saved. The organizer's live dashboard has been updated.
+                      Thank you! Your response has been securely saved. The organizer&apos;s live dashboard has been updated.
                     </p>
                     <span className="text-[10px] text-brand-green font-semibold mt-4">Resetting simulator...</span>
                   </div>
@@ -1103,7 +1129,7 @@ export default function Home() {
                   <form onSubmit={handleSimulatedRSVP} className="flex-1 flex flex-col justify-between gap-4 mt-6">
                     <div>
                       <div className="border-b border-card-border pb-2 mb-3 text-center">
-                        <span className="font-serif italic text-[10.5px] text-brand-green uppercase tracking-wide">Aria &amp; Julian's Wedding</span>
+                        <span className="font-serif italic text-[10.5px] text-brand-green uppercase tracking-wide">Aria &amp; Julian&apos;s Wedding</span>
                         <h4 className="text-xs font-semibold text-foreground mt-1">Guest RSVP Form</h4>
                       </div>
 
@@ -1240,7 +1266,7 @@ export default function Home() {
                 {/* Header info */}
                 <div className="flex justify-between items-center border-b border-card-border/60 pb-3">
                   <div>
-                    <h4 className="font-serif font-normal text-lg text-foreground">Aria &amp; Julian's Wedding</h4>
+                     <h4 className="font-serif font-normal text-lg text-foreground">Aria &amp; Julian&apos;s Wedding</h4>
                     <p className="text-[10px] text-muted-text">Live RSVP Organizer Analytics Dashboard</p>
                   </div>
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-brand-green text-[10px] font-bold border border-emerald-100/50 dark:border-emerald-900/30 animate-pulse">
@@ -1363,7 +1389,7 @@ export default function Home() {
       {/* --- Designs Carousel Section --- */}
       <section 
         id="designs" 
-        ref={sectionRefs.designs}
+        ref={designsRef}
         className="w-full py-28 bg-sec-bg/30 border-b border-card-border/40"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
@@ -1585,7 +1611,7 @@ export default function Home() {
                         {/* BACK FACE */}
                         <div className="absolute inset-0 w-full h-full bg-[#faf9f6] dark:bg-zinc-900 border border-card-border rounded-xl p-4 shadow-xl rotate-y-180 backface-hidden flex flex-col justify-between text-center select-none">
                           <div>
-                            <span className="text-brand-green font-bold text-[9px] uppercase tracking-wider">New Year's Eve</span>
+                            <span className="text-brand-green font-bold text-[9px] uppercase tracking-wider">New Year&apos;s Eve</span>
                             <h4 className="font-serif text-xs font-semibold text-foreground mt-1">NYE Toast 2026</h4>
                             <p className="text-[8.5px] text-muted-text mt-2 font-light leading-relaxed">
                               Ring in the new year with premium bubbles, dynamic firework viewings, and midnight toasts. RSVP needed by Dec 15.
@@ -1845,7 +1871,7 @@ export default function Home() {
       {/* --- Pricing Section --- */}
       <section 
         id="pricing" 
-        ref={sectionRefs.pricing}
+        ref={pricingRef}
         className="w-full py-28 bg-sec-bg/10 border-b border-card-border/40 text-center"
       >
         <div className="max-w-7xl mx-auto px-6 md:px-12 flex flex-col items-center gap-6">
@@ -1891,7 +1917,7 @@ export default function Home() {
       {/* --- Protecting Nature Section --- */}
       <section 
         id="nature" 
-        ref={sectionRefs.nature}
+        ref={natureRef}
         className="w-full py-28 bg-emerald-50/50 dark:bg-emerald-950/20 text-center border-b border-card-border/40"
       >
         <div className="max-w-3xl mx-auto px-6 flex flex-col items-center gap-6">

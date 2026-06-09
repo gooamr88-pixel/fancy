@@ -319,8 +319,52 @@ const getEventStats = async (req, res, next) => {
   }
 };
 
+/**
+ * Fetch all events for the authenticated organizer.
+ * GET /api/v1/events
+ */
+const getEvents = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    // 1. Fetch user's organization
+    const { data: orgs, error: orgError } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_user_id', userId)
+      .limit(1);
+
+    if (orgError) throw orgError;
+
+    const org = orgs && orgs[0];
+    if (!org) {
+      return res.json({
+        success: true,
+        events: []
+      });
+    }
+
+    // 2. Fetch events matching organization id
+    const { data: events, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('org_id', org.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      events: events || []
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createEvent,
+  getEvents,
   getEvent,
   getPublicEventBySlug,
   updateEvent,

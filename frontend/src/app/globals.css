@@ -1,6 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
+  --font-playfair: 'Playfair Display', Georgia, serif;
+  --font-outfit: 'Outfit', sans-serif;
+  
   --background: #fafaf9;
   --foreground: #1c1917;
   --brand-green: #31a673;

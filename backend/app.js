@@ -41,6 +41,7 @@ app.use('/api', apiLimiter);
 
 // ─── ROUTES ───
 
+const authRoutes = require('./routes/authRoutes');
 const seatingRoutes = require('./routes/seatingRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -51,9 +52,11 @@ const publicRoutes = require('./routes/publicRoutes');
 const tableRoutes = require('./routes/tableRoutes');
 const campaignRoutes = require('./routes/campaignRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const fieldRoutes = require('./routes/fieldRoutes');
 
 // Mount public routes
 app.use('/api/v1/public', publicRoutes);
+app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/payments', paymentRoutes); // paymentRoutes handles internal protection on endpoints (except webhook)
 
 // Mount protected organizer routes
@@ -63,6 +66,7 @@ app.use('/api/v1/events/:eventId/checkin', requireAuth, verifyEventOwner, checki
 app.use('/api/v1/events/:eventId/rsvps', requireAuth, verifyEventOwner, rsvpRoutes);
 app.use('/api/v1/events/:eventId/tables', requireAuth, verifyEventOwner, tableRoutes);
 app.use('/api/v1/events/:eventId/campaigns', requireAuth, verifyEventOwner, campaignRoutes);
+app.use('/api/v1/events/:eventId/fields', requireAuth, verifyEventOwner, fieldRoutes);
 app.use('/api/v1/events', requireAuth, eventRoutes);
 
 // Mount super admin control routes

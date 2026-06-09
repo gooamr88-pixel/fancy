@@ -230,6 +230,8 @@ CREATE POLICY guest_select_rsvps ON rsvps
 -- RSVP Guests Policies
 DROP POLICY IF EXISTS organizer_all_rsvp_guests ON rsvp_guests;
 DROP POLICY IF EXISTS guest_all_rsvp_guests ON rsvp_guests;
+DROP POLICY IF EXISTS guest_select_rsvp_guests ON rsvp_guests;
+DROP POLICY IF EXISTS guest_insert_rsvp_guests ON rsvp_guests;
 
 CREATE POLICY organizer_all_rsvp_guests ON rsvp_guests
     FOR ALL TO authenticated
@@ -246,13 +248,16 @@ CREATE POLICY organizer_all_rsvp_guests ON rsvp_guests
         WHERE r.id = rsvp_guests.rsvp_id AND o.owner_user_id = auth.uid()
     ));
 
-CREATE POLICY guest_all_rsvp_guests ON rsvp_guests
-    FOR ALL TO public
+CREATE POLICY guest_select_rsvp_guests ON rsvp_guests
+    FOR SELECT TO public
     USING (EXISTS (
         SELECT 1 FROM rsvps r
         JOIN events e ON r.event_id = e.id
         WHERE r.id = rsvp_guests.rsvp_id AND e.status = 'active'
-    ))
+    ));
+
+CREATE POLICY guest_insert_rsvp_guests ON rsvp_guests
+    FOR INSERT TO public
     WITH CHECK (EXISTS (
         SELECT 1 FROM rsvps r
         JOIN events e ON r.event_id = e.id
@@ -262,6 +267,8 @@ CREATE POLICY guest_all_rsvp_guests ON rsvp_guests
 -- Custom Answers Policies
 DROP POLICY IF EXISTS organizer_all_answers ON custom_answers;
 DROP POLICY IF EXISTS guest_all_answers ON custom_answers;
+DROP POLICY IF EXISTS guest_select_answers ON custom_answers;
+DROP POLICY IF EXISTS guest_insert_answers ON custom_answers;
 
 CREATE POLICY organizer_all_answers ON custom_answers
     FOR ALL TO authenticated
@@ -278,13 +285,16 @@ CREATE POLICY organizer_all_answers ON custom_answers
         WHERE r.id = custom_answers.rsvp_id AND o.owner_user_id = auth.uid()
     ));
 
-CREATE POLICY guest_all_answers ON custom_answers
-    FOR ALL TO public
+CREATE POLICY guest_select_answers ON custom_answers
+    FOR SELECT TO public
     USING (EXISTS (
         SELECT 1 FROM rsvps r
         JOIN events e ON r.event_id = e.id
         WHERE r.id = custom_answers.rsvp_id AND e.status = 'active'
-    ))
+    ));
+
+CREATE POLICY guest_insert_answers ON custom_answers
+    FOR INSERT TO public
     WITH CHECK (EXISTS (
         SELECT 1 FROM rsvps r
         JOIN events e ON r.event_id = e.id

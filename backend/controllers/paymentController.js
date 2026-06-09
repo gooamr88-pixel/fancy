@@ -185,11 +185,17 @@ const stripeWebhook = async (req, res, next) => {
   const sig = req.headers['stripe-signature'];
   let stripeEvent;
 
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (process.env.NODE_ENV === 'production' && (!webhookSecret || webhookSecret === 'whsec_placeholder')) {
+    console.error('CRITICAL: STRIPE_WEBHOOK_SECRET is missing or invalid in production!');
+    return res.status(500).json({ success: false, error: 'Webhook secret is not configured.' });
+  }
+
   try {
     stripeEvent = stripe.webhooks.constructEvent(
       req.rawBody,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET || 'whsec_placeholder'
+      webhookSecret || 'whsec_placeholder'
     );
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);
@@ -221,7 +227,7 @@ const stripeWebhook = async (req, res, next) => {
           .eq('id', event_id);
 
         // Record payment
-        await supabase.from('event_payments').insert({
+        const { error: insertError } = await supabase.from('event_payments').insert({
           event_id,
           stripe_checkout_session_id: session.id,
           stripe_payment_intent_id: session.payment_intent,
@@ -231,6 +237,14 @@ const stripeWebhook = async (req, res, next) => {
           payment_method: 'stripe',
           completed_at: new Date()
         });
+
+        if (insertError) {
+          if (insertError.code === '23505' || insertError.message.includes('duplicate key')) {
+            console.log(`[Webhook] Duplicate checkout session insert caught: ${session.id}`);
+            return res.json({ received: true });
+          }
+          throw insertError;
+        }
 
         // Audit log
         await supabase.from('activity_logs').insert({
@@ -243,61 +257,75 @@ const stripeWebhook = async (req, res, next) => {
       } else if (type === 'sms_credits') {
         const creditCount = parseInt(session.metadata.credit_count);
 
-        // Idempotency check: see if payment intent already registered in ledger
-        if (session.payment_intent) {
-          const { data: existingLedger } = await supabase
-            .from('sms_credit_ledger')
-            .select('id')
-            .eq('stripe_payment_intent_id', session.payment_intent)
-            .limit(1);
-
-          if (existingLedger && existingLedger.length > 0) {
-            console.log(`[Webhook] SMS credits already credited for payment intent: ${session.payment_intent}`);
-            return res.json({ received: true });
-          }
-        }
-
         // Fetch wallet to see if it exists
         const { data: wallets } = await supabase
           .from('sms_credit_wallets')
           .select('id, credits_purchased')
           .eq('event_id', event_id);
 
-        const wallet = wallets && wallets[0];
+        let wallet = wallets && wallets[0];
         let walletId;
 
-        if (wallet) {
-          walletId = wallet.id;
-          await supabase
-            .from('sms_credit_wallets')
-            .update({
-              credits_purchased: (wallet.credits_purchased || 0) + creditCount,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', walletId);
-        } else {
+        if (!wallet) {
+          // Try inserting a new wallet
           const { data: newWallet, error: insertError } = await supabase
             .from('sms_credit_wallets')
             .insert({
               event_id,
-              credits_purchased: creditCount,
+              credits_purchased: 0,
               credits_used: 0
             })
             .select()
             .single();
 
-          if (insertError) throw insertError;
-          walletId = newWallet.id;
+          if (insertError) {
+            // Handle race condition on duplicate wallet creation
+            if (insertError.code === '23505' || insertError.message.includes('duplicate key')) {
+              const { data: refetchedWallets } = await supabase
+                .from('sms_credit_wallets')
+                .select('id, credits_purchased')
+                .eq('event_id', event_id);
+              wallet = refetchedWallets && refetchedWallets[0];
+              if (!wallet) throw new Error('Failed to resolve wallet after unique constraint collision');
+              walletId = wallet.id;
+            } else {
+              throw insertError;
+            }
+          } else {
+            walletId = newWallet.id;
+            wallet = newWallet;
+          }
+        } else {
+          walletId = wallet.id;
         }
 
-        // Record ledger transaction
-        await supabase.from('sms_credit_ledger').insert({
+        // Atomically insert the ledger entry first to guarantee idempotency
+        const { error: ledgerError } = await supabase.from('sms_credit_ledger').insert({
           wallet_id: walletId,
           event_id,
           transaction_type: 'purchase',
           credits: creditCount,
           stripe_payment_intent_id: session.payment_intent
         });
+
+        if (ledgerError) {
+          if (ledgerError.code === '23505' || ledgerError.message.includes('duplicate key')) {
+            console.log(`[Webhook] Duplicate SMS ledger insert caught for payment intent: ${session.payment_intent}`);
+            return res.json({ received: true });
+          }
+          throw ledgerError;
+        }
+
+        // Increment wallet credits after successful ledger entry
+        const { error: walletUpdateError } = await supabase
+          .from('sms_credit_wallets')
+          .update({
+            credits_purchased: (wallet.credits_purchased || 0) + creditCount,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', walletId);
+
+        if (walletUpdateError) throw walletUpdateError;
 
         // Audit log
         await supabase.from('activity_logs').insert({

@@ -1,6 +1,6 @@
-import React from "react";
+import React, { memo } from "react";
 
-export default function TableForm({
+const TableForm = memo(function TableForm({
   tables,
   newTableName,
   setNewTableName,
@@ -111,4 +111,6 @@ export default function TableForm({
       </form>
     </div>
   );
-}
+});
+
+export default TableForm;

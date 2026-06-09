@@ -1,8 +1,11 @@
 const express = require('express');
 const { verifyEventOwner } = require('../middleware/auth');
-const { createEvent, getEvent, updateEvent, getEventStats } = require('../controllers/eventController');
+const { createEvent, getEvents, getEvent, updateEvent, getEventStats } = require('../controllers/eventController');
 
 const router = express.Router();
+
+// Fetch events list for organizer
+router.get('/', getEvents);
 
 // Create a new event (starts as draft)
 router.post('/', createEvent);

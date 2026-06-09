@@ -2,12 +2,14 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
 import StatMetricsCard from './components/StatMetricsCard';
 import LiveActivityFeed from './components/LiveActivityFeed';
 import ResponsiveChartBoard from './components/ResponsiveChartBoard';
 import SeatingManager from './components/SeatingManager';
 import TableForm from './components/TableForm';
+import FormBuilder from './components/FormBuilder';
 
 // Premium Loading Skeletons
 function DashboardSkeleton() {
@@ -72,16 +74,67 @@ export default function DashboardPage() {
   const [newTableCapacity, setNewTableCapacity] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterResponse, setFilterResponse] = useState('all');
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'form-builder'
 
-  const eventId = 'demo-event';
+  const [token, setToken] = useState('');
+  const [events, setEvents] = useState([]);
+  const [eventId, setEventId] = useState('');
+  const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  // Auth and event retrieval initializer
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedToken = localStorage.getItem('auth_token');
+      if (!savedToken) {
+        router.push('/login');
+        return;
+      }
+      setTimeout(() => {
+        setToken(savedToken);
+      }, 0);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    const fetchEvents = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/events`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && data.events.length > 0) {
+          setEvents(data.events);
+          setEventId(data.events[0].id);
+        } else {
+          setEventId('demo-event');
+        }
+      } catch (err) {
+        console.error('Failed to load events:', err);
+        setEventId('demo-event');
+      }
+    };
+
+    fetchEvents();
+  }, [token, apiUrl]);
+
+  // Sync active event ID to localStorage for other pages
+  useEffect(() => {
+    if (eventId && typeof window !== 'undefined') {
+      localStorage.setItem('active_event_id', eventId);
+    }
+  }, [eventId]);
 
   // Dark Mode Initializer
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedDark = localStorage.getItem("darkMode") === "true" ||
                         (!("darkMode" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      setDarkMode(savedDark);
+      setTimeout(() => {
+        setDarkMode(savedDark);
+      }, 0);
       if (savedDark) {
         document.documentElement.classList.add("dark");
       } else {
@@ -105,17 +158,20 @@ export default function DashboardPage() {
 
   // Load all dashboard records from Express backend API
   const loadDashboardData = useCallback(async () => {
+    if (!eventId) return;
     try {
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      
       // 1. Fetch stats
-      const statsRes = await fetch(`${apiUrl}/events/${eventId}/stats`);
+      const statsRes = await fetch(`${apiUrl}/events/${eventId}/stats`, { headers });
       const statsData = await statsRes.json();
       
       // 2. Fetch tables
-      const tablesRes = await fetch(`${apiUrl}/events/${eventId}/tables`);
+      const tablesRes = await fetch(`${apiUrl}/events/${eventId}/tables`, { headers });
       const tablesData = await tablesRes.json();
       
       // 3. Fetch guests
-      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`);
+      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { headers });
       const rsvpsData = await rsvpsRes.json();
       
       if (statsData.success) {
@@ -154,21 +210,27 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiUrl, eventId]);
+  }, [apiUrl, eventId, token]);
 
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    if (!eventId) return;
+    setTimeout(() => {
+      loadDashboardData();
+    }, 0);
+  }, [loadDashboardData, eventId]);
 
   // Handler to create a table in the database
   const handleCreateTable = useCallback(async (e) => {
     e.preventDefault();
-    if (!newTableName.trim()) return;
+    if (!newTableName.trim() || !eventId) return;
 
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/tables`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
         body: JSON.stringify({
           tableName: newTableName,
           maxCapacity: parseInt(newTableCapacity)
@@ -187,22 +249,26 @@ export default function DashboardPage() {
     } catch (err) {
       alert(err.message);
     }
-  }, [apiUrl, eventId, newTableName, newTableCapacity, loadDashboardData]);
+  }, [apiUrl, eventId, token, newTableName, newTableCapacity, loadDashboardData]);
 
   // Handler to assign/reassign a seat/table using Express Seating endpoints
   const handleAssignTable = useCallback(async (rsvpId, targetTableId) => {
     const guest = rsvps.find(g => g.id === rsvpId);
-    if (!guest) return;
+    if (!guest || !eventId) return;
 
     const oldTableId = guest.tableId;
 
     try {
       let res;
+      const headers = { 
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
       if (!oldTableId) {
         // Assign first time
         res = await fetch(`${apiUrl}/events/${eventId}/seating/assign`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ rsvpId, tableId: targetTableId })
         });
       } else if (!targetTableId) {
@@ -215,7 +281,7 @@ export default function DashboardPage() {
         // Reassign
         res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ rsvpId, newTableId: targetTableId })
         });
       }
@@ -230,7 +296,7 @@ export default function DashboardPage() {
     } catch (err) {
       alert(err.message);
     }
-  }, [apiUrl, eventId, rsvps, loadDashboardData]);
+  }, [apiUrl, eventId, token, rsvps, loadDashboardData]);
 
   // Handle Real-time PostgreSQL changes (inserts, updates, deletes)
   const handleRealtimeRsvp = useCallback((payload) => {
@@ -322,6 +388,20 @@ export default function DashboardPage() {
           <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Host Administration Deck</span>
           <h1 className="font-serif text-3xl font-normal text-stone-900 dark:text-stone-50 mt-1">Host Organizer Dashboard</h1>
           <p className="text-muted-text text-xs mt-1 leading-none">Connected Endpoint: <strong className="text-foreground">{apiUrl}</strong></p>
+          {events.length > 0 && (
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Active Event:</span>
+              <select
+                value={eventId}
+                onChange={e => setEventId(e.target.value)}
+                className="bg-card-bg border border-card-border/60 rounded-lg px-2.5 py-1 text-xs text-foreground font-semibold focus:outline-none focus:border-brand-green"
+              >
+                {events.map(ev => (
+                  <option key={ev.id} value={ev.id}>{ev.title}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -362,79 +442,101 @@ export default function DashboardPage() {
 
       <div className="max-w-7xl mx-auto space-y-8 z-10 relative">
         
-        {/* ─── KPI Metrics Cards ─── */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatMetricsCard 
-            label="Total Invited"
-            value={`${stats.invitedParties} parties`}
-            subtext="Event campaigns reached"
-            accentColor="slate"
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>}
-          />
-          <StatMetricsCard 
-            label="Confirmed Yes"
-            value={`${stats.attendingGuests} guests`}
-            subtext="Acceptance count"
-            accentColor="green"
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
-          />
-          <StatMetricsCard 
-            label="Declined"
-            value={`${stats.declinedGuests} guests`}
-            subtext="Regret count"
-            accentColor="rose"
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
-          />
-          <StatMetricsCard 
-            label="Arrivals"
-            value={`${stats.checkedInGuests} checked-in`}
-            subtext="Active attendees present"
-            accentColor="amber"
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M5 13l4 4L19 7"/></svg>}
-          />
-          <StatMetricsCard 
-            label="Seating Allocated"
-            value={totalSeatedCountText}
-            subtext="Assigned tables progress"
-            accentColor="blue"
-            icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>}
-          />
+        {/* ─── Tab Navigation Selector ─── */}
+        <div className="flex border-b border-card-border/60 gap-6">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`pb-3.5 text-xs font-extrabold uppercase tracking-widest transition-all border-b-2 cursor-pointer ${activeTab === 'overview' ? 'border-brand-green text-brand-green' : 'border-transparent text-muted-text hover:text-foreground'}`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('form-builder')}
+            className={`pb-3.5 text-xs font-extrabold uppercase tracking-widest transition-all border-b-2 cursor-pointer ${activeTab === 'form-builder' ? 'border-brand-green text-brand-green' : 'border-transparent text-muted-text hover:text-foreground'}`}
+          >
+            RSVP Form Builder
+          </button>
         </div>
 
-        {/* ─── Responsive Analytics Charts & Real-Time Feed ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8">
-            <ResponsiveChartBoard stats={stats} />
-          </div>
-          <div className="lg:col-span-4">
-            <LiveActivityFeed rsvps={rsvps} />
-          </div>
-        </div>
+        {activeTab === 'overview' ? (
+          <>
+            {/* ─── KPI Metrics Cards ─── */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <StatMetricsCard 
+                label="Total Invited"
+                value={`${stats.invitedParties} parties`}
+                subtext="Event campaigns reached"
+                accentColor="slate"
+                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>}
+              />
+              <StatMetricsCard 
+                label="Confirmed Yes"
+                value={`${stats.attendingGuests} guests`}
+                subtext="Acceptance count"
+                accentColor="green"
+                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
+              />
+              <StatMetricsCard 
+                label="Declined"
+                value={`${stats.declinedGuests} guests`}
+                subtext="Regret count"
+                accentColor="rose"
+                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
+              />
+              <StatMetricsCard 
+                label="Arrivals"
+                value={`${stats.checkedInGuests} checked-in`}
+                subtext="Active attendees present"
+                accentColor="amber"
+                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M5 13l4 4L19 7"/></svg>}
+              />
+              <StatMetricsCard 
+                label="Seating Allocated"
+                value={totalSeatedCountText}
+                subtext="Assigned tables progress"
+                accentColor="blue"
+                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>}
+              />
+            </div>
 
-        {/* ─── Seating & Tables Layout Section ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-1">
-            <TableForm 
-              tables={tables}
-              newTableName={newTableName}
-              setNewTableName={setNewTableName}
-              newTableCapacity={newTableCapacity}
-              setNewTableCapacity={setNewTableCapacity}
-              onCreateTable={handleCreateTable}
-            />
-          </div>
-          <div className="lg:col-span-2">
-            <SeatingManager 
-              rsvps={rsvps}
-              tables={tables}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              filterResponse={filterResponse}
-              setFilterResponse={setFilterResponse}
-              onAssignTable={handleAssignTable}
-            />
-          </div>
-        </div>
+            {/* ─── Responsive Analytics Charts & Real-Time Feed ─── */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-8">
+                <ResponsiveChartBoard stats={stats} />
+              </div>
+              <div className="lg:col-span-4">
+                <LiveActivityFeed rsvps={rsvps} />
+              </div>
+            </div>
+
+            {/* ─── Seating & Tables Layout Section ─── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-1">
+                <TableForm 
+                  tables={tables}
+                  newTableName={newTableName}
+                  setNewTableName={setNewTableName}
+                  newTableCapacity={newTableCapacity}
+                  setNewTableCapacity={setNewTableCapacity}
+                  onCreateTable={handleCreateTable}
+                />
+              </div>
+              <div className="lg:col-span-2">
+                <SeatingManager 
+                  rsvps={rsvps}
+                  tables={tables}
+                  searchQuery={searchQuery}
+                  setSearchQuery={setSearchQuery}
+                  filterResponse={filterResponse}
+                  setFilterResponse={setFilterResponse}
+                  onAssignTable={handleAssignTable}
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <FormBuilder eventId={eventId} token={token} />
+        )}
 
       </div>
 

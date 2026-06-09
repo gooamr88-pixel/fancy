@@ -9,6 +9,18 @@ const getRSVPConfirmationTemplate = (rsvp, event) => {
     day: 'numeric'
   });
 
+  const responseText = rsvp.response === 'yes'
+    ? 'Yes, Attending'
+    : rsvp.response === 'no'
+      ? 'No, Regretfully Declined'
+      : 'Pending';
+
+  const responseColor = rsvp.response === 'yes'
+    ? '#10b981'
+    : rsvp.response === 'no'
+      ? '#ef4444'
+      : '#64748b';
+
   return `
     <!DOCTYPE html>
     <html>
@@ -35,7 +47,7 @@ const getRSVPConfirmationTemplate = (rsvp, event) => {
               <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 25px 0; padding: 20px;">
                 <tr>
                   <td style="padding-bottom: 10px; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; width: 120px;">Response</td>
-                  <td style="padding-bottom: 10px; font-size: 15px; color: #0f172a; font-weight: 600;">Yes, Attending</td>
+                  <td style="padding-bottom: 10px; font-size: 15px; color: ${responseColor}; font-weight: 600;">${responseText}</td>
                 </tr>
                 <tr>
                   <td style="padding-bottom: 10px; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Party Size</td>
