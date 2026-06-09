@@ -362,11 +362,34 @@ const getEvents = async (req, res, next) => {
   }
 };
 
+/**
+ * Super Admin gets all events on the platform.
+ * GET /api/v1/admin/events
+ */
+const getAdminEvents = async (req, res, next) => {
+  try {
+    const { data: events, error } = await supabase
+      .from('events')
+      .select('*, organizations(name, email)')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      events: events || []
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createEvent,
   getEvents,
   getEvent,
   getPublicEventBySlug,
   updateEvent,
-  getEventStats
+  getEventStats,
+  getAdminEvents
 };

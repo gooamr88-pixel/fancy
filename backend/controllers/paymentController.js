@@ -419,10 +419,34 @@ const updatePricingConfig = async (req, res, next) => {
   }
 };
 
+/**
+ * Super Admin gets current platform pricing configuration.
+ * GET /api/v1/admin/pricing
+ */
+const getPricingConfig = async (req, res, next) => {
+  try {
+    const { data: config, error } = await supabase
+      .from('super_admin_config')
+      .select('*')
+      .eq('id', '00000000-0000-0000-0000-000000000000')
+      .single();
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      config
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   purchaseSMSCredits,
   stripeWebhook,
   manualCashApproval,
-  updatePricingConfig
+  updatePricingConfig,
+  getPricingConfig
 };

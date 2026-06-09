@@ -148,7 +148,75 @@ const reassignSeat = async (req, res, next) => {
   }
 };
 
+/**
+ * Unassigns a guest from any table atomically.
+ * POST /api/v1/events/:eventId/seating/unassign
+ */
+const unassignSeat = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { rsvpId } = req.body;
+  const assignedBy = req.user?.id || null;
+
+  if (!rsvpId) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: 'rsvpId is required.'
+    });
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('unassign_seat', {
+      p_event_id: eventId,
+      p_rsvp_id: rsvpId,
+      p_assigned_by: assignedBy
+    });
+
+    if (error) {
+      console.error('Database RPC error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'DATABASE_ERROR',
+        message: 'A database error occurred during unseating.'
+      });
+    }
+
+    if (!data.success) {
+      return res.status(409).json({
+        success: false,
+        error: data.error,
+        message: data.message
+      });
+    }
+
+    // Broadcast the update using Supabase Realtime channel
+    await supabase
+      .channel(`event-${eventId}`)
+      .send({
+        type: 'broadcast',
+        event: 'seating_update',
+        payload: {
+          rsvpId,
+          tableId: '',
+          seatsRemaining: data.seats_remaining
+        }
+      });
+
+    // Auto-fire updated ticket email (no seating details / unseated notice if needed, or skip)
+    // For now we don't need to auto-fire a ticket since they are unseated, but they can be notified.
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Guest unassigned from table successfully.',
+      data
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   assignSeat,
-  reassignSeat
+  reassignSeat,
+  unassignSeat
 };

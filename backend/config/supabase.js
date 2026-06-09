@@ -33,7 +33,22 @@ if (!isLocalDB) {
   // Seed data structure
   const defaultData = {
     organizations: [
-      { id: 'demo-org', name: 'Demo Organization', email: 'organizer@fancyrsvp.com', stripe_customer_id: 'cust_demo', owner_user_id: 'demo-user' }
+      { 
+        id: 'demo-org', 
+        name: 'Demo Organization', 
+        email: 'organizer@fancyrsvp.com', 
+        stripe_customer_id: 'cust_demo', 
+        owner_user_id: 'demo-user',
+        password_hash: '30a3b2a472c67fe9bb85eeefd824d5ba:e9c7c4c1a7a40b3ff6059c2ebf68e0d49f05646174a7eb8df0b555776d6543b5936ca471be3e46c7bc3797669ba87d605c48b7f8fbfd8e576356784d63a47101' // pbkdf2 hash for password 'password'
+      },
+      { 
+        id: 'admin-org', 
+        name: 'Super Admin Org', 
+        email: 'admin@fancyrsvp.com', 
+        stripe_customer_id: 'cust_admin', 
+        owner_user_id: 'admin-user',
+        password_hash: '30a3b2a472c67fe9bb85eeefd824d5ba:e9c7c4c1a7a40b3ff6059c2ebf68e0d49f05646174a7eb8df0b555776d6543b5936ca471be3e46c7bc3797669ba87d605c48b7f8fbfd8e576356784d63a47101' // pbkdf2 hash for password 'password'
+      }
     ],
     events: [
       {
@@ -467,6 +482,30 @@ if (!isLocalDB) {
           saveDB(db);
 
           return { data: { success: true, from_table: 'Previous Table', to_table: table.table_name, seats_remaining_new_table: remaining - partySize }, error: null };
+        }
+
+        if (fnName === 'unassign_seat') {
+          const { p_event_id, p_rsvp_id } = params;
+          const oldAssignIndex = db.seating_assignments.findIndex(sa => sa.event_id === p_event_id && sa.rsvp_id === p_rsvp_id);
+          if (oldAssignIndex === -1) {
+            return { data: { success: false, error: 'NOT_ASSIGNED', message: 'Guest is not seated.' }, error: null };
+          }
+
+          const deleted = db.seating_assignments.splice(oldAssignIndex, 1)[0];
+          saveDB(db);
+
+          const table = db.tables.find(t => t.id === deleted.table_id);
+          const occupied = db.seating_assignments
+            .filter(sa => sa.table_id === deleted.table_id)
+            .reduce((acc, curr) => {
+              const rsvp = db.rsvps.find(r => r.id === curr.rsvp_id);
+              return acc + (rsvp ? rsvp.party_size : 0);
+            }, 0);
+          
+          const maxCapacity = table ? table.max_capacity : 10;
+          const remaining = maxCapacity - occupied;
+
+          return { data: { success: true, message: 'Unseated successfully.', seats_remaining: remaining }, error: null };
         }
 
         if (fnName === 'deduct_sms_credit') {

@@ -21,6 +21,20 @@ export default function CheckInPage() {
   // Local list of checked-in guests
   const [checkInLogs, setCheckInLogs] = useState([]);
 
+  // Confirmation Overlay states
+  const [showConfirmOverlay, setShowConfirmOverlay] = useState(false);
+  const [overlayData, setOverlayData] = useState(null);
+
+  // Auto-dismiss confirmation overlay
+  useEffect(() => {
+    if (showConfirmOverlay) {
+      const timer = setTimeout(() => {
+        setShowConfirmOverlay(false);
+      }, 3200);
+      return () => clearTimeout(timer);
+    }
+  }, [showConfirmOverlay]);
+
   // Auth & dynamic event switcher state
   const [token, setToken] = useState('');
   const [events, setEvents] = useState([]);
@@ -171,9 +185,23 @@ export default function CheckInPage() {
         ]);
 
         fetchCheckInSummary();
+
+        // Trigger gorgeous confirmation overlay!
+        setOverlayData({
+          type: 'success',
+          guestName: data.guestName,
+          partySize: data.partySize,
+          tableName: data.tableName,
+          message: 'Guest arrival verified. Welcome to the event!'
+        });
+        setShowConfirmOverlay(true);
       }
     } catch (err) {
-      alert(err.message);
+      setOverlayData({
+        type: 'error',
+        message: err.message
+      });
+      setShowConfirmOverlay(true);
     }
   };
 
@@ -193,6 +221,11 @@ export default function CheckInPage() {
 
       if (!res.ok) {
         setScanStatus({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' });
+        setOverlayData({
+          type: 'error',
+          message: data.message || 'QR Ticket signature verification failed.'
+        });
+        setShowConfirmOverlay(true);
         return;
       }
 
@@ -217,9 +250,24 @@ export default function CheckInPage() {
 
         // Refresh stats
         fetchCheckInSummary();
+
+        // Trigger gorgeous confirmation overlay!
+        setOverlayData({
+          type: 'success',
+          guestName: data.guestName,
+          partySize: data.partySize,
+          tableName: data.tableName,
+          message: 'QR Ticket credentials verified successfully!'
+        });
+        setShowConfirmOverlay(true);
       }
     } catch (err) {
       setScanStatus({ type: 'error', message: 'Could not connect to scanner backend service.' });
+      setOverlayData({
+        type: 'error',
+        message: 'Could not connect to scanner backend service.'
+      });
+      setShowConfirmOverlay(true);
     }
   }, [eventId, token, fetchCheckInSummary]);
 
@@ -273,10 +321,21 @@ export default function CheckInPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-slate-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-400 font-medium">Opening check-in kiosk...</p>
+      <div className="min-h-screen bg-slate-950 text-slate-100 p-8 animate-pulse">
+        <div className="max-w-7xl mx-auto border-b border-slate-900 pb-6 mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="h-6 w-32 bg-slate-800 rounded mb-2"></div>
+            <div className="h-8 w-64 bg-slate-800 rounded"></div>
+          </div>
+          <div className="h-16 w-32 bg-slate-800 rounded mt-4 sm:mt-0"></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="h-32 bg-slate-900 border border-slate-800 rounded-2xl"></div>
+            <div className="h-48 bg-slate-900 border border-slate-800 rounded-2xl"></div>
+          </div>
+          <div className="h-96 bg-slate-900 border border-slate-800 rounded-2xl"></div>
         </div>
       </div>
     );
@@ -503,6 +562,71 @@ export default function CheckInPage() {
         </div>
 
       </div>
+
+      {/* ─── Kiosk Check-In Confirmation Overlay ─── */}
+      {showConfirmOverlay && overlayData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center flex flex-col items-center gap-6 overflow-hidden">
+            
+            {overlayData.type === 'success' ? (
+              <>
+                {/* Glowing Green Success Ring */}
+                <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-brand-green animate-ring-pulse">
+                  <svg className="w-10 h-10 animate-draw-check" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-emerald-400 font-extrabold block">Verification Success</span>
+                  <h3 className="text-2xl font-black text-slate-100">{overlayData.guestName}</h3>
+                  <p className="text-slate-400 text-sm font-medium">{overlayData.message}</p>
+                </div>
+
+                {/* Details layout */}
+                <div className="w-full grid grid-cols-2 gap-4 border-t border-b border-slate-800/60 py-4 my-2">
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-850">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-550 block font-bold">Party Size</span>
+                    <span className="text-lg font-bold text-amber-500 mt-1 block">{overlayData.partySize} Guests</span>
+                  </div>
+                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-850">
+                    <span className="text-[9px] uppercase tracking-wider text-slate-550 block font-bold">Assigned Seat</span>
+                    <span className="text-lg font-bold text-slate-200 mt-1 block">{overlayData.tableName}</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Glowing Red Error Ring */}
+                <div className="w-20 h-20 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+                  <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[10px] tracking-[0.2em] uppercase text-rose-500 font-extrabold block">Verification Failure</span>
+                  <h3 className="text-xl font-bold text-rose-500">Access Denied</h3>
+                  <p className="text-slate-400 text-sm leading-relaxed max-w-xs">{overlayData.message}</p>
+                </div>
+              </>
+            )}
+
+            {/* Tap to close prompt */}
+            <button 
+              onClick={() => setShowConfirmOverlay(false)}
+              className="text-[10px] uppercase tracking-wider text-slate-500 hover:text-slate-350 font-bold transition cursor-pointer"
+            >
+              Tap to close screen
+            </button>
+
+            {/* Shrinking bottom progress timer bar */}
+            {overlayData.type === 'success' && (
+              <div className="absolute bottom-0 left-0 h-1.5 bg-emerald-500 animate-progress-shrink" />
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -22,12 +22,21 @@ const submitPublicRSVP = async (req, res, next) => {
     // 1. Resolve event from slug
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, rsvp_deadline, title')
+      .select('id, rsvp_deadline, title, is_paid, slug')
       .eq('slug', slug)
       .single();
 
     if (eventError || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+
+    // Block RSVPs if the event is unpaid and not a demo
+    if (!event.is_paid && event.slug !== 'demo') {
+      return res.status(402).json({
+        success: false,
+        error: 'PAYMENT_REQUIRED',
+        message: 'This event page is inactive because payment has not been completed.'
+      });
     }
 
     // 2. Check RSVP deadline

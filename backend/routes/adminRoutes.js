@@ -1,12 +1,19 @@
 const express = require('express');
 const { requireAuth, requireSuperAdmin } = require('../middleware/auth');
-const { manualCashApproval, updatePricingConfig } = require('../controllers/paymentController');
+const { manualCashApproval, updatePricingConfig, getPricingConfig } = require('../controllers/paymentController');
+const { getAdminEvents } = require('../controllers/eventController');
 
 const router = express.Router();
 
 // Apply super admin validation to all routes in this file
 router.use(requireAuth);
 router.use(requireSuperAdmin);
+
+// GET /api/v1/admin/events
+router.get('/events', getAdminEvents);
+
+// GET /api/v1/admin/pricing
+router.get('/pricing', getPricingConfig);
 
 // POST /api/v1/admin/manual-approve
 router.post('/manual-approve', manualCashApproval);

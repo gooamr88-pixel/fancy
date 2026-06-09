@@ -64,6 +64,11 @@ const sendConfirmationEmail = async (eventId, rsvpId) => {
     throw new Error('RSVP_NOT_FOUND');
   }
 
+  if (!rsvp.email) {
+    console.log(`[Notification Service] Guest ${rsvp.guest_name} has no email configured. Skipping confirmation email.`);
+    return false;
+  }
+
   const emailHtml = getRSVPConfirmationTemplate(rsvp, rsvp.events);
   const success = await sendEmailViaBrevo(rsvp.email, `RSVP Confirmed: ${rsvp.events.title}`, emailHtml);
 
@@ -109,6 +114,11 @@ const sendQRTicketEmail = async (eventId, rsvpId) => {
 
   // 4. Send email containing QR
   const emailHtml = getQRTicketTemplate(assignment.rsvps, assignment.events, assignment.tables.table_name, qrDataURL);
+
+  if (!assignment.rsvps.email) {
+    console.log(`[Notification Service] Guest ${assignment.rsvps.guest_name} has no email configured. Skipping QR Ticket email.`);
+    return false;
+  }
 
   const success = await sendEmailViaBrevo(
     assignment.rsvps.email,

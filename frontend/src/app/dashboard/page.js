@@ -272,11 +272,12 @@ export default function DashboardPage() {
           body: JSON.stringify({ rsvpId, tableId: targetTableId })
         });
       } else if (!targetTableId) {
-        // Unseat - delete seat assignment in oldTable
-        // Treat as reassignment to blank or deletion
-        alert('Seating update triggered. Reloading data...');
-        loadDashboardData();
-        return;
+        // Unseat - call the unassign API endpoint
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/unassign`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ rsvpId })
+        });
       } else {
         // Reassign
         res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, {
@@ -422,6 +423,16 @@ export default function DashboardPage() {
               </svg>
             )}
           </button>
+
+          {token && typeof window !== 'undefined' && localStorage.getItem('user_role') === 'super_admin' && (
+            <Link 
+              href="/admin"
+              className="px-4 py-2 bg-amber-900/30 hover:bg-amber-800/40 text-amber-300 hover:text-amber-200 border border-amber-800/40 rounded-lg text-xs font-bold transition shadow-sm"
+              id="btn-open-super-admin"
+            >
+              Super Admin Control
+            </Link>
+          )}
 
           <a 
             href={`${apiUrl}/events/${eventId}/rsvps/export`}

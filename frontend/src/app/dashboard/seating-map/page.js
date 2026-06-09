@@ -19,6 +19,7 @@ export default function SeatingMapPage() {
   const [activeDragId, setActiveDragId] = useState(null);
   const [selectedTable, setSelectedTable] = useState(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [dragOverTableId, setDragOverTableId] = useState(null);
 
   // Add Table states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -96,6 +97,103 @@ export default function SeatingMapPage() {
     e.preventDefault();
     setActiveDragId(tableId);
     setSelectedTable(tables.find(t => t.id === tableId));
+  };
+
+  // Guest drag & drop visual seating handlers
+  const handleGuestDragStart = (e, guest) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ rsvpId: guest.id, partySize: guest.party_size }));
+  };
+
+  const handleDragOver = (e, tableId) => {
+    e.preventDefault();
+    if (dragOverTableId !== tableId) {
+      setDragOverTableId(tableId);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverTableId(null);
+  };
+
+  const handleGuestDrop = async (e, tableId) => {
+    e.preventDefault();
+    setDragOverTableId(null);
+    try {
+      const rawData = e.dataTransfer.getData('application/json');
+      if (!rawData) return;
+      const { rsvpId, partySize } = JSON.parse(rawData);
+
+      // Check client-side table capacity first before invoking backend
+      const table = tables.find(t => t.id === tableId);
+      if (table) {
+        const remaining = table.max_capacity - table.occupied;
+        if (partySize > remaining) {
+          alert(`Warning: Table ${table.table_name} only has ${remaining} seats left, party size is ${partySize}.`);
+          return;
+        }
+      }
+
+      setLoading(true);
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+      
+      const res = await fetch(`${API_URL}/events/${eventId}/seating/assign`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ rsvpId, tableId })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Seating assignment failed.');
+      }
+
+      // Reload dataset to sync state
+      await loadLayoutData();
+      
+      // Update selectedTable reference to reflect new capacity state
+      if (selectedTable && selectedTable.id === tableId) {
+        setSelectedTable(prev => prev ? { ...prev, occupied: prev.occupied + partySize } : null);
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUnseatGuest = async (rsvpId) => {
+    try {
+      setLoading(true);
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      };
+      const res = await fetch(`${API_URL}/events/${eventId}/seating/unassign`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ rsvpId })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Unseating failed.');
+      }
+
+      const guestPartySize = guests.find(g => g.id === rsvpId)?.party_size || 0;
+
+      // Reload dataset to sync state
+      await loadLayoutData();
+      
+      // Update selectedTable reference to reflect released capacity state
+      setSelectedTable(prev => prev ? { ...prev, occupied: Math.max(0, prev.occupied - guestPartySize) } : null);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePointerMove = (e) => {
@@ -340,10 +438,23 @@ export default function SeatingMapPage() {
           <h3 className="text-base font-bold border-b border-slate-800 pb-3 mb-4">Unassigned Guests</h3>
           <div className="space-y-2.5 overflow-y-auto flex-1 pr-1">
             {unassignedGuests.length > 0 ? (
-              unassignedGuests.map(g => (
-                <div key={g.id} className="bg-slate-950 p-4 border border-slate-850 rounded-xl">
-                  <span className="font-semibold text-slate-200 block text-sm">{g.guest_name}</span>
-                  <span className="text-xs text-slate-550">Party size: {g.party_size}</span>
+              unassignedGuests.map((g, idx) => (
+                <div 
+                  key={g.id} 
+                  draggable="true"
+                  onDragStart={(e) => handleGuestDragStart(e, g)}
+                  className="bg-slate-950 p-4 border border-slate-850 rounded-xl cursor-grab active:cursor-grabbing hover:border-amber-500 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex justify-between items-center group relative overflow-hidden animate-fade-in"
+                  style={{ animationDelay: `${idx * 40}ms` }}
+                >
+                  <div>
+                    <span className="font-semibold text-slate-200 block text-sm group-hover:text-amber-400 transition-colors">{g.guest_name}</span>
+                    <span className="text-xs text-slate-500 mt-1 block">Party size: {g.party_size}</span>
+                  </div>
+                  <div className="text-slate-600 group-hover:text-amber-500 transition-colors">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
                 </div>
               ))
             ) : (
@@ -394,18 +505,33 @@ export default function SeatingMapPage() {
               const isSelected = selectedTable && selectedTable.id === table.id;
               const isRound = table.shape === 'round';
               const fillPercent = (table.occupied / table.max_capacity) * 100;
+              const isDragOver = dragOverTableId === table.id;
+              const isDraggingTable = activeDragId === table.id;
               
               return (
                 <div
                   key={table.id}
                   onPointerDown={(e) => handlePointerDown(e, table.id)}
+                  onDragOver={(e) => handleDragOver(e, table.id)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleGuestDrop(e, table.id)}
                   style={{
                     left: `${table.position_x}%`,
                     top: `${table.position_y}%`,
-                    cursor: activeDragId === table.id ? 'grabbing' : 'grab',
+                    cursor: isDraggingTable ? 'grabbing' : 'grab',
                     touchAction: 'none'
                   }}
-                  className={`absolute p-2 flex flex-col items-center justify-center transition-shadow shadow-md select-none ${isRound ? 'rounded-full w-24 h-24' : 'rounded-xl w-32 h-20'} ${isSelected ? 'border-2 border-amber-500 bg-slate-950 shadow-2xl' : 'border border-slate-750 bg-slate-850 hover:border-slate-500'}`}
+                  className={`absolute p-2 flex flex-col items-center justify-center select-none transition-all duration-200 ease-out ${
+                    isRound ? 'rounded-full w-24 h-24' : 'rounded-xl w-32 h-20'
+                  } ${
+                    isDragOver 
+                      ? 'border-2 border-emerald-400 bg-slate-900 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.3)] ring-4 ring-emerald-500/20' 
+                      : isDraggingTable 
+                        ? 'border-2 border-amber-500 bg-slate-900 scale-105 shadow-2xl opacity-90' 
+                        : isSelected 
+                          ? 'border-2 border-amber-500 bg-slate-950 shadow-xl' 
+                          : 'border border-slate-750 bg-slate-850 hover:border-slate-500 hover:scale-[1.02] hover:shadow-lg'
+                  }`}
                 >
                   <span className="text-xs font-bold text-slate-100 truncate max-w-full block px-1">{table.table_name}</span>
                   
@@ -415,7 +541,7 @@ export default function SeatingMapPage() {
                   </span>
 
                   {/* Tiny progress dot indicator */}
-                  <div className="w-2.5 h-2.5 rounded-full mt-1.5 border border-slate-950" style={{ backgroundColor: fillPercent >= 100 ? '#ef4444' : fillPercent >= 80 ? '#f59e0b' : '#3b82f6' }} />
+                  <div className="w-2.5 h-2.5 rounded-full mt-1.5 border border-slate-950 transition-colors duration-300" style={{ backgroundColor: fillPercent >= 100 ? '#ef4444' : fillPercent >= 80 ? '#f59e0b' : '#3b82f6' }} />
                 </div>
               );
             })}
@@ -440,9 +566,17 @@ export default function SeatingMapPage() {
                   <span className="text-xs text-slate-550 font-bold block mb-1">Seated Party Members:</span>
                   {selectedTableGuests.length > 0 ? (
                     selectedTableGuests.map(g => (
-                      <div key={g.id} className="bg-slate-950 p-3 border border-slate-850 rounded-lg flex justify-between items-center">
-                        <span className="text-xs font-semibold text-slate-200">{g.guest_name}</span>
-                        <span className="text-[10px] text-slate-550">Party of {g.party_size}</span>
+                      <div key={g.id} className="bg-slate-950 p-3 border border-slate-850 rounded-lg flex justify-between items-center bg-slate-950">
+                        <div>
+                          <span className="text-xs font-semibold text-slate-200 block">{g.guest_name}</span>
+                          <span className="text-[10px] text-slate-550 block mt-0.5">Party of {g.party_size}</span>
+                        </div>
+                        <button 
+                          onClick={() => handleUnseatGuest(g.id)}
+                          className="px-2 py-1 bg-rose-950/60 hover:bg-rose-900/50 border border-rose-800/40 hover:border-rose-700/60 text-[10px] font-bold rounded-lg text-rose-400 transition cursor-pointer"
+                        >
+                          Unseat
+                        </button>
                       </div>
                     ))
                   ) : (

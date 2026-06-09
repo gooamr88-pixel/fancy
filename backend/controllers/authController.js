@@ -1,7 +1,27 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication';
+
+/**
+ * Hashes a password using PBKDF2.
+ */
+const hashPassword = (password) => {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+};
+
+/**
+ * Verifies a password against a stored PBKDF2 hash.
+ */
+const verifyPassword = (password, storedHash) => {
+  if (!storedHash) return false;
+  const [salt, originalHash] = storedHash.split(':');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === originalHash;
+};
 
 /**
  * Registers a new organizer account.
@@ -34,8 +54,8 @@ const register = async (req, res, next) => {
       });
     }
 
-    // Insert mock auth user role/profile inside local database helper mock
     const userId = 'usr-' + Math.random().toString(36).substring(2, 9);
+    const passwordHash = hashPassword(password);
     
     // Create organization
     const { data: org, error: orgError } = await supabase
@@ -43,7 +63,8 @@ const register = async (req, res, next) => {
       .insert({
         owner_user_id: userId,
         name: orgName,
-        email: email
+        email: email,
+        password_hash: passwordHash
       })
       .select()
       .single();
@@ -101,7 +122,7 @@ const login = async (req, res, next) => {
       .limit(1);
 
     const org = orgs && orgs[0];
-    if (!org) {
+    if (!org || !verifyPassword(password, org.password_hash)) {
       return res.status(401).json({
         success: false,
         error: 'INVALID_CREDENTIALS',

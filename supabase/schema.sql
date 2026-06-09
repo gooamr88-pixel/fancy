@@ -15,8 +15,17 @@ CREATE TABLE IF NOT EXISTS organizations (
     email TEXT NOT NULL,
     phone TEXT,
     stripe_customer_id TEXT UNIQUE,
+    password_hash TEXT,                     -- Added for password hashing verification
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    role TEXT NOT NULL DEFAULT 'organizer' CHECK (role IN ('organizer', 'super_admin')),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(user_id)
 );
 
 CREATE TABLE IF NOT EXISTS events (
@@ -400,6 +409,133 @@ BEGIN
 END;
 $$;
 
+-- Atomic Seating Unassignment Function
+CREATE OR REPLACE FUNCTION unassign_seat(
+    p_event_id UUID,
+    p_rsvp_id UUID,
+    p_assigned_by UUID
+) RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_assignment_id UUID;
+    v_table_id UUID;
+    v_table_name TEXT;
+    v_party_size INTEGER;
+    v_table_capacity INTEGER;
+    v_current_occupied INTEGER;
+    v_remaining INTEGER;
+BEGIN
+    -- Resolve assignment details
+    SELECT sa.id, sa.table_id, t.table_name, t.max_capacity, r.party_size
+    INTO v_assignment_id, v_table_id, v_table_name, v_table_capacity, v_party_size
+    FROM seating_assignments sa
+    JOIN tables t ON t.id = sa.table_id
+    JOIN rsvps r ON r.id = sa.rsvp_id
+    WHERE sa.event_id = p_event_id AND sa.rsvp_id = p_rsvp_id;
+
+    IF v_assignment_id IS NULL THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'NOT_ASSIGNED',
+            'message', 'Guest is not currently assigned to any table.'
+        );
+    END IF;
+
+    -- Delete assignment
+    DELETE FROM seating_assignments
+    WHERE id = v_assignment_id;
+
+    -- Calculate remaining seats
+    SELECT COALESCE(SUM(r.party_size), 0)
+    INTO v_current_occupied
+    FROM seating_assignments sa
+    JOIN rsvps r ON r.id = sa.rsvp_id
+    WHERE sa.table_id = v_table_id;
+
+    v_remaining := v_table_capacity - v_current_occupied;
+
+    -- Log transaction
+    INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
+    VALUES (p_event_id, p_assigned_by, 'table_unassigned', 'seating_assignment', v_assignment_id,
+            jsonb_build_object('table_id', v_table_id, 'table_name', v_table_name, 'party_size', v_party_size));
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'Guest unassigned from table successfully.',
+        'seats_remaining', v_remaining
+    );
+END;
+$$;
+
+-- Super Admin manual cash approval of event payments
+CREATE OR REPLACE FUNCTION approve_event_cash(
+    p_event_id UUID,
+    p_approved_by UUID,
+    p_amount_cents INTEGER
+) RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_payment_id UUID;
+BEGIN
+    -- Update event to paid and active
+    UPDATE events
+    SET is_paid = TRUE,
+        status = 'active',
+        updated_at = now()
+    WHERE id = p_event_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'EVENT_NOT_FOUND',
+            'message', 'Event not found.'
+        );
+    END IF;
+
+    -- Record event payment
+    INSERT INTO event_payments (
+        event_id,
+        amount_cents,
+        status,
+        payment_method,
+        approved_by,
+        completed_at
+    ) VALUES (
+        p_event_id,
+        p_amount_cents,
+        'completed',
+        'cash_manual',
+        p_approved_by,
+        now()
+    ) RETURNING id INTO v_payment_id;
+
+    -- Record activity log
+    INSERT INTO activity_logs (
+        event_id,
+        actor_id,
+        action,
+        entity_type,
+        entity_id,
+        metadata
+    ) VALUES (
+        p_event_id,
+        p_approved_by,
+        'event_payment_manual_approved',
+        'event_payment',
+        v_payment_id,
+        jsonb_build_object('amount_cents', p_amount_cents)
+    );
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'payment_id', v_payment_id
+    );
+END;
+$$;
+
+
 -- Atomic SMS Credit Deduction Function
 CREATE OR REPLACE FUNCTION deduct_sms_credit(
     p_event_id UUID,
@@ -433,3 +569,169 @@ BEGIN
     VALUES (v_wallet_id, p_event_id, 'consumption', -1, p_phone, p_sms_sid);
 END;
 $$;
+
+-- Seed Default super_admin_config row if not exists
+INSERT INTO super_admin_config (id, pricing_tiers, sms_rate_cents_per_credit, sms_markup_percentage, platform_commission_pct)
+VALUES (
+    '00000000-0000-0000-0000-000000000000',
+    '[
+        {"name": "Essential", "price_cents": 7900, "max_guests": 100},
+        {"name": "Premium", "price_cents": 14900, "max_guests": 300},
+        {"name": "Enterprise", "price_cents": 24900, "max_guests": 1000}
+    ]'::jsonb,
+    8,
+    40.0,
+    0.0
+) ON CONFLICT (id) DO NOTHING;
+
+-- Enable Row Level Security (RLS) on tables
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rsvp_form_fields ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tables ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rsvps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rsvp_guests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE custom_answers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE seating_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE check_ins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE event_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sms_credit_wallets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sms_credit_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE super_admin_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+
+-- ═══════════════════════════════════════════════════════════
+-- RLS POLICIES FOR SECURE ACCESS CONTROL
+-- ═══════════════════════════════════════════════════════════
+
+-- Organizations access policies
+CREATE POLICY "Organizers can read their own organization"
+    ON organizations FOR SELECT
+    USING (auth.uid() = owner_user_id);
+
+CREATE POLICY "Organizers can update their own organization"
+    ON organizations FOR UPDATE
+    USING (auth.uid() = owner_user_id);
+
+-- User roles access policies
+CREATE POLICY "Users can read their own roles"
+    ON user_roles FOR SELECT
+    USING (auth.uid() = user_id);
+
+-- Events access policies
+CREATE POLICY "Organizers can read their events"
+    ON events FOR SELECT
+    USING (org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()));
+
+CREATE POLICY "Organizers can insert their events"
+    ON events FOR INSERT
+    WITH CHECK (org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()));
+
+CREATE POLICY "Organizers can update their events"
+    ON events FOR UPDATE
+    USING (org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()));
+
+CREATE POLICY "Organizers can delete their events"
+    ON events FOR DELETE
+    USING (org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()));
+
+CREATE POLICY "Public read for paid active event pages"
+    ON events FOR SELECT
+    USING (is_paid = true OR status = 'active' OR slug = 'demo');
+
+-- RSVP Form Fields policies
+CREATE POLICY "Organizers can manage fields"
+    ON rsvp_form_fields FOR ALL
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid())));
+
+CREATE POLICY "Public read for RSVP fields"
+    ON rsvp_form_fields FOR SELECT
+    USING (true);
+
+-- Seating Tables policies
+CREATE POLICY "Organizers can manage seating tables"
+    ON tables FOR ALL
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid())));
+
+-- RSVPs policies
+CREATE POLICY "Organizers can select RSVPs"
+    ON rsvps FOR SELECT
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid())));
+
+CREATE POLICY "Organizers can manage RSVPs"
+    ON rsvps FOR ALL
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid())));
+
+CREATE POLICY "Public can search and read RSVPs"
+    ON rsvps FOR SELECT
+    USING (true);
+
+CREATE POLICY "Public can submit RSVPs"
+    ON rsvps FOR INSERT
+    WITH CHECK (true);
+
+CREATE POLICY "Public can update RSVPs"
+    ON rsvps FOR UPDATE
+    USING (true);
+
+-- RSVP Guests policies
+CREATE POLICY "Organizers can manage RSVP guests"
+    ON rsvp_guests FOR ALL
+    USING (rsvp_id IN (SELECT id FROM rsvps WHERE event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+
+CREATE POLICY "Public can manage RSVP guests"
+    ON rsvp_guests FOR ALL
+    USING (true);
+
+-- Custom Answers policies
+CREATE POLICY "Organizers can select custom answers"
+    ON custom_answers FOR SELECT
+    USING (rsvp_id IN (SELECT id FROM rsvps WHERE event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+
+CREATE POLICY "Public can submit custom answers"
+    ON custom_answers FOR INSERT
+    WITH CHECK (true);
+
+-- Seating Assignments policies
+CREATE POLICY "Organizers can manage seating assignments"
+    ON seating_assignments FOR ALL
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+
+CREATE POLICY "Public read for seating assignments"
+    ON seating_assignments FOR SELECT
+    USING (true);
+
+-- Check-ins policies
+CREATE POLICY "Organizers can manage check-ins"
+    ON check_ins FOR ALL
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+
+-- Event Payments policies
+CREATE POLICY "Organizers can view their payments"
+    ON event_payments FOR SELECT
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+
+-- SMS wallets and ledgers policies
+CREATE POLICY "Organizers can view their SMS wallet"
+    ON sms_credit_wallets FOR SELECT
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+
+CREATE POLICY "Organizers can view their SMS ledger"
+    ON sms_credit_ledger FOR SELECT
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+
+-- Super Admin config policies
+CREATE POLICY "Super admins can manage platform pricing"
+    ON super_admin_config FOR ALL
+    USING (auth.uid() IN (SELECT user_id FROM user_roles WHERE role = 'super_admin'));
+
+CREATE POLICY "Public read platform pricing configurations"
+    ON super_admin_config FOR SELECT
+    USING (true);
+
+-- Activity Logs policies
+CREATE POLICY "Organizers can view their activity logs"
+    ON activity_logs FOR SELECT
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+
