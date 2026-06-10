@@ -1,6 +1,9 @@
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
 
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
+
 /**
  * Middleware to enforce authentication.
  * Validates Supabase JWTs (via remote auth service or local verification fallback).
@@ -18,7 +21,7 @@ const requireAuth = async (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication');
+    const decoded = jwt.verify(token, JWT_SECRET);
 
     req.user = {
       id: decoded.id || decoded.sub,
@@ -56,7 +59,7 @@ const optionalAuth = async (req, res, next) => {
 
   try {
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication');
+    const decoded = jwt.verify(token, JWT_SECRET);
 
     if (decoded) {
       req.user = {

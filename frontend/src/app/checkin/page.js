@@ -42,6 +42,14 @@ export default function CheckInPage() {
   const [cameraActive, setCameraActive] = useState(false);
   const router = useRouter();
 
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('org_id');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('active_event_id');
+    window.location.href = '/login';
+  };
+
   // Auth gate check
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -51,12 +59,10 @@ export default function CheckInPage() {
         router.push('/login');
         return;
       }
-      setTimeout(() => {
-        setToken(savedToken);
-        if (savedEventId) {
-          setEventId(savedEventId);
-        }
-      }, 0);
+      setToken(savedToken);
+      if (savedEventId) {
+        setEventId(savedEventId);
+      }
     }
   }, [router]);
 
@@ -71,21 +77,19 @@ export default function CheckInPage() {
         });
         const data = await res.json();
         if (data.success && data.events.length > 0) {
-          setTimeout(() => {
-            setEvents(data.events);
-            if (!eventId) {
-              setEventId(data.events[0].id);
-            }
-          }, 0);
+          setEvents(data.events);
+          if (!eventId) {
+            setEventId(data.events[0].id);
+          }
         } else {
           if (!eventId) {
-            setTimeout(() => setEventId('demo-event'), 0);
+            setEventId('demo-event');
           }
         }
       } catch (err) {
         console.error('Failed to load events:', err);
         if (!eventId) {
-          setTimeout(() => setEventId('demo-event'), 0);
+          setEventId('demo-event');
         }
       }
     };
@@ -101,28 +105,20 @@ export default function CheckInPage() {
       const res = await fetch(`${API_URL}/events/${eventId}/stats`, { headers });
       const data = await res.json();
       if (data.success) {
-        setTimeout(() => {
-          setTotalArrivals(data.stats.checkedInGuests);
-          setError(null);
-        }, 0);
+        setTotalArrivals(data.stats.checkedInGuests);
+        setError(null);
       }
     } catch (err) {
       console.error('Failed to connect to backend check-in:', err);
-      setTimeout(() => {
-        setError('Could not connect to backend check-in server. Make sure port 5000 is running.');
-      }, 0);
+      setError('Could not connect to backend check-in server. Make sure port 5000 is running.');
     } finally {
-      setTimeout(() => {
-        setLoading(false);
-      }, 0);
+      setLoading(false);
     }
   }, [eventId, token]);
 
   useEffect(() => {
     if (eventId) {
-      setTimeout(() => {
-        fetchCheckInSummary();
-      }, 0);
+      fetchCheckInSummary();
     }
   }, [fetchCheckInSummary, eventId]);
 
@@ -130,9 +126,7 @@ export default function CheckInPage() {
   useEffect(() => {
     if (!eventId) return;
     if (!searchQuery.trim()) {
-      setTimeout(() => {
-        setSearchResults([]);
-      }, 0);
+      setSearchResults([]);
       return;
     }
 
@@ -142,9 +136,7 @@ export default function CheckInPage() {
         const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${searchQuery}`, { headers });
         const data = await res.json();
         if (data.success) {
-          setTimeout(() => {
-            setSearchResults(data.results);
-          }, 0);
+          setSearchResults(data.results);
         }
       } catch (err) {
         console.error('Failed search fetch query:', err);
@@ -301,7 +293,7 @@ export default function CheckInPage() {
           async (decodedText) => {
             await handleQRScan(decodedText);
             // Stop scanning on success
-            setTimeout(() => setCameraActive(false), 0);
+            setCameraActive(false);
           },
           () => {
             // Quietly ignore scanner frame mismatch errors
@@ -387,11 +379,23 @@ export default function CheckInPage() {
             </div>
           )}
         </div>
-        <div className="mt-4 sm:mt-0 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-center">
-          <span className="text-xs text-slate-400 block font-semibold">Total Checked-In</span>
-          <span className="text-lg font-black text-amber-500">
-            {totalArrivals} Arrivals
-          </span>
+        <div className="mt-4 sm:mt-0 flex items-center gap-3">
+          <div className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-center">
+            <span className="text-xs text-slate-400 block font-semibold">Total Checked-In</span>
+            <span className="text-lg font-black text-amber-500">
+              {totalArrivals} Arrivals
+            </span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors cursor-pointer"
+            title="Sign out"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign Out
+          </button>
         </div>
       </div>
 

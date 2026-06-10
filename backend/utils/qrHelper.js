@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const QRCode = require('qrcode');
 
-const QR_JWT_SECRET = process.env.QR_JWT_SECRET || 'qr_ticket_jwt_signing_key_placeholder';
+const QR_JWT_SECRET = process.env.QR_JWT_SECRET;
+if (!QR_JWT_SECRET) throw new Error('FATAL: QR_JWT_SECRET environment variable is required');
 
 /**
  * Generates a signed JWT payload representing the guest's ticket.

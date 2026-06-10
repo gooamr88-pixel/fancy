@@ -1,6 +1,6 @@
 const express = require('express');
-const { verifyEventOwner } = require('../middleware/auth');
-const { createEvent, getEvents, getEvent, updateEvent, getEventStats } = require('../controllers/eventController');
+const { requireAuth, verifyEventOwner } = require('../middleware/auth');
+const { createEvent, getEvents, getEvent, updateEvent, getEventStats, deleteEvent } = require('../controllers/eventController');
 
 const router = express.Router();
 
@@ -18,5 +18,8 @@ router.patch('/:eventId', verifyEventOwner, updateEvent);
 
 // Fetch event dashboard metrics
 router.get('/:eventId/stats', verifyEventOwner, getEventStats);
+
+// Delete an event and all related data
+router.delete('/:eventId', requireAuth, verifyEventOwner, deleteEvent);
 
 module.exports = router;

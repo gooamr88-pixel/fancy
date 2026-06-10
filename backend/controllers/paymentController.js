@@ -316,14 +316,9 @@ const stripeWebhook = async (req, res, next) => {
           throw ledgerError;
         }
 
-        // Increment wallet credits after successful ledger entry
+        // Atomically increment wallet credits via database RPC (prevents race conditions)
         const { error: walletUpdateError } = await supabase
-          .from('sms_credit_wallets')
-          .update({
-            credits_purchased: (wallet.credits_purchased || 0) + creditCount,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', walletId);
+          .rpc('increment_sms_credits', { p_event_id: event_id, p_credit_amount: creditCount });
 
         if (walletUpdateError) throw walletUpdateError;
 

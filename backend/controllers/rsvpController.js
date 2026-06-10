@@ -2,6 +2,11 @@ const { supabase } = require('../config/supabase');
 const notificationService = require('../utils/notificationService');
 const { parseCSV, generateCSV } = require('../utils/excelHelper');
 
+/** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
+function escapeLikePattern(str) {
+  return str.replace(/[%_\\]/g, '\\$&');
+}
+
 /**
  * Handles guest RSVP form submissions (supports both inserts and updates).
  * POST /api/v1/public/events/:slug/rsvp
@@ -219,12 +224,12 @@ const searchPublicGuests = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
 
-    // 2. Search guests matching query prefix/substring
+    // 2. Search guests matching query prefix/substring (public: only non-PII fields)
     const { data, error } = await supabase
       .from('rsvps')
-      .select('id, guest_name, email, phone, response, party_size')
+      .select('id, guest_name, response')
       .eq('event_id', event.id)
-      .ilike('guest_name', `%${query.trim()}%`)
+      .ilike('guest_name', `%${escapeLikePattern(query.trim())}%`)
       .limit(10);
 
     if (error) throw error;
@@ -234,10 +239,7 @@ const searchPublicGuests = async (req, res, next) => {
       results: data.map(item => ({
         id: item.id,
         guestName: item.guest_name,
-        email: item.email,
-        phone: item.phone,
-        response: item.response,
-        partySize: item.party_size
+        response: item.response
       }))
     });
   } catch (err) {
@@ -252,16 +254,22 @@ const searchPublicGuests = async (req, res, next) => {
 const getRSVPs = async (req, res, next) => {
   const { eventId } = req.params;
 
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
   try {
     const { data: rsvps, error } = await supabase
       .from('rsvps')
       .select('*, rsvp_guests(*), custom_answers(*), seating_assignments(*)')
       .eq('event_id', eventId)
-      .order('submitted_at', { ascending: false });
+      .order('submitted_at', { ascending: false })
+      .range(from, to);
 
     if (error) throw error;
 
-    return res.json({ success: true, rsvps });
+    return res.json({ success: true, rsvps, pagination: { page, limit, count: rsvps.length } });
   } catch (err) {
     next(err);
   }
@@ -343,10 +351,42 @@ const exportGuestsCSV = async (req, res, next) => {
   }
 };
 
+/**
+ * Deletes a single RSVP and its related data.
+ * DELETE /api/v1/events/:eventId/rsvps/:rsvpId
+ */
+const deleteRSVP = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const { rsvpId } = req.params;
+
+    // First unassign seat if any
+    await supabase
+      .from('seating_assignments')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('rsvp_id', rsvpId);
+
+    // Delete RSVP (cascades to rsvp_guests, custom_answers)
+    const { error } = await supabase
+      .from('rsvps')
+      .delete()
+      .eq('id', rsvpId)
+      .eq('event_id', eventId);
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'RSVP deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   submitPublicRSVP,
   getRSVPs,
   importGuestsCSV,
   exportGuestsCSV,
-  searchPublicGuests
+  searchPublicGuests,
+  deleteRSVP
 };

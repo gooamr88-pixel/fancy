@@ -29,6 +29,14 @@ export default function SeatingMapPage() {
 
   const canvasRef = useRef(null);
 
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('org_id');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('active_event_id');
+    window.location.href = '/login';
+  };
+
   // Auth and event initializer
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -37,11 +45,9 @@ export default function SeatingMapPage() {
         router.push('/login');
         return;
       }
-      setTimeout(() => {
-        setToken(savedToken);
-        const savedEventId = localStorage.getItem('active_event_id') || 'demo-event';
-        setEventId(savedEventId);
-      }, 0);
+      setToken(savedToken);
+      const savedEventId = localStorage.getItem('active_event_id') || 'demo-event';
+      setEventId(savedEventId);
     }
   }, [router]);
 
@@ -87,9 +93,7 @@ export default function SeatingMapPage() {
 
   useEffect(() => {
     if (!eventId) return;
-    setTimeout(() => {
-      loadLayoutData();
-    }, 0);
+    loadLayoutData();
   }, [loadLayoutData, eventId]);
 
   // Pointer drag event handlers
@@ -428,6 +432,16 @@ export default function SeatingMapPage() {
               Save Layout Positions
             </button>
           )}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors cursor-pointer"
+            title="Sign out"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign Out
+          </button>
         </div>
       </div>
 

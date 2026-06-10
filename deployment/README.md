@@ -35,14 +35,16 @@ sudo apt install certbot python3-certbot-nginx -y
 ## 💾 Step 2: Set Up Production Supabase Database
 
 1. Go to your **Supabase Dashboard** and create a new project.
-2. Under **SQL Editor** -> **New query**:
-   - Copy the contents of the local file `supabase/schema.sql` and run it to set up the database schema, tables, triggers, and indices.
-3. Apply any subsequent migration files (found in `supabase/migrations/` folder) by copy-pasting their SQL code into the SQL Editor, in chronological order, to ensure the production schema is fully up to date:
+2. **Do NOT run `schema.sql` directly** — the migrations contain the complete schema with hardened RLS policies.
+3. Apply the migration files (found in `supabase/migrations/` folder) by copy-pasting their SQL code into the SQL Editor, in chronological order, to ensure the production schema is fully up to date:
    - `20260607000000_init_schema.sql`
    - `20260607100000_schema_completion.sql`
    - `20260607100001_rls_hardening.sql`
    - `20260607100002_qa_stress_test_fixes.sql`
    - `20260609000000_sms_ledger_idempotency.sql`
+   - `20260610000000_auth_otp.sql`
+   - `20260610100000_security_hardening.sql`
+   - `20260610200000_performance_indexes.sql`
 
 ---
 
@@ -154,7 +156,7 @@ Now that your production server is live on `https://fancyrsvp.com`, configure th
 1. Go to your **Stripe Dashboard** -> **Developers** -> **Webhooks**.
 2. Click **Add endpoint** and enter:
    `https://fancyrsvp.com/api/v1/payments/webhook`
-3. Listen for events: `checkout.session.completed` and `payment_intent.succeeded`.
+3. Listen for events: `checkout.session.completed`, `payment_intent.succeeded`, and `charge.refunded`.
 4. Copy the webhook secret (`whsec_...`) and update the `STRIPE_WEBHOOK_SECRET` variable in `/var/www/fancy-rsvp/backend/.env`.
 5. Restart your backend PM2 process to apply the new secret:
    ```bash

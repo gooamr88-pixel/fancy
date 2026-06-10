@@ -4,23 +4,81 @@ const { supabase } = require('../config/supabase');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication';
 
+const CURRENT_ITERATIONS = 600000;
+const LEGACY_ITERATIONS = 1000;
+
 /**
- * Hashes a password using PBKDF2.
+ * Password strength regex: at least 8 chars, one uppercase, one lowercase, one digit.
+ */
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+/**
+ * Hashes a password using async PBKDF2 with 600,000 iterations.
  */
 const hashPassword = (password) => {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return `${salt}:${hash}`;
+  return new Promise((resolve, reject) => {
+    const salt = crypto.randomBytes(16).toString('hex');
+    crypto.pbkdf2(password, salt, CURRENT_ITERATIONS, 64, 'sha512', (err, derivedKey) => {
+      if (err) return reject(err);
+      resolve(`${salt}:${derivedKey.toString('hex')}`);
+    });
+  });
 };
 
 /**
  * Verifies a password against a stored PBKDF2 hash.
+ * Implements dual-hash migration: tries 600k iterations first, then falls back
+ * to legacy 1,000 iterations. If legacy succeeds, rehashes with 600k and updates DB.
+ * Uses crypto.timingSafeEqual for constant-time comparison.
  */
-const verifyPassword = (password, storedHash) => {
+const verifyPassword = async (password, storedHash, orgEmail) => {
   if (!storedHash) return false;
   const [salt, originalHash] = storedHash.split(':');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return hash === originalHash;
+  if (!salt || !originalHash) return false;
+
+  const originalHashBuffer = Buffer.from(originalHash, 'hex');
+
+  // Try current iterations (600,000) first
+  const currentMatch = await new Promise((resolve, reject) => {
+    crypto.pbkdf2(password, salt, CURRENT_ITERATIONS, 64, 'sha512', (err, derivedKey) => {
+      if (err) return reject(err);
+      try {
+        resolve(crypto.timingSafeEqual(derivedKey, originalHashBuffer));
+      } catch {
+        resolve(false);
+      }
+    });
+  });
+
+  if (currentMatch) return true;
+
+  // Fallback: try legacy iterations (1,000)
+  const legacyMatch = await new Promise((resolve, reject) => {
+    crypto.pbkdf2(password, salt, LEGACY_ITERATIONS, 64, 'sha512', (err, derivedKey) => {
+      if (err) return reject(err);
+      try {
+        resolve(crypto.timingSafeEqual(derivedKey, originalHashBuffer));
+      } catch {
+        resolve(false);
+      }
+    });
+  });
+
+  if (legacyMatch && orgEmail) {
+    // Rehash with current iterations and update DB
+    try {
+      const newHash = await hashPassword(password);
+      await supabase
+        .from('organizations')
+        .update({ password_hash: newHash })
+        .eq('email', orgEmail);
+      console.log(`[Auth] Migrated password hash to ${CURRENT_ITERATIONS} iterations for ${orgEmail}`);
+    } catch (rehashErr) {
+      console.error('[Auth] Failed to rehash password during migration:', rehashErr.message);
+    }
+  }
+
+  return legacyMatch;
 };
 
 /**
@@ -36,6 +94,11 @@ const register = async (req, res, next) => {
       error: 'VALIDATION_ERROR',
       message: 'email, password, name, and orgName are required.'
     });
+  }
+
+  // Password strength validation
+  if (!passwordRegex.test(password)) {
+    return res.status(400).json({ success: false, error: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters with uppercase, lowercase, and a number' });
   }
 
   try {
@@ -55,7 +118,7 @@ const register = async (req, res, next) => {
     }
 
     const userId = crypto.randomUUID();
-    const passwordHash = hashPassword(password);
+    const passwordHash = await hashPassword(password);
     
     // Create organization
     const { data: org, error: orgError } = await supabase
@@ -122,7 +185,7 @@ const login = async (req, res, next) => {
       .limit(1);
 
     const org = orgs && orgs[0];
-    if (!org || !verifyPassword(password, org.password_hash)) {
+    if (!org || !(await verifyPassword(password, org.password_hash, email))) {
       return res.status(401).json({
         success: false,
         error: 'INVALID_CREDENTIALS',
@@ -200,12 +263,13 @@ const forgotPassword = async (req, res, next) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes validity
 
-    // 3. Save OTP details to organizations table
+    // 3. Save OTP details to organizations table and reset otp_attempts counter
     const { error: updateError } = await supabase
       .from('organizations')
       .update({
         reset_otp: otp,
-        reset_otp_expires_at: expiresAt
+        reset_otp_expires_at: expiresAt,
+        otp_attempts: 0
       })
       .eq('email', email);
 
@@ -269,6 +333,11 @@ const resetPassword = async (req, res, next) => {
     });
   }
 
+  // Password strength validation
+  if (!passwordRegex.test(newPassword)) {
+    return res.status(400).json({ success: false, error: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters with uppercase, lowercase, and a number' });
+  }
+
   try {
     // 1. Fetch organization by email
     const { data: orgs, error: fetchError } = await supabase
@@ -288,11 +357,27 @@ const resetPassword = async (req, res, next) => {
       });
     }
 
-    // 2. Validate OTP value and expiration
+    // 2. Check OTP attempt count (rate limiting)
+    const otpAttempts = org.otp_attempts || 0;
+    if (otpAttempts >= 5) {
+      return res.status(429).json({
+        success: false,
+        error: 'TOO_MANY_ATTEMPTS',
+        message: 'Too many attempts. Request a new OTP.'
+      });
+    }
+
+    // 3. Validate OTP value and expiration
     const storedOtp = org.reset_otp;
     const expiresAt = org.reset_otp_expires_at;
 
     if (!storedOtp || storedOtp !== otp || !expiresAt || new Date() > new Date(expiresAt)) {
+      // Increment OTP attempts on failure
+      await supabase
+        .from('organizations')
+        .update({ otp_attempts: otpAttempts + 1 })
+        .eq('email', email);
+
       return res.status(400).json({
         success: false,
         error: 'INVALID_OTP',
@@ -300,15 +385,16 @@ const resetPassword = async (req, res, next) => {
       });
     }
 
-    // 3. Hash the new password and clear the OTP fields
-    const passwordHash = hashPassword(newPassword);
+    // 4. Hash the new password and clear the OTP fields, reset attempts
+    const passwordHash = await hashPassword(newPassword);
 
     const { error: updateError } = await supabase
       .from('organizations')
       .update({
         password_hash: passwordHash,
         reset_otp: null,
-        reset_otp_expires_at: null
+        reset_otp_expires_at: null,
+        otp_attempts: 0
       })
       .eq('email', email);
 
@@ -323,9 +409,114 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
+/**
+ * Fetches the authenticated user's organization profile.
+ * GET /api/v1/auth/profile
+ */
+const getProfile = async (req, res, next) => {
+  try {
+    const { data: org, error } = await supabase
+      .from('organizations')
+      .select('id, name, email, phone, created_at')
+      .eq('owner_user_id', req.user.id)
+      .single();
+
+    if (error || !org) {
+      return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Profile not found' });
+    }
+
+    res.json({ success: true, profile: org });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Updates the authenticated user's organization profile.
+ * PATCH /api/v1/auth/profile
+ */
+const updateProfile = async (req, res, next) => {
+  try {
+    const { name, phone } = req.body;
+    
+    const updates = {};
+    if (name) updates.name = name.trim();
+    if (phone) updates.phone = phone.trim();
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, error: 'NO_UPDATES', message: 'No fields to update' });
+    }
+
+    const { data: org, error } = await supabase
+      .from('organizations')
+      .update(updates)
+      .eq('owner_user_id', req.user.id)
+      .select('id, name, email, phone')
+      .single();
+
+    if (error) throw error;
+
+    res.json({ success: true, profile: org, message: 'Profile updated successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Changes the authenticated user's password after verifying the current one.
+ * POST /api/v1/auth/change-password
+ */
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: 'MISSING_FIELDS', message: 'Current and new passwords are required' });
+    }
+
+    if (!passwordRegex.test(newPassword)) {
+      return res.status(400).json({ success: false, error: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters with uppercase, lowercase, and a number' });
+    }
+
+    // Get current org
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('id, email, password_hash')
+      .eq('owner_user_id', req.user.id)
+      .single();
+
+    if (orgError || !org) {
+      return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Profile not found' });
+    }
+
+    // Verify current password using the existing verifyPassword function
+    const isValid = await verifyPassword(currentPassword, org.password_hash, org.email);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const newHash = await hashPassword(newPassword);
+
+    const { error: updateError } = await supabase
+      .from('organizations')
+      .update({ password_hash: newHash })
+      .eq('id', org.id);
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   register,
   login,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  getProfile,
+  updateProfile,
+  changePassword
 };

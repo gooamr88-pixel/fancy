@@ -38,9 +38,7 @@ export default function FormBuilder({ eventId, token }) {
   }, [apiUrl, eventId, token]);
 
   useEffect(() => {
-    setTimeout(() => {
-      loadFields();
-    }, 0);
+    loadFields();
   }, [loadFields]);
 
   // Handle auto-slugification for key

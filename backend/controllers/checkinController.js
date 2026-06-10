@@ -1,6 +1,11 @@
 const { supabase } = require('../config/supabase');
 const { verifyTicketToken } = require('../utils/qrHelper');
 
+/** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
+function escapeLikePattern(str) {
+  return str.replace(/[%_\\]/g, '\\$&');
+}
+
 /**
  * Scan QR ticket and check-in guest.
  * POST /api/v1/events/:eventId/checkin/scan
@@ -224,7 +229,7 @@ const searchGuests = async (req, res, next) => {
         )
       `)
       .eq('event_id', eventId)
-      .ilike('guest_name', `%${query}%`)
+      .ilike('guest_name', `%${escapeLikePattern(query)}%`)
       .limit(10);
 
     if (error) throw error;
@@ -255,8 +260,41 @@ const searchGuests = async (req, res, next) => {
   }
 };
 
+/**
+ * Reverses a guest check-in by deleting the check-in record.
+ * POST /api/v1/events/:eventId/checkin/undo
+ */
+const undoCheckIn = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+    const { rsvpId } = req.body;
+
+    if (!rsvpId) {
+      return res.status(400).json({ success: false, error: 'MISSING_RSVP_ID', message: 'rsvpId is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('check_ins')
+      .delete()
+      .eq('event_id', eventId)
+      .eq('rsvp_id', rsvpId)
+      .select();
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'No check-in record found for this guest' });
+    }
+
+    res.json({ success: true, message: 'Check-in reversed successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   scanCheckIn,
   manualCheckIn,
-  searchGuests
+  searchGuests,
+  undoCheckIn
 };

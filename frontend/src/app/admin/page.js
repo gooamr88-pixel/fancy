@@ -30,6 +30,14 @@ export default function AdminPage() {
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('org_id');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('active_event_id');
+    window.location.href = '/login';
+  };
+
   // Auth check
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -43,9 +51,7 @@ export default function AdminPage() {
         router.push('/dashboard');
         return;
       }
-      setTimeout(() => {
-        setToken(savedToken);
-      }, 0);
+      setToken(savedToken);
     }
   }, [router]);
 
@@ -216,6 +222,16 @@ export default function AdminPage() {
           <Link href="/dashboard" className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold hover:bg-slate-700 transition cursor-pointer text-slate-200">
             Go to Organizer Dashboard
           </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors cursor-pointer"
+            title="Sign out"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign Out
+          </button>
         </div>
       </div>
 

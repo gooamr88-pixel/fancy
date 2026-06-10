@@ -1,0 +1,469 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Fancy RSVP API",
+    "description": "Backend API for Fancy RSVP event management and guest RSVP tracking platform",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "Version 1 API Base"
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register a new organizer",
+        "description": "Creates a new organizer profile and organization record.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "name"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string", "minLength": 8 },
+                  "name": { "type": "string", "description": "Organization name" },
+                  "phone": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registration successful"
+          },
+          "400": {
+            "description": "Validation error or weak password"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login organizer",
+        "description": "Authenticates organizer and returns a JWT token.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful, token returned"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "summary": "Trigger forgot password OTP",
+        "description": "Generates a 6-digit OTP and sends it to the registered email.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP sent"
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "summary": "Reset password with OTP",
+        "description": "Verifies 6-digit OTP and updates user password.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "otp", "newPassword"],
+                "properties": {
+                  "email": { "type": "string", "format": "email" },
+                  "otp": { "type": "string", "minLength": 6, "maxLength": 6 },
+                  "newPassword": { "type": "string", "minLength": 8 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset successful"
+          },
+          "400": {
+            "description": "Invalid OTP or validation error"
+          },
+          "429": {
+            "description": "Too many OTP verification attempts"
+          }
+        }
+      }
+    },
+    "/auth/profile": {
+      "get": {
+        "summary": "Get organizer profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Profile details returned" }
+        }
+      },
+      "patch": {
+        "summary": "Update organizer profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "phone": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Profile updated successfully" }
+        }
+      }
+    },
+    "/auth/change-password": {
+      "post": {
+        "summary": "Change password",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["currentPassword", "newPassword"],
+                "properties": {
+                  "currentPassword": { "type": "string" },
+                  "newPassword": { "type": "string", "minLength": 8 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Password changed successfully" },
+          "401": { "description": "Incorrect current password" }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "summary": "List events for authenticated organizer",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "List of events" }
+        }
+      },
+      "post": {
+        "summary": "Create a new event",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["slug", "templateType", "title", "eventDate"],
+                "properties": {
+                  "slug": { "type": "string" },
+                  "templateType": { "type": "string" },
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "eventDate": { "type": "string", "format": "date-time" },
+                  "locationName": { "type": "string" },
+                  "locationAddress": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Event created" }
+        }
+      }
+    },
+    "/events/{eventId}": {
+      "get": {
+        "summary": "Get event details",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Event details" }
+        }
+      },
+      "patch": {
+        "summary": "Update event settings",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "description": { "type": "string" },
+                  "eventDate": { "type": "string", "format": "date-time" },
+                  "locationName": { "type": "string" },
+                  "locationAddress": { "type": "string" },
+                  "status": { "type": "string", "enum": ["draft", "active", "paused", "completed"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Event updated" }
+        }
+      },
+      "delete": {
+        "summary": "Delete event",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Event and all related data deleted successfully" }
+        }
+      }
+    },
+    "/events/{eventId}/stats": {
+      "get": {
+        "summary": "Get event stats",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Dashboard statistics" }
+        }
+      }
+    },
+    "/events/{eventId}/rsvps": {
+      "get": {
+        "summary": "List RSVPs for event",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "List of RSVPs" }
+        }
+      }
+    },
+    "/events/{eventId}/rsvps/import": {
+      "post": {
+        "summary": "Import RSVPs via CSV file upload",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "251": { "description": "Guests imported successfully" }
+        }
+      }
+    },
+    "/events/{eventId}/rsvps/export": {
+      "get": {
+        "summary": "Export RSVPs to CSV stream",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "CSV attachment stream" }
+        }
+      }
+    },
+    "/events/{eventId}/rsvps/{rsvpId}": {
+      "delete": {
+        "summary": "Delete RSVP",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "rsvpId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "RSVP deleted successfully" }
+        }
+      }
+    },
+    "/events/{eventId}/checkin/scan": {
+      "post": {
+        "summary": "Scan ticket token and check in",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["token"],
+                "properties": {
+                  "token": { "type": "string", "description": "QR ticket JWT token" },
+                  "checkedInBy": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Check-in successful" }
+        }
+      }
+    },
+    "/events/{eventId}/checkin/manual": {
+      "post": {
+        "summary": "Manually check in guest by RSVP ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["rsvpId"],
+                "properties": {
+                  "rsvpId": { "type": "string", "format": "uuid" },
+                  "checkedInBy": { "type": "string" },
+                  "partyCountArrived": { "type": "integer", "default": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Check-in successful" }
+        }
+      }
+    },
+    "/events/{eventId}/checkin/search": {
+      "get": {
+        "summary": "Query guests autocomplete list for manual check-in",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "query", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Search autocomplete results" }
+        }
+      }
+    },
+    "/events/{eventId}/checkin/undo": {
+      "post": {
+        "summary": "Undo check-in",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "eventId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["rsvpId"],
+                "properties": {
+                  "rsvpId": { "type": "string", "format": "uuid" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Check-in reversed successfully" }
+        }
+      }
+    },
+    "/public/events/{slug}/rsvp": {
+      "post": {
+        "summary": "Guest submit public RSVP response",
+        "parameters": [{ "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["guestName", "response"],
+                "properties": {
+                  "rsvpId": { "type": "string", "format": "uuid", "description": "Optional for updates" },
+                  "guestName": { "type": "string" },
+                  "email": { "type": "string", "format": "email" },
+                  "phone": { "type": "string" },
+                  "response": { "type": "string", "enum": ["yes", "no"] },
+                  "partySize": { "type": "integer", "default": 1 },
+                  "notes": { "type": "string" },
+                  "additionalGuests": { "type": "array", "items": { "type": "string" } },
+                  "primaryGuestMeal": { "type": "string" },
+                  "customAnswers": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "250": { "description": "RSVP response submitted successfully" }
+        }
+      }
+    },
+    "/public/events/{slug}/search": {
+      "get": {
+        "summary": "Guest search RSVP response details for public lookup",
+        "parameters": [
+          { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "query", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Matching guest names and responses (PII stripped)" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}

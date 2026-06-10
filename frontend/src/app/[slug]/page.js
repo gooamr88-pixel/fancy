@@ -91,6 +91,22 @@ export default function EventPage({ params }) {
     return () => clearInterval(timer);
   }, [event]);
 
+  // Dynamic SEO: update document title and meta description
+  useEffect(() => {
+    if (event) {
+      document.title = `${event.title} | Fancy RSVP`;
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc) {
+        metaDesc.setAttribute('content', event.description || `RSVP to ${event.title}`);
+      } else {
+        const meta = document.createElement('meta');
+        meta.name = 'description';
+        meta.content = event.description || `RSVP to ${event.title}`;
+        document.head.appendChild(meta);
+      }
+    }
+  }, [event]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">

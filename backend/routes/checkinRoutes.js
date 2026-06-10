@@ -1,15 +1,18 @@
 const express = require('express');
-const { scanCheckIn, manualCheckIn, searchGuests } = require('../controllers/checkinController');
+const checkinController = require('../controllers/checkinController');
 
 const router = express.Router({ mergeParams: true });
 
 // Route to check-in guest via QR ticket scan
-router.post('/scan', scanCheckIn);
+router.post('/scan', checkinController.scanCheckIn);
 
 // Route to manually check-in guest by RSVP ID
-router.post('/manual', manualCheckIn);
+router.post('/manual', checkinController.manualCheckIn);
 
 // Route to query guests (autocomplete list) for manual check-in search
-router.get('/search', searchGuests);
+router.get('/search', checkinController.searchGuests);
+
+// Route to undo/reverse a guest check-in
+router.post('/undo', checkinController.undoCheckIn);
 
 module.exports = router;

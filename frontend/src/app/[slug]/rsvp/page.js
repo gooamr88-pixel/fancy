@@ -36,11 +36,9 @@ function RSVPFormContent({ slug }) {
   const [searchPerformed, setSearchPerformed] = useState(false);
 
   useEffect(() => {
-    setTimeout(() => {
-      setSearchPerformed(false);
-      setSearchResults([]);
-      setRsvpId(null);
-    }, 0);
+    setSearchPerformed(false);
+    setSearchResults([]);
+    setRsvpId(null);
   }, [guestName]);
 
   const handleSearchName = async () => {
@@ -127,30 +125,42 @@ function RSVPFormContent({ slug }) {
     fetchEvent();
   }, [slug]);
 
+  // Dynamic SEO: update document title and meta description
+  useEffect(() => {
+    if (event) {
+      document.title = `RSVP - ${event.title} | Fancy RSVP`;
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc) {
+        metaDesc.setAttribute('content', event.description || `RSVP to ${event.title}`);
+      } else {
+        const meta = document.createElement('meta');
+        meta.name = 'description';
+        meta.content = event.description || `RSVP to ${event.title}`;
+        document.head.appendChild(meta);
+      }
+    }
+  }, [event]);
+
   // Sync additional guests inputs dynamically when party size changes
   useEffect(() => {
     const size = parseInt(partySize) || 1;
     if (size <= 1) {
-      setTimeout(() => {
-        setAdditionalGuests([]);
-      }, 0);
+      setAdditionalGuests([]);
       return;
     }
 
     const diff = size - 1;
-    setTimeout(() => {
-      setAdditionalGuests(prev => {
-        const copy = [...prev];
-        if (copy.length < diff) {
-          while (copy.length < diff) {
-            copy.push({ fullName: '', mealSelection: '', dietaryNotes: '' });
-          }
-        } else if (copy.length > diff) {
-          copy.splice(diff);
+    setAdditionalGuests(prev => {
+      const copy = [...prev];
+      if (copy.length < diff) {
+        while (copy.length < diff) {
+          copy.push({ fullName: '', mealSelection: '', dietaryNotes: '' });
         }
-        return copy;
-      });
-    }, 0);
+      } else if (copy.length > diff) {
+        copy.splice(diff);
+      }
+      return copy;
+    });
   }, [partySize]);
 
   if (loading) {

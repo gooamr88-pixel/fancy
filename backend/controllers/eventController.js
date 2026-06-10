@@ -5,13 +5,13 @@ const { supabase } = require('../config/supabase');
  * POST /api/v1/events
  */
 const createEvent = async (req, res, next) => {
-  const { orgId, slug, templateType, title, description, eventDate, locationName, locationAddress } = req.body;
+  const { slug, templateType, title, description, eventDate, locationName, locationAddress } = req.body;
 
-  if (!orgId || !slug || !templateType || !title || !eventDate) {
+  if (!slug || !templateType || !title || !eventDate) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'orgId, slug, templateType, title, and eventDate are required fields.'
+      message: 'slug, templateType, title, and eventDate are required fields.'
     });
   }
 
@@ -26,6 +26,18 @@ const createEvent = async (req, res, next) => {
   }
 
   try {
+    // Derive orgId from authenticated user instead of trusting client input
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('id')
+      .eq('owner_user_id', req.user.id)
+      .single();
+
+    if (orgError || !org) {
+      return res.status(403).json({ success: false, error: 'ORG_NOT_FOUND', message: 'No organization found for this user' });
+    }
+    const orgId = org.id;
+
     // Check slug availability
     const { data: existingEvent } = await supabase
       .from('events')
@@ -324,6 +336,11 @@ const getEventStats = async (req, res, next) => {
  * GET /api/v1/events
  */
 const getEvents = async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
   try {
     const userId = req.user.id;
 
@@ -340,7 +357,8 @@ const getEvents = async (req, res, next) => {
     if (!org) {
       return res.json({
         success: true,
-        events: []
+        events: [],
+        pagination: { page, limit, count: 0 }
       });
     }
 
@@ -349,13 +367,16 @@ const getEvents = async (req, res, next) => {
       .from('events')
       .select('*')
       .eq('org_id', org.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
     if (error) throw error;
 
+    const items = events || [];
     return res.json({
       success: true,
-      events: events || []
+      events: items,
+      pagination: { page, limit, count: items.length }
     });
   } catch (err) {
     next(err);
@@ -367,18 +388,48 @@ const getEvents = async (req, res, next) => {
  * GET /api/v1/admin/events
  */
 const getAdminEvents = async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
   try {
     const { data: events, error } = await supabase
       .from('events')
       .select('*, organizations(name, email)')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
     if (error) throw error;
 
+    const items = events || [];
     return res.json({
       success: true,
-      events: events || []
+      events: items,
+      pagination: { page, limit, count: items.length }
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Deletes an event and all related data (cascades via FK ON DELETE CASCADE).
+ * DELETE /api/v1/events/:eventId
+ */
+const deleteEvent = async (req, res, next) => {
+  try {
+    const { eventId } = req.params;
+
+    // Delete event (cascades to all related tables via FK ON DELETE CASCADE)
+    const { error } = await supabase
+      .from('events')
+      .delete()
+      .eq('id', eventId);
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Event and all related data deleted successfully' });
   } catch (err) {
     next(err);
   }
@@ -391,5 +442,6 @@ module.exports = {
   getPublicEventBySlug,
   updateEvent,
   getEventStats,
-  getAdminEvents
+  getAdminEvents,
+  deleteEvent
 };

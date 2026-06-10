@@ -1,18 +1,5 @@
-const twilio = require('twilio');
+const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
 const { supabase } = require('../config/supabase');
-
-// Initialize Twilio client
-let twilioClient;
-const getTwilioClient = () => {
-  if (!twilioClient) {
-    const sid = process.env.TWILIO_ACCOUNT_SID;
-    const token = process.env.TWILIO_AUTH_TOKEN;
-    if (sid && token) {
-      twilioClient = twilio(sid, token);
-    }
-  }
-  return twilioClient;
-};
 
 /**
  * Dispatches bulk SMS invitations to all pending guests.
