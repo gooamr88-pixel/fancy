@@ -18,27 +18,7 @@ const requireAuth = async (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    let decoded;
-    const isLocalDB = !process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project') || !process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!isLocalDB && supabase.auth && typeof supabase.auth.getUser === 'function') {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (error || !user) {
-        return res.status(401).json({
-          success: false,
-          error: 'INVALID_TOKEN',
-          message: 'Session is invalid or expired.'
-        });
-      }
-      decoded = {
-        id: user.id,
-        email: user.email,
-        role: user.role
-      };
-    } else {
-      // Local fallback verification
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication');
-    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication');
 
     req.user = {
       id: decoded.id || decoded.sub,
@@ -76,21 +56,7 @@ const optionalAuth = async (req, res, next) => {
 
   try {
     const token = authHeader.split(' ')[1];
-    let decoded;
-    const isLocalDB = !process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project') || !process.env.SUPABASE_SERVICE_ROLE_KEY;
-    
-    if (!isLocalDB && supabase.auth && typeof supabase.auth.getUser === 'function') {
-      const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) {
-        decoded = {
-          id: user.id,
-          email: user.email,
-          role: user.role
-        };
-      }
-    } else {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication');
-    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication');
 
     if (decoded) {
       req.user = {

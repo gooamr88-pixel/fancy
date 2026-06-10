@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS organizations (
     phone TEXT,
     stripe_customer_id TEXT UNIQUE,
     password_hash TEXT,                     -- Added for password hashing verification
+    reset_otp TEXT,                         -- Added for password reset verification
+    reset_otp_expires_at TIMESTAMPTZ,       -- Added for password reset verification
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -733,5 +735,5 @@ CREATE POLICY "Public read platform pricing configurations"
 -- Activity Logs policies
 CREATE POLICY "Organizers can view their activity logs"
     ON activity_logs FOR SELECT
-    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))));
+    USING (event_id IN (SELECT id FROM events WHERE org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid())));
 
