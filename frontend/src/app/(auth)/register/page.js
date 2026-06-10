@@ -52,37 +52,102 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6 selection:bg-brand-green/20">
-      
-      {/* Floating Organic Blobs */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[10%] right-[-10%] w-[30rem] h-[30rem] rounded-full bg-emerald-100/30 dark:bg-emerald-950/15 filter blur-3xl animate-float-1"></div>
-        <div className="absolute bottom-[10%] left-[-10%] w-[30rem] h-[30rem] rounded-full bg-amber-100/20 dark:bg-amber-900/10 filter blur-3xl animate-float-2"></div>
-      </div>
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: '#F8F4EC',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+      fontFamily: 'var(--font-sans), Lato, sans-serif',
+    }}>
 
-      <div className="relative z-10 w-full max-w-md bg-card-bg border border-card-border/60 rounded-2xl shadow-xl overflow-hidden backdrop-blur-sm">
+      <div style={{
+        width: '100%',
+        maxWidth: '420px',
+        backgroundColor: '#FFFFFF',
+        border: '1px solid #E8E2D6',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+      }}>
         
         {/* Header */}
-        <div className="bg-stone-900 text-white p-8 text-center">
-          <span className="font-sans text-xs uppercase tracking-[0.25em] text-amber-500 font-bold block mb-2">Create Host Account</span>
-          <h1 className="font-serif text-2xl font-light tracking-wide">
-            FANCY<span className="font-light text-amber-500/75 mx-1.5">|</span>RSVP
-          </h1>
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          padding: '36px 32px 24px',
+          textAlign: 'center',
+          borderBottom: '1px solid #E8E2D6',
+        }}>
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="5" width="20" height="14" rx="2" stroke="#B8944F" strokeWidth="1.5" fill="none" />
+              <path d="M2 7l10 7 10-7" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+              <span style={{
+                fontFamily: 'var(--font-serif), Cormorant Garamond, serif',
+                fontSize: '26px',
+                fontStyle: 'italic',
+                fontWeight: '500',
+                color: '#B8944F',
+                letterSpacing: '0.02em',
+              }}>Fancy</span>
+              <span style={{
+                fontFamily: 'var(--font-serif), Cormorant Garamond, serif',
+                fontSize: '22px',
+                fontWeight: '600',
+                color: '#191B1E',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+              }}>RSVP</span>
+            </div>
+          </div>
+
+          <h1 style={{
+            fontFamily: 'var(--font-serif), Cormorant Garamond, serif',
+            fontSize: '24px',
+            fontWeight: '400',
+            color: '#191B1E',
+            margin: 0,
+            letterSpacing: '0.01em',
+          }}>Create Account</h1>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-8 space-y-4">
+        <form onSubmit={handleSubmit} style={{ padding: '32px' }}>
           {error && (
-            <div className="p-4 bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/20 rounded-xl text-rose-800 dark:text-rose-300 text-sm flex items-start gap-2.5 animate-fade-in shadow-inner">
-              <svg className="w-5 h-5 text-rose-600 dark:text-rose-455 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div style={{
+              padding: '14px 16px',
+              backgroundColor: '#FFF1F2',
+              border: '1px solid #FECDD3',
+              borderRadius: '8px',
+              color: '#9F1239',
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              marginBottom: '24px',
+            }}>
+              <svg style={{ width: '18px', height: '18px', flexShrink: 0, marginTop: '1px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <span>{error}</span>
             </div>
           )}
 
-          <div className="space-y-1">
-            <label htmlFor="name" className="text-[10px] font-bold text-muted-text uppercase tracking-wider block">Full Name</label>
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="name" style={{
+              display: 'block',
+              fontSize: '10px',
+              fontWeight: '700',
+              color: '#77736A',
+              textTransform: 'uppercase',
+              letterSpacing: '0.12em',
+              marginBottom: '6px',
+              fontFamily: 'var(--font-sans), Lato, sans-serif',
+            }}>Full Name</label>
             <input
               id="name"
               type="text"
@@ -91,12 +156,35 @@ export default function RegisterPage() {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Julian Vance"
-              className="w-full px-4 py-2.5 border border-card-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green bg-background text-foreground transition-all"
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                border: '1px solid #E8E2D6',
+                borderRadius: '8px',
+                backgroundColor: '#FFFFFF',
+                color: '#191B1E',
+                fontSize: '14px',
+                fontFamily: 'var(--font-sans), Lato, sans-serif',
+                outline: 'none',
+                transition: 'border-color 0.2s ease',
+                boxSizing: 'border-box',
+              }}
+              onFocus={e => e.target.style.borderColor = '#B8944F'}
+              onBlur={e => e.target.style.borderColor = '#E8E2D6'}
             />
           </div>
 
-          <div className="space-y-1">
-            <label htmlFor="orgName" className="text-[10px] font-bold text-muted-text uppercase tracking-wider block">Organization / Family Name</label>
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="orgName" style={{
+              display: 'block',
+              fontSize: '10px',
+              fontWeight: '700',
+              color: '#77736A',
+              textTransform: 'uppercase',
+              letterSpacing: '0.12em',
+              marginBottom: '6px',
+              fontFamily: 'var(--font-sans), Lato, sans-serif',
+            }}>Organization / Family Name</label>
             <input
               id="orgName"
               type="text"
@@ -104,12 +192,35 @@ export default function RegisterPage() {
               value={orgName}
               onChange={e => setOrgName(e.target.value)}
               placeholder="Vance-Sophia Wedding Suite"
-              className="w-full px-4 py-2.5 border border-card-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green bg-background text-foreground transition-all"
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                border: '1px solid #E8E2D6',
+                borderRadius: '8px',
+                backgroundColor: '#FFFFFF',
+                color: '#191B1E',
+                fontSize: '14px',
+                fontFamily: 'var(--font-sans), Lato, sans-serif',
+                outline: 'none',
+                transition: 'border-color 0.2s ease',
+                boxSizing: 'border-box',
+              }}
+              onFocus={e => e.target.style.borderColor = '#B8944F'}
+              onBlur={e => e.target.style.borderColor = '#E8E2D6'}
             />
           </div>
 
-          <div className="space-y-1">
-            <label htmlFor="email" className="text-[10px] font-bold text-muted-text uppercase tracking-wider block">Email Address</label>
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="email" style={{
+              display: 'block',
+              fontSize: '10px',
+              fontWeight: '700',
+              color: '#77736A',
+              textTransform: 'uppercase',
+              letterSpacing: '0.12em',
+              marginBottom: '6px',
+              fontFamily: 'var(--font-sans), Lato, sans-serif',
+            }}>Email Address</label>
             <input
               id="email"
               type="email"
@@ -118,12 +229,35 @@ export default function RegisterPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="host@example.com"
-              className="w-full px-4 py-2.5 border border-card-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green bg-background text-foreground transition-all"
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                border: '1px solid #E8E2D6',
+                borderRadius: '8px',
+                backgroundColor: '#FFFFFF',
+                color: '#191B1E',
+                fontSize: '14px',
+                fontFamily: 'var(--font-sans), Lato, sans-serif',
+                outline: 'none',
+                transition: 'border-color 0.2s ease',
+                boxSizing: 'border-box',
+              }}
+              onFocus={e => e.target.style.borderColor = '#B8944F'}
+              onBlur={e => e.target.style.borderColor = '#E8E2D6'}
             />
           </div>
 
-          <div className="space-y-1">
-            <label htmlFor="password" className="text-[10px] font-bold text-muted-text uppercase tracking-wider block">Password</label>
+          <div style={{ marginBottom: '24px' }}>
+            <label htmlFor="password" style={{
+              display: 'block',
+              fontSize: '10px',
+              fontWeight: '700',
+              color: '#77736A',
+              textTransform: 'uppercase',
+              letterSpacing: '0.12em',
+              marginBottom: '6px',
+              fontFamily: 'var(--font-sans), Lato, sans-serif',
+            }}>Password</label>
             <input
               id="password"
               type="password"
@@ -132,21 +266,63 @@ export default function RegisterPage() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-4 py-2.5 border border-card-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green bg-background text-foreground transition-all"
+              style={{
+                width: '100%',
+                padding: '11px 16px',
+                border: '1px solid #E8E2D6',
+                borderRadius: '8px',
+                backgroundColor: '#FFFFFF',
+                color: '#191B1E',
+                fontSize: '14px',
+                fontFamily: 'var(--font-sans), Lato, sans-serif',
+                outline: 'none',
+                transition: 'border-color 0.2s ease',
+                boxSizing: 'border-box',
+              }}
+              onFocus={e => e.target.style.borderColor = '#B8944F'}
+              onBlur={e => e.target.style.borderColor = '#E8E2D6'}
             />
           </div>
 
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 bg-brand-green hover:bg-brand-green-hover text-white rounded-xl font-bold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer disabled:opacity-50 border-b-2 border-emerald-700 mt-2"
+            style={{
+              width: '100%',
+              padding: '14px',
+              backgroundColor: '#B8944F',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '700',
+              fontFamily: 'var(--font-sans), Lato, sans-serif',
+              letterSpacing: '0.06em',
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              opacity: submitting ? 0.55 : 1,
+              transition: 'background-color 0.2s ease, opacity 0.2s ease',
+            }}
+            onMouseEnter={e => { if (!submitting) e.target.style.backgroundColor = '#a6833f'; }}
+            onMouseLeave={e => { if (!submitting) e.target.style.backgroundColor = '#B8944F'; }}
           >
             {submitting ? 'Creating account...' : 'Create Account'}
           </button>
 
-          <div className="border-t border-card-border/60 pt-4 text-center text-xs text-muted-text font-medium">
+          <div style={{
+            borderTop: '1px solid #E8E2D6',
+            paddingTop: '20px',
+            marginTop: '24px',
+            textAlign: 'center',
+            fontSize: '12px',
+            color: '#77736A',
+            fontFamily: 'var(--font-sans), Lato, sans-serif',
+          }}>
             <span>Already hosting? </span>
-            <Link href="/login" className="text-brand-green hover:underline font-bold">Log In</Link>
+            <Link href="/login" style={{
+              color: '#B8944F',
+              fontWeight: '700',
+              textDecoration: 'none',
+            }}>Log In</Link>
           </div>
         </form>
 

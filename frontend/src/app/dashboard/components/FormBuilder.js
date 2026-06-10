@@ -2,22 +2,28 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
+const inputStyle = {
+  width: '100%', boxSizing: 'border-box', background: '#FFFFFF', border: '1px solid #E8E2D6',
+  borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#191B1E',
+  outline: 'none', fontFamily: 'var(--font-sans)', transition: 'border-color 0.25s ease',
+};
+const labelStyle = {
+  fontSize: '11px', color: '#77736A', fontWeight: 600, display: 'block', marginBottom: '4px', fontFamily: 'var(--font-sans)',
+};
+
 export default function FormBuilder({ eventId, token }) {
   const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // Form states
   const [showAddForm, setShowAddForm] = useState(false);
   const [label, setLabel] = useState('');
   const [key, setKey] = useState('');
   const [type, setType] = useState('text');
-  const [optionsString, setOptionsString] = useState(''); // Comma-separated
+  const [optionsString, setOptionsString] = useState('');
   const [isRequired, setIsRequired] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-  // Load fields
   const loadFields = useCallback(async () => {
     if (!eventId) return;
     try {
@@ -25,287 +31,173 @@ export default function FormBuilder({ eventId, token }) {
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
       const res = await fetch(`${apiUrl}/events/${eventId}/fields`, { headers });
       const data = await res.json();
-      if (data.success) {
-        setFields(data.fields || []);
-      }
+      if (data.success) setFields(data.fields || []);
       setError(null);
     } catch (err) {
       console.error('Failed to load fields:', err);
       setError('Could not connect to fields API.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [apiUrl, eventId, token]);
 
-  useEffect(() => {
-    loadFields();
-  }, [loadFields]);
+  useEffect(() => { loadFields(); }, [loadFields]);
 
-  // Handle auto-slugification for key
   const handleLabelChange = (val) => {
     setLabel(val);
-    // Auto-generate key: camelCase or snake_case lowercase alphanumeric
-    const slug = val
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, '') // remove special chars
-      .replace(/[\s-]+/g, '_'); // replace spaces/hyphens with underscore
+    const slug = val.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/[\s-]+/g, '_');
     setKey(slug);
   };
 
   const handleAddField = async (e) => {
     e.preventDefault();
-    if (!label.trim() || !key.trim() || !eventId) {
-      alert('Label and Field Key are required.');
-      return;
-    }
-
-    // Parse options if select
+    if (!label.trim() || !key.trim() || !eventId) { alert('Label and Field Key are required.'); return; }
     let options = [];
     if (type === 'select') {
-      options = optionsString
-        .split(',')
-        .map(o => o.trim())
-        .filter(Boolean);
-      if (options.length === 0) {
-        alert('Please specify at least one choice for multiple choice fields.');
-        return;
-      }
+      options = optionsString.split(',').map(o => o.trim()).filter(Boolean);
+      if (options.length === 0) { alert('Please specify at least one choice for multiple choice fields.'); return; }
     }
-
     try {
       setLoading(true);
       const res = await fetch(`${apiUrl}/events/${eventId}/fields`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        },
-        body: JSON.stringify({
-          fieldKey: key,
-          fieldLabel: label,
-          fieldType: type,
-          options,
-          isRequired,
-          sortOrder: fields.length
-        })
+        headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) },
+        body: JSON.stringify({ fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length })
       });
-
       if (!res.ok) throw new Error('Failed to create field');
-
       const data = await res.json();
-      if (data.success) {
-        setLabel('');
-        setKey('');
-        setType('text');
-        setOptionsString('');
-        setIsRequired(false);
-        setShowAddForm(false);
-        loadFields();
-      }
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setLoading(false);
-    }
+      if (data.success) { setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false); setShowAddForm(false); loadFields(); }
+    } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
   const handleDeleteField = async (fieldId, fieldLabel) => {
     if (!eventId) return;
-    if (!confirm(`Are you sure you want to delete "${fieldLabel}"? Any guest answers matching this question will also be deleted.`)) {
-      return;
-    }
-
+    if (!confirm(`Are you sure you want to delete "${fieldLabel}"? Any guest answers matching this question will also be deleted.`)) return;
     try {
       setLoading(true);
-      const res = await fetch(`${apiUrl}/events/${eventId}/fields/${fieldId}`, {
-        method: 'DELETE',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
-
+      const res = await fetch(`${apiUrl}/events/${eventId}/fields/${fieldId}`, { method: 'DELETE', headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
       if (!res.ok) throw new Error('Failed to delete field');
-
       const data = await res.json();
-      if (data.success) {
-        loadFields();
-      }
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setLoading(false);
-    }
+      if (data.success) loadFields();
+    } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
   if (loading && fields.length === 0) {
     return (
-      <div className="py-12 text-center text-slate-500">
-        <div className="w-8 h-8 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-        <p className="text-xs">Loading form configuration...</p>
+      <div style={{ padding: '48px 0', textAlign: 'center' }}>
+        <div style={{ width: '32px', height: '32px', border: '3px solid #E8E2D6', borderTop: '3px solid #B8944F', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+        <p style={{ fontSize: '12px', color: '#77736A', fontFamily: 'var(--font-sans)' }}>Loading form configuration...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
-      
-      {/* ─── Header ─── */}
-      <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+    <div style={{ background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #F0ECE3', paddingBottom: '16px' }}>
         <div>
-          <h3 className="text-base font-bold text-slate-100">RSVP Custom Questionnaire</h3>
-          <p className="text-xs text-slate-400 mt-1">Configure additional questions guest party heads reply to when completing RSVPs.</p>
+          <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500, color: '#191B1E' }}>RSVP Custom Questionnaire</h3>
+          <p style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Configure additional questions guest party heads reply to when completing RSVPs.</p>
         </div>
-        
         {!showAddForm && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-xs font-bold rounded-lg transition cursor-pointer text-white"
-          >
+          <button onClick={() => setShowAddForm(true)} style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => e.target.style.background = '#a6833f'} onMouseLeave={e => e.target.style.background = '#B8944F'}>
             + Add Custom Question
           </button>
         )}
       </div>
 
       {error && (
-        <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs">
-          {error}
-        </div>
+        <div style={{ padding: '16px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '10px', color: '#C45E5E', fontSize: '12px', fontFamily: 'var(--font-sans)' }}>{error}</div>
       )}
 
-      {/* ─── Add Field Form ─── */}
+      {/* Add Field Form */}
       {showAddForm && (
-        <form onSubmit={handleAddField} className="bg-slate-950 p-6 border border-slate-850 rounded-xl space-y-4">
-          <h4 className="text-sm font-bold text-slate-200">New Custom Question</h4>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleAddField} style={{ background: '#F8F4EC', padding: '24px', border: '1px solid #E8E2D6', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>New Custom Question</h4>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
-              <label className="text-xs text-slate-400 font-semibold block mb-1">Question / Label (e.g. Dietary Notes)</label>
-              <input
-                type="text"
-                value={label}
-                onChange={e => handleLabelChange(e.target.value)}
-                placeholder="e.g. Dietary Restrictions"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-              />
+              <label style={labelStyle}>Question / Label (e.g. Dietary Notes)</label>
+              <input type="text" value={label} onChange={e => handleLabelChange(e.target.value)} placeholder="e.g. Dietary Restrictions"
+                style={inputStyle} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
             </div>
-            
             <div>
-              <label className="text-xs text-slate-400 font-semibold block mb-1">Field Key (Unique identifier in DB)</label>
-              <input
-                type="text"
-                value={key}
-                onChange={e => setKey(e.target.value)}
-                placeholder="e.g. dietary_restrictions"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500 font-mono"
-              />
+              <label style={labelStyle}>Field Key (Unique identifier in DB)</label>
+              <input type="text" value={key} onChange={e => setKey(e.target.value)} placeholder="e.g. dietary_restrictions"
+                style={{ ...inputStyle, fontFamily: 'monospace' }} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
-              <label className="text-xs text-slate-400 font-semibold block mb-1">Response Type</label>
-              <select
-                value={type}
-                onChange={e => setType(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-              >
+              <label style={labelStyle}>Response Type</label>
+              <select value={type} onChange={e => setType(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
                 <option value="text">Single Line Text</option>
                 <option value="textarea">Paragraph Description</option>
                 <option value="select">Multiple Choice (Dropdown)</option>
                 <option value="checkbox">Toggle Agreement (Checkbox)</option>
               </select>
             </div>
-
-            <div className="flex items-center pt-5">
-              <label className="flex items-center gap-2 text-xs text-slate-400 font-semibold cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isRequired}
-                  onChange={e => setIsRequired(e.target.checked)}
-                  className="rounded border-slate-800 bg-slate-900 text-amber-600 focus:ring-amber-500"
-                />
+            <div style={{ display: 'flex', alignItems: 'center', paddingTop: '20px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#77736A', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                <input type="checkbox" checked={isRequired} onChange={e => setIsRequired(e.target.checked)} style={{ accentColor: '#B8944F' }} />
                 Required field (Guest must answer to submit)
               </label>
             </div>
           </div>
 
           {type === 'select' && (
-            <div className="space-y-1">
-              <label className="text-xs text-slate-400 font-semibold block">Dropdown Options (Comma-separated)</label>
-              <input
-                type="text"
-                value={optionsString}
-                onChange={e => setOptionsString(e.target.value)}
-                placeholder="e.g. Prime Beef, Atlantic Salmon, Mushroom Risotto"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
-              />
-              <span className="text-[10px] text-slate-550 block leading-tight">Define selections. Separate choices with commas.</span>
+            <div>
+              <label style={labelStyle}>Dropdown Options (Comma-separated)</label>
+              <input type="text" value={optionsString} onChange={e => setOptionsString(e.target.value)} placeholder="e.g. Prime Beef, Atlantic Salmon, Mushroom Risotto"
+                style={inputStyle} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
+              <span style={{ fontSize: '10px', color: '#A09A91', display: 'block', marginTop: '4px' }}>Define selections. Separate choices with commas.</span>
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-900">
-            <button
-              type="button"
-              onClick={() => setShowAddForm(false)}
-              className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold rounded-lg transition cursor-pointer text-slate-300"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-xs font-bold rounded-lg transition cursor-pointer text-white"
-            >
-              Save Question
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid #E8E2D6' }}>
+            <button type="button" onClick={() => setShowAddForm(false)} style={{ padding: '8px 16px', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#77736A', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+            <button type="submit" style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Save Question</button>
           </div>
         </form>
       )}
 
-      {/* ─── Field Rows List ─── */}
-      <div className="space-y-3">
+      {/* Field Rows */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {fields.length > 0 ? (
           fields.map(f => (
-            <div key={f.id} className="bg-slate-950/60 p-4 border border-slate-850 rounded-xl flex justify-between items-center hover:border-slate-800 transition">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-200">{f.field_label}</span>
+            <div key={f.id} style={{ background: '#FAFAF8', padding: '16px', border: '1px solid #F0ECE3', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'border-color 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,148,79,0.3)'} onMouseLeave={e => e.currentTarget.style.borderColor = '#F0ECE3'}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>{f.field_label}</span>
                   {f.is_required && (
-                    <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/25 px-1.5 py-0.5 rounded-full font-extrabold uppercase">
-                      Required
-                    </span>
+                    <span style={{ fontSize: '9px', background: 'rgba(184,148,79,0.1)', color: '#B8944F', border: '1px solid rgba(184,148,79,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Required</span>
                   )}
                 </div>
-                <div className="flex items-center gap-3 text-[10px] text-slate-550 font-medium font-mono">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '10px', color: '#A09A91', fontWeight: 500, fontFamily: 'monospace' }}>
                   <span>key: {f.field_key}</span>
                   <span>•</span>
                   <span>type: {f.field_type}</span>
-                  {f.options && f.options.length > 0 && (
-                    <>
-                      <span>•</span>
-                      <span className="text-slate-450">options: [{f.options.join(', ')}]</span>
-                    </>
-                  )}
+                  {f.options && f.options.length > 0 && (<><span>•</span><span>options: [{f.options.join(', ')}]</span></>)}
                 </div>
               </div>
-
-              <button
-                onClick={() => handleDeleteField(f.id, f.field_label)}
-                className="p-1.5 bg-rose-950/20 hover:bg-rose-900/30 text-rose-500 hover:text-rose-400 border border-rose-950/30 rounded-lg transition cursor-pointer"
-                title="Delete field"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
+              <button onClick={() => handleDeleteField(f.id, f.field_label)} title="Delete field"
+                style={{ padding: '6px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '8px', cursor: 'pointer', color: '#C45E5E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,94,94,0.06)'}>
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
               </button>
             </div>
           ))
         ) : (
-          <div className="text-center py-12 bg-slate-950/20 border border-slate-850/60 rounded-xl">
-            <span className="text-2xl">📝</span>
-            <p className="text-xs text-slate-500 mt-2">No custom questions configured yet. The RSVP form will default to standard guest responses.</p>
+          <div style={{ textAlign: 'center', padding: '48px 0', background: '#F8F4EC', border: '1px solid #E8E2D6', borderRadius: '10px' }}>
+            <span style={{ fontSize: '28px' }}>📝</span>
+            <p style={{ fontSize: '12px', color: '#77736A', marginTop: '8px', fontFamily: 'var(--font-sans)' }}>No custom questions configured yet. The RSVP form will default to standard guest responses.</p>
           </div>
         )}
       </div>
 
+      <style jsx>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

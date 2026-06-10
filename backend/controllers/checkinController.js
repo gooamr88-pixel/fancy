@@ -292,9 +292,118 @@ const undoCheckIn = async (req, res, next) => {
   }
 };
 
+/**
+ * Self-service check-in: guest checks themselves in by providing their RSVP id.
+ * POST /api/v1/public/events/:slug/self-checkin
+ */
+const selfCheckIn = async (req, res, next) => {
+  const { slug } = req.params;
+  const { rsvpId, guestName } = req.body;
+
+  if (!rsvpId) {
+    return res.status(400).json({ success: false, error: 'rsvpId is required.' });
+  }
+
+  try {
+    // 1. Resolve event
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, is_paid, status')
+      .eq('slug', slug)
+      .single();
+
+    if (eventError || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+
+    if (!event.is_paid || event.status !== 'active') {
+      return res.status(403).json({ success: false, error: 'EVENT_INACTIVE', message: 'Event is not active.' });
+    }
+
+    // 2. Verify RSVP exists and belongs to this event
+    const { data: rsvp, error: rsvpError } = await supabase
+      .from('rsvps')
+      .select('id, guest_name, party_size, seating_assignments(tables(table_name))')
+      .eq('id', rsvpId)
+      .eq('event_id', event.id)
+      .single();
+
+    if (rsvpError || !rsvp) {
+      return res.status(404).json({ success: false, error: 'RSVP_NOT_FOUND', message: 'Guest not found for this event.' });
+    }
+
+    // Optional: verify guest name matches for extra security
+    if (guestName && rsvp.guest_name.toLowerCase() !== guestName.toLowerCase()) {
+      return res.status(400).json({ success: false, error: 'NAME_MISMATCH', message: 'Guest name does not match the RSVP record.' });
+    }
+
+    // 3. Check if already checked in
+    const { data: existingCheckIn } = await supabase
+      .from('check_ins')
+      .select('id, checked_in_at')
+      .eq('event_id', event.id)
+      .eq('rsvp_id', rsvpId)
+      .single();
+
+    if (existingCheckIn) {
+      const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
+      return res.status(409).json({
+        success: false,
+        error: 'ALREADY_CHECKED_IN',
+        message: `You are already checked in.`,
+        checkedInAt: existingCheckIn.checked_in_at,
+        tableName
+      });
+    }
+
+    // 4. Perform check-in
+    const { data: checkInData, error: checkInError } = await supabase
+      .from('check_ins')
+      .insert({
+        event_id: event.id,
+        rsvp_id: rsvpId,
+        checked_in_by: 'Self-Service Kiosk',
+        method: 'self_service',
+        party_count_arrived: rsvp.party_size
+      })
+      .select()
+      .single();
+
+    if (checkInError) {
+      return res.status(500).json({ success: false, error: 'CHECKIN_FAILED' });
+    }
+
+    const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
+
+    // Broadcast checkin event via Realtime
+    await supabase.channel(`event-${event.id}`).send({
+      type: 'broadcast',
+      event: 'checkin_update',
+      payload: {
+        rsvpId,
+        guestName: rsvp.guest_name,
+        partySize: rsvp.party_size,
+        tableName,
+        method: 'self_service'
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Welcome, ${rsvp.guest_name}! You are checked in.`,
+      guestName: rsvp.guest_name,
+      tableName,
+      partySize: rsvp.party_size
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   scanCheckIn,
   manualCheckIn,
   searchGuests,
-  undoCheckIn
+  undoCheckIn,
+  selfCheckIn
 };

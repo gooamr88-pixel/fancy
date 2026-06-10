@@ -1,645 +1,827 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { startSynth, stopSynth } from "../../utils/synth";
+import React from "react";
+import Image from "next/image";
 
-// --- Animated Audio Wave Visualizer ---
-const AudioWaveform = ({ isPlaying }) => {
-  return (
-    <div className="flex items-end gap-[3px] h-5 w-9 px-1">
-      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-2.5 ${isPlaying ? "animate-wave-1" : "h-1"}`}></div>
-      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-4 ${isPlaying ? "animate-wave-2" : "h-1"}`}></div>
-      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-5 ${isPlaying ? "animate-wave-3" : "h-1.5"}`}></div>
-      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-3 ${isPlaying ? "animate-wave-4" : "h-1"}`}></div>
-      <div className={`w-[3px] bg-brand-green rounded-full origin-bottom h-2.5 ${isPlaying ? "animate-wave-5" : "h-1"}`}></div>
-    </div>
-  );
-};
+/* ═══════════════════════════════════════════════════════════════
+   HeroSection — Fancy RSVP (Page 09 Brand Guide — Pixel Perfect)
+   
+   Layout from mockup (Desktop):
+   ┌──────────────────────────────────────────────────────────────┐
+   │                                                              │
+   │  BEAUTIFULLY DESIGNED                    ┌────────────────┐  │
+   │  RSVP EXPERIENCES                        │                │  │
+   │                                          │  Wedding Hero  │  │
+   │  Elegant RSVPs.                          │    Photo       │  │
+   │  Effortless Planning.                    │                │  │
+   │                                          └────────────────┘  │
+   │  The all-in-one RSVP and guest                               │
+   │  management platform for weddings                            │
+   │  and special events.                                         │
+   │                                                              │
+   │  [Get Started]  [View Features]                              │
+   │                                                              │
+   └──────────────────────────────────────────────────────────────┘
+   
+   Below Hero:
+   ┌──────────────────────────────────────────────────────────────┐
+   │         PERFECT FOR ANY OCCASION                             │
+   │     Weddings, events, and more.                              │
+   │  ┌──────┐ ┌──────────┐ ┌────────┐ ┌──────────────┐          │
+   │  │ 💍   │ │ 🥂       │ │ 🎀     │ │ 🏢           │          │
+   │  │Wedd. │ │Engage.   │ │Showers │ │Corp. Events  │          │
+   │  └──────┘ └──────────┘ └────────┘ └──────────────┘          │
+   └──────────────────────────────────────────────────────────────┘
+   
+   Then Features:
+   ┌──────────────────────────────────────────────────────────────┐
+   │  POWERFUL FEATURES                                           │
+   │  Everything you need          ┌─────────────────────────┐    │
+   │  to host with confidence.     │  Dashboard Mockup       │    │
+   │  • Custom RSVP forms...       │  + Invitation Image     │    │
+   │  [Explore All Features]       └─────────────────────────┘    │
+   └──────────────────────────────────────────────────────────────┘
+   ═══════════════════════════════════════════════════════════════ */
 
-const HeroSection = React.memo(function HeroSection({ darkMode, scrollToSection }) {
-  const [email, setEmail] = useState("");
-  const [isSubmitted, setIsSubmitted] = useState(false);
+export default function HeroSection() {
 
-  // Audio Playback states
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [audioGenre, setAudioGenre] = useState("romantic");
-
-  // 3D Envelope state
-  const [envelopeOpen, setEnvelopeOpen] = useState(false);
-
-  // Customizer state
-  const [customizer, setCustomizer] = useState({
-    title: "Aria & Julian",
-    subtitle: "WE ARE GETTING MARRIED",
-    date: "Saturday, August 15, 2026",
-    time: "5:00 PM EST",
-    venue: "The Glass Greenhouse, Brooklyn",
-    theme: "sage-watercolor", // sage-watercolor, midnight-star, gold-foil, modern-minimal
-    linerPattern: "gold-glitter", // gold-glitter, solid, striped
-    envelopeColor: "#8ba897", // Preset natural envelope color
-  });
-
-  const confettiParticles = useMemo(() => {
-    const trigger = isSubmitted;
-    const colors = ["bg-amber-400", "bg-emerald-500", "bg-indigo-400", "bg-rose-400", "bg-yellow-400", "bg-teal-400"];
-    return [...Array(20)].map((_, i) => {
-      const color = colors[(i * 7) % colors.length];
-      const leftOffset = `${(i * 19) % 100}%`;
-      const animDelay = `${((i * 3) % 15) / 10}s`;
-      const size = (i % 2 === 0) ? "w-2.5 h-2.5" : "w-1.5 h-3.5";
-      return {
-        id: i,
-        color,
-        leftOffset,
-        animDelay,
-        size,
-        trigger
-      };
-    });
-  }, [isSubmitted]);
-
-  // Music Synth toggle
-  const handleToggleMusic = (genre = audioGenre) => {
-    if (isPlayingAudio) {
-      stopSynth();
-      setIsPlayingAudio(false);
-    } else {
-      setAudioGenre(genre);
-      startSynth(genre);
-      setIsPlayingAudio(true);
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      window.scrollTo({ top: el.offsetTop - 80, behavior: "smooth" });
     }
-  };
-
-  const handleGenreChange = (newGenre) => {
-    setAudioGenre(newGenre);
-    if (isPlayingAudio) {
-      stopSynth();
-      startSynth(newGenre);
-    }
-  };
-
-  const handleEmailSubmit = (e) => {
-    e.preventDefault();
-    if (email.trim() && email.includes("@")) {
-      setIsSubmitted(true);
-      setTimeout(() => {
-        setIsSubmitted(false);
-        setEmail("");
-      }, 5000);
-    }
-  };
-
-  // Preset envelope color presets
-  const ENVELOPE_COLORS = [
-    { name: "Sage Forest", hex: "#8ba897", theme: "sage-watercolor" },
-    { name: "Obsidian Black", hex: "#1a1a1c", theme: "modern-minimal" },
-    { name: "Imperial Gold", hex: "#d8c7b0", theme: "gold-foil" },
-    { name: "Midnight Purple", hex: "#2b233a", theme: "midnight-star" },
-  ];
-
-  const handleThemeChange = (colorPreset) => {
-    setCustomizer(prev => ({
-      ...prev,
-      theme: colorPreset.theme,
-      envelopeColor: colorPreset.hex
-    }));
   };
 
   return (
     <>
-      {/* --- Hero Section --- */}
-      <section className="relative w-full max-w-7xl mx-auto px-6 md:px-12 pt-16 pb-24 lg:py-32 grid grid-cols-1 lg:grid-cols-12 gap-16 items-center z-10">
-        
-        {/* Left Side: Hero Content & Email Capture */}
-        <div className="lg:col-span-7 flex flex-col gap-8 text-center lg:text-left relative">
-          
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs font-bold self-center lg:self-start w-fit">
-            <span>✨ Introducing: 3D Envelope Customizer & Web Audio Synth Scores</span>
+      {/* ════════════════════════════════════════════
+          HERO SECTION
+          ════════════════════════════════════════════ */}
+      <section
+        id="hero"
+        style={{
+          width: "100%",
+          background: "#FFFFFF",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Subtle warm ivory gradient overlay at bottom */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: "200px",
+            background: "linear-gradient(to bottom, transparent, #F8F4EC)",
+            pointerEvents: "none",
+            zIndex: 1,
+          }}
+        />
+
+        <div
+          style={{
+            maxWidth: "1280px",
+            margin: "0 auto",
+            padding: "80px 48px 100px",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "64px",
+            alignItems: "center",
+            position: "relative",
+            zIndex: 2,
+          }}
+          className="hero-grid"
+        >
+          {/* ─── Left Column: Text Content ─── */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "28px",
+            }}
+            className="animate-fade-in-up"
+          >
+            {/* Eyebrow Label */}
+            <span
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "3px",
+                textTransform: "uppercase",
+                color: "#B8944F",
+              }}
+            >
+              Beautifully Designed RSVP Experiences
+            </span>
+
+            {/* Main Headline */}
+            <h1
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "52px",
+                fontWeight: 500,
+                lineHeight: 1.12,
+                color: "#191B1E",
+                letterSpacing: "-0.5px",
+              }}
+              className="hero-headline"
+            >
+              Elegant RSVPs.
+              <br />
+              Effortless Planning.
+            </h1>
+
+            {/* Subtext */}
+            <p
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: "17px",
+                fontWeight: 300,
+                lineHeight: 1.7,
+                color: "#77736A",
+                maxWidth: "440px",
+              }}
+            >
+              The all-in-one RSVP and guest management platform for weddings and special events.
+            </p>
+
+            {/* CTA Buttons */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+                marginTop: "8px",
+              }}
+              className="hero-buttons"
+            >
+              <a
+                href="/register"
+                className="btn-gold"
+                style={{
+                  padding: "15px 36px",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  borderRadius: "6px",
+                }}
+                id="hero-cta-get-started"
+              >
+                Get Started
+              </a>
+              <button
+                onClick={() => scrollToSection("features")}
+                className="btn-outline"
+                style={{
+                  padding: "15px 36px",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  borderRadius: "6px",
+                }}
+                id="hero-cta-view-features"
+              >
+                View Features
+              </button>
+            </div>
           </div>
 
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6.5xl font-normal leading-[1.12] tracking-tight text-stone-900 dark:text-stone-50">
-            Make &amp; Send Your <span className="italic font-light">Online Invitation</span> In Minutes. 
-            <span className="block text-brand-green font-sans font-semibold mt-4 text-3xl sm:text-4xl lg:text-5xl tracking-normal uppercase">Real-Time RSVP Tracking.</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-text leading-relaxed max-w-2xl mx-auto lg:mx-0 font-light">
-            Enjoy premium designer suites, animated opening envelopes, custom survey questions, and immersive local soundscapes. Crafted beautifully for wedding events, corporate galas, and fine celebrations.
-          </p>
+          {/* ─── Right Column: Hero Image ─── */}
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+            className="animate-slide-in-right"
+          >
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "560px",
+                aspectRatio: "4 / 3",
+                borderRadius: "16px",
+                overflow: "hidden",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.08), 0 8px 20px rgba(0,0,0,0.04)",
+                position: "relative",
+              }}
+            >
+              <Image
+                src="/images/hero-wedding.png"
+                alt="Elegant wedding table setting with golden candelabras and white roses"
+                fill
+                style={{ objectFit: "cover" }}
+                priority
+                sizes="(max-width: 768px) 100vw, 50vw"
+              />
+              {/* Subtle gold gradient overlay at bottom of image */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: "100px",
+                  background: "linear-gradient(to top, rgba(248,244,236,0.4), transparent)",
+                  pointerEvents: "none",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
 
-          {/* Email Capture Form with Confetti Particles */}
-          <div className="w-full max-w-md mx-auto lg:mx-0 relative">
-            
-            {isSubmitted && (
-              <div className="absolute inset-0 pointer-events-none overflow-hidden z-30 h-48">
-                {confettiParticles.map((particle) => (
-                  <div 
-                    key={particle.id} 
-                    className={`absolute ${particle.size} ${particle.color} rounded-sm animate-confetti`}
+      {/* ════════════════════════════════════════════
+          OCCASIONS SECTION — "Perfect for Any Occasion"
+          ════════════════════════════════════════════ */}
+      <section
+        id="occasions"
+        style={{
+          width: "100%",
+          background: "#F8F4EC",
+          padding: "80px 0",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: "1280px",
+            margin: "0 auto",
+            padding: "0 48px",
+            textAlign: "center",
+          }}
+        >
+          {/* Eyebrow */}
+          <span
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "3px",
+              textTransform: "uppercase",
+              color: "#B8944F",
+              display: "block",
+              marginBottom: "12px",
+            }}
+          >
+            Perfect for Any Occasion
+          </span>
+
+          {/* Section Title */}
+          <h2
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "36px",
+              fontWeight: 500,
+              color: "#191B1E",
+              marginBottom: "56px",
+              letterSpacing: "-0.3px",
+            }}
+          >
+            Weddings, events, and more.
+          </h2>
+
+          {/* Occasion Cards Grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "24px",
+              maxWidth: "960px",
+              margin: "0 auto",
+            }}
+            className="occasions-grid"
+          >
+            {[
+              {
+                icon: (
+                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                    <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
+                    <path d="M14 28C14 28 16 24 20 24C24 24 26 28 26 28" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" />
+                    <circle cx="15" cy="14" r="3" stroke="#B8944F" strokeWidth="1.2" fill="none" />
+                    <circle cx="25" cy="14" r="3" stroke="#B8944F" strokeWidth="1.2" fill="none" />
+                    <path d="M18 11L20 8L22 11" stroke="#D7BE80" strokeWidth="1" strokeLinecap="round" />
+                  </svg>
+                ),
+                title: "Weddings",
+                desc: "Celebrate your big day with elegant RSVPs.",
+              },
+              {
+                icon: (
+                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                    <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
+                    <path d="M14 26V18L20 14L26 18V26" stroke="#B8944F" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+                    <path d="M17 26V22H23V26" stroke="#B8944F" strokeWidth="1.2" fill="none" />
+                    <circle cx="20" cy="11" r="1.5" fill="#D7BE80" />
+                  </svg>
+                ),
+                title: "Engagements",
+                desc: "Toast to love with beautiful event pages.",
+              },
+              {
+                icon: (
+                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                    <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
+                    <rect x="13" y="15" width="14" height="12" rx="2" stroke="#B8944F" strokeWidth="1.5" fill="none" />
+                    <path d="M16 15V13C16 11.3431 17.3431 10 19 10H21C22.6569 10 24 11.3431 24 13V15" stroke="#B8944F" strokeWidth="1.2" />
+                    <path d="M17 20H23" stroke="#D7BE80" strokeWidth="1" strokeLinecap="round" />
+                  </svg>
+                ),
+                title: "Showers",
+                desc: "Plan seamlessly and gather with ease.",
+              },
+              {
+                icon: (
+                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                    <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
+                    <rect x="12" y="13" width="16" height="14" rx="1.5" stroke="#B8944F" strokeWidth="1.5" fill="none" />
+                    <line x1="12" y1="18" x2="28" y2="18" stroke="#B8944F" strokeWidth="1" />
+                    <line x1="20" y1="18" x2="20" y2="27" stroke="#D7BE80" strokeWidth="0.8" />
+                    <circle cx="16" cy="22" r="1" fill="#D7BE80" />
+                    <circle cx="24" cy="22" r="1" fill="#D7BE80" />
+                  </svg>
+                ),
+                title: "Corporate Events",
+                desc: "Professional invitations for every occasion.",
+              },
+            ].map((card) => (
+              <div key={card.title} className="occasion-card">
+                <div style={{ marginBottom: "20px" }}>{card.icon}</div>
+                <h3
+                  style={{
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "20px",
+                    fontWeight: 600,
+                    color: "#191B1E",
+                    marginBottom: "10px",
+                  }}
+                >
+                  {card.title}
+                </h3>
+                <p
+                  style={{
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "14px",
+                    fontWeight: 300,
+                    color: "#77736A",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {card.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════
+          FEATURES SECTION — "Powerful Features"
+          ════════════════════════════════════════════ */}
+      <section
+        id="features"
+        style={{
+          width: "100%",
+          background: "#FFFFFF",
+          padding: "100px 0",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: "1280px",
+            margin: "0 auto",
+            padding: "0 48px",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "64px",
+            alignItems: "center",
+          }}
+          className="features-grid"
+        >
+          {/* ─── Left Column: Feature List ─── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+            {/* Eyebrow */}
+            <span
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "3px",
+                textTransform: "uppercase",
+                color: "#B8944F",
+              }}
+            >
+              Powerful Features
+            </span>
+
+            {/* Headline */}
+            <h2
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "38px",
+                fontWeight: 500,
+                color: "#191B1E",
+                lineHeight: 1.2,
+                letterSpacing: "-0.3px",
+              }}
+              className="features-headline"
+            >
+              Everything you need to host with confidence.
+            </h2>
+
+            {/* Feature Bullets */}
+            <ul
+              style={{
+                listStyle: "none",
+                display: "flex",
+                flexDirection: "column",
+                gap: "14px",
+                marginTop: "8px",
+              }}
+            >
+              {[
+                "Custom RSVP forms and event pages",
+                "Guest list management and plus-ones",
+                "Dietary preferences and meal selections",
+                "Real-time tracking and smart analytics",
+                "Seating charts and table arrangements",
+                "Beautiful design, seamless experience",
+              ].map((feature) => (
+                <li
+                  key={feature}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "15px",
+                    fontWeight: 400,
+                    color: "#191B1E",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {/* Gold checkmark bullet */}
+                  <span
                     style={{
-                      left: particle.leftOffset,
-                      animationDelay: particle.animDelay,
-                      top: 0
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: "#B8944F",
+                      flexShrink: 0,
                     }}
-                  ></div>
+                  />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+
+            {/* CTA */}
+            <button
+              onClick={() => scrollToSection("pricing")}
+              className="btn-gold"
+              style={{
+                padding: "14px 32px",
+                fontSize: "14px",
+                alignSelf: "flex-start",
+                marginTop: "8px",
+              }}
+              id="features-cta-explore"
+            >
+              Explore All Features
+            </button>
+          </div>
+
+          {/* ─── Right Column: Dashboard + Stationery Image ─── */}
+          <div
+            style={{
+              position: "relative",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
+            {/* Dashboard mockup card */}
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "480px",
+                background: "#FFFFFF",
+                borderRadius: "16px",
+                border: "1px solid #E8E2D6",
+                padding: "28px",
+                boxShadow: "0 16px 50px rgba(0,0,0,0.06)",
+                position: "relative",
+                zIndex: 2,
+              }}
+            >
+              {/* Mini Dashboard Header */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "24px",
+                  paddingBottom: "16px",
+                  borderBottom: "1px solid #E8E2D6",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    color: "#191B1E",
+                  }}
+                >
+                  RSVP Overview
+                </span>
+              </div>
+
+              {/* Stats Row */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: "20px",
+                  marginBottom: "20px",
+                }}
+              >
+                {[
+                  { label: "Accepted", value: "198", color: "#B8944F" },
+                  { label: "Declined", value: "32", color: "#77736A" },
+                  { label: "Pending", value: "20", color: "#D7BE80" },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: stat.color,
+                      }}
+                    />
+                    <div>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-sans)",
+                          fontSize: "13px",
+                          fontWeight: 300,
+                          color: "#77736A",
+                        }}
+                      >
+                        {stat.label}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-sans)",
+                          fontSize: "18px",
+                          fontWeight: 700,
+                          color: "#191B1E",
+                        }}
+                      >
+                        {stat.value}
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
-            )}
 
-            {!isSubmitted ? (
-              <form onSubmit={handleEmailSubmit} className="flex flex-col sm:flex-row gap-3 w-full">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Your Email Address"
-                  className="flex-1 px-5 py-4 border border-card-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green bg-card-bg text-foreground placeholder-muted-text/70 font-medium shadow-sm transition-all"
-                  id="hero-email-input"
-                />
-                <button
-                  type="submit"
-                  className="bg-brand-green hover:bg-brand-green-hover text-white px-8 py-4 rounded-xl font-bold tracking-wide transition-all shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-b-2 border-emerald-700"
-                  id="hero-email-submit"
-                >
-                  Create Card
-                </button>
-              </form>
-            ) : (
-              <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-900/30 rounded-xl text-emerald-800 dark:text-emerald-300 text-left flex items-start gap-3 animate-fade-in shadow-inner">
-                <svg className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <h4 className="font-bold text-emerald-950 dark:text-emerald-200">Awesome, let&apos;s get started!</h4>
-                  <p className="text-sm mt-0.5">Scroll down to customize your invitation directly on our design deck.</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-center lg:justify-start gap-2.5 text-muted-text mt-4 text-sm font-semibold tracking-wide animate-bounce cursor-pointer" onClick={() => scrollToSection("customizer")}>
-            <span>Try the interactive editor below</span>
-            <svg className="w-4 h-4 text-brand-green" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Right Side: Mock Tablet & Premium 3D Envelope */}
-        <div className="lg:col-span-5 flex justify-center items-center w-full relative">
-          
-          <div className="relative z-10 w-full max-w-md aspect-[4/3] bg-[#1a191d] dark:bg-zinc-800 rounded-[2.2rem] p-3.5 shadow-[0_24px_50px_rgba(0,0,0,0.25)] border-[4px] border-zinc-700/85 flex items-center justify-center overflow-hidden transition-transform duration-500 hover:scale-[1.01]">
-            <div className="absolute top-1/2 left-2 w-1.5 h-1.5 bg-zinc-650 rounded-full -translate-y-1/2"></div>
-            <div className="absolute top-1/2 right-2 w-1.5 h-1.5 bg-zinc-650 rounded-full -translate-y-1/2"></div>
-            
-            {/* Tablet Screen */}
-            <div className="w-full h-full bg-[#f4f2eb] dark:bg-zinc-900 rounded-[1.8rem] overflow-hidden relative flex flex-col items-center justify-center p-6 select-none border border-stone-200/20">
-              
-              {/* Envelope Container */}
-              <div className="relative w-full max-w-[270px] aspect-[1.3/1] perspective-1000 mt-2">
-                <div className="w-full h-full relative transform-style-3d">
-                  
-                  {/* Envelope Back / Liner */}
-                  <div className="absolute inset-0 bg-[#fbfaf7] dark:bg-[#1a191d] rounded-lg shadow-inner z-10 overflow-hidden border border-stone-200/10">
-                    {customizer.linerPattern === "gold-glitter" && (
-                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-200 via-yellow-600 to-transparent opacity-35 dark:opacity-20"></div>
-                    )}
-                    {customizer.linerPattern === "striped" && (
-                      <div className="absolute inset-0 opacity-10 bg-repeating-linear-gradient from-transparent via-transparent to-stone-500 dark:to-stone-400 rotate-45" style={{ backgroundSize: "20px 20px" }}></div>
-                    )}
-                  </div>
-                  
-                  {/* 3D Envelope Flap */}
-                  <div className={`envelope-flap absolute top-0 left-0 w-full h-[55%] origin-top transition-all duration-750 ${
-                    envelopeOpen ? "is-open" : "is-closed"
-                  }`}>
-                    {/* Flap Front (Color) */}
-                    <div className="absolute inset-0 backface-hidden" style={{ clipPath: "polygon(0 0, 100% 0, 50% 100%)", backgroundColor: customizer.envelopeColor }}>
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-black/10 rounded-full blur-sm"></div>
-                    </div>
-                    {/* Flap Back Liner */}
-                    <div className="absolute inset-0 backface-hidden rotate-x-180 bg-[#e5e3db] dark:bg-[#25242a]">
-                      <div className="absolute inset-0" style={{ clipPath: "polygon(0 0, 100% 0, 50% 100%)", backgroundColor: "#dedcd4" }}></div>
-                      {customizer.linerPattern === "gold-glitter" && (
-                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-200 via-yellow-600 to-transparent opacity-25 dark:opacity-10" style={{ clipPath: "polygon(0 0, 100% 0, 50% 100%)" }}></div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Sliding Invitation Card */}
-                  <div className={`absolute left-[6%] w-[88%] aspect-[1.28/1] bg-card-bg shadow-2xl rounded-sm border border-card-border/60 transition-all duration-750 ease-out z-15 ${
-                    envelopeOpen ? "-translate-y-[55%] scale-[1.04]" : "translate-y-0 scale-100 opacity-90"
-                  }`}>
-                    
-                    {/* Double Gold Foil Border Frame & paper texture */}
-                    <div className="w-full h-full flex flex-col items-center justify-between text-center relative overflow-hidden bg-paper p-4 border-double border-4 border-amber-300/35 m-0 shadow-inner">
-                      
-                      {customizer.theme === "sage-watercolor" && (
-                        <div className="absolute inset-0 opacity-15 pointer-events-none">
-                          <div className="absolute -top-6 -left-6 w-16 h-16 bg-emerald-300 rounded-full filter blur-xl"></div>
-                          <div className="absolute -bottom-6 -right-6 w-16 h-16 bg-amber-200 rounded-full filter blur-xl"></div>
-                        </div>
-                      )}
-                      {customizer.theme === "midnight-star" && (
-                        <div className="absolute inset-0 bg-[#0f172a] text-slate-100 pointer-events-none">
-                          <div className="absolute top-2 left-4 w-0.5 h-0.5 bg-white rounded-full"></div>
-                          <div className="absolute top-6 right-8 w-1 h-1 bg-yellow-200 rounded-full animate-pulse"></div>
-                        </div>
-                      )}
-                      
-                      {/* Invitation Text */}
-                      <div className={`relative z-10 flex flex-col items-center justify-center h-full w-full gap-1 ${
-                        customizer.theme === "midnight-star" ? "text-slate-100" : "text-stone-850 dark:text-stone-900"
-                      }`}>
-                        <span className="font-serif italic text-[7.5px] uppercase tracking-wider text-muted-text/80">{customizer.subtitle}</span>
-                        <h3 className="font-serif text-sm font-bold uppercase tracking-widest my-0.5 border-y border-amber-300/30 py-0.5 px-3">
-                          {customizer.title}
-                        </h3>
-                        <span className="text-[7.5px] uppercase tracking-widest font-bold">{customizer.date}</span>
-                        <span className="text-[6.5px] text-muted-text/80 tracking-widest">{customizer.time}</span>
-                        <div className="w-5 h-[0.5px] bg-amber-400/60 my-0.5"></div>
-                        <span className="text-[6.5px] tracking-widest uppercase font-semibold text-center leading-none">{customizer.venue}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Envelope Front Overlay (Pocket) */}
-                  <div className="absolute bottom-0 left-0 w-full h-[55%] z-20 rounded-b-lg border-t border-stone-200/10 shadow-lg" style={{ backgroundColor: customizer.envelopeColor, clipPath: "polygon(0 0, 0 100%, 100% 100%, 100% 0, 50% 40%)" }}>
-                    <div className="absolute inset-0 bg-black/5" style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%, 100% 0, 50% 40%)" }}></div>
-                  </div>
-                  
-                  {/* Gold Wax Seal Open Trigger */}
-                  <button 
-                    onClick={() => setEnvelopeOpen(true)}
-                    className={`absolute left-1/2 w-10 h-10 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-yellow-500 to-amber-700 shadow-[0_4px_12px_rgba(180,135,40,0.4)] border border-yellow-300 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
-                      envelopeOpen ? "bottom-[42%] scale-0 opacity-0 z-5" : "bottom-[42%] z-30"
-                    }`}
-                    style={{ transition: "all 0.5s ease" }}
-                    aria-label="Open Invitation Envelope"
-                    id="envelope-seal"
-                  >
-                    {/* Exquisite SVG Emblem inside seal */}
-                    <svg className="w-4 h-4 text-amber-100 drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 10h3l-4 4-4-4h3V8h2v4z"/>
-                    </svg>
-                  </button>
-
-                  {/* Close Invitation Button */}
-                  {envelopeOpen && (
-                    <button 
-                      onClick={() => setEnvelopeOpen(false)}
-                      className="absolute top-0 right-[-30px] z-40 bg-card-bg hover:bg-stone-100 text-zinc-600 hover:text-brand-green p-1.5 rounded-full border border-card-border shadow-md transition-colors text-xs font-semibold cursor-pointer"
-                      title="Close invitation"
-                      id="envelope-close"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Music Player Indicator Widget */}
-              <button 
-                onClick={() => handleToggleMusic()}
-                className="mt-6 bg-card-bg border border-card-border/60 px-4 py-2 rounded-full shadow-sm flex items-center gap-2 text-xs text-muted-text hover:text-brand-green transition-all hover:shadow cursor-pointer z-30"
-                id="music-preview-btn"
+              {/* Donut Chart Placeholder */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: "24px",
+                }}
               >
-                <span className="font-semibold text-[9.5px] uppercase tracking-wider">
-                  {isPlayingAudio ? `${audioGenre} score active` : "preview score music"}
-                </span>
-                <AudioWaveform isPlaying={isPlayingAudio} />
-              </button>
-              
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-20 h-1 bg-zinc-300 dark:bg-zinc-700 rounded-full opacity-60"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* --- Overview Section --- */}
-      <section 
-        id="overview" 
-        className="w-full py-28 bg-sec-bg/30 border-b border-card-border/40"
-      >
-        <div className="max-w-4xl mx-auto px-6 text-center flex flex-col gap-6 reveal-on-scroll">
-          <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">The Digital Invite Re-Imagined</span>
-          <h2 className="font-serif text-3xl sm:text-4xl md:text-5.5xl font-normal leading-tight tracking-tight max-w-3xl mx-auto text-foreground">
-            Premium Digital Invitations with 3D Envelopes, Real-Time RSVP Tracking & Ambient Music
-          </h2>
-          <p className="text-base sm:text-lg text-muted-text leading-relaxed max-w-3xl mx-auto font-light">
-            Fancy RSVP invitations arrive with a signature animated envelope opening—complete with customizable liners, seals, stamps, and a background score that sets the mood. Send via custom link, email, or text, collect meal choices or song requests, and manage it all inside an ad-free host dashboard. Zero paper waste, infinite style.
-          </p>
-        </div>
-      </section>
-
-      {/* --- LIVE DESIGN CUSTOMIZER STUDIO --- */}
-      <section 
-        id="customizer" 
-        className="w-full py-28 bg-card-bg border-b border-card-border/40"
-      >
-        <div className="max-w-7xl mx-auto px-6 md:px-12">
-          
-          <div className="text-center max-w-2xl mx-auto mb-20">
-            <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Interactive Design Studio</span>
-            <h2 className="font-serif text-3xl sm:text-4xl font-normal tracking-tight mt-2 text-foreground">
-              Try It Live: Design Your Invitation
-            </h2>
-            <p className="text-muted-text font-light text-sm md:text-base mt-2">
-              Modify the wording, choose a curated color preset, select liner details, and play local synth tracks. Watch your envelope update in real time.
-            </p>
-            <div className="w-12 h-0.5 bg-brand-green mx-auto rounded-full mt-4"></div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
-            
-            {/* Customizer Controls (Left Column) */}
-            <div className="lg:col-span-6 flex flex-col gap-8 bg-sec-bg/40 dark:bg-zinc-900/30 border border-card-border/70 p-8 rounded-2xl shadow-sm">
-              <div>
-                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">1. Wording & Typography</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="custom-title" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Event Title / Names</label>
-                    <input 
-                      id="custom-title"
-                      type="text" 
-                      value={customizer.title}
-                      onChange={(e) => setCustomizer({...customizer, title: e.target.value})}
-                      className="px-3.5 py-2.5 border border-card-border rounded-lg bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
+                <div style={{ position: "relative", width: "120px", height: "120px" }}>
+                  <svg viewBox="0 0 120 120" width="120" height="120">
+                    {/* Background ring */}
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="48"
+                      fill="none"
+                      stroke="#E8E2D6"
+                      strokeWidth="12"
                     />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="custom-subtitle" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Subtitle Tag</label>
-                    <input 
-                      id="custom-subtitle"
-                      type="text" 
-                      value={customizer.subtitle}
-                      onChange={(e) => setCustomizer({...customizer, subtitle: e.target.value})}
-                      className="px-3.5 py-2.5 border border-card-border rounded-lg bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
+                    {/* Accepted segment (79%) */}
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="48"
+                      fill="none"
+                      stroke="#B8944F"
+                      strokeWidth="12"
+                      strokeDasharray={`${0.79 * 2 * Math.PI * 48} ${2 * Math.PI * 48}`}
+                      strokeDashoffset={2 * Math.PI * 48 * 0.25}
+                      strokeLinecap="round"
+                      style={{ transition: "stroke-dasharray 1s ease" }}
                     />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="custom-date" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Event Date</label>
-                    <input 
-                      id="custom-date"
-                      type="text" 
-                      value={customizer.date}
-                      onChange={(e) => setCustomizer({...customizer, date: e.target.value})}
-                      className="px-3.5 py-2.5 border border-card-border rounded-lg bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
+                    {/* Declined segment (12.8%) */}
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="48"
+                      fill="none"
+                      stroke="#77736A"
+                      strokeWidth="12"
+                      strokeDasharray={`${0.128 * 2 * Math.PI * 48} ${2 * Math.PI * 48}`}
+                      strokeDashoffset={2 * Math.PI * 48 * 0.25 - 0.79 * 2 * Math.PI * 48}
+                      strokeLinecap="round"
                     />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="custom-venue" className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Venue Location</label>
-                    <input 
-                      id="custom-venue"
-                      type="text" 
-                      value={customizer.venue}
-                      onChange={(e) => setCustomizer({...customizer, venue: e.target.value})}
-                      className="px-3.5 py-2.5 border border-card-border rounded-lg bg-card-bg text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-brand-green transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">2. Color Theme Preset</h4>
-                <div className="flex flex-wrap gap-3">
-                  {ENVELOPE_COLORS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      onClick={() => handleThemeChange(preset)}
-                      className={`px-4 py-2 border rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-all hover:shadow-sm ${
-                        customizer.theme === preset.theme 
-                          ? "border-brand-green bg-brand-green/10 text-brand-green font-bold shadow-sm" 
-                          : "border-card-border bg-card-bg text-muted-text hover:border-card-border/80"
-                      }`}
-                      id={`theme-btn-${preset.theme}`}
-                    >
-                      <span className="w-3.5 h-3.5 rounded-full border border-stone-200/50 shadow-inner" style={{ backgroundColor: preset.hex }}></span>
-                      {preset.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-4 border-b border-card-border/40 pb-2">3. Envelope Liner Pattern</h4>
-                <div className="flex gap-4">
-                  {[
-                    { id: "gold-glitter", label: "Golden Sparkle" },
-                    { id: "striped", label: "Classic Stripes" },
-                    { id: "solid", label: "Solid Interior" },
-                  ].map((patt) => (
-                    <button
-                      key={patt.id}
-                      onClick={() => setCustomizer({...customizer, linerPattern: patt.id})}
-                      className={`flex-1 py-2.5 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                        customizer.linerPattern === patt.id 
-                          ? "border-brand-green bg-brand-green/10 text-brand-green shadow-sm" 
-                          : "border-card-border bg-card-bg text-muted-text hover:bg-card-bg/50"
-                      }`}
-                      id={`liner-btn-${patt.id}`}
-                    >
-                      {patt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-serif text-lg font-normal tracking-wide text-foreground mb-3 border-b border-card-border/40 pb-2">4. Ambient Melodic Score</h4>
-                <p className="text-[11px] text-muted-text mb-3">Pick an instrument style. Our local MIDI synth engine synthesizes soft arpeggios using Web Audio.</p>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {[
-                    { id: "romantic", label: "Romantic Plucks" },
-                    { id: "classical", label: "Classical Piano" },
-                    { id: "jazz", label: "Sunset Jazz" },
-                    { id: "cinematic", label: "Cinematic Pad" }
-                  ].map((g) => (
-                    <button
-                      key={g.id}
-                      onClick={() => handleGenreChange(g.id)}
-                      className={`py-2 border rounded-lg text-xs font-bold cursor-pointer transition-all ${
-                        audioGenre === g.id 
-                          ? "border-brand-green bg-brand-green/10 text-brand-green font-bold shadow-sm" 
-                          : "border-card-border bg-card-bg text-muted-text hover:bg-card-bg/50"
-                      }`}
-                      id={`genre-btn-${g.id}`}
-                    >
-                      {g.label}
-                    </button>
-                  ))}
-                </div>
-                
-                <div className="mt-4 flex items-center gap-3 bg-card-bg border border-card-border/70 p-3.5 rounded-xl shadow-sm">
-                  <button
-                    onClick={() => handleToggleMusic()}
-                    className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-2 ${
-                      isPlayingAudio 
-                        ? "bg-red-500 hover:bg-red-600 text-white border-red-600" 
-                        : "bg-brand-green hover:bg-brand-green-hover text-white border-emerald-700"
-                    }`}
-                    id="synth-play-toggle"
+                  </svg>
+                  {/* Center Text */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%, -50%)",
+                      textAlign: "center",
+                    }}
                   >
-                    {isPlayingAudio ? (
-                      <>
-                        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
-                        Mute Score
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                        Play Score
-                      </>
-                    )}
-                  </button>
-                  <span className="text-[11px] text-muted-text italic">
-                    {isPlayingAudio ? `Now playing: ${audioGenre} synthesizers...` : `Audio muted. Click to hear sound.`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Customizer Preview Screen (Right Column) */}
-            <div className="lg:col-span-6 flex flex-col items-center justify-center relative">
-              <span className="text-xs font-bold text-muted-text/80 uppercase tracking-widest mb-3">Studio Presentation Deck</span>
-              
-              <div className="w-full max-w-md aspect-[1.28/1] bg-[#f2efe6] dark:bg-zinc-800/80 border border-card-border rounded-2xl shadow-xl flex items-center justify-center p-8 relative overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white/20 via-transparent to-transparent opacity-60"></div>
-                
-                {/* 3D Envelope */}
-                <div className="relative w-full max-w-[280px] aspect-[1.3/1] perspective-1000 z-10">
-                  <div className="w-full h-full relative transform-style-3d">
-                    
-                    {/* Envelope Back / Liner */}
-                    <div className="absolute inset-0 bg-[#faf9f4] dark:bg-[#1a191d] rounded-lg shadow-inner z-10 overflow-hidden border border-stone-200/10">
-                      {customizer.linerPattern === "gold-glitter" && (
-                        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-200 via-yellow-600 to-transparent opacity-35 dark:opacity-20"></div>
-                      )}
-                      {customizer.linerPattern === "striped" && (
-                        <div className="absolute inset-0 opacity-10 bg-repeating-linear-gradient from-transparent via-transparent to-stone-500 dark:to-stone-400 rotate-45" style={{ backgroundSize: "20px 20px" }}></div>
-                      )}
-                    </div>
-                    
-                    {/* 3D Envelope Flap */}
-                    <div className={`envelope-flap absolute top-0 left-0 w-full h-[55%] origin-top transition-all duration-750 ${
-                      envelopeOpen ? "is-open" : "is-closed"
-                    }`}>
-                      {/* Flap Front (Color) */}
-                      <div className="absolute inset-0 backface-hidden" style={{ clipPath: "polygon(0 0, 100% 0, 50% 100%)", backgroundColor: customizer.envelopeColor }}>
-                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-black/10 rounded-full blur-sm"></div>
-                      </div>
-                      {/* Flap Back Liner */}
-                      <div className="absolute inset-0 backface-hidden rotate-x-180 bg-[#e5e3db] dark:bg-[#25242a]">
-                        <div className="absolute inset-0" style={{ clipPath: "polygon(0 0, 100% 0, 50% 100%)", backgroundColor: "#dedcd4" }}></div>
-                        {customizer.linerPattern === "gold-glitter" && (
-                          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-200 via-yellow-600 to-transparent opacity-25 dark:opacity-10" style={{ clipPath: "polygon(0 0, 100% 0, 50% 100%)" }}></div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Sliding Invitation Card */}
-                    <div className={`absolute left-[6%] w-[88%] aspect-[1.28/1] bg-card-bg shadow-2xl rounded-sm transition-all duration-750 ease-out z-15 ${
-                      envelopeOpen ? "-translate-y-[55%] scale-[1.04]" : "translate-y-0 scale-100 opacity-90"
-                    }`}>
-                      
-                      {/* Elegant double gold frame and paper overlay */}
-                      <div className="w-full h-full flex flex-col items-center justify-between text-center relative overflow-hidden bg-paper p-4 border-double border-4 border-amber-300/35 m-0 shadow-inner">
-                        {customizer.theme === "sage-watercolor" && (
-                          <div className="absolute inset-0 opacity-15 pointer-events-none">
-                            <div className="absolute -top-6 -left-6 w-16 h-16 bg-emerald-300 rounded-full filter blur-xl"></div>
-                            <div className="absolute -bottom-6 -right-6 w-16 h-16 bg-amber-200 rounded-full filter blur-xl"></div>
-                          </div>
-                        )}
-                        {customizer.theme === "midnight-star" && (
-                          <div className="absolute inset-0 bg-[#0f172a] text-slate-100 pointer-events-none">
-                            <div className="absolute top-2 left-4 w-0.5 h-0.5 bg-white rounded-full"></div>
-                            <div className="absolute top-6 right-8 w-1 h-1 bg-yellow-200 rounded-full animate-pulse"></div>
-                          </div>
-                        )}
-                        {customizer.theme === "gold-foil" && (
-                          <div className="absolute inset-0 bg-stone-50 border-[2px] border-amber-300/30 m-0.5 pointer-events-none">
-                            <div className="absolute top-0 bottom-0 left-1 w-[1px] bg-amber-450/25"></div>
-                            <div className="absolute top-0 bottom-0 right-1 w-[1px] bg-amber-450/25"></div>
-                          </div>
-                        )}
-                        
-                        {/* Wording text */}
-                        <div className={`relative z-10 flex flex-col items-center justify-center h-full w-full gap-1.5 ${
-                          customizer.theme === "midnight-star" ? "text-slate-100" : "text-stone-850 dark:text-stone-900"
-                        }`}>
-                          <span className="font-serif italic text-[7.5px] uppercase tracking-wider text-muted-text/80">{customizer.subtitle}</span>
-                          <h3 className="font-serif text-sm font-bold uppercase tracking-widest my-0.5 border-y border-amber-300/30 py-0.5 px-3">
-                            {customizer.title}
-                          </h3>
-                          <span className="text-[7.5px] uppercase tracking-widest font-bold">{customizer.date}</span>
-                          <span className="text-[7px] text-muted-text/80 tracking-widest">{customizer.time}</span>
-                          <div className="w-5 h-[0.5px] bg-amber-400 my-0.5"></div>
-                          <span className="text-[7px] tracking-widest uppercase font-semibold text-center leading-none">{customizer.venue}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Envelope Front Overlay (Pocket) */}
-                    <div className="absolute bottom-0 left-0 w-full h-[55%] z-20 rounded-b-lg border-t border-stone-200/10 shadow-lg" style={{ backgroundColor: customizer.envelopeColor, clipPath: "polygon(0 0, 0 100%, 100% 100%, 100% 0, 50% 40%)" }}>
-                      <div className="absolute inset-0 bg-black/5" style={{ clipPath: "polygon(0 0, 0 100%, 100% 100%, 100% 0, 50% 40%)" }}></div>
-                    </div>
-                    
-                    {/* Gold Wax Seal Button */}
-                    <button 
-                      onClick={() => setEnvelopeOpen(true)}
-                      className={`absolute left-1/2 w-11 h-11 -translate-x-1/2 rounded-full bg-gradient-to-br from-amber-300 via-amber-500 to-amber-800 shadow-[0_6px_16px_rgba(180,135,40,0.4)] border border-amber-300/40 hover:scale-105 active:scale-95 transition-all cursor-pointer flex items-center justify-center ${
-                        envelopeOpen ? "bottom-[42%] scale-0 opacity-0 z-5" : "bottom-[42%] z-30"
-                      }`}
-                      style={{ transition: "all 0.5s ease" }}
-                      aria-label="Open Custom Invitation"
-                      id="customizer-open-seal"
+                    <div
+                      style={{
+                        fontFamily: "var(--font-sans)",
+                        fontSize: "24px",
+                        fontWeight: 900,
+                        color: "#191B1E",
+                        lineHeight: 1,
+                      }}
                     >
-                      <svg className="w-5 h-5 text-amber-100 drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 10h3l-4 4-4-4h3V8h2v4z"/>
-                      </svg>
-                    </button>
-                    
-                    {/* Close Invitation Button */}
-                    {envelopeOpen && (
-                      <button 
-                        onClick={() => setEnvelopeOpen(false)}
-                        className="absolute top-0 right-[-32px] z-40 bg-card-bg hover:bg-stone-100 text-zinc-650 hover:text-brand-green p-1.5 rounded-full border border-card-border shadow-md transition-colors text-xs font-semibold cursor-pointer"
-                        title="Close invitation"
-                        id="customizer-close-btn"
-                      >
-                        ✕
-                      </button>
-                    )}
+                      79%
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-sans)",
+                        fontSize: "10px",
+                        fontWeight: 400,
+                        color: "#77736A",
+                        marginTop: "2px",
+                      }}
+                    >
+                      Accepted
+                    </div>
                   </div>
                 </div>
               </div>
-              
-              <div className="flex gap-4 mt-8">
-                <button
-                  onClick={() => setEnvelopeOpen(true)}
-                  className={`px-5 py-2.5 border rounded-full text-xs font-bold transition-all cursor-pointer ${
-                    envelopeOpen ? "bg-card-border/50 text-muted-text border-transparent" : "bg-brand-green hover:bg-brand-green-hover text-white border-emerald-700 shadow-sm"
-                  }`}
-                  id="preview-open-envelope-btn"
+
+              {/* Recent Activity */}
+              <div>
+                <div
+                  style={{
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "#77736A",
+                    letterSpacing: "0.5px",
+                    marginBottom: "12px",
+                    textTransform: "uppercase",
+                  }}
                 >
-                  Open Envelope
-                </button>
-                <button
-                  onClick={() => setEnvelopeOpen(false)}
-                  className={`px-5 py-2.5 border rounded-full text-xs font-bold transition-all cursor-pointer ${
-                    !envelopeOpen ? "bg-card-border/50 text-muted-text border-transparent" : "bg-card-bg hover:bg-stone-50 border-card-border text-foreground shadow-sm"
-                  }`}
-                  id="preview-close-envelope-btn"
-                >
-                  Close &amp; Tuck
-                </button>
+                  Recent Activity
+                </div>
+                {[
+                  { name: "Taylor Guest", action: "responded", status: "Accepts", time: "2m ago" },
+                  { name: "Jordan Lee", action: "responded", status: "Declines", time: "15m ago" },
+                  { name: "Sam & Alex", action: "responded", status: "Accepts", time: "1h ago" },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 0",
+                      borderBottom: i < 2 ? "1px solid #F0ECE3" : "none",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span
+                        style={{
+                          width: "6px",
+                          height: "6px",
+                          borderRadius: "50%",
+                          background:
+                            item.status === "Accepts" ? "#B8944F" : "#77736A",
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontFamily: "var(--font-sans)",
+                          fontSize: "13px",
+                          color: "#191B1E",
+                        }}
+                      >
+                        <strong>{item.name}</strong>{" "}
+                        <span style={{ color: "#77736A", fontWeight: 300 }}>
+                          {item.action}
+                        </span>{" "}
+                        <span
+                          style={{
+                            color:
+                              item.status === "Accepts" ? "#B8944F" : "#77736A",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {item.status}
+                        </span>
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontFamily: "var(--font-sans)",
+                        fontSize: "11px",
+                        color: "#A09A91",
+                        fontWeight: 300,
+                      }}
+                    >
+                      {item.time}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
+            {/* RSVP Stationery Image — overlapping bottom-right */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: "-40px",
+                right: "-30px",
+                width: "220px",
+                height: "280px",
+                borderRadius: "12px",
+                overflow: "hidden",
+                boxShadow: "0 16px 40px rgba(0,0,0,0.1)",
+                zIndex: 1,
+                transform: "rotate(3deg)",
+              }}
+              className="features-stationery-img"
+            >
+              <Image
+                src="/images/rsvp-stationery.png"
+                alt="Elegant RSVP stationery with gold wax seal"
+                fill
+                style={{ objectFit: "cover" }}
+                sizes="220px"
+              />
+            </div>
           </div>
         </div>
       </section>
+
+      {/* ─── Responsive Styles ─── */}
+      <style jsx>{`
+        @media (max-width: 1024px) {
+          .hero-grid {
+            grid-template-columns: 1fr !important;
+            padding: 48px 32px 64px !important;
+            gap: 40px !important;
+            text-align: center;
+          }
+          .hero-headline {
+            font-size: 42px !important;
+          }
+          .hero-buttons {
+            justify-content: center !important;
+          }
+          .occasions-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .features-grid {
+            grid-template-columns: 1fr !important;
+            gap: 48px !important;
+          }
+          .features-stationery-img {
+            display: none !important;
+          }
+          .features-headline {
+            font-size: 32px !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .hero-headline {
+            font-size: 34px !important;
+          }
+          .hero-buttons {
+            flex-direction: column !important;
+            width: 100%;
+          }
+          .occasions-grid {
+            grid-template-columns: 1fr !important;
+            max-width: 360px !important;
+          }
+        }
+      `}</style>
     </>
   );
-});
-
-export default HeroSection;
+}

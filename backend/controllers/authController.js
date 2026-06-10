@@ -2,7 +2,8 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_sign_key_for_authentication';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
 
 const CURRENT_ITERATIONS = 600000;
 const LEGACY_ITERATIONS = 1000;
@@ -180,17 +181,51 @@ const login = async (req, res, next) => {
     // Resolve organization by email
     const { data: orgs } = await supabase
       .from('organizations')
-      .select('*')
+      .select('id, owner_user_id, name, email, phone, password_hash, failed_login_attempts, lockout_until')
       .eq('email', email)
       .limit(1);
 
     const org = orgs && orgs[0];
+
+    // Check account lockout
+    if (org && org.lockout_until && new Date(org.lockout_until) > new Date()) {
+      const remainingMs = new Date(org.lockout_until) - new Date();
+      const remainingMin = Math.ceil(remainingMs / 60000);
+      return res.status(429).json({
+        success: false,
+        error: 'ACCOUNT_LOCKED',
+        message: `Account temporarily locked due to too many failed login attempts. Try again in ${remainingMin} minute(s).`
+      });
+    }
+
     if (!org || !(await verifyPassword(password, org.password_hash, email))) {
+      // Increment failed attempts if org exists
+      if (org) {
+        const attempts = (org.failed_login_attempts || 0) + 1;
+        const updateData = { failed_login_attempts: attempts };
+        // Lock account after 5 failed attempts for 15 minutes
+        if (attempts >= 5) {
+          updateData.lockout_until = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+          updateData.failed_login_attempts = 0; // Reset counter after lockout
+        }
+        await supabase
+          .from('organizations')
+          .update(updateData)
+          .eq('email', email);
+      }
       return res.status(401).json({
         success: false,
         error: 'INVALID_CREDENTIALS',
         message: 'Invalid email or password.'
       });
+    }
+
+    // Reset failed attempts on successful login
+    if (org.failed_login_attempts > 0 || org.lockout_until) {
+      await supabase
+        .from('organizations')
+        .update({ failed_login_attempts: 0, lockout_until: null })
+        .eq('email', email);
     }
 
     const userId = org.owner_user_id;
@@ -216,7 +251,13 @@ const login = async (req, res, next) => {
       message: 'Login successful.',
       token,
       user: { id: userId, email, name: org.name, role },
-      organization: org
+      organization: {
+        id: org.id,
+        owner_user_id: org.owner_user_id,
+        name: org.name,
+        email: org.email,
+        phone: org.phone
+      }
     });
   } catch (err) {
     next(err);
@@ -260,7 +301,7 @@ const forgotPassword = async (req, res, next) => {
     }
 
     // 2. Generate 6-digit OTP code
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes validity
 
     // 3. Save OTP details to organizations table and reset otp_attempts counter
@@ -371,7 +412,25 @@ const resetPassword = async (req, res, next) => {
     const storedOtp = org.reset_otp;
     const expiresAt = org.reset_otp_expires_at;
 
-    if (!storedOtp || storedOtp !== otp || !expiresAt || new Date() > new Date(expiresAt)) {
+    if (!storedOtp || !expiresAt || new Date() > new Date(expiresAt)) {
+      // Increment OTP attempts on failure
+      await supabase
+        .from('organizations')
+        .update({ otp_attempts: otpAttempts + 1 })
+        .eq('email', email);
+
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_OTP',
+        message: 'The OTP code is invalid or has expired.'
+      });
+    }
+
+    // Constant-time comparison to prevent timing attacks
+    const otpMatch = storedOtp.length === otp.length &&
+      crypto.timingSafeEqual(Buffer.from(storedOtp, 'utf8'), Buffer.from(otp, 'utf8'));
+
+    if (!otpMatch) {
       // Increment OTP attempts on failure
       await supabase
         .from('organizations')

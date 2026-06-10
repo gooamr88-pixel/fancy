@@ -1,65 +1,214 @@
 import React from "react";
 
 export default function LiveActivityFeed({ rsvps }) {
-  // Take last 5 RSVPs to display
   const recentRsvps = [...rsvps].slice(0, 8);
 
   return (
-    <div className="bg-card-bg/60 border border-card-border/60 p-6 rounded-xl flex flex-col gap-4 backdrop-blur-md">
-      <div className="flex justify-between items-center border-b border-card-border/40 pb-3">
+    <div
+      style={{
+        background: "#FFFFFF",
+        border: "1px solid #E8E2D6",
+        padding: "24px",
+        borderRadius: "12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "1px solid #F0ECE3",
+          paddingBottom: "12px",
+        }}
+      >
         <div>
-          <h3 className="font-serif text-lg font-normal tracking-wide text-foreground">Live RSVP Activity</h3>
-          <p className="text-[10px] text-muted-text">Real-time update streams for guest responses</p>
+          <h3
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "18px",
+              fontWeight: 500,
+              color: "#191B1E",
+              letterSpacing: "0.3px",
+            }}
+          >
+            Live RSVP Activity
+          </h3>
+          <p
+            style={{
+              fontSize: "10px",
+              color: "#77736A",
+              fontFamily: "var(--font-sans)",
+              marginTop: "2px",
+            }}
+          >
+            Real-time update streams for guest responses
+          </p>
         </div>
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand-green/10 text-brand-green text-[10px] font-bold border border-brand-green/20 animate-pulse">
-          <span className="w-1.5 h-1.5 rounded-full bg-brand-green"></span>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px",
+            padding: "3px 10px",
+            borderRadius: "20px",
+            background: "rgba(184,148,79,0.1)",
+            color: "#B8944F",
+            fontSize: "10px",
+            fontWeight: 700,
+            border: "1px solid rgba(184,148,79,0.2)",
+            fontFamily: "var(--font-sans)",
+          }}
+        >
+          <span
+            style={{
+              width: "6px",
+              height: "6px",
+              borderRadius: "50%",
+              background: "#B8944F",
+              animation: "pulse 2s infinite",
+            }}
+          />
           Live
         </span>
       </div>
 
-      <div className="overflow-y-auto no-scrollbar flex flex-col gap-3 max-h-[280px]">
+      <div
+        style={{
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          maxHeight: "280px",
+        }}
+      >
         {recentRsvps.length === 0 ? (
-          <div className="text-center py-8 text-xs text-muted-text italic">
+          <div
+            style={{
+              textAlign: "center",
+              padding: "32px 0",
+              fontSize: "12px",
+              color: "#77736A",
+              fontStyle: "italic",
+              fontFamily: "var(--font-sans)",
+            }}
+          >
             Waiting for RSVP records...
           </div>
         ) : (
           recentRsvps.map((guest, idx) => {
             const initials = guest.guest_name
-              ? guest.guest_name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()
+              ? guest.guest_name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase()
               : "?";
 
-            const isYes = guest.response === "yes" || guest.response === "YES" || guest.response === "Accepted";
+            const isYes =
+              guest.response === "yes" ||
+              guest.response === "YES" ||
+              guest.response === "Accepted";
 
             return (
-              <div 
-                key={guest.id || idx} 
-                className="p-3 border border-card-border/40 bg-sec-bg/10 rounded-xl flex justify-between items-center text-xs hover:border-brand-green/20 hover:bg-sec-bg/25 transition-all duration-300 animate-fade-in"
-                style={{ animationDelay: `${idx * 40}ms` }}
+              <div
+                key={guest.id || idx}
+                style={{
+                  padding: "12px",
+                  border: "1px solid #F0ECE3",
+                  background: "#FAFAF8",
+                  borderRadius: "10px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  fontSize: "12px",
+                  transition: "all 0.3s ease",
+                  fontFamily: "var(--font-sans)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(184,148,79,0.3)";
+                  e.currentTarget.style.background = "#FDFCF9";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#F0ECE3";
+                  e.currentTarget.style.background = "#FAFAF8";
+                }}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-inner ${
-                    isYes ? "bg-emerald-100 dark:bg-emerald-950/40 text-brand-green" : "bg-rose-105 dark:bg-rose-950/40 text-rose-500"
-                  }`}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 700,
+                      fontSize: "11px",
+                      background: isYes ? "rgba(184,148,79,0.12)" : "rgba(196,94,94,0.1)",
+                      color: isYes ? "#B8944F" : "#C45E5E",
+                    }}
+                  >
                     {initials}
                   </div>
                   <div>
-                    <span className="font-bold text-foreground block">{guest.guest_name}</span>
-                    <span className="text-[10px] text-muted-text block leading-none mt-1">
-                      {isYes 
+                    <span
+                      style={{
+                        fontWeight: 700,
+                        color: "#191B1E",
+                        display: "block",
+                      }}
+                    >
+                      {guest.guest_name}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        color: "#77736A",
+                        display: "block",
+                        lineHeight: 1,
+                        marginTop: "3px",
+                      }}
+                    >
+                      {isYes
                         ? `Party: ${guest.party_size} | Meal: ${guest.meal || "-"}`
-                        : "Declined invitation"
-                      }
+                        : "Declined invitation"}
                     </span>
                   </div>
                 </div>
-                
-                <div className="text-right">
-                  <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold ${
-                    isYes ? "bg-emerald-500/10 text-brand-green" : "bg-rose-500/10 text-rose-500"
-                  }`}>
+
+                <div style={{ textAlign: "right" }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      padding: "2px 8px",
+                      borderRadius: "6px",
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      background: isYes ? "rgba(184,148,79,0.1)" : "rgba(196,94,94,0.08)",
+                      color: isYes ? "#B8944F" : "#C45E5E",
+                    }}
+                  >
                     {isYes ? "ACCEPT" : "DECLINE"}
                   </span>
-                  <span className="text-[8.5px] text-muted-text/80 block mt-1 leading-none">
+                  <span
+                    style={{
+                      fontSize: "9px",
+                      color: "#A09A91",
+                      display: "block",
+                      marginTop: "4px",
+                      lineHeight: 1,
+                    }}
+                  >
                     {guest.timestamp || "Just now"}
                   </span>
                 </div>

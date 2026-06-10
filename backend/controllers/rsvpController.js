@@ -27,7 +27,7 @@ const submitPublicRSVP = async (req, res, next) => {
     // 1. Resolve event from slug
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, rsvp_deadline, title, is_paid, slug')
+      .select('id, org_id, rsvp_deadline, title, is_paid, slug')
       .eq('slug', slug)
       .single();
 
@@ -190,6 +190,39 @@ const submitPublicRSVP = async (req, res, next) => {
         .catch((err) => console.error('Confirmation email err:', err));
     }
 
+    // 8. Notify organizer of new RSVP
+    try {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('email, name')
+        .eq('id', event.org_id || '')
+        .single();
+
+      if (org && org.email) {
+        const { sendEmailViaBrevo } = require('../utils/notificationService');
+        const orgEmailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <span style="font-size: 12px; font-weight: bold; color: #10b981; text-transform: uppercase; letter-spacing: 0.15em;">NEW RSVP RECEIVED</span>
+              <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">${event.title}</h2>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
+            <p style="color: #334155; font-size: 15px; line-height: 1.6;"><strong>${guestName}</strong> has ${response === 'yes' ? 'accepted' : response === 'no' ? 'declined' : 'submitted an RSVP for'} your event invitation.</p>
+            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0; padding: 15px;">
+              <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${response === 'yes' ? '#10b981' : '#ef4444'};">${response === 'yes' ? 'Attending' : 'Declined'}</td></tr>
+              <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Party Size</td><td style="padding: 8px 15px; font-size: 15px;">${computedPartySize}</td></tr>
+              ${email ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + email + '</td></tr>' : ''}
+            </table>
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">This is an automated notification from Fancy RSVP.</p>
+          </div>
+        `;
+        sendEmailViaBrevo(org.email, `New RSVP: ${guestName} - ${event.title}`, orgEmailHtml)
+          .catch(err => console.error('Failed to notify organizer:', err.message));
+      }
+    } catch (orgNotifyErr) {
+      console.error('Organizer notification error:', orgNotifyErr.message);
+    }
+
     return res.status(201).json({
       success: true,
       message: rsvpId ? 'RSVP updated successfully.' : 'RSVP submitted successfully.',
@@ -249,10 +282,12 @@ const searchPublicGuests = async (req, res, next) => {
 
 /**
  * Lists RSVPs for an event (Organizer dashboard endpoint).
+ * Supports server-side filtering by response, search, seated status, and sorting.
  * GET /api/v1/events/:eventId/rsvps
  */
 const getRSVPs = async (req, res, next) => {
   const { eventId } = req.params;
+  const { response, search, seated, sort } = req.query;
 
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
@@ -260,16 +295,52 @@ const getRSVPs = async (req, res, next) => {
   const to = from + limit - 1;
 
   try {
-    const { data: rsvps, error } = await supabase
+    let query = supabase
       .from('rsvps')
-      .select('*, rsvp_guests(*), custom_answers(*), seating_assignments(*)')
-      .eq('event_id', eventId)
-      .order('submitted_at', { ascending: false })
-      .range(from, to);
+      .select('*, rsvp_guests(*), custom_answers(*), seating_assignments(id, table_id, tables(table_name))', { count: 'exact' })
+      .eq('event_id', eventId);
+
+    // Apply filters
+    if (response && ['yes', 'no', 'pending'].includes(response)) {
+      query = query.eq('response', response);
+    }
+    if (search && search.trim()) {
+      query = query.ilike('guest_name', `%${escapeLikePattern(search.trim())}%`);
+    }
+
+    // Apply sorting
+    switch (sort) {
+      case 'name_asc':
+        query = query.order('guest_name', { ascending: true });
+        break;
+      case 'name_desc':
+        query = query.order('guest_name', { ascending: false });
+        break;
+      case 'date_asc':
+        query = query.order('submitted_at', { ascending: true });
+        break;
+      default:
+        query = query.order('submitted_at', { ascending: false });
+    }
+
+    query = query.range(from, to);
+    const { data: rsvps, error, count: totalCount } = await query;
 
     if (error) throw error;
 
-    return res.json({ success: true, rsvps, pagination: { page, limit, count: rsvps.length } });
+    // Post-filter for seated status (Supabase can't filter on relation existence)
+    let filtered = rsvps;
+    if (seated === 'true') {
+      filtered = rsvps.filter(r => r.seating_assignments && r.seating_assignments.length > 0);
+    } else if (seated === 'false') {
+      filtered = rsvps.filter(r => !r.seating_assignments || r.seating_assignments.length === 0);
+    }
+
+    return res.json({
+      success: true,
+      rsvps: filtered,
+      pagination: { page, limit, count: filtered.length, total: totalCount }
+    });
   } catch (err) {
     next(err);
   }
@@ -382,11 +453,98 @@ const deleteRSVP = async (req, res, next) => {
   }
 };
 
+/**
+ * Updates a single RSVP record (organizer edit).
+ * PATCH /api/v1/events/:eventId/rsvps/:rsvpId
+ */
+const updateRSVP = async (req, res, next) => {
+  const { eventId, rsvpId } = req.params;
+  const { guestName, email, phone, response, partySize, notes, primaryGuestMeal, additionalGuests } = req.body;
+
+  try {
+    // Build update payload
+    const updates = {};
+    if (guestName !== undefined) updates.guest_name = guestName.trim();
+    if (email !== undefined) updates.email = email;
+    if (phone !== undefined) updates.phone = phone;
+    if (response !== undefined) {
+      if (!['yes', 'no', 'pending'].includes(response)) {
+        return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'response must be yes, no, or pending.' });
+      }
+      updates.response = response;
+    }
+    if (partySize !== undefined) {
+      const size = parseInt(partySize);
+      if (isNaN(size) || size < 1 || size > 50) {
+        return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'partySize must be between 1 and 50.' });
+      }
+      updates.party_size = size;
+    }
+    if (notes !== undefined) updates.notes = notes;
+    updates.updated_at = new Date();
+
+    // Update RSVP
+    const { data: rsvp, error } = await supabase
+      .from('rsvps')
+      .update(updates)
+      .eq('id', rsvpId)
+      .eq('event_id', eventId)
+      .select('*, rsvp_guests(*), seating_assignments(id, table_id, tables(table_name))')
+      .single();
+
+    if (error) throw error;
+    if (!rsvp) return res.status(404).json({ success: false, error: 'RSVP_NOT_FOUND' });
+
+    // If response changed to 'no', remove seating assignments
+    if (updates.response === 'no') {
+      await supabase.from('seating_assignments').delete().eq('rsvp_id', rsvpId).eq('event_id', eventId);
+    }
+
+    // If additional guests or meal are provided, rebuild rsvp_guests
+    if (additionalGuests !== undefined || primaryGuestMeal !== undefined) {
+      await supabase.from('rsvp_guests').delete().eq('rsvp_id', rsvpId);
+
+      const guestRows = [{
+        rsvp_id: rsvpId,
+        full_name: rsvp.guest_name,
+        is_primary: true,
+        meal_selection: primaryGuestMeal || null
+      }];
+
+      if (additionalGuests && Array.isArray(additionalGuests)) {
+        additionalGuests.forEach(g => {
+          guestRows.push({
+            rsvp_id: rsvpId,
+            full_name: g.fullName,
+            is_primary: false,
+            meal_selection: g.mealSelection || null,
+            dietary_notes: g.dietaryNotes || null
+          });
+        });
+      }
+
+      await supabase.from('rsvp_guests').insert(guestRows);
+    }
+
+    // Broadcast update
+    await supabase.channel(`event-${eventId}`).send({
+      type: 'broadcast',
+      event: 'rsvp_updated',
+      payload: { rsvpId, guestName: rsvp.guest_name, response: rsvp.response }
+    });
+
+    return res.json({ success: true, message: 'RSVP updated successfully.', rsvp });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   submitPublicRSVP,
   getRSVPs,
   importGuestsCSV,
   exportGuestsCSV,
   searchPublicGuests,
-  deleteRSVP
+  deleteRSVP,
+  updateRSVP
 };

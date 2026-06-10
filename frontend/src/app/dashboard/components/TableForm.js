@@ -6,59 +6,183 @@ const TableForm = memo(function TableForm({
   setNewTableName,
   newTableCapacity,
   setNewTableCapacity,
-  onCreateTable
+  onCreateTable,
 }) {
   return (
-    <div className="bg-card-bg/60 border border-card-border/60 p-6 rounded-xl space-y-6 backdrop-blur-md">
-      
+    <div
+      style={{
+        background: "#FFFFFF",
+        border: "1px solid #E8E2D6",
+        padding: "24px",
+        borderRadius: "12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "24px",
+      }}
+    >
       {/* Header */}
-      <div className="flex justify-between items-center border-b border-card-border/40 pb-3">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "1px solid #F0ECE3",
+          paddingBottom: "12px",
+        }}
+      >
         <div>
-          <h3 className="font-serif text-lg font-normal tracking-wide text-foreground">Tables Layout</h3>
-          <p className="text-[10px] text-muted-text">Overview of physical seating tables</p>
+          <h3
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "18px",
+              fontWeight: 500,
+              color: "#191B1E",
+            }}
+          >
+            Tables Layout
+          </h3>
+          <p
+            style={{
+              fontSize: "10px",
+              color: "#77736A",
+              fontFamily: "var(--font-sans)",
+              marginTop: "2px",
+            }}
+          >
+            Overview of physical seating tables
+          </p>
         </div>
-        <span className="bg-brand-green/10 border border-brand-green/20 text-brand-green text-xs px-2.5 py-0.5 rounded-full font-bold">
+        <span
+          style={{
+            background: "rgba(184,148,79,0.1)",
+            border: "1px solid rgba(184,148,79,0.2)",
+            color: "#B8944F",
+            fontSize: "12px",
+            padding: "3px 12px",
+            borderRadius: "20px",
+            fontWeight: 700,
+            fontFamily: "var(--font-sans)",
+          }}
+        >
           {tables.length} Tables
         </span>
       </div>
 
       {/* Tables List */}
-      <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 no-scrollbar">
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+          maxHeight: "300px",
+          overflowY: "auto",
+          paddingRight: "4px",
+        }}
+      >
         {tables.length === 0 ? (
-          <div className="text-center text-xs text-muted-text italic py-6">
+          <div
+            style={{
+              textAlign: "center",
+              fontSize: "12px",
+              color: "#77736A",
+              fontStyle: "italic",
+              padding: "24px 0",
+              fontFamily: "var(--font-sans)",
+            }}
+          >
             No tables created yet. Add one below!
           </div>
         ) : (
-          tables.map(table => {
+          tables.map((table) => {
             const occupied = table.occupied || 0;
             const cap = table.max_capacity || 1;
             const remaining = cap - occupied;
             const fillPercent = Math.min(100, (occupied / cap) * 100);
-            
-            let barColor = "bg-blue-500";
-            if (fillPercent >= 100) barColor = "bg-rose-500";
-            else if (fillPercent >= 80) barColor = "bg-amber-500";
+
+            let barColor = "#B8944F"; // champagne gold
+            if (fillPercent >= 100) barColor = "#C45E5E"; // full
+            else if (fillPercent >= 80) barColor = "#D7BE80"; // almost full
 
             return (
-              <div key={table.id} className="bg-sec-bg/15 p-4 border border-card-border/40 rounded-xl space-y-2.5 hover:border-brand-green/20 transition-all duration-300">
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-foreground">{table.table_name}</span>
-                  <span className="text-muted-text">
+              <div
+                key={table.id}
+                style={{
+                  background: "#FAFAF8",
+                  padding: "16px",
+                  border: "1px solid #F0ECE3",
+                  borderRadius: "10px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  transition: "all 0.3s ease",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.borderColor = "rgba(184,148,79,0.3)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.borderColor = "#F0ECE3")
+                }
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    fontFamily: "var(--font-sans)",
+                  }}
+                >
+                  <span style={{ color: "#191B1E" }}>{table.table_name}</span>
+                  <span style={{ color: "#77736A" }}>
                     {occupied} / {cap} seats occupied
                   </span>
                 </div>
-                
+
                 {/* Progress bar */}
-                <div className="h-1.5 w-full bg-sec-bg rounded-full overflow-hidden border border-card-border/20">
-                  <div 
-                    className={`h-full transition-all duration-500 rounded-full ${barColor}`} 
-                    style={{ width: `${fillPercent}%` }}
+                <div
+                  style={{
+                    height: "6px",
+                    width: "100%",
+                    background: "#F8F4EC",
+                    borderRadius: "9999px",
+                    overflow: "hidden",
+                    border: "1px solid #F0ECE3",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      transition: "width 0.5s ease",
+                      borderRadius: "9999px",
+                      background: barColor,
+                      width: `${fillPercent}%`,
+                    }}
                   />
                 </div>
-                
-                <div className="flex justify-between text-[10px] font-bold">
-                  <span className="text-muted-text/75 uppercase tracking-wider">{table.shape || "round"}</span>
-                  <span className={remaining === 0 ? "text-rose-500" : "text-brand-green"}>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    fontFamily: "var(--font-sans)",
+                  }}
+                >
+                  <span
+                    style={{
+                      color: "#A09A91",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    {table.shape || "round"}
+                  </span>
+                  <span
+                    style={{
+                      color: remaining === 0 ? "#C45E5E" : "#B8944F",
+                    }}
+                  >
                     {remaining === 0 ? "Full" : `${remaining} empty`}
                   </span>
                 </div>
@@ -69,24 +193,68 @@ const TableForm = memo(function TableForm({
       </div>
 
       {/* Table Creation Form */}
-      <form onSubmit={onCreateTable} className="border-t border-card-border/40 pt-4 space-y-4">
-        <h4 className="text-xs font-bold text-muted-text uppercase tracking-wider">Add New Table</h4>
-        
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="table-name-input" className="sr-only">Table Name</label>
+      <form
+        onSubmit={onCreateTable}
+        style={{
+          borderTop: "1px solid #F0ECE3",
+          paddingTop: "16px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
+        }}
+      >
+        <h4
+          style={{
+            fontSize: "11px",
+            fontWeight: 700,
+            color: "#77736A",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            fontFamily: "var(--font-sans)",
+          }}
+        >
+          Add New Table
+        </h4>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "12px",
+          }}
+        >
+          <div>
+            <label htmlFor="table-name-input" style={{ display: "none" }}>
+              Table Name
+            </label>
             <input
               id="table-name-input"
               type="text"
               placeholder="e.g. VIP Table"
               value={newTableName}
-              onChange={e => setNewTableName(e.target.value)}
-              className="bg-sec-bg/30 border border-card-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-green"
+              onChange={(e) => setNewTableName(e.target.value)}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                background: "#FFFFFF",
+                border: "1px solid #E8E2D6",
+                borderRadius: "8px",
+                padding: "10px 12px",
+                fontSize: "12px",
+                color: "#191B1E",
+                outline: "none",
+                fontFamily: "var(--font-sans)",
+                transition: "border-color 0.25s ease",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#B8944F")}
+              onBlur={(e) => (e.target.style.borderColor = "#E8E2D6")}
               required
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="table-capacity-input" className="sr-only">Max Capacity</label>
+          <div>
+            <label htmlFor="table-capacity-input" style={{ display: "none" }}>
+              Max Capacity
+            </label>
             <input
               id="table-capacity-input"
               type="number"
@@ -94,17 +262,45 @@ const TableForm = memo(function TableForm({
               max="50"
               placeholder="Capacity"
               value={newTableCapacity}
-              onChange={e => setNewTableCapacity(e.target.value)}
-              className="bg-sec-bg/30 border border-card-border rounded-lg px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-green"
+              onChange={(e) => setNewTableCapacity(e.target.value)}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                background: "#FFFFFF",
+                border: "1px solid #E8E2D6",
+                borderRadius: "8px",
+                padding: "10px 12px",
+                fontSize: "12px",
+                color: "#191B1E",
+                outline: "none",
+                fontFamily: "var(--font-sans)",
+                transition: "border-color 0.25s ease",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#B8944F")}
+              onBlur={(e) => (e.target.style.borderColor = "#E8E2D6")}
               required
             />
           </div>
         </div>
 
-        <button 
+        <button
           type="submit"
-          className="w-full py-2.5 bg-brand-green hover:bg-brand-green-hover text-white rounded-lg text-xs font-bold transition shadow-md active:scale-98 border-b-2 border-emerald-700 cursor-pointer"
           id="btn-add-table"
+          style={{
+            width: "100%",
+            padding: "12px",
+            background: "#B8944F",
+            color: "#FFFFFF",
+            borderRadius: "8px",
+            fontSize: "12px",
+            fontWeight: 700,
+            border: "none",
+            cursor: "pointer",
+            transition: "all 0.3s ease",
+            fontFamily: "var(--font-sans)",
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#a6833f")}
+          onMouseLeave={(e) => (e.target.style.background = "#B8944F")}
         >
           Add Table Plan
         </button>

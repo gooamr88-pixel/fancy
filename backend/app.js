@@ -6,7 +6,7 @@ const logger = require('./utils/logger');
 const { requireAuth, verifyEventOwner } = require('./middleware/auth');
 
 // Startup environment validation — fail fast if critical secrets are missing
-const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'];
 const missing = REQUIRED_ENV.filter(key => !process.env[key]);
 if (missing.length > 0) {
   logger.error(`FATAL: Missing required environment variables: ${missing.join(', ')}`);
@@ -20,7 +20,7 @@ app.use(helmet());
 
 // Configure CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   optionsSuccessStatus: 200
 }));
 
@@ -156,8 +156,8 @@ app.get('/api/v1/health', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (err) {
-    return res.status(200).json({
-      status: 'healthy',
+    return res.status(503).json({
+      status: 'unhealthy',
       database: 'disconnected',
       error: err.message,
       timestamp: new Date().toISOString()

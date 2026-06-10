@@ -153,7 +153,32 @@ const getPublicEventBySlug = async (req, res, next) => {
       });
     }
 
-    return res.json({ success: true, event });
+    // Privacy mode enforcement
+    if (event.privacy_mode === 'private') {
+      return res.status(403).json({
+        success: false,
+        error: 'EVENT_PRIVATE',
+        message: 'This event is private. Access requires a direct invitation link.'
+      });
+    }
+
+    if (event.privacy_mode === 'password') {
+      const providedPassword = req.query.password || req.headers['x-event-password'];
+      if (!providedPassword || providedPassword !== event.access_password) {
+        // Don't expose whether event exists, just return password required
+        return res.status(401).json({
+          success: false,
+          error: 'PASSWORD_REQUIRED',
+          message: 'This event requires a password to access.',
+          requiresPassword: true
+        });
+      }
+    }
+
+    // Strip sensitive fields from public response
+    const { access_password, is_paid, ...publicEvent } = event;
+
+    return res.json({ success: true, event: publicEvent });
   } catch (err) {
     next(err);
   }
@@ -185,9 +210,20 @@ const updateEvent = async (req, res, next) => {
     'cover_image_url',
     'gallery_urls',
     'custom_colors',
-    'custom_fonts',
-    'status'
+    'custom_fonts'
   ];
+
+  // Status can only be set to 'paused' or 'completed' by organizer.
+  // 'active' status requires payment and is set by the webhook.
+  if (req.body.status && ['paused', 'completed'].includes(req.body.status)) {
+    allowedFields.push('status');
+  } else if (req.body.status === 'active') {
+    return res.status(403).json({
+      success: false,
+      error: 'STATUS_FORBIDDEN',
+      message: 'Event status cannot be set to active manually. It is activated upon payment.'
+    });
+  }
 
   const filteredUpdates = {};
   for (const field of allowedFields) {
@@ -204,6 +240,24 @@ const updateEvent = async (req, res, next) => {
         success: false,
         error: 'INVALID_SLUG',
         message: 'Slug must contain only lowercase alphanumeric characters and single dashes.'
+      });
+    }
+  }
+
+  // Slug uniqueness check if slug is being updated
+  if (filteredUpdates.slug) {
+    const { data: existingEvent } = await supabase
+      .from('events')
+      .select('id')
+      .eq('slug', filteredUpdates.slug)
+      .neq('id', eventId)
+      .limit(1);
+
+    if (existingEvent && existingEvent.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'SLUG_TAKEN',
+        message: 'This event URL slug is already taken by another event.'
       });
     }
   }
@@ -435,6 +489,37 @@ const deleteEvent = async (req, res, next) => {
   }
 };
 
+/**
+ * Fetches paginated activity log entries for an event.
+ * GET /api/v1/events/:eventId/activity
+ */
+const getActivityLog = async (req, res, next) => {
+  const { eventId } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  try {
+    const { data: logs, error, count: totalCount } = await supabase
+      .from('activity_logs')
+      .select('*', { count: 'exact' })
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      logs: logs || [],
+      pagination: { page, limit, count: (logs || []).length, total: totalCount }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createEvent,
   getEvents,
@@ -443,5 +528,6 @@ module.exports = {
   updateEvent,
   getEventStats,
   getAdminEvents,
-  deleteEvent
+  deleteEvent,
+  getActivityLog
 };

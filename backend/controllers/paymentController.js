@@ -1,4 +1,6 @@
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder');
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+if (!STRIPE_SECRET_KEY) throw new Error('FATAL: STRIPE_SECRET_KEY environment variable is required');
+const stripe = require('stripe')(STRIPE_SECRET_KEY);
 const { supabase } = require('../config/supabase');
 
 /**
@@ -112,11 +114,11 @@ const createCheckoutSession = async (req, res, next) => {
 const purchaseSMSCredits = async (req, res, next) => {
   const { eventId, creditCount } = req.body;
 
-  if (!eventId || !creditCount || creditCount < 50) {
+  if (!eventId || !creditCount || creditCount < 50 || creditCount > 50000) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'eventId and creditCount (minimum 50) are required.'
+      message: 'eventId and creditCount (minimum 50, maximum 50000) are required.'
     });
   }
 
@@ -126,6 +128,14 @@ const purchaseSMSCredits = async (req, res, next) => {
       .from('super_admin_config')
       .select('sms_rate_cents_per_credit')
       .single();
+
+    if (!config) {
+      return res.status(500).json({
+        success: false,
+        error: 'CONFIG_ERROR',
+        message: 'Could not retrieve SMS pricing configuration.'
+      });
+    }
 
     const unitPrice = config.sms_rate_cents_per_credit;
     let totalCents = unitPrice * creditCount;
@@ -142,7 +152,15 @@ const purchaseSMSCredits = async (req, res, next) => {
       .eq('id', eventId)
       .single();
 
-    const customerId = eventData.organizations?.stripe_customer_id;
+    if (!eventData || !eventData.organizations) {
+      return res.status(404).json({
+        success: false,
+        error: 'EVENT_NOT_FOUND',
+        message: 'Event not found or has no associated organization.'
+      });
+    }
+
+    const customerId = eventData.organizations.stripe_customer_id;
 
     // 3. Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -186,8 +204,8 @@ const stripeWebhook = async (req, res, next) => {
   let stripeEvent;
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (process.env.NODE_ENV === 'production' && (!webhookSecret || webhookSecret === 'whsec_placeholder')) {
-    console.error('CRITICAL: STRIPE_WEBHOOK_SECRET is missing or invalid in production!');
+  if (!webhookSecret) {
+    console.error('CRITICAL: STRIPE_WEBHOOK_SECRET is not configured!');
     return res.status(500).json({ success: false, error: 'Webhook secret is not configured.' });
   }
 
@@ -195,7 +213,7 @@ const stripeWebhook = async (req, res, next) => {
     stripeEvent = stripe.webhooks.constructEvent(
       req.rawBody,
       sig,
-      webhookSecret || 'whsec_placeholder'
+      webhookSecret
     );
   } catch (err) {
     console.error('Webhook signature verification failed:', err.message);

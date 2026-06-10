@@ -1,5 +1,5 @@
 const express = require('express');
-const { createTable, getTables, updateTablePositions, deleteTable } = require('../controllers/tableController');
+const { createTable, getTables, updateTablePositions, deleteTable, updateTable, duplicateTable } = require('../controllers/tableController');
 
 const router = express.Router({ mergeParams: true });
 
@@ -11,6 +11,12 @@ router.post('/', createTable);
 
 // Route to save visual coordinates layout changes
 router.patch('/positions', updateTablePositions);
+
+// Route to update table settings
+router.patch('/:tableId', updateTable);
+
+// Route to duplicate a table
+router.post('/:tableId/duplicate', duplicateTable);
 
 // Route to delete an empty table
 router.delete('/:tableId', deleteTable);

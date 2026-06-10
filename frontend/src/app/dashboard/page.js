@@ -11,36 +11,66 @@ import SeatingManager from './components/SeatingManager';
 import TableForm from './components/TableForm';
 import FormBuilder from './components/FormBuilder';
 
-// Premium Loading Skeletons
+/* ═══════════════════════════════════════════════
+   Brand Design Tokens
+   ═══════════════════════════════════════════════ */
+const COLORS = {
+  gold: '#B8944F',
+  goldHover: '#a6833f',
+  charcoal: '#191B1E',
+  ivory: '#F8F4EC',
+  champagne: '#D7BE80',
+  stone: '#77736A',
+  border: '#E8E2D6',
+  white: '#FFFFFF',
+  softBg: '#FAFAF8',
+};
+
+/* ═══════════════════════════════════════════════
+   Sidebar Navigation Items
+   ═══════════════════════════════════════════════ */
+const sidebarNav = [
+  { key: 'overview', label: 'Dashboard', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+  )},
+  { key: 'events', label: 'Events', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  )},
+  { key: 'rsvps', label: 'RSVPs', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+  )},
+  { key: 'guests', label: 'Guests', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  )},
+  { key: 'seating', label: 'Seating', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+  )},
+  { key: 'form-builder', label: 'Form Builder', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+  )},
+  { key: 'settings', label: 'Settings', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  )},
+];
+
 function DashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-background text-foreground p-8 animate-pulse">
-      {/* Header skeleton */}
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between border-b border-card-border pb-6 mb-8">
-        <div>
-          <div className="h-8 w-64 bg-card-border/60 rounded-lg"></div>
-          <div className="h-4 w-40 bg-card-border/40 rounded-lg mt-2"></div>
-        </div>
-        <div className="h-10 w-64 bg-card-border/60 rounded-lg mt-4 md:mt-0"></div>
-      </div>
-      
-      {/* Stats row skeleton */}
-      <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-24 bg-card-border/40 border border-card-border/30 rounded-xl"></div>
+    <div style={{ display: 'flex', minHeight: '100vh', background: COLORS.ivory }}>
+      {/* Sidebar skeleton */}
+      <div style={{ width: '240px', background: COLORS.white, borderRight: `1px solid ${COLORS.border}`, padding: '24px' }}>
+        <div style={{ width: '120px', height: '24px', background: COLORS.border, borderRadius: '8px', marginBottom: '48px' }} />
+        {[...Array(7)].map((_, i) => (
+          <div key={i} style={{ width: '100%', height: '36px', background: COLORS.ivory, borderRadius: '8px', marginBottom: '8px' }} />
         ))}
       </div>
-      
-      {/* Charts & Feed row skeleton */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
-        <div className="lg:col-span-8 h-[260px] bg-card-border/40 border border-card-border/30 rounded-xl"></div>
-        <div className="lg:col-span-4 h-[260px] bg-card-border/40 border border-card-border/30 rounded-xl"></div>
-      </div>
-
-      {/* Seating Management skeleton */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="h-[350px] bg-card-border/40 border border-card-border/30 rounded-xl"></div>
-        <div className="lg:col-span-2 h-[350px] bg-card-border/40 border border-card-border/30 rounded-xl"></div>
+      {/* Content skeleton */}
+      <div style={{ flex: 1, padding: '32px' }}>
+        <div style={{ width: '300px', height: '32px', background: COLORS.border, borderRadius: '8px', marginBottom: '32px' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '32px' }}>
+          {[...Array(5)].map((_, i) => (
+            <div key={i} style={{ height: '96px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -49,32 +79,21 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [darkMode, setDarkMode] = useState(false);
 
-  // Core data states
   const [stats, setStats] = useState({
-    invitedParties: 0,
-    attendingParties: 0,
-    attendingGuests: 0,
-    declinedParties: 0,
-    declinedGuests: 0,
-    pendingParties: 0,
-    pendingGuests: 0,
-    totalExpectedGuests: 0,
-    checkedInGuests: 0,
-    seatingAssignedGuests: 0,
-    mealSummary: {}
+    invitedParties: 0, attendingParties: 0, attendingGuests: 0,
+    declinedParties: 0, declinedGuests: 0, pendingParties: 0,
+    pendingGuests: 0, totalExpectedGuests: 0, checkedInGuests: 0,
+    seatingAssignedGuests: 0, mealSummary: {}
   });
 
   const [tables, setTables] = useState([]);
   const [rsvps, setRsvps] = useState([]);
-
-  // Form states
   const [newTableName, setNewTableName] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterResponse, setFilterResponse] = useState('all');
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'form-builder'
+  const [activeTab, setActiveTab] = useState('overview');
 
   const [token, setToken] = useState('');
   const [events, setEvents] = useState([]);
@@ -82,75 +101,30 @@ export default function DashboardPage() {
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-  // Auth and event retrieval initializer
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedToken = localStorage.getItem('auth_token');
-      if (!savedToken) {
-        router.push('/login');
-        return;
-      }
+      if (!savedToken) { router.push('/login'); return; }
       setToken(savedToken);
     }
   }, [router]);
 
   useEffect(() => {
     if (!token) return;
-
     const fetchEvents = async () => {
       try {
-        const res = await fetch(`${apiUrl}/events`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const res = await fetch(`${apiUrl}/events`, { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();
-        if (data.success && data.events.length > 0) {
-          setEvents(data.events);
-          setEventId(data.events[0].id);
-        } else {
-          setEventId('demo-event');
-        }
-      } catch (err) {
-        console.error('Failed to load events:', err);
-        setEventId('demo-event');
-      }
+        if (data.success && data.events.length > 0) { setEvents(data.events); setEventId(data.events[0].id); }
+        else { setEventId('demo-event'); }
+      } catch (err) { console.error('Failed to load events:', err); setEventId('demo-event'); }
     };
-
     fetchEvents();
   }, [token, apiUrl]);
 
-  // Sync active event ID to localStorage for other pages
   useEffect(() => {
-    if (eventId && typeof window !== 'undefined') {
-      localStorage.setItem('active_event_id', eventId);
-    }
+    if (eventId && typeof window !== 'undefined') localStorage.setItem('active_event_id', eventId);
   }, [eventId]);
-
-  // Dark Mode Initializer
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedDark = localStorage.getItem("darkMode") === "true" ||
-                        (!("darkMode" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches);
-      setDarkMode(savedDark);
-      if (savedDark) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    }
-  }, []);
-
-  const toggleDarkMode = () => {
-    const nextDark = !darkMode;
-    setDarkMode(nextDark);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("darkMode", String(nextDark));
-      if (nextDark) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    }
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
@@ -160,221 +134,112 @@ export default function DashboardPage() {
     window.location.href = '/login';
   };
 
-  // Load all dashboard records from Express backend API
   const loadDashboardData = useCallback(async () => {
     if (!eventId) return;
     try {
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      
-      // 1. Fetch stats
       const statsRes = await fetch(`${apiUrl}/events/${eventId}/stats`, { headers });
       const statsData = await statsRes.json();
-      
-      // 2. Fetch tables
       const tablesRes = await fetch(`${apiUrl}/events/${eventId}/tables`, { headers });
       const tablesData = await tablesRes.json();
-      
-      // 3. Fetch guests
       const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { headers });
       const rsvpsData = await rsvpsRes.json();
-      
-      if (statsData.success) {
-        setStats(statsData.stats);
-      }
-      if (tablesData.success) {
-        setTables(tablesData.tables);
-      }
+
+      if (statsData.success) setStats(statsData.stats);
+      if (tablesData.success) setTables(tablesData.tables);
       if (rsvpsData.success) {
         const formattedGuests = rsvpsData.rsvps.map(r => {
-          const assignedTableId = r.seating_assignments && r.seating_assignments.length > 0 
-            ? r.seating_assignments[0].table_id 
-            : '';
-          
+          const assignedTableId = r.seating_assignments && r.seating_assignments.length > 0 ? r.seating_assignments[0].table_id : '';
           const guestMeals = r.rsvp_guests?.map(rg => rg.meal_selection).filter(Boolean).join(', ') || '-';
-
           return {
-            id: r.id,
-            guest_name: r.guest_name,
-            party_size: r.party_size,
-            response: r.response,
-            email: r.email || '-',
-            phone: r.phone || '-',
-            tableId: assignedTableId,
-            meal: guestMeals,
+            id: r.id, guest_name: r.guest_name, party_size: r.party_size, response: r.response,
+            email: r.email || '-', phone: r.phone || '-', tableId: assignedTableId, meal: guestMeals,
             timestamp: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Earlier'
           };
         });
         setRsvps(formattedGuests);
       }
-      
       setError(null);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       setError('Could not connect to backend server. Make sure the backend server is running on port 5000.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, [apiUrl, eventId, token]);
 
-  useEffect(() => {
-    if (!eventId) return;
-    loadDashboardData();
-  }, [loadDashboardData, eventId]);
+  useEffect(() => { if (!eventId) return; loadDashboardData(); }, [loadDashboardData, eventId]);
 
-  // Handler to create a table in the database
   const handleCreateTable = useCallback(async (e) => {
     e.preventDefault();
     if (!newTableName.trim() || !eventId) return;
-
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/tables`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        },
-        body: JSON.stringify({
-          tableName: newTableName,
-          maxCapacity: parseInt(newTableCapacity)
-        })
+        headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) },
+        body: JSON.stringify({ tableName: newTableName, maxCapacity: parseInt(newTableCapacity) })
       });
-
       if (!res.ok) throw new Error('Failed to create table');
-
       const data = await res.json();
-      if (data.success) {
-        setNewTableName('');
-        setNewTableCapacity(10);
-        // Refresh dashboard data
-        loadDashboardData();
-      }
-    } catch (err) {
-      alert(err.message);
-    }
+      if (data.success) { setNewTableName(''); setNewTableCapacity(10); loadDashboardData(); }
+    } catch (err) { alert(err.message); }
   }, [apiUrl, eventId, token, newTableName, newTableCapacity, loadDashboardData]);
 
-  // Handler to assign/reassign a seat/table using Express Seating endpoints
   const handleAssignTable = useCallback(async (rsvpId, targetTableId) => {
     const guest = rsvps.find(g => g.id === rsvpId);
     if (!guest || !eventId) return;
-
     const oldTableId = guest.tableId;
-
     try {
       let res;
-      const headers = { 
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      };
+      const headers = { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
       if (!oldTableId) {
-        // Assign first time
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/assign`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ rsvpId, tableId: targetTableId })
-        });
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/assign`, { method: 'POST', headers, body: JSON.stringify({ rsvpId, tableId: targetTableId }) });
       } else if (!targetTableId) {
-        // Unseat - call the unassign API endpoint
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/unassign`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ rsvpId })
-        });
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/unassign`, { method: 'POST', headers, body: JSON.stringify({ rsvpId }) });
       } else {
-        // Reassign
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ rsvpId, newTableId: targetTableId })
-        });
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, { method: 'POST', headers, body: JSON.stringify({ rsvpId, newTableId: targetTableId }) });
       }
-
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Seat assignment failed');
-      }
-
-      // Reload dataset
+      if (!res.ok) throw new Error(data.message || 'Seat assignment failed');
       loadDashboardData();
-    } catch (err) {
-      alert(err.message);
-    }
+    } catch (err) { alert(err.message); }
   }, [apiUrl, eventId, token, rsvps, loadDashboardData]);
 
-  // Handle Real-time PostgreSQL changes (inserts, updates, deletes)
   const handleRealtimeRsvp = useCallback((payload) => {
     console.log('⚡ Realtime Event Handled:', payload);
-    
     if (payload.eventType === 'INSERT') {
       const r = payload.new;
       const isYes = r.response === 'yes' || r.response === 'Accepted';
-      
       const formatted = {
-        id: r.id,
-        guest_name: r.guest_name,
-        party_size: r.party_size,
-        response: r.response,
-        email: r.email || '-',
-        phone: r.phone || '-',
-        tableId: '',
-        meal: r.meal || '-',
-        timestamp: 'Just now'
+        id: r.id, guest_name: r.guest_name, party_size: r.party_size, response: r.response,
+        email: r.email || '-', phone: r.phone || '-', tableId: '', meal: r.meal || '-', timestamp: 'Just now'
       };
-
       setRsvps(prev => [formatted, ...prev]);
-
-      // Update local KPI counters live
       setStats(prev => {
         const isNo = r.response === 'no' || r.response === 'Declined';
         const newAttending = isYes ? prev.attendingGuests + r.party_size : prev.attendingGuests;
         const newDeclined = isNo ? prev.declinedGuests + r.party_size : prev.declinedGuests;
         const newPending = (!isYes && !isNo) ? prev.pendingGuests - r.party_size : prev.pendingGuests;
-        
-        // Also update meal summary if meal is specified
         const newMealSummary = { ...prev.mealSummary };
-        if (isYes && r.meal && r.meal !== 'None') {
-          newMealSummary[r.meal] = (newMealSummary[r.meal] || 0) + 1;
-        }
-
-        return {
-          ...prev,
-          invitedParties: prev.invitedParties + 1,
-          attendingGuests: newAttending,
-          declinedGuests: newDeclined,
-          pendingGuests: Math.max(0, newPending),
-          mealSummary: newMealSummary
-        };
+        if (isYes && r.meal && r.meal !== 'None') { newMealSummary[r.meal] = (newMealSummary[r.meal] || 0) + 1; }
+        return { ...prev, invitedParties: prev.invitedParties + 1, attendingGuests: newAttending, declinedGuests: newDeclined, pendingGuests: Math.max(0, newPending), mealSummary: newMealSummary };
       });
-    } else {
-      // Re-fetch entire details on Update / Delete PostgreSQL events to align layout accurately
-      loadDashboardData();
-    }
+    } else { loadDashboardData(); }
   }, [loadDashboardData]);
 
-  // Subscribe to real-time events on mount
   useRealtimeRSVPs(eventId, handleRealtimeRsvp);
 
-  // Total attendee count calculation for seats
-  const totalSeatedCountText = useMemo(() => {
-    return `${stats.seatingAssignedGuests} / ${stats.attendingGuests}`;
-  }, [stats.seatingAssignedGuests, stats.attendingGuests]);
+  const totalSeatedCountText = useMemo(() => `${stats.seatingAssignedGuests} / ${stats.attendingGuests}`, [stats.seatingAssignedGuests, stats.attendingGuests]);
 
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
+  if (loading) return <DashboardSkeleton />;
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-6">
-        <div className="max-w-md w-full text-center bg-card-bg border border-card-border p-8 rounded-2xl shadow-xl backdrop-blur-md">
-          <span className="text-4xl">🔌</span>
-          <h2 className="text-xl font-serif font-bold mt-4 text-rose-500">Backend Connection Error</h2>
-          <p className="text-muted-text mt-2 text-xs md:text-sm leading-relaxed">{error}</p>
-          <button 
-            onClick={() => { setLoading(true); loadDashboardData(); }} 
-            className="mt-6 px-5 py-2.5 bg-brand-green hover:bg-brand-green-hover border-b border-emerald-700 text-white text-xs rounded-lg font-bold shadow transition active:scale-98 cursor-pointer"
-            id="retry-connection-btn"
-          >
+      <div style={{ minHeight: '100vh', background: COLORS.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center', background: COLORS.white, border: `1px solid ${COLORS.border}`, padding: '48px 32px', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
+          <span style={{ fontSize: '48px' }}>🔌</span>
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#C45E5E', marginTop: '12px' }}>Backend Connection Error</h2>
+          <p style={{ color: COLORS.stone, marginTop: '12px', fontSize: '13px', lineHeight: 1.7, fontWeight: 300 }}>{error}</p>
+          <button onClick={() => { setLoading(true); loadDashboardData(); }} id="retry-connection-btn"
+            style={{ marginTop: '24px', padding: '12px 28px', background: COLORS.gold, color: COLORS.white, border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             Retry Connection
           </button>
         </div>
@@ -382,189 +247,141 @@ export default function DashboardPage() {
     );
   }
 
+  const activeEvent = events.find(e => e.id === eventId);
+
   return (
-    <div className="min-h-screen bg-background text-foreground p-6 md:p-8 selection:bg-brand-green/20 transition-colors duration-300">
-      
-      {/* ─── Header Section ─── */}
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between border-b border-card-border pb-6 mb-8 gap-4">
-        <div>
-          <span className="text-brand-green uppercase tracking-widest text-xs font-bold font-sans">Host Administration Deck</span>
-          <h1 className="font-serif text-3xl font-normal text-stone-900 dark:text-stone-50 mt-1">Host Organizer Dashboard</h1>
-          <p className="text-muted-text text-xs mt-1 leading-none">Connected Endpoint: <strong className="text-foreground">{apiUrl}</strong></p>
-          {events.length > 0 && (
-            <div className="mt-3 flex items-center gap-2">
-              <span className="text-[10px] font-bold text-muted-text uppercase tracking-wider">Active Event:</span>
-              <select
-                value={eventId}
-                onChange={e => setEventId(e.target.value)}
-                className="bg-card-bg border border-card-border/60 rounded-lg px-2.5 py-1 text-xs text-foreground font-semibold focus:outline-none focus:border-brand-green"
-              >
-                {events.map(ev => (
-                  <option key={ev.id} value={ev.id}>{ev.title}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
+    <div style={{ display: 'flex', minHeight: '100vh', background: COLORS.white, fontFamily: 'var(--font-sans)' }}>
 
-        <div className="flex items-center gap-3">
-          {/* Light/Dark Mode Switcher */}
-          <button 
-            onClick={toggleDarkMode}
-            className="p-2.5 rounded-full hover:bg-card-border/20 transition-colors cursor-pointer text-foreground mr-2 border border-card-border/40"
-            aria-label="Toggle Dark Mode"
-            id="dashboard-theme-toggle"
-          >
-            {darkMode ? (
-              <svg className="w-4.5 h-4.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            ) : (
-              <svg className="w-4.5 h-4.5 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            )}
-          </button>
-
-          {/* Sign Out Button */}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-stone-500 hover:text-red-600 hover:bg-red-50 dark:text-stone-400 dark:hover:text-red-400 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-            title="Sign out"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Sign Out
-          </button>
-
-          {token && typeof window !== 'undefined' && localStorage.getItem('user_role') === 'super_admin' && (
-            <Link 
-              href="/admin"
-              className="px-4 py-2 bg-amber-900/30 hover:bg-amber-800/40 text-amber-300 hover:text-amber-200 border border-amber-800/40 rounded-lg text-xs font-bold transition shadow-sm"
-              id="btn-open-super-admin"
-            >
-              Super Admin Control
-            </Link>
-          )}
-
-          <a 
-            href={`${apiUrl}/events/${eventId}/rsvps/export`}
-            className="px-4 py-2 bg-card-bg border border-card-border text-muted-text hover:text-foreground rounded-lg text-xs font-bold transition shadow-sm"
-            id="btn-export-excel"
-          >
-            Export Sheet
-          </a>
-          <Link 
-            href="/dashboard/seating-map"
-            className="px-4 py-2 bg-brand-green hover:bg-brand-green-hover text-white rounded-lg text-xs font-bold transition shadow-md border-b-2 border-emerald-700 active:scale-98"
-            id="btn-open-seating-map"
-          >
-            Open Seating Map
+      {/* ═══ LEFT SIDEBAR ═══ */}
+      <aside style={{
+        width: '240px', minHeight: '100vh', background: COLORS.white, borderRight: `1px solid ${COLORS.border}`,
+        display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, zIndex: 50,
+      }}>
+        {/* Logo */}
+        <div style={{ padding: '24px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'baseline', gap: '6px', textDecoration: 'none' }}>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 400, fontStyle: 'italic', color: COLORS.gold, lineHeight: 1 }}>Fancy</span>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: COLORS.charcoal, letterSpacing: '2.5px', textTransform: 'uppercase', lineHeight: 1 }}>RSVP</span>
           </Link>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto space-y-8 z-10 relative">
-        
-        {/* ─── Tab Navigation Selector ─── */}
-        <div className="flex border-b border-card-border/60 gap-6">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`pb-3.5 text-xs font-extrabold uppercase tracking-widest transition-all border-b-2 cursor-pointer ${activeTab === 'overview' ? 'border-brand-green text-brand-green' : 'border-transparent text-muted-text hover:text-foreground'}`}
+        {/* Nav Items */}
+        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {sidebarNav.map(item => {
+            const isActive = activeTab === item.key;
+            return (
+              <button key={item.key} onClick={() => setActiveTab(item.key)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
+                  borderRadius: '8px', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%',
+                  background: isActive ? COLORS.ivory : 'transparent',
+                  color: isActive ? COLORS.gold : COLORS.stone,
+                  borderLeft: isActive ? `3px solid ${COLORS.gold}` : '3px solid transparent',
+                  fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: isActive ? 600 : 400,
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = '#FDFCF9'; e.currentTarget.style.color = COLORS.charcoal; } }}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; } }}
+              >
+                <span style={{ display: 'flex', width: '18px', height: '18px' }}>{item.icon}</span>
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Bottom: Log Out */}
+        <div style={{ padding: '16px 12px', borderTop: `1px solid ${COLORS.border}` }}>
+          <button onClick={handleLogout} style={{
+            display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', width: '100%',
+            background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer',
+            fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 400, color: COLORS.stone,
+            transition: 'all 0.2s ease',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.color = '#C45E5E'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; }}
           >
-            Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('form-builder')}
-            className={`pb-3.5 text-xs font-extrabold uppercase tracking-widest transition-all border-b-2 cursor-pointer ${activeTab === 'form-builder' ? 'border-brand-green text-brand-green' : 'border-transparent text-muted-text hover:text-foreground'}`}
-          >
-            RSVP Form Builder
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Log Out
           </button>
         </div>
+      </aside>
 
-        {activeTab === 'overview' ? (
-          <>
-            {/* ─── KPI Metrics Cards ─── */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <StatMetricsCard 
-                label="Total Invited"
-                value={`${stats.invitedParties} parties`}
-                subtext="Event campaigns reached"
-                accentColor="slate"
-                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>}
-              />
-              <StatMetricsCard 
-                label="Confirmed Yes"
-                value={`${stats.attendingGuests} guests`}
-                subtext="Acceptance count"
-                accentColor="green"
-                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
-              />
-              <StatMetricsCard 
-                label="Declined"
-                value={`${stats.declinedGuests} guests`}
-                subtext="Regret count"
-                accentColor="rose"
-                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>}
-              />
-              <StatMetricsCard 
-                label="Arrivals"
-                value={`${stats.checkedInGuests} checked-in`}
-                subtext="Active attendees present"
-                accentColor="amber"
-                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M5 13l4 4L19 7"/></svg>}
-              />
-              <StatMetricsCard 
-                label="Seating Allocated"
-                value={totalSeatedCountText}
-                subtext="Assigned tables progress"
-                accentColor="blue"
-                icon={<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>}
-              />
-            </div>
+      {/* ═══ MAIN CONTENT ═══ */}
+      <main style={{ flex: 1, marginLeft: '240px', minHeight: '100vh', background: '#FAFAF8' }}>
 
-            {/* ─── Responsive Analytics Charts & Real-Time Feed ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              <div className="lg:col-span-8">
-                <ResponsiveChartBoard stats={stats} />
+        {/* Top Bar */}
+        <div style={{
+          padding: '20px 32px', background: COLORS.white, borderBottom: `1px solid ${COLORS.border}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div>
+            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 500, color: COLORS.charcoal }}>
+              {activeEvent?.title || 'Dashboard'}
+            </h1>
+            {events.length > 1 && (
+              <select value={eventId} onChange={e => setEventId(e.target.value)}
+                style={{ marginTop: '4px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '4px 8px', fontSize: '11px', color: COLORS.charcoal, fontFamily: 'var(--font-sans)', cursor: 'pointer', outline: 'none' }}>
+                {events.map(ev => (<option key={ev.id} value={ev.id}>{ev.title}</option>))}
+              </select>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {token && typeof window !== 'undefined' && localStorage.getItem('user_role') === 'super_admin' && (
+              <Link href="/admin" id="btn-open-super-admin" style={{
+                padding: '8px 16px', background: COLORS.ivory, color: COLORS.gold, border: `1px solid ${COLORS.border}`,
+                borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
+              }}>Super Admin</Link>
+            )}
+            <a href={`${apiUrl}/events/${eventId}/rsvps/export`} id="btn-export-excel" style={{
+              padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
+              borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
+            }}>Export Sheet</a>
+            <Link href="/dashboard/seating-map" id="btn-open-seating-map" style={{
+              padding: '8px 16px', background: COLORS.gold, color: COLORS.white, borderRadius: '8px',
+              fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
+            }}>Open Seating Map</Link>
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
+
+          {activeTab === 'overview' || activeTab === 'events' || activeTab === 'rsvps' || activeTab === 'guests' || activeTab === 'seating' || activeTab === 'settings' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+
+              {/* KPI Metrics Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
+                <StatMetricsCard label="Total Invited" value={`${stats.invitedParties} parties`} subtext="Event campaigns reached" accentColor="slate"
+                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>} />
+                <StatMetricsCard label="Confirmed Yes" value={`${stats.attendingGuests} guests`} subtext="Acceptance count" accentColor="green"
+                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>} />
+                <StatMetricsCard label="Declined" value={`${stats.declinedGuests} guests`} subtext="Regret count" accentColor="rose"
+                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>} />
+                <StatMetricsCard label="Arrivals" value={`${stats.checkedInGuests} checked-in`} subtext="Active attendees present" accentColor="amber"
+                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M5 13l4 4L19 7"/></svg>} />
+                <StatMetricsCard label="Seating Allocated" value={totalSeatedCountText} subtext="Assigned tables progress" accentColor="blue"
+                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>} />
               </div>
-              <div className="lg:col-span-4">
+
+              {/* Charts & Activity Feed */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+                <ResponsiveChartBoard stats={stats} />
                 <LiveActivityFeed rsvps={rsvps} />
               </div>
-            </div>
 
-            {/* ─── Seating & Tables Layout Section ─── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-1">
-                <TableForm 
-                  tables={tables}
-                  newTableName={newTableName}
-                  setNewTableName={setNewTableName}
-                  newTableCapacity={newTableCapacity}
-                  setNewTableCapacity={setNewTableCapacity}
-                  onCreateTable={handleCreateTable}
-                />
-              </div>
-              <div className="lg:col-span-2">
-                <SeatingManager 
-                  rsvps={rsvps}
-                  tables={tables}
-                  searchQuery={searchQuery}
-                  setSearchQuery={setSearchQuery}
-                  filterResponse={filterResponse}
-                  setFilterResponse={setFilterResponse}
-                  onAssignTable={handleAssignTable}
-                />
+              {/* Seating & Tables */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
+                <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} />
+                <SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} />
               </div>
             </div>
-          </>
-        ) : (
-          <FormBuilder eventId={eventId} token={token} />
-        )}
-
-      </div>
-
+          ) : (
+            <FormBuilder eventId={eventId} token={token} />
+          )}
+        </div>
+      </main>
     </div>
   );
 }

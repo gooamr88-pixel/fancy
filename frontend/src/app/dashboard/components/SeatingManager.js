@@ -7,45 +7,96 @@ const SeatingManager = memo(function SeatingManager({
   setSearchQuery,
   filterResponse,
   setFilterResponse,
-  onAssignTable
+  onAssignTable,
 }) {
-  // Memoize filtered RSVP guest list for performance
   const filteredRsvps = useMemo(() => {
-    return rsvps.filter(r => {
+    return rsvps.filter((r) => {
       const name = r.guest_name || "";
       const email = r.email || "";
-      const matchesSearch = 
+      const matchesSearch =
         name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         email.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesFilter = filterResponse === "all" || r.response === filterResponse;
+      const matchesFilter =
+        filterResponse === "all" || r.response === filterResponse;
       return matchesSearch && matchesFilter;
     });
   }, [rsvps, searchQuery, filterResponse]);
 
+  const inputStyle = {
+    background: "#FFFFFF",
+    border: "1px solid #E8E2D6",
+    borderRadius: "8px",
+    padding: "8px 12px",
+    fontSize: "12px",
+    color: "#191B1E",
+    outline: "none",
+    fontFamily: "var(--font-sans)",
+    transition: "border-color 0.25s ease",
+  };
+
   return (
-    <div className="bg-card-bg/60 border border-card-border/60 p-6 rounded-xl flex flex-col gap-4 backdrop-blur-md">
-      
+    <div
+      style={{
+        background: "#FFFFFF",
+        border: "1px solid #E8E2D6",
+        padding: "24px",
+        borderRadius: "12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
+      }}
+    >
       {/* Filters Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-card-border/40 pb-4">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          borderBottom: "1px solid #F0ECE3",
+          paddingBottom: "16px",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
         <div>
-          <h3 className="font-serif text-lg font-normal tracking-wide text-foreground">Guest List &amp; Seating</h3>
-          <p className="text-[10px] text-muted-text">Assign confirmed guests to table slots</p>
+          <h3
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "18px",
+              fontWeight: 500,
+              color: "#191B1E",
+            }}
+          >
+            Guest List &amp; Seating
+          </h3>
+          <p
+            style={{
+              fontSize: "10px",
+              color: "#77736A",
+              fontFamily: "var(--font-sans)",
+              marginTop: "2px",
+            }}
+          >
+            Assign confirmed guests to table slots
+          </p>
         </div>
-        
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
           <input
             type="text"
             placeholder="Search guests..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="bg-sec-bg/40 border border-card-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-green w-full sm:w-44 transition-all"
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ ...inputStyle, width: "176px" }}
+            onFocus={(e) => (e.target.style.borderColor = "#B8944F")}
+            onBlur={(e) => (e.target.style.borderColor = "#E8E2D6")}
             aria-label="Search guests"
           />
-          
+
           <select
             value={filterResponse}
-            onChange={e => setFilterResponse(e.target.value)}
-            className="bg-sec-bg/40 border border-card-border rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none cursor-pointer"
+            onChange={(e) => setFilterResponse(e.target.value)}
+            style={{ ...inputStyle, cursor: "pointer" }}
             aria-label="Filter by response"
           >
             <option value="all">All Responses</option>
@@ -57,75 +108,174 @@ const SeatingManager = memo(function SeatingManager({
       </div>
 
       {/* Guest Seating Grid */}
-      <div className="overflow-x-auto w-full">
+      <div style={{ overflowX: "auto", width: "100%" }}>
         {filteredRsvps.length === 0 ? (
-          <div className="text-center py-12 text-sm text-muted-text italic">
+          <div
+            style={{
+              textAlign: "center",
+              padding: "48px 0",
+              fontSize: "13px",
+              color: "#77736A",
+              fontStyle: "italic",
+              fontFamily: "var(--font-sans)",
+            }}
+          >
             No matching guests found.
           </div>
         ) : (
-          <table className="w-full text-left text-xs md:text-sm">
+          <table
+            style={{
+              width: "100%",
+              textAlign: "left",
+              fontSize: "13px",
+              borderCollapse: "collapse",
+              fontFamily: "var(--font-sans)",
+            }}
+          >
             <thead>
-              <tr className="border-b border-card-border/50 text-muted-text text-[10px] uppercase font-bold tracking-wider">
-                <th className="pb-3 font-semibold">Guest</th>
-                <th className="pb-3 font-semibold">Party</th>
-                <th className="pb-3 font-semibold">Response</th>
-                <th className="pb-3 font-semibold">Meal Choices</th>
-                <th className="pb-3 font-semibold text-right">Seating / Table</th>
+              <tr>
+                {["Guest", "Party", "Response", "Meal Choices", "Seating / Table"].map(
+                  (header, i) => (
+                    <th
+                      key={header}
+                      style={{
+                        paddingBottom: "12px",
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        color: "#77736A",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        borderBottom: "1px solid #F0ECE3",
+                        textAlign: i === 4 ? "right" : "left",
+                      }}
+                    >
+                      {header}
+                    </th>
+                  )
+                )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-card-border/30">
-              {filteredRsvps.map(guest => {
-                const isYes = guest.response === "yes" || guest.response === "YES" || guest.response === "Accepted";
-                const isNo = guest.response === "no" || guest.response === "NO" || guest.response === "Declined";
+            <tbody>
+              {filteredRsvps.map((guest) => {
+                const isYes =
+                  guest.response === "yes" ||
+                  guest.response === "YES" ||
+                  guest.response === "Accepted";
+                const isNo =
+                  guest.response === "no" ||
+                  guest.response === "NO" ||
+                  guest.response === "Declined";
 
                 return (
-                  <tr key={guest.id} className="hover:bg-sec-bg/15 transition-colors duration-200 group">
-                    <td className="py-3.5 font-medium text-foreground">
+                  <tr
+                    key={guest.id}
+                    style={{
+                      borderBottom: "1px solid #F8F4EC",
+                      transition: "background 0.2s ease",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#FDFCF9")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                  >
+                    <td style={{ padding: "14px 0", fontWeight: 500, color: "#191B1E" }}>
                       {guest.guest_name}
-                      <span className="block text-[10px] text-muted-text/80 leading-none mt-1 font-normal">
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: "10px",
+                          color: "#A09A91",
+                          marginTop: "2px",
+                          fontWeight: 400,
+                        }}
+                      >
                         {guest.email}
                       </span>
                     </td>
-                    <td className="py-3.5 text-foreground">{guest.party_size}</td>
-                    <td className="py-3.5">
-                      <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold ${
-                        isYes 
-                          ? "bg-emerald-500/10 text-brand-green" 
-                          : isNo 
-                            ? "bg-rose-500/10 text-rose-500" 
-                            : "bg-stone-500/10 text-stone-500"
-                      }`}>
+                    <td style={{ padding: "14px 0", color: "#191B1E" }}>
+                      {guest.party_size}
+                    </td>
+                    <td style={{ padding: "14px 0" }}>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "3px 10px",
+                          borderRadius: "6px",
+                          fontSize: "9px",
+                          fontWeight: 700,
+                          background: isYes
+                            ? "rgba(184,148,79,0.1)"
+                            : isNo
+                            ? "rgba(196,94,94,0.08)"
+                            : "rgba(119,115,106,0.1)",
+                          color: isYes ? "#B8944F" : isNo ? "#C45E5E" : "#77736A",
+                        }}
+                      >
                         {guest.response.toUpperCase()}
                       </span>
                     </td>
-                    <td className="py-3.5 text-xs text-muted-text max-w-[150px] truncate" title={guest.meal}>
+                    <td
+                      style={{
+                        padding: "14px 0",
+                        fontSize: "12px",
+                        color: "#77736A",
+                        maxWidth: "150px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={guest.meal}
+                    >
                       {guest.meal}
                     </td>
-                    <td className="py-3.5 text-right">
+                    <td style={{ padding: "14px 0", textAlign: "right" }}>
                       {isYes ? (
                         <select
                           value={guest.tableId}
-                          onChange={e => onAssignTable(guest.id, e.target.value)}
-                          className="bg-card-bg border border-card-border hover:border-brand-green text-xs px-2.5 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-green text-foreground cursor-pointer transition-all shadow-sm"
+                          onChange={(e) => onAssignTable(guest.id, e.target.value)}
+                          style={{
+                            background: "#FFFFFF",
+                            border: "1px solid #E8E2D6",
+                            fontSize: "12px",
+                            padding: "6px 10px",
+                            borderRadius: "8px",
+                            color: "#191B1E",
+                            cursor: "pointer",
+                            outline: "none",
+                            fontFamily: "var(--font-sans)",
+                          }}
+                          onFocus={(e) => (e.target.style.borderColor = "#B8944F")}
+                          onBlur={(e) => (e.target.style.borderColor = "#E8E2D6")}
                           aria-label={`Assign table for ${guest.guest_name}`}
                         >
                           <option value="">Unassigned</option>
-                          {tables.map(t => {
+                          {tables.map((t) => {
                             const isCurrent = t.id === guest.tableId;
                             const remaining = t.max_capacity - t.occupied;
                             return (
-                              <option 
-                                key={t.id} 
+                              <option
+                                key={t.id}
                                 value={t.id}
                                 disabled={!isCurrent && remaining < guest.party_size}
                               >
-                                {t.table_name} ({isCurrent ? 'Current' : `${remaining} left`})
+                                {t.table_name} (
+                                {isCurrent ? "Current" : `${remaining} left`})
                               </option>
                             );
                           })}
                         </select>
                       ) : (
-                        <span className="text-[10px] text-muted-text/75 italic">Exempt</span>
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            color: "#A09A91",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          Exempt
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -135,7 +285,6 @@ const SeatingManager = memo(function SeatingManager({
           </table>
         )}
       </div>
-
     </div>
   );
 });

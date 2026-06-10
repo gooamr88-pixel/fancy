@@ -189,9 +189,136 @@ const deleteTable = async (req, res, next) => {
   }
 };
 
+/**
+ * Updates a single table's settings (name, capacity, shape).
+ * PATCH /api/v1/events/:eventId/tables/:tableId
+ */
+const updateTable = async (req, res, next) => {
+  const { eventId, tableId } = req.params;
+  const { tableName, maxCapacity, shape } = req.body;
+
+  const updates = {};
+  if (tableName !== undefined) updates.table_name = tableName.trim();
+  if (maxCapacity !== undefined) {
+    const cap = parseInt(maxCapacity);
+    if (isNaN(cap) || cap < 1 || cap > 500) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'maxCapacity must be between 1 and 500.' });
+    }
+    updates.max_capacity = cap;
+  }
+  if (shape !== undefined) {
+    if (!['round', 'rectangle', 'square', 'custom'].includes(shape)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'shape must be round, rectangle, square, or custom.' });
+    }
+    updates.shape = shape;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ success: false, error: 'NO_UPDATES', message: 'No fields to update.' });
+  }
+
+  updates.updated_at = new Date();
+
+  try {
+    // If reducing capacity, check current occupancy
+    if (updates.max_capacity) {
+      const { data: assignments } = await supabase
+        .from('seating_assignments')
+        .select('rsvps(party_size)')
+        .eq('table_id', tableId)
+        .eq('event_id', eventId);
+
+      const occupied = (assignments || []).reduce((sum, a) => sum + (a.rsvps?.party_size || 0), 0);
+      if (updates.max_capacity < occupied) {
+        return res.status(409).json({
+          success: false,
+          error: 'CAPACITY_CONFLICT',
+          message: `Cannot reduce capacity below current occupancy (${occupied} guests seated).`
+        });
+      }
+    }
+
+    const { data: table, error } = await supabase
+      .from('tables')
+      .update(updates)
+      .eq('id', tableId)
+      .eq('event_id', eventId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!table) return res.status(404).json({ success: false, error: 'TABLE_NOT_FOUND' });
+
+    return res.json({ success: true, message: 'Table updated successfully.', table });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Duplicates an existing table (up to 20 copies).
+ * POST /api/v1/events/:eventId/tables/:tableId/duplicate
+ */
+const duplicateTable = async (req, res, next) => {
+  const { eventId, tableId } = req.params;
+  const { count } = req.body; // How many copies to create (default 1)
+
+  const copies = Math.min(parseInt(count) || 1, 20); // Cap at 20 copies
+
+  try {
+    // Fetch source table
+    const { data: source, error: fetchError } = await supabase
+      .from('tables')
+      .select('*')
+      .eq('id', tableId)
+      .eq('event_id', eventId)
+      .single();
+
+    if (fetchError || !source) {
+      return res.status(404).json({ success: false, error: 'TABLE_NOT_FOUND', message: 'Source table not found.' });
+    }
+
+    // Fetch existing tables count for naming
+    const { count: existingCount } = await supabase
+      .from('tables')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', eventId);
+
+    const insertRows = [];
+    for (let i = 0; i < copies; i++) {
+      insertRows.push({
+        event_id: eventId,
+        table_name: `${source.table_name} (Copy ${i + 1})`,
+        max_capacity: source.max_capacity,
+        shape: source.shape,
+        position_x: source.position_x + (60 * (i + 1)),
+        position_y: source.position_y + (40 * (i + 1)),
+        sort_order: (existingCount || 0) + i + 1
+      });
+    }
+
+    const { data: newTables, error: insertError } = await supabase
+      .from('tables')
+      .insert(insertRows)
+      .select();
+
+    if (insertError) throw insertError;
+
+    return res.status(201).json({
+      success: true,
+      message: `${newTables.length} table(s) duplicated successfully.`,
+      tables: newTables
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createTable,
   getTables,
   updateTablePositions,
-  deleteTable
+  deleteTable,
+  updateTable,
+  duplicateTable
 };

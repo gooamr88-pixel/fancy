@@ -1,33 +1,32 @@
 import "./globals.css";
-import { Outfit, Playfair_Display } from 'next/font/google';
+import { Cormorant_Garamond, Lato } from 'next/font/google';
 
-const outfit = Outfit({
+const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-outfit',
+  variable: '--font-cormorant',
   display: 'swap',
 });
 
-const playfair = Playfair_Display({
+const lato = Lato({
   subsets: ['latin'],
-  weight: ['400', '600', '700'],
-  variable: '--font-playfair',
+  weight: ['300', '400', '700', '900'],
+  variable: '--font-lato',
   display: 'swap',
 });
 
 export const metadata = {
-  title: "Fancy RSVP - Premium Digital Invitations & RSVP Tracking",
-  description: "Create and send premium online invitations with animated envelopes, built-in RSVP tracking, surveys, and background music.",
+  title: "Fancy RSVP — Elegant RSVPs. Effortless Planning.",
+  description: "The all-in-one RSVP and guest management platform for weddings and special events. Create beautiful digital invitations with real-time tracking.",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`h-full antialiased ${outfit.variable} ${playfair.variable}`}
+      className={`${cormorant.variable} ${lato.variable}`}
     >
-      <body className="min-h-full flex flex-col font-sans text-foreground bg-background antialiased">{children}</body>
+      <body>{children}</body>
     </html>
   );
 }
-

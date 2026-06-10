@@ -1,69 +1,255 @@
 @import "tailwindcss";
 
-:root {
-  --font-playfair: 'Playfair Display', Georgia, serif;
-  --font-outfit: 'Outfit', sans-serif;
-  
-  --background: #fafaf9;
-  --foreground: #1c1917;
-  --brand-green: #31a673;
-  --brand-green-hover: #268f60;
-  
-  --card-bg: #ffffff;
-  --card-border: #e7e5e4;
-  --muted-text: #78716c;
-  --sec-bg: #f5f5f4;
-  --nav-bg: rgba(255, 255, 255, 0.95);
-  
-  --font-serif: var(--font-playfair), Georgia, serif;
-  --font-sans: var(--font-outfit), sans-serif;
-}
+/* ═══════════════════════════════════════════════
+   FANCY RSVP — Brand Design System
+   Colors, Typography & Tokens from Brand Guide
+   ═══════════════════════════════════════════════ */
 
-.dark {
-  --background: #0b0f19;
-  --foreground: #f1f5f9;
-  --brand-green: #10b981;
-  --brand-green-hover: #059669;
-  
-  --card-bg: #111827;
-  --card-border: #1e293b;
-  --muted-text: #94a3b8;
-  --sec-bg: #1f2937;
-  --nav-bg: rgba(11, 15, 25, 0.95);
+:root {
+  /* Brand Colors — from Brand Identity Guide Page 04 */
+  --champagne-gold: #B8944F;
+  --deep-charcoal: #191B1E;
+  --warm-ivory: #F8F4EC;
+  --soft-champagne: #D7BE80;
+  --muted-stone: #77736A;
+
+  /* Functional Tokens */
+  --background: #FFFFFF;
+  --foreground: var(--deep-charcoal);
+  --card-bg: #FFFFFF;
+  --card-border: #E8E2D6;
+  --section-bg: var(--warm-ivory);
+
+  /* Typography */
+  --font-serif: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  --font-sans: var(--font-lato), 'Lato', 'Inter', sans-serif;
 }
 
 @theme inline {
+  --color-champagne-gold: var(--champagne-gold);
+  --color-deep-charcoal: var(--deep-charcoal);
+  --color-warm-ivory: var(--warm-ivory);
+  --color-soft-champagne: var(--soft-champagne);
+  --color-muted-stone: var(--muted-stone);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-serif: var(--font-playfair), Georgia, serif;
-  --font-sans: var(--font-outfit), sans-serif;
-  
-  --color-brand-green: var(--brand-green);
-  --color-brand-green-hover: var(--brand-green-hover);
   --color-card-bg: var(--card-bg);
   --color-card-border: var(--card-border);
-  --color-muted-text: var(--muted-text);
-  --color-sec-bg: var(--sec-bg);
-  --color-nav-bg: var(--nav-bg);
+  --color-section-bg: var(--section-bg);
+  --font-serif: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
+  --font-sans: var(--font-lato), 'Lato', 'Inter', sans-serif;
+}
+
+/* ─── Base Reset ─── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-x: hidden;
 }
 
-/* Custom scroll behavior and interactive animations */
-html {
-  scroll-behavior: smooth;
+/* ─── Typography ─── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  color: var(--deep-charcoal);
+  line-height: 1.2;
 }
 
-.text-shadow-premium {
-  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+/* ─── Selection ─── */
+::selection {
+  background: rgba(184, 148, 79, 0.15);
+  color: var(--deep-charcoal);
 }
 
-/* 3D Envelope flip effect classes */
+/* ─── Animations ─── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes subtleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-subtle-float {
+  animation: subtleFloat 6s ease-in-out infinite;
+}
+
+/* ─── Gold Shimmer Line ─── */
+.gold-shimmer-line {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--soft-champagne) 30%,
+    var(--champagne-gold) 50%,
+    var(--soft-champagne) 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+}
+
+/* ─── Premium Button Styles ─── */
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 36px;
+  background: var(--champagne-gold);
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+}
+
+.btn-gold:hover {
+  background: #a6833f;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(184, 148, 79, 0.3);
+}
+
+.btn-gold:active {
+  transform: translateY(0);
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 36px;
+  background: transparent;
+  color: var(--deep-charcoal);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  border: 1.5px solid var(--deep-charcoal);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+}
+
+.btn-outline:hover {
+  background: var(--deep-charcoal);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(25, 27, 30, 0.15);
+}
+
+.btn-outline:active {
+  transform: translateY(0);
+}
+
+/* ─── Decorative Ornament ─── */
+.ornament {
+  display: inline-block;
+  color: var(--soft-champagne);
+  font-size: 18px;
+  letter-spacing: 6px;
+  user-select: none;
+}
+
+/* ─── Card Styles ─── */
+.occasion-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 24px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  transition: all 0.35s ease;
+  cursor: default;
+}
+
+.occasion-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(184, 148, 79, 0.08);
+  border-color: var(--soft-champagne);
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--warm-ivory);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--soft-champagne);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--champagne-gold);
+}
+
+/* ─── Envelope flip (preserved from previous for RSVP flow) ─── */
 .perspective-1000 {
   perspective: 1500px;
 }
@@ -76,11 +262,6 @@ html {
   backface-visibility: hidden;
 }
 
-.rotate-y-180 {
-  transform: rotateY(180deg);
-}
-
-/* 3D Envelope Flap Classes */
 .envelope-flap {
   transform-origin: top;
   transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), z-index 0.6s;
@@ -96,165 +277,3 @@ html {
   transform: rotateX(0deg);
   z-index: 25;
 }
-
-/* Scroll reveal helper class */
-.reveal-on-scroll {
-  opacity: 0;
-  transform: translateY(24px);
-  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes fadeInUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Audio Wave Visualizer Animation */
-@keyframes audioWave {
-  0%, 100% {
-    transform: scaleY(0.3);
-  }
-  50% {
-    transform: scaleY(1);
-  }
-}
-
-.animate-wave-1 { animation: audioWave 1.2s ease-in-out infinite; }
-.animate-wave-2 { animation: audioWave 0.8s ease-in-out infinite 0.2s; }
-.animate-wave-3 { animation: audioWave 1.4s ease-in-out infinite 0.4s; }
-.animate-wave-4 { animation: audioWave 1.0s ease-in-out infinite 0.1s; }
-.animate-wave-5 { animation: audioWave 1.3s ease-in-out infinite 0.3s; }
-
-/* Confetti particles falling keyframe */
-@keyframes confettiFall {
-  0% {
-    transform: translateY(-20px) rotate(0deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(220px) rotate(360deg);
-    opacity: 0;
-  }
-}
-
-.animate-confetti {
-  animation: confettiFall 2.5s linear forwards;
-}
-
-/* Organic Floating Background Blobs */
-@keyframes float-slow {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  33% {
-    transform: translate(30px, -50px) scale(1.1);
-  }
-  66% {
-    transform: translate(-20px, 20px) scale(0.95);
-  }
-}
-
-.animate-float-1 {
-  animation: float-slow 15s ease-in-out infinite;
-}
-
-.animate-float-2 {
-  animation: float-slow 18s ease-in-out infinite 2s;
-}
-
-.animate-float-3 {
-  animation: float-slow 12s ease-in-out infinite 4s;
-}
-
-/* Hide scrollbar utility */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* Subtle premium paper texture simulation */
-.bg-paper {
-  position: relative;
-}
-.bg-paper::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.035;
-  pointer-events: none;
-  background-image: radial-gradient(circle, #000 1px, transparent 1px);
-  background-size: 3px 3px;
-  z-index: 1;
-}
-.dark .bg-paper::before {
-  opacity: 0.085;
-  background-image: radial-gradient(circle, #fff 1px, transparent 1px);
-}
-
-/* Elegant gold leaf accents */
-.border-gold {
-  border-color: rgba(212, 175, 55, 0.25);
-}
-.hover\:border-gold:hover {
-  border-color: rgba(212, 175, 55, 0.45);
-}
-
-/* Soft luxury radial gradients */
-.bg-radial-luxury {
-  background: radial-gradient(circle at top, var(--card-bg) 60%, var(--sec-bg));
-}
-
-/* Dynamic Checkmark & Progress Animations */
-@keyframes drawCheck {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-.animate-draw-check {
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  animation: drawCheck 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes ringPulse {
-  0% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
-  }
-  70% {
-    transform: scale(1);
-    box-shadow: 0 0 0 12px rgba(16, 185, 129, 0);
-  }
-  100% {
-    transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
-  }
-}
-
-.animate-ring-pulse {
-  animation: ringPulse 2.5s infinite;
-}
-
-@keyframes shrinkWidth {
-  from {
-    width: 100%;
-  }
-  to {
-    width: 0%;
-  }
-}
-
-.animate-progress-shrink {
-  animation: shrinkWidth 3s linear forwards;
-}
-
-
-

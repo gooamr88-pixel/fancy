@@ -10,118 +10,242 @@ export default function ResponsiveChartBoard({ stats }) {
   const noPercent = Math.round((declined / total) * 100);
   const pendingPercent = Math.round((pending / total) * 100);
 
-  // SVG Donut calculations
   const radius = 50;
-  const circumference = 2 * Math.PI * radius; // 314.159
-  
+  const circumference = 2 * Math.PI * radius;
+
   const yesDash = (attending / total) * circumference;
   const noDash = (declined / total) * circumference;
   const pendingDash = (pending / total) * circumference;
 
-  const noOffset = circumference - yesDash;
-  const pendingOffset = noOffset - noDash;
-
-  // Meal breakdown
   const meals = stats.mealSummary || {};
   const mealKeys = Object.keys(meals);
   const mealTotal = Object.values(meals).reduce((acc, curr) => acc + curr, 0) || 1;
 
   return (
-    <div className="bg-card-bg/60 border border-card-border/60 p-6 rounded-xl flex flex-col gap-6 backdrop-blur-md">
+    <div
+      style={{
+        background: "#FFFFFF",
+        border: "1px solid #E8E2D6",
+        padding: "24px",
+        borderRadius: "12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "24px",
+      }}
+    >
       <div>
-        <h3 className="font-serif text-lg font-normal tracking-wide text-foreground">Analytics Overview</h3>
-        <p className="text-[10px] text-muted-text">Real-time attendance rates and meal options</p>
+        <h3
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: "18px",
+            fontWeight: 500,
+            color: "#191B1E",
+          }}
+        >
+          Analytics Overview
+        </h3>
+        <p
+          style={{
+            fontSize: "10px",
+            color: "#77736A",
+            fontFamily: "var(--font-sans)",
+            marginTop: "2px",
+          }}
+        >
+          Real-time attendance rates and meal options
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-        
-        {/* SVG Donut Chart (Attendance Rate) */}
-        <div className="flex flex-col sm:flex-row items-center gap-6 justify-center">
-          <div className="relative w-36 h-36 flex items-center justify-center">
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "32px",
+          alignItems: "center",
+        }}
+      >
+        {/* SVG Donut Chart */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "24px",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              position: "relative",
+              width: "144px",
+              height: "144px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <svg
+              style={{
+                width: "100%",
+                height: "100%",
+                transform: "rotate(-90deg)",
+              }}
+              viewBox="0 0 120 120"
+            >
               {/* Background circle */}
               <circle
                 cx="60"
                 cy="60"
                 r={radius}
-                className="stroke-card-border/30 fill-transparent"
+                fill="transparent"
+                stroke="#E8E2D6"
                 strokeWidth="10"
               />
-              
-              {/* YES Segment (Emerald) */}
+              {/* Accepted - Champagne Gold */}
               {attending > 0 && (
                 <circle
                   cx="60"
                   cy="60"
                   r={radius}
-                  className="stroke-brand-green fill-transparent transition-all duration-1000"
+                  fill="transparent"
+                  stroke="#B8944F"
                   strokeWidth="10"
                   strokeDasharray={`${yesDash} ${circumference}`}
                   strokeDashoffset="0"
                   strokeLinecap="round"
+                  style={{ transition: "all 1s ease" }}
                 />
               )}
-
-              {/* NO Segment (Rose) */}
+              {/* Declined - Muted Rose */}
               {declined > 0 && (
                 <circle
                   cx="60"
                   cy="60"
                   r={radius}
-                  className="stroke-rose-500 fill-transparent transition-all duration-1000"
+                  fill="transparent"
+                  stroke="#77736A"
                   strokeWidth="10"
                   strokeDasharray={`${noDash} ${circumference}`}
                   strokeDashoffset={-yesDash}
                   strokeLinecap="round"
+                  style={{ transition: "all 1s ease" }}
                 />
               )}
-
-              {/* PENDING Segment (Slate) */}
+              {/* Pending - Soft Champagne */}
               {pending > 0 && (
                 <circle
                   cx="60"
                   cy="60"
                   r={radius}
-                  className="stroke-stone-400 fill-transparent transition-all duration-1000"
+                  fill="transparent"
+                  stroke="#D7BE80"
                   strokeWidth="10"
                   strokeDasharray={`${pendingDash} ${circumference}`}
                   strokeDashoffset={-(yesDash + noDash)}
                   strokeLinecap="round"
+                  style={{ transition: "all 1s ease" }}
                 />
               )}
             </svg>
-            
+
             {/* Center Text */}
-            <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold tracking-tight text-foreground">{yesPercent}%</span>
-              <span className="text-[9px] font-bold text-brand-green uppercase tracking-wider">Acceptance</span>
+            <div
+              style={{
+                position: "absolute",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "24px",
+                  fontWeight: 900,
+                  color: "#191B1E",
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                {yesPercent}%
+              </span>
+              <span
+                style={{
+                  fontSize: "9px",
+                  fontWeight: 700,
+                  color: "#B8944F",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.1em",
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                Acceptance
+              </span>
             </div>
           </div>
 
           {/* Legends */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="w-3 h-3 rounded bg-brand-green block"></span>
-              <span className="font-semibold text-foreground">Attending: {attending} <span className="text-muted-text font-normal">({yesPercent}%)</span></span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="w-3 h-3 rounded bg-rose-500 block"></span>
-              <span className="font-semibold text-foreground">Declined: {declined} <span className="text-muted-text font-normal">({noPercent}%)</span></span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="w-3 h-3 rounded bg-stone-400 block"></span>
-              <span className="font-semibold text-foreground">Pending: {pending} <span className="text-muted-text font-normal">({pendingPercent}%)</span></span>
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {[
+              { label: "Attending", value: attending, pct: yesPercent, color: "#B8944F" },
+              { label: "Declined", value: declined, pct: noPercent, color: "#77736A" },
+              { label: "Pending", value: pending, pct: pendingPercent, color: "#D7BE80" },
+            ].map((item) => (
+              <div
+                key={item.label}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "12px",
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
+                <span
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "3px",
+                    background: item.color,
+                    display: "block",
+                  }}
+                />
+                <span style={{ fontWeight: 600, color: "#191B1E" }}>
+                  {item.label}: {item.value}{" "}
+                  <span style={{ color: "#77736A", fontWeight: 400 }}>({item.pct}%)</span>
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Meal Breakdown Chart (Horizontal bars) */}
-        <div className="flex flex-col gap-4">
-          <h4 className="text-xs font-bold text-muted-text uppercase tracking-wider border-b border-card-border/40 pb-1">Meal Preferences</h4>
-          
-          <div className="flex flex-col gap-3.5">
+        {/* Meal Breakdown */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <h4
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "#77736A",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              borderBottom: "1px solid #F0ECE3",
+              paddingBottom: "6px",
+              fontFamily: "var(--font-sans)",
+            }}
+          >
+            Meal Preferences
+          </h4>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             {mealKeys.length === 0 ? (
-              <div className="text-xs text-muted-text italic py-4">
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#77736A",
+                  fontStyle: "italic",
+                  padding: "16px 0",
+                  fontFamily: "var(--font-sans)",
+                }}
+              >
                 No meal data submitted yet.
               </div>
             ) : (
@@ -129,16 +253,57 @@ export default function ResponsiveChartBoard({ stats }) {
                 const count = meals[meal] || 0;
                 const percentage = Math.round((count / mealTotal) * 100);
                 return (
-                  <div key={meal} className="flex flex-col gap-1.5 text-xs">
-                    <div className="flex justify-between font-medium text-foreground">
+                  <div
+                    key={meal}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                      fontSize: "12px",
+                      fontFamily: "var(--font-sans)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontWeight: 500,
+                        color: "#191B1E",
+                      }}
+                    >
                       <span>{meal}</span>
-                      <span className="font-bold">{count} <span className="text-[10px] text-muted-text font-normal">({percentage}%)</span></span>
+                      <span style={{ fontWeight: 700 }}>
+                        {count}{" "}
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            color: "#77736A",
+                            fontWeight: 400,
+                          }}
+                        >
+                          ({percentage}%)
+                        </span>
+                      </span>
                     </div>
-                    <div className="w-full h-2 bg-sec-bg rounded-full overflow-hidden border border-card-border/30">
-                      <div 
-                        className="h-full bg-brand-green rounded-full transition-all duration-700" 
-                        style={{ width: `${percentage}%` }}
-                      ></div>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "8px",
+                        background: "#F8F4EC",
+                        borderRadius: "9999px",
+                        overflow: "hidden",
+                        border: "1px solid #F0ECE3",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          background: "#B8944F",
+                          borderRadius: "9999px",
+                          transition: "width 0.7s ease",
+                          width: `${percentage}%`,
+                        }}
+                      />
                     </div>
                   </div>
                 );
@@ -146,7 +311,6 @@ export default function ResponsiveChartBoard({ stats }) {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

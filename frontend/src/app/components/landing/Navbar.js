@@ -1,151 +1,369 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 
-const Navbar = React.memo(function Navbar({ darkMode, toggleDarkMode, activeSection, setActiveSection, subHeaderSticky, setSubHeaderSticky }) {
-  // Scroll Spy using IntersectionObserver
-  useEffect(() => {
-    const sectionIds = ["overview", "customizer", "features", "simulator", "designs", "pricing", "nature"];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.id);
-          }
-        });
-      },
-      {
-        rootMargin: "-20% 0px -60% 0px",
-        threshold: 0,
-      }
-    );
+/* ═══════════════════════════════════════════════════════════
+   Navbar — Fancy RSVP (Page 09 Brand Guide)
+   
+   Layout from mockup:
+   ┌──────────────────────────────────────────────────────────┐
+   │  [Logo: Envelope + "Fancy RSVP"]   Features  Pricing    │
+   │                                    About  Log In  [Get]  │
+   └──────────────────────────────────────────────────────────┘
+   
+   - White background, very subtle bottom border
+   - Logo on left: envelope icon + "Fancy" in script + "RSVP" in serif
+   - Nav links centered-right: Features, Pricing, About, Log In
+   - CTA button "Get Started" in Champagne Gold with rounded corners
+   ═══════════════════════════════════════════════════════════ */
 
-    sectionIds.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
+export default function Navbar() {
+  const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-    return () => observer.disconnect();
-  }, [setActiveSection]);
-
-  // Sticky sub-header detection
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY > 80) {
-        setSubHeaderSticky(true);
-      } else {
-        setSubHeaderSticky(false);
-      }
+      setScrolled(window.scrollY > 20);
     };
-    
     handleScroll();
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [setSubHeaderSticky]);
+  }, []);
 
   const scrollToSection = (sectionId) => {
+    setMobileMenuOpen(false);
     const el = document.getElementById(sectionId);
     if (el) {
-      const offsetTop = el.offsetTop - 110;
-      window.scrollTo({
-        top: offsetTop,
-        behavior: "smooth",
-      });
-      setActiveSection(sectionId);
+      const offsetTop = el.offsetTop - 80;
+      window.scrollTo({ top: offsetTop, behavior: "smooth" });
     }
   };
 
   return (
     <>
-      {/* --- Main Header / Navigation --- */}
-      <header className="w-full bg-nav-bg border-b border-card-border/40 py-5 px-6 md:px-12 flex justify-between items-center sticky top-0 z-50 transition-all duration-300 backdrop-blur-md">
-        <div className="flex items-center gap-1 z-10">
-          <span className="font-sans text-xl md:text-2xl font-bold tracking-[0.3em] text-brand-green hover:opacity-90 transition-all cursor-pointer flex items-center">
-            FANCY<span className="font-light text-amber-500/75 mx-1.5">|</span>RSVP
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-4 md:gap-8 z-10">
-          {/* Theme switcher */}
-          <button 
-            onClick={toggleDarkMode}
-            className="p-2.5 rounded-full hover:bg-card-border/20 transition-all cursor-pointer text-foreground hover:scale-105 active:scale-95"
-            aria-label="Toggle Dark Mode"
-            id="theme-toggle"
+      <header
+        id="main-navbar"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          background: scrolled ? "rgba(255, 255, 255, 0.97)" : "#FFFFFF",
+          backdropFilter: scrolled ? "blur(12px)" : "none",
+          borderBottom: scrolled ? "1px solid #E8E2D6" : "1px solid transparent",
+          transition: "all 0.35s ease",
+          boxShadow: scrolled ? "0 1px 20px rgba(0,0,0,0.04)" : "none",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: "1280px",
+            margin: "0 auto",
+            padding: "0 48px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            height: "78px",
+          }}
+        >
+          {/* ─── Logo ─── */}
+          <Link
+            href="/"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              textDecoration: "none",
+              cursor: "pointer",
+            }}
+            id="navbar-logo"
           >
-            {darkMode ? (
-              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            {/* Envelope Icon */}
+            <div
+              style={{
+                width: "42px",
+                height: "42px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg
+                width="38"
+                height="32"
+                viewBox="0 0 38 32"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                {/* Envelope body */}
+                <rect
+                  x="2"
+                  y="8"
+                  width="34"
+                  height="22"
+                  rx="2"
+                  stroke="#B8944F"
+                  strokeWidth="1.5"
+                  fill="none"
+                />
+                {/* Envelope flap */}
+                <path
+                  d="M2 10L19 22L36 10"
+                  stroke="#B8944F"
+                  strokeWidth="1.5"
+                  fill="none"
+                  strokeLinejoin="round"
+                />
+                {/* Flap top triangle */}
+                <path
+                  d="M4 8L19 0L34 8"
+                  stroke="#B8944F"
+                  strokeWidth="1.2"
+                  fill="none"
+                  strokeLinejoin="round"
+                />
+                {/* RSVP text inside */}
+                <text
+                  x="19"
+                  y="21"
+                  textAnchor="middle"
+                  fill="#B8944F"
+                  fontSize="6.5"
+                  fontFamily="serif"
+                  fontWeight="600"
+                  letterSpacing="1"
+                >
+                  RSVP
+                </text>
+                {/* Small decorative diamond on flap */}
+                <path
+                  d="M19 3L20.5 5L19 7L17.5 5Z"
+                  fill="#D7BE80"
+                  opacity="0.7"
+                />
               </svg>
-            ) : (
-              <svg className="w-5 h-5 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            )}
-          </button>
+            </div>
 
-          <Link href="/login" className="text-muted-text hover:text-brand-green font-medium text-sm md:text-base transition-colors">
-            Log In
+            {/* Brand Name */}
+            <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: "28px",
+                  fontWeight: 400,
+                  fontStyle: "italic",
+                  color: "#B8944F",
+                  lineHeight: 1,
+                  letterSpacing: "-0.5px",
+                }}
+              >
+                Fancy
+              </span>
+              <span
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: "22px",
+                  fontWeight: 600,
+                  color: "#191B1E",
+                  letterSpacing: "3px",
+                  textTransform: "uppercase",
+                  lineHeight: 1,
+                }}
+              >
+                RSVP
+              </span>
+            </div>
           </Link>
-          <Link href="/register" className="text-muted-text hover:text-brand-green font-medium text-sm md:text-base transition-colors">
-            Sign Up
-          </Link>
-          <button 
-            onClick={() => scrollToSection("customizer")}
-            className="bg-brand-green hover:bg-brand-green-hover text-white px-5.5 py-2.5 rounded-md font-semibold text-sm md:text-base transition-all shadow-md hover:shadow-lg active:scale-[0.98] border-b-2 border-emerald-700 cursor-pointer"
-            id="header-cta"
+
+          {/* ─── Desktop Navigation ─── */}
+          <nav
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "36px",
+            }}
+            className="desktop-nav"
           >
-            Design Live
+            {[
+              { label: "Features", id: "features" },
+              { label: "Pricing", id: "pricing" },
+              { label: "About", id: "about" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                onClick={() => scrollToSection(item.id)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "15px",
+                  fontWeight: 400,
+                  color: "#191B1E",
+                  cursor: "pointer",
+                  padding: "4px 0",
+                  transition: "color 0.25s ease",
+                  letterSpacing: "0.2px",
+                }}
+                onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
+                onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
+                id={`nav-link-${item.id}`}
+              >
+                {item.label}
+              </button>
+            ))}
+
+            <Link
+              href="/login"
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: "15px",
+                fontWeight: 400,
+                color: "#191B1E",
+                textDecoration: "none",
+                cursor: "pointer",
+                transition: "color 0.25s ease",
+              }}
+              onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
+              onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
+              id="nav-link-login"
+            >
+              Log In
+            </Link>
+
+            <Link
+              href="/register"
+              className="btn-gold"
+              style={{
+                padding: "11px 28px",
+                fontSize: "14px",
+                fontWeight: 700,
+                borderRadius: "6px",
+                letterSpacing: "0.3px",
+              }}
+              id="nav-cta-get-started"
+            >
+              Get Started
+            </Link>
+          </nav>
+
+          {/* ─── Mobile Hamburger ─── */}
+          <button
+            className="mobile-menu-btn"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            style={{
+              display: "none",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "8px",
+              zIndex: 1001,
+            }}
+            aria-label="Toggle menu"
+            id="mobile-menu-toggle"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#191B1E"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              {mobileMenuOpen ? (
+                <>
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                  <line x1="6" y1="18" x2="18" y2="6" />
+                </>
+              ) : (
+                <>
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </>
+              )}
+            </svg>
           </button>
         </div>
       </header>
 
-      {/* --- Sticky Sub-Navigation Bar --- */}
-      <div 
-        className={`w-full bg-card-bg border-y border-card-border/40 transition-all duration-300 z-40 ${
-          subHeaderSticky ? "fixed top-[71px] left-0 shadow-md" : "relative"
-        }`}
-      >
-        <div className="max-w-7xl mx-auto px-6 md:px-12 flex justify-between items-center h-16">
-          <nav className="flex items-center gap-6 md:gap-10 overflow-x-auto no-scrollbar scroll-smooth">
-            {[
-              { id: "overview", label: "Overview" },
-              { id: "customizer", label: "Design Deck" },
-              { id: "features", label: "Features" },
-              { id: "simulator", label: "RSVP Simulator" },
-              { id: "designs", label: "Suites" },
-              { id: "pricing", label: "Pricing" },
-              { id: "nature", label: "Nature" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => scrollToSection(tab.id)}
-                className={`h-16 flex items-center border-b-2 font-semibold text-sm md:text-base tracking-wide transition-all px-1 shrink-0 cursor-pointer ${
-                  activeSection === tab.id
-                    ? "border-brand-green text-brand-green font-bold"
-                    : "border-transparent text-muted-text hover:text-foreground"
-                }`}
-                id={`nav-${tab.id}`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-          
-          {subHeaderSticky && (
-            <button 
-              onClick={() => scrollToSection("customizer")}
-              className="bg-brand-green hover:bg-brand-green-hover text-white px-4.5 py-2 rounded-md font-semibold text-xs md:text-sm transition-all shadow active:scale-[0.98] border-b border-emerald-700 cursor-pointer"
-              id="sticky-cta"
+      {/* ─── Mobile Menu Overlay ─── */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-menu-overlay"
+          style={{
+            position: "fixed",
+            top: "78px",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(255,255,255,0.98)",
+            zIndex: 999,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            paddingTop: "48px",
+            gap: "28px",
+            animation: "fadeIn 0.25s ease",
+          }}
+        >
+          {["Features", "Pricing", "About"].map((label) => (
+            <button
+              key={label}
+              onClick={() => scrollToSection(label.toLowerCase())}
+              style={{
+                background: "none",
+                border: "none",
+                fontFamily: "var(--font-serif)",
+                fontSize: "24px",
+                fontWeight: 500,
+                color: "#191B1E",
+                cursor: "pointer",
+                letterSpacing: "1px",
+              }}
             >
-              Design Suite
+              {label}
             </button>
-          )}
+          ))}
+          <Link
+            href="/login"
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: "16px",
+              fontWeight: 400,
+              color: "#77736A",
+              textDecoration: "none",
+            }}
+          >
+            Log In
+          </Link>
+          <Link
+            href="/register"
+            className="btn-gold"
+            style={{ padding: "14px 48px", fontSize: "15px" }}
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            Get Started
+          </Link>
         </div>
-      </div>
+      )}
+
+      {/* ─── Spacer for fixed header ─── */}
+      <div style={{ height: "78px" }} />
+
+      <style jsx>{`
+        @media (max-width: 768px) {
+          .desktop-nav {
+            display: none !important;
+          }
+          .mobile-menu-btn {
+            display: block !important;
+          }
+        }
+      `}</style>
     </>
   );
-});
-
-export default Navbar;
+}
