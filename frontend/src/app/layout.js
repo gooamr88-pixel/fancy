@@ -1,13 +1,19 @@
 import "./globals.css";
-import { Cormorant_Garamond, Lato } from 'next/font/google';
+import { Playfair_Display, Lato } from 'next/font/google';
+import localFont from 'next/font/local';
 
-const cormorant = Cormorant_Garamond({
+/* ═══ Google Fonts — Luxury Typography Stack ═══ */
+
+/* HEADINGS: Elegant Serif Display — for H1, H2, section titles */
+const playfair = Playfair_Display({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-cormorant',
+  weight: ['400', '500', '600', '700', '800', '900'],
+  style: ['normal', 'italic'],
+  variable: '--font-playfair',
   display: 'swap',
 });
 
+/* BODY & BUTTONS: Clean premium Sans-Serif */
 const lato = Lato({
   subsets: ['latin'],
   weight: ['300', '400', '700', '900'],
@@ -24,8 +30,17 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${cormorant.variable} ${lato.variable}`}
+      className={`${playfair.variable} ${lato.variable}`}
     >
+      <head>
+        {/* LOGO SCRIPT FONT: High-end luxury cursive — Great Vibes via Google Fonts CDN */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap"
+          rel="stylesheet"
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

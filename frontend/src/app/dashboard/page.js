@@ -260,7 +260,7 @@ export default function DashboardPage() {
         {/* Logo */}
         <div style={{ padding: '24px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'baseline', gap: '6px', textDecoration: 'none' }}>
-            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 400, fontStyle: 'italic', color: COLORS.gold, lineHeight: 1 }}>Fancy</span>
+            <span style={{ fontFamily: 'var(--font-script)', fontSize: '26px', fontWeight: 400, color: COLORS.gold, lineHeight: 1 }}>Fancy</span>
             <span style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: COLORS.charcoal, letterSpacing: '2.5px', textTransform: 'uppercase', lineHeight: 1 }}>RSVP</span>
           </Link>
         </div>

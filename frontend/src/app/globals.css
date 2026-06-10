@@ -20,9 +20,13 @@
   --card-border: #E8E2D6;
   --section-bg: var(--warm-ivory);
 
-  /* Typography */
-  --font-serif: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
-  --font-sans: var(--font-lato), 'Lato', 'Inter', sans-serif;
+  /* ═══ LUXURY TYPOGRAPHY STACK ═══ */
+  /* Tier 1 — Headings: Elegant Serif Display */
+  --font-serif: var(--font-playfair), 'Playfair Display', Georgia, serif;
+  /* Tier 2 — Body & Buttons: Clean premium Sans-Serif */
+  --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, sans-serif;
+  /* Tier 3 — Logo / Brand Moments: High-end Luxury Script */
+  --font-script: 'Great Vibes', cursive;
 }
 
 @theme inline {
@@ -36,8 +40,9 @@
   --color-card-bg: var(--card-bg);
   --color-card-border: var(--card-border);
   --color-section-bg: var(--section-bg);
-  --font-serif: var(--font-cormorant), 'Cormorant Garamond', Georgia, serif;
-  --font-sans: var(--font-lato), 'Lato', 'Inter', sans-serif;
+  --font-serif: var(--font-playfair), 'Playfair Display', Georgia, serif;
+  --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, sans-serif;
+  --font-script: 'Great Vibes', cursive;
 }
 
 /* ─── Base Reset ─── */
@@ -62,11 +67,29 @@ body {
   overflow-x: hidden;
 }
 
-/* ─── Typography ─── */
+/* ─── Luxury Typography Hierarchy ─── */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-serif);
   color: var(--deep-charcoal);
-  line-height: 1.2;
+  line-height: 1.15;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  font-weight: 500;
 }
 
 /* ─── Selection ─── */

@@ -150,10 +150,9 @@ export default function Navbar() {
             <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
               <span
                 style={{
-                  fontFamily: "var(--font-serif)",
+                  fontFamily: "var(--font-script)",
                   fontSize: "28px",
                   fontWeight: 400,
-                  fontStyle: "italic",
                   color: "#B8944F",
                   lineHeight: 1,
                   letterSpacing: "-0.5px",

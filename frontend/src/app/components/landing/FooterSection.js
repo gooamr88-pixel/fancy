@@ -108,7 +108,7 @@ export default function FooterSection() {
                 lineHeight: '1',
               }}
             >
-              <span style={{ color: '#B8944F' }}>Fancy</span>
+              <span style={{ color: '#B8944F', fontFamily: 'var(--font-script)', fontWeight: 400 }}>Fancy</span>
               <span style={{ color: '#FFFFFF' }}> RSVP</span>
             </div>
             <p

@@ -520,7 +520,7 @@ const DashboardPreviewSection = () => {
                   marginBottom: 14,
                   letterSpacing: 0.5,
                 }}>
-                  <span style={{ color: COLORS.gold }}>Fancy</span> RSVP
+                  <span style={{ color: COLORS.gold, fontFamily: 'var(--font-script)', fontWeight: 400 }}>Fancy</span> RSVP
                 </div>
                 <SidebarItem icon="◫" label="Dashboard" active />
                 <SidebarItem icon="◉" label="Events" />

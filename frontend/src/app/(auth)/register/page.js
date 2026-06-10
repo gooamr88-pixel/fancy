@@ -87,10 +87,9 @@ export default function RegisterPage() {
             </svg>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
               <span style={{
-                fontFamily: 'var(--font-serif), Cormorant Garamond, serif',
-                fontSize: '26px',
-                fontStyle: 'italic',
-                fontWeight: '500',
+                fontFamily: 'var(--font-script)',
+                fontSize: '28px',
+                fontWeight: 400,
                 color: '#B8944F',
                 letterSpacing: '0.02em',
               }}>Fancy</span>
