@@ -884,7 +884,6 @@ const googleRegister = async (req, res, next) => {
           owner_user_id: userId,
           name: name,
           password_hash: null,
-          google_auth: true,
           email_verified: true,
           registration_otp: null,
           registration_otp_expires_at: null,
@@ -900,7 +899,6 @@ const googleRegister = async (req, res, next) => {
           name: name,
           email: email.toLowerCase(),
           password_hash: null,
-          google_auth: true,
           email_verified: true,
         });
 
