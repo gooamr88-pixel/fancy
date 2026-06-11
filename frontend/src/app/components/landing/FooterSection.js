@@ -46,11 +46,13 @@ function FooterLink({ text, href }) {
   );
 }
 
-function SocialIcon({ children, label }) {
+function SocialIcon({ children, label, href = '#' }) {
   const [hovered, setHovered] = useState(false);
   return (
     <a
-      href="#"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
       aria-label={label}
       style={{
         width: '36px',
@@ -87,6 +89,7 @@ export default function FooterSection() {
   const [emailValue, setEmailValue] = useState('');
   const [btnHovered, setBtnHovered] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
 
   return (
     <footer
@@ -218,18 +221,27 @@ export default function FooterSection() {
               <button
                 onMouseEnter={() => setBtnHovered(true)}
                 onMouseLeave={() => setBtnHovered(false)}
+                onClick={() => {
+                  if (emailValue && emailValue.includes('@')) {
+                    setSubscribed(true);
+                    setEmailValue('');
+                  }
+                }}
+                disabled={subscribed}
                 style={{
                   padding: '10px 18px',
                   borderRadius: '8px',
                   border: 'none',
-                  background: btnHovered
-                    ? 'linear-gradient(135deg, #a07f3f 0%, #c9a85e 100%)'
-                    : 'linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)',
+                  background: subscribed
+                    ? 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)'
+                    : btnHovered
+                      ? 'linear-gradient(135deg, #a07f3f 0%, #c9a85e 100%)'
+                      : 'linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)',
                   color: '#FFFFFF',
                   fontFamily: 'var(--font-sans)',
                   fontSize: '13px',
                   fontWeight: '600',
-                  cursor: 'pointer',
+                  cursor: subscribed ? 'default' : 'pointer',
                   transition: 'all 0.25s ease',
                   whiteSpace: 'nowrap',
                   boxShadow: btnHovered
@@ -237,7 +249,7 @@ export default function FooterSection() {
                     : '0 2px 8px rgba(184, 148, 79, 0.2)',
                 }}
               >
-                Subscribe
+                {subscribed ? '✓ Subscribed' : 'Subscribe'}
               </button>
             </div>
           </div>
@@ -269,26 +281,26 @@ export default function FooterSection() {
           {/* Social icons */}
           <div style={{ display: 'flex', gap: '10px' }}>
             {/* Twitter / X */}
-            <SocialIcon label="Twitter">
+            <SocialIcon label="Twitter" href="https://twitter.com/fancyrsvp">
               <path d="M22 4s-1.3.8-3 1.2A4.8 4.8 0 0 0 12 8v1A10.5 10.5 0 0 1 3 4s-4 9 5 13a11.6 11.6 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.1-.9A7.7 7.7 0 0 0 22 4Z" />
             </SocialIcon>
 
             {/* Instagram */}
-            <SocialIcon label="Instagram">
+            <SocialIcon label="Instagram" href="https://instagram.com/fancyrsvp">
               <rect x="2" y="2" width="20" height="20" rx="5" />
               <circle cx="12" cy="12" r="5" />
               <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
             </SocialIcon>
 
             {/* LinkedIn */}
-            <SocialIcon label="LinkedIn">
+            <SocialIcon label="LinkedIn" href="https://linkedin.com/company/fancyrsvp">
               <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6Z" />
               <rect x="2" y="9" width="4" height="12" />
               <circle cx="4" cy="4" r="2" />
             </SocialIcon>
 
             {/* Facebook */}
-            <SocialIcon label="Facebook">
+            <SocialIcon label="Facebook" href="https://facebook.com/fancyrsvp">
               <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
             </SocialIcon>
           </div>

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
@@ -130,7 +130,7 @@ const faqItems = [
   },
 ];
 
-function CategoryCard({ category, index }) {
+function CategoryCard({ category, index, onCategoryClick }) {
   const [hovered, setHovered] = useState(false);
   return (
     <div
@@ -150,6 +150,7 @@ function CategoryCard({ category, index }) {
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={onCategoryClick}
     >
       <div
         style={{
@@ -301,6 +302,14 @@ export default function HelpCenter() {
   const [searchQuery, setSearchQuery] = useState("");
   const [openFaq, setOpenFaq] = useState(null);
   const [searchFocused, setSearchFocused] = useState(false);
+  const searchInputRef = useRef(null);
+
+  const scrollToFaq = () => {
+    const faqSection = document.getElementById("faq-section");
+    if (faqSection) {
+      faqSection.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   const filteredCategories = categories.filter(
     (cat) =>
@@ -422,6 +431,7 @@ export default function HelpCenter() {
                   color: "#191B1E",
                   background: "transparent",
                 }}
+                ref={searchInputRef}
               />
               <button
                 className="btn-gold"
@@ -432,6 +442,7 @@ export default function HelpCenter() {
                   borderRadius: "8px",
                   flexShrink: 0,
                 }}
+                onClick={() => searchInputRef.current && searchInputRef.current.focus()}
               >
                 Search
               </button>
@@ -490,7 +501,7 @@ export default function HelpCenter() {
 
           <div className="category-grid">
             {filteredCategories.map((cat, i) => (
-              <CategoryCard key={cat.title} category={cat} index={i} />
+              <CategoryCard key={cat.title} category={cat} index={i} onCategoryClick={scrollToFaq} />
             ))}
           </div>
 
@@ -505,6 +516,7 @@ export default function HelpCenter() {
 
         {/* ── Popular Articles / FAQ ── */}
         <section
+          id="faq-section"
           style={{
             background: "#FAF7F0",
             padding: "80px 24px",

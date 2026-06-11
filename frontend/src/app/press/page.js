@@ -15,35 +15,35 @@ const mediaMentions = [
     headline: "Fancy RSVP Raises $12M to Reimagine Event Experiences",
     date: "March 2025",
     excerpt: "The luxury event-tech startup is using AI and premium design to transform how people RSVP to life's most important moments.",
-    url: "#",
+    url: "https://techcrunch.com",
   },
   {
     publication: "Forbes",
     headline: "How Fancy RSVP Turned Wedding RSVPs Into a $50M Business",
     date: "January 2025",
     excerpt: "Co-founder Sarah Laurent shares how a frustrating wedding planning experience led to building the most elegant RSVP platform on the market.",
-    url: "#",
+    url: "https://forbes.com",
   },
   {
     publication: "Vogue Business",
     headline: "The Digital Luxury Revolution in Event Planning",
     date: "November 2024",
     excerpt: "Fancy RSVP is among a new wave of startups bringing luxury brand sensibilities to previously overlooked digital touchpoints.",
-    url: "#",
+    url: "https://voguebusiness.com",
   },
   {
     publication: "The Knot",
     headline: "Best RSVP Tools of 2025: Fancy RSVP Takes the Crown",
     date: "February 2025",
     excerpt: "Editors chose Fancy RSVP as the top digital RSVP solution for weddings, citing its stunning design and seamless guest experience.",
-    url: "#",
+    url: "https://theknot.com",
   },
   {
     publication: "Product Hunt",
     headline: "#1 Product of the Day — Fancy RSVP 3.0 Launch",
     date: "April 2025",
     excerpt: "The latest version features AI-powered guest management, new premium templates, and multi-language support across 40+ countries.",
-    url: "#",
+    url: "https://producthunt.com",
   },
 ];
 
@@ -79,6 +79,8 @@ function MentionCard({ mention }) {
   return (
     <a
       href={mention.url}
+      target="_blank"
+      rel="noopener noreferrer"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -176,15 +178,18 @@ function MentionCard({ mention }) {
 function DownloadCard({ title, desc, icon }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div
+    <a
+      href={`mailto:press@fancyrsvp.com?subject=${encodeURIComponent("Press Kit: " + title)}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
+        display: "block",
         background: "#FFFFFF",
         border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "14px",
         padding: "32px 28px",
         textAlign: "center",
+        textDecoration: "none",
         transition: "all 0.35s ease",
         transform: hovered ? "translateY(-4px)" : "translateY(0)",
         boxShadow: hovered
@@ -248,7 +253,7 @@ function DownloadCard({ title, desc, icon }) {
         </svg>
         Download
       </span>
-    </div>
+    </a>
   );
 }
 
@@ -781,8 +786,8 @@ export default function PressPage() {
               >
                 Contact Press Team
               </Link>
-              <Link
-                href="#"
+              <a
+                href="mailto:press@fancyrsvp.com?subject=Press%20Kit%20Request"
                 className="btn-outline"
                 style={{
                   padding: "16px 40px",
@@ -790,10 +795,11 @@ export default function PressPage() {
                   borderRadius: "8px",
                   borderColor: "rgba(255,255,255,0.25)",
                   color: "#FFFFFF",
+                  textDecoration: "none",
                 }}
               >
                 Download Full Press Kit
-              </Link>
+              </a>
             </div>
           </div>
         </section>

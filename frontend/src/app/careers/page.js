@@ -258,8 +258,8 @@ function JobCard({ job }) {
           ))}
         </div>
       </div>
-      <Link
-        href="#"
+      <a
+        href={`mailto:careers@fancyrsvp.com?subject=${encodeURIComponent("Application: " + job.title)}`}
         className="btn-gold"
         style={{
           padding: "12px 32px",
@@ -267,10 +267,11 @@ function JobCard({ job }) {
           borderRadius: "8px",
           whiteSpace: "nowrap",
           flexShrink: 0,
+          textDecoration: "none",
         }}
       >
         Apply Now
-      </Link>
+      </a>
     </div>
   );
 }

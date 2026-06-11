@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
@@ -109,7 +109,6 @@ function ArticleCard({ article }) {
         boxShadow: hovered
           ? "0 16px 48px rgba(184,148,79,0.12)"
           : "0 2px 12px rgba(0,0,0,0.03)",
-        cursor: "pointer",
         display: "flex",
         flexDirection: "column",
       }}
@@ -206,6 +205,23 @@ function ArticleCard({ article }) {
             {article.readTime}
           </span>
         </div>
+        <Link
+          href="/register?from=blog"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            fontFamily: "var(--font-sans)",
+            fontSize: "13px",
+            fontWeight: 700,
+            color: "#B8944F",
+            textDecoration: "none",
+            marginTop: "16px",
+            transition: "color 0.2s ease",
+          }}
+        >
+          Read Full Article →
+        </Link>
       </div>
     </div>
   );
@@ -215,6 +231,12 @@ export default function BlogPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [emailValue, setEmailValue] = useState("");
   const [emailFocused, setEmailFocused] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleSubscribe = useCallback(() => {
+    if (!emailValue.trim()) return;
+    setSubscribed(true);
+  }, [emailValue]);
 
   const filteredArticles =
     activeCategory === "All"
@@ -411,6 +433,28 @@ export default function BlogPage() {
                     {featuredArticle.readTime}
                   </span>
                 </div>
+                <Link
+                  href="/register?from=blog"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    color: "#B8944F",
+                    textDecoration: "none",
+                    marginTop: "24px",
+                    padding: "12px 28px",
+                    borderRadius: "8px",
+                    border: "1.5px solid rgba(184,148,79,0.4)",
+                    alignSelf: "flex-start",
+                    transition: "all 0.3s ease",
+                    background: "transparent",
+                  }}
+                >
+                  Read More →
+                </Link>
               </div>
             </div>
           </div>
@@ -548,14 +592,18 @@ export default function BlogPage() {
               />
               <button
                 className="btn-gold"
+                onClick={handleSubscribe}
+                disabled={subscribed}
                 style={{
                   padding: "15px 32px",
                   fontSize: "14px",
                   borderRadius: "10px",
                   whiteSpace: "nowrap",
+                  opacity: subscribed ? 0.8 : 1,
+                  cursor: subscribed ? "default" : "pointer",
                 }}
               >
-                Subscribe
+                {subscribed ? "Subscribed! ✓" : "Subscribe"}
               </button>
             </div>
             <p

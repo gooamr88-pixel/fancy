@@ -213,8 +213,10 @@ function IntegrationCard({ integration }) {
         {integration.description}
       </p>
 
-      <button
+      <Link
+        href="/register"
         style={{
+          display: "inline-block",
           padding: "10px 24px",
           borderRadius: "8px",
           border: `1.5px solid ${hovered ? integration.color : "#E8E2D6"}`,
@@ -227,10 +229,11 @@ function IntegrationCard({ integration }) {
           transition: "all 0.3s ease",
           alignSelf: "flex-start",
           letterSpacing: "0.3px",
+          textDecoration: "none",
         }}
       >
         Connect →
-      </button>
+      </Link>
     </div>
   );
 }

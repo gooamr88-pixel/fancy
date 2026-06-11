@@ -162,109 +162,111 @@ function TemplateCard({ template }) {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        borderRadius: "16px",
-        overflow: "hidden",
-        border: `1px solid ${hovered ? "#B8944F" : "#E8E2D6"}`,
-        transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        transform: hovered ? "translateY(-6px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 20px 60px rgba(184,148,79,0.12), 0 8px 24px rgba(0,0,0,0.04)"
-          : "0 2px 12px rgba(0,0,0,0.03)",
-        background: "#FFFFFF",
-        cursor: "pointer",
-      }}
-    >
-      {/* Preview area */}
+    <Link href="/register" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
       <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         style={{
-          height: "240px",
-          background: template.gradient,
-          position: "relative",
+          borderRadius: "16px",
           overflow: "hidden",
+          border: `1px solid ${hovered ? "#B8944F" : "#E8E2D6"}`,
+          transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+          transform: hovered ? "translateY(-6px)" : "translateY(0)",
+          boxShadow: hovered
+            ? "0 20px 60px rgba(184,148,79,0.12), 0 8px 24px rgba(0,0,0,0.04)"
+            : "0 2px 12px rgba(0,0,0,0.03)",
+          background: "#FFFFFF",
+          cursor: "pointer",
         }}
       >
-        <TemplatePreview template={template} />
-
-        {/* Hover overlay */}
+        {/* Preview area */}
         <div
           style={{
-            position: "absolute",
-            inset: 0,
-            background: hovered ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.4s ease",
+            height: "240px",
+            background: template.gradient,
+            position: "relative",
+            overflow: "hidden",
           }}
         >
-          <span
+          <TemplatePreview template={template} />
+
+          {/* Hover overlay */}
+          <div
             style={{
-              padding: "12px 32px",
-              borderRadius: "8px",
-              background: "linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)",
-              color: "#FFFFFF",
-              fontFamily: "var(--font-sans)",
-              fontSize: "14px",
-              fontWeight: 700,
-              opacity: hovered ? 1 : 0,
-              transform: hovered ? "translateY(0)" : "translateY(10px)",
-              transition: "all 0.3s ease",
-              letterSpacing: "0.5px",
+              position: "absolute",
+              inset: 0,
+              background: hovered ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "all 0.4s ease",
             }}
           >
-            Preview Template
-          </span>
+            <span
+              style={{
+                padding: "12px 32px",
+                borderRadius: "8px",
+                background: "linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)",
+                color: "#FFFFFF",
+                fontFamily: "var(--font-sans)",
+                fontSize: "14px",
+                fontWeight: 700,
+                opacity: hovered ? 1 : 0,
+                transform: hovered ? "translateY(0)" : "translateY(10px)",
+                transition: "all 0.3s ease",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Use This Template
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* Card info */}
-      <div style={{ padding: "24px 28px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-          <h3
+        {/* Card info */}
+        <div style={{ padding: "24px 28px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+            <h3
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "20px",
+                fontWeight: 600,
+                color: "#191B1E",
+                margin: 0,
+              }}
+            >
+              {template.name}
+            </h3>
+            <span
+              style={{
+                padding: "4px 14px",
+                borderRadius: "100px",
+                background: "rgba(184,148,79,0.08)",
+                border: "1px solid rgba(184,148,79,0.15)",
+                fontFamily: "var(--font-sans)",
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "#B8944F",
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+              }}
+            >
+              {template.category}
+            </span>
+          </div>
+          <p
             style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: "20px",
-              fontWeight: 600,
-              color: "#191B1E",
+              fontFamily: "var(--font-sans)",
+              fontSize: "14px",
+              color: "#5E5A52",
+              lineHeight: 1.6,
               margin: 0,
             }}
           >
-            {template.name}
-          </h3>
-          <span
-            style={{
-              padding: "4px 14px",
-              borderRadius: "100px",
-              background: "rgba(184,148,79,0.08)",
-              border: "1px solid rgba(184,148,79,0.15)",
-              fontFamily: "var(--font-sans)",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "#B8944F",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-            }}
-          >
-            {template.category}
-          </span>
+            {template.description}
+          </p>
         </div>
-        <p
-          style={{
-            fontFamily: "var(--font-sans)",
-            fontSize: "14px",
-            color: "#5E5A52",
-            lineHeight: 1.6,
-            margin: 0,
-          }}
-        >
-          {template.description}
-        </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
