@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -42,6 +42,359 @@ import Image from "next/image";
    │  [Explore All Features]       └─────────────────────────┘    │
    └──────────────────────────────────────────────────────────────┘
    ═══════════════════════════════════════════════════════════════ */
+
+/* ═══ Interactive Hero Card Component ═══ */
+function HeroCard() {
+  const [flipped, setFlipped] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // Auto-flip after 6s for users who don't click
+  useEffect(() => {
+    if (!mounted) return;
+    const t = setTimeout(() => { if (!flipped) setFlipped(true); }, 6000);
+    return () => clearTimeout(t);
+  }, [mounted, flipped]);
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 14;
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * -14;
+    setTilt({ x, y });
+  };
+  const handleMouseLeave = () => setTilt({ x: 0, y: 0 });
+
+  if (!mounted) return <div style={{ width: '100%', maxWidth: 480, aspectRatio: '3/4' }} />;
+
+  return (
+    <div className="hero-card-wrap animate-slide-in-right">
+      {/* Ambient glow */}
+      <div className="hc-glow" />
+
+      {/* Floating gold particles */}
+      <div className="hc-particles">
+        {Array.from({ length: 8 }, (_, i) => (
+          <div key={i} className="hc-particle" style={{
+            left: `${12 + Math.random() * 76}%`,
+            top: `${10 + Math.random() * 80}%`,
+            animationDelay: `${Math.random() * 5}s`,
+            animationDuration: `${4 + Math.random() * 4}s`,
+            width: `${3 + Math.random() * 5}px`,
+            height: `${3 + Math.random() * 5}px`,
+          }} />
+        ))}
+      </div>
+
+      {/* 3D Card */}
+      <div
+        className="hc-perspective"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onClick={() => setFlipped(!flipped)}
+      >
+        <div
+          className={`hc-card ${flipped ? 'hc-flipped' : ''}`}
+          style={{ transform: `perspective(1200px) rotateX(${tilt.y}deg) rotateY(${tilt.x}deg)` }}
+        >
+          {/* ── FRONT ── */}
+          <div className="hc-face hc-front">
+            <img src="/images/demo-venue.png" alt="" className="hc-bg" />
+            <div className="hc-overlay" />
+            <div className="hc-shimmer" />
+            <div className="hc-frame">
+              <div className="hc-frame-inner">
+                {/* Corner SVGs */}
+                <svg className="hcf-c hcf-tl" width="28" height="28" viewBox="0 0 28 28"><path d="M2 26C2 12 12 2 26 2" stroke="#D7BE80" strokeWidth="1.2" fill="none"/><circle cx="26" cy="2" r="1.5" fill="#D7BE80" opacity=".5"/></svg>
+                <svg className="hcf-c hcf-tr" width="28" height="28" viewBox="0 0 28 28"><path d="M26 26C26 12 16 2 2 2" stroke="#D7BE80" strokeWidth="1.2" fill="none"/><circle cx="2" cy="2" r="1.5" fill="#D7BE80" opacity=".5"/></svg>
+                <svg className="hcf-c hcf-bl" width="28" height="28" viewBox="0 0 28 28"><path d="M2 2C2 16 12 26 26 26" stroke="#D7BE80" strokeWidth="1.2" fill="none"/><circle cx="26" cy="26" r="1.5" fill="#D7BE80" opacity=".5"/></svg>
+                <svg className="hcf-c hcf-br" width="28" height="28" viewBox="0 0 28 28"><path d="M26 2C26 16 16 26 2 26" stroke="#D7BE80" strokeWidth="1.2" fill="none"/><circle cx="2" cy="26" r="1.5" fill="#D7BE80" opacity=".5"/></svg>
+
+                <div className="hc-content">
+                  <div className="hc-orn"><span className="hc-ln"/><span className="hc-st">✦</span><span className="hc-ln"/></div>
+                  <p className="hc-lbl">THE WEDDING CELEBRATION OF</p>
+                  <h2 className="hc-names">
+                    <span className="hc-script">Sophia</span>
+                    <span className="hc-and">&</span>
+                    <span className="hc-script">Alexander</span>
+                  </h2>
+                  <div className="hc-div"><span/><span className="hc-dm">◆</span><span/></div>
+                  <p className="hc-date">SEPTEMBER 20, 2025</p>
+                  <p className="hc-venue">THE GRAND ROSEWOOD ESTATE</p>
+                  <div className="hc-orn"><span className="hc-ln"/><span className="hc-st">✦</span><span className="hc-ln"/></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── BACK ── */}
+          <div className="hc-face hc-back">
+            <div className="hc-back-inner">
+              <div className="hcb-ornament">✦</div>
+              <p className="hcb-title">RSVP</p>
+              <div className="hcb-line"><span/><span className="hcb-dm">◆</span><span/></div>
+
+              <div className="hcb-field">
+                <label>Guest Name</label>
+                <div className="hcb-input">Sophia & James Mitchell</div>
+              </div>
+
+              <div className="hcb-field">
+                <label>Attendance</label>
+                <div className="hcb-accept">
+                  <span className="hcb-radio-active" />
+                  <span>Joyfully Accepts</span>
+                </div>
+              </div>
+
+              <div className="hcb-field">
+                <label>Number of Guests</label>
+                <div className="hcb-guest-count">
+                  <span className="hcb-cnt-btn">−</span>
+                  <span className="hcb-cnt-num">2</span>
+                  <span className="hcb-cnt-btn">+</span>
+                </div>
+              </div>
+
+              <div className="hcb-field">
+                <label>Dinner Selection</label>
+                <div className="hcb-meal">
+                  <span className="hcb-meal-radio-active" />
+                  <div>
+                    <strong>Filet Mignon</strong>
+                    <small>Herb-crusted, truffle jus</small>
+                  </div>
+                </div>
+              </div>
+
+              <div className="hcb-submit">Response Sent ✓</div>
+              <div className="hcb-ornament">✦</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tap hint */}
+      <p className={`hc-hint ${flipped ? 'hc-hint-dim' : ''}`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        {flipped ? 'Tap to flip back' : 'Tap to reveal RSVP'}
+      </p>
+
+      <style jsx>{`
+        .hero-card-wrap {
+          position: relative; width: 100%; display: flex;
+          flex-direction: column; align-items: center; gap: 16px;
+        }
+        .hc-glow {
+          position: absolute; width: 400px; height: 400px; border-radius: 50%;
+          background: radial-gradient(circle, rgba(184,148,79,.08) 0%, transparent 70%);
+          top: 50%; left: 50%; transform: translate(-50%, -50%);
+          animation: hcGlow 5s ease-in-out infinite; pointer-events: none;
+        }
+        @keyframes hcGlow {
+          0%, 100% { transform: translate(-50%,-50%) scale(1); opacity:1; }
+          50% { transform: translate(-50%,-50%) scale(1.2); opacity:.5; }
+        }
+
+        .hc-particles { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+        .hc-particle {
+          position: absolute; border-radius: 50%;
+          background: radial-gradient(circle, rgba(215,190,128,.6) 0%, transparent 70%);
+          animation: hcFloat ease-in-out infinite alternate;
+        }
+        @keyframes hcFloat { 0% { transform: translateY(0) scale(1); opacity:.4; } 100% { transform: translateY(-16px) scale(1.2); opacity:.15; } }
+
+        /* Perspective container */
+        .hc-perspective {
+          width: 100%; max-width: 400px; aspect-ratio: 3/4;
+          cursor: pointer; position: relative; z-index: 2;
+        }
+        .hc-card {
+          width: 100%; height: 100%;
+          transform-style: preserve-3d;
+          transition: transform .8s cubic-bezier(.4,0,.2,1);
+          position: relative;
+        }
+        .hc-flipped { transform: perspective(1200px) rotateY(180deg) !important; }
+
+        .hc-face {
+          position: absolute; inset: 0;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+
+        /* ── FRONT ── */
+        .hc-front {
+          overflow: hidden;
+          box-shadow: 0 30px 60px rgba(0,0,0,.12), 0 0 0 1px rgba(215,190,128,.12);
+        }
+        .hc-bg {
+          position: absolute; inset: 0; width: 100%; height: 100%;
+          object-fit: cover; filter: brightness(.3) saturate(.8);
+        }
+        .hc-overlay {
+          position: absolute; inset: 0;
+          background: linear-gradient(180deg, rgba(10,10,12,.2) 0%, rgba(10,10,12,.05) 40%, rgba(10,10,12,.05) 60%, rgba(10,10,12,.3) 100%);
+        }
+        .hc-shimmer {
+          position: absolute; inset: 0; z-index: 3; pointer-events: none;
+          background: linear-gradient(105deg, transparent 40%, rgba(215,190,128,.06) 45%, rgba(215,190,128,.12) 50%, rgba(215,190,128,.06) 55%, transparent 60%);
+          background-size: 300% 100%;
+          animation: hcShimmer 4s ease-in-out infinite;
+        }
+        @keyframes hcShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .hc-frame { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+        .hc-frame-inner {
+          position: absolute; inset: 16px;
+          border: 1px solid rgba(215,190,128,.3);
+        }
+        .hc-frame-inner::after {
+          content: ''; position: absolute; inset: 4px;
+          border: 1px solid rgba(215,190,128,.12); pointer-events: none;
+        }
+
+        .hcf-c { position: absolute; z-index: 2; }
+        .hcf-tl { top: -1px; left: -1px; }
+        .hcf-tr { top: -1px; right: -1px; }
+        .hcf-bl { bottom: -1px; left: -1px; }
+        .hcf-br { bottom: -1px; right: -1px; }
+
+        .hc-content {
+          position: relative; z-index: 4;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          height: 100%; padding: 40px 28px; text-align: center;
+        }
+        .hc-orn { display: flex; align-items: center; gap: 10px; margin: 16px 0; }
+        .hc-ln { width: 32px; height: 1px; background: linear-gradient(90deg, transparent, rgba(215,190,128,.5), transparent); }
+        .hc-st { color: #D7BE80; font-size: 10px; opacity: .7; }
+
+        .hc-lbl {
+          font-size: 8px; font-weight: 700; letter-spacing: .3em;
+          color: rgba(215,190,128,.7); margin: 0 0 16px; font-family: var(--font-sans);
+        }
+        .hc-names { margin: 0; line-height: 1; }
+        .hc-script {
+          font-family: var(--font-script); font-size: 42px; color: #FFFFFF;
+          display: block; text-shadow: 0 2px 16px rgba(184,148,79,.2);
+        }
+        .hc-and {
+          font-family: var(--font-serif); font-size: 16px; color: #D7BE80;
+          display: block; font-style: italic; margin: 4px 0;
+        }
+        .hc-div {
+          display: flex; align-items: center; gap: 8px; margin: 16px 0;
+        }
+        .hc-div span:first-child, .hc-div span:last-child {
+          width: 40px; height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(215,190,128,.4), transparent);
+        }
+        .hc-dm { color: #D7BE80; font-size: 7px; opacity: .6; }
+
+        .hc-date {
+          font-size: 9px; font-weight: 700; letter-spacing: .25em;
+          color: rgba(255,255,255,.6); margin: 0 0 4px; font-family: var(--font-sans);
+        }
+        .hc-venue {
+          font-family: var(--font-serif); font-size: 10px; letter-spacing: .18em;
+          color: rgba(215,190,128,.7); margin: 0;
+        }
+
+        /* ── BACK ── */
+        .hc-back {
+          transform: rotateY(180deg);
+          background: linear-gradient(170deg, #FFFDF9 0%, #FBF8F2 40%, #F8F4EC 100%);
+          box-shadow: 0 30px 60px rgba(0,0,0,.12), 0 0 0 1px rgba(215,190,128,.15);
+          overflow: hidden;
+        }
+        .hc-back::before {
+          content: ''; position: absolute; inset: 0;
+          background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cg fill='%23D7BE80' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+          pointer-events: none;
+        }
+        .hc-back-inner {
+          position: relative; z-index: 1;
+          padding: 28px 24px; height: 100%;
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          text-align: center;
+        }
+        .hcb-ornament { color: #D7BE80; font-size: 12px; letter-spacing: 4px; }
+        .hcb-title {
+          font-family: var(--font-serif); font-size: 22px; font-weight: 600;
+          color: #B8944F; letter-spacing: .2em; margin: 8px 0;
+        }
+        .hcb-line { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+        .hcb-line span:first-child, .hcb-line span:last-child { width: 40px; height: 1px; background: linear-gradient(90deg, transparent, #D7BE80, transparent); }
+        .hcb-dm { color: #D7BE80; font-size: 6px; }
+
+        .hcb-field { width: 100%; text-align: left; margin-bottom: 14px; }
+        .hcb-field label {
+          display: block; font-size: 8px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: .2em; color: #9A9590; margin-bottom: 5px; font-family: var(--font-sans);
+        }
+        .hcb-input {
+          padding: 10px 12px; border: 1px solid #E8E2D6; background: rgba(255,255,255,.6);
+          font-family: var(--font-serif); font-size: 13px; color: #191B1E;
+        }
+        .hcb-accept {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border: 1px solid #B8944F; background: rgba(184,148,79,.04);
+          font-family: var(--font-serif); font-size: 13px; color: #4A4A4A;
+        }
+        .hcb-radio-active {
+          width: 14px; height: 14px; border-radius: 50%;
+          border: 2px solid #B8944F; background: #B8944F;
+          box-shadow: inset 0 0 0 2px #FFFDF9; flex-shrink: 0;
+        }
+        .hcb-guest-count {
+          display: flex; align-items: center; justify-content: center; gap: 16px;
+        }
+        .hcb-cnt-btn {
+          width: 32px; height: 32px; border: 1px solid #E8E2D6;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 14px; color: #77736A; font-family: var(--font-sans);
+        }
+        .hcb-cnt-num {
+          font-family: var(--font-serif); font-size: 20px; font-weight: 700;
+          color: #191B1E; min-width: 24px; text-align: center;
+        }
+        .hcb-meal {
+          display: flex; align-items: flex-start; gap: 10px;
+          padding: 10px 12px; border: 1px solid #B8944F; background: rgba(184,148,79,.04);
+        }
+        .hcb-meal-radio-active {
+          width: 12px; height: 12px; border-radius: 50%;
+          border: 2px solid #B8944F; background: #B8944F;
+          box-shadow: inset 0 0 0 2px #FFFDF9; flex-shrink: 0; margin-top: 2px;
+        }
+        .hcb-meal strong { display: block; font-size: 12px; color: #191B1E; font-family: var(--font-sans); font-weight: 600; }
+        .hcb-meal small { display: block; font-size: 10px; color: #77736A; margin-top: 1px; }
+
+        .hcb-submit {
+          margin-top: 12px; padding: 12px; width: 100%;
+          background: linear-gradient(135deg, #B8944F, #D7BE80); color: #FFF;
+          font-size: 11px; font-weight: 700; text-align: center;
+          font-family: var(--font-sans); letter-spacing: .08em; text-transform: uppercase;
+        }
+
+        .hc-hint {
+          font-size: 11px; font-weight: 500; letter-spacing: .12em;
+          text-transform: uppercase; color: #9A9590;
+          display: flex; align-items: center; gap: 6px;
+          margin: 0; animation: hcHintFloat 3s ease-in-out infinite;
+          transition: opacity .4s;
+        }
+        .hc-hint-dim { opacity: .4; }
+        @keyframes hcHintFloat { 0%,100% { transform:translateY(0); opacity:.7; } 50% { transform:translateY(-3px); opacity:1; } }
+      `}</style>
+    </div>
+  );
+}
 
 export default function HeroSection() {
 
@@ -187,49 +540,8 @@ export default function HeroSection() {
             </div>
           </div>
 
-          {/* ─── Right Column: Hero Image ─── */}
-          <div
-            style={{
-              position: "relative",
-              width: "100%",
-              display: "flex",
-              justifyContent: "flex-end",
-            }}
-            className="animate-slide-in-right"
-          >
-            <div
-              style={{
-                width: "100%",
-                maxWidth: "560px",
-                aspectRatio: "4 / 3",
-                borderRadius: "16px",
-                overflow: "hidden",
-                boxShadow: "0 24px 60px rgba(0,0,0,0.08), 0 8px 20px rgba(0,0,0,0.04)",
-                position: "relative",
-              }}
-            >
-              <Image
-                src="/images/hero-wedding.png"
-                alt="Elegant wedding table setting with golden candelabras and white roses"
-                fill
-                style={{ objectFit: "cover" }}
-                priority
-                sizes="(max-width: 768px) 100vw, 50vw"
-              />
-              {/* Subtle gold gradient overlay at bottom of image */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: "100px",
-                  background: "linear-gradient(to top, rgba(248,244,236,0.4), transparent)",
-                  pointerEvents: "none",
-                }}
-              />
-            </div>
-          </div>
+          {/* ─── Right Column: Interactive Card Preview ─── */}
+          <HeroCard />
         </div>
       </section>
 
