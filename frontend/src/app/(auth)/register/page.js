@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleBtnRef = useRef(null);
+  const googleInitRef = useRef(false);
 
   // OTP verification state
   const [otpStep, setOtpStep] = useState(false);
@@ -62,10 +63,11 @@ export default function RegisterPage() {
   // Load Google Sign-In on mount
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
+    if (!clientId || googleInitRef.current) return;
+    googleInitRef.current = true;
 
-    const loadAndInit = () => {
-      if (!window.google?.accounts?.id) return;
+    const initGoogle = () => {
+      if (!window.google?.accounts?.id || !googleBtnRef.current) return;
       window.google.accounts.id.initialize({
         client_id: clientId,
         callback: async (response) => {
@@ -91,18 +93,18 @@ export default function RegisterPage() {
         },
         ux_mode: 'popup',
       });
-      if (googleBtnRef.current) {
-        googleBtnRef.current.innerHTML = '';
-        window.google.accounts.id.renderButton(googleBtnRef.current, {
-          type: 'standard',
-          size: 'large',
-          width: 300,
-        });
-      }
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'signup_with',
+        shape: 'rectangular',
+        width: googleBtnRef.current.offsetWidth || 360,
+      });
     };
 
     if (window.google?.accounts?.id) {
-      loadAndInit();
+      initGoogle();
     } else {
       const existing = document.getElementById('gsi-script');
       if (!existing) {
@@ -110,27 +112,16 @@ export default function RegisterPage() {
         s.id = 'gsi-script';
         s.src = 'https://accounts.google.com/gsi/client';
         s.async = true;
-        s.onload = loadAndInit;
+        s.onload = () => setTimeout(initGoogle, 100);
         document.head.appendChild(s);
       } else {
         const check = setInterval(() => {
-          if (window.google?.accounts?.id) { clearInterval(check); loadAndInit(); }
+          if (window.google?.accounts?.id) { clearInterval(check); initGoogle(); }
         }, 200);
         setTimeout(() => clearInterval(check), 10000);
       }
     }
   }, [router]);
-
-  const handleGoogleRegister = () => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) { setError('Google Sign-In is not configured.'); return; }
-    const btn = googleBtnRef.current?.querySelector('div[role="button"]');
-    if (btn) {
-      btn.click();
-    } else {
-      setError('Google Sign-In is loading. Please try again.');
-    }
-  };
 
   const handleOtpChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
@@ -394,30 +385,13 @@ export default function RegisterPage() {
             <div style={{ flex: 1, height: '1px', background: 'rgba(184, 148, 79, 0.2)' }} />
           </div>
 
-          {/* Google Sign-Up */}
-          <button
-            type="button"
-            disabled={submitting || googleLoading}
-            onClick={handleGoogleRegister}
-            className="auth-google-btn"
-          >
-            {googleLoading ? (
-              <span className="auth-spinner-row"><span className="auth-spinner" /> Verifying...</span>
-            ) : (
-              <>
-                <svg width="20" height="20" viewBox="0 0 48 48">
-                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                </svg>
-                <span>Sign Up with Google</span>
-              </>
-            )}
-          </button>
-
-          {/* Hidden Google rendered button */}
-          <div ref={googleBtnRef} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, overflow: 'hidden' }} />
+          {/* Google Sign-Up — rendered natively by Google */}
+          {googleLoading && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0' }}>
+              <span className="auth-spinner-row"><span className="auth-spinner" /> Signing up with Google...</span>
+            </div>
+          )}
+          <div ref={googleBtnRef} className="auth-google-container" />
 
           <div className="auth-footer-divider" />
           <p className="auth-footer-text">
@@ -515,17 +489,14 @@ const sharedStyles = `
   .auth-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
   .auth-spinner-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
   .auth-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #FFFFFF; border-radius: 50%; animation: authSpin 0.6s linear infinite; }
-  .auth-google-btn {
-    width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
-    padding: 14px; border-radius: 10px; border: 1px solid rgba(184, 148, 79, 0.25);
-    background: transparent; color: #333; font-family: var(--font-sans), Lato, sans-serif;
-    font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;
+  .auth-google-container {
+    width: 100%; display: flex; justify-content: center; min-height: 44px;
   }
-  .auth-google-btn:hover:not(:disabled) {
-    background: rgba(184, 148, 79, 0.06); border-color: #B8944F;
-    box-shadow: 0 2px 12px rgba(184, 148, 79, 0.15);
+  .auth-google-container:empty::after {
+    content: 'Loading Google Sign-In...';
+    font-size: 13px; color: #999; display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 44px; border: 1px dashed rgba(184, 148, 79, 0.3); border-radius: 10px;
   }
-  .auth-google-btn:disabled { opacity: 0.6; cursor: not-allowed; }
   .auth-footer-divider { width: 40px; height: 1px; background: #E8E2D6; margin: 28px auto 20px; }
   .auth-footer-text { text-align: center; font-size: 13px; color: #77736A; margin: 0; }
   .auth-gold-link { color: #B8944F; font-weight: 700; text-decoration: none; transition: color 0.2s; }
