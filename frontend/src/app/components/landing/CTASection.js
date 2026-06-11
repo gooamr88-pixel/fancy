@@ -170,7 +170,7 @@ export default function CTASection() {
 
           {/* Secondary Button */}
           <a
-            href="#"
+            href="/demo"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
