@@ -45,6 +45,9 @@ sudo apt install certbot python3-certbot-nginx -y
    - `20260610000000_auth_otp.sql`
    - `20260610100000_security_hardening.sql`
    - `20260610200000_performance_indexes.sql`
+   - `20260610300000_cleanup_stored_functions.sql`
+   - `20260611000000_rls_security_fix.sql`
+   - `20260611000001_missing_rpc_functions.sql`
 
 ---
 

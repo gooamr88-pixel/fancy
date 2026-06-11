@@ -81,7 +81,26 @@ const submitPublicRSVP = async (req, res, next) => {
     let rsvp;
 
     if (rsvpId) {
-      // 3. Update existing RSVP record
+      // 3a. Verify the caller owns this RSVP (email must match original submission)
+      if (email) {
+        const { data: existingRsvp } = await supabase
+          .from('rsvps')
+          .select('email')
+          .eq('id', rsvpId)
+          .eq('event_id', event.id)
+          .single();
+
+        if (existingRsvp && existingRsvp.email &&
+            existingRsvp.email.toLowerCase() !== email.toLowerCase()) {
+          return res.status(403).json({
+            success: false,
+            error: 'RSVP_OWNERSHIP_FAILED',
+            message: 'Email does not match the original RSVP submission. You cannot modify this RSVP.'
+          });
+        }
+      }
+
+      // 3b. Update existing RSVP record
       const { data: updatedRsvp, error: rsvpError } = await supabase
         .from('rsvps')
         .update({
@@ -362,6 +381,10 @@ const importGuestsCSV = async (req, res, next) => {
     const parsedRows = parseCSV(csvData);
     if (parsedRows.length === 0) {
       return res.status(400).json({ success: false, error: 'NO_VALID_ROWS', message: 'No valid data rows found in CSV.' });
+    }
+
+    if (parsedRows.length > 500) {
+      return res.status(400).json({ success: false, error: 'CSV_TOO_LARGE', message: 'CSV import limited to 500 rows per batch. Please split your file.' });
     }
 
     const insertRows = parsedRows.map(row => ({

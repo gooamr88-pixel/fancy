@@ -48,6 +48,37 @@ const apiLimiter = rateLimit({
 });
 app.use('/api', apiLimiter);
 
+// Strict rate limiter for authentication endpoints (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15, // 15 attempts per 15 minutes per IP
+  message: {
+    success: false,
+    error: 'TOO_MANY_AUTH_REQUESTS',
+    message: 'Too many authentication attempts. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/register', authLimiter);
+app.use('/api/v1/auth/forgot-password', authLimiter);
+app.use('/api/v1/auth/reset-password', authLimiter);
+
+// Rate limiter for public RSVP submissions
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30, // 30 RSVP submissions per 15 minutes per IP
+  message: {
+    success: false,
+    error: 'TOO_MANY_REQUESTS',
+    message: 'Too many submissions. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/v1/public/events', publicLimiter);
+
 // Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();

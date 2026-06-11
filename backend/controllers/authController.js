@@ -302,13 +302,14 @@ const forgotPassword = async (req, res, next) => {
 
     // 2. Generate 6-digit OTP code
     const otp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes validity
 
-    // 3. Save OTP details to organizations table and reset otp_attempts counter
+    // 3. Save hashed OTP to organizations table and reset otp_attempts counter
     const { error: updateError } = await supabase
       .from('organizations')
       .update({
-        reset_otp: otp,
+        reset_otp: otpHash,
         reset_otp_expires_at: expiresAt,
         otp_attempts: 0
       })
@@ -426,9 +427,10 @@ const resetPassword = async (req, res, next) => {
       });
     }
 
-    // Constant-time comparison to prevent timing attacks
-    const otpMatch = storedOtp.length === otp.length &&
-      crypto.timingSafeEqual(Buffer.from(storedOtp, 'utf8'), Buffer.from(otp, 'utf8'));
+    // Hash the submitted OTP and compare against stored hash (constant-time)
+    const submittedHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const otpMatch = storedOtp.length === submittedHash.length &&
+      crypto.timingSafeEqual(Buffer.from(storedOtp, 'utf8'), Buffer.from(submittedHash, 'utf8'));
 
     if (!otpMatch) {
       // Increment OTP attempts on failure

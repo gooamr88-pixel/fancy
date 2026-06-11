@@ -51,8 +51,9 @@ export default function EventPage({ params }) {
         }
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-        const passwordParam = password ? `?password=${encodeURIComponent(password)}` : '';
-        const res = await fetch(`${apiUrl}/public/events/${slug}${passwordParam}`);
+        const headers = {};
+        if (password) headers['x-event-password'] = password;
+        const res = await fetch(`${apiUrl}/public/events/${slug}`, { headers });
         
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));

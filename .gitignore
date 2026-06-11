@@ -1,2 +1,11 @@
-node_modules/ 
-.next/ 
+node_modules/
+.next/
+.env
+.env.local
+.env.production
+.env.*.local
+backend/.env
+frontend/.env
+frontend/.env.local
+*.log
+logs/

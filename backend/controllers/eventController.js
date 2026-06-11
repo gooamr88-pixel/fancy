@@ -131,6 +131,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         dress_code,
         rsvp_deadline,
         privacy_mode,
+        access_password,
         cover_image_url,
         gallery_urls,
         custom_colors,
@@ -164,7 +165,9 @@ const getPublicEventBySlug = async (req, res, next) => {
 
     if (event.privacy_mode === 'password') {
       const providedPassword = req.query.password || req.headers['x-event-password'];
-      if (!providedPassword || providedPassword !== event.access_password) {
+      if (!providedPassword || !event.access_password ||
+          providedPassword.length !== event.access_password.length ||
+          !require('crypto').timingSafeEqual(Buffer.from(providedPassword, 'utf8'), Buffer.from(event.access_password, 'utf8'))) {
         // Don't expose whether event exists, just return password required
         return res.status(401).json({
           success: false,
@@ -244,25 +247,25 @@ const updateEvent = async (req, res, next) => {
     }
   }
 
-  // Slug uniqueness check if slug is being updated
-  if (filteredUpdates.slug) {
-    const { data: existingEvent } = await supabase
-      .from('events')
-      .select('id')
-      .eq('slug', filteredUpdates.slug)
-      .neq('id', eventId)
-      .limit(1);
-
-    if (existingEvent && existingEvent.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: 'SLUG_TAKEN',
-        message: 'This event URL slug is already taken by another event.'
-      });
-    }
-  }
-
   try {
+    // Slug uniqueness check if slug is being updated
+    if (filteredUpdates.slug) {
+      const { data: existingEvent } = await supabase
+        .from('events')
+        .select('id')
+        .eq('slug', filteredUpdates.slug)
+        .neq('id', eventId)
+        .limit(1);
+
+      if (existingEvent && existingEvent.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: 'SLUG_TAKEN',
+          message: 'This event URL slug is already taken by another event.'
+        });
+      }
+    }
+
     const { data: event, error } = await supabase
       .from('events')
       .update({ ...filteredUpdates, updated_at: new Date() })

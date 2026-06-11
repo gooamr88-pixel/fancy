@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '../../utils/apiClient';
 
 export default function RegisterPage() {
   const [name, setName] = useState('');
@@ -13,7 +14,7 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const router = useRouter();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,17 +24,10 @@ export default function RegisterPage() {
     setError(null);
 
     try {
-      const res = await fetch(`${apiUrl}/auth/register`, {
+      const data = await apiFetch('/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, orgName, email, password })
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Registration failed.');
-      }
 
       if (data.success) {
         // Save session credentials

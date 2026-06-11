@@ -39,6 +39,7 @@ function RSVPFormContent({ slug }) {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
   useEffect(() => { setSearchPerformed(false); setSearchResults([]); setRsvpId(null); }, [guestName]);
 
@@ -143,6 +144,24 @@ function RSVPFormContent({ slug }) {
   const isContinueDisabled = partySize > 1 && additionalGuests.some(g => !g.fullName || !g.fullName.trim());
 
   const handleSubmit = async () => {
+    // Client-side validation
+    const errors = {};
+    if (!guestName.trim()) errors.guestName = 'Name is required';
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format';
+    if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
+    if (attending === 'yes') {
+      const requiredFields = event.rsvp_form_fields?.filter(f => f.is_required) || [];
+      requiredFields.forEach(field => {
+        if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
+          errors[`field_${field.id}`] = `${field.field_label} is required`;
+        }
+      });
+    }
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    setValidationErrors({});
     setSubmitting(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
@@ -207,8 +226,8 @@ function RSVPFormContent({ slug }) {
               <div>
                 <label style={S.labelBase}>{t.enter_name}</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input type="text" value={guestName} onChange={e => setGuestName(e.target.value)} placeholder={t.name_placeholder} disabled={searching}
-                    style={{ ...S.inputBase, flex: 1 }} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
+                  <input type="text" value={guestName} onChange={e => { setGuestName(e.target.value); setValidationErrors(prev => { const n = {...prev}; delete n.guestName; return n; }); }} placeholder={t.name_placeholder} disabled={searching}
+                    style={{ ...S.inputBase, flex: 1, ...(validationErrors.guestName ? { borderColor: '#C45E5E' } : {}) }} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = validationErrors.guestName ? '#C45E5E' : '#E8E2D6'} />
                   {!searchPerformed && (
                     <button disabled={!guestName.trim() || searching} onClick={handleSearchName} style={S.goldBtn(!guestName.trim() || searching)}>
                       {searching ? '...' : (isRTL ? 'بحث' : 'Search')}
@@ -370,9 +389,10 @@ function RSVPFormContent({ slug }) {
                   return (
                     <div key={field.id}>
                       <label style={S.labelBase}>{label} {field.is_required && <span style={{ color: '#C45E5E' }}>*</span>}</label>
+                      {validationErrors[`field_${field.id}`] && <span style={{ fontSize: '11px', color: '#C45E5E', display: 'block', marginBottom: '4px' }}>{validationErrors[`field_${field.id}`]}</span>}
                       {field.field_type === 'text' && (
-                        <input type="text" value={customAnswers[field.id] || ''} onChange={e => setCustomAnswers({ ...customAnswers, [field.id]: e.target.value })}
-                          style={S.inputBase} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
+                        <input type="text" value={customAnswers[field.id] || ''} onChange={e => { setCustomAnswers({ ...customAnswers, [field.id]: e.target.value }); setValidationErrors(prev => { const n = {...prev}; delete n[`field_${field.id}`]; return n; }); }}
+                          style={{ ...S.inputBase, ...(validationErrors[`field_${field.id}`] ? { borderColor: '#C45E5E' } : {}) }} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = validationErrors[`field_${field.id}`] ? '#C45E5E' : '#E8E2D6'} />
                       )}
                       {field.field_type === 'select' && (
                         <select value={customAnswers[field.id] || ''} onChange={e => setCustomAnswers({ ...customAnswers, [field.id]: e.target.value })} style={{ ...S.inputBase, cursor: 'pointer' }}>
@@ -393,6 +413,11 @@ function RSVPFormContent({ slug }) {
                   style={{ ...S.inputBase, resize: 'vertical', minHeight: '80px' }} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
               </div>
 
+              {Object.keys(validationErrors).length > 0 && (
+                <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', fontSize: '12px', color: '#C45E5E', marginBottom: '8px' }}>
+                  ⚠️ {isRTL ? 'يرجى ملء جميع الحقول المطلوبة.' : 'Please fill in all required fields before submitting.'}
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
                 <button onClick={() => setStep(attending === 'yes' ? 3 : 2)} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>
                 <button disabled={submitting} onClick={handleSubmit} style={S.goldBtn(submitting)}>{submitting ? t.submitting : t.submit_rsvp}</button>

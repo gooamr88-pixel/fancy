@@ -193,12 +193,19 @@ export default function CheckInPage() {
                 </div>
               </div>
               {!selectedGuest.isCheckedIn && (
-                <button disabled={selectedGuest.tableName === 'Unassigned'} onClick={() => handleManualCheckIn(selectedGuest.id)}
-                  style={{ width: '100%', padding: '16px', background: C.gold, borderRadius: '10px', fontWeight: 700, fontSize: '15px', border: 'none', cursor: 'pointer', color: C.white, fontFamily: 'var(--font-sans)', opacity: selectedGuest.tableName === 'Unassigned' ? 0.5 : 1, transition: 'all 0.3s' }}
-                  onMouseEnter={e => { if (selectedGuest.tableName !== 'Unassigned') e.target.style.background = C.goldHover; }}
-                  onMouseLeave={e => e.target.style.background = C.gold}>
-                  Confirm Check-In ({selectedGuest.partySize} guests)
-                </button>
+                <>
+                  {selectedGuest.tableName === 'Unassigned' && (
+                    <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#C45E5E', fontWeight: 500 }}>
+                      <span>⚠️</span> This guest has no table assignment. They will be checked in as a walk-in.
+                    </div>
+                  )}
+                  <button onClick={() => handleManualCheckIn(selectedGuest.id)}
+                    style={{ width: '100%', padding: '16px', background: C.gold, borderRadius: '10px', fontWeight: 700, fontSize: '15px', border: 'none', cursor: 'pointer', color: C.white, fontFamily: 'var(--font-sans)', transition: 'all 0.3s' }}
+                    onMouseEnter={e => e.target.style.background = C.goldHover}
+                    onMouseLeave={e => e.target.style.background = C.gold}>
+                    {selectedGuest.tableName === 'Unassigned' ? `Walk-In Check-In (${selectedGuest.partySize} guests)` : `Confirm Check-In (${selectedGuest.partySize} guests)`}
+                  </button>
+                </>
               )}
             </div>
           )}

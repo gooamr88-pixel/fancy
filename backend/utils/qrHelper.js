@@ -8,8 +8,17 @@ if (!QR_JWT_SECRET) throw new Error('FATAL: QR_JWT_SECRET environment variable i
  * Generates a signed JWT payload representing the guest's ticket.
  */
 const generateTicketToken = (payload) => {
-  // Signs standard details: guest_id (rsvp_id), event_id, table_id, etc.
-  return jwt.sign(payload, QR_JWT_SECRET, { expiresIn: '30d' }); // Valid for 30 days
+  // Compute expiry based on event date (if provided) + 1 day buffer, otherwise fallback to 30 days
+  let expiresIn = '30d';
+  if (payload.event_date) {
+    const eventDateMs = new Date(payload.event_date).getTime();
+    const bufferMs = 24 * 60 * 60 * 1000; // 1 day after event
+    const expiryMs = (eventDateMs + bufferMs) - Date.now();
+    if (expiryMs > 0) {
+      expiresIn = Math.ceil(expiryMs / 1000); // seconds until event_date + 1 day
+    }
+  }
+  return jwt.sign(payload, QR_JWT_SECRET, { expiresIn });
 };
 
 /**
@@ -17,7 +26,7 @@ const generateTicketToken = (payload) => {
  */
 const verifyTicketToken = (token) => {
   try {
-    return jwt.verify(token, QR_JWT_SECRET);
+    return jwt.verify(token, QR_JWT_SECRET, { algorithms: ['HS256'] });
   } catch (err) {
     throw new Error('INVALID_QR_TICKET');
   }

@@ -10,7 +10,8 @@ const router = express.Router();
 router.post('/register', [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
-  body('name').trim().notEmpty().withMessage('Organization name is required'),
+  body('name').trim().notEmpty().withMessage('Your name is required'),
+  body('orgName').trim().notEmpty().isLength({ max: 200 }).withMessage('Organization name is required (max 200 chars)'),
   validate
 ], authController.register);
 

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '../../utils/apiClient';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -11,7 +12,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const router = useRouter();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,17 +22,10 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const res = await fetch(`${apiUrl}/auth/login`, {
+      const data = await apiFetch('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Login failed.');
-      }
 
       if (data.success) {
         // Save session credentials

@@ -42,24 +42,7 @@ const scanCheckIn = async (req, res, next) => {
       });
     }
 
-    // 3. Check if already checked in
-    const { data: existingCheckIn } = await supabase
-      .from('check_ins')
-      .select('id, checked_in_at')
-      .eq('event_id', eventId)
-      .eq('rsvp_id', guest_id)
-      .single();
-
-    if (existingCheckIn) {
-      return res.status(409).json({
-        success: false,
-        error: 'ALREADY_CHECKED_IN',
-        message: `Guest already checked in at ${new Date(existingCheckIn.checked_in_at).toLocaleTimeString()}`,
-        checkedInAt: existingCheckIn.checked_in_at
-      });
-    }
-
-    // 4. Perform check-in (atomic)
+    // 3. Perform check-in (insert directly, handle duplicate via DB UNIQUE constraint)
     const { data: checkInData, error: checkInError } = await supabase
       .from('check_ins')
       .insert({
@@ -73,6 +56,22 @@ const scanCheckIn = async (req, res, next) => {
       .single();
 
     if (checkInError) {
+      // Handle duplicate check-in (UNIQUE constraint violation)
+      if (checkInError.code === '23505') {
+        const { data: existingCheckIn } = await supabase
+          .from('check_ins')
+          .select('id, checked_in_at')
+          .eq('event_id', eventId)
+          .eq('rsvp_id', guest_id)
+          .single();
+
+        return res.status(409).json({
+          success: false,
+          error: 'ALREADY_CHECKED_IN',
+          message: `Guest already checked in at ${existingCheckIn ? new Date(existingCheckIn.checked_in_at).toLocaleTimeString() : 'an earlier time'}`,
+          checkedInAt: existingCheckIn?.checked_in_at
+        });
+      }
       return res.status(500).json({
         success: false,
         error: 'CHECKIN_FAILED',
@@ -138,23 +137,7 @@ const manualCheckIn = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'GUEST_NOT_FOUND', message: 'Guest not found.' });
     }
 
-    // 2. Check if already checked in
-    const { data: existingCheckIn } = await supabase
-      .from('check_ins')
-      .select('id, checked_in_at')
-      .eq('event_id', eventId)
-      .eq('rsvp_id', rsvpId)
-      .single();
-
-    if (existingCheckIn) {
-      return res.status(409).json({
-        success: false,
-        error: 'ALREADY_CHECKED_IN',
-        message: 'Guest already checked in.'
-      });
-    }
-
-    // 3. Record check-in
+    // 2. Record check-in (insert directly, handle duplicate via DB UNIQUE constraint)
     const tableName = guestData.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
     
     const { data: checkInData, error: checkInError } = await supabase
@@ -170,6 +153,14 @@ const manualCheckIn = async (req, res, next) => {
       .single();
 
     if (checkInError) {
+      // Handle duplicate check-in (UNIQUE constraint violation)
+      if (checkInError.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          error: 'ALREADY_CHECKED_IN',
+          message: 'Guest already checked in.'
+        });
+      }
       return res.status(500).json({ success: false, error: 'CHECKIN_FAILED' });
     }
 

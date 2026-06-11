@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { apiFetch } from '../../utils/apiClient';
 
 const inputStyle = {
   width: '100%', boxSizing: 'border-box', padding: '12px 16px', background: '#FFFFFF',
@@ -18,16 +19,14 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
 
   const handleRequestOtp = async (e) => {
     e.preventDefault();
     if (!email) return;
     setSubmitting(true); setError(null);
     try {
-      const res = await fetch(`${apiUrl}/auth/forgot-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to request OTP code.');
+      const data = await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
       if (data.success) setStep(2);
     } catch (err) { setError(err.message); } finally { setSubmitting(false); }
   };
@@ -38,9 +37,7 @@ export default function ForgotPasswordPage() {
     if (newPassword !== confirmPassword) { setError('Passwords do not match.'); return; }
     setSubmitting(true); setError(null);
     try {
-      const res = await fetch(`${apiUrl}/auth/reset-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, otp, newPassword, confirmPassword }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to reset password.');
+      const data = await apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, otp, newPassword, confirmPassword }) });
       if (data.success) setStep(3);
     } catch (err) { setError(err.message); } finally { setSubmitting(false); }
   };

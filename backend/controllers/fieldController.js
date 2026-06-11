@@ -69,6 +69,43 @@ const saveField = async (req, res, next) => {
 };
 
 /**
+ * Updates an existing custom RSVP form field.
+ * PATCH /api/v1/events/:eventId/fields/:fieldId
+ */
+const updateField = async (req, res, next) => {
+  const { eventId, fieldId } = req.params;
+  const { fieldLabel, fieldType, options, isRequired, sortOrder } = req.body;
+
+  const updates = {};
+  if (fieldLabel !== undefined) updates.field_label = fieldLabel;
+  if (fieldType !== undefined) updates.field_type = fieldType;
+  if (options !== undefined) updates.options = options;
+  if (isRequired !== undefined) updates.is_required = !!isRequired;
+  if (sortOrder !== undefined) updates.sort_order = parseInt(sortOrder) || 0;
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ success: false, error: 'NO_UPDATES', message: 'No fields to update.' });
+  }
+
+  try {
+    const { data: field, error } = await supabase
+      .from('rsvp_form_fields')
+      .update(updates)
+      .eq('id', fieldId)
+      .eq('event_id', eventId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!field) return res.status(404).json({ success: false, error: 'FIELD_NOT_FOUND' });
+
+    return res.json({ success: true, message: 'Field updated successfully.', field });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Deletes a custom RSVP form field.
  * DELETE /api/v1/events/:eventId/fields/:fieldId
  */
@@ -96,5 +133,6 @@ const deleteField = async (req, res, next) => {
 module.exports = {
   getFields,
   saveField,
+  updateField,
   deleteField
 };
