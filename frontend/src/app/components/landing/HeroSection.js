@@ -48,349 +48,259 @@ function HeroCard() {
   const [flipped, setFlipped] = useState(false);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [mounted, setMounted] = useState(false);
+  const [sparkles, setSparkles] = useState([]);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    // Generate sparkle positions
+    setSparkles(Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      x: 5 + Math.random() * 90,
+      y: 5 + Math.random() * 90,
+      size: 2 + Math.random() * 4,
+      delay: Math.random() * 6,
+      dur: 2 + Math.random() * 3,
+    })));
+  }, []);
 
-  // Auto-flip after 6s for users who don't click
+  // Auto-flip
   useEffect(() => {
     if (!mounted) return;
-    const t = setTimeout(() => { if (!flipped) setFlipped(true); }, 6000);
+    const t = setTimeout(() => { if (!flipped) setFlipped(true); }, 5000);
     return () => clearTimeout(t);
   }, [mounted, flipped]);
 
   const handleMouseMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 14;
-    const y = ((e.clientY - rect.top) / rect.height - 0.5) * -14;
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 18;
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * -18;
     setTilt({ x, y });
   };
   const handleMouseLeave = () => setTilt({ x: 0, y: 0 });
 
-  if (!mounted) return <div style={{ width: '100%', maxWidth: 480, aspectRatio: '3/4' }} />;
+  if (!mounted) return <div style={{ width: '100%', maxWidth: 420, aspectRatio: '3/4' }} />;
 
   return (
-    <div className="hero-card-wrap animate-slide-in-right">
-      {/* Ambient glow */}
-      <div className="hc-glow" />
+    <div className="hc-wrap animate-slide-in-right">
+      {/* Ambient glows */}
+      <div className="hc-amb hc-amb-1" />
+      <div className="hc-amb hc-amb-2" />
+      <div className="hc-amb hc-amb-3" />
 
-      {/* Floating gold particles */}
-      <div className="hc-particles">
-        {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className="hc-particle" style={{
-            left: `${12 + Math.random() * 76}%`,
-            top: `${10 + Math.random() * 80}%`,
-            animationDelay: `${Math.random() * 5}s`,
-            animationDuration: `${4 + Math.random() * 4}s`,
-            width: `${3 + Math.random() * 5}px`,
-            height: `${3 + Math.random() * 5}px`,
+      {/* Sparkle particles */}
+      <div className="hc-sparkles">
+        {sparkles.map(s => (
+          <div key={s.id} className="hc-spark" style={{
+            left: `${s.x}%`, top: `${s.y}%`,
+            width: `${s.size}px`, height: `${s.size}px`,
+            animationDelay: `${s.delay}s`,
+            animationDuration: `${s.dur}s`,
           }} />
         ))}
       </div>
 
-      {/* 3D Card */}
+      {/* 3D Perspective Container */}
       <div
-        className="hc-perspective"
+        className="hc-stage"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={() => setFlipped(!flipped)}
       >
         <div
           className={`hc-card ${flipped ? 'hc-flipped' : ''}`}
-          style={{ transform: `perspective(1200px) rotateX(${tilt.y}deg) rotateY(${tilt.x}deg)` }}
+          style={{
+            transform: flipped
+              ? `perspective(1400px) rotateY(180deg) rotateX(${tilt.y * 0.3}deg)`
+              : `perspective(1400px) rotateX(${tilt.y}deg) rotateY(${tilt.x}deg)`,
+          }}
         >
-          {/* ── FRONT ── */}
+          {/* ── FRONT FACE ── */}
           <div className="hc-face hc-front">
-            <img src="/images/demo-venue.png" alt="" className="hc-bg" />
-            <div className="hc-overlay" />
+            <img src="/images/hero-card-front.png" alt="Wedding invitation" className="hc-img" />
+            {/* Gold border glow */}
+            <div className="hc-border-glow" />
+            {/* Shimmer sweep */}
             <div className="hc-shimmer" />
-            <div className="hc-frame">
-              <div className="hc-frame-inner">
-                {/* Corner SVGs */}
-                <svg className="hcf-c hcf-tl" width="28" height="28" viewBox="0 0 28 28"><path d="M2 26C2 12 12 2 26 2" stroke="#D7BE80" strokeWidth="1.2" fill="none"/><circle cx="26" cy="2" r="1.5" fill="#D7BE80" opacity=".5"/></svg>
-                <svg className="hcf-c hcf-tr" width="28" height="28" viewBox="0 0 28 28"><path d="M26 26C26 12 16 2 2 2" stroke="#D7BE80" strokeWidth="1.2" fill="none"/><circle cx="2" cy="2" r="1.5" fill="#D7BE80" opacity=".5"/></svg>
-                <svg className="hcf-c hcf-bl" width="28" height="28" viewBox="0 0 28 28"><path d="M2 2C2 16 12 26 26 26" stroke="#D7BE80" strokeWidth="1.2" fill="none"/><circle cx="26" cy="26" r="1.5" fill="#D7BE80" opacity=".5"/></svg>
-                <svg className="hcf-c hcf-br" width="28" height="28" viewBox="0 0 28 28"><path d="M26 2C26 16 16 26 2 26" stroke="#D7BE80" strokeWidth="1.2" fill="none"/><circle cx="2" cy="26" r="1.5" fill="#D7BE80" opacity=".5"/></svg>
-
-                <div className="hc-content">
-                  <div className="hc-orn"><span className="hc-ln"/><span className="hc-st">✦</span><span className="hc-ln"/></div>
-                  <p className="hc-lbl">THE WEDDING CELEBRATION OF</p>
-                  <h2 className="hc-names">
-                    <span className="hc-script">Sophia</span>
-                    <span className="hc-and">&</span>
-                    <span className="hc-script">Alexander</span>
-                  </h2>
-                  <div className="hc-div"><span/><span className="hc-dm">◆</span><span/></div>
-                  <p className="hc-date">SEPTEMBER 20, 2025</p>
-                  <p className="hc-venue">THE GRAND ROSEWOOD ESTATE</p>
-                  <div className="hc-orn"><span className="hc-ln"/><span className="hc-st">✦</span><span className="hc-ln"/></div>
-                </div>
-              </div>
-            </div>
+            {/* Hover light spot */}
+            <div className="hc-light" style={{
+              background: `radial-gradient(circle at ${50 + tilt.x * 3}% ${50 - tilt.y * 3}%, rgba(215,190,128,.12) 0%, transparent 50%)`,
+            }} />
           </div>
 
-          {/* ── BACK ── */}
+          {/* ── BACK FACE ── */}
           <div className="hc-face hc-back">
-            <div className="hc-back-inner">
-              <div className="hcb-ornament">✦</div>
-              <p className="hcb-title">RSVP</p>
-              <div className="hcb-line"><span/><span className="hcb-dm">◆</span><span/></div>
-
-              <div className="hcb-field">
-                <label>Guest Name</label>
-                <div className="hcb-input">Sophia & James Mitchell</div>
-              </div>
-
-              <div className="hcb-field">
-                <label>Attendance</label>
-                <div className="hcb-accept">
-                  <span className="hcb-radio-active" />
-                  <span>Joyfully Accepts</span>
-                </div>
-              </div>
-
-              <div className="hcb-field">
-                <label>Number of Guests</label>
-                <div className="hcb-guest-count">
-                  <span className="hcb-cnt-btn">−</span>
-                  <span className="hcb-cnt-num">2</span>
-                  <span className="hcb-cnt-btn">+</span>
-                </div>
-              </div>
-
-              <div className="hcb-field">
-                <label>Dinner Selection</label>
-                <div className="hcb-meal">
-                  <span className="hcb-meal-radio-active" />
-                  <div>
-                    <strong>Filet Mignon</strong>
-                    <small>Herb-crusted, truffle jus</small>
-                  </div>
-                </div>
-              </div>
-
-              <div className="hcb-submit">Response Sent ✓</div>
-              <div className="hcb-ornament">✦</div>
-            </div>
+            <img src="/images/hero-card-back.png" alt="RSVP response" className="hc-img" />
+            <div className="hc-border-glow" />
+            <div className="hc-shimmer hc-shimmer-back" />
           </div>
         </div>
       </div>
 
-      {/* Tap hint */}
-      <p className={`hc-hint ${flipped ? 'hc-hint-dim' : ''}`}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        {flipped ? 'Tap to flip back' : 'Tap to reveal RSVP'}
-      </p>
+      {/* Label */}
+      <div className={`hc-label ${flipped ? 'hc-label-flip' : ''}`}>
+        <div className="hc-label-dot" />
+        <span>{flipped ? 'RSVP Response Preview' : 'Interactive Invitation Preview'}</span>
+        <span className="hc-label-action">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          Tap to {flipped ? 'flip back' : 'see RSVP'}
+        </span>
+      </div>
 
       <style jsx>{`
-        .hero-card-wrap {
-          position: relative; width: 100%; display: flex;
-          flex-direction: column; align-items: center; gap: 16px;
-        }
-        .hc-glow {
-          position: absolute; width: 400px; height: 400px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(184,148,79,.08) 0%, transparent 70%);
-          top: 50%; left: 50%; transform: translate(-50%, -50%);
-          animation: hcGlow 5s ease-in-out infinite; pointer-events: none;
-        }
-        @keyframes hcGlow {
-          0%, 100% { transform: translate(-50%,-50%) scale(1); opacity:1; }
-          50% { transform: translate(-50%,-50%) scale(1.2); opacity:.5; }
+        .hc-wrap {
+          position: relative; width: 100%;
+          display: flex; flex-direction: column;
+          align-items: center; gap: 20px;
         }
 
-        .hc-particles { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
-        .hc-particle {
+        /* ═══ AMBIENT GLOWS ═══ */
+        .hc-amb {
+          position: absolute; border-radius: 50%; pointer-events: none;
+          filter: blur(40px);
+        }
+        .hc-amb-1 {
+          width: 320px; height: 320px; top: 10%; right: 5%;
+          background: rgba(184,148,79,.06);
+          animation: hcAmb1 6s ease-in-out infinite;
+        }
+        .hc-amb-2 {
+          width: 250px; height: 250px; bottom: 10%; left: 10%;
+          background: rgba(184,148,79,.04);
+          animation: hcAmb2 8s ease-in-out infinite;
+        }
+        .hc-amb-3 {
+          width: 180px; height: 180px; top: 40%; left: 30%;
+          background: rgba(215,190,128,.05);
+          animation: hcAmb1 5s ease-in-out infinite reverse;
+        }
+        @keyframes hcAmb1 {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
+          50% { transform: translate(10px, -15px) scale(1.15); opacity: .5; }
+        }
+        @keyframes hcAmb2 {
+          0%, 100% { transform: translate(0, 0) scale(1); opacity: .8; }
+          50% { transform: translate(-8px, 12px) scale(1.1); opacity: .4; }
+        }
+
+        /* ═══ SPARKLES ═══ */
+        .hc-sparkles { position: absolute; inset: -20px; pointer-events: none; z-index: 0; }
+        .hc-spark {
           position: absolute; border-radius: 50%;
-          background: radial-gradient(circle, rgba(215,190,128,.6) 0%, transparent 70%);
-          animation: hcFloat ease-in-out infinite alternate;
+          background: #D7BE80;
+          animation: hcSparkle ease-in-out infinite;
         }
-        @keyframes hcFloat { 0% { transform: translateY(0) scale(1); opacity:.4; } 100% { transform: translateY(-16px) scale(1.2); opacity:.15; } }
+        @keyframes hcSparkle {
+          0%, 100% { opacity: 0; transform: scale(.5); }
+          50% { opacity: .6; transform: scale(1.2); }
+        }
 
-        /* Perspective container */
-        .hc-perspective {
-          width: 100%; max-width: 400px; aspect-ratio: 3/4;
+        /* ═══ 3D CARD ═══ */
+        .hc-stage {
+          width: 100%; max-width: 420px;
+          aspect-ratio: 3/4.2;
           cursor: pointer; position: relative; z-index: 2;
         }
         .hc-card {
           width: 100%; height: 100%;
           transform-style: preserve-3d;
-          transition: transform .8s cubic-bezier(.4,0,.2,1);
+          transition: transform .9s cubic-bezier(.25, .8, .25, 1);
           position: relative;
         }
-        .hc-flipped { transform: perspective(1200px) rotateY(180deg) !important; }
 
         .hc-face {
           position: absolute; inset: 0;
           backface-visibility: hidden;
           -webkit-backface-visibility: hidden;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .hc-img {
+          width: 100%; height: 100%;
+          object-fit: cover;
+          display: block;
         }
 
-        /* ── FRONT ── */
-        .hc-front {
-          overflow: hidden;
-          box-shadow: 0 30px 60px rgba(0,0,0,.12), 0 0 0 1px rgba(215,190,128,.12);
+        /* ── Border Glow ── */
+        .hc-border-glow {
+          position: absolute; inset: 0; border-radius: 8px;
+          box-shadow:
+            inset 0 0 0 1px rgba(215,190,128,.2),
+            inset 0 0 0 2px rgba(215,190,128,.05),
+            0 0 40px rgba(184,148,79,.08),
+            0 20px 60px rgba(0,0,0,.15),
+            0 40px 100px rgba(0,0,0,.08);
+          pointer-events: none;
+          animation: hcBorderPulse 4s ease-in-out infinite;
         }
-        .hc-bg {
-          position: absolute; inset: 0; width: 100%; height: 100%;
-          object-fit: cover; filter: brightness(.3) saturate(.8);
+        @keyframes hcBorderPulse {
+          0%, 100% { box-shadow: inset 0 0 0 1px rgba(215,190,128,.2), inset 0 0 0 2px rgba(215,190,128,.05), 0 0 40px rgba(184,148,79,.08), 0 20px 60px rgba(0,0,0,.15), 0 40px 100px rgba(0,0,0,.08); }
+          50% { box-shadow: inset 0 0 0 1px rgba(215,190,128,.35), inset 0 0 0 2px rgba(215,190,128,.1), 0 0 60px rgba(184,148,79,.12), 0 20px 60px rgba(0,0,0,.15), 0 40px 100px rgba(0,0,0,.08); }
         }
-        .hc-overlay {
-          position: absolute; inset: 0;
-          background: linear-gradient(180deg, rgba(10,10,12,.2) 0%, rgba(10,10,12,.05) 40%, rgba(10,10,12,.05) 60%, rgba(10,10,12,.3) 100%);
-        }
+
+        /* ── Shimmer ── */
         .hc-shimmer {
           position: absolute; inset: 0; z-index: 3; pointer-events: none;
-          background: linear-gradient(105deg, transparent 40%, rgba(215,190,128,.06) 45%, rgba(215,190,128,.12) 50%, rgba(215,190,128,.06) 55%, transparent 60%);
-          background-size: 300% 100%;
-          animation: hcShimmer 4s ease-in-out infinite;
+          border-radius: 8px;
+          background: linear-gradient(
+            110deg,
+            transparent 30%,
+            rgba(255,255,255,.03) 38%,
+            rgba(215,190,128,.08) 42%,
+            rgba(255,255,255,.14) 50%,
+            rgba(215,190,128,.08) 58%,
+            rgba(255,255,255,.03) 62%,
+            transparent 70%
+          );
+          background-size: 250% 100%;
+          animation: hcShimmer 5s ease-in-out infinite;
         }
-        @keyframes hcShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
-        .hc-frame { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
-        .hc-frame-inner {
-          position: absolute; inset: 16px;
-          border: 1px solid rgba(215,190,128,.3);
-        }
-        .hc-frame-inner::after {
-          content: ''; position: absolute; inset: 4px;
-          border: 1px solid rgba(215,190,128,.12); pointer-events: none;
-        }
-
-        .hcf-c { position: absolute; z-index: 2; }
-        .hcf-tl { top: -1px; left: -1px; }
-        .hcf-tr { top: -1px; right: -1px; }
-        .hcf-bl { bottom: -1px; left: -1px; }
-        .hcf-br { bottom: -1px; right: -1px; }
-
-        .hc-content {
-          position: relative; z-index: 4;
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
-          height: 100%; padding: 40px 28px; text-align: center;
-        }
-        .hc-orn { display: flex; align-items: center; gap: 10px; margin: 16px 0; }
-        .hc-ln { width: 32px; height: 1px; background: linear-gradient(90deg, transparent, rgba(215,190,128,.5), transparent); }
-        .hc-st { color: #D7BE80; font-size: 10px; opacity: .7; }
-
-        .hc-lbl {
-          font-size: 8px; font-weight: 700; letter-spacing: .3em;
-          color: rgba(215,190,128,.7); margin: 0 0 16px; font-family: var(--font-sans);
-        }
-        .hc-names { margin: 0; line-height: 1; }
-        .hc-script {
-          font-family: var(--font-script); font-size: 42px; color: #FFFFFF;
-          display: block; text-shadow: 0 2px 16px rgba(184,148,79,.2);
-        }
-        .hc-and {
-          font-family: var(--font-serif); font-size: 16px; color: #D7BE80;
-          display: block; font-style: italic; margin: 4px 0;
-        }
-        .hc-div {
-          display: flex; align-items: center; gap: 8px; margin: 16px 0;
-        }
-        .hc-div span:first-child, .hc-div span:last-child {
-          width: 40px; height: 1px;
-          background: linear-gradient(90deg, transparent, rgba(215,190,128,.4), transparent);
-        }
-        .hc-dm { color: #D7BE80; font-size: 7px; opacity: .6; }
-
-        .hc-date {
-          font-size: 9px; font-weight: 700; letter-spacing: .25em;
-          color: rgba(255,255,255,.6); margin: 0 0 4px; font-family: var(--font-sans);
-        }
-        .hc-venue {
-          font-family: var(--font-serif); font-size: 10px; letter-spacing: .18em;
-          color: rgba(215,190,128,.7); margin: 0;
+        .hc-shimmer-back { animation-delay: 1s; }
+        @keyframes hcShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
 
-        /* ── BACK ── */
+        /* ── Light follow cursor ── */
+        .hc-light {
+          position: absolute; inset: 0; z-index: 2;
+          pointer-events: none; border-radius: 8px;
+          transition: background .1s ease;
+        }
+
+        /* ── Back ── */
         .hc-back {
           transform: rotateY(180deg);
-          background: linear-gradient(170deg, #FFFDF9 0%, #FBF8F2 40%, #F8F4EC 100%);
-          box-shadow: 0 30px 60px rgba(0,0,0,.12), 0 0 0 1px rgba(215,190,128,.15);
-          overflow: hidden;
         }
-        .hc-back::before {
-          content: ''; position: absolute; inset: 0;
-          background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cg fill='%23D7BE80' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-          pointer-events: none;
-        }
-        .hc-back-inner {
-          position: relative; z-index: 1;
-          padding: 28px 24px; height: 100%;
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
-          text-align: center;
-        }
-        .hcb-ornament { color: #D7BE80; font-size: 12px; letter-spacing: 4px; }
-        .hcb-title {
-          font-family: var(--font-serif); font-size: 22px; font-weight: 600;
-          color: #B8944F; letter-spacing: .2em; margin: 8px 0;
-        }
-        .hcb-line { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
-        .hcb-line span:first-child, .hcb-line span:last-child { width: 40px; height: 1px; background: linear-gradient(90deg, transparent, #D7BE80, transparent); }
-        .hcb-dm { color: #D7BE80; font-size: 6px; }
 
-        .hcb-field { width: 100%; text-align: left; margin-bottom: 14px; }
-        .hcb-field label {
-          display: block; font-size: 8px; font-weight: 700; text-transform: uppercase;
-          letter-spacing: .2em; color: #9A9590; margin-bottom: 5px; font-family: var(--font-sans);
-        }
-        .hcb-input {
-          padding: 10px 12px; border: 1px solid #E8E2D6; background: rgba(255,255,255,.6);
-          font-family: var(--font-serif); font-size: 13px; color: #191B1E;
-        }
-        .hcb-accept {
+        /* ═══ LABEL ═══ */
+        .hc-label {
           display: flex; align-items: center; gap: 10px;
-          padding: 10px 12px; border: 1px solid #B8944F; background: rgba(184,148,79,.04);
-          font-family: var(--font-serif); font-size: 13px; color: #4A4A4A;
-        }
-        .hcb-radio-active {
-          width: 14px; height: 14px; border-radius: 50%;
-          border: 2px solid #B8944F; background: #B8944F;
-          box-shadow: inset 0 0 0 2px #FFFDF9; flex-shrink: 0;
-        }
-        .hcb-guest-count {
-          display: flex; align-items: center; justify-content: center; gap: 16px;
-        }
-        .hcb-cnt-btn {
-          width: 32px; height: 32px; border: 1px solid #E8E2D6;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 14px; color: #77736A; font-family: var(--font-sans);
-        }
-        .hcb-cnt-num {
-          font-family: var(--font-serif); font-size: 20px; font-weight: 700;
-          color: #191B1E; min-width: 24px; text-align: center;
-        }
-        .hcb-meal {
-          display: flex; align-items: flex-start; gap: 10px;
-          padding: 10px 12px; border: 1px solid #B8944F; background: rgba(184,148,79,.04);
-        }
-        .hcb-meal-radio-active {
-          width: 12px; height: 12px; border-radius: 50%;
-          border: 2px solid #B8944F; background: #B8944F;
-          box-shadow: inset 0 0 0 2px #FFFDF9; flex-shrink: 0; margin-top: 2px;
-        }
-        .hcb-meal strong { display: block; font-size: 12px; color: #191B1E; font-family: var(--font-sans); font-weight: 600; }
-        .hcb-meal small { display: block; font-size: 10px; color: #77736A; margin-top: 1px; }
-
-        .hcb-submit {
-          margin-top: 12px; padding: 12px; width: 100%;
-          background: linear-gradient(135deg, #B8944F, #D7BE80); color: #FFF;
-          font-size: 11px; font-weight: 700; text-align: center;
-          font-family: var(--font-sans); letter-spacing: .08em; text-transform: uppercase;
-        }
-
-        .hc-hint {
-          font-size: 11px; font-weight: 500; letter-spacing: .12em;
+          font-size: 11px; font-weight: 500; letter-spacing: .1em;
           text-transform: uppercase; color: #9A9590;
-          display: flex; align-items: center; gap: 6px;
-          margin: 0; animation: hcHintFloat 3s ease-in-out infinite;
-          transition: opacity .4s;
+          font-family: var(--font-sans);
+          transition: all .4s ease;
         }
-        .hc-hint-dim { opacity: .4; }
-        @keyframes hcHintFloat { 0%,100% { transform:translateY(0); opacity:.7; } 50% { transform:translateY(-3px); opacity:1; } }
+        .hc-label-dot {
+          width: 6px; height: 6px; border-radius: 50%;
+          background: #B8944F;
+          animation: hcDotPulse 2s ease-in-out infinite;
+        }
+        @keyframes hcDotPulse {
+          0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(184,148,79,.3); }
+          50% { opacity: .6; box-shadow: 0 0 0 4px rgba(184,148,79,0); }
+        }
+        .hc-label-action {
+          display: flex; align-items: center; gap: 4px;
+          color: #B8944F; font-weight: 600;
+          margin-left: auto;
+          animation: hcActionFloat 2.5s ease-in-out infinite;
+        }
+        @keyframes hcActionFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-2px); }
+        }
       `}</style>
     </div>
   );
