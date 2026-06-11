@@ -22,7 +22,7 @@ export function useRealtimeRSVPs(eventId, onNewRsvp) {
 
     // Case 1: Supabase client is connected
     if (supabase) {
-      console.log(`🔌 Supabase Realtime: Subscribing to rsvps for event: ${eventId}`);
+
       
       const channel = supabase
         .channel(`rsvps-changes-${eventId}`)
@@ -35,14 +35,14 @@ export function useRealtimeRSVPs(eventId, onNewRsvp) {
             filter: `event_id=eq.${eventId}`
           },
           (payload) => {
-            console.log('📬 Supabase Realtime payload received:', payload);
+
             if (callbackRef.current) {
               callbackRef.current(payload);
             }
           }
         )
         .subscribe((status) => {
-          console.log(`📡 Supabase Realtime subscription status: ${status}`);
+
         });
 
       return () => {
@@ -53,7 +53,7 @@ export function useRealtimeRSVPs(eventId, onNewRsvp) {
     // Case 2: Local fallback mode (no Supabase env vars configured)
     // We start a mock simulation interval to showcase dashboard real-time capabilities
     else {
-      console.log(`📂 Supabase Realtime: Local mode active. Initializing mock RSVP generator...`);
+
       
       const interval = setInterval(() => {
         if (!callbackRef.current) return;
@@ -77,7 +77,7 @@ export function useRealtimeRSVPs(eventId, onNewRsvp) {
           }
         };
 
-        console.log('🎁 Simulated Local RSVP generated:', mockPayload.new.guest_name);
+
         callbackRef.current(mockPayload);
       }, 35000); // Trigger mock RSVP every 35 seconds
 

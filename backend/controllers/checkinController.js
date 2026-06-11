@@ -87,7 +87,8 @@ const scanCheckIn = async (req, res, next) => {
       .single();
 
     // Broadcast checkin event via Realtime
-    await supabase.channel(`event-${eventId}`).send({
+    const scanChannel = supabase.channel(`event-${eventId}`);
+    await scanChannel.send({
       type: 'broadcast',
       event: 'checkin_update',
       payload: {
@@ -98,6 +99,7 @@ const scanCheckIn = async (req, res, next) => {
         method: 'qr_scan'
       }
     });
+    supabase.removeChannel(scanChannel);
 
     return res.status(200).json({
       success: true,
@@ -165,7 +167,8 @@ const manualCheckIn = async (req, res, next) => {
     }
 
     // Broadcast checkin event via Realtime
-    await supabase.channel(`event-${eventId}`).send({
+    const manualChannel = supabase.channel(`event-${eventId}`);
+    await manualChannel.send({
       type: 'broadcast',
       event: 'checkin_update',
       payload: {
@@ -176,6 +179,7 @@ const manualCheckIn = async (req, res, next) => {
         method: 'manual_search'
       }
     });
+    supabase.removeChannel(manualChannel);
 
     return res.status(200).json({
       success: true,
@@ -367,7 +371,8 @@ const selfCheckIn = async (req, res, next) => {
     const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
 
     // Broadcast checkin event via Realtime
-    await supabase.channel(`event-${event.id}`).send({
+    const selfChannel = supabase.channel(`event-${event.id}`);
+    await selfChannel.send({
       type: 'broadcast',
       event: 'checkin_update',
       payload: {
@@ -378,6 +383,7 @@ const selfCheckIn = async (req, res, next) => {
         method: 'self_service'
       }
     });
+    supabase.removeChannel(selfChannel);
 
     return res.status(200).json({
       success: true,

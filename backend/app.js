@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
-const { requireAuth, verifyEventOwner } = require('./middleware/auth');
+const { requireAuth, verifyEventOwner, requireSuperAdmin } = require('./middleware/auth');
 
 // Startup environment validation — fail fast if critical secrets are missing
 const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'];
@@ -21,11 +22,16 @@ app.use(helmet());
 // Configure CORS
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
   optionsSuccessStatus: 200
 }));
 
+// Parse cookies (httpOnly auth cookie)
+app.use(cookieParser());
+
 // Capture raw body for Stripe Webhooks verification
 app.use(express.json({
+  limit: '5mb',
   verify: (req, res, buf) => {
     if (req.originalUrl && req.originalUrl.startsWith('/api/v1/payments/webhook')) {
       req.rawBody = buf;
@@ -94,6 +100,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// UUID format validation middleware for :eventId param
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+app.param('eventId', (req, res, next, value) => {
+  if (!UUID_REGEX.test(value)) {
+    return res.status(400).json({ success: false, error: 'INVALID_PARAM', message: 'eventId must be a valid UUID.' });
+  }
+  next();
+});
+
 // ─── ROUTES ───
 
 const authRoutes = require('./routes/authRoutes');
@@ -127,13 +142,13 @@ app.use('/api/v1/events', requireAuth, eventRoutes);
 // Mount super admin control routes
 app.use('/api/v1/admin', adminRoutes);
 
-// OpenAPI Specification Route
-app.get('/api/v1/openapi.json', (req, res) => {
+// OpenAPI Specification Route — gated behind auth in production
+const serveOpenApiSpec = (req, res) => {
   res.sendFile(require('path').join(__dirname, 'docs', 'openapi.json'));
-});
+};
 
 // Interactive API Docs Route (Swagger UI CDN)
-app.get('/docs', (req, res) => {
+const serveSwaggerDocs = (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -157,7 +172,15 @@ app.get('/docs', (req, res) => {
     </body>
     </html>
   `);
-});
+};
+
+if (process.env.NODE_ENV === 'production') {
+  app.get('/api/v1/openapi.json', requireAuth, requireSuperAdmin, serveOpenApiSpec);
+  app.get('/docs', requireAuth, requireSuperAdmin, serveSwaggerDocs);
+} else {
+  app.get('/api/v1/openapi.json', serveOpenApiSpec);
+  app.get('/docs', serveSwaggerDocs);
+}
 
 // Health Check Endpoint
 app.get('/api/v1/health', async (req, res) => {
@@ -176,7 +199,8 @@ app.get('/api/v1/health', async (req, res) => {
         details = 'Database connection is healthy, but the super_admin_config table does not exist. Apply migrations.';
       } else {
         dbStatus = 'degraded';
-        details = error.message;
+        logger.warn({ err: error }, 'Health check: database degraded');
+        details = 'Database is experiencing issues. Check server logs for details.';
       }
     }
     
@@ -187,10 +211,11 @@ app.get('/api/v1/health', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (err) {
+    logger.error({ err }, 'Health check: database disconnected');
     return res.status(503).json({
       status: 'unhealthy',
       database: 'disconnected',
-      error: err.message,
+      error: 'Database connection failed. Check server logs for details.',
       timestamp: new Date().toISOString()
     });
   }
@@ -206,7 +231,7 @@ app.get('/', (req, res) => {
 
 // 404 catch-all for unmatched routes
 app.use((req, res) => {
-  res.status(404).json({ success: false, error: 'NOT_FOUND', message: `Route ${req.method} ${req.path} not found` });
+  res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'The requested resource was not found.' });
 });
 
 // Centralized error handling middleware

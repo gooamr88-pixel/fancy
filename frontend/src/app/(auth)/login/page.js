@@ -28,8 +28,7 @@ export default function LoginPage() {
       });
 
       if (data.success) {
-        // Save session credentials
-        localStorage.setItem('auth_token', data.token);
+        // Store non-sensitive display metadata only (auth is via httpOnly cookie)
         localStorage.setItem('org_id', data.organization.id);
         localStorage.setItem('user_role', data.user.role);
         

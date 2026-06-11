@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { logout } from '../../utils/apiClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -11,7 +12,7 @@ export default function SeatingMapPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
-  const [token, setToken] = useState('');
+  const [authChecked, setAuthChecked] = useState(false);
   const [eventId, setEventId] = useState('');
   const [tables, setTables] = useState([]);
   const [guests, setGuests] = useState([]);
@@ -25,18 +26,17 @@ export default function SeatingMapPage() {
   const [newTableShape, setNewTableShape] = useState('round');
   const canvasRef = useRef(null);
 
-  const handleLogout = () => { localStorage.removeItem('auth_token'); localStorage.removeItem('org_id'); localStorage.removeItem('user_role'); localStorage.removeItem('active_event_id'); window.location.href = '/login'; };
+  const handleLogout = logout;
 
-  useEffect(() => { if (typeof window !== 'undefined') { const savedToken = localStorage.getItem('auth_token'); if (!savedToken) { router.push('/login'); return; } setToken(savedToken); const savedEventId = localStorage.getItem('active_event_id') || 'demo-event'; setEventId(savedEventId); } }, [router]);
+  useEffect(() => { if (typeof window !== 'undefined') { const orgId = localStorage.getItem('org_id'); if (!orgId) { router.push('/login'); return; } const savedEventId = localStorage.getItem('active_event_id') || 'demo-event'; setEventId(savedEventId); setAuthChecked(true); } }, [router]);
 
   const loadLayoutData = useCallback(async () => {
     if (!eventId) return;
     try {
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const tablesRes = await fetch(`${API_URL}/events/${eventId}/tables`, { headers });
+      const tablesRes = await fetch(`${API_URL}/events/${eventId}/tables`, { credentials: 'include' });
       const tablesData = await tablesRes.json();
       if (tablesData.success) setTables(tablesData.tables);
-      const rsvpsRes = await fetch(`${API_URL}/events/${eventId}/rsvps`, { headers });
+      const rsvpsRes = await fetch(`${API_URL}/events/${eventId}/rsvps`, { credentials: 'include' });
       const rsvpsData = await rsvpsRes.json();
       if (rsvpsData.success) {
         const formattedGuests = rsvpsData.rsvps.map(r => {
@@ -46,9 +46,9 @@ export default function SeatingMapPage() {
         setGuests(formattedGuests);
       }
       setError(null);
-    } catch (err) { console.error('Failed to load layout data:', err); setError('Could not connect to backend. Verify your backend server is running on port 5000.'); }
+    } catch (err) { setError('Could not connect to backend. Verify your backend server is running on port 5000.'); }
     finally { setLoading(false); }
-  }, [eventId, token]);
+  }, [eventId]);
 
   useEffect(() => { if (!eventId) return; loadLayoutData(); }, [loadLayoutData, eventId]);
 
@@ -65,8 +65,8 @@ export default function SeatingMapPage() {
       const table = tables.find(t => t.id === tableId);
       if (table) { const remaining = table.max_capacity - table.occupied; if (partySize > remaining) { alert(`Warning: Table ${table.table_name} only has ${remaining} seats left, party size is ${partySize}.`); return; } }
       setLoading(true);
-      const headers = { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
-      const res = await fetch(`${API_URL}/events/${eventId}/seating/assign`, { method: 'POST', headers, body: JSON.stringify({ rsvpId, tableId }) });
+      const headers = { 'Content-Type': 'application/json' };
+      const res = await fetch(`${API_URL}/events/${eventId}/seating/assign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, tableId }) });
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Seating assignment failed.');
       await loadLayoutData();
       if (selectedTable && selectedTable.id === tableId) setSelectedTable(prev => prev ? { ...prev, occupied: prev.occupied + partySize } : null);
@@ -76,8 +76,8 @@ export default function SeatingMapPage() {
   const handleUnseatGuest = async (rsvpId) => {
     try {
       setLoading(true);
-      const headers = { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
-      const res = await fetch(`${API_URL}/events/${eventId}/seating/unassign`, { method: 'POST', headers, body: JSON.stringify({ rsvpId }) });
+      const headers = { 'Content-Type': 'application/json' };
+      const res = await fetch(`${API_URL}/events/${eventId}/seating/unassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId }) });
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Unseating failed.');
       const guestPartySize = guests.find(g => g.id === rsvpId)?.party_size || 0;
       await loadLayoutData();
@@ -101,7 +101,7 @@ export default function SeatingMapPage() {
     if (!eventId) return; setLoading(true);
     try {
       const payload = tables.map(t => ({ id: t.id, x: t.position_x, y: t.position_y }));
-      const res = await fetch(`${API_URL}/events/${eventId}/tables/positions`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) }, body: JSON.stringify({ tablePositions: payload }) });
+      const res = await fetch(`${API_URL}/events/${eventId}/tables/positions`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ tablePositions: payload }) });
       if (!res.ok) throw new Error('Failed to update table layout positions');
       const data = await res.json();
       if (data.success) { setHasChanges(false); alert('Table coordinates saved in backend successfully!'); loadLayoutData(); }
@@ -112,7 +112,7 @@ export default function SeatingMapPage() {
     if (!newTableName.trim() || !newTableCapacity || !eventId) { alert('Please fill in table name and capacity.'); return; }
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/events/${eventId}/tables`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) }, body: JSON.stringify({ tableName: newTableName, maxCapacity: parseInt(newTableCapacity), shape: newTableShape, x: 40, y: 40 }) });
+      const res = await fetch(`${API_URL}/events/${eventId}/tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ tableName: newTableName, maxCapacity: parseInt(newTableCapacity), shape: newTableShape, x: 40, y: 40 }) });
       if (!res.ok) throw new Error('Failed to create table');
       const data = await res.json();
       if (data.success) { setShowAddModal(false); setNewTableName(''); loadLayoutData(); }
@@ -123,7 +123,7 @@ export default function SeatingMapPage() {
     if (!selectedTable || !eventId) return;
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/events/${eventId}/tables`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) }, body: JSON.stringify({ tableName: `${selectedTable.table_name} Copy`, maxCapacity: selectedTable.max_capacity, shape: selectedTable.shape, x: Math.min(88, selectedTable.position_x + 6), y: Math.min(88, selectedTable.position_y + 6) }) });
+      const res = await fetch(`${API_URL}/events/${eventId}/tables`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ tableName: `${selectedTable.table_name} Copy`, maxCapacity: selectedTable.max_capacity, shape: selectedTable.shape, x: Math.min(88, selectedTable.position_x + 6), y: Math.min(88, selectedTable.position_y + 6) }) });
       if (!res.ok) throw new Error('Failed to duplicate table');
       const data = await res.json();
       if (data.success) loadLayoutData();
@@ -136,7 +136,7 @@ export default function SeatingMapPage() {
     if (!confirm(`Are you sure you want to delete ${selectedTable.table_name}?`)) return;
     try {
       setLoading(true);
-      const res = await fetch(`${API_URL}/events/${eventId}/tables/${selectedTable.id}`, { method: 'DELETE', headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+      const res = await fetch(`${API_URL}/events/${eventId}/tables/${selectedTable.id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) { const errData = await res.json(); throw new Error(errData.message || 'Failed to delete table'); }
       const data = await res.json();
       if (data.success) { setSelectedTable(null); loadLayoutData(); }
@@ -187,7 +187,7 @@ export default function SeatingMapPage() {
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           {hasChanges && (<button onClick={handleSaveLayout} style={{ ...btnBase, background: C.gold, color: C.white }}>Save Layout Positions</button>)}
-          <button onClick={handleLogout} style={{ ...btnBase, background: 'transparent', border: `1px solid ${C.border}`, color: C.stone }}
+          <button onClick={handleLogout} aria-label="Sign out" style={{ ...btnBase, background: 'transparent', border: `1px solid ${C.border}`, color: C.stone }}
             onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.color = '#C45E5E'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.stone; }}>
             Sign Out

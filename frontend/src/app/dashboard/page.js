@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { logout } from '../utils/apiClient';
 import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
 import StatMetricsCard from './components/StatMetricsCard';
 import LiveActivityFeed from './components/LiveActivityFeed';
@@ -79,6 +80,8 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [stats, setStats] = useState({
     invitedParties: 0, attendingParties: 0, attendingGuests: 0,
@@ -95,7 +98,7 @@ export default function DashboardPage() {
   const [filterResponse, setFilterResponse] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
 
-  const [token, setToken] = useState('');
+
   const [events, setEvents] = useState([]);
   const [eventId, setEventId] = useState('');
   const router = useRouter();
@@ -103,46 +106,40 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedToken = localStorage.getItem('auth_token');
-      if (!savedToken) { router.push('/login'); return; }
-      setToken(savedToken);
+      const orgId = localStorage.getItem('org_id');
+      if (!orgId) { router.push('/login'); return; }
+      setAuthChecked(true);
     }
   }, [router]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!authChecked) return;
     const fetchEvents = async () => {
       try {
-        const res = await fetch(`${apiUrl}/events`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await fetch(`${apiUrl}/events`, { credentials: 'include' });
         const data = await res.json();
         if (data.success && data.events.length > 0) { setEvents(data.events); setEventId(data.events[0].id); }
         else { setEventId('demo-event'); }
-      } catch (err) { console.error('Failed to load events:', err); setEventId('demo-event'); }
+      } catch (err) { setEventId('demo-event'); }
     };
     fetchEvents();
-  }, [token, apiUrl]);
+  }, [authChecked, apiUrl]);
 
   useEffect(() => {
     if (eventId && typeof window !== 'undefined') localStorage.setItem('active_event_id', eventId);
   }, [eventId]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('org_id');
-    localStorage.removeItem('user_role');
-    localStorage.removeItem('active_event_id');
-    window.location.href = '/login';
-  };
+  const handleLogout = logout;
 
   const loadDashboardData = useCallback(async () => {
     if (!eventId) return;
     try {
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const statsRes = await fetch(`${apiUrl}/events/${eventId}/stats`, { headers });
+
+      const statsRes = await fetch(`${apiUrl}/events/${eventId}/stats`, { credentials: 'include' });
       const statsData = await statsRes.json();
-      const tablesRes = await fetch(`${apiUrl}/events/${eventId}/tables`, { headers });
+      const tablesRes = await fetch(`${apiUrl}/events/${eventId}/tables`, { credentials: 'include' });
       const tablesData = await tablesRes.json();
-      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { headers });
+      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { credentials: 'include' });
       const rsvpsData = await rsvpsRes.json();
 
       if (statsData.success) setStats(statsData.stats);
@@ -161,10 +158,9 @@ export default function DashboardPage() {
       }
       setError(null);
     } catch (err) {
-      console.error('Failed to load dashboard data:', err);
       setError('Could not connect to backend server. Make sure the backend server is running on port 5000.');
     } finally { setLoading(false); }
-  }, [apiUrl, eventId, token]);
+  }, [apiUrl, eventId]);
 
   useEffect(() => { if (!eventId) return; loadDashboardData(); }, [loadDashboardData, eventId]);
 
@@ -174,14 +170,15 @@ export default function DashboardPage() {
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/tables`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ tableName: newTableName, maxCapacity: parseInt(newTableCapacity) })
       });
       if (!res.ok) throw new Error('Failed to create table');
       const data = await res.json();
       if (data.success) { setNewTableName(''); setNewTableCapacity(10); loadDashboardData(); }
     } catch (err) { alert(err.message); }
-  }, [apiUrl, eventId, token, newTableName, newTableCapacity, loadDashboardData]);
+  }, [apiUrl, eventId, newTableName, newTableCapacity, loadDashboardData]);
 
   const handleAssignTable = useCallback(async (rsvpId, targetTableId) => {
     const guest = rsvps.find(g => g.id === rsvpId);
@@ -189,22 +186,21 @@ export default function DashboardPage() {
     const oldTableId = guest.tableId;
     try {
       let res;
-      const headers = { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) };
+      const headers = { 'Content-Type': 'application/json' };
       if (!oldTableId) {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/assign`, { method: 'POST', headers, body: JSON.stringify({ rsvpId, tableId: targetTableId }) });
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/assign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, tableId: targetTableId }) });
       } else if (!targetTableId) {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/unassign`, { method: 'POST', headers, body: JSON.stringify({ rsvpId }) });
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/unassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId }) });
       } else {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, { method: 'POST', headers, body: JSON.stringify({ rsvpId, newTableId: targetTableId }) });
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, newTableId: targetTableId }) });
       }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Seat assignment failed');
       loadDashboardData();
     } catch (err) { alert(err.message); }
-  }, [apiUrl, eventId, token, rsvps, loadDashboardData]);
+  }, [apiUrl, eventId, rsvps, loadDashboardData]);
 
   const handleRealtimeRsvp = useCallback((payload) => {
-    console.log('⚡ Realtime Event Handled:', payload);
     if (payload.eventType === 'INSERT') {
       const r = payload.new;
       const isYes = r.response === 'yes' || r.response === 'Accepted';
@@ -229,6 +225,7 @@ export default function DashboardPage() {
 
   const totalSeatedCountText = useMemo(() => `${stats.seatingAssignedGuests} / ${stats.attendingGuests}`, [stats.seatingAssignedGuests, stats.attendingGuests]);
 
+  if (!authChecked) return <DashboardSkeleton />;
   if (loading) return <DashboardSkeleton />;
 
   if (error) {
@@ -252,10 +249,37 @@ export default function DashboardPage() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: COLORS.white, fontFamily: 'var(--font-sans)' }}>
 
+      {/* ═══ MOBILE HAMBURGER TOGGLE ═══ */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle navigation menu"
+        style={{
+          display: 'none', position: 'fixed', top: '16px', left: '16px', zIndex: 60,
+          width: '40px', height: '40px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+          background: COLORS.white, cursor: 'pointer', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        }}
+        className="sidebar-toggle"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={COLORS.charcoal} strokeWidth="2">
+          {sidebarOpen ? <path d="M18 6L6 18M6 6l12 12" /> : <><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></>}
+        </svg>
+      </button>
+
+      {/* ═══ SIDEBAR OVERLAY (mobile) ═══ */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{ display: 'none', position: 'fixed', inset: 0, zIndex: 49, background: 'rgba(0,0,0,0.3)' }}
+          className="sidebar-overlay"
+        />
+      )}
+
       {/* ═══ LEFT SIDEBAR ═══ */}
-      <aside style={{
+      <aside className="dashboard-sidebar" style={{
         width: '240px', minHeight: '100vh', background: COLORS.white, borderRight: `1px solid ${COLORS.border}`,
         display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, zIndex: 50,
+        transition: 'transform 0.3s ease',
       }}>
         {/* Logo */}
         <div style={{ padding: '24px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
@@ -292,7 +316,7 @@ export default function DashboardPage() {
 
         {/* Bottom: Log Out */}
         <div style={{ padding: '16px 12px', borderTop: `1px solid ${COLORS.border}` }}>
-          <button onClick={handleLogout} style={{
+          <button onClick={handleLogout} aria-label="Log out" style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', width: '100%',
             background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer',
             fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 400, color: COLORS.stone,
@@ -328,16 +352,28 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {token && typeof window !== 'undefined' && localStorage.getItem('user_role') === 'super_admin' && (
+            {typeof window !== 'undefined' && localStorage.getItem('user_role') === 'super_admin' && (
               <Link href="/admin" id="btn-open-super-admin" style={{
                 padding: '8px 16px', background: COLORS.ivory, color: COLORS.gold, border: `1px solid ${COLORS.border}`,
                 borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
               }}>Super Admin</Link>
             )}
-            <a href={`${apiUrl}/events/${eventId}/rsvps/export`} id="btn-export-excel" style={{
+            <button onClick={async () => {
+              try {
+                const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export`, {
+                  credentials: 'include'
+                });
+                if (!res.ok) throw new Error('Export failed');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'guest-list.csv'; a.click();
+                URL.revokeObjectURL(url);
+              } catch (err) { alert(err.message); }
+            }} id="btn-export-excel" style={{
               padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
-              borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
-            }}>Export Sheet</a>
+              borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)', transition: 'all 0.2s', cursor: 'pointer',
+            }}>Export Sheet</button>
             <Link href="/dashboard/seating-map" id="btn-open-seating-map" style={{
               padding: '8px 16px', background: COLORS.gold, color: COLORS.white, borderRadius: '8px',
               fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
@@ -378,10 +414,19 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
-            <FormBuilder eventId={eventId} token={token} />
+            <FormBuilder eventId={eventId} />
           )}
         </div>
       </main>
+
+      <style jsx>{`
+        @media (max-width: 1024px) {
+          .sidebar-toggle { display: flex !important; }
+          .sidebar-overlay { display: block !important; }
+          .dashboard-sidebar { transform: ${sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'}; }
+          main { margin-left: 0 !important; }
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 
 /**
  * Dispatches bulk SMS invitations to all pending guests.
@@ -59,12 +60,23 @@ const sendBulkSMSCampaign = async (req, res, next) => {
       });
     }
 
-    // 3. Loop and send (atomic deduction)
+    // 3. Send in concurrent batches (atomic deduction per message)
+    const BATCH_SIZE = 15;
     const twilio = getTwilioClient();
     const sentMessages = [];
     const failedMessages = [];
 
-    for (const guest of guests) {
+    // Inline chunking helper — no external deps
+    const chunkArray = (arr, size) => {
+      const chunks = [];
+      for (let i = 0; i < arr.length; i += size) {
+        chunks.push(arr.slice(i, i + size));
+      }
+      return chunks;
+    };
+
+    // Processes a single guest; returns a result object for aggregation
+    const processGuest = async (guest) => {
       // Personalize template
       const guestUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/events/rsvp/${guest.id}`;
       let personalizedBody = messageTemplate
@@ -85,28 +97,27 @@ const sendBulkSMSCampaign = async (req, res, next) => {
         });
 
         if (deductError || !deductResult || !deductResult.success) {
-          failedMessages.push({
+          return {
+            ok: false,
             guestId: guest.id,
             guestName: guest.guest_name,
             error: deductResult?.error || 'INSUFFICIENT_CREDITS'
-          });
-          continue;
+          };
         }
 
         const { wallet_id, ledger_id } = deductResult;
 
         if (!twilio) {
           // Mock send in local development if twilio is missing
-          console.log(`[MOCK BULK SMS] To: ${guest.phone} | Content: ${personalizedBody}`);
-          
+          logger.info(`[MOCK BULK SMS] To: ${guest.phone} | Content: ${personalizedBody}`);
+
           const mockSid = `mock-sid-${Date.now()}-${guest.id}`;
           await supabase
             .from('sms_credit_ledger')
             .update({ sms_sid: mockSid })
             .eq('id', ledger_id);
 
-          sentMessages.push({ guestId: guest.id, guestName: guest.guest_name, status: 'mock_sent' });
-          continue;
+          return { ok: true, guestId: guest.id, guestName: guest.guest_name, status: 'mock_sent' };
         }
 
         try {
@@ -122,20 +133,41 @@ const sendBulkSMSCampaign = async (req, res, next) => {
             .update({ sms_sid: msg.sid })
             .eq('id', ledger_id);
 
-          sentMessages.push({ guestId: guest.id, guestName: guest.guest_name, sid: msg.sid });
+          return { ok: true, guestId: guest.id, guestName: guest.guest_name, sid: msg.sid };
         } catch (smsErr) {
           // Refund on transmission failure
-          console.error(`Failed to send SMS to ${guest.guest_name}, initiating refund:`, smsErr.message);
+          logger.error(`Failed to send SMS to ${guest.guest_name}, initiating refund: ${smsErr.message}`);
           await supabase.rpc('refund_sms_credit_atomic', {
             p_wallet_id: wallet_id,
             p_event_id: eventId,
             p_ledger_id: ledger_id
           });
-          failedMessages.push({ guestId: guest.id, guestName: guest.guest_name, error: smsErr.message });
+          return { ok: false, guestId: guest.id, guestName: guest.guest_name, error: smsErr.message };
         }
       } catch (err) {
-        console.error(`Deduction operation failed for ${guest.guest_name}:`, err.message);
-        failedMessages.push({ guestId: guest.id, guestName: guest.guest_name, error: err.message });
+        logger.error(`Deduction operation failed for ${guest.guest_name}: ${err.message}`);
+        return { ok: false, guestId: guest.id, guestName: guest.guest_name, error: err.message };
+      }
+    };
+
+    // Process all guests in batches of BATCH_SIZE
+    const batches = chunkArray(guests, BATCH_SIZE);
+    for (const batch of batches) {
+      const results = await Promise.allSettled(batch.map(processGuest));
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const val = result.value;
+          if (val.ok) {
+            sentMessages.push({ guestId: val.guestId, guestName: val.guestName, ...(val.sid ? { sid: val.sid } : { status: val.status }) });
+          } else {
+            failedMessages.push({ guestId: val.guestId, guestName: val.guestName, error: val.error });
+          }
+        } else {
+          // Unexpected rejection — should not normally occur
+          logger.error(`Unexpected batch rejection: ${result.reason}`);
+          failedMessages.push({ guestId: 'unknown', guestName: 'unknown', error: String(result.reason) });
+        }
       }
     }
 

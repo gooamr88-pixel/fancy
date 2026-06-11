@@ -139,10 +139,10 @@ serve(async (req) => {
           }
         }
 
-        // Fetch wallet details to check existence securely
+        // Atomically increment credits using RPC to prevent race conditions
         const { data: wallet, error: walletError } = await supabase
           .from('sms_credit_wallets')
-          .select('id, credits_purchased')
+          .select('id')
           .eq('event_id', event_id)
           .maybeSingle();
 
@@ -151,15 +151,12 @@ serve(async (req) => {
         let walletId;
         if (wallet) {
           walletId = wallet.id;
-          const { error: updateError } = await supabase
-            .from('sms_credit_wallets')
-            .update({
-              credits_purchased: (wallet.credits_purchased || 0) + creditCount,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', walletId);
-          
-          if (updateError) throw updateError;
+          // Use atomic RPC instead of read-modify-write
+          const { error: rpcError } = await supabase.rpc('increment_sms_credits', {
+            p_event_id: event_id,
+            p_credit_amount: creditCount
+          });
+          if (rpcError) throw rpcError;
         } else {
           const { data: newWallet, error: insertError } = await supabase
             .from('sms_credit_wallets')

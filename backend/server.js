@@ -25,3 +25,18 @@ process.on('SIGINT', () => {
     logger.info('HTTP server closed');
   });
 });
+
+// Catch unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error({ err: reason }, 'Unhandled promise rejection');
+});
+
+// Catch uncaught exceptions — log and exit gracefully
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught exception — shutting down');
+  server.close(() => {
+    process.exit(1);
+  });
+  // Force exit if server hasn't closed within 10 seconds
+  setTimeout(() => process.exit(1), 10000).unref();
+});

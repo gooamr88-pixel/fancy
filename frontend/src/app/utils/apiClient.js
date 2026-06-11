@@ -1,14 +1,8 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-function getAuthHeaders() {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
-}
-
 export async function apiFetch(path, options = {}) {
   const url = `${API_URL}${path}`;
   const headers = {
-    ...getAuthHeaders(),
     ...options.headers,
   };
 
@@ -17,16 +11,20 @@ export async function apiFetch(path, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, {
+    ...options,
+    headers,
+    credentials: 'include', // Send httpOnly auth cookie with every request
+  });
   
-  // Handle 401 - token expired
+  // Handle 401 - session expired
   if (response.status === 401) {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth_token');
+      // Clear local metadata (non-sensitive display data)
       localStorage.removeItem('org_id');
       localStorage.removeItem('user_role');
       localStorage.removeItem('active_event_id');
-      // Use soft redirect to preserve SPA state awareness
+      // Redirect to login — the server already invalidated the cookie
       window.location.href = '/login';
     }
     throw new Error('Session expired. Please log in again.');
@@ -74,8 +72,12 @@ export async function apiFetch(path, options = {}) {
   return data;
 }
 
-export function logout() {
-  localStorage.removeItem('auth_token');
+export async function logout() {
+  try {
+    await apiFetch('/auth/logout', { method: 'POST' });
+  } catch {
+    // If the server call fails, still clear local state
+  }
   localStorage.removeItem('org_id');
   localStorage.removeItem('user_role');
   localStorage.removeItem('active_event_id');
@@ -83,4 +85,3 @@ export function logout() {
 }
 
 export { API_URL };
-

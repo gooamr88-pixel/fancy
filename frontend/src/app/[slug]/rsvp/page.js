@@ -109,7 +109,7 @@ function RSVPFormContent({ slug }) {
     const diff = size - 1;
     setAdditionalGuests(prev => {
       const copy = [...prev];
-      if (copy.length < diff) { while (copy.length < diff) copy.push({ fullName: '', mealSelection: '', dietaryNotes: '' }); }
+      if (copy.length < diff) { while (copy.length < diff) copy.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, fullName: '', mealSelection: '', dietaryNotes: '' }); }
       else if (copy.length > diff) { copy.splice(diff); }
       return copy;
     });
@@ -337,7 +337,7 @@ function RSVPFormContent({ slug }) {
               </div>
 
               {additionalGuests.map((g, index) => (
-                <div key={index} style={{ padding: '16px', border: '1px solid #E8E2D6', borderRadius: '10px', background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div key={g.id} style={{ padding: '16px', border: '1px solid #E8E2D6', borderRadius: '10px', background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h4 style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#A09A91', fontWeight: 700 }}>{t.guest_label.replace('{index}', index + 2)}</h4>
                   <div>
                     <label style={{ ...S.labelBase, fontSize: '11px' }}>{t.guest_name_label}</label>

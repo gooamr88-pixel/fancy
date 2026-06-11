@@ -69,16 +69,31 @@ const parseCSV = (csvContent) => {
 };
 
 /**
+ * Sanitizes a cell value to prevent CSV formula injection.
+ * Prefixes values starting with formula-injection characters with a single-quote.
+ */
+const sanitizeCsvValue = (val) => {
+  if (!val) return val;
+  const str = String(val);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    return "'" + str;
+  }
+  return str;
+};
+
+/**
  * Converts a list of objects into a download-ready CSV string.
  */
 const generateCSV = (headers, data, fieldMapper) => {
-  const headerLine = headers.join(',');
+  // Quote headers the same way as data values
+  const headerLine = headers.map(h => `"${String(h).replace(/"/g, '""')}"`).join(',');
   const rowLines = data.map(item => {
     const rowValues = fieldMapper(item);
-    // Escape quotes and wrap in quotes to ensure valid CSV
+    // Escape quotes, sanitize against CSV injection, and wrap in quotes to ensure valid CSV
     return rowValues.map(v => {
       const valStr = v === null || v === undefined ? '' : String(v);
-      const escaped = valStr.replace(/"/g, '""');
+      const sanitized = sanitizeCsvValue(valStr);
+      const escaped = sanitized.replace(/"/g, '""');
       return `"${escaped}"`;
     }).join(',');
   });
@@ -88,5 +103,6 @@ const generateCSV = (headers, data, fieldMapper) => {
 
 module.exports = {
   parseCSV,
-  generateCSV
+  generateCSV,
+  sanitizeCsvValue
 };

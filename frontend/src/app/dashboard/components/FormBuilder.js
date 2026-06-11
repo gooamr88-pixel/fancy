@@ -11,7 +11,7 @@ const labelStyle = {
   fontSize: '11px', color: '#77736A', fontWeight: 600, display: 'block', marginBottom: '4px', fontFamily: 'var(--font-sans)',
 };
 
-export default function FormBuilder({ eventId, token }) {
+export default function FormBuilder({ eventId }) {
   const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,8 +28,7 @@ export default function FormBuilder({ eventId, token }) {
     if (!eventId) return;
     try {
       setLoading(true);
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const res = await fetch(`${apiUrl}/events/${eventId}/fields`, { headers });
+      const res = await fetch(`${apiUrl}/events/${eventId}/fields`, { credentials: 'include' });
       const data = await res.json();
       if (data.success) setFields(data.fields || []);
       setError(null);
@@ -37,7 +36,7 @@ export default function FormBuilder({ eventId, token }) {
       console.error('Failed to load fields:', err);
       setError('Could not connect to fields API.');
     } finally { setLoading(false); }
-  }, [apiUrl, eventId, token]);
+  }, [apiUrl, eventId]);
 
   useEffect(() => { loadFields(); }, [loadFields]);
 
@@ -59,7 +58,8 @@ export default function FormBuilder({ eventId, token }) {
       setLoading(true);
       const res = await fetch(`${apiUrl}/events/${eventId}/fields`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token && { 'Authorization': `Bearer ${token}` }) },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length })
       });
       if (!res.ok) throw new Error('Failed to create field');
@@ -73,7 +73,7 @@ export default function FormBuilder({ eventId, token }) {
     if (!confirm(`Are you sure you want to delete "${fieldLabel}"? Any guest answers matching this question will also be deleted.`)) return;
     try {
       setLoading(true);
-      const res = await fetch(`${apiUrl}/events/${eventId}/fields/${fieldId}`, { method: 'DELETE', headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+      const res = await fetch(`${apiUrl}/events/${eventId}/fields/${fieldId}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error('Failed to delete field');
       const data = await res.json();
       if (data.success) loadFields();

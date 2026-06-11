@@ -6,7 +6,7 @@ const authController = require('../controllers/authController');
 
 const router = express.Router();
 
-// Register new organizer: POST /api/v1/auth/register
+// Register new organizer (creates unverified account + sends OTP): POST /api/v1/auth/register
 router.post('/register', [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
@@ -15,12 +15,22 @@ router.post('/register', [
   validate
 ], authController.register);
 
-// Login organizer: POST /api/v1/auth/login
+// Verify registration OTP (activates account + issues auth cookie): POST /api/v1/auth/verify-registration
+router.post('/verify-registration', [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('otp').isLength({ min: 6, max: 6 }).isNumeric().withMessage('Valid 6-digit OTP is required'),
+  validate
+], authController.verifyRegistration);
+
+// Login organizer (issues auth cookie): POST /api/v1/auth/login
 router.post('/login', [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').notEmpty().withMessage('Password is required'),
   validate
 ], authController.login);
+
+// Logout (clears auth cookie): POST /api/v1/auth/logout
+router.post('/logout', authController.logout);
 
 // Forgot password link trigger: POST /api/v1/auth/forgot-password
 router.post('/forgot-password', [

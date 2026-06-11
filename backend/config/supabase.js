@@ -1,5 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+// dotenv is loaded in server.js at startup — no duplicate require needed
 
 // Polyfill WebSocket for Node.js < 22 to support Supabase Realtime
 if (typeof global.WebSocket === 'undefined') {

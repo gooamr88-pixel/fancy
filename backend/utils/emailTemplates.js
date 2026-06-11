@@ -146,6 +146,7 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrDataURL) => {
 };
 
 module.exports = {
+  escapeHtml,
   getRSVPConfirmationTemplate,
   getQRTicketTemplate
 };

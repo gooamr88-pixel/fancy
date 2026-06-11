@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { logout } from '../../utils/apiClient';
 
 export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
@@ -22,18 +23,12 @@ export default function CampaignsPage() {
   const [smsCreditsToBuy, setSmsCreditsToBuy] = useState(100);
   const [buyingCredits, setBuyingCredits] = useState(false);
 
-  const [token, setToken] = useState('');
+  const [authChecked, setAuthChecked] = useState(false);
   const [eventId, setEventId] = useState('');
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('org_id');
-    localStorage.removeItem('user_role');
-    localStorage.removeItem('active_event_id');
-    window.location.href = '/login';
-  };
+  const handleLogout = logout;
 
   const handleBuySMSCredits = async (e) => {
     e.preventDefault();
@@ -46,9 +41,9 @@ export default function CampaignsPage() {
       const res = await fetch(`${apiUrl}/payments/events/${eventId}/sms-credits`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           eventId,
           creditCount: parseInt(smsCreditsToBuy)
@@ -71,14 +66,14 @@ export default function CampaignsPage() {
   // Auth and event initializer
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedToken = localStorage.getItem('auth_token');
-      if (!savedToken) {
+      const orgId = localStorage.getItem('org_id');
+      if (!orgId) {
         router.push('/login');
         return;
       }
-      setToken(savedToken);
       const savedEventId = localStorage.getItem('active_event_id') || 'demo-event';
       setEventId(savedEventId);
+      setAuthChecked(true);
     }
   }, [router]);
 
@@ -86,10 +81,9 @@ export default function CampaignsPage() {
   const loadCampaignData = useCallback(async () => {
     if (!eventId) return;
     try {
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
       // 1. Fetch wallet and history
-      const historyRes = await fetch(`${apiUrl}/events/${eventId}/campaigns/history`, { headers });
+      const historyRes = await fetch(`${apiUrl}/events/${eventId}/campaigns/history`, { credentials: 'include' });
       const historyData = await historyRes.json();
       if (historyData.success) {
         setCreditsPurchased(historyData.wallet.credits_purchased || 0);
@@ -109,7 +103,7 @@ export default function CampaignsPage() {
       }
 
       // 2. Fetch RSVPs to calculate pending counts
-      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { headers });
+      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { credentials: 'include' });
       const rsvpsData = await rsvpsRes.json();
       if (rsvpsData.success) {
         // Calculate number of guests who are response === 'pending' and have a phone number
@@ -119,12 +113,12 @@ export default function CampaignsPage() {
       
       setError(null);
     } catch (err) {
-      console.error('Failed to load campaign data:', err);
+      // Campaign data loading failed
       setError('Could not connect to SMS server. Make sure the backend server is running on port 5000.');
     } finally {
       setLoading(false);
     }
-  }, [apiUrl, eventId, token]);
+  }, [apiUrl, eventId]);
 
   useEffect(() => {
     if (!eventId) return;
@@ -145,9 +139,9 @@ export default function CampaignsPage() {
       const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/send-sms`, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` })
+          'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({ messageTemplate })
       });
 
@@ -226,6 +220,7 @@ export default function CampaignsPage() {
           </button>
           <button
             onClick={handleLogout}
+            aria-label="Sign out"
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors cursor-pointer"
             title="Sign out"
           >

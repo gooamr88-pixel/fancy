@@ -134,11 +134,13 @@ const updateTablePositions = async (req, res, next) => {
     }
 
     // Broadcast positions update via real-time channel
-    await supabase.channel(`event-${eventId}`).send({
+    const layoutChannel = supabase.channel(`event-${eventId}`);
+    await layoutChannel.send({
       type: 'broadcast',
       event: 'table_layout_updated',
       payload: { tablePositions }
     });
+    supabase.removeChannel(layoutChannel);
 
     return res.json({
       success: true,

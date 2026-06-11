@@ -4,21 +4,69 @@ const { supabase } = require('../config/supabase');
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
 
+/** Cookie configuration — single source of truth for all auth endpoints. */
+const COOKIE_NAME = 'fancy_session';
+const getCookieOptions = (maxAge) => ({
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+  path: '/',
+  maxAge, // milliseconds
+});
+
+/**
+ * Sets the httpOnly auth cookie on the response.
+ * @param {import('express').Response} res
+ * @param {string} token - JWT to store
+ */
+const setAuthCookie = (res, token) => {
+  res.cookie(COOKIE_NAME, token, getCookieOptions(24 * 60 * 60 * 1000)); // 24 hours
+};
+
+/**
+ * Clears the httpOnly auth cookie from the response.
+ * @param {import('express').Response} res
+ */
+const clearAuthCookie = (res) => {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    path: '/',
+  });
+};
+
+/**
+ * Extracts JWT from request: cookie first, then Authorization header (backward compat).
+ * @param {import('express').Request} req
+ * @returns {string|null}
+ */
+const extractToken = (req) => {
+  // 1. httpOnly cookie (primary)
+  if (req.cookies && req.cookies[COOKIE_NAME]) {
+    return req.cookies[COOKIE_NAME];
+  }
+  // 2. Authorization header (backward compatibility for mobile clients / external API consumers)
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+  return null;
+};
+
 /**
  * Middleware to enforce authentication.
- * Validates Supabase JWTs (via remote auth service or local verification fallback).
+ * Reads JWT from httpOnly cookie or Authorization header.
  */
 const requireAuth = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const token = extractToken(req);
+  if (!token) {
     return res.status(401).json({
       success: false,
       error: 'UNAUTHENTICATED',
       message: 'Authentication token is required.'
     });
   }
-
-  const token = authHeader.split(' ')[1];
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
@@ -52,13 +100,10 @@ const requireAuth = async (req, res, next) => {
  * Middleware for optional authentication (public endpoints that behave differently if logged in).
  */
 const optionalAuth = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next();
-  }
+  const token = extractToken(req);
+  if (!token) return next();
 
   try {
-    const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
     if (decoded) {
@@ -140,5 +185,8 @@ module.exports = {
   requireAuth,
   optionalAuth,
   requireSuperAdmin,
-  verifyEventOwner
+  verifyEventOwner,
+  setAuthCookie,
+  clearAuthCookie,
+  COOKIE_NAME,
 };

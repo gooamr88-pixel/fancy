@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { logout } from '../utils/apiClient';
 
 const D = {
   bg: '#0a0c10', card: '#111318', cardBorder: '#1e2028', borderLight: '#2d303a',
@@ -32,37 +33,45 @@ export default function AdminPage() {
   const [pricingTiers, setPricingTiers] = useState([]);
   const [savingConfig, setSavingConfig] = useState(false);
 
-  const [token, setToken] = useState('');
+
+  const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('org_id');
-    localStorage.removeItem('user_role');
-    localStorage.removeItem('active_event_id');
-    window.location.href = '/login';
-  };
+  const handleLogout = logout;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedToken = localStorage.getItem('auth_token');
+      const orgId = localStorage.getItem('org_id');
       const userRole = localStorage.getItem('user_role');
-      if (!savedToken) { router.push('/login'); return; }
+      if (!orgId) { router.push('/login'); return; }
       if (userRole !== 'super_admin') { router.push('/dashboard'); return; }
-      setToken(savedToken);
+      // Server-side role verification: attempt to fetch admin data
+      // If the server returns 401/403, the localStorage role was spoofed
+      fetch(`${apiUrl}/admin/events`, { credentials: 'include' })
+        .then(res => {
+          if (res.status === 401 || res.status === 403) {
+            localStorage.removeItem('user_role');
+            router.push('/dashboard');
+            return;
+          }
+          setAuthChecked(true);
+        })
+        .catch(() => {
+          // Network error — still set authChecked so the normal error UI shows
+          setAuthChecked(true);
+        });
     }
-  }, [router]);
+  }, [router, apiUrl]);
 
   const loadAdminData = useCallback(async () => {
-    if (!token) return;
+    if (!authChecked) return;
     try {
-      const headers = { 'Authorization': `Bearer ${token}` };
-      const eventsRes = await fetch(`${apiUrl}/admin/events`, { headers });
+      const eventsRes = await fetch(`${apiUrl}/admin/events`, { credentials: 'include' });
       const eventsData = await eventsRes.json();
       if (eventsData.success) setEvents(eventsData.events);
 
-      const configRes = await fetch(`${apiUrl}/admin/pricing`, { headers });
+      const configRes = await fetch(`${apiUrl}/admin/pricing`, { credentials: 'include' });
       const configData = await configRes.json();
       if (configData.success && configData.config) {
         setPricingConfig(configData.config);
@@ -71,12 +80,12 @@ export default function AdminPage() {
       }
       setError(null);
     } catch (err) {
-      console.error('Failed to load admin dashboard data:', err);
+      // Admin data loading failed
       setError('Could not connect to the administration API. Verify port 5000 is running.');
     } finally { setLoading(false); }
-  }, [apiUrl, token]);
+  }, [apiUrl, authChecked]);
 
-  useEffect(() => { if (token) loadAdminData(); }, [token, loadAdminData]);
+  useEffect(() => { if (authChecked) loadAdminData(); }, [authChecked, loadAdminData]);
 
   const handleApprovePayment = async (e) => {
     e.preventDefault();
@@ -85,7 +94,8 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${apiUrl}/admin/manual-approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ eventId: selectedEvent.id, amountCents: parseInt(approveAmountCents) })
       });
       const data = await res.json();
@@ -113,7 +123,8 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${apiUrl}/admin/pricing`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ pricingTiers, smsRateCentsPerCredit: parseInt(smsRate) })
       });
       const data = await res.json();
@@ -132,7 +143,7 @@ export default function AdminPage() {
   const inputStyle = { width: '100%', background: D.bg, border: `1px solid ${D.cardBorder}`, borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: D.text200, outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box', transition: 'border-color 0.2s' };
   const cardStyle = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: '16px' };
 
-  if (loading) {
+  if (!authChecked || loading) {
     return (
       <div style={{ minHeight: '100vh', background: D.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
@@ -173,6 +184,7 @@ export default function AdminPage() {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <Link href="/dashboard" style={{ padding: '8px 16px', background: D.cardBorder, border: `1px solid ${D.borderLight}`, borderRadius: '8px', fontSize: '12px', fontWeight: 700, color: D.text200, textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>Go to Organizer Dashboard</Link>
           <button onClick={handleLogout}
+            aria-label="Sign out"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, color: D.text500, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'color 0.2s' }}
             onMouseEnter={e => { e.currentTarget.style.color = D.roseLight; e.currentTarget.style.background = 'rgba(244,63,94,0.08)'; }}
             onMouseLeave={e => { e.currentTarget.style.color = D.text500; e.currentTarget.style.background = 'none'; }}>
@@ -185,7 +197,7 @@ export default function AdminPage() {
       </div>
 
       {/* KPI Metrics */}
-      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '32px' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '32px' }} className="admin-kpi-grid">
         <div style={{ ...cardStyle, padding: '24px' }}>
           <span style={{ fontSize: '10px', textTransform: 'uppercase', color: D.text400, fontWeight: 700, display: 'block' }}>Total Hosted Events</span>
           <span style={{ fontSize: '22px', fontWeight: 900, display: 'block', marginTop: '8px', color: D.text100 }}>{events.length} Events</span>
@@ -395,7 +407,15 @@ export default function AdminPage() {
         </div>
       )}
 
-      <style jsx>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style jsx>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @media (max-width: 768px) {
+          .admin-kpi-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (min-width: 769px) and (max-width: 1024px) {
+          .admin-kpi-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+      `}</style>
     </div>
   );
 }

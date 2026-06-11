@@ -11,7 +11,7 @@
   --deep-charcoal: #191B1E;
   --warm-ivory: #F8F4EC;
   --soft-champagne: #D7BE80;
-  --muted-stone: #77736A;
+  --muted-stone: #5E5A52;
 
   /* Functional Tokens */
   --background: #FFFFFF;
@@ -26,7 +26,7 @@
   /* Tier 2 — Body & Buttons: Clean premium Sans-Serif */
   --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, sans-serif;
   /* Tier 3 — Logo / Brand Moments: High-end Luxury Script */
-  --font-script: 'Great Vibes', cursive;
+  --font-script: var(--font-script, 'Great Vibes'), cursive;
 }
 
 @theme inline {

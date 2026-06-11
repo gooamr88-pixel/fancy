@@ -1,6 +1,7 @@
 const { supabase } = require('../config/supabase');
 const notificationService = require('../utils/notificationService');
 const { parseCSV, generateCSV } = require('../utils/excelHelper');
+const { escapeHtml } = require('../utils/emailTemplates');
 
 /** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
 function escapeLikePattern(str) {
@@ -81,17 +82,25 @@ const submitPublicRSVP = async (req, res, next) => {
     let rsvp;
 
     if (rsvpId) {
-      // 3a. Verify the caller owns this RSVP (email must match original submission)
-      if (email) {
-        const { data: existingRsvp } = await supabase
-          .from('rsvps')
-          .select('email')
-          .eq('id', rsvpId)
-          .eq('event_id', event.id)
-          .single();
+      // 3a. Always verify the caller owns this RSVP (email must match original submission)
+      const { data: existingRsvp } = await supabase
+        .from('rsvps')
+        .select('email')
+        .eq('id', rsvpId)
+        .eq('event_id', event.id)
+        .single();
 
-        if (existingRsvp && existingRsvp.email &&
-            existingRsvp.email.toLowerCase() !== email.toLowerCase()) {
+      if (!existingRsvp) {
+        return res.status(404).json({
+          success: false,
+          error: 'RSVP_NOT_FOUND',
+          message: 'The RSVP record was not found.'
+        });
+      }
+
+      // If the existing RSVP has an email, the caller must provide a matching email
+      if (existingRsvp.email) {
+        if (!email || existingRsvp.email.toLowerCase() !== email.toLowerCase()) {
           return res.status(403).json({
             success: false,
             error: 'RSVP_OWNERSHIP_FAILED',
@@ -192,7 +201,8 @@ const submitPublicRSVP = async (req, res, next) => {
     }
 
     // 6. Broadcast RSVP update via real-time channel
-    await supabase.channel(`event-${event.id}`).send({
+    const rsvpChannel = supabase.channel(`event-${event.id}`);
+    await rsvpChannel.send({
       type: 'broadcast',
       event: 'rsvp_submitted',
       payload: {
@@ -202,6 +212,7 @@ const submitPublicRSVP = async (req, res, next) => {
         partySize: computedPartySize
       }
     });
+    supabase.removeChannel(rsvpChannel);
 
     // 7. Trigger confirmation email asynchronously if email exists
     if (email) {
@@ -223,10 +234,10 @@ const submitPublicRSVP = async (req, res, next) => {
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
             <div style="text-align: center; margin-bottom: 20px;">
               <span style="font-size: 12px; font-weight: bold; color: #10b981; text-transform: uppercase; letter-spacing: 0.15em;">NEW RSVP RECEIVED</span>
-              <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">${event.title}</h2>
+              <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">${escapeHtml(event.title)}</h2>
             </div>
             <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
-            <p style="color: #334155; font-size: 15px; line-height: 1.6;"><strong>${guestName}</strong> has ${response === 'yes' ? 'accepted' : response === 'no' ? 'declined' : 'submitted an RSVP for'} your event invitation.</p>
+            <p style="color: #334155; font-size: 15px; line-height: 1.6;"><strong>${escapeHtml(guestName)}</strong> has ${response === 'yes' ? 'accepted' : response === 'no' ? 'declined' : 'submitted an RSVP for'} your event invitation.</p>
             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0; padding: 15px;">
               <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${response === 'yes' ? '#10b981' : '#ef4444'};">${response === 'yes' ? 'Attending' : 'Declined'}</td></tr>
               <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Party Size</td><td style="padding: 8px 15px; font-size: 15px;">${computedPartySize}</td></tr>
@@ -235,7 +246,7 @@ const submitPublicRSVP = async (req, res, next) => {
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">This is an automated notification from Fancy RSVP.</p>
           </div>
         `;
-        sendEmailViaBrevo(org.email, `New RSVP: ${guestName} - ${event.title}`, orgEmailHtml)
+        sendEmailViaBrevo(org.email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`, orgEmailHtml)
           .catch(err => console.error('Failed to notify organizer:', err.message));
       }
     } catch (orgNotifyErr) {
@@ -276,10 +287,10 @@ const searchPublicGuests = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
 
-    // 2. Search guests matching query prefix/substring (public: only non-PII fields)
+    // 2. Search guests matching query prefix/substring (public: only non-PII fields, no internal IDs)
     const { data, error } = await supabase
       .from('rsvps')
-      .select('id, guest_name, response')
+      .select('guest_name, response')
       .eq('event_id', event.id)
       .ilike('guest_name', `%${escapeLikePattern(query.trim())}%`)
       .limit(10);
@@ -289,7 +300,6 @@ const searchPublicGuests = async (req, res, next) => {
     return res.json({
       success: true,
       results: data.map(item => ({
-        id: item.id,
         guestName: item.guest_name,
         response: item.response
       }))
@@ -550,11 +560,13 @@ const updateRSVP = async (req, res, next) => {
     }
 
     // Broadcast update
-    await supabase.channel(`event-${eventId}`).send({
+    const updateChannel = supabase.channel(`event-${eventId}`);
+    await updateChannel.send({
       type: 'broadcast',
       event: 'rsvp_updated',
       payload: { rsvpId, guestName: rsvp.guest_name, response: rsvp.response }
     });
+    supabase.removeChannel(updateChannel);
 
     return res.json({ success: true, message: 'RSVP updated successfully.', rsvp });
   } catch (err) {

@@ -1,6 +1,9 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
+const { escapeHtml } = require('../utils/emailTemplates');
+const { setAuthCookie, clearAuthCookie } = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -73,9 +76,9 @@ const verifyPassword = async (password, storedHash, orgEmail) => {
         .from('organizations')
         .update({ password_hash: newHash })
         .eq('email', orgEmail);
-      console.log(`[Auth] Migrated password hash to ${CURRENT_ITERATIONS} iterations for ${orgEmail}`);
+      logger.info({ email: orgEmail }, 'Migrated password hash to current iteration count');
     } catch (rehashErr) {
-      console.error('[Auth] Failed to rehash password during migration:', rehashErr.message);
+      logger.error({ err: rehashErr }, 'Failed to rehash password during migration');
     }
   }
 
@@ -83,7 +86,19 @@ const verifyPassword = async (password, storedHash, orgEmail) => {
 };
 
 /**
+ * Generates a signed JWT and attaches it as an httpOnly cookie.
+ * Also returns the user/org data in the JSON body (WITHOUT the token).
+ */
+const issueAuthCookie = (res, payload) => {
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+  setAuthCookie(res, token);
+  return token;
+};
+
+/**
  * Registers a new organizer account.
+ * Creates the user in an UNVERIFIED state, generates 6-digit OTP, and dispatches email.
+ * No auth cookie is issued until the OTP is verified via /verify-registration.
  * POST /api/v1/auth/register
  */
 const register = async (req, res, next) => {
@@ -103,59 +118,193 @@ const register = async (req, res, next) => {
   }
 
   try {
-    // Check if user role exists
+    // Check if user already exists
     const { data: existingUser } = await supabase
       .from('organizations')
-      .select('id')
+      .select('id, email_verified')
       .eq('email', email)
       .limit(1);
 
     if (existingUser && existingUser.length > 0) {
-      return res.status(409).json({
-        success: false,
-        error: 'USER_EXISTS',
-        message: 'A user with this email is already registered.'
-      });
+      // If already verified, reject
+      if (existingUser[0].email_verified) {
+        return res.status(409).json({
+          success: false,
+          error: 'USER_EXISTS',
+          message: 'A user with this email is already registered.'
+        });
+      }
+      // If unverified, allow re-registration (overwrite pending registration)
     }
 
     const userId = crypto.randomUUID();
     const passwordHash = await hashPassword(password);
-    
-    // Create organization
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .insert({
-        owner_user_id: userId,
-        name: orgName,
-        email: email,
-        password_hash: passwordHash
-      })
-      .select()
-      .single();
 
-    if (orgError) throw orgError;
+    // Generate 6-digit OTP for email verification
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
 
-    // Create user role profile
+    if (existingUser && existingUser.length > 0) {
+      // Update existing unverified record
+      await supabase
+        .from('organizations')
+        .update({
+          owner_user_id: userId,
+          name: orgName,
+          password_hash: passwordHash,
+          registration_otp: otpHash,
+          registration_otp_expires_at: otpExpiresAt,
+          otp_attempts: 0,
+          email_verified: false,
+        })
+        .eq('email', email);
+    } else {
+      // Create new organization in unverified state
+      const { error: orgError } = await supabase
+        .from('organizations')
+        .insert({
+          owner_user_id: userId,
+          name: orgName,
+          email: email,
+          password_hash: passwordHash,
+          registration_otp: otpHash,
+          registration_otp_expires_at: otpExpiresAt,
+          otp_attempts: 0,
+          email_verified: false,
+        });
+
+      if (orgError) throw orgError;
+    }
+
+    // Create user role profile (upsert in case of re-registration)
     await supabase
       .from('user_roles')
-      .insert({
-        user_id: userId,
-        role: 'organizer'
-      });
+      .upsert({ user_id: userId, role: 'organizer' }, { onConflict: 'user_id' });
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: userId, email, role: 'organizer' },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Dispatch verification email via Brevo
+    const { sendEmailViaBrevo } = require('../utils/notificationService');
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <span style="font-size: 12px; font-weight: bold; color: #B8944F; text-transform: uppercase; letter-spacing: 0.15em;">Email Verification</span>
+          <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">Fancy RSVP</h2>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
+        <p style="color: #334155; font-size: 15px; line-height: 1.6;">Hello ${escapeHtml(name)},</p>
+        <p style="color: #334155; font-size: 15px; line-height: 1.6;">Thank you for creating your Fancy RSVP account. Please enter the following verification code to activate your account:</p>
+        <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #10b981; margin: 25px 0; font-family: monospace;">
+          ${otp}
+        </div>
+        <p style="color: #ef4444; font-size: 14px; font-weight: bold;">This code expires in 15 minutes.</p>
+        <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 25px;">If you did not create an account, you can safely ignore this email.</p>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-top: 30px; margin-bottom: 15px;" />
+        <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">This is an automated notification from Fancy RSVP.</p>
+      </div>
+    `;
+
+    await sendEmailViaBrevo(email, 'Verify Your Email — Fancy RSVP', emailHtml);
+
+    logger.info({ email }, 'Registration OTP dispatched');
 
     return res.status(201).json({
       success: true,
-      message: 'Organizer registered successfully.',
-      token,
-      user: { id: userId, email, name, role: 'organizer' },
-      organization: org
+      message: 'Registration initiated. Please check your email for the verification code.',
+      requiresVerification: true,
+      email,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Verifies the registration OTP and activates the account.
+ * On success, issues the first httpOnly auth cookie.
+ * POST /api/v1/auth/verify-registration
+ */
+const verifyRegistration = async (req, res, next) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: 'email and otp are required.'
+    });
+  }
+
+  try {
+    // 1. Fetch unverified organization
+    const { data: orgs, error: fetchError } = await supabase
+      .from('organizations')
+      .select('id, owner_user_id, name, email, registration_otp, registration_otp_expires_at, otp_attempts, email_verified')
+      .eq('email', email)
+      .limit(1);
+
+    if (fetchError) throw fetchError;
+
+    const org = orgs && orgs[0];
+    if (!org) {
+      return res.status(400).json({ success: false, error: 'NOT_FOUND', message: 'No pending registration found for this email.' });
+    }
+
+    if (org.email_verified) {
+      return res.status(400).json({ success: false, error: 'ALREADY_VERIFIED', message: 'This email is already verified. Please log in.' });
+    }
+
+    // 2. Rate limit OTP attempts
+    const otpAttempts = org.otp_attempts || 0;
+    if (otpAttempts >= 5) {
+      return res.status(429).json({
+        success: false,
+        error: 'TOO_MANY_ATTEMPTS',
+        message: 'Too many verification attempts. Please register again to receive a new code.'
+      });
+    }
+
+    // 3. Validate OTP
+    const storedOtp = org.registration_otp;
+    const expiresAt = org.registration_otp_expires_at;
+
+    if (!storedOtp || !expiresAt || new Date() > new Date(expiresAt)) {
+      await supabase.from('organizations').update({ otp_attempts: otpAttempts + 1 }).eq('email', email);
+      return res.status(400).json({ success: false, error: 'OTP_EXPIRED', message: 'The verification code has expired. Please register again.' });
+    }
+
+    const submittedHash = crypto.createHash('sha256').update(String(otp)).digest('hex');
+    const otpMatch = storedOtp.length === submittedHash.length &&
+      crypto.timingSafeEqual(Buffer.from(storedOtp, 'utf8'), Buffer.from(submittedHash, 'utf8'));
+
+    if (!otpMatch) {
+      await supabase.from('organizations').update({ otp_attempts: otpAttempts + 1 }).eq('email', email);
+      return res.status(400).json({ success: false, error: 'INVALID_OTP', message: 'Invalid verification code.' });
+    }
+
+    // 4. Activate the account
+    const { error: updateError } = await supabase
+      .from('organizations')
+      .update({
+        email_verified: true,
+        registration_otp: null,
+        registration_otp_expires_at: null,
+        otp_attempts: 0,
+      })
+      .eq('email', email);
+
+    if (updateError) throw updateError;
+
+    // 5. Issue auth cookie
+    const userId = org.owner_user_id;
+    issueAuthCookie(res, { id: userId, email, role: 'organizer' });
+
+    logger.info({ email }, 'Registration verified, account activated');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified. Welcome to Fancy RSVP!',
+      user: { id: userId, email, name: org.name, role: 'organizer' },
+      organization: { id: org.id, owner_user_id: userId, name: org.name, email: org.email },
     });
   } catch (err) {
     next(err);
@@ -164,6 +313,7 @@ const register = async (req, res, next) => {
 
 /**
  * Authenticates organizer login credentials.
+ * Sets httpOnly auth cookie on success.
  * POST /api/v1/auth/login
  */
 const login = async (req, res, next) => {
@@ -181,11 +331,20 @@ const login = async (req, res, next) => {
     // Resolve organization by email
     const { data: orgs } = await supabase
       .from('organizations')
-      .select('id, owner_user_id, name, email, phone, password_hash, failed_login_attempts, lockout_until')
+      .select('id, owner_user_id, name, email, phone, password_hash, failed_login_attempts, lockout_until, email_verified')
       .eq('email', email)
       .limit(1);
 
     const org = orgs && orgs[0];
+
+    // Block unverified accounts
+    if (org && org.email_verified === false) {
+      return res.status(403).json({
+        success: false,
+        error: 'EMAIL_NOT_VERIFIED',
+        message: 'Please verify your email before logging in. Check your inbox for the verification code.'
+      });
+    }
 
     // Check account lockout
     if (org && org.lockout_until && new Date(org.lockout_until) > new Date()) {
@@ -239,17 +398,12 @@ const login = async (req, res, next) => {
 
     const role = roleData?.role || 'organizer';
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: userId, email, role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Issue httpOnly auth cookie
+    issueAuthCookie(res, { id: userId, email, role });
 
     return res.status(200).json({
       success: true,
       message: 'Login successful.',
-      token,
       user: { id: userId, email, name: org.name, role },
       organization: {
         id: org.id,
@@ -262,6 +416,15 @@ const login = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+};
+
+/**
+ * Logs the user out by clearing the httpOnly auth cookie.
+ * POST /api/v1/auth/logout
+ */
+const logout = (req, res) => {
+  clearAuthCookie(res);
+  return res.status(200).json({ success: true, message: 'Logged out successfully.' });
 };
 
 /**
@@ -293,7 +456,7 @@ const forgotPassword = async (req, res, next) => {
     
     // If organization doesn't exist, return success anyway (prevent email enumeration vulnerability)
     if (!org) {
-      console.log(`[Forgot Password] Requested email ${email} not found. Skipping OTP dispatch.`);
+      logger.info('Password reset requested');
       return res.status(200).json({
         success: true,
         message: 'If the email exists, a password reset OTP code has been dispatched.'
@@ -304,6 +467,8 @@ const forgotPassword = async (req, res, next) => {
     const otp = crypto.randomInt(100000, 1000000).toString();
     const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes validity
+
+    logger.info({ email }, 'Password reset OTP dispatched');
 
     // 3. Save hashed OTP to organizations table and reset otp_attempts counter
     const { error: updateError } = await supabase
@@ -326,7 +491,7 @@ const forgotPassword = async (req, res, next) => {
           <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">Fancy RSVP</h2>
         </div>
         <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
-        <p style="color: #334155; font-size: 15px; line-height: 1.6;">Hello ${org.name || 'Organizer'},</p>
+        <p style="color: #334155; font-size: 15px; line-height: 1.6;">Hello ${escapeHtml(org.name || 'Organizer')},</p>
         <p style="color: #334155; font-size: 15px; line-height: 1.6;">You requested a password reset for your event organizer account. Use the following One-Time Password (OTP) to complete your verification. This code is valid for 15 minutes:</p>
         <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #10b981; margin: 25px 0; font-family: monospace;">
           ${otp}
@@ -428,7 +593,7 @@ const resetPassword = async (req, res, next) => {
     }
 
     // Hash the submitted OTP and compare against stored hash (constant-time)
-    const submittedHash = crypto.createHash('sha256').update(otp).digest('hex');
+    const submittedHash = crypto.createHash('sha256').update(String(otp)).digest('hex');
     const otpMatch = storedOtp.length === submittedHash.length &&
       crypto.timingSafeEqual(Buffer.from(storedOtp, 'utf8'), Buffer.from(submittedHash, 'utf8'));
 
@@ -460,6 +625,9 @@ const resetPassword = async (req, res, next) => {
       .eq('email', email);
 
     if (updateError) throw updateError;
+
+    // Clear any existing auth cookie (force re-login with new password)
+    clearAuthCookie(res);
 
     return res.status(200).json({
       success: true,
@@ -566,6 +734,9 @@ const changePassword = async (req, res, next) => {
 
     if (updateError) throw updateError;
 
+    // Re-issue auth cookie with fresh token after password change
+    issueAuthCookie(res, { id: req.user.id, email: org.email, role: req.user.role });
+
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (err) {
     next(err);
@@ -574,7 +745,9 @@ const changePassword = async (req, res, next) => {
 
 module.exports = {
   register,
+  verifyRegistration,
   login,
+  logout,
   forgotPassword,
   resetPassword,
   getProfile,

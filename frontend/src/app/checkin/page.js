@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { logout } from '../utils/apiClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -20,35 +21,37 @@ export default function CheckInPage() {
   const [checkInLogs, setCheckInLogs] = useState([]);
   const [showConfirmOverlay, setShowConfirmOverlay] = useState(false);
   const [overlayData, setOverlayData] = useState(null);
-  const [token, setToken] = useState('');
+
   const [events, setEvents] = useState([]);
   const [eventId, setEventId] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
 
   useEffect(() => { if (showConfirmOverlay) { const timer = setTimeout(() => setShowConfirmOverlay(false), 3200); return () => clearTimeout(timer); } }, [showConfirmOverlay]);
 
-  const handleLogout = () => { localStorage.removeItem('auth_token'); localStorage.removeItem('org_id'); localStorage.removeItem('user_role'); localStorage.removeItem('active_event_id'); window.location.href = '/login'; };
+  const handleLogout = logout;
 
-  useEffect(() => { if (typeof window !== 'undefined') { const savedToken = localStorage.getItem('auth_token'); const savedEventId = localStorage.getItem('active_event_id'); if (!savedToken) { router.push('/login'); return; } setToken(savedToken); if (savedEventId) setEventId(savedEventId); } }, [router]);
+  useEffect(() => { if (typeof window !== 'undefined') { const orgId = localStorage.getItem('org_id'); const savedEventId = localStorage.getItem('active_event_id'); if (!orgId) { router.push('/login'); return; } if (savedEventId) setEventId(savedEventId); setAuthReady(true); setAuthChecked(true); } }, [router]);
 
-  useEffect(() => { if (!token) return; const fetchEvents = async () => { try { const res = await fetch(`${API_URL}/events`, { headers: { 'Authorization': `Bearer ${token}` } }); const data = await res.json(); if (data.success && data.events.length > 0) { setEvents(data.events); if (!eventId) setEventId(data.events[0].id); } else { if (!eventId) setEventId('demo-event'); } } catch (err) { console.error('Failed to load events:', err); if (!eventId) setEventId('demo-event'); } }; fetchEvents(); }, [token, eventId]);
+  useEffect(() => { if (!authReady) return; const fetchEvents = async () => { try { const res = await fetch(`${API_URL}/events`, { credentials: 'include' }); const data = await res.json(); if (data.success && data.events.length > 0) { setEvents(data.events); if (!eventId) setEventId(data.events[0].id); } else { if (!eventId) setEventId('demo-event'); } } catch (err) { if (!eventId) setEventId('demo-event'); } }; fetchEvents(); }, [eventId, authReady]);
 
   const fetchCheckInSummary = useCallback(async () => {
-    if (!eventId) return;
-    try { const headers = token ? { 'Authorization': `Bearer ${token}` } : {}; const res = await fetch(`${API_URL}/events/${eventId}/stats`, { headers }); const data = await res.json(); if (data.success) { setTotalArrivals(data.stats.checkedInGuests); setError(null); } }
-    catch (err) { console.error('Failed to connect to backend check-in:', err); setError('Could not connect to backend check-in server. Make sure port 5000 is running.'); }
+    if (!eventId || !authReady) return;
+    try { const res = await fetch(`${API_URL}/events/${eventId}/stats`, { credentials: 'include' }); const data = await res.json(); if (data.success) { setTotalArrivals(data.stats.checkedInGuests); setError(null); } }
+    catch (err) { setError('Could not connect to backend check-in server. Make sure port 5000 is running.'); }
     finally { setLoading(false); }
-  }, [eventId, token]);
+  }, [eventId, authReady]);
 
   useEffect(() => { if (eventId) fetchCheckInSummary(); }, [fetchCheckInSummary, eventId]);
 
-  useEffect(() => { if (!eventId) return; if (!searchQuery.trim()) { setSearchResults([]); return; } const delaySearch = setTimeout(async () => { try { const headers = token ? { 'Authorization': `Bearer ${token}` } : {}; const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${searchQuery}`, { headers }); const data = await res.json(); if (data.success) setSearchResults(data.results); } catch (err) { console.error('Failed search fetch query:', err); } }, 300); return () => clearTimeout(delaySearch); }, [searchQuery, eventId, token]);
+  useEffect(() => { if (!eventId || !authReady) return; if (!searchQuery.trim()) { setSearchResults([]); return; } const delaySearch = setTimeout(async () => { try { const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${searchQuery}`, { credentials: 'include' }); const data = await res.json(); if (data.success) setSearchResults(data.results); } catch (err) { /* search failed silently */ } }, 300); return () => clearTimeout(delaySearch); }, [searchQuery, eventId, authReady]);
 
   const handleManualCheckIn = async (rsvpId) => {
+    if (!authReady) return;
     try {
-      const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-      const res = await fetch(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers, body: JSON.stringify({ rsvpId, checkedInBy: 'Tablet Front-Desk' }) });
+      const res = await fetch(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ rsvpId, checkedInBy: 'Tablet Front-Desk' }) });
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Check-in failed');
       if (data.success) {
         setSelectedGuest(prev => prev ? { ...prev, isCheckedIn: true, checkedInAt: new Date().toLocaleTimeString() } : null);
@@ -63,8 +66,7 @@ export default function CheckInPage() {
   const handleQRScan = useCallback(async (scannedToken) => {
     if (!scannedToken) return;
     try {
-      const headers = token ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
-      const res = await fetch(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers, body: JSON.stringify({ token: scannedToken, checkedInBy: 'Kiosk Camera' }) });
+      const res = await fetch(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token: scannedToken, checkedInBy: 'Kiosk Camera' }) });
       const data = await res.json();
       if (!res.ok) { setScanStatus({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setOverlayData({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setShowConfirmOverlay(true); return; }
       if (data.success) {
@@ -75,7 +77,7 @@ export default function CheckInPage() {
         setShowConfirmOverlay(true);
       }
     } catch (err) { setScanStatus({ type: 'error', message: 'Could not connect to scanner backend service.' }); setOverlayData({ type: 'error', message: 'Could not connect to scanner backend service.' }); setShowConfirmOverlay(true); }
-  }, [eventId, token, fetchCheckInSummary]);
+  }, [eventId, fetchCheckInSummary]);
 
   const handleQRScanSubmit = async (e) => { e.preventDefault(); if (!qrTokenInput.trim()) return; await handleQRScan(qrTokenInput); setQrTokenInput(''); };
 
@@ -83,7 +85,7 @@ export default function CheckInPage() {
 
   const cardStyle = { background: C.white, border: `1px solid ${C.border}`, padding: '24px', borderRadius: '12px' };
 
-  if (loading) {
+  if (!authChecked || loading) {
     return (
       <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
@@ -131,7 +133,7 @@ export default function CheckInPage() {
             <span style={{ fontSize: '10px', color: C.stone, display: 'block', fontWeight: 600 }}>Total Checked-In</span>
             <span style={{ fontSize: '20px', fontWeight: 900, color: C.gold }}>{totalArrivals} Arrivals</span>
           </div>
-          <button onClick={handleLogout} style={{ padding: '8px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', color: C.stone, fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px' }}
+          <button onClick={handleLogout} aria-label="Sign out" style={{ padding: '8px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', color: C.stone, fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.color = '#C45E5E'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.stone; }}>
             Sign Out
@@ -139,7 +141,7 @@ export default function CheckInPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }} className="checkin-grid">
 
         {/* Left */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -308,6 +310,9 @@ export default function CheckInPage() {
       <style jsx>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes shrink { from { width: 100%; } to { width: 0%; } }
+        @media (max-width: 768px) {
+          .checkin-grid { grid-template-columns: 1fr !important; }
+        }
       `}</style>
     </div>
   );

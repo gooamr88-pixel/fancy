@@ -164,8 +164,20 @@ const getPublicEventBySlug = async (req, res, next) => {
     }
 
     if (event.privacy_mode === 'password') {
-      const providedPassword = req.query.password || req.headers['x-event-password'];
-      if (!providedPassword || !event.access_password ||
+      // Only accept password via header — never via query string (avoids URL logging)
+      const providedPassword = req.headers['x-event-password'];
+
+      // If the event has no access_password configured, reject with a clear error
+      if (!event.access_password) {
+        return res.status(503).json({
+          success: false,
+          error: 'PASSWORD_NOT_CONFIGURED',
+          message: 'This event is password-protected but no password has been set yet. Please contact the organizer.',
+          requiresPassword: true
+        });
+      }
+
+      if (!providedPassword ||
           providedPassword.length !== event.access_password.length ||
           !require('crypto').timingSafeEqual(Buffer.from(providedPassword, 'utf8'), Buffer.from(event.access_password, 'utf8'))) {
         // Don't expose whether event exists, just return password required
