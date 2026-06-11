@@ -29,6 +29,7 @@ export default function ScrollReveal({
 }) {
   const ref = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [willChangeValue, setWillChangeValue] = useState('opacity, transform');
 
   useEffect(() => {
     const element = ref.current;
@@ -50,6 +51,18 @@ export default function ScrollReveal({
     return () => observer.disconnect();
   }, [threshold, once]);
 
+  // Clear willChange after animation completes to free GPU resources
+  useEffect(() => {
+    if (!isVisible) {
+      setWillChangeValue('opacity, transform');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setWillChangeValue('auto');
+    }, delay + duration + 1000);
+    return () => clearTimeout(timer);
+  }, [isVisible, delay, duration]);
+
   const getInitialTransform = () => {
     switch (direction) {
       case 'up': return `translateY(${distance}px)`;
@@ -66,7 +79,7 @@ export default function ScrollReveal({
     opacity: isVisible ? 1 : 0,
     transform: isVisible ? 'none' : getInitialTransform(),
     transition: `opacity ${duration}ms cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms, transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms`,
-    willChange: 'opacity, transform',
+    willChange: willChangeValue,
     ...style,
   };
 

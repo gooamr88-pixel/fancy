@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 const faqs = [
   {
@@ -116,7 +117,7 @@ export default function FAQSection() {
           <p className="faq-cta-subtitle">
             Contact our team — we typically respond within 2 hours.
           </p>
-          <button className="faq-cta-button">
+          <Link href="/contact" className="faq-cta-button" style={{ textDecoration: 'none' }}>
             <span>Contact Support</span>
             <svg
               width="16"
@@ -133,7 +134,7 @@ export default function FAQSection() {
                 strokeLinejoin="round"
               />
             </svg>
-          </button>
+          </Link>
         </div>
       </div>
 

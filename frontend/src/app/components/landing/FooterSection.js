@@ -200,6 +200,7 @@ export default function FooterSection() {
               <input
                 type="email"
                 placeholder="Enter your email"
+                aria-label="Email address for newsletter"
                 value={emailValue}
                 onChange={(e) => setEmailValue(e.target.value)}
                 onFocus={() => setEmailFocused(true)}
@@ -275,7 +276,7 @@ export default function FooterSection() {
               color: 'rgba(255, 255, 255, 0.35)',
             }}
           >
-            © 2025 Fancy RSVP. All rights reserved.
+            © {new Date().getFullYear()} Fancy RSVP. All rights reserved.
           </p>
 
           {/* Social icons */}

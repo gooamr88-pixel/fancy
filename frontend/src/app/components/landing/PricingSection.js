@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 const plans = [
   {
@@ -211,13 +212,14 @@ function PricingCard({ plan, isHovered, onMouseEnter, onMouseLeave }) {
             </div>
           ))}
         </div>
-        <button
-          style={buttonStyle}
+        <Link
+          href={plan.buttonText === 'Contact Sales' ? '/contact' : '/register'}
+          style={{ ...buttonStyle, textDecoration: 'none', textAlign: 'center', display: 'block' }}
           onMouseEnter={() => setBtnHovered(true)}
           onMouseLeave={() => setBtnHovered(false)}
         >
           {plan.buttonText}
-        </button>
+        </Link>
       </div>
     </div>
   );

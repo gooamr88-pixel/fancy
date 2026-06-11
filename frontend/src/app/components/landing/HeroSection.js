@@ -104,9 +104,13 @@ function HeroCard() {
       {/* 3D Perspective Container */}
       <div
         className="hc-stage"
+        role="button"
+        tabIndex={0}
+        aria-label={flipped ? 'Flip card to front' : 'Flip card to see RSVP'}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={() => setFlipped(!flipped)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped(!flipped); } }}
       >
         <div
           className={`hc-card ${flipped ? 'hc-flipped' : ''}`}
@@ -697,19 +701,21 @@ export default function HeroSection() {
             </ul>
 
             {/* CTA */}
-            <button
-              onClick={() => scrollToSection("pricing")}
+            <Link
+              href="/pricing"
               className="btn-gold"
               style={{
                 padding: "14px 32px",
                 fontSize: "14px",
                 alignSelf: "flex-start",
                 marginTop: "8px",
+                textDecoration: "none",
+                display: "inline-block",
               }}
               id="features-cta-explore"
             >
               Explore All Features
-            </button>
+            </Link>
           </div>
 
           {/* ─── Right Column: Dashboard + Stationery Image ─── */}

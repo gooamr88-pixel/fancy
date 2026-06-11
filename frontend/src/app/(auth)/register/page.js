@@ -24,7 +24,14 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name || !orgName || !email || !password) return;
+    if (!name || !orgName || !email || !password) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -37,6 +44,11 @@ export default function RegisterPage() {
 
       if (data.success && data.requiresVerification) {
         setOtpStep(true);
+      } else if (data.success) {
+        // Success but no verification needed
+        router.push('/dashboard');
+      } else {
+        setError(data.message || 'Registration failed. Please try again.');
       }
     } catch (err) {
       setError(err.message);
@@ -88,6 +100,8 @@ export default function RegisterPage() {
         localStorage.setItem('org_id', data.organization.id);
         localStorage.setItem('user_role', data.user.role);
         router.push('/dashboard');
+      } else {
+        setError(data.message || 'Verification failed. Please try again.');
       }
     } catch (err) {
       setError(err.message);
@@ -133,7 +147,7 @@ export default function RegisterPage() {
             <p className="auth-subtext">We sent a 6-digit code to <strong style={{ color: '#B8944F' }}>{email}</strong></p>
 
             {error && (
-              <div className="auth-error">
+              <div className="auth-error" role="alert">
                 <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
@@ -247,7 +261,7 @@ export default function RegisterPage() {
           <p className="auth-subtext">Start planning your perfect event today</p>
 
           {error && (
-            <div className="auth-error">
+            <div className="auth-error" role="alert">
               <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
@@ -285,7 +299,7 @@ export default function RegisterPage() {
                   autoComplete="new-password"
                   value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••" className="auth-input" />
-                <button type="button" className="auth-eye-btn" onClick={() => setShowPassword(!showPassword)} tabIndex={-1}>
+                <button type="button" className="auth-eye-btn" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
                   <EyeIcon show={showPassword} />
                 </button>
               </div>

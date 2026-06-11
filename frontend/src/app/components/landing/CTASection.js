@@ -172,7 +172,7 @@ export default function CTASection() {
           </Link>
 
           {/* Secondary Button */}
-          <a
+          <Link
             href="/demo"
             style={{
               display: 'inline-flex',
@@ -199,7 +199,7 @@ export default function CTASection() {
             onMouseLeave={() => setSecondaryHovered(false)}
           >
             View Live Demo
-          </a>
+          </Link>
         </div>
 
         {/* Trust Line */}

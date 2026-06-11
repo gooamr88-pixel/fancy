@@ -20,12 +20,15 @@ export async function apiFetch(path, options = {}) {
   // Handle 401 - session expired
   if (response.status === 401) {
     if (typeof window !== 'undefined') {
-      // Clear local metadata (non-sensitive display data)
-      localStorage.removeItem('org_id');
-      localStorage.removeItem('user_role');
-      localStorage.removeItem('active_event_id');
-      // Redirect to login — the server already invalidated the cookie
-      window.location.href = '/login';
+      const path = window.location.pathname;
+      if (path !== '/login' && path !== '/register' && path !== '/forgot-password') {
+        // Clear local metadata (non-sensitive display data)
+        localStorage.removeItem('org_id');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('active_event_id');
+        // Redirect to login — the server already invalidated the cookie
+        window.location.href = '/login';
+      }
     }
     throw new Error('Session expired. Please log in again.');
   }
@@ -73,6 +76,7 @@ export async function apiFetch(path, options = {}) {
 }
 
 export async function logout() {
+  if (typeof window === 'undefined') return;
   try {
     await apiFetch('/auth/logout', { method: 'POST' });
   } catch {

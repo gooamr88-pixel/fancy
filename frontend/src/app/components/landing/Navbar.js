@@ -33,14 +33,17 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const scrollToSection = (sectionId) => {
-    setMobileMenuOpen(false);
-    const el = document.getElementById(sectionId);
-    if (el) {
-      const offsetTop = el.offsetTop - 80;
-      window.scrollTo({ top: offsetTop, behavior: "smooth" });
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
     }
-  };
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
 
   return (
     <>
@@ -302,6 +305,7 @@ export default function Navbar() {
               zIndex: 1001,
             }}
             aria-label="Toggle menu"
+            aria-expanded={mobileMenuOpen}
             id="mobile-menu-toggle"
           >
             <svg
@@ -358,7 +362,7 @@ export default function Navbar() {
             <Link
               key={item.href}
               href={item.href}
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={() => { setMobileMenuOpen(false); document.body.style.overflow = ''; }}
               style={{
                 fontFamily: "var(--font-serif)",
                 fontSize: "24px",

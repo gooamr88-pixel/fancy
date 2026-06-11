@@ -21,18 +21,33 @@ export default function ForgotPasswordPage() {
     setSubmitting(true); setError(null);
     try {
       const data = await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
-      if (data.success) setStep(2);
+      if (data.success) {
+        setStep(2);
+      } else {
+        setError(data.message || 'Failed to send reset code. Please try again.');
+      }
     } catch (err) { setError(err.message); } finally { setSubmitting(false); }
   };
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    if (!otp || !newPassword || !confirmPassword) return;
+    if (!otp || !newPassword || !confirmPassword) {
+      setError('Please fill in all fields.');
+      return;
+    }
     if (newPassword !== confirmPassword) { setError('Passwords do not match.'); return; }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
     setSubmitting(true); setError(null);
     try {
       const data = await apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, otp, newPassword, confirmPassword }) });
-      if (data.success) setStep(3);
+      if (data.success) {
+        setStep(3);
+      } else {
+        setError(data.message || 'Password reset failed. Please try again.');
+      }
     } catch (err) { setError(err.message); } finally { setSubmitting(false); }
   };
 
@@ -91,7 +106,7 @@ export default function ForgotPasswordPage() {
               <h1 className="auth-heading">Reset Password</h1>
               <p className="auth-subtext">Enter your email to receive a verification code</p>
 
-              {error && <div className="auth-error"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg><span>{error}</span></div>}
+              {error && <div className="auth-error" role="alert"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg><span>{error}</span></div>}
 
               <form onSubmit={handleRequestOtp} className="auth-form">
                 <div className="auth-field">
@@ -129,33 +144,33 @@ export default function ForgotPasswordPage() {
                 <p>Code sent to <strong style={{ color: '#191B1E' }}>{email}</strong></p>
               </div>
 
-              {error && <div className="auth-error"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg><span>{error}</span></div>}
+              {error && <div className="auth-error" role="alert"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg><span>{error}</span></div>}
 
               <form onSubmit={handleResetPassword} className="auth-form">
                 <div className="auth-field">
-                  <label className="auth-label">6-Digit OTP Code</label>
-                  <input type="text" required maxLength={6} value={otp}
+                  <label htmlFor="otp-input" className="auth-label">6-Digit OTP Code</label>
+                  <input id="otp-input" type="text" required maxLength={6} value={otp}
                     onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} placeholder="123456"
                     className="auth-input otp-single-input" />
                 </div>
 
                 <div className="auth-field">
-                  <label className="auth-label">New Password</label>
+                  <label htmlFor="new-password-input" className="auth-label">New Password</label>
                   <div className="auth-password-wrapper">
-                    <input type={showNewPassword ? 'text' : 'password'} required value={newPassword}
+                    <input id="new-password-input" type={showNewPassword ? 'text' : 'password'} required value={newPassword}
                       onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" className="auth-input" />
-                    <button type="button" className="auth-eye-btn" onClick={() => setShowNewPassword(!showNewPassword)} tabIndex={-1}>
+                    <button type="button" className="auth-eye-btn" onClick={() => setShowNewPassword(!showNewPassword)} aria-label={showNewPassword ? 'Hide password' : 'Show password'}>
                       <EyeIcon show={showNewPassword} />
                     </button>
                   </div>
                 </div>
 
                 <div className="auth-field">
-                  <label className="auth-label">Confirm New Password</label>
+                  <label htmlFor="confirm-password-input" className="auth-label">Confirm New Password</label>
                   <div className="auth-password-wrapper">
-                    <input type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword}
+                    <input id="confirm-password-input" type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword}
                       onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" className="auth-input" />
-                    <button type="button" className="auth-eye-btn" onClick={() => setShowConfirmPassword(!showConfirmPassword)} tabIndex={-1}>
+                    <button type="button" className="auth-eye-btn" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>
                       <EyeIcon show={showConfirmPassword} />
                     </button>
                   </div>
