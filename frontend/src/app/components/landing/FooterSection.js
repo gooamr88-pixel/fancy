@@ -1,18 +1,34 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 const footerLinks = {
-  Product: ['Features', 'Pricing', 'Templates', 'Integrations'],
-  Company: ['About', 'Blog', 'Careers', 'Press'],
-  Support: ['Help Center', 'Contact', 'Privacy', 'Terms'],
+  Product: [
+    { text: 'Features', href: '/features' },
+    { text: 'Pricing', href: '/pricing' },
+    { text: 'Templates', href: '/templates' },
+    { text: 'Integrations', href: '/integrations' },
+  ],
+  Company: [
+    { text: 'About', href: '/about' },
+    { text: 'Blog', href: '/blog' },
+    { text: 'Careers', href: '/careers' },
+    { text: 'Press', href: '/press' },
+  ],
+  Support: [
+    { text: 'Help Center', href: '/help' },
+    { text: 'Contact', href: '/contact' },
+    { text: 'Privacy', href: '/privacy' },
+    { text: 'Terms', href: '/terms' },
+  ],
 };
 
-function FooterLink({ text }) {
+function FooterLink({ text, href }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <a
-      href="#"
+    <Link
+      href={href}
       style={{
         fontFamily: 'var(--font-sans)',
         fontSize: '14px',
@@ -26,7 +42,7 @@ function FooterLink({ text }) {
       onMouseLeave={() => setHovered(false)}
     >
       {text}
-    </a>
+    </Link>
   );
 }
 
@@ -141,7 +157,7 @@ export default function FooterSection() {
                 {category}
               </h4>
               {links.map((link) => (
-                <FooterLink key={link} text={link} />
+                <FooterLink key={link.text} text={link.text} href={link.href} />
               ))}
             </div>
           ))}

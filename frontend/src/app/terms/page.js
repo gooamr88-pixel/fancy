@@ -1,0 +1,475 @@
+"use client";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import Navbar from "../components/landing/Navbar";
+import FooterSection from "../components/landing/FooterSection";
+
+/* ═══════════════════════════════════════════════════════════
+   Terms of Service — Fancy RSVP
+   Clean layout, TOC sidebar, 10 legal sections
+   ═══════════════════════════════════════════════════════════ */
+
+const sections = [
+  {
+    id: "acceptance",
+    title: "1. Acceptance of Terms",
+    content: [
+      "By accessing or using the Fancy RSVP platform (\"Service\"), you agree to be bound by these Terms of Service (\"Terms\"). If you do not agree to all of these Terms, you may not access or use the Service.",
+      "These Terms constitute a legally binding agreement between you (\"User,\" \"you,\" or \"your\") and Fancy RSVP Inc. (\"Company,\" \"we,\" \"us,\" or \"our\"). They govern your access to and use of our website, applications, APIs, and all related services.",
+      "We may update these Terms from time to time. We will notify you of material changes at least 14 days before they take effect by sending an email to the address associated with your account or by posting a prominent notice on our platform. Your continued use of the Service after any changes constitutes your acceptance of the revised Terms.",
+      "If you are using the Service on behalf of an organization, you represent and warrant that you have the authority to bind that organization to these Terms, and references to \"you\" shall include that organization.",
+    ],
+  },
+  {
+    id: "service-description",
+    title: "2. Description of Service",
+    content: [
+      "Fancy RSVP provides a cloud-based event management and RSVP platform that enables users to create digital invitations, manage guest lists, track responses, design seating charts, and communicate with event attendees.",
+      "**Core Features:** Digital RSVP creation and management, customizable invitation templates, real-time response tracking dashboard, guest list import and organization, seating chart designer, email and SMS notification campaigns, analytics and reporting, and third-party integrations.",
+      "**Service Tiers:** The Service is offered in multiple tiers — Free, Professional, and Enterprise — each with varying feature sets, guest limits, and support levels as described on our pricing page.",
+      "**Availability:** We strive to maintain 99.9% uptime for our platform. However, we reserve the right to perform scheduled maintenance (with advance notice) and cannot guarantee uninterrupted access during force majeure events or circumstances beyond our reasonable control.",
+      "**Modifications:** We continuously improve our Service and may add, modify, or discontinue features at our discretion. For material changes that negatively affect your use, we will provide at least 30 days' advance notice and work with you on transition options.",
+    ],
+  },
+  {
+    id: "account-registration",
+    title: "3. Account Registration",
+    content: [
+      "To access certain features of the Service, you must create an account. When registering, you agree to the following:",
+      "**Accurate Information:** You must provide truthful, accurate, and complete registration information and keep it updated. Providing false information may result in account suspension or termination.",
+      "**Account Security:** You are responsible for maintaining the confidentiality of your account credentials, including your password. We strongly recommend enabling two-factor authentication. You must notify us immediately at security@fancyrsvp.com if you suspect unauthorized access to your account.",
+      "**Account Responsibility:** You are responsible for all activities that occur under your account, whether or not you authorized them. This includes actions taken by team members you've granted access to your account.",
+      "**Age Requirement:** You must be at least 16 years old to create an account. If you are under 18, you may use the Service only with the involvement and consent of a parent or legal guardian.",
+      "**One Account Per Person:** Each individual may maintain only one account. Creating multiple accounts to circumvent restrictions, abuse promotions, or evade enforcement actions is prohibited.",
+    ],
+  },
+  {
+    id: "user-responsibilities",
+    title: "4. User Responsibilities",
+    content: [
+      "As a user of Fancy RSVP, you agree to use the Service responsibly and in compliance with all applicable laws. Specifically, you agree not to:",
+      "**Misuse the Platform:** Use the Service for any unlawful purpose, to send unsolicited communications (spam), distribute malware, or engage in any activity that could harm other users or our infrastructure.",
+      "**Violate Privacy:** Collect, store, or share personal information of your guests without their appropriate consent. You are the data controller for guest information you upload and must comply with applicable privacy laws (GDPR, CCPA, etc.).",
+      "**Infringe Rights:** Upload, post, or transmit content that infringes on intellectual property rights, trademarks, or other proprietary rights of any third party.",
+      "**Compromise Security:** Attempt to probe, scan, or test the vulnerability of our systems; circumvent authentication or security measures; reverse-engineer any aspect of the Service; or interfere with any user's access to the Service.",
+      "**Abuse Resources:** Use automated tools (bots, scrapers) to access the Service in a manner that exceeds reasonable use, generates excessive load on our servers, or extracts data in bulk without our written consent.",
+      "**Share Inappropriately:** Upload or distribute content that is defamatory, obscene, hateful, discriminatory, or otherwise objectionable through our platform.",
+      "Violation of these responsibilities may result in warnings, temporary suspension, or permanent termination of your account at our sole discretion.",
+    ],
+  },
+  {
+    id: "intellectual-property",
+    title: "5. Intellectual Property",
+    content: [
+      "The intellectual property rights related to the Service are allocated as follows:",
+      "**Our Property:** The Service, including its design, code, features, templates, graphics, documentation, and branding (collectively, \"Platform IP\"), is owned by Fancy RSVP Inc. and protected by copyright, trademark, and other intellectual property laws. You may not copy, modify, distribute, or create derivative works of our Platform IP without express written permission.",
+      "**Your Content:** You retain ownership of all content you create or upload to the Service, including event details, custom designs, guest lists, and communications (\"User Content\"). By using the Service, you grant us a limited, non-exclusive, royalty-free license to host, display, and process your User Content solely for the purpose of providing the Service to you.",
+      "**Templates & Designs:** While you may use our templates and design elements to create your events, the underlying template designs remain our property. Events you create using our templates are your property, but the templates themselves may not be extracted, resold, or redistributed.",
+      "**Feedback:** If you provide suggestions, ideas, or feedback about the Service, you grant us an irrevocable, perpetual, royalty-free license to use and incorporate that feedback into our products without any obligation to you.",
+      "**DMCA & Takedowns:** We respect intellectual property rights. If you believe content on our platform infringes your copyright, please submit a DMCA takedown notice to legal@fancyrsvp.com with the required information.",
+    ],
+  },
+  {
+    id: "payment-terms",
+    title: "6. Payment Terms",
+    content: [
+      "If you subscribe to a paid plan, the following payment terms apply:",
+      "**Pricing:** Prices for our subscription plans are listed on our pricing page and are subject to change. We will notify you at least 30 days before any price increase takes effect. The new price will apply at your next billing cycle after the notice period.",
+      "**Billing Cycle:** Subscriptions are billed in advance on a monthly or annual basis, depending on your chosen plan. Annual plans receive a discounted rate as indicated on our pricing page.",
+      "**Payment Method:** You authorize us to charge your designated payment method (credit card, debit card, or other accepted methods) for all fees associated with your subscription. You are responsible for keeping your payment information current.",
+      "**Failed Payments:** If a payment fails, we will attempt to process it again and notify you. If payment remains unsuccessful after 7 days, your account may be downgraded to the Free tier, and premium features will be disabled until payment is resolved.",
+      "**Refunds:** Annual subscriptions may be refunded within 14 days of the initial purchase or renewal if you have not substantially used the Service during that period. Monthly subscriptions are generally non-refundable. We may offer pro-rated refunds at our discretion for extenuating circumstances.",
+      "**Taxes:** Stated prices do not include applicable taxes (VAT, GST, sales tax). Taxes will be calculated and added based on your billing address and applicable tax regulations.",
+      "**Free Tier:** The Free plan is provided at no cost with limited features and guest capacity. We reserve the right to modify the Free plan's feature set with reasonable notice.",
+    ],
+  },
+  {
+    id: "limitation-liability",
+    title: "7. Limitation of Liability",
+    content: [
+      "To the maximum extent permitted by applicable law:",
+      "**Disclaimer of Warranties:** The Service is provided \"as is\" and \"as available\" without warranties of any kind, whether express, implied, statutory, or otherwise. We disclaim all warranties, including implied warranties of merchantability, fitness for a particular purpose, title, and non-infringement.",
+      "**Limitation of Damages:** In no event shall Fancy RSVP, its directors, employees, partners, agents, or affiliates be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, data, business opportunities, or goodwill, arising out of or in connection with your use of the Service.",
+      "**Maximum Liability:** Our total aggregate liability for any claims arising under these Terms or related to the Service shall not exceed the greater of (a) the amount you paid us in the 12 months preceding the claim, or (b) one hundred US dollars ($100).",
+      "**Exceptions:** Nothing in these Terms shall limit our liability for (a) death or personal injury caused by our negligence, (b) fraud or fraudulent misrepresentation, or (c) any liability that cannot be excluded or limited by applicable law.",
+      "**Basis of Bargain:** You acknowledge that these limitations are an essential element of the agreement between you and Fancy RSVP, and that the pricing of our Service reflects this allocation of risk.",
+    ],
+  },
+  {
+    id: "termination",
+    title: "8. Termination",
+    content: [
+      "Either party may terminate this agreement under the following conditions:",
+      "**By You:** You may close your account at any time through your account settings or by contacting support@fancyrsvp.com. Upon closure, you will retain access to your account until the end of your current billing period. After that, your data will be retained for 30 days (grace period) before permanent deletion.",
+      "**By Us — For Cause:** We may suspend or terminate your account immediately if you violate these Terms, engage in fraudulent activity, fail to pay fees after notice, or if your use poses a security risk to our platform or other users. We will provide notice and an explanation unless prohibited by law or doing so would compromise security.",
+      "**By Us — Without Cause:** We may terminate any Free account that has been inactive for 12 consecutive months. For paid accounts, we may discontinue the Service with at least 90 days' prior notice and will provide pro-rated refunds for the unused portion of any prepaid subscription.",
+      "**Effect of Termination:** Upon termination, your right to use the Service ceases immediately (subject to any grace period). You may export your data before your account is closed. We are not obligated to retain your data after the 30-day grace period, except where required by law.",
+      "**Survival:** Sections relating to intellectual property, limitation of liability, indemnification, and governing law shall survive termination of these Terms.",
+    ],
+  },
+  {
+    id: "governing-law",
+    title: "9. Governing Law",
+    content: [
+      "These Terms shall be governed by and construed in accordance with the laws of the State of New York, United States, without regard to its conflict of law principles.",
+      "**Dispute Resolution:** Before initiating formal proceedings, both parties agree to attempt to resolve disputes through good-faith negotiation for a period of at least 30 days. You may contact us at legal@fancyrsvp.com to initiate this process.",
+      "**Arbitration:** Any dispute that cannot be resolved through negotiation shall be submitted to binding arbitration administered by the American Arbitration Association (AAA) under its Commercial Arbitration Rules. The arbitration shall take place in New York City, NY, and shall be conducted in English.",
+      "**Class Action Waiver:** You agree that any dispute resolution proceedings will be conducted only on an individual basis and not in a class, consolidated, or representative action. If this provision is found unenforceable, the entire arbitration provision shall be void.",
+      "**Jurisdiction:** For any matters not subject to arbitration, you consent to the exclusive jurisdiction and venue of the state and federal courts located in New York County, New York.",
+      "**International Users:** If you access the Service from outside the United States, you are responsible for compliance with local laws. Our Service is controlled and operated from the United States, and we make no representations that the Service is appropriate or available in other locations.",
+    ],
+  },
+  {
+    id: "contact-information",
+    title: "10. Contact Information",
+    content: [
+      "If you have questions about these Terms of Service, please contact us through any of the following channels:",
+      "**Email:** legal@fancyrsvp.com",
+      "**Mail:** Fancy RSVP Inc., Attn: Legal Department, 350 Fifth Avenue, Suite 4800, New York, NY 10118, United States",
+      "**Phone:** +1 (888) 274-RSVP (Monday – Friday, 9:00 AM – 6:00 PM ET)",
+      "For urgent legal matters, including DMCA takedown requests, subpoenas, or law enforcement inquiries, please contact legal@fancyrsvp.com with \"URGENT\" in the subject line.",
+      "We encourage you to review these Terms regularly to stay informed about your rights and obligations when using Fancy RSVP.",
+    ],
+  },
+];
+
+function TOCLink({ section, isActive, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "block",
+        background: "none",
+        border: "none",
+        textAlign: "left",
+        padding: "8px 16px",
+        fontFamily: "var(--font-sans)",
+        fontSize: "13.5px",
+        color: isActive ? "#B8944F" : "#5E5A52",
+        fontWeight: isActive ? 600 : 400,
+        cursor: "pointer",
+        borderLeft: `2px solid ${isActive ? "#B8944F" : "transparent"}`,
+        transition: "all 0.25s ease",
+        lineHeight: 1.5,
+        width: "100%",
+      }}
+    >
+      {section.title}
+    </button>
+  );
+}
+
+export default function TermsOfService() {
+  const [activeSection, setActiveSection] = useState(sections[0].id);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      for (const section of sections) {
+        const el = document.getElementById(section.id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= 160 && rect.bottom > 160) {
+            setActiveSection(section.id);
+            break;
+          }
+        }
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      const top = el.offsetTop - 120;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
+  };
+
+  const renderText = (text) => {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return (
+          <strong key={i} style={{ color: "#191B1E", fontWeight: 600 }}>
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return part;
+    });
+  };
+
+  return (
+    <>
+      <Navbar />
+      <main style={{ paddingTop: "78px" }}>
+        {/* ── Hero ── */}
+        <section
+          style={{
+            background: "linear-gradient(180deg, #FAF7F0 0%, #FFFFFF 100%)",
+            padding: "72px 24px 56px",
+            textAlign: "center",
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: "13px",
+              fontWeight: 700,
+              letterSpacing: "3px",
+              textTransform: "uppercase",
+              color: "#B8944F",
+              display: "block",
+              marginBottom: "16px",
+            }}
+          >
+            Legal
+          </span>
+          <h1
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "44px",
+              fontWeight: 700,
+              color: "#191B1E",
+              marginBottom: "16px",
+              lineHeight: 1.2,
+            }}
+          >
+            Terms of Service
+          </h1>
+          <p
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: "16px",
+              color: "#5E5A52",
+              lineHeight: 1.6,
+              maxWidth: "540px",
+              margin: "0 auto 20px",
+            }}
+          >
+            Please read these terms carefully before using the Fancy RSVP platform. They outline your rights, responsibilities, and our mutual obligations.
+          </p>
+          <p
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: "14px",
+              color: "#B8944F",
+              fontWeight: 600,
+            }}
+          >
+            Last Updated: June 1, 2026
+          </p>
+        </section>
+
+        {/* ── Gold Divider ── */}
+        <div
+          style={{
+            maxWidth: "1280px",
+            margin: "0 auto",
+            padding: "0 48px",
+            display: "flex",
+            alignItems: "center",
+            gap: "20px",
+          }}
+        >
+          <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, transparent, #E8E2D6)" }} />
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2L12 8L18 10L12 12L10 18L8 12L2 10L8 8L10 2Z" fill="#D7BE80" />
+          </svg>
+          <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, #E8E2D6, transparent)" }} />
+        </div>
+
+        {/* ── Content Area with Sidebar ── */}
+        <section
+          style={{
+            maxWidth: "1280px",
+            margin: "0 auto",
+            padding: "56px 48px 80px",
+          }}
+        >
+          <div className="terms-layout">
+            {/* Sidebar TOC */}
+            <aside className="terms-sidebar">
+              <div
+                style={{
+                  position: "sticky",
+                  top: "120px",
+                  background: "#FFFFFF",
+                  borderRadius: "16px",
+                  border: "1px solid #E8E2D6",
+                  padding: "28px 8px",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.03)",
+                }}
+              >
+                <p
+                  style={{
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    letterSpacing: "2px",
+                    textTransform: "uppercase",
+                    color: "#B8944F",
+                    padding: "0 16px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  Table of Contents
+                </p>
+                {sections.map((section) => (
+                  <TOCLink
+                    key={section.id}
+                    section={section}
+                    isActive={activeSection === section.id}
+                    onClick={() => scrollToSection(section.id)}
+                  />
+                ))}
+              </div>
+            </aside>
+
+            {/* Main Content */}
+            <div className="terms-content">
+              {sections.map((section, idx) => (
+                <div
+                  key={section.id}
+                  id={section.id}
+                  style={{
+                    marginBottom: idx < sections.length - 1 ? "48px" : "0",
+                    paddingBottom: idx < sections.length - 1 ? "48px" : "0",
+                    borderBottom: idx < sections.length - 1 ? "1px solid #E8E2D6" : "none",
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      fontSize: "24px",
+                      fontWeight: 700,
+                      color: "#191B1E",
+                      marginBottom: "20px",
+                      paddingLeft: "16px",
+                      borderLeft: "3px solid #B8944F",
+                    }}
+                  >
+                    {section.title}
+                  </h2>
+                  {section.content.map((para, i) => (
+                    <p
+                      key={i}
+                      style={{
+                        fontFamily: "var(--font-sans)",
+                        fontSize: "15px",
+                        color: "#5E5A52",
+                        lineHeight: 1.8,
+                        marginBottom: i < section.content.length - 1 ? "14px" : "0",
+                      }}
+                    >
+                      {renderText(para)}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Related Links ── */}
+        <section
+          style={{
+            background: "#FAF7F0",
+            padding: "64px 24px",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+            <h3
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "24px",
+                fontWeight: 700,
+                color: "#191B1E",
+                marginBottom: "16px",
+              }}
+            >
+              Related Documents
+            </h3>
+            <p
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: "15px",
+                color: "#5E5A52",
+                lineHeight: 1.6,
+                marginBottom: "28px",
+              }}
+            >
+              Please also review our Privacy Policy which explains how we collect, use, and protect your personal data.
+            </p>
+            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
+              <Link
+                href="/privacy"
+                className="btn-outline"
+                style={{
+                  padding: "12px 32px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                }}
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                href="/contact"
+                className="btn-gold"
+                style={{
+                  padding: "12px 32px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                  textDecoration: "none",
+                }}
+              >
+                Contact Legal Team
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+      <FooterSection />
+
+      <style jsx>{`
+        .terms-layout {
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          gap: 48px;
+          align-items: start;
+        }
+        .terms-sidebar {
+          display: block;
+        }
+        .terms-content {
+          min-width: 0;
+        }
+        @media (max-width: 1024px) {
+          .terms-layout {
+            grid-template-columns: 220px 1fr !important;
+            gap: 32px !important;
+          }
+        }
+        @media (max-width: 768px) {
+          .terms-layout {
+            grid-template-columns: 1fr !important;
+          }
+          .terms-sidebar {
+            display: none !important;
+          }
+        }
+        @media (max-width: 640px) {
+          .terms-layout {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </>
+  );
+}

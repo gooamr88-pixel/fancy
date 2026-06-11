@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useAuth } from "../../hooks/useAuth";
 
 /* ═══════════════════════════════════════════════════════════
    Navbar — Fancy RSVP (Page 09 Brand Guide)
@@ -21,6 +22,7 @@ import Link from "next/link";
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isLoggedIn, loading, logout } = useAuth();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -186,20 +188,19 @@ export default function Navbar() {
             className="desktop-nav"
           >
             {[
-              { label: "Features", id: "features" },
-              { label: "Pricing", id: "pricing" },
-              { label: "About", id: "about" },
+              { label: "Features", href: "/features" },
+              { label: "Pricing", href: "/pricing" },
+              { label: "About", href: "/about" },
             ].map((item) => (
-              <button
-                key={item.id}
-                onClick={() => scrollToSection(item.id)}
+              <Link
+                key={item.href}
+                href={item.href}
                 style={{
-                  background: "none",
-                  border: "none",
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
                   fontWeight: 400,
                   color: "#191B1E",
+                  textDecoration: "none",
                   cursor: "pointer",
                   padding: "4px 0",
                   transition: "color 0.25s ease",
@@ -207,44 +208,85 @@ export default function Navbar() {
                 }}
                 onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
                 onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
-                id={`nav-link-${item.id}`}
+                id={`nav-link-${item.href.slice(1)}`}
               >
                 {item.label}
-              </button>
+              </Link>
             ))}
 
-            <Link
-              href="/login"
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontSize: "15px",
-                fontWeight: 400,
-                color: "#191B1E",
-                textDecoration: "none",
-                cursor: "pointer",
-                transition: "color 0.25s ease",
-              }}
-              onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
-              onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
-              id="nav-link-login"
-            >
-              Log In
-            </Link>
+            {!loading && !isLoggedIn && (
+              <Link
+                href="/login"
+                style={{
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "15px",
+                  fontWeight: 400,
+                  color: "#191B1E",
+                  textDecoration: "none",
+                  cursor: "pointer",
+                  transition: "color 0.25s ease",
+                }}
+                onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
+                onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
+                id="nav-link-login"
+              >
+                Log In
+              </Link>
+            )}
+            {!loading && isLoggedIn && (
+              <button
+                onClick={logout}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "15px",
+                  fontWeight: 400,
+                  color: "#191B1E",
+                  textDecoration: "none",
+                  cursor: "pointer",
+                  transition: "color 0.25s ease",
+                }}
+                onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
+                onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
+                id="nav-link-logout"
+              >
+                Log Out
+              </button>
+            )}
 
-            <Link
-              href="/register"
-              className="btn-gold"
-              style={{
-                padding: "11px 28px",
-                fontSize: "14px",
-                fontWeight: 700,
-                borderRadius: "6px",
-                letterSpacing: "0.3px",
-              }}
-              id="nav-cta-get-started"
-            >
-              Get Started
-            </Link>
+            {!loading && !isLoggedIn && (
+              <Link
+                href="/register"
+                className="btn-gold"
+                style={{
+                  padding: "11px 28px",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  borderRadius: "6px",
+                  letterSpacing: "0.3px",
+                }}
+                id="nav-cta-get-started"
+              >
+                Get Started
+              </Link>
+            )}
+            {!loading && isLoggedIn && (
+              <Link
+                href="/dashboard"
+                className="btn-gold"
+                style={{
+                  padding: "11px 28px",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  borderRadius: "6px",
+                  letterSpacing: "0.3px",
+                }}
+                id="nav-cta-dashboard"
+              >
+                Dashboard
+              </Link>
+            )}
           </nav>
 
           {/* ─── Mobile Hamburger ─── */}
@@ -308,45 +350,79 @@ export default function Navbar() {
             animation: "fadeIn 0.25s ease",
           }}
         >
-          {["Features", "Pricing", "About"].map((label) => (
-            <button
-              key={label}
-              onClick={() => scrollToSection(label.toLowerCase())}
+          {[
+            { label: "Features", href: "/features" },
+            { label: "Pricing", href: "/pricing" },
+            { label: "About", href: "/about" },
+          ].map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMobileMenuOpen(false)}
               style={{
-                background: "none",
-                border: "none",
                 fontFamily: "var(--font-serif)",
                 fontSize: "24px",
                 fontWeight: 500,
                 color: "#191B1E",
+                textDecoration: "none",
                 cursor: "pointer",
                 letterSpacing: "1px",
               }}
             >
-              {label}
-            </button>
+              {item.label}
+            </Link>
           ))}
-          <Link
-            href="/login"
-            onClick={() => setMobileMenuOpen(false)}
-            style={{
-              fontFamily: "var(--font-sans)",
-              fontSize: "16px",
-              fontWeight: 400,
-              color: "#77736A",
-              textDecoration: "none",
-            }}
-          >
-            Log In
-          </Link>
-          <Link
-            href="/register"
-            className="btn-gold"
-            style={{ padding: "14px 48px", fontSize: "15px" }}
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            Get Started
-          </Link>
+          {!loading && !isLoggedIn && (
+            <Link
+              href="/login"
+              onClick={() => setMobileMenuOpen(false)}
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: "16px",
+                fontWeight: 400,
+                color: "#77736A",
+                textDecoration: "none",
+              }}
+            >
+              Log In
+            </Link>
+          )}
+          {!loading && isLoggedIn && (
+            <button
+              onClick={() => { setMobileMenuOpen(false); logout(); }}
+              style={{
+                background: "none",
+                border: "none",
+                fontFamily: "var(--font-sans)",
+                fontSize: "16px",
+                fontWeight: 400,
+                color: "#77736A",
+                cursor: "pointer",
+              }}
+            >
+              Log Out
+            </button>
+          )}
+          {!loading && !isLoggedIn && (
+            <Link
+              href="/register"
+              className="btn-gold"
+              style={{ padding: "14px 48px", fontSize: "15px" }}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Get Started
+            </Link>
+          )}
+          {!loading && isLoggedIn && (
+            <Link
+              href="/dashboard"
+              className="btn-gold"
+              style={{ padding: "14px 48px", fontSize: "15px" }}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Dashboard
+            </Link>
+          )}
         </div>
       )}
 

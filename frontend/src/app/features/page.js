@@ -1,0 +1,589 @@
+"use client";
+import React, { useState } from "react";
+import Link from "next/link";
+import Navbar from "../components/landing/Navbar";
+import FooterSection from "../components/landing/FooterSection";
+
+const features = [
+  {
+    title: "Custom RSVP Forms",
+    description:
+      "Design stunning invitation forms with our intuitive drag & drop builder. Choose from elegant field types, custom validations, and conditional logic to create the perfect guest experience — no coding required.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <rect x="6" y="6" width="36" height="36" rx="4" stroke="#B8944F" strokeWidth="1.5" />
+        <rect x="12" y="14" width="24" height="4" rx="2" stroke="#D7BE80" strokeWidth="1.2" />
+        <rect x="12" y="22" width="24" height="4" rx="2" stroke="#D7BE80" strokeWidth="1.2" />
+        <rect x="12" y="30" width="16" height="4" rx="2" stroke="#D7BE80" strokeWidth="1.2" />
+        <circle cx="36" cy="36" r="8" fill="#B8944F" opacity="0.12" />
+        <path d="M33 36L35.5 38.5L39 33" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    title: "Guest Management",
+    description:
+      "Effortlessly track RSVPs, manage plus-ones, record dietary requirements, and organize guest lists with powerful filtering. Export guest data in one click and keep every detail at your fingertips.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <circle cx="20" cy="16" r="6" stroke="#B8944F" strokeWidth="1.5" />
+        <path d="M8 38c0-6.627 5.373-12 12-12s12 5.373 12 12" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="34" cy="14" r="4" stroke="#D7BE80" strokeWidth="1.2" />
+        <path d="M38 32c0-4.418-2.686-8-6-8" stroke="#D7BE80" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="M14 42h12" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    title: "Seating Charts",
+    description:
+      "Create interactive, drag-and-drop seating arrangements that update in real time. Visualize table layouts, manage group dynamics, and ensure every guest feels perfectly placed at your event.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="10" stroke="#B8944F" strokeWidth="1.5" />
+        <circle cx="24" cy="14" r="2.5" fill="#D7BE80" />
+        <circle cx="24" cy="34" r="2.5" fill="#D7BE80" />
+        <circle cx="14" cy="24" r="2.5" fill="#D7BE80" />
+        <circle cx="34" cy="24" r="2.5" fill="#D7BE80" />
+        <circle cx="17" cy="17" r="2" fill="#B8944F" opacity="0.4" />
+        <circle cx="31" cy="31" r="2" fill="#B8944F" opacity="0.4" />
+        <circle cx="31" cy="17" r="2" fill="#B8944F" opacity="0.4" />
+        <circle cx="17" cy="31" r="2" fill="#B8944F" opacity="0.4" />
+        <rect x="20" y="20" width="8" height="8" rx="2" stroke="#B8944F" strokeWidth="1" />
+      </svg>
+    ),
+  },
+  {
+    title: "Real-Time Analytics",
+    description:
+      "Monitor your event with a live dashboard featuring acceptance rates, response timelines, geographic breakdowns, and engagement metrics. Make data-driven decisions with beautiful, intuitive charts.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <rect x="8" y="28" width="6" height="12" rx="1" fill="#D7BE80" opacity="0.5" />
+        <rect x="17" y="22" width="6" height="18" rx="1" fill="#D7BE80" opacity="0.7" />
+        <rect x="26" y="16" width="6" height="24" rx="1" fill="#B8944F" opacity="0.6" />
+        <rect x="35" y="10" width="6" height="30" rx="1" fill="#B8944F" opacity="0.85" />
+        <path d="M8 8v32h34" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M12 30l8-8 6 4 10-14" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="38" cy="12" r="3" stroke="#B8944F" strokeWidth="1" fill="none" />
+      </svg>
+    ),
+  },
+  {
+    title: "Meal Tracking",
+    description:
+      "Collect dietary preferences, allergies, and meal selections with smart forms that adapt to your menu. Generate kitchen-ready reports sorted by table, course, or dietary category — stress-free catering starts here.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <ellipse cx="24" cy="32" rx="14" ry="4" stroke="#B8944F" strokeWidth="1.5" />
+        <path d="M10 32V28c0-2.21 6.268-4 14-4s14 1.79 14 4v4" stroke="#B8944F" strokeWidth="1.5" />
+        <path d="M24 12v8" stroke="#D7BE80" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M20 10c0 3 4 5 4 8" stroke="#D7BE80" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="M28 10c0 3-4 5-4 8" stroke="#D7BE80" strokeWidth="1.2" strokeLinecap="round" />
+        <circle cx="24" cy="8" r="2" fill="#B8944F" opacity="0.3" />
+      </svg>
+    ),
+  },
+  {
+    title: "Custom Themes",
+    description:
+      "Brand every touchpoint with your event's unique identity. Choose from curated designer templates or create your own with custom colors, typography, backgrounds, and animations that wow your guests.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <rect x="8" y="8" width="32" height="32" rx="4" stroke="#B8944F" strokeWidth="1.5" />
+        <rect x="12" y="12" width="10" height="10" rx="2" fill="#B8944F" opacity="0.2" />
+        <rect x="26" y="12" width="10" height="10" rx="2" fill="#D7BE80" opacity="0.3" />
+        <rect x="12" y="26" width="10" height="10" rx="2" fill="#D7BE80" opacity="0.3" />
+        <rect x="26" y="26" width="10" height="10" rx="2" fill="#B8944F" opacity="0.15" />
+        <circle cx="17" cy="17" r="3" stroke="#B8944F" strokeWidth="1" />
+        <path d="M28 14l6 6" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="M34 14l-6 6" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+];
+
+function FeatureCard({ feature, index }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: hovered ? "#FFFFFF" : "#FDFCF9",
+        border: `1px solid ${hovered ? "#B8944F" : "#E8E2D6"}`,
+        borderRadius: "16px",
+        padding: "40px 36px",
+        transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        transform: hovered ? "translateY(-6px)" : "translateY(0)",
+        boxShadow: hovered
+          ? "0 20px 60px rgba(184, 148, 79, 0.12), 0 8px 24px rgba(0,0,0,0.04)"
+          : "0 2px 12px rgba(0,0,0,0.03)",
+        cursor: "default",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* Subtle gold corner accent */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          width: "80px",
+          height: "80px",
+          background: "linear-gradient(135deg, transparent 50%, rgba(184, 148, 79, 0.04) 50%)",
+          borderRadius: "0 16px 0 0",
+        }}
+      />
+
+      <div
+        style={{
+          width: "72px",
+          height: "72px",
+          borderRadius: "16px",
+          background: hovered
+            ? "linear-gradient(135deg, rgba(184,148,79,0.12) 0%, rgba(215,190,128,0.08) 100%)"
+            : "linear-gradient(135deg, rgba(184,148,79,0.06) 0%, rgba(215,190,128,0.04) 100%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: "24px",
+          transition: "background 0.4s ease",
+        }}
+      >
+        {feature.icon}
+      </div>
+
+      <h3
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: "22px",
+          fontWeight: 600,
+          color: "#191B1E",
+          marginBottom: "14px",
+          letterSpacing: "-0.2px",
+        }}
+      >
+        {feature.title}
+      </h3>
+
+      <p
+        style={{
+          fontFamily: "var(--font-sans)",
+          fontSize: "15px",
+          lineHeight: "1.7",
+          color: "#5E5A52",
+          margin: 0,
+        }}
+      >
+        {feature.description}
+      </p>
+
+      {/* Bottom gold line accent on hover */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: hovered ? "60%" : "0%",
+          height: "2px",
+          background: "linear-gradient(90deg, transparent, #B8944F, transparent)",
+          transition: "width 0.4s ease",
+          borderRadius: "2px",
+        }}
+      />
+    </div>
+  );
+}
+
+function GoldDivider() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", margin: "0 auto", maxWidth: "280px" }}>
+      <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, transparent, #D7BE80)" }} />
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M10 2L12 8L18 10L12 12L10 18L8 12L2 10L8 8Z" fill="#B8944F" opacity="0.5" />
+      </svg>
+      <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, #D7BE80, transparent)" }} />
+    </div>
+  );
+}
+
+export default function FeaturesPage() {
+  const [ctaHovered, setCtaHovered] = useState(false);
+
+  return (
+    <>
+      <Navbar />
+      <main style={{ paddingTop: "78px" }}>
+        {/* ════════════════════ HERO SECTION ════════════════════ */}
+        <section
+          style={{
+            background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)",
+            padding: "100px 48px 80px",
+            textAlign: "center",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          {/* Background decorative circles */}
+          <div style={{ position: "absolute", top: "-60px", left: "-60px", width: "200px", height: "200px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", bottom: "-40px", right: "-40px", width: "160px", height: "160px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.06)", pointerEvents: "none" }} />
+
+          <div style={{ maxWidth: "780px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+            <div
+              style={{
+                display: "inline-block",
+                padding: "8px 24px",
+                borderRadius: "100px",
+                background: "rgba(184, 148, 79, 0.08)",
+                border: "1px solid rgba(184, 148, 79, 0.15)",
+                marginBottom: "28px",
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#B8944F",
+                  letterSpacing: "1.5px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Everything You Need
+              </span>
+            </div>
+
+            <h1
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "56px",
+                fontWeight: 700,
+                color: "#191B1E",
+                lineHeight: 1.15,
+                marginBottom: "24px",
+                letterSpacing: "-1px",
+              }}
+            >
+              Powerful{" "}
+              <span style={{ color: "#B8944F" }}>Features</span>
+            </h1>
+
+            <p
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: "19px",
+                lineHeight: 1.7,
+                color: "#5E5A52",
+                maxWidth: "600px",
+                margin: "0 auto",
+              }}
+            >
+              From custom invitations to real-time analytics, Fancy RSVP gives you every tool
+              to plan and manage your event with elegance and precision.
+            </p>
+          </div>
+        </section>
+
+        {/* ════════════════════ FEATURES GRID ════════════════════ */}
+        <section
+          style={{
+            maxWidth: "1200px",
+            margin: "0 auto",
+            padding: "80px 48px 100px",
+          }}
+        >
+          <div style={{ marginBottom: "60px" }}>
+            <GoldDivider />
+          </div>
+
+          <div
+            className="features-grid"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: "32px",
+            }}
+          >
+            {features.map((feature, index) => (
+              <FeatureCard key={feature.title} feature={feature} index={index} />
+            ))}
+          </div>
+        </section>
+
+        {/* ════════════════════ STATS BAR ════════════════════ */}
+        <section
+          style={{
+            background: "#191B1E",
+            padding: "64px 48px",
+          }}
+        >
+          <div
+            className="stats-grid"
+            style={{
+              maxWidth: "1200px",
+              margin: "0 auto",
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: "40px",
+              textAlign: "center",
+            }}
+          >
+            {[
+              { value: "50K+", label: "Events Created" },
+              { value: "2M+", label: "RSVPs Managed" },
+              { value: "99.9%", label: "Uptime" },
+              { value: "4.9★", label: "User Rating" },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <div
+                  style={{
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "42px",
+                    fontWeight: 700,
+                    color: "#B8944F",
+                    marginBottom: "8px",
+                  }}
+                >
+                  {stat.value}
+                </div>
+                <div
+                  style={{
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "14px",
+                    color: "rgba(255,255,255,0.5)",
+                    letterSpacing: "1px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ════════════════════ WHY CHOOSE US ════════════════════ */}
+        <section style={{ padding: "100px 48px", background: "#FFFFFF" }}>
+          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+            <div style={{ textAlign: "center", marginBottom: "64px" }}>
+              <h2
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: "40px",
+                  fontWeight: 700,
+                  color: "#191B1E",
+                  marginBottom: "16px",
+                }}
+              >
+                Why Event Planners{" "}
+                <span style={{ color: "#B8944F" }}>Love Us</span>
+              </h2>
+              <p
+                style={{
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "17px",
+                  color: "#5E5A52",
+                  maxWidth: "540px",
+                  margin: "0 auto",
+                  lineHeight: 1.7,
+                }}
+              >
+                We obsess over every detail so you can focus on what matters — creating unforgettable moments.
+              </p>
+            </div>
+
+            <div
+              className="why-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "48px",
+              }}
+            >
+              {[
+                {
+                  title: "Enterprise-Grade Security",
+                  desc: "256-bit SSL encryption, GDPR compliance, and SOC 2 certification protect every guest's data.",
+                  icon: "🔒",
+                },
+                {
+                  title: "White-Glove Support",
+                  desc: "Dedicated account managers for premium clients with 24/7 priority support and onboarding.",
+                  icon: "🤝",
+                },
+                {
+                  title: "Lightning Fast",
+                  desc: "Built on a globally distributed edge network for sub-200ms response times worldwide.",
+                  icon: "⚡",
+                },
+              ].map((item) => (
+                <div key={item.title} style={{ textAlign: "center" }}>
+                  <div
+                    style={{
+                      fontSize: "40px",
+                      marginBottom: "20px",
+                    }}
+                  >
+                    {item.icon}
+                  </div>
+                  <h3
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      fontSize: "20px",
+                      fontWeight: 600,
+                      color: "#191B1E",
+                      marginBottom: "12px",
+                    }}
+                  >
+                    {item.title}
+                  </h3>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-sans)",
+                      fontSize: "15px",
+                      color: "#5E5A52",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    {item.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ════════════════════ CTA SECTION ════════════════════ */}
+        <section
+          style={{
+            background: "linear-gradient(135deg, #191B1E 0%, #2A2D32 100%)",
+            padding: "100px 48px",
+            textAlign: "center",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          {/* Gold glow background */}
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "500px",
+              height: "500px",
+              borderRadius: "50%",
+              background: "radial-gradient(circle, rgba(184,148,79,0.08) 0%, transparent 70%)",
+              pointerEvents: "none",
+            }}
+          />
+
+          <div style={{ position: "relative", zIndex: 1, maxWidth: "600px", margin: "0 auto" }}>
+            <h2
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "44px",
+                fontWeight: 700,
+                color: "#FFFFFF",
+                marginBottom: "20px",
+                lineHeight: 1.2,
+              }}
+            >
+              Ready to Get{" "}
+              <span style={{ color: "#B8944F" }}>Started</span>?
+            </h2>
+            <p
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: "18px",
+                color: "rgba(255,255,255,0.6)",
+                marginBottom: "40px",
+                lineHeight: 1.7,
+              }}
+            >
+              Join thousands of event planners who trust Fancy RSVP to deliver beautiful, seamless guest experiences.
+            </p>
+            <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
+              <Link
+                href="/register"
+                className="btn-gold"
+                onMouseEnter={() => setCtaHovered(true)}
+                onMouseLeave={() => setCtaHovered(false)}
+                style={{
+                  padding: "16px 48px",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  borderRadius: "8px",
+                  letterSpacing: "0.3px",
+                  transform: ctaHovered ? "translateY(-2px)" : "translateY(0)",
+                  boxShadow: ctaHovered
+                    ? "0 12px 40px rgba(184,148,79,0.35)"
+                    : "0 4px 20px rgba(184,148,79,0.2)",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                Start Free Trial
+              </Link>
+              <Link
+                href="/pricing"
+                style={{
+                  padding: "16px 48px",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  borderRadius: "8px",
+                  border: "1px solid rgba(184,148,79,0.4)",
+                  color: "#D7BE80",
+                  textDecoration: "none",
+                  fontFamily: "var(--font-sans)",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                View Pricing
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+      <FooterSection />
+
+      <style jsx>{`
+        @media (max-width: 1024px) {
+          .features-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 24px !important;
+          }
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+        }
+        @media (max-width: 768px) {
+          .features-grid {
+            grid-template-columns: 1fr !important;
+            gap: 20px !important;
+          }
+          .why-grid {
+            grid-template-columns: 1fr !important;
+            gap: 36px !important;
+          }
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 32px !important;
+          }
+        }
+        @media (max-width: 640px) {
+          section {
+            padding-left: 20px !important;
+            padding-right: 20px !important;
+          }
+          .stats-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </>
+  );
+}

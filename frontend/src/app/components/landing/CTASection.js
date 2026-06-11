@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function CTASection() {
   const [primaryHovered, setPrimaryHovered] = useState(false);
   const [secondaryHovered, setSecondaryHovered] = useState(false);
+  const { isLoggedIn, loading } = useAuth();
 
   const trustItems = [
     'No credit card required',
@@ -139,8 +142,8 @@ export default function CTASection() {
           className="cta-buttons"
         >
           {/* Primary Button */}
-          <a
-            href="/register"
+          <Link
+            href={!loading && isLoggedIn ? '/dashboard' : '/register'}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -165,8 +168,8 @@ export default function CTASection() {
             onMouseEnter={() => setPrimaryHovered(true)}
             onMouseLeave={() => setPrimaryHovered(false)}
           >
-            Get Started Free
-          </a>
+            {!loading && isLoggedIn ? 'Go to Dashboard' : 'Get Started Free'}
+          </Link>
 
           {/* Secondary Button */}
           <a

@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useAuth } from "../../hooks/useAuth";
 
 /* ═══════════════════════════════════════════════════════════════
    HeroSection — Fancy RSVP (Page 09 Brand Guide — Pixel Perfect)
@@ -307,13 +309,7 @@ function HeroCard() {
 }
 
 export default function HeroSection() {
-
-  const scrollToSection = (id) => {
-    const el = document.getElementById(id);
-    if (el) {
-      window.scrollTo({ top: el.offsetTop - 80, behavior: "smooth" });
-    }
-  };
+  const { isLoggedIn, loading } = useAuth();
 
   return (
     <>
@@ -421,32 +417,34 @@ export default function HeroSection() {
               }}
               className="hero-buttons"
             >
-              <a
-                href="/register"
+              <Link
+                href={!loading && isLoggedIn ? "/dashboard" : "/register"}
                 className="btn-gold"
                 style={{
                   padding: "15px 36px",
                   fontSize: "14px",
                   fontWeight: 700,
                   borderRadius: "6px",
+                  textDecoration: "none",
                 }}
                 id="hero-cta-get-started"
               >
-                Get Started
-              </a>
-              <button
-                onClick={() => scrollToSection("features")}
+                {!loading && isLoggedIn ? "Go to Dashboard" : "Get Started"}
+              </Link>
+              <Link
+                href="/features"
                 className="btn-outline"
                 style={{
                   padding: "15px 36px",
                   fontSize: "14px",
                   fontWeight: 700,
                   borderRadius: "6px",
+                  textDecoration: "none",
                 }}
                 id="hero-cta-view-features"
               >
                 View Features
-              </button>
+              </Link>
             </div>
           </div>
 
