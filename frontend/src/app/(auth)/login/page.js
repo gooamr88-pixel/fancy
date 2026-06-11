@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../utils/apiClient';
@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const googleBtnRef = useRef(null);
 
   const router = useRouter();
 
@@ -45,43 +46,18 @@ export default function LoginPage() {
     }
   };
 
-  const loadGoogleScript = () => {
-    return new Promise((resolve, reject) => {
-      if (window.google?.accounts?.id) return resolve();
-      const existing = document.getElementById('gsi-script');
-      if (existing) {
-        const check = setInterval(() => {
-          if (window.google?.accounts?.id) { clearInterval(check); resolve(); }
-        }, 100);
-        setTimeout(() => { clearInterval(check); reject(new Error('Google Sign-In timed out')); }, 10000);
-        return;
-      }
-      const s = document.createElement('script');
-      s.id = 'gsi-script';
-      s.src = 'https://accounts.google.com/gsi/client';
-      s.async = true;
-      s.onload = () => {
-        const check = setInterval(() => {
-          if (window.google?.accounts?.id) { clearInterval(check); resolve(); }
-        }, 100);
-        setTimeout(() => { clearInterval(check); reject(new Error('Google Sign-In timed out')); }, 10000);
-      };
-      s.onerror = () => reject(new Error('Failed to load Google Sign-In'));
-      document.head.appendChild(s);
-    });
-  };
+  // Load Google Sign-In on mount
+  useEffect(() => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
 
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    setError(null);
-    try {
-      await loadGoogleScript();
-      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-      if (!clientId) { setError('Google Sign-In is not configured.'); setGoogleLoading(false); return; }
-
+    const loadAndInit = () => {
+      if (!window.google?.accounts?.id) return;
       window.google.accounts.id.initialize({
         client_id: clientId,
         callback: async (response) => {
+          setGoogleLoading(true);
+          setError(null);
           try {
             const data = await apiFetch('/auth/google-login', {
               method: 'POST',
@@ -100,17 +76,49 @@ export default function LoginPage() {
             setGoogleLoading(false);
           }
         },
+        ux_mode: 'popup',
       });
+      // Render hidden Google button
+      if (googleBtnRef.current) {
+        googleBtnRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          type: 'standard',
+          size: 'large',
+          width: 300,
+        });
+      }
+    };
 
-      window.google.accounts.id.prompt((notification) => {
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          setError('Google Sign-In popup was blocked. Please allow popups and try again.');
-          setGoogleLoading(false);
-        }
-      });
-    } catch (err) {
-      setError(err.message || 'Google Sign-In failed.');
-      setGoogleLoading(false);
+    // Load script
+    if (window.google?.accounts?.id) {
+      loadAndInit();
+    } else {
+      const existing = document.getElementById('gsi-script');
+      if (!existing) {
+        const s = document.createElement('script');
+        s.id = 'gsi-script';
+        s.src = 'https://accounts.google.com/gsi/client';
+        s.async = true;
+        s.onload = loadAndInit;
+        document.head.appendChild(s);
+      } else {
+        const check = setInterval(() => {
+          if (window.google?.accounts?.id) { clearInterval(check); loadAndInit(); }
+        }, 200);
+        setTimeout(() => clearInterval(check), 10000);
+      }
+    }
+  }, [router]);
+
+  const handleGoogleLogin = () => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) { setError('Google Sign-In is not configured.'); return; }
+    // Click the hidden Google button
+    const btn = googleBtnRef.current?.querySelector('div[role="button"]');
+    if (btn) {
+      btn.click();
+    } else {
+      setError('Google Sign-In is loading. Please try again.');
     }
   };
 
@@ -229,6 +237,9 @@ export default function LoginPage() {
               </>
             )}
           </button>
+
+          {/* Hidden Google rendered button */}
+          <div ref={googleBtnRef} style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', height: 0, overflow: 'hidden' }} />
 
           <div className="auth-footer-divider" />
           <p className="auth-footer-text">
