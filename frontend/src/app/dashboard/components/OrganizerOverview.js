@@ -1,5 +1,6 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '../../utils/apiClient';
 import OverviewStatCards from './OverviewStatCards';
 import RsvpProgressDonut from './RsvpProgressDonut';
@@ -7,299 +8,434 @@ import RsvpTrendChart from './RsvpTrendChart';
 import UpcomingEventsCards from './UpcomingEventsCards';
 import RecentActivityFeed from './RecentActivityFeed';
 
-/* ──────────────────────── Skeleton Helpers ──────────────────────── */
-const shimmerKeyframes = `
+const SHIMMER_KEYFRAMES = `
 @keyframes shimmer {
   0% { background-position: -400px 0; }
   100% { background-position: 400px 0; }
 }
 `;
 
-function ShimmerBox({ width, height, borderRadius = '8px', style = {} }) {
+const shimmerStyle = {
+  background: 'linear-gradient(90deg, #F0ECE3 25%, #FAF8F4 37%, #F0ECE3 63%)',
+  backgroundSize: '800px 100%',
+  animation: 'shimmer 1.6s ease infinite',
+  borderRadius: 10,
+};
+
+function ShimmerBlock({ width, height, style }) {
   return (
     <div
       style={{
-        width,
-        height,
-        borderRadius,
-        background: 'linear-gradient(90deg, #F0ECE3 25%, #F8F4EC 50%, #F0ECE3 75%)',
-        backgroundSize: '800px 100%',
-        animation: 'shimmer 1.8s ease-in-out infinite',
+        ...shimmerStyle,
+        width: width || '100%',
+        height: height || 20,
         ...style,
       }}
     />
   );
 }
 
-function SkeletonStatCard() {
+function SkeletonWelcomeHeader() {
   return (
     <div
       style={{
-        background: '#FFFFFF',
-        border: '1px solid #E8E2D6',
-        borderRadius: '12px',
-        padding: '20px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingBottom: 20,
+        borderBottom: '1px solid #F0ECE3',
+        marginBottom: 28,
       }}
     >
-      <ShimmerBox width="60%" height="10px" style={{ marginBottom: '12px' }} />
-      <ShimmerBox width="50%" height="28px" style={{ marginBottom: '8px' }} />
-      <ShimmerBox width="40%" height="8px" />
-    </div>
-  );
-}
-
-function SkeletonStatCardWide() {
-  return (
-    <div
-      style={{
-        background: '#FFFFFF',
-        border: '1px solid #E8E2D6',
-        borderRadius: '12px',
-        padding: '20px',
-        gridColumn: 'span 2',
-      }}
-    >
-      <ShimmerBox width="40%" height="10px" style={{ marginBottom: '12px' }} />
-      <ShimmerBox width="30%" height="28px" style={{ marginBottom: '8px' }} />
-      <ShimmerBox width="25%" height="8px" style={{ marginBottom: '12px' }} />
-      <div style={{ display: 'flex', gap: '12px' }}>
-        <ShimmerBox width="70px" height="8px" />
-        <ShimmerBox width="70px" height="8px" />
-        <ShimmerBox width="60px" height="8px" />
+      <div>
+        <ShimmerBlock width={220} height={24} style={{ marginBottom: 10 }} />
+        <ShimmerBlock width={280} height={14} />
       </div>
+      <ShimmerBlock width={180} height={14} />
     </div>
   );
 }
 
-function SkeletonChartCard({ height = '280px' }) {
+function SkeletonStatCards() {
   return (
     <div
       style={{
-        background: '#FFFFFF',
-        border: '1px solid #E8E2D6',
-        borderRadius: '12px',
-        padding: '28px',
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr 2fr 1fr 1fr 1fr',
+        gap: 16,
       }}
     >
-      <ShimmerBox width="120px" height="14px" style={{ marginBottom: '20px' }} />
-      <ShimmerBox width="100%" height={height} borderRadius="8px" />
-    </div>
-  );
-}
-
-function SkeletonListCard() {
-  return (
-    <div
-      style={{
-        background: '#FFFFFF',
-        border: '1px solid #E8E2D6',
-        borderRadius: '12px',
-        padding: '28px',
-      }}
-    >
-      <ShimmerBox width="140px" height="14px" style={{ marginBottom: '20px' }} />
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 0' }}>
-          <ShimmerBox width="32px" height="32px" borderRadius="50%" />
-          <div style={{ flex: 1 }}>
-            <ShimmerBox width="70%" height="12px" style={{ marginBottom: '6px' }} />
-            <ShimmerBox width="45%" height="8px" />
-          </div>
-          <ShimmerBox width="40px" height="8px" />
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div
+          key={i}
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E8E2D6',
+            borderRadius: 14,
+            padding: 22,
+            gridColumn: i === 3 ? 'span 2' : undefined,
+          }}
+        >
+          <ShimmerBlock width={60} height={10} style={{ marginBottom: 16 }} />
+          <ShimmerBlock width={80} height={30} style={{ marginBottom: 10 }} />
+          <ShimmerBlock width={50} height={12} />
         </div>
       ))}
     </div>
   );
 }
 
-/* ──────────────────────── Loading Skeleton ──────────────────────── */
-function DashboardSkeleton() {
+function SkeletonChartCards() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Stat cards row */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr 2fr 1fr 1fr 1fr',
-          gap: '16px',
-        }}
-      >
-        <SkeletonStatCard />
-        <SkeletonStatCard />
-        <SkeletonStatCardWide />
-        <SkeletonStatCard />
-        <SkeletonStatCard />
-        <SkeletonStatCard />
-      </div>
-
-      {/* Charts row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        <SkeletonChartCard height="200px" />
-        <SkeletonChartCard height="200px" />
-      </div>
-
-      {/* Bottom row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        <SkeletonChartCard height="120px" />
-        <SkeletonListCard />
-      </div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+      {[1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E8E2D6',
+            borderRadius: 14,
+            padding: 28,
+          }}
+        >
+          <ShimmerBlock width={160} height={18} style={{ marginBottom: 8 }} />
+          <ShimmerBlock width={240} height={12} style={{ marginBottom: 24 }} />
+          <ShimmerBlock height={180} />
+        </div>
+      ))}
     </div>
   );
 }
 
-/* ──────────────────────── Error State ──────────────────────── */
-function ErrorState({ message, onRetry }) {
+function SkeletonBottomCards() {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+      {[1, 2].map((i) => (
+        <div
+          key={i}
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid #E8E2D6',
+            borderRadius: 14,
+            padding: 28,
+          }}
+        >
+          <ShimmerBlock width={160} height={18} style={{ marginBottom: 8 }} />
+          <ShimmerBlock width={200} height={12} style={{ marginBottom: 20 }} />
+          {[1, 2, 3].map((j) => (
+            <ShimmerBlock
+              key={j}
+              height={48}
+              style={{ marginBottom: 12 }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <SkeletonWelcomeHeader />
+      <SkeletonStatCards />
+      <SkeletonChartCards />
+      <SkeletonBottomCards />
+    </div>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      style={{ marginRight: 6, verticalAlign: 'middle', marginTop: -1 }}
+    >
+      <rect
+        x="1.5"
+        y="2.5"
+        width="13"
+        height="12"
+        rx="2"
+        stroke="#A9A5A0"
+        strokeWidth="1.2"
+        fill="none"
+      />
+      <path d="M1.5 6.5h13" stroke="#A9A5A0" strokeWidth="1.2" />
+      <path d="M5 1v3" stroke="#A9A5A0" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M11 1v3" stroke="#A9A5A0" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="5" cy="9.5" r="0.8" fill="#A9A5A0" />
+      <circle cx="8" cy="9.5" r="0.8" fill="#A9A5A0" />
+      <circle cx="11" cy="9.5" r="0.8" fill="#A9A5A0" />
+      <circle cx="5" cy="12" r="0.8" fill="#A9A5A0" />
+      <circle cx="8" cy="12" r="0.8" fill="#A9A5A0" />
+    </svg>
+  );
+}
+
+function WarningIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 9v4m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+        stroke="#B8944F"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function WelcomeHeader() {
+  const now = new Date();
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const dateStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+
   return (
     <div
       style={{
         display: 'flex',
-        flexDirection: 'column',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: '64px 24px',
-        background: '#FFFFFF',
-        border: '1px solid #E8E2D6',
-        borderRadius: '12px',
+        paddingBottom: 20,
+        borderBottom: '1px solid #F0ECE3',
+        marginBottom: 28,
       }}
     >
-      {/* Warning icon */}
+      <div>
+        <h1
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontSize: 22,
+            fontWeight: 700,
+            color: '#191B1E',
+            margin: 0,
+            lineHeight: 1.3,
+          }}
+        >
+          Dashboard Overview
+        </h1>
+        <p
+          style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: 13,
+            color: '#77736A',
+            margin: '6px 0 0 0',
+            fontWeight: 400,
+          }}
+        >
+          Real-time insights across all your events
+        </p>
+      </div>
       <div
         style={{
-          width: '48px',
-          height: '48px',
-          borderRadius: '50%',
-          background: '#F8F4EC',
+          fontFamily: 'var(--font-sans)',
+          fontSize: 12,
+          color: '#A9A5A0',
+          fontWeight: 400,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '16px',
         }}
       >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
+        <CalendarIcon />
+        {dateStr}
       </div>
-      <p
-        style={{
-          fontFamily: 'var(--font-serif)',
-          fontSize: '16px',
-          color: '#191B1E',
-          marginBottom: '6px',
-          fontWeight: 500,
-        }}
-      >
-        Unable to load dashboard
-      </p>
-      <p
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: '13px',
-          color: '#77736A',
-          marginBottom: '20px',
-          textAlign: 'center',
-          maxWidth: '360px',
-        }}
-      >
-        {message || 'Something went wrong while fetching your dashboard data.'}
-      </p>
-      <button
-        onClick={onRetry}
-        style={{
-          background: '#B8944F',
-          color: '#FFFFFF',
-          border: 'none',
-          borderRadius: '8px',
-          padding: '10px 24px',
-          fontSize: '13px',
-          fontWeight: 600,
-          fontFamily: 'var(--font-sans)',
-          cursor: 'pointer',
-          transition: 'background 0.2s ease',
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = '#a6833f'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.background = '#B8944F'; }}
-      >
-        Try Again
-      </button>
     </div>
   );
 }
 
-/* ──────────────────────── Main Component ──────────────────────── */
+function ErrorState({ message, onRetry }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 420,
+      }}
+    >
+      <div
+        style={{
+          background: '#FFFFFF',
+          border: '1px solid #E8E2D6',
+          borderRadius: 16,
+          padding: '48px 56px',
+          textAlign: 'center',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          maxWidth: 400,
+        }}
+      >
+        <div
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #FBF6EC, #F5EDDA)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 20px',
+          }}
+        >
+          <WarningIcon />
+        </div>
+        <h2
+          style={{
+            fontFamily: 'var(--font-serif)',
+            fontSize: 18,
+            fontWeight: 600,
+            color: '#191B1E',
+            margin: '0 0 8px 0',
+          }}
+        >
+          Unable to load dashboard
+        </h2>
+        <p
+          style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: 13,
+            color: '#77736A',
+            margin: '0 0 24px 0',
+            lineHeight: 1.5,
+          }}
+        >
+          {message || 'Something went wrong. Please try again.'}
+        </p>
+        <button
+          onClick={onRetry}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            background: hovered ? '#a6833f' : '#B8944F',
+            color: '#FFFFFF',
+            fontFamily: 'var(--font-sans)',
+            fontSize: 12,
+            fontWeight: 600,
+            border: 'none',
+            borderRadius: 10,
+            padding: '10px 28px',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            letterSpacing: '0.03em',
+          }}
+        >
+          Try Again
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function OrganizerOverview() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const styleInjected = useRef(false);
 
-  const fetchDashboard = async () => {
+  useEffect(() => {
+    if (!styleInjected.current) {
+      const styleEl = document.createElement('style');
+      styleEl.textContent = SHIMMER_KEYFRAMES;
+      document.head.appendChild(styleEl);
+      styleInjected.current = true;
+      return () => {
+        document.head.removeChild(styleEl);
+      };
+    }
+  }, []);
+
+  const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch('/dashboard');
-      if (res?.success && res.dashboard) {
-        setData(res.dashboard);
-      } else {
-        throw new Error('Invalid dashboard response.');
-      }
+      const res = await apiFetch('/api/v1/dashboard');
+      setData(res);
     } catch (err) {
-      setError(err.message || 'Failed to load dashboard.');
+      setError(err.message || 'Failed to fetch dashboard data');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  // Inject shimmer keyframes once
-  useEffect(() => {
-    const styleId = 'organizer-overview-shimmer';
-    if (!document.getElementById(styleId)) {
-      const styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      styleEl.textContent = shimmerKeyframes;
-      document.head.appendChild(styleEl);
-    }
+    fetchData();
   }, []);
 
   if (loading) {
-    return <DashboardSkeleton />;
+    return (
+      <div style={{ padding: 0 }}>
+        <LoadingSkeleton />
+      </div>
+    );
   }
 
   if (error) {
-    return <ErrorState message={error} onRetry={fetchDashboard} />;
+    return <ErrorState message={error} onRetry={fetchData} />;
   }
 
-  if (!data) {
-    return null;
-  }
+  const {
+    total_events = 0,
+    active_events = 0,
+    total_guests = 0,
+    rsvp_overview = { accepted: 0, declined: 0, pending: 0 },
+    checked_in = 0,
+    not_arrived = 0,
+    total_guests_accepted = 0,
+    rsvp_trend = [],
+    upcoming_events = [],
+    recent_activity = [],
+  } = data || {};
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Row 1: Stat Cards */}
-      <OverviewStatCards
-        totalEvents={data.totalEvents}
-        activeEvents={data.activeEvents}
-        totalGuests={data.totalGuests}
-        rsvpOverview={data.rsvpOverview}
-        checkedIn={data.checkedIn}
-        notArrived={data.notArrived}
-        totalGuestsAccepted={data.totalGuestsAccepted}
-      />
+    <div style={{ padding: 0 }}>
+      <WelcomeHeader />
 
-      {/* Row 2: Charts */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        <RsvpProgressDonut rsvpOverview={data.rsvpOverview} />
-        <RsvpTrendChart rsvpTrend={data.rsvpTrend} />
-      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        {/* Stat Cards Row */}
+        <OverviewStatCards
+          totalEvents={total_events}
+          activeEvents={active_events}
+          totalGuests={total_guests}
+          rsvpOverview={rsvp_overview}
+          checkedIn={checked_in}
+          notArrived={not_arrived}
+          totalGuestsAccepted={total_guests_accepted}
+        />
 
-      {/* Row 3: Events + Activity */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-        <UpcomingEventsCards upcomingEvents={data.upcomingEvents} />
-        <RecentActivityFeed recentActivity={data.recentActivity} />
+        {/* Charts Row */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 24,
+          }}
+        >
+          <RsvpProgressDonut rsvpOverview={rsvp_overview} />
+          <RsvpTrendChart rsvpTrend={rsvp_trend} />
+        </div>
+
+        {/* Bottom Row */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 24,
+          }}
+        >
+          <UpcomingEventsCards upcomingEvents={upcoming_events} />
+          <RecentActivityFeed recentActivity={recent_activity} />
+        </div>
       </div>
     </div>
   );
