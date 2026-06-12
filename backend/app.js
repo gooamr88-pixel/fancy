@@ -138,6 +138,7 @@ const tableRoutes = require('./routes/tableRoutes');
 const campaignRoutes = require('./routes/campaignRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const fieldRoutes = require('./routes/fieldRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 // Mount public routes
 app.use('/api/v1/public', publicRoutes);
@@ -152,6 +153,7 @@ app.use('/api/v1/events/:eventId/rsvps', requireAuth, verifyEventOwner, rsvpRout
 app.use('/api/v1/events/:eventId/tables', requireAuth, verifyEventOwner, tableRoutes);
 app.use('/api/v1/events/:eventId/campaigns', requireAuth, verifyEventOwner, campaignRoutes);
 app.use('/api/v1/events/:eventId/fields', requireAuth, verifyEventOwner, fieldRoutes);
+app.use('/api/v1/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/v1/events', requireAuth, eventRoutes);
 
 // Mount super admin control routes

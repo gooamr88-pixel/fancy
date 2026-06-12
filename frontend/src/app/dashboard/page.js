@@ -18,6 +18,7 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import EventsTab from './components/EventsTab';
 import RSVPsTab from './components/RSVPsTab';
 import GuestsTab from './components/GuestsTab';
+import OrganizerOverview from './components/OrganizerOverview';
 
 /* ═══════════════════════════════════════════════
    Brand Design Tokens
@@ -495,43 +496,9 @@ export default function DashboardPage() {
           ) : (
             /* ═══ OVERVIEW TAB (default) ═══ */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-
-              {eventId && (<>
-              {/* KPI Metrics Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
-                <StatMetricsCard label="Total Invited" value={`${stats.invitedParties} parties`} subtext="Event campaigns reached" accentColor="slate"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>} />
-                <StatMetricsCard label="Confirmed Yes" value={`${stats.attendingGuests} guests`} subtext="Acceptance count" accentColor="green"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>} />
-                <StatMetricsCard label="Declined" value={`${stats.declinedGuests} guests`} subtext="Regret count" accentColor="rose"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>} />
-                <StatMetricsCard label="Arrivals" value={`${stats.checkedInGuests} checked-in`} subtext="Active attendees present" accentColor="amber"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M5 13l4 4L19 7"/></svg>} />
-                <StatMetricsCard label="Seating Allocated" value={totalSeatedCountText} subtext="Assigned tables progress" accentColor="blue"
-                  icon={<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M4 6h16M4 12h16M4 18h16"/></svg>} />
-              </div>
-
-              {/* Charts & Activity Feed */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-                <ErrorBoundary><ResponsiveChartBoard stats={stats} /></ErrorBoundary>
-                <ErrorBoundary><LiveActivityFeed rsvps={rsvps} /></ErrorBoundary>
-              </div>
-
-              {/* Seating & Tables */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
-                <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} />
-                <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>
-              </div>
-              </>)}
-
-              {!eventId && activeTab === 'overview' && (
-                <div style={{ textAlign: 'center', padding: '64px 24px', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '16px' }}>
-                  <span style={{ fontSize: '48px', display: 'block', marginBottom: '16px' }}>🎉</span>
-                  <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 500, color: '#191B1E', marginBottom: '8px' }}>Welcome to Fancy RSVP!</h2>
-                  <p style={{ fontSize: '14px', color: '#77736A', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px' }}>Create your first event to start managing RSVPs, seating, and check-ins.</p>
-                  <a href="/dashboard/create-event" style={{ display: 'inline-block', padding: '12px 28px', background: '#B8944F', color: '#FFFFFF', borderRadius: '10px', fontWeight: 700, fontSize: '14px', textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>+ Create Your First Event</a>
-                </div>
-              )}
+              <ErrorBoundary>
+                <OrganizerOverview />
+              </ErrorBoundary>
             </div>
           )}
         </div>
