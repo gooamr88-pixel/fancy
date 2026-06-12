@@ -128,8 +128,8 @@ export default function DashboardPage() {
         const res = await fetch(`${apiUrl}/events`, { credentials: 'include' });
         const data = await res.json();
         if (data.success && data.events.length > 0) { setEvents(data.events); setEventId(data.events[0].id); }
-        else { setEventId(''); }
-      } catch (err) { setEventId(''); }
+        else { setEventId(''); setLoading(false); }
+      } catch (err) { setEventId(''); setLoading(false); }
     };
     fetchEvents();
   }, [authChecked, apiUrl]);
