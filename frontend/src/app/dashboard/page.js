@@ -506,7 +506,7 @@ export default function DashboardPage() {
             <EventsTab
               events={events}
               activeEventId={eventId}
-              onSelectEvent={(id) => { setEventId(id); setActiveTab('overview'); }}
+              onSelectEvent={(id, tab) => { setEventId(id); setActiveTab(tab || 'overview'); }}
               onRefresh={loadDashboardData}
             />
           ) : activeTab === 'rsvps' ? (

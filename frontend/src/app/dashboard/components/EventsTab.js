@@ -1,406 +1,525 @@
 'use client';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { apiFetch } from '../../utils/apiClient';
 
 /* ═══ Design Tokens ═══ */
-const COLORS = {
+const C = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
-  champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8',
+  champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF',
+  softBg: '#FAFAF8', green: '#4A7C59', greenLight: 'rgba(74,124,89,0.08)',
+  red: '#C45E5E', redLight: 'rgba(196,94,94,0.08)', purple: '#8B7EC8',
 };
 
-const STATUS_CONFIG = {
-  active: { bg: 'rgba(74,124,89,0.08)', color: '#3A8B55', border: 'rgba(74,124,89,0.20)', label: 'Active', dot: '#4A7C59', glow: 'rgba(74,124,89,0.30)' },
-  live: { bg: 'rgba(74,124,89,0.08)', color: '#3A8B55', border: 'rgba(74,124,89,0.20)', label: 'Live', dot: '#4A7C59', glow: 'rgba(74,124,89,0.30)' },
-  paused: { bg: 'rgba(210,160,60,0.08)', color: '#B08A1A', border: 'rgba(210,160,60,0.18)', label: 'Paused', dot: '#D2A03C', glow: 'rgba(210,160,60,0.25)' },
-  draft: { bg: 'rgba(210,160,60,0.08)', color: '#B08A1A', border: 'rgba(210,160,60,0.18)', label: 'Draft', dot: '#D2A03C', glow: 'rgba(210,160,60,0.25)' },
-  completed: { bg: 'rgba(107,142,174,0.08)', color: '#4A7A9B', border: 'rgba(107,142,174,0.18)', label: 'Completed', dot: '#6B8EAE', glow: 'rgba(107,142,174,0.25)' },
-  ended: { bg: 'rgba(107,142,174,0.08)', color: '#4A7A9B', border: 'rgba(107,142,174,0.18)', label: 'Ended', dot: '#6B8EAE', glow: 'rgba(107,142,174,0.25)' },
+const STATUS_CFG = {
+  active: { bg: 'rgba(74,124,89,0.07)', color: '#3A8B55', border: 'rgba(74,124,89,0.18)', label: 'Active', dot: '#4A7C59', pulse: true },
+  live: { bg: 'rgba(74,124,89,0.07)', color: '#3A8B55', border: 'rgba(74,124,89,0.18)', label: 'Live', dot: '#4A7C59', pulse: true },
+  paused: { bg: 'rgba(210,160,60,0.07)', color: '#B08A1A', border: 'rgba(210,160,60,0.18)', label: 'Paused', dot: '#D2A03C', pulse: false },
+  draft: { bg: 'rgba(210,160,60,0.07)', color: '#B08A1A', border: 'rgba(210,160,60,0.18)', label: 'Draft', dot: '#D2A03C', pulse: false },
+  completed: { bg: 'rgba(107,142,174,0.07)', color: '#4A7A9B', border: 'rgba(107,142,174,0.18)', label: 'Completed', dot: '#6B8EAE', pulse: false },
+  ended: { bg: 'rgba(107,142,174,0.07)', color: '#4A7A9B', border: 'rgba(107,142,174,0.18)', label: 'Ended', dot: '#6B8EAE', pulse: false },
 };
 
-const GRADIENTS = [
-  'linear-gradient(135deg, #B8944F, #D7BE80)',
-  'linear-gradient(135deg, #6B8EAE, #A3C1D9)',
-  'linear-gradient(135deg, #8B7EC8, #B0A6D9)',
-  'linear-gradient(135deg, #4A7C59, #7AB08A)',
-  'linear-gradient(135deg, #C4787A, #E0A6A8)',
-  'linear-gradient(135deg, #C4956A, #E0B98E)',
+const GRADS = [
+  'linear-gradient(135deg, #B8944F 0%, #D7BE80 50%, #E8D5A8 100%)',
+  'linear-gradient(135deg, #6B8EAE 0%, #A3C1D9 50%, #C4DAE8 100%)',
+  'linear-gradient(135deg, #8B7EC8 0%, #B0A6D9 50%, #CFC9E8 100%)',
+  'linear-gradient(135deg, #4A7C59 0%, #7AB08A 50%, #A3D4B0 100%)',
+  'linear-gradient(135deg, #C4787A 0%, #E0A6A8 50%, #F0C8C9 100%)',
+  'linear-gradient(135deg, #C4956A 0%, #E0B98E 50%, #F0D5B8 100%)',
 ];
 
-/* ═══ CSS ═══ */
-const STYLES_ID = 'events-tab-premium-styles';
+/* ═══ CSS Keyframes ═══ */
+const STYLES_ID = 'events-tab-v2-styles';
 const CSS = `
-@keyframes evtFadeSlideUp {
-  from { opacity: 0; transform: translateY(20px) scale(0.98); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes evtSlideUp {
+  from { opacity:0; transform:translateY(24px) scale(0.97); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
 }
 @keyframes evtPulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--pulse-color, rgba(74,124,89,0.35)); }
-  50% { box-shadow: 0 0 0 6px var(--pulse-color, rgba(74,124,89,0)); }
+  0%,100% { box-shadow:0 0 0 0 rgba(74,124,89,0.4); }
+  50% { box-shadow:0 0 0 5px rgba(74,124,89,0); }
+}
+@keyframes evtExpandIn {
+  from { opacity:0; max-height:0; padding-top:0; padding-bottom:0; }
+  to   { opacity:1; max-height:600px; padding-top:20px; padding-bottom:20px; }
+}
+@keyframes evtCollapseOut {
+  from { opacity:1; max-height:600px; padding-top:20px; padding-bottom:20px; }
+  to   { opacity:0; max-height:0; padding-top:0; padding-bottom:0; }
+}
+@keyframes evtStatPop {
+  from { opacity:0; transform:translateY(12px) scale(0.9); }
+  to   { opacity:1; transform:translateY(0) scale(1); }
 }
 @keyframes evtShimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% { background-position:-200% 0; }
+  100% { background-position:200% 0; }
 }
-@keyframes evtEmptyFloat {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+@keyframes evtRingDraw {
+  from { stroke-dashoffset: var(--ring-len); }
+  to   { stroke-dashoffset: var(--ring-offset); }
 }
-@keyframes evtCountUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes evtFloat {
+  0%,100% { transform:translateY(0); }
+  50% { transform:translateY(-6px); }
 }
-@keyframes evtGradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+@keyframes evtGradShift {
+  0% { background-position:0% 50%; }
+  50% { background-position:100% 50%; }
+  100% { background-position:0% 50%; }
+}
+@keyframes evtCounterPulse {
+  0%,100% { transform:scale(1); }
+  50% { transform:scale(1.06); }
+}
+@keyframes evtDotPop {
+  from { transform:scale(0); opacity:0; }
+  to   { transform:scale(1); opacity:1; }
 }
 
-.evt-card {
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  background: #FFFFFF;
-  border: 1px solid #E8E2D6;
-  border-radius: 16px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: all 0.35s cubic-bezier(.25,.8,.25,1);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+.evt2-card {
+  position:relative; display:flex; flex-direction:column;
+  background:#fff; border:1px solid #E8E2D6; border-radius:16px;
+  overflow:hidden; cursor:pointer;
+  transition:all 0.35s cubic-bezier(.22,1,.36,1);
+  box-shadow:0 1px 4px rgba(0,0,0,0.03);
 }
-.evt-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.08), 0 4px 12px rgba(184,148,79,0.08);
-  border-color: rgba(184,148,79,0.3);
+.evt2-card:hover {
+  transform:translateY(-3px);
+  box-shadow:0 16px 48px rgba(0,0,0,0.06),0 4px 12px rgba(184,148,79,0.06);
+  border-color:rgba(184,148,79,0.25);
 }
-.evt-card[data-active="true"] {
-  border-color: #B8944F;
-  box-shadow: 0 4px 20px rgba(184,148,79,0.12);
+.evt2-card[data-active="true"] {
+  border-color:#B8944F;
+  box-shadow:0 4px 24px rgba(184,148,79,0.12);
 }
-.evt-card[data-active="true"]:hover {
-  box-shadow: 0 16px 48px rgba(184,148,79,0.15), 0 4px 12px rgba(184,148,79,0.1);
+.evt2-card[data-expanded="true"] {
+  box-shadow:0 20px 60px rgba(0,0,0,0.08),0 4px 16px rgba(184,148,79,0.08);
 }
-.evt-card-cover {
-  width: 110px;
-  min-height: 140px;
-  flex-shrink: 0;
-  position: relative;
-  overflow: hidden;
+.evt2-top { display:flex; align-items:stretch; }
+.evt2-cover {
+  width:120px; min-height:130px; flex-shrink:0;
+  position:relative; overflow:hidden;
+  transition:width 0.3s ease;
 }
-.evt-card-cover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, transparent 40%, rgba(0,0,0,0.08) 100%);
-  pointer-events: none;
+.evt2-cover::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(135deg,transparent 30%,rgba(0,0,0,0.1) 100%);
+  pointer-events:none;
 }
-.evt-card-actions {
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 0.25s ease, transform 0.25s ease;
-  pointer-events: none;
+.evt2-actions { display:flex; align-items:center; gap:6px; margin-top:6px; }
+.evt2-action-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:6px 14px; border-radius:8px;
+  border:1px solid #E8E2D6; background:#fff;
+  color:#77736A; font-size:11px; font-weight:600;
+  font-family:var(--font-sans); cursor:pointer;
+  transition:all 0.22s ease; white-space:nowrap;
 }
-.evt-card:hover .evt-card-actions {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
+.evt2-action-btn:hover {
+  background:#F8F4EC; color:#B8944F;
+  border-color:rgba(184,148,79,0.3);
+  transform:translateY(-1px);
+  box-shadow:0 3px 10px rgba(184,148,79,0.08);
 }
-.evt-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border-radius: 8px;
-  border: 1px solid #E8E2D6;
-  background: #FFFFFF;
-  color: #77736A;
-  font-size: 10px;
-  font-weight: 600;
-  font-family: var(--font-sans);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+.evt2-action-btn[data-variant="primary"] {
+  background:linear-gradient(135deg,#B8944F,#D7BE80);
+  color:#fff; border-color:transparent;
 }
-.evt-action-btn:hover {
-  background: #F8F4EC;
-  color: #B8944F;
-  border-color: rgba(184,148,79,0.3);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(184,148,79,0.1);
+.evt2-action-btn[data-variant="primary"]:hover {
+  box-shadow:0 4px 16px rgba(184,148,79,0.3);
+  transform:translateY(-2px); color:#fff;
 }
-.evt-action-btn[data-highlight="true"] {
-  background: rgba(74,124,89,0.06);
-  border-color: rgba(74,124,89,0.25);
-  color: #3A8B55;
+.evt2-action-btn[data-copied="true"] {
+  background:rgba(74,124,89,0.06); border-color:rgba(74,124,89,0.25); color:#3A8B55;
 }
-.evt-create-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 22px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #B8944F, #D7BE80);
-  background-size: 200% 200%;
-  animation: evtGradientShift 4s ease infinite;
-  color: #FFFFFF;
-  font-size: 13px;
-  font-weight: 700;
-  font-family: var(--font-sans);
-  text-decoration: none;
-  letter-spacing: 0.3px;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 16px rgba(184,148,79,0.25);
-  border: none;
-  cursor: pointer;
+.evt2-expand-panel {
+  overflow:hidden; border-top:1px solid #F0ECE3;
+  animation:evtExpandIn 0.45s cubic-bezier(.22,1,.36,1) forwards;
 }
-.evt-create-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(184,148,79,0.35);
+.evt2-create-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 24px; border-radius:10px;
+  background:linear-gradient(135deg,#B8944F,#D7BE80);
+  background-size:200% 200%; animation:evtGradShift 4s ease infinite;
+  color:#fff; font-size:13px; font-weight:700;
+  font-family:var(--font-sans); text-decoration:none;
+  letter-spacing:0.3px; transition:all 0.3s ease;
+  box-shadow:0 4px 16px rgba(184,148,79,0.25); border:none; cursor:pointer;
 }
-@media (max-width: 640px) {
-  .evt-card-cover {
-    width: 80px;
-    min-height: 110px;
-  }
-  .evt-card-meta {
-    flex-direction: column;
-    gap: 4px !important;
-  }
+.evt2-create-btn:hover {
+  transform:translateY(-2px);
+  box-shadow:0 8px 32px rgba(184,148,79,0.35);
+}
+@media(max-width:640px){
+  .evt2-cover { width:80px; min-height:100px; }
+  .evt2-actions { flex-wrap:wrap; }
 }
 `;
 
 /* ═══ Helpers ═══ */
-function formatEventDate(dateStr, endDateStr) {
-  if (!dateStr) return 'Date TBD';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return 'Date TBD';
-  const dateOpts = { month: 'short', day: 'numeric', year: 'numeric' };
-  const timeOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
-  const datePart = d.toLocaleDateString('en-US', dateOpts);
-  const timePart = d.toLocaleTimeString('en-US', timeOpts);
-
-  if (endDateStr) {
-    const ed = new Date(endDateStr);
+function fmtDate(d, end) {
+  if (!d) return 'Date TBD';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return 'Date TBD';
+  const dOpts = { month: 'short', day: 'numeric', year: 'numeric' };
+  const tOpts = { hour: 'numeric', minute: '2-digit', hour12: true };
+  const dp = dt.toLocaleDateString('en-US', dOpts);
+  const tp = dt.toLocaleTimeString('en-US', tOpts);
+  if (end) {
+    const ed = new Date(end);
     if (!isNaN(ed.getTime())) {
-      const sameDay = d.toDateString() === ed.toDateString();
-      if (sameDay) return `${datePart} · ${timePart} — ${ed.toLocaleTimeString('en-US', timeOpts)}`;
-      return `${datePart} — ${ed.toLocaleDateString('en-US', dateOpts)}`;
+      if (dt.toDateString() === ed.toDateString()) return `${dp} · ${tp} — ${ed.toLocaleTimeString('en-US', tOpts)}`;
+      return `${dp} — ${ed.toLocaleDateString('en-US', dOpts)}`;
     }
   }
-  return `${datePart} · ${timePart}`;
+  return `${dp} · ${tp}`;
 }
 
-function getRelativeDate(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return null;
-  const now = new Date();
-  const diff = d.getTime() - now.getTime();
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  if (days < 0) return 'Past';
+function relDate(d) {
+  if (!d) return null;
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return null;
+  const days = Math.ceil((dt.getTime() - Date.now()) / 864e5);
+  if (days < 0) return null;
   if (days === 0) return 'Today';
   if (days === 1) return 'Tomorrow';
-  if (days <= 7) return `In ${days} days`;
-  if (days <= 30) return `In ${Math.ceil(days / 7)} weeks`;
+  if (days <= 7) return `In ${days}d`;
   return null;
 }
 
-function copyToClipboard(text) {
-  if (navigator.clipboard) navigator.clipboard.writeText(text);
+function copyText(t) { navigator.clipboard?.writeText(t); }
+
+/* ═══ Animated Counter Hook ═══ */
+function useCounter(target, duration = 1200, delay = 0) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!target) { setVal(0); return; }
+    const timer = setTimeout(() => {
+      const start = performance.now();
+      const tick = (now) => {
+        const p = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - p, 4);
+        setVal(Math.round(ease * target));
+        if (p < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }, delay);
+    return () => clearTimeout(timer);
+  }, [target, duration, delay]);
+  return val;
+}
+
+/* ═══ Mini Donut Ring ═══ */
+function MiniDonut({ accepted, declined, pending, size = 64 }) {
+  const total = accepted + declined + pending;
+  if (total === 0) return null;
+  const r = (size - 8) / 2;
+  const circ = 2 * Math.PI * r;
+  const pctA = accepted / total;
+  const pctD = declined / total;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      {/* Background ring */}
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#F0ECE3" strokeWidth="5" />
+      {/* Pending (full ring base) */}
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.champagne} strokeWidth="5"
+        strokeDasharray={circ} strokeDashoffset={0}
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{ '--ring-len': circ, '--ring-offset': circ * (1 - 1), animation: `evtRingDraw 1s ease-out 0.3s both` }}
+      />
+      {/* Declined */}
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.stone} strokeWidth="5"
+        strokeDasharray={circ} strokeDashoffset={circ * (1 - (pctA + pctD))}
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{ '--ring-len': circ, '--ring-offset': circ * (1 - (pctA + pctD)), animation: `evtRingDraw 1s ease-out 0.5s both` }}
+      />
+      {/* Accepted */}
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={C.gold} strokeWidth="5.5"
+        strokeDasharray={circ} strokeDashoffset={circ * (1 - pctA)}
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        strokeLinecap="round"
+        style={{ '--ring-len': circ, '--ring-offset': circ * (1 - pctA), animation: `evtRingDraw 1s ease-out 0.4s both` }}
+      />
+      {/* Center text */}
+      <text x={size/2} y={size/2 + 1} textAnchor="middle" dominantBaseline="middle"
+        style={{ fontSize: 14, fontWeight: 700, fill: C.charcoal, fontFamily: 'var(--font-sans)' }}>
+        {Math.round(pctA * 100)}%
+      </text>
+    </svg>
+  );
+}
+
+/* ═══ Stat Mini Card ═══ */
+function MiniStat({ label, value, color, delay, icon }) {
+  const animated = useCounter(value, 1000, delay);
+  return (
+    <div style={{
+      flex: 1, minWidth: 100, padding: '14px 16px', borderRadius: 12,
+      background: C.white, border: `1px solid ${C.border}`,
+      animation: `evtStatPop 0.5s cubic-bezier(.22,1,.36,1) ${delay}ms both`,
+      transition: 'all 0.25s ease',
+    }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.06)'; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+        {icon}
+        {label}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: color || C.charcoal, fontFamily: 'var(--font-sans)', lineHeight: 1 }}>
+        {animated}
+      </div>
+    </div>
+  );
+}
+
+/* ═══ Expanded Panel ═══ */
+function ExpandedPanel({ eventId, onClose }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await apiFetch(`/events/${eventId}/stats`);
+        if (!cancelled) setStats(res.stats);
+      } catch (e) { console.error(e); }
+      finally { if (!cancelled) setLoading(false); }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [eventId]);
+
+  if (loading) {
+    return (
+      <div className="evt2-expand-panel" style={{ padding: '20px 24px' }}>
+        <div style={{ display: 'flex', gap: 12 }}>
+          {[1,2,3,4].map(i => (
+            <div key={i} style={{
+              flex: 1, height: 72, borderRadius: 12,
+              background: 'linear-gradient(90deg, #F0ECE3 25%, #FAF8F4 37%, #F0ECE3 63%)',
+              backgroundSize: '800px 100%', animation: 'evtShimmer 1.4s ease infinite',
+            }} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!stats) return null;
+
+  const accepted = stats.attendingGuests || 0;
+  const declined = stats.declinedGuests || 0;
+  const pending = stats.pendingGuests || 0;
+  const total = accepted + declined + pending;
+  const checkedIn = stats.checkedInGuests || 0;
+  const seated = stats.seatingAssignedGuests || 0;
+
+  return (
+    <div className="evt2-expand-panel" style={{ padding: '20px 24px', background: '#FDFCFA' }}>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        {/* Donut */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, animation: 'evtStatPop 0.5s ease both' }}>
+          <MiniDonut accepted={accepted} declined={declined} pending={pending} size={72} />
+          <div style={{ fontSize: 10, color: C.stone, fontFamily: 'var(--font-sans)', fontWeight: 500 }}>RSVP Rate</div>
+        </div>
+
+        {/* Stats grid */}
+        <div style={{ flex: 1, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <MiniStat label="Attending" value={accepted} color={C.green} delay={100}
+            icon={<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.green} strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>}
+          />
+          <MiniStat label="Declined" value={declined} color={C.red} delay={180}
+            icon={<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.red} strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>}
+          />
+          <MiniStat label="Pending" value={pending} color={C.champagne} delay={260}
+            icon={<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.champagne} strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}
+          />
+          <MiniStat label="Checked In" value={checkedIn} color={C.purple} delay={340}
+            icon={<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.purple} strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
+          />
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      {total > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Response Progress</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, fontFamily: 'var(--font-sans)' }}>{total} total</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: '#F0ECE3', overflow: 'hidden', display: 'flex' }}>
+            <div style={{ width: `${(accepted/total)*100}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.champagne})`, borderRadius: 3, transition: 'width 1s ease' }} />
+            <div style={{ width: `${(declined/total)*100}%`, background: C.stone, transition: 'width 1s ease' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+            {[{ l: 'Accepted', c: C.gold, v: accepted }, { l: 'Declined', c: C.stone, v: declined }, { l: 'Pending', c: C.champagne, v: pending }].map(s => (
+              <div key={s.l} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.c }} />
+                {s.l}: <strong style={{ color: C.charcoal }}>{s.v}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Meal summary if present */}
+      {stats.mealSummary && Object.keys(stats.mealSummary).length > 0 && (
+        <div style={{ marginTop: 14, padding: '10px 14px', background: C.white, borderRadius: 10, border: `1px solid ${C.border}`, animation: 'evtStatPop 0.6s ease 0.4s both' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>🍽 Meal Selections</div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {Object.entries(stats.mealSummary).map(([meal, count]) => (
+              <span key={meal} style={{ padding: '3px 10px', borderRadius: 8, background: 'rgba(184,148,79,0.06)', fontSize: 11, fontFamily: 'var(--font-sans)', color: C.charcoal, fontWeight: 500 }}>
+                {meal}: <strong>{count}</strong>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ═══ Icons ═══ */
-const CalendarIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-
-const PinIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-  </svg>
-);
-
-const PlusIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-  </svg>
-);
-
-const CopyIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
-
-const DashboardIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
-  </svg>
-);
-
-const SettingsIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
-
-const UsersIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-  </svg>
-);
+const PlusIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
+const ChevronIcon = ({ open }) => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ transition: 'transform 0.3s ease', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}><polyline points="6 9 12 15 18 9"/></svg>);
 
 /* ═══ Event Card ═══ */
 const EventCard = React.memo(function EventCard({ event, index, isActive, onSelect }) {
   const [copiedSlug, setCopiedSlug] = useState(false);
-  const status = STATUS_CONFIG[event.status] || STATUS_CONFIG.active;
-  const gradient = GRADIENTS[index % GRADIENTS.length];
+  const [expanded, setExpanded] = useState(false);
+  const status = STATUS_CFG[event.status] || STATUS_CFG.active;
+  const gradient = GRADS[index % GRADS.length];
+  const eventDate = event.event_date || event.date;
+  const rel = relDate(eventDate);
 
-  const handleCopyLink = useCallback((e) => {
+  const handleCopy = useCallback((e) => {
     e.stopPropagation();
-    copyToClipboard(`${window.location.origin}/${event.slug || event.id}`);
+    copyText(`${window.location.origin}/${event.slug || event.id}`);
     setCopiedSlug(true);
     setTimeout(() => setCopiedSlug(false), 1800);
   }, [event.slug, event.id]);
 
-  const eventDate = event.event_date || event.date;
-  const relDate = getRelativeDate(eventDate);
-  const isActiveStatus = ['active', 'live'].includes(event.status);
+  const toggleExpand = useCallback((e) => {
+    e.stopPropagation();
+    setExpanded(prev => !prev);
+  }, []);
+
+  const goSettings = useCallback((e) => {
+    e.stopPropagation();
+    onSelect(event.id, 'settings');
+  }, [event.id, onSelect]);
 
   return (
     <div
-      className="evt-card"
+      className="evt2-card"
       data-active={isActive}
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(event.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(event.id); }}
-      style={{ animation: `evtFadeSlideUp 0.5s cubic-bezier(0.22,1,0.36,1) ${index * 0.08}s both` }}
+      data-expanded={expanded}
+      style={{ animation: `evtSlideUp 0.55s cubic-bezier(.22,1,.36,1) ${index * 0.08}s both` }}
     >
-      {/* Cover / Avatar */}
-      <div className="evt-card-cover" style={{
-        background: event.cover_image_url
-          ? `url(${event.cover_image_url}) center/cover no-repeat`
-          : gradient,
-      }}>
-        {!event.cover_image_url && (
-          <div style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#FFFFFF', fontSize: 32, fontFamily: 'var(--font-serif)',
-            fontWeight: 700, textShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          }}>
-            {event.title ? event.title.charAt(0).toUpperCase() : 'E'}
-          </div>
-        )}
-
-        {/* Active indicator glow ring on cover */}
-        {isActive && (
-          <div style={{
-            position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
-            width: 8, height: 8, borderRadius: '50%', background: COLORS.gold,
-            boxShadow: `0 0 0 3px rgba(184,148,79,0.25)`,
-          }} />
-        )}
-      </div>
-
-      {/* Content */}
-      <div style={{
-        flex: 1, padding: '16px 20px', display: 'flex',
-        flexDirection: 'column', justifyContent: 'center', gap: 6, minWidth: 0,
-      }}>
-        {/* Title row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <h3 style={{
-            fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600,
-            color: COLORS.charcoal, margin: 0, whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis', letterSpacing: '0.2px',
-          }}>
-            {event.title}
-          </h3>
-
-          {/* Status pill */}
-          <span style={{
-            flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
-            padding: '4px 12px', borderRadius: 20,
-            fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-            background: status.bg, color: status.color, border: `1px solid ${status.border}`,
-            fontFamily: 'var(--font-sans)',
-          }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: status.dot,
-              boxShadow: isActiveStatus ? `0 0 0 2px ${status.glow}` : 'none',
-              animation: isActiveStatus ? 'evtPulse 2s ease-in-out infinite' : 'none',
-              '--pulse-color': status.glow,
-            }} />
-            {status.label}
-          </span>
-        </div>
-
-        {/* Date + Location meta */}
-        <div className="evt-card-meta" style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 2 }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 12, color: COLORS.stone, fontFamily: 'var(--font-sans)',
-          }}>
-            <CalendarIcon />
-            <span>{formatEventDate(eventDate, event.end_date)}</span>
-            {relDate && (
-              <span style={{
-                padding: '1px 8px', borderRadius: 10,
-                background: relDate === 'Today' ? 'rgba(74,124,89,0.08)' : 'rgba(184,148,79,0.08)',
-                color: relDate === 'Today' ? '#3A8B55' : COLORS.gold,
-                fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
-                fontFamily: 'var(--font-sans)',
-              }}>
-                {relDate}
-              </span>
-            )}
-          </div>
-
-          {(event.location_name || event.location_address) && (
+      {/* ── Top Row (Clickable) ── */}
+      <div className="evt2-top"
+        role="button" tabIndex={0}
+        onClick={() => onSelect(event.id)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(event.id); }}
+      >
+        {/* Cover */}
+        <div className="evt2-cover" style={{
+          background: event.cover_image_url
+            ? `url(${event.cover_image_url}) center/cover no-repeat`
+            : gradient,
+        }}>
+          {!event.cover_image_url && (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              fontSize: 12, color: COLORS.stone, fontFamily: 'var(--font-sans)',
-              overflow: 'hidden',
+              position: 'absolute', inset: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', fontSize: 34, fontFamily: 'var(--font-serif)',
+              fontWeight: 700, textShadow: '0 2px 10px rgba(0,0,0,0.2)',
             }}>
-              <PinIcon />
-              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {event.location_name || event.location_address}
-              </span>
+              {event.title ? event.title.charAt(0).toUpperCase() : 'E'}
             </div>
           )}
         </div>
 
-        {/* Guest count if available */}
-        {(event.guest_count > 0 || event.guestCount > 0) && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            fontSize: 11, color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: 1,
-          }}>
-            <UsersIcon />
-            <span>{event.guest_count || event.guestCount} guests</span>
+        {/* Content */}
+        <div style={{ flex: 1, padding: '16px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, minWidth: 0 }}>
+          {/* Title + Status */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <h3 style={{
+              fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 700,
+              color: C.charcoal, margin: 0, whiteSpace: 'nowrap',
+              overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {event.title}
+            </h3>
+            <span style={{
+              flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '4px 12px', borderRadius: 20,
+              fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+              background: status.bg, color: status.color, border: `1px solid ${status.border}`,
+              fontFamily: 'var(--font-sans)',
+            }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%', background: status.dot,
+                animation: status.pulse ? 'evtPulse 2s ease-in-out infinite' : 'none',
+              }} />
+              {status.label}
+            </span>
           </div>
-        )}
 
-        {/* Hover action buttons */}
-        <div className="evt-card-actions" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-          <button className="evt-action-btn" onClick={(e) => { e.stopPropagation(); onSelect(event.id); }}>
-            <DashboardIcon /> View Dashboard
-          </button>
-          <button className="evt-action-btn" onClick={(e) => { e.stopPropagation(); onSelect(event.id); }}>
-            <SettingsIcon /> Settings
-          </button>
-          <button
-            className="evt-action-btn"
-            data-highlight={copiedSlug ? "true" : "false"}
-            onClick={handleCopyLink}
-          >
-            <CopyIcon /> {copiedSlug ? 'Copied!' : 'Copy Link'}
-          </button>
+          {/* Meta row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span>{fmtDate(eventDate, event.end_date || event.event_end_date)}</span>
+              {rel && (
+                <span style={{
+                  padding: '1px 8px', borderRadius: 10,
+                  background: rel === 'Today' ? C.greenLight : 'rgba(184,148,79,0.08)',
+                  color: rel === 'Today' ? '#3A8B55' : C.gold,
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+                }}>
+                  {rel}
+                </span>
+              )}
+            </div>
+            {(event.location_name || event.location_address) && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>
+                  {event.location_name || event.location_address}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="evt2-actions">
+            <button className="evt2-action-btn" data-variant="primary" onClick={toggleExpand}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+              {expanded ? 'Hide Stats' : 'View Dashboard'}
+              <ChevronIcon open={expanded} />
+            </button>
+            <button className="evt2-action-btn" onClick={goSettings}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              Settings
+            </button>
+            <button className="evt2-action-btn" data-copied={copiedSlug ? "true" : "false"} onClick={handleCopy}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              {copiedSlug ? '✓ Copied!' : 'Copy Link'}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ── Expanded Stats Panel ── */}
+      {expanded && (
+        <ExpandedPanel eventId={event.id} onClose={() => setExpanded(false)} />
+      )}
     </div>
   );
 });
@@ -408,135 +527,85 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
 /* ═══ Empty State ═══ */
 function EmptyState() {
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', padding: '64px 24px', textAlign: 'center',
-    }}>
-      <div style={{ animation: 'evtEmptyFloat 3s ease-in-out infinite', marginBottom: 28 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', textAlign: 'center' }}>
+      <div style={{ animation: 'evtFloat 3s ease-in-out infinite', marginBottom: 28 }}>
         <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
           <circle cx="40" cy="40" r="36" stroke="#E8E2D6" strokeWidth="1.5" strokeDasharray="4 3" />
           <rect x="24" y="22" width="32" height="36" rx="4" fill="#F8F4EC" stroke="#D7BE80" strokeWidth="1.2" />
           <line x1="30" y1="18" x2="30" y2="26" stroke="#D7BE80" strokeWidth="1.5" strokeLinecap="round" />
           <line x1="50" y1="18" x2="50" y2="26" stroke="#D7BE80" strokeWidth="1.5" strokeLinecap="round" />
           <line x1="24" y1="32" x2="56" y2="32" stroke="#D7BE80" strokeWidth="1" />
-          <circle cx="33" cy="40" r="2" fill="#B8944F" opacity="0.5" />
-          <circle cx="40" cy="40" r="2" fill="#B8944F" opacity="0.7" />
-          <circle cx="47" cy="40" r="2" fill="#B8944F" opacity="0.5" />
-          <circle cx="33" cy="48" r="2" fill="#D7BE80" opacity="0.4" />
-          <circle cx="40" cy="48" r="2" fill="#D7BE80" opacity="0.4" />
+          <circle cx="33" cy="40" r="2" fill="#B8944F" opacity="0.5" /><circle cx="40" cy="40" r="2" fill="#B8944F" opacity="0.7" /><circle cx="47" cy="40" r="2" fill="#B8944F" opacity="0.5" />
           <path d="M60 12l1 3 3 1-3 1-1 3-1-3-3-1 3-1z" fill="#B8944F" opacity="0.3" />
-          <path d="M18 56l0.6 1.8 1.8 0.6-1.8 0.6-0.6 1.8-0.6-1.8-1.8-0.6 1.8-0.6z" fill="#D7BE80" opacity="0.4" />
         </svg>
       </div>
-
-      <h3 style={{
-        fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 600,
-        color: COLORS.charcoal, margin: '0 0 8px', letterSpacing: '0.3px',
-      }}>
-        No Events Yet
-      </h3>
-      <p style={{
-        fontFamily: 'var(--font-sans)', fontSize: 13, color: COLORS.stone,
-        maxWidth: 340, lineHeight: 1.65, margin: '0 0 32px',
-      }}>
+      <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 600, color: C.charcoal, margin: '0 0 8px' }}>No Events Yet</h3>
+      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, maxWidth: 340, lineHeight: 1.65, margin: '0 0 32px' }}>
         Create your first event to begin managing invitations, RSVPs, and seating — all from one elegant dashboard.
       </p>
-      <Link href="/dashboard/create-event" className="evt-create-btn">
-        <PlusIcon /> Create Your First Event
-      </Link>
+      <Link href="/dashboard/create-event" className="evt2-create-btn"><PlusIcon /> Create Your First Event</Link>
     </div>
   );
 }
 
-/* ═══ Main Component ═══ */
+/* ═══ Main ═══ */
 export default function EventsTab({ events = [], activeEventId, onSelectEvent, onRefresh }) {
-  const [refreshHovered, setRefreshHovered] = useState(false);
+  const [refreshSpin, setRefreshSpin] = useState(false);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
     if (!document.getElementById(STYLES_ID)) {
       const el = document.createElement('style');
-      el.id = STYLES_ID;
-      el.textContent = CSS;
+      el.id = STYLES_ID; el.textContent = CSS;
       document.head.appendChild(el);
     }
   }, []);
 
+  const handleRefresh = useCallback(() => {
+    setRefreshSpin(true);
+    onRefresh?.();
+    setTimeout(() => setRefreshSpin(false), 800);
+  }, [onRefresh]);
+
   return (
-    <div style={{
-      background: COLORS.white, border: `1px solid ${COLORS.border}`,
-      borderRadius: 16, padding: 28,
-      display: 'flex', flexDirection: 'column', gap: 24,
-    }}>
-      {/* ── Header ── */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #F0ECE3', paddingBottom: 20,
-      }}>
+    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #F0ECE3', paddingBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h2 style={{
-            fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700,
-            color: COLORS.charcoal, margin: 0, letterSpacing: '-0.01em',
-          }}>
-            Your Events
-          </h2>
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.charcoal, margin: 0 }}>Your Events</h2>
           {events.length > 0 && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               minWidth: 26, height: 26, padding: '0 8px', borderRadius: 20,
               background: 'linear-gradient(135deg, rgba(184,148,79,0.10), rgba(215,190,128,0.10))',
-              color: COLORS.gold, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              color: C.gold, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)',
               border: '1px solid rgba(184,148,79,0.18)',
-              animation: 'evtCountUp 0.5s ease both',
             }}>
               {events.length}
             </span>
           )}
         </div>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {onRefresh && (
-            <button
-              onClick={onRefresh}
-              onMouseEnter={() => setRefreshHovered(true)}
-              onMouseLeave={() => setRefreshHovered(false)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: 38, height: 38, borderRadius: 10,
-                border: `1px solid ${COLORS.border}`,
-                background: refreshHovered ? COLORS.ivory : COLORS.white,
-                color: refreshHovered ? COLORS.gold : COLORS.stone,
-                cursor: 'pointer', transition: 'all 0.25s ease',
-                transform: refreshHovered ? 'rotate(45deg)' : 'rotate(0)',
-              }}
-              title="Refresh events"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-              </svg>
+            <button onClick={handleRefresh} style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 38, height: 38, borderRadius: 10, border: `1px solid ${C.border}`,
+              background: C.white, color: C.stone, cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              transform: refreshSpin ? 'rotate(180deg)' : 'rotate(0)',
+            }} title="Refresh">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             </button>
           )}
-
-          <Link href="/dashboard/create-event" className="evt-create-btn">
-            <PlusIcon /> Create Event
-          </Link>
+          <Link href="/dashboard/create-event" className="evt2-create-btn"><PlusIcon /> Create Event</Link>
         </div>
       </div>
 
-      {/* ── Event List ── */}
-      {events.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Event List */}
+      {events.length === 0 ? <EmptyState /> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {events.map((evt, i) => (
-            <EventCard
-              key={evt.id}
-              event={evt}
-              index={i}
-              isActive={evt.id === activeEventId}
-              onSelect={onSelectEvent}
-            />
+            <EventCard key={evt.id} event={evt} index={i} isActive={evt.id === activeEventId} onSelect={onSelectEvent} />
           ))}
         </div>
       )}
