@@ -72,6 +72,7 @@ export default function LoginPage() {
             if (data.success) {
               localStorage.setItem('org_id', data.organization.id);
               localStorage.setItem('user_role', data.user.role);
+              setGoogleLoading(false);
               router.push('/dashboard');
             } else {
               setError(data.message || 'Google login failed.');
@@ -113,9 +114,13 @@ export default function LoginPage() {
         const check = setInterval(() => {
           if (window.google?.accounts?.id) { clearInterval(check); initGoogle(); }
         }, 200);
-        setTimeout(() => clearInterval(check), 10000);
+        const timeout = setTimeout(() => clearInterval(check), 10000);
+        return () => { clearInterval(check); clearTimeout(timeout); };
       }
     }
+    return () => {
+      // Cleanup: no pending intervals to clear if Google loaded synchronously or via script onload
+    };
   }, [router]);
 
   return (
@@ -218,7 +223,7 @@ export default function LoginPage() {
               <span className="auth-spinner-row"><span className="auth-spinner" /> Signing in with Google...</span>
             </div>
           )}
-          <div ref={googleBtnRef} className="auth-google-container" />
+          <div ref={googleBtnRef} className="auth-google-container" style={{ display: googleLoading ? 'none' : 'flex' }} />
 
           <div className="auth-footer-divider" />
           <p className="auth-footer-text">

@@ -84,6 +84,7 @@ export default function RegisterPage() {
             if (data.success) {
               localStorage.setItem('org_id', data.organization.id);
               localStorage.setItem('user_role', data.user.role);
+              setGoogleLoading(false);
               router.push('/dashboard');
             } else {
               setError(data.message || 'Google sign-up failed.');
@@ -125,10 +126,21 @@ export default function RegisterPage() {
         const check = setInterval(() => {
           if (window.google?.accounts?.id) { clearInterval(check); initGoogle(); }
         }, 200);
-        setTimeout(() => clearInterval(check), 10000);
+        const timeout = setTimeout(() => clearInterval(check), 10000);
+        return () => { clearInterval(check); clearTimeout(timeout); };
       }
     }
+    return () => {
+      // Cleanup: no pending intervals to clear if Google loaded synchronously or via script onload
+    };
   }, [router]);
+
+  // Auto-focus first OTP input when entering OTP step
+  useEffect(() => {
+    if (otpStep) {
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
+    }
+  }, [otpStep]);
 
   const handleOtpChange = (index, value) => {
     if (!/^\d*$/.test(value)) return;
@@ -149,10 +161,14 @@ export default function RegisterPage() {
   const handleOtpPaste = (e) => {
     e.preventDefault();
     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted.length === 6) {
-      setOtpValues(pasted.split(''));
-      otpRefs.current[5]?.focus();
+    if (!pasted) return;
+    const newValues = [...otpValues];
+    for (let j = 0; j < 6 && j < pasted.length; j++) {
+      newValues[j] = pasted[j];
     }
+    setOtpValues(newValues);
+    const focusIdx = Math.min(pasted.length, 5);
+    otpRefs.current[focusIdx]?.focus();
   };
 
   const handleVerifyOtp = async (e) => {
@@ -241,7 +257,9 @@ export default function RegisterPage() {
                     value={val}
                     onChange={(e) => handleOtpChange(i, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    onPaste={i === 0 ? handleOtpPaste : undefined}
+                    onPaste={handleOtpPaste}
+                    autoComplete="one-time-code"
+                    aria-label={`Digit ${i + 1} of 6`}
                     autoFocus={i === 0}
                     className={`otp-input ${val ? 'otp-filled' : ''}`}
                   />
@@ -258,8 +276,8 @@ export default function RegisterPage() {
             <p className="otp-resend">
               Didn't receive the code?{' '}
               <button type="button" className="otp-retry-btn"
-                onClick={() => { setOtpStep(false); setOtpValues(['', '', '', '', '', '']); setError(null); }}>
-                Try again
+                onClick={() => { setOtpValues(['', '', '', '', '', '']); setError(null); otpRefs.current[0]?.focus(); }}>
+                Clear & Retry
               </button>
             </p>
           </div>
@@ -401,7 +419,7 @@ export default function RegisterPage() {
               <span className="auth-spinner-row"><span className="auth-spinner" /> Signing up with Google...</span>
             </div>
           )}
-          <div ref={googleBtnRef} className="auth-google-container" />
+          <div ref={googleBtnRef} className="auth-google-container" style={{ display: googleLoading ? 'none' : 'flex' }} />
 
           <div className="auth-footer-divider" />
           <p className="auth-footer-text">

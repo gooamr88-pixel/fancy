@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { apiFetch } from '../utils/apiClient';
 
 export function useAuth() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -18,10 +19,28 @@ export function useAuth() {
     }
   }, []);
 
+  // Cross-tab sync
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === 'org_id') {
+        const id = e.newValue;
+        setOrgId(id);
+        setIsLoggedIn(!!id);
+        if (!id) {
+          setUserRole(null);
+        }
+      }
+      if (e.key === 'user_role') {
+        setUserRole(e.newValue);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   const logout = async () => {
     try {
-      const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-      await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' });
+      await apiFetch('/auth/logout', { method: 'POST' });
     } catch (e) { /* ignore */ }
     localStorage.removeItem('org_id');
     localStorage.removeItem('user_role');
@@ -29,7 +48,7 @@ export function useAuth() {
     setIsLoggedIn(false);
     setOrgId(null);
     setUserRole(null);
-    window.location.href = '/';
+    window.location.href = '/login';
   };
 
   return { isLoggedIn, orgId, userRole, loading, logout };

@@ -7,7 +7,7 @@ const logger = require('./utils/logger');
 const { requireAuth, verifyEventOwner, requireSuperAdmin } = require('./middleware/auth');
 
 // Startup environment validation — fail fast if critical secrets are missing
-const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'];
+const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'GOOGLE_CLIENT_ID'];
 const missing = REQUIRED_ENV.filter(key => !process.env[key]);
 if (missing.length > 0) {
   logger.error(`FATAL: Missing required environment variables: ${missing.join(', ')}`);
@@ -70,6 +70,9 @@ app.use('/api/v1/auth/login', authLimiter);
 app.use('/api/v1/auth/register', authLimiter);
 app.use('/api/v1/auth/forgot-password', authLimiter);
 app.use('/api/v1/auth/reset-password', authLimiter);
+app.use('/api/v1/auth/verify-registration', authLimiter);
+app.use('/api/v1/auth/google-login', authLimiter);
+app.use('/api/v1/auth/google-register', authLimiter);
 
 // Rate limiter for public RSVP submissions
 const publicLimiter = rateLimit({

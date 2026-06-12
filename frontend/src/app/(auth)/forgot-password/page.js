@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
 
@@ -15,6 +15,13 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [resending, setResending] = useState(false);
+  const cooldownRef = useRef(null);
+
+  // Cleanup cooldown interval on unmount
+  useEffect(() => {
+    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
+  }, []);
 
   const handleRequestOtp = async (e) => {
     e.preventDefault();
@@ -37,17 +44,19 @@ export default function ForgotPasswordPage() {
   };
 
   const startResendCooldown = () => {
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
     setResendCooldown(60);
-    const timer = setInterval(() => {
+    cooldownRef.current = setInterval(() => {
       setResendCooldown(prev => {
-        if (prev <= 1) { clearInterval(timer); return 0; }
+        if (prev <= 1) { clearInterval(cooldownRef.current); cooldownRef.current = null; return 0; }
         return prev - 1;
       });
     }, 1000);
   };
 
   const handleResendOtp = async () => {
-    if (resendCooldown > 0) return;
+    if (resendCooldown > 0 || resending) return;
+    setResending(true);
     setError(null);
     try {
       const data = await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
@@ -60,6 +69,8 @@ export default function ForgotPasswordPage() {
       }
     } catch (err) {
       setError('Failed to resend code. Please try again.');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -155,7 +166,7 @@ export default function ForgotPasswordPage() {
               <form onSubmit={handleRequestOtp} className="auth-form">
                 <div className="auth-field">
                   <label htmlFor="fp-email" className="auth-label">Email Address</label>
-                  <input id="fp-email" type="email" required value={email}
+                  <input id="fp-email" type="email" required value={email} autoComplete="email"
                     onChange={e => setEmail(e.target.value)} placeholder="host@example.com" className="auth-input" />
                 </div>
 
@@ -193,15 +204,15 @@ export default function ForgotPasswordPage() {
               <form onSubmit={handleResetPassword} className="auth-form">
                 <div className="auth-field">
                   <label htmlFor="otp-input" className="auth-label">6-Digit OTP Code</label>
-                  <input id="otp-input" type="text" required maxLength={6} value={otp}
-                    onChange={e => setOtp(e.target.value.replace(/\D/g, ''))} placeholder="123456"
+                  <input id="otp-input" type="text" required maxLength={6} value={otp} autoComplete="one-time-code"
+                    onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456"
                     className="auth-input otp-single-input" />
                 </div>
 
                 <div className="auth-field">
                   <label htmlFor="new-password-input" className="auth-label">New Password</label>
                   <div className="auth-password-wrapper">
-                    <input id="new-password-input" type={showNewPassword ? 'text' : 'password'} required value={newPassword}
+                    <input id="new-password-input" type={showNewPassword ? 'text' : 'password'} required value={newPassword} autoComplete="new-password"
                       onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" className="auth-input" />
                     <button type="button" className="auth-eye-btn" onClick={() => setShowNewPassword(!showNewPassword)} aria-label={showNewPassword ? 'Hide password' : 'Show password'}>
                       <EyeIcon show={showNewPassword} />
@@ -212,7 +223,7 @@ export default function ForgotPasswordPage() {
                 <div className="auth-field">
                   <label htmlFor="confirm-password-input" className="auth-label">Confirm New Password</label>
                   <div className="auth-password-wrapper">
-                    <input id="confirm-password-input" type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword}
+                    <input id="confirm-password-input" type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword} autoComplete="new-password"
                       onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" className="auth-input" />
                     <button type="button" className="auth-eye-btn" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>
                       <EyeIcon show={showConfirmPassword} />
@@ -233,9 +244,9 @@ export default function ForgotPasswordPage() {
                   type="button"
                   className="auth-resend-btn"
                   onClick={handleResendOtp}
-                  disabled={resendCooldown > 0}
+                  disabled={resendCooldown > 0 || resending}
                 >
-                  {resendCooldown > 0 ? `Resend Code (${resendCooldown}s)` : 'Resend Code'}
+                  {resending ? 'Sending...' : resendCooldown > 0 ? `Resend Code (${resendCooldown}s)` : 'Resend Code'}
                 </button>
               </div>
               <div style={{ textAlign: 'center', marginTop: '8px' }}>

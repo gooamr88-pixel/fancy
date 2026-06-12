@@ -1,9 +1,11 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { escapeHtml } = require('../utils/emailTemplates');
 const { setAuthCookie, clearAuthCookie } = require('../middleware/auth');
+const { sendEmailViaBrevo } = require('../utils/notificationService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -147,7 +149,7 @@ const register = async (req, res, next) => {
 
     if (existingUser && existingUser.length > 0) {
       // Update existing unverified record
-      await supabase
+      const { error: updateError } = await supabase
         .from('organizations')
         .update({
           owner_user_id: userId,
@@ -159,6 +161,7 @@ const register = async (req, res, next) => {
           email_verified: false,
         })
         .eq('email', email);
+      if (updateError) throw updateError;
     } else {
       // Create new organization in unverified state
       const { error: orgError } = await supabase
@@ -178,12 +181,12 @@ const register = async (req, res, next) => {
     }
 
     // Create user role profile (upsert in case of re-registration)
-    await supabase
+    const { error: roleError } = await supabase
       .from('user_roles')
       .upsert({ user_id: userId, role: 'organizer' }, { onConflict: 'user_id' });
+    if (roleError) throw roleError;
 
     // Dispatch verification email via Brevo
-    const { sendEmailViaBrevo } = require('../utils/notificationService');
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
         <div style="text-align: center; margin-bottom: 20px;">
@@ -318,6 +321,7 @@ const verifyRegistration = async (req, res, next) => {
  */
 const login = async (req, res, next) => {
   const { email, password } = req.body;
+  const normalizedEmail = email ? email.toLowerCase().trim() : '';
 
   if (!email || !password) {
     return res.status(400).json({
@@ -332,7 +336,7 @@ const login = async (req, res, next) => {
     const { data: orgs } = await supabase
       .from('organizations')
       .select('id, owner_user_id, name, email, phone, password_hash, failed_login_attempts, lockout_until, email_verified')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .limit(1);
 
     const org = orgs && orgs[0];
@@ -357,7 +361,16 @@ const login = async (req, res, next) => {
       });
     }
 
-    if (!org || !(await verifyPassword(password, org.password_hash, email))) {
+    // Block Google-only accounts from password login
+    if (org && !org.password_hash) {
+      return res.status(400).json({
+        success: false,
+        error: 'GOOGLE_ACCOUNT',
+        message: 'This account uses Google Sign-In. Please use the Google button to log in.'
+      });
+    }
+
+    if (!org || !(await verifyPassword(password, org.password_hash, normalizedEmail))) {
       // Increment failed attempts if org exists
       if (org) {
         const attempts = (org.failed_login_attempts || 0) + 1;
@@ -370,7 +383,7 @@ const login = async (req, res, next) => {
         await supabase
           .from('organizations')
           .update(updateData)
-          .eq('email', email);
+          .eq('email', normalizedEmail);
       }
       return res.status(401).json({
         success: false,
@@ -468,7 +481,7 @@ const forgotPassword = async (req, res, next) => {
     const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes validity
 
-    logger.info({ email }, 'Password reset OTP dispatched');
+
 
     // 3. Save hashed OTP to organizations table and reset otp_attempts counter
     const { error: updateError } = await supabase
@@ -483,7 +496,6 @@ const forgotPassword = async (req, res, next) => {
     if (updateError) throw updateError;
 
     // 4. Send email containing OTP
-    const { sendEmailViaBrevo } = require('../utils/notificationService');
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
         <div style="text-align: center; margin-bottom: 20px;">
@@ -507,6 +519,8 @@ const forgotPassword = async (req, res, next) => {
     if (!emailSent) {
       throw new Error('Failed to dispatch password recovery email.');
     }
+
+    logger.info({ email }, 'Password reset OTP dispatched');
 
     return res.status(200).json({
       success: true,
@@ -549,7 +563,7 @@ const resetPassword = async (req, res, next) => {
     // 1. Fetch organization by email
     const { data: orgs, error: fetchError } = await supabase
       .from('organizations')
-      .select('*')
+      .select('id, email, reset_otp, reset_otp_expires_at, otp_attempts, password_hash')
       .eq('email', email)
       .limit(1);
 
@@ -725,6 +739,9 @@ const changePassword = async (req, res, next) => {
     }
 
     // Hash new password
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ success: false, error: 'SAME_PASSWORD', message: 'New password must be different from your current password.' });
+    }
     const newHash = await hashPassword(newPassword);
 
     const { error: updateError } = await supabase
@@ -756,17 +773,27 @@ const googleLogin = async (req, res, next) => {
   }
 
   try {
-    // Verify Google token
-    const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
-    if (!googleResponse.ok) {
-      return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'Invalid Google token.' });
-    }
-    const googleData = await googleResponse.json();
-
-    // Validate audience matches our client ID
+    // Verify Google token using google-auth-library (cryptographic verification)
     const expectedClientId = process.env.GOOGLE_CLIENT_ID;
-    if (expectedClientId && googleData.aud !== expectedClientId) {
-      return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'Token audience mismatch.' });
+    if (!expectedClientId) {
+      return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Google OAuth is not configured on the server.' });
+    }
+
+    let googleData;
+    try {
+      const oAuth2Client = new OAuth2Client(expectedClientId);
+      const ticket = await oAuth2Client.verifyIdToken({
+        idToken: credential,
+        audience: expectedClientId,
+      });
+      googleData = ticket.getPayload();
+    } catch (tokenErr) {
+      logger.warn({ error: tokenErr.message }, 'Google token verification failed');
+      return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'Invalid or expired Google token.' });
+    }
+
+    if (!googleData.email_verified) {
+      return res.status(400).json({ success: false, error: 'EMAIL_NOT_VERIFIED', message: 'Your Google email is not verified.' });
     }
 
     const email = googleData.email;
@@ -839,17 +866,27 @@ const googleRegister = async (req, res, next) => {
   }
 
   try {
-    // Verify Google token
-    const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
-    if (!googleResponse.ok) {
-      return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'Invalid Google token.' });
-    }
-    const googleData = await googleResponse.json();
-
-    // Validate audience
+    // Verify Google token using google-auth-library (cryptographic verification)
     const expectedClientId = process.env.GOOGLE_CLIENT_ID;
-    if (expectedClientId && googleData.aud !== expectedClientId) {
-      return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'Token audience mismatch.' });
+    if (!expectedClientId) {
+      return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Google OAuth is not configured on the server.' });
+    }
+
+    let googleData;
+    try {
+      const oAuth2Client = new OAuth2Client(expectedClientId);
+      const ticket = await oAuth2Client.verifyIdToken({
+        idToken: credential,
+        audience: expectedClientId,
+      });
+      googleData = ticket.getPayload();
+    } catch (tokenErr) {
+      logger.warn({ error: tokenErr.message }, 'Google token verification failed');
+      return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'Invalid or expired Google token.' });
+    }
+
+    if (!googleData.email_verified) {
+      return res.status(400).json({ success: false, error: 'EMAIL_NOT_VERIFIED', message: 'Your Google email is not verified.' });
     }
 
     const email = googleData.email;
@@ -878,7 +915,7 @@ const googleRegister = async (req, res, next) => {
 
     if (existingUser && existingUser.length > 0) {
       // Update existing unverified record
-      await supabase
+      const { error: updateError } = await supabase
         .from('organizations')
         .update({
           owner_user_id: userId,
@@ -890,6 +927,7 @@ const googleRegister = async (req, res, next) => {
           otp_attempts: 0,
         })
         .eq('email', email.toLowerCase());
+      if (updateError) throw updateError;
     } else {
       // Create new organization
       const { error: orgError } = await supabase
@@ -906,9 +944,10 @@ const googleRegister = async (req, res, next) => {
     }
 
     // Create user role
-    await supabase
+    const { error: roleError } = await supabase
       .from('user_roles')
       .upsert({ user_id: userId, role: 'organizer' }, { onConflict: 'user_id' });
+    if (roleError) throw roleError;
 
     // Issue auth cookie
     issueAuthCookie(res, { id: userId, email: email.toLowerCase(), role: 'organizer' });
