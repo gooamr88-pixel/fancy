@@ -8,217 +8,169 @@ import RsvpTrendChart from './RsvpTrendChart';
 import UpcomingEventsCards from './UpcomingEventsCards';
 import RecentActivityFeed from './RecentActivityFeed';
 
-const SHIMMER_KEYFRAMES = `
-@keyframes shimmer {
-  0% { background-position: -400px 0; }
-  100% { background-position: 400px 0; }
+/* ═══ CSS Animations ═══ */
+const GLOBAL_STYLES = `
+@keyframes ov-shimmer {
+  0% { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+@keyframes ov-fadeSlideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes ov-fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes ov-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes ov-gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.ov-section {
+  opacity: 0;
+  animation: ov-fadeSlideUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.ov-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.ov-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 900px) {
+  .ov-charts-grid,
+  .ov-bottom-grid {
+    grid-template-columns: 1fr;
+  }
 }
 `;
 
-const shimmerStyle = {
-  background: 'linear-gradient(90deg, #F0ECE3 25%, #FAF8F4 37%, #F0ECE3 63%)',
-  backgroundSize: '800px 100%',
-  animation: 'shimmer 1.6s ease infinite',
-  borderRadius: 10,
-};
-
-function ShimmerBlock({ width, height, style }) {
+/* ═══ Shimmer Skeleton Blocks ═══ */
+function ShimmerBlock({ width, height, style, borderRadius }) {
   return (
     <div
       style={{
-        ...shimmerStyle,
         width: width || '100%',
         height: height || 20,
+        borderRadius: borderRadius || 10,
+        background: 'linear-gradient(90deg, #F0ECE3 25%, #FAF8F4 37%, #F0ECE3 63%)',
+        backgroundSize: '1200px 100%',
+        animation: 'ov-shimmer 1.6s ease infinite',
         ...style,
       }}
     />
   );
 }
 
-function SkeletonWelcomeHeader() {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingBottom: 20,
-        borderBottom: '1px solid #F0ECE3',
-        marginBottom: 28,
-      }}
-    >
-      <div>
-        <ShimmerBlock width={220} height={24} style={{ marginBottom: 10 }} />
-        <ShimmerBlock width={280} height={14} />
-      </div>
-      <ShimmerBlock width={180} height={14} />
-    </div>
-  );
-}
-
-function SkeletonStatCards() {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr 2fr 1fr 1fr 1fr',
-        gap: 16,
-      }}
-    >
-      {[1, 2, 3, 4, 5, 6].map((i) => (
-        <div
-          key={i}
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E8E2D6',
-            borderRadius: 14,
-            padding: 22,
-            gridColumn: i === 3 ? 'span 2' : undefined,
-          }}
-        >
-          <ShimmerBlock width={60} height={10} style={{ marginBottom: 16 }} />
-          <ShimmerBlock width={80} height={30} style={{ marginBottom: 10 }} />
-          <ShimmerBlock width={50} height={12} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SkeletonChartCards() {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-      {[1, 2].map((i) => (
-        <div
-          key={i}
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E8E2D6',
-            borderRadius: 14,
-            padding: 28,
-          }}
-        >
-          <ShimmerBlock width={160} height={18} style={{ marginBottom: 8 }} />
-          <ShimmerBlock width={240} height={12} style={{ marginBottom: 24 }} />
-          <ShimmerBlock height={180} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SkeletonBottomCards() {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-      {[1, 2].map((i) => (
-        <div
-          key={i}
-          style={{
-            background: '#FFFFFF',
-            border: '1px solid #E8E2D6',
-            borderRadius: 14,
-            padding: 28,
-          }}
-        >
-          <ShimmerBlock width={160} height={18} style={{ marginBottom: 8 }} />
-          <ShimmerBlock width={200} height={12} style={{ marginBottom: 20 }} />
-          {[1, 2, 3].map((j) => (
-            <ShimmerBlock
-              key={j}
-              height={48}
-              style={{ marginBottom: 12 }}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
+/* ═══ Premium Loading Skeleton ═══ */
 function LoadingSkeleton() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <SkeletonWelcomeHeader />
-      <SkeletonStatCards />
-      <SkeletonChartCards />
-      <SkeletonBottomCards />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+      {/* Header skeleton */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        paddingBottom: 20, borderBottom: '1px solid #F0ECE3',
+      }}>
+        <div>
+          <ShimmerBlock width={240} height={28} style={{ marginBottom: 10 }} />
+          <ShimmerBlock width={300} height={14} />
+        </div>
+        <ShimmerBlock width={140} height={36} borderRadius={20} />
+      </div>
+
+      {/* Stat cards skeleton */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} style={{
+            background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: 16,
+            padding: 24, position: 'relative', overflow: 'hidden',
+          }}>
+            <ShimmerBlock width={36} height={36} borderRadius={12} style={{ marginBottom: 16 }} />
+            <ShimmerBlock width={60} height={10} style={{ marginBottom: 12 }} />
+            <ShimmerBlock width={90} height={32} style={{ marginBottom: 10 }} />
+            <ShimmerBlock width={70} height={12} />
+          </div>
+        ))}
+      </div>
+
+      {/* Charts skeleton */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        {[1, 2].map((i) => (
+          <div key={i} style={{
+            background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: 16, padding: 28,
+          }}>
+            <ShimmerBlock width={160} height={18} style={{ marginBottom: 8 }} />
+            <ShimmerBlock width={220} height={12} style={{ marginBottom: 28 }} />
+            <ShimmerBlock height={200} borderRadius={12} />
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom skeleton */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        {[1, 2].map((i) => (
+          <div key={i} style={{
+            background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: 16, padding: 28,
+          }}>
+            <ShimmerBlock width={160} height={18} style={{ marginBottom: 8 }} />
+            <ShimmerBlock width={200} height={12} style={{ marginBottom: 24 }} />
+            {[1, 2, 3].map((j) => (
+              <ShimmerBlock key={j} height={56} style={{ marginBottom: 12 }} borderRadius={12} />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-/* WelcomeHeader removed — context now handled by dashboard top bar */
-
-function WarningIcon() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M12 9v4m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-        stroke="#B8944F"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
+/* ═══ Error State ═══ */
 function ErrorState({ message, onRetry }) {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 420,
-      }}
-    >
-      <div
-        style={{
-          background: '#FFFFFF',
-          border: '1px solid #E8E2D6',
-          borderRadius: 16,
-          padding: '48px 56px',
-          textAlign: 'center',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-          maxWidth: 400,
-        }}
-      >
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #FBF6EC, #F5EDDA)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 20px',
-          }}
-        >
-          <WarningIcon />
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 420,
+      animation: 'ov-fadeIn 0.5s ease',
+    }}>
+      <div style={{
+        background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: 20,
+        padding: '56px 64px', textAlign: 'center',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.04), 0 0 0 1px rgba(232,226,214,0.3)',
+        maxWidth: 420,
+      }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #FBF6EC, #F5EDDA)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 24px',
+          boxShadow: '0 4px 16px rgba(184,148,79,0.12)',
+        }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 9v4m0 3h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              stroke="#B8944F" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+            />
+          </svg>
         </div>
-        <h2
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: 18,
-            fontWeight: 600,
-            color: '#191B1E',
-            margin: '0 0 8px 0',
-          }}
-        >
+        <h2 style={{
+          fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 600,
+          color: '#191B1E', margin: '0 0 10px',
+        }}>
           Unable to load dashboard
         </h2>
-        <p
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 13,
-            color: '#77736A',
-            margin: '0 0 24px 0',
-            lineHeight: 1.5,
-          }}
-        >
+        <p style={{
+          fontFamily: 'var(--font-sans)', fontSize: 13, color: '#77736A',
+          margin: '0 0 28px', lineHeight: 1.6,
+        }}>
           {message || 'Something went wrong. Please try again.'}
         </p>
         <button
@@ -226,17 +178,17 @@ function ErrorState({ message, onRetry }) {
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           style={{
-            background: hovered ? '#a6833f' : '#B8944F',
-            color: '#FFFFFF',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 12,
-            fontWeight: 600,
-            border: 'none',
-            borderRadius: 10,
-            padding: '10px 28px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            letterSpacing: '0.03em',
+            background: hovered
+              ? 'linear-gradient(135deg, #a6833f, #B8944F)'
+              : 'linear-gradient(135deg, #B8944F, #D7BE80)',
+            color: '#FFFFFF', fontFamily: 'var(--font-sans)',
+            fontSize: 13, fontWeight: 700, border: 'none', borderRadius: 12,
+            padding: '12px 36px', cursor: 'pointer',
+            transition: 'all 0.3s ease', letterSpacing: '0.03em',
+            boxShadow: hovered
+              ? '0 8px 24px rgba(184,148,79,0.35)'
+              : '0 4px 16px rgba(184,148,79,0.2)',
+            transform: hovered ? 'translateY(-1px)' : 'translateY(0)',
           }}
         >
           Try Again
@@ -246,6 +198,61 @@ function ErrorState({ message, onRetry }) {
   );
 }
 
+/* ═══ Section Header ═══ */
+function WelcomeHeader() {
+  const now = new Date();
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  const dateStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+
+  return (
+    <div
+      className="ov-section"
+      style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        paddingBottom: 24, borderBottom: '1px solid #F0ECE3', marginBottom: 4,
+        animationDelay: '0ms',
+      }}
+    >
+      <div>
+        <h1 style={{
+          fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 700,
+          color: '#191B1E', margin: 0, lineHeight: 1.3,
+        }}>
+          Dashboard Overview
+        </h1>
+        <p style={{
+          fontFamily: 'var(--font-sans)', fontSize: 13, color: '#77736A',
+          margin: '6px 0 0', fontWeight: 400, letterSpacing: '0.01em',
+        }}>
+          Real-time insights across all your events
+        </p>
+      </div>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: '#FAFAF8', border: '1px solid #E8E2D6',
+        borderRadius: 20, padding: '8px 16px',
+      }}>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <rect x="1.5" y="2.5" width="13" height="12" rx="2" stroke="#B8944F" strokeWidth="1.2" fill="none" />
+          <path d="M1.5 6.5h13" stroke="#B8944F" strokeWidth="1.2" />
+          <path d="M5 1v3" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
+          <path d="M11 1v3" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+        <span style={{
+          fontFamily: 'var(--font-sans)', fontSize: 12, color: '#77736A', fontWeight: 500,
+        }}>
+          {dateStr}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ═══ Main Component ═══ */
 export default function OrganizerOverview() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -255,12 +262,10 @@ export default function OrganizerOverview() {
   useEffect(() => {
     if (!styleInjected.current) {
       const styleEl = document.createElement('style');
-      styleEl.textContent = SHIMMER_KEYFRAMES;
+      styleEl.textContent = GLOBAL_STYLES;
       document.head.appendChild(styleEl);
       styleInjected.current = true;
-      return () => {
-        document.head.removeChild(styleEl);
-      };
+      return () => { document.head.removeChild(styleEl); };
     }
   }, []);
 
@@ -269,7 +274,6 @@ export default function OrganizerOverview() {
     setError(null);
     try {
       const res = await apiFetch('/dashboard');
-      // Backend returns { success, dashboard: { ... } }
       setData(res.dashboard || res);
     } catch (err) {
       setError(err.message || 'Failed to fetch dashboard data');
@@ -278,9 +282,7 @@ export default function OrganizerOverview() {
     }
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   if (loading) {
     return (
@@ -307,7 +309,6 @@ export default function OrganizerOverview() {
     recentActivity = [],
   } = data || {};
 
-  // Map rsvpOverview to the shape child components expect
   const rsvpOverviewMapped = {
     accepted: rsvpOverview.acceptedCount || 0,
     declined: rsvpOverview.declinedCount || 0,
@@ -316,40 +317,38 @@ export default function OrganizerOverview() {
 
   return (
     <div style={{ padding: 0 }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {/* Stat Cards Row */}
-        <OverviewStatCards
-          totalEvents={totalEvents}
-          activeEvents={activeEvents}
-          totalGuests={totalGuests}
-          rsvpOverview={rsvpOverviewMapped}
-          checkedIn={checkedIn}
-          notArrived={notArrived}
-          totalGuestsAccepted={totalGuestsAccepted}
-        />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-        {/* Charts Row */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 24,
-          }}
-        >
-          <RsvpProgressDonut rsvpOverview={rsvpOverviewMapped} />
-          <RsvpTrendChart rsvpTrend={rsvpTrend} />
+        {/* ── Header ── */}
+        <WelcomeHeader />
+
+        {/* ── Stat Cards ── */}
+        <div className="ov-section" style={{ animationDelay: '100ms' }}>
+          <OverviewStatCards
+            totalEvents={totalEvents}
+            activeEvents={activeEvents}
+            totalGuests={totalGuests}
+            rsvpOverview={rsvpOverviewMapped}
+            checkedIn={checkedIn}
+            notArrived={notArrived}
+            totalGuestsAccepted={totalGuestsAccepted}
+          />
         </div>
 
-        {/* Bottom Row */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 24,
-          }}
-        >
-          <UpcomingEventsCards upcomingEvents={upcomingEvents} />
-          <RecentActivityFeed recentActivity={recentActivity} />
+        {/* ── Charts Row ── */}
+        <div className="ov-section" style={{ animationDelay: '250ms' }}>
+          <div className="ov-charts-grid">
+            <RsvpProgressDonut rsvpOverview={rsvpOverviewMapped} />
+            <RsvpTrendChart rsvpTrend={rsvpTrend} />
+          </div>
+        </div>
+
+        {/* ── Bottom Row ── */}
+        <div className="ov-section" style={{ animationDelay: '400ms' }}>
+          <div className="ov-bottom-grid">
+            <UpcomingEventsCards upcomingEvents={upcomingEvents} />
+            <RecentActivityFeed recentActivity={recentActivity} />
+          </div>
         </div>
       </div>
     </div>
