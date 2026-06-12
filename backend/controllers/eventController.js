@@ -44,13 +44,13 @@ const createEvent = async (req, res, next) => {
     const orgId = org.id;
 
     // Check slug availability
-    const { data: existingEvent } = await supabase
+    const { data: existingEvents } = await supabase
       .from('events')
       .select('id')
       .eq('slug', slug)
-      .single();
+      .limit(1);
 
-    if (existingEvent) {
+    if (existingEvents && existingEvents.length > 0) {
       // Recommend alternative slug
       const suggestedSlug = `${slug}-${new Date(eventDate).getFullYear()}`;
       return res.status(409).json({
