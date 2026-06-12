@@ -359,7 +359,7 @@ export default function OrganizerOverview() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch('/api/v1/dashboard');
+      const res = await apiFetch('/dashboard');
       setData(res);
     } catch (err) {
       setError(err.message || 'Failed to fetch dashboard data');
