@@ -215,6 +215,11 @@ const searchGuests = async (req, res, next) => {
         guest_name,
         party_size,
         response,
+        rsvp_guests(
+          full_name,
+          meal_selection,
+          dietary_notes
+        ),
         seating_assignments(
           tables(table_name)
         ),
@@ -235,6 +240,13 @@ const searchGuests = async (req, res, next) => {
         ? item.seating_assignments[0].tables.table_name 
         : 'Unassigned';
       
+      // Extract meal selections from rsvp_guests
+      const meals = (item.rsvp_guests || []).map(g => ({
+        fullName: g.full_name,
+        mealSelection: g.meal_selection,
+        dietaryNotes: g.dietary_notes
+      }));
+
       return {
         id: item.id,
         guestName: item.guest_name,
@@ -242,7 +254,8 @@ const searchGuests = async (req, res, next) => {
         response: item.response,
         tableName,
         isCheckedIn,
-        checkedInAt: isCheckedIn ? item.check_ins[0].checked_in_at : null
+        checkedInAt: isCheckedIn ? item.check_ins[0].checked_in_at : null,
+        meals
       };
     });
 

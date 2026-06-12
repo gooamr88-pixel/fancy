@@ -145,8 +145,84 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrDataURL) => {
   `;
 };
 
+/**
+ * Generates an inline-styled premium HTML email body for guests who declined.
+ */
+const getDeclineConfirmationTemplate = (rsvp, event) => {
+  const formattedDate = new Date(event.event_date).toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const eventPageUrl = `${process.env.FRONTEND_URL || 'https://fancyrsvp.com'}/e/${event.slug || ''}`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Thank You for Letting Us Know</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 0;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          <!-- Header Banner -->
+          <tr>
+            <td align="center" style="background-color: #0f172a; padding: 40px 20px;">
+              <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.25em; color: #fbbf24; font-weight: bold; display: block; margin-bottom: 8px;">THANK YOU FOR LETTING US KNOW</span>
+              <h1 style="color: #ffffff; font-size: 24px; font-weight: 300; margin: 0; letter-spacing: 0.05em;">${escapeHtml(event.title)}</h1>
+            </td>
+          </tr>
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="font-size: 16px; color: #334155; margin-top: 0; line-height: 1.6;">Dear <strong>${escapeHtml(rsvp.guest_name)}</strong>,</p>
+              <p style="font-size: 15px; color: #475569; line-height: 1.6;">We're sorry you won't be able to join us for <strong>${escapeHtml(event.title)}</strong> on <strong>${formattedDate}</strong>. We completely understand and truly appreciate you taking the time to let us know.</p>
+              
+              <!-- Status Box -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 25px 0; padding: 20px;">
+                <tr>
+                  <td style="padding-bottom: 10px; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; width: 120px;">Response</td>
+                  <td style="padding-bottom: 10px; font-size: 15px; color: #ef4444; font-weight: 600;">Regretfully Declined</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Date</td>
+                  <td style="font-size: 15px; color: #0f172a;">${formattedDate}</td>
+                </tr>
+              </table>
+
+              <p style="font-size: 15px; color: #475569; line-height: 1.6;">If your plans change, we'd love to have you. You can update your RSVP at any time before the deadline:</p>
+
+              <!-- CTA Button -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 25px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="${eventPageUrl}" target="_blank" style="display: inline-block; background-color: #0f172a; color: #fbbf24; font-size: 14px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px; letter-spacing: 0.05em; text-transform: uppercase;">Change My RSVP</a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 0;">
+                We hope to see you at a future event. Wishing you all the best!
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="background-color: #f8fafc; border-top: 1px solid #f1f5f9; padding: 25px 20px; font-size: 12px; color: #94a3b8;">
+              Thank you for choosing Fancy RSVP. System notification sent automatically.
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+};
+
 module.exports = {
   escapeHtml,
   getRSVPConfirmationTemplate,
-  getQRTicketTemplate
+  getQRTicketTemplate,
+  getDeclineConfirmationTemplate
 };

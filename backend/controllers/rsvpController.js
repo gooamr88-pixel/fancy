@@ -1,7 +1,7 @@
 const { supabase } = require('../config/supabase');
 const notificationService = require('../utils/notificationService');
 const { parseCSV, generateCSV } = require('../utils/excelHelper');
-const { escapeHtml } = require('../utils/emailTemplates');
+const { escapeHtml, getDeclineConfirmationTemplate } = require('../utils/emailTemplates');
 
 /** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
 function escapeLikePattern(str) {
@@ -214,10 +214,17 @@ const submitPublicRSVP = async (req, res, next) => {
     });
     supabase.removeChannel(rsvpChannel);
 
-    // 7. Trigger confirmation email asynchronously if email exists
+    // 7. Trigger confirmation or decline email asynchronously if email exists
     if (email) {
-      notificationService.sendConfirmationEmail(event.id, rsvp.id)
-        .catch((err) => console.error('Confirmation email err:', err));
+      if (response === 'yes') {
+        notificationService.sendConfirmationEmail(event.id, rsvp.id)
+          .catch((err) => console.error('Confirmation email err:', err));
+      } else if (response === 'no') {
+        // Send decline thank-you email
+        const declineHtml = getDeclineConfirmationTemplate(rsvp, event);
+        notificationService.sendEmailViaBrevo(email, `Thank You – ${escapeHtml(event.title)}`, declineHtml)
+          .catch((err) => console.error('Decline email err:', err));
+      }
     }
 
     // 8. Notify organizer of new RSVP
@@ -435,16 +442,55 @@ const exportGuestsCSV = async (req, res, next) => {
   try {
     const { data: rsvps, error } = await supabase
       .from('rsvps')
-      .select('guest_name, email, phone, response, party_size, notes')
+      .select(`
+        guest_name, email, phone, response, party_size, notes,
+        rsvp_guests(meal_selection),
+        seating_assignments(table_id, tables(table_name)),
+        check_ins(checked_in_at, method)
+      `)
       .eq('event_id', eventId);
 
     if (error) throw error;
 
-    const headers = ['guest_name', 'email', 'phone', 'response', 'party_size', 'notes'];
+    const headers = ['guest_name', 'email', 'phone', 'response', 'party_size', 'table_name', 'meal_selections', 'checked_in', 'checked_in_at', 'check_in_method', 'notes'];
     const csvContent = generateCSV(
       headers,
       rsvps || [],
-      (item) => [item.guest_name, item.email, item.phone, item.response, item.party_size, item.notes]
+      (item) => {
+        // Aggregate meal selections from rsvp_guests
+        const meals = (item.rsvp_guests || [])
+          .map(g => g.meal_selection)
+          .filter(Boolean)
+          .join('; ');
+
+        // Get table name from first seating assignment
+        const tableName = item.seating_assignments && item.seating_assignments.length > 0
+          ? item.seating_assignments[0].tables?.table_name || ''
+          : '';
+
+        // Check-in status
+        const checkedIn = item.check_ins && item.check_ins.length > 0 ? 'Yes' : 'No';
+        const checkedInAt = item.check_ins && item.check_ins.length > 0
+          ? item.check_ins[0].checked_in_at
+          : '';
+        const checkInMethod = item.check_ins && item.check_ins.length > 0
+          ? item.check_ins[0].method
+          : '';
+
+        return [
+          item.guest_name,
+          item.email,
+          item.phone,
+          item.response,
+          item.party_size,
+          tableName,
+          meals,
+          checkedIn,
+          checkedInAt,
+          checkInMethod,
+          item.notes
+        ];
+      }
     );
 
     res.setHeader('Content-Type', 'text/csv');
@@ -574,6 +620,89 @@ const updateRSVP = async (req, res, next) => {
   }
 };
 
+/**
+ * Manually adds a guest record from the organizer dashboard.
+ * POST /api/v1/events/:eventId/rsvps
+ */
+const addGuestManually = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { guestName, email, phone, partySize, notes, response } = req.body;
+
+  if (!guestName || !guestName.trim()) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: 'guestName is required.'
+    });
+  }
+
+  const guestResponse = response && ['yes', 'no', 'pending'].includes(response) ? response : 'pending';
+  const computedPartySize = parseInt(partySize) || 1;
+
+  try {
+    // 1. Verify event exists
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, org_id, title')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+
+    // 2. Insert RSVP record
+    const { data: rsvp, error: rsvpError } = await supabase
+      .from('rsvps')
+      .insert({
+        event_id: eventId,
+        guest_name: guestName.trim(),
+        email: email || null,
+        phone: phone || null,
+        response: guestResponse,
+        party_size: computedPartySize,
+        notes: notes || null
+      })
+      .select()
+      .single();
+
+    if (rsvpError) throw rsvpError;
+
+    // 3. Log activity
+    await supabase
+      .from('activity_logs')
+      .insert({
+        event_id: eventId,
+        action: 'guest_added_manually',
+        details: `Organizer manually added guest: ${guestName.trim()} (response: ${guestResponse}, party size: ${computedPartySize})`
+      })
+      .then(() => {})
+      .catch(err => console.error('Activity log insert error:', err.message));
+
+    // 4. Broadcast RSVP update via real-time channel
+    const rsvpChannel = supabase.channel(`event-${eventId}`);
+    await rsvpChannel.send({
+      type: 'broadcast',
+      event: 'rsvp_submitted',
+      payload: {
+        rsvpId: rsvp.id,
+        guestName: rsvp.guest_name,
+        response: rsvp.response,
+        partySize: computedPartySize
+      }
+    });
+    supabase.removeChannel(rsvpChannel);
+
+    return res.status(201).json({
+      success: true,
+      message: 'Guest added successfully.',
+      rsvp
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   submitPublicRSVP,
   getRSVPs,
@@ -581,5 +710,6 @@ module.exports = {
   exportGuestsCSV,
   searchPublicGuests,
   deleteRSVP,
-  updateRSVP
+  updateRSVP,
+  addGuestManually
 };

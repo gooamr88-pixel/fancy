@@ -184,7 +184,7 @@ export default function CheckInPage() {
                   {selectedGuest.isCheckedIn ? '✅ Checked-In' : '⏳ Pending Arrival'}
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                 <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px' }}>
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, display: 'block', fontWeight: 700 }}>Assigned Table</span>
                   <span style={{ fontSize: '18px', fontWeight: 700, marginTop: '4px', display: 'block', color: C.charcoal }}>{selectedGuest.tableName}</span>
@@ -192,6 +192,20 @@ export default function CheckInPage() {
                 <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px' }}>
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, display: 'block', fontWeight: 700 }}>Total Party Size</span>
                   <span style={{ fontSize: '18px', fontWeight: 700, marginTop: '4px', display: 'block', color: C.gold }}>{selectedGuest.partySize} people</span>
+                </div>
+                <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px' }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, display: 'block', fontWeight: 700 }}>Meal Selections</span>
+                  {selectedGuest.meals && selectedGuest.meals.length > 0 ? (
+                    <div style={{ marginTop: '4px' }}>
+                      {selectedGuest.meals.map((m, i) => (
+                        <span key={i} style={{ fontSize: '11px', color: C.charcoal, display: 'block', lineHeight: 1.6 }}>
+                          {m.mealSelection || 'Not selected'}{m.dietaryNotes ? ` (${m.dietaryNotes})` : ''}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '13px', fontWeight: 500, marginTop: '4px', display: 'block', color: C.stone }}>No meals</span>
+                  )}
                 </div>
               </div>
               {!selectedGuest.isCheckedIn && (

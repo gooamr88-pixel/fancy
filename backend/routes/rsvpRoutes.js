@@ -6,6 +6,9 @@ const router = express.Router({ mergeParams: true });
 // Route to fetch RSVP list for an event
 router.get('/', rsvpController.getRSVPs);
 
+// Route to manually add a guest (organizer)
+router.post('/', rsvpController.addGuestManually);
+
 // Route to import guests via CSV upload
 router.post('/import', rsvpController.importGuestsCSV);
 

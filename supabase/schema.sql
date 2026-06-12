@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS events (
     gallery_urls JSONB DEFAULT '[]',
     custom_colors JSONB DEFAULT '{}',
     custom_fonts JSONB DEFAULT '{}',
+    template_data JSONB DEFAULT '{}',
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'paused', 'completed')),
     is_paid BOOLEAN DEFAULT FALSE,
     manual_override BOOLEAN DEFAULT FALSE,

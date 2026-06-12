@@ -11,6 +11,9 @@ import ResponsiveChartBoard from './components/ResponsiveChartBoard';
 import SeatingManager from './components/SeatingManager';
 import TableForm from './components/TableForm';
 import FormBuilder from './components/FormBuilder';
+import AddGuestModal from './components/AddGuestModal';
+import ImportGuestsModal from './components/ImportGuestsModal';
+import EventSettings from './components/EventSettings';
 
 /* ═══════════════════════════════════════════════
    Brand Design Tokens
@@ -97,6 +100,9 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterResponse, setFilterResponse] = useState('all');
   const [activeTab, setActiveTab] = useState('overview');
+  const [showAddGuestModal, setShowAddGuestModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [copyTooltip, setCopyTooltip] = useState(false);
 
 
   const [events, setEvents] = useState([]);
@@ -351,18 +357,65 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
             {typeof window !== 'undefined' && localStorage.getItem('user_role') === 'super_admin' && (
               <Link href="/admin" id="btn-open-super-admin" style={{
                 padding: '8px 16px', background: COLORS.ivory, color: COLORS.gold, border: `1px solid ${COLORS.border}`,
                 borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
               }}>Super Admin</Link>
             )}
+            <button onClick={() => setShowAddGuestModal(true)} id="btn-add-guest" style={{
+              padding: '8px 16px', background: COLORS.gold, color: COLORS.white, border: 'none',
+              borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.goldHover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.gold; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Guest
+            </button>
+            <button onClick={() => setShowImportModal(true)} id="btn-import-csv" style={{
+              padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
+              borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+              cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+            }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Import CSV
+            </button>
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => {
+                const url = `${window.location.origin}/${activeEvent?.slug || ''}`;
+                navigator.clipboard.writeText(url).then(() => {
+                  setCopyTooltip(true);
+                  setTimeout(() => setCopyTooltip(false), 1800);
+                }).catch(() => {});
+              }} id="btn-copy-link" style={{
+                padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
+                borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+                cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+              }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                Copy Link
+              </button>
+              {copyTooltip && (
+                <span style={{
+                  position: 'absolute', top: '-32px', left: '50%', transform: 'translateX(-50%)',
+                  background: COLORS.charcoal, color: COLORS.white, padding: '4px 12px', borderRadius: '6px',
+                  fontSize: '11px', fontWeight: 600, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+                  pointerEvents: 'none',
+                }}>Copied!</span>
+              )}
+            </div>
             <button onClick={async () => {
               try {
-                const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export`, {
-                  credentials: 'include'
-                });
+                const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export`, { credentials: 'include' });
                 if (!res.ok) throw new Error('Export failed');
                 const blob = await res.blob();
                 const url = URL.createObjectURL(blob);
@@ -381,10 +434,15 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Content Area */}
         <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
 
-          {activeTab === 'overview' || activeTab === 'events' || activeTab === 'rsvps' || activeTab === 'guests' || activeTab === 'seating' || activeTab === 'settings' ? (
+          {activeTab === 'settings' ? (
+            <EventSettings eventId={eventId} event={activeEvent} onEventUpdated={(updated) => {
+              setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, ...updated } : ev));
+            }} />
+          ) : activeTab === 'form-builder' ? (
+            <FormBuilder eventId={eventId} />
+          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
               {/* KPI Metrics Cards */}
@@ -413,11 +471,23 @@ export default function DashboardPage() {
                 <SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} />
               </div>
             </div>
-          ) : (
-            <FormBuilder eventId={eventId} />
           )}
         </div>
       </main>
+
+      {/* ═══ MODALS ═══ */}
+      <AddGuestModal
+        isOpen={showAddGuestModal}
+        onClose={() => setShowAddGuestModal(false)}
+        eventId={eventId}
+        onGuestAdded={loadDashboardData}
+      />
+      <ImportGuestsModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        eventId={eventId}
+        onImportComplete={loadDashboardData}
+      />
 
       <style jsx>{`
         @media (max-width: 1024px) {

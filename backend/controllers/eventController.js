@@ -5,7 +5,12 @@ const { supabase } = require('../config/supabase');
  * POST /api/v1/events
  */
 const createEvent = async (req, res, next) => {
-  const { slug, templateType, title, description, eventDate, locationName, locationAddress } = req.body;
+  const {
+    slug, templateType, title, description, eventDate, eventEndDate,
+    locationName, locationAddress, locationLat, locationLng, locationPlaceId,
+    dressCode, rsvpDeadline, privacyMode, accessPassword,
+    coverImageUrl, galleryUrls, customColors, customFonts, templateData
+  } = req.body;
 
   if (!slug || !templateType || !title || !eventDate) {
     return res.status(400).json({
@@ -56,20 +61,36 @@ const createEvent = async (req, res, next) => {
       });
     }
 
+    // Build insert payload with all available fields
+    const insertPayload = {
+      org_id: orgId,
+      slug,
+      template_type: templateType,
+      title,
+      description: description || null,
+      event_date: eventDate,
+      event_end_date: eventEndDate || null,
+      location_name: locationName || null,
+      location_address: locationAddress || null,
+      location_lat: locationLat || null,
+      location_lng: locationLng || null,
+      location_place_id: locationPlaceId || null,
+      dress_code: dressCode || null,
+      rsvp_deadline: rsvpDeadline || null,
+      privacy_mode: privacyMode || 'private',
+      access_password: accessPassword || null,
+      cover_image_url: coverImageUrl || null,
+      gallery_urls: galleryUrls || [],
+      custom_colors: customColors || {},
+      custom_fonts: customFonts || {},
+      template_data: templateData || {},
+      status: 'draft',
+      is_paid: false
+    };
+
     const { data: event, error } = await supabase
       .from('events')
-      .insert({
-        org_id: orgId,
-        slug,
-        template_type: templateType,
-        title,
-        description,
-        event_date: eventDate,
-        location_name: locationName,
-        location_address: locationAddress,
-        status: 'draft',
-        is_paid: false
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -126,8 +147,11 @@ const getPublicEventBySlug = async (req, res, next) => {
         title,
         description,
         event_date,
+        event_end_date,
         location_name,
         location_address,
+        location_lat,
+        location_lng,
         dress_code,
         rsvp_deadline,
         privacy_mode,
@@ -136,6 +160,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         gallery_urls,
         custom_colors,
         custom_fonts,
+        template_data,
         is_paid,
         rsvp_form_fields(*)
       `)
@@ -225,7 +250,8 @@ const updateEvent = async (req, res, next) => {
     'cover_image_url',
     'gallery_urls',
     'custom_colors',
-    'custom_fonts'
+    'custom_fonts',
+    'template_data'
   ];
 
   // Status can only be set to 'paused' or 'completed' by organizer.

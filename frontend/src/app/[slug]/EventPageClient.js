@@ -282,6 +282,166 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               </p>
             </div>
           )}
+
+          {/* ═══ TEMPLATE-SPECIFIC SECTIONS ═══ */}
+
+          {/* Wedding Section */}
+          {event.template_type === 'wedding' && event.template_data && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {(event.template_data.partner1Name || event.template_data.partner2Name) && (
+                <div style={{ textAlign: 'center', padding: '24px', background: 'rgba(184,148,79,0.04)', borderRadius: '12px', border: '1px solid rgba(184,148,79,0.12)' }}>
+                  <span style={{ fontFamily: 'var(--font-script)', fontSize: '28px', color: themeColor }}>
+                    {event.template_data.partner1Name} & {event.template_data.partner2Name}
+                  </span>
+                </div>
+              )}
+              {event.template_data.loveStory && (
+                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>Our Love Story</h4>
+                  <p style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.loveStory}</p>
+                </div>
+              )}
+              {(event.template_data.ceremonyLocation || event.template_data.receptionLocation) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  {event.template_data.ceremonyLocation && (
+                    <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                      <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '4px' }}>💒 Ceremony</span>
+                      <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.ceremonyLocation}</span>
+                    </div>
+                  )}
+                  {event.template_data.receptionLocation && (
+                    <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                      <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '4px' }}>🥂 Reception</span>
+                      <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.receptionLocation}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {event.template_data.accommodations && (
+                <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '8px' }}>🏨 Accommodations</h4>
+                  <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{event.template_data.accommodations}</p>
+                </div>
+              )}
+              {event.template_data.registryUrl && (
+                <a href={event.template_data.registryUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.15)', borderRadius: '10px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
+                  🎁 View Our Gift Registry →
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Engagement Section */}
+          {event.template_type === 'engagement' && event.template_data && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {(event.template_data.partner1Name || event.template_data.partner2Name) && (
+                <div style={{ textAlign: 'center', padding: '24px', background: 'rgba(194,123,142,0.04)', borderRadius: '12px', border: '1px solid rgba(194,123,142,0.12)' }}>
+                  <span style={{ fontFamily: 'var(--font-script)', fontSize: '28px', color: themeColor }}>
+                    {event.template_data.partner1Name} & {event.template_data.partner2Name}
+                  </span>
+                </div>
+              )}
+              {event.template_data.ourStory && (
+                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>Our Story</h4>
+                  <p style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.ourStory}</p>
+                </div>
+              )}
+              {event.template_data.registryUrl && (
+                <a href={event.template_data.registryUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(194,123,142,0.06)', border: '1px solid rgba(194,123,142,0.15)', borderRadius: '10px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
+                  🎁 View Our Gift Registry →
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Corporate Section */}
+          {event.template_type === 'corporate' && event.template_data && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {event.template_data.companyName && (
+                <div style={{ textAlign: 'center', padding: '16px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B', letterSpacing: '0.5px' }}>Hosted by {event.template_data.companyName}</span>
+                </div>
+              )}
+              {event.template_data.agenda && (
+                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>📋 Event Agenda</h4>
+                  <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.agenda}</div>
+                </div>
+              )}
+              {event.template_data.speakers && (
+                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🎤 Speakers & Presenters</h4>
+                  <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.speakers}</div>
+                </div>
+              )}
+              {event.template_data.sponsors && (
+                <div style={{ textAlign: 'center', padding: '16px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '8px' }}>Sponsored By</span>
+                  <span style={{ fontSize: '14px', color: '#1E293B' }}>{event.template_data.sponsors}</span>
+                </div>
+              )}
+              {event.template_data.networkingNotes && (
+                <div style={{ background: '#FFFFFF', padding: '16px', borderRadius: '10px', border: '1px solid #E8E2D6', fontSize: '13px', color: '#77736A', lineHeight: 1.7 }}>
+                  🤝 {event.template_data.networkingNotes}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Birthday Section */}
+          {event.template_type === 'birthday' && event.template_data && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {event.template_data.birthdayPersonName && (
+                <div style={{ textAlign: 'center', padding: '24px', background: 'rgba(232,93,117,0.04)', borderRadius: '12px', border: '1px solid rgba(232,93,117,0.12)' }}>
+                  <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>🎉</span>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: themeColor }}>
+                    {event.template_data.birthdayPersonName}
+                  </span>
+                  {event.template_data.ageMilestone && (
+                    <span style={{ display: 'inline-block', marginTop: '8px', padding: '4px 16px', background: themeColor, color: '#FFFFFF', borderRadius: '20px', fontSize: '13px', fontWeight: 700, marginLeft: '8px' }}>
+                      {event.template_data.ageMilestone}
+                    </span>
+                  )}
+                </div>
+              )}
+              {event.template_data.theme && (
+                <div style={{ background: '#FFFFFF', padding: '16px', borderRadius: '10px', border: '1px solid #E8E2D6', textAlign: 'center' }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '4px' }}>🎭 Party Theme</span>
+                  <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.theme}</span>
+                </div>
+              )}
+              {event.template_data.registryUrl && (
+                <a href={event.template_data.registryUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(232,93,117,0.06)', border: '1px solid rgba(232,93,117,0.15)', borderRadius: '10px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
+                  🎁 View Gift Registry →
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Gala Section */}
+          {event.template_type === 'gala' && event.template_data && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {event.template_data.honorees && (
+                <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(184,148,79,0.04)', borderRadius: '12px', border: '1px solid rgba(184,148,79,0.12)' }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#B8944F', fontWeight: 700, display: 'block', marginBottom: '8px' }}>✨ Honoring</span>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{event.template_data.honorees}</span>
+                </div>
+              )}
+              {event.template_data.program && (
+                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🎶 Program & Entertainment</h4>
+                  <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.program}</div>
+                </div>
+              )}
+              {event.template_data.sponsorTiers && (
+                <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🏆 Sponsor Tiers</h4>
+                  <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.sponsorTiers}</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: RSVP Card */}
@@ -301,6 +461,61 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           </div>
         </div>
       </div>
+
+      {/* ═══ PHOTO GALLERY ═══ */}
+      {event.gallery_urls && Array.isArray(event.gallery_urls) && event.gallery_urls.length > 0 && (
+        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 24px 48px' }}>
+          <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E8E2D6' }}>
+            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E', marginBottom: '20px', textAlign: 'center' }}>
+              {isRTL ? 'معرض الصور' : 'Photo Gallery'}
+            </h2>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: event.gallery_urls.length === 1 ? '1fr' : event.gallery_urls.length === 2 ? '1fr 1fr' : 'repeat(3, 1fr)',
+              gap: '12px',
+            }}>
+              {event.gallery_urls.map((url, i) => (
+                <div key={i} style={{
+                  borderRadius: '10px', overflow: 'hidden',
+                  height: event.gallery_urls.length <= 2 ? '280px' : '200px',
+                  background: '#F8F4EC',
+                }}>
+                  <img src={url} alt={`Gallery photo ${i + 1}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease' }}
+                    onMouseEnter={e => e.target.style.transform = 'scale(1.05)'}
+                    onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+                    onError={e => e.target.style.display = 'none'}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MAP EMBED ═══ */}
+      {event.location_lat && event.location_lng && (
+        <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 24px 64px' }}>
+          <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E8E2D6' }}>
+            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E', marginBottom: '20px' }}>
+              {isRTL ? 'الموقع' : 'Location'}
+            </h2>
+            <div style={{ borderRadius: '12px', overflow: 'hidden', height: '300px', border: '1px solid #E8E2D6' }}>
+              <iframe
+                title="Event Location Map"
+                width="100%" height="100%" style={{ border: 0 }}
+                loading="lazy" referrerPolicy="no-referrer-when-downgrade"
+                src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${event.location_lat},${event.location_lng}&zoom=15`}
+              />
+            </div>
+            {event.location_address && (
+              <p style={{ fontSize: '13px', color: '#77736A', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📍 {event.location_address}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
