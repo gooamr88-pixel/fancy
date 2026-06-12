@@ -294,75 +294,93 @@ export default function OverviewStatCards({
   const acceptedPercent = rsvpTotal > 0 ? Math.round((accepted / rsvpTotal) * 100) : 0;
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr 2fr 1fr 1fr 1fr',
-        gap: 16,
-      }}
-    >
-      {/* 1. Total Events */}
-      <StatCard
-        accent="linear-gradient(90deg, #B8944F, #D7BE80)"
-        icon={<CalendarIcon />}
-        label="Total Events"
-        value={totalEvents}
-        subtext={`${activeEvents} Active`}
-      />
+    <>
+      <style>{`
+        .overview-stat-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr 2fr 1fr 1fr 1fr;
+          gap: 16px;
+        }
+        @media (max-width: 1200px) {
+          .overview-stat-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+        @media (max-width: 768px) {
+          .overview-stat-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+        @media (max-width: 480px) {
+          .overview-stat-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+      <div className="overview-stat-grid">
+        {/* 1. Total Events */}
+        <StatCard
+          accent="linear-gradient(90deg, #B8944F, #D7BE80)"
+          icon={<CalendarIcon />}
+          label="Total Events"
+          value={totalEvents}
+          subtext={`${activeEvents} Active`}
+        />
 
-      {/* 2. Total Guests */}
-      <StatCard
-        accent="linear-gradient(90deg, #6B8EAE, #A3C1D9)"
-        icon={<UsersIcon />}
-        label="Total Guests"
-        value={totalGuests}
-        subtext="Invited"
-      />
+        {/* 2. Total Guests */}
+        <StatCard
+          accent="linear-gradient(90deg, #6B8EAE, #A3C1D9)"
+          icon={<UsersIcon />}
+          label="Total Guests"
+          value={totalGuests}
+          subtext="Invited"
+        />
 
-      {/* 3. RSVP Overview (spans 2 cols) */}
-      <StatCard
-        accent="linear-gradient(90deg, #B8944F, #D7BE80)"
-        icon={<RsvpIcon />}
-        label="RSVP Overview"
-        value={`${acceptedPercent}%`}
-        subtext="Accepted"
-        span={2}
-      >
-        {/* Mini progress bars */}
-        <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-          <MiniProgress label="Accepted" count={accepted} total={rsvpTotal} color="#B8944F" />
-          <MiniProgress label="Declined" count={declined} total={rsvpTotal} color="#77736A" />
-          <MiniProgress label="Pending" count={pending} total={rsvpTotal} color="#D7BE80" />
-        </div>
-        <TrendIndicator accepted={accepted} total={rsvpTotal} />
-      </StatCard>
+        {/* 3. RSVP Overview (spans 2 cols) */}
+        <StatCard
+          accent="linear-gradient(90deg, #B8944F, #D7BE80)"
+          icon={<RsvpIcon />}
+          label="RSVP Overview"
+          value={`${acceptedPercent}%`}
+          subtext="Accepted"
+          span={2}
+        >
+          {/* Mini progress bars */}
+          <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+            <MiniProgress label="Accepted" count={accepted} total={rsvpTotal} color="#B8944F" />
+            <MiniProgress label="Declined" count={declined} total={rsvpTotal} color="#77736A" />
+            <MiniProgress label="Pending" count={pending} total={rsvpTotal} color="#D7BE80" />
+          </div>
+          <TrendIndicator accepted={accepted} total={rsvpTotal} />
+        </StatCard>
 
-      {/* 4. Checked In */}
-      <StatCard
-        accent="linear-gradient(90deg, #4A7C59, #7AB08A)"
-        icon={<CheckCircleIcon />}
-        label="Checked In"
-        value={checkedIn}
-        subtext="Arrived"
-      />
+        {/* 4. Checked In */}
+        <StatCard
+          accent="linear-gradient(90deg, #4A7C59, #7AB08A)"
+          icon={<CheckCircleIcon />}
+          label="Checked In"
+          value={checkedIn}
+          subtext="Arrived"
+        />
 
-      {/* 5. Not Arrived */}
-      <StatCard
-        accent="linear-gradient(90deg, #C4956A, #E0B98E)"
-        icon={<ClockIcon />}
-        label="Not Arrived"
-        value={notArrived}
-        subtext="Pending arrival"
-      />
+        {/* 5. Not Arrived */}
+        <StatCard
+          accent="linear-gradient(90deg, #C4956A, #E0B98E)"
+          icon={<ClockIcon />}
+          label="Not Arrived"
+          value={notArrived}
+          subtext="Pending arrival"
+        />
 
-      {/* 6. Confirmed */}
-      <StatCard
-        accent="linear-gradient(90deg, #8B7EC8, #B0A6D9)"
-        icon={<StarIcon />}
-        label="Confirmed"
-        value={totalGuestsAccepted}
-        subtext="Confirmed guests"
-      />
-    </div>
+        {/* 6. Confirmed */}
+        <StatCard
+          accent="linear-gradient(90deg, #8B7EC8, #B0A6D9)"
+          icon={<StarIcon />}
+          label="Confirmed"
+          value={totalGuestsAccepted}
+          subtext="Confirmed guests"
+        />
+      </div>
+    </>
   );
 }

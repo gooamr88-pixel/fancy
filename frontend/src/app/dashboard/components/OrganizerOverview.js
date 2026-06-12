@@ -146,36 +146,7 @@ function LoadingSkeleton() {
   );
 }
 
-function CalendarIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      style={{ marginRight: 6, verticalAlign: 'middle', marginTop: -1 }}
-    >
-      <rect
-        x="1.5"
-        y="2.5"
-        width="13"
-        height="12"
-        rx="2"
-        stroke="#A9A5A0"
-        strokeWidth="1.2"
-        fill="none"
-      />
-      <path d="M1.5 6.5h13" stroke="#A9A5A0" strokeWidth="1.2" />
-      <path d="M5 1v3" stroke="#A9A5A0" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M11 1v3" stroke="#A9A5A0" strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="5" cy="9.5" r="0.8" fill="#A9A5A0" />
-      <circle cx="8" cy="9.5" r="0.8" fill="#A9A5A0" />
-      <circle cx="11" cy="9.5" r="0.8" fill="#A9A5A0" />
-      <circle cx="5" cy="12" r="0.8" fill="#A9A5A0" />
-      <circle cx="8" cy="12" r="0.8" fill="#A9A5A0" />
-    </svg>
-  );
-}
+/* WelcomeHeader removed — context now handled by dashboard top bar */
 
 function WarningIcon() {
   return (
@@ -188,68 +159,6 @@ function WarningIcon() {
         strokeLinejoin="round"
       />
     </svg>
-  );
-}
-
-function WelcomeHeader() {
-  const now = new Date();
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  const dateStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingBottom: 20,
-        borderBottom: '1px solid #F0ECE3',
-        marginBottom: 28,
-      }}
-    >
-      <div>
-        <h1
-          style={{
-            fontFamily: 'var(--font-serif)',
-            fontSize: 22,
-            fontWeight: 700,
-            color: '#191B1E',
-            margin: 0,
-            lineHeight: 1.3,
-          }}
-        >
-          Dashboard Overview
-        </h1>
-        <p
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 13,
-            color: '#77736A',
-            margin: '6px 0 0 0',
-            fontWeight: 400,
-          }}
-        >
-          Real-time insights across all your events
-        </p>
-      </div>
-      <div
-        style={{
-          fontFamily: 'var(--font-sans)',
-          fontSize: 12,
-          color: '#A9A5A0',
-          fontWeight: 400,
-          display: 'flex',
-          alignItems: 'center',
-        }}
-      >
-        <CalendarIcon />
-        {dateStr}
-      </div>
-    </div>
   );
 }
 
@@ -360,7 +269,8 @@ export default function OrganizerOverview() {
     setError(null);
     try {
       const res = await apiFetch('/dashboard');
-      setData(res);
+      // Backend returns { success, dashboard: { ... } }
+      setData(res.dashboard || res);
     } catch (err) {
       setError(err.message || 'Failed to fetch dashboard data');
     } finally {
@@ -385,32 +295,37 @@ export default function OrganizerOverview() {
   }
 
   const {
-    total_events = 0,
-    active_events = 0,
-    total_guests = 0,
-    rsvp_overview = { accepted: 0, declined: 0, pending: 0 },
-    checked_in = 0,
-    not_arrived = 0,
-    total_guests_accepted = 0,
-    rsvp_trend = [],
-    upcoming_events = [],
-    recent_activity = [],
+    totalEvents = 0,
+    activeEvents = 0,
+    totalGuests = 0,
+    rsvpOverview = { acceptedCount: 0, declinedCount: 0, pendingCount: 0 },
+    checkedIn = 0,
+    notArrived = 0,
+    totalGuestsAccepted = 0,
+    rsvpTrend = [],
+    upcomingEvents = [],
+    recentActivity = [],
   } = data || {};
+
+  // Map rsvpOverview to the shape child components expect
+  const rsvpOverviewMapped = {
+    accepted: rsvpOverview.acceptedCount || 0,
+    declined: rsvpOverview.declinedCount || 0,
+    pending: rsvpOverview.pendingCount || 0,
+  };
 
   return (
     <div style={{ padding: 0 }}>
-      <WelcomeHeader />
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
         {/* Stat Cards Row */}
         <OverviewStatCards
-          totalEvents={total_events}
-          activeEvents={active_events}
-          totalGuests={total_guests}
-          rsvpOverview={rsvp_overview}
-          checkedIn={checked_in}
-          notArrived={not_arrived}
-          totalGuestsAccepted={total_guests_accepted}
+          totalEvents={totalEvents}
+          activeEvents={activeEvents}
+          totalGuests={totalGuests}
+          rsvpOverview={rsvpOverviewMapped}
+          checkedIn={checkedIn}
+          notArrived={notArrived}
+          totalGuestsAccepted={totalGuestsAccepted}
         />
 
         {/* Charts Row */}
@@ -421,8 +336,8 @@ export default function OrganizerOverview() {
             gap: 24,
           }}
         >
-          <RsvpProgressDonut rsvpOverview={rsvp_overview} />
-          <RsvpTrendChart rsvpTrend={rsvp_trend} />
+          <RsvpProgressDonut rsvpOverview={rsvpOverviewMapped} />
+          <RsvpTrendChart rsvpTrend={rsvpTrend} />
         </div>
 
         {/* Bottom Row */}
@@ -433,8 +348,8 @@ export default function OrganizerOverview() {
             gap: 24,
           }}
         >
-          <UpcomingEventsCards upcomingEvents={upcoming_events} />
-          <RecentActivityFeed recentActivity={recent_activity} />
+          <UpcomingEventsCards upcomingEvents={upcomingEvents} />
+          <RecentActivityFeed recentActivity={recentActivity} />
         </div>
       </div>
     </div>

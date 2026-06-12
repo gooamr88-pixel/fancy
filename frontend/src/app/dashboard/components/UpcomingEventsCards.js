@@ -126,11 +126,11 @@ export default function UpcomingEventsCards({ upcomingEvents }) {
       {/* Events List */}
       <div>
         {events.map((event, idx) => {
-          const { month, day } = formatDate(event.date || event.startDate || event.start_date);
+          const { month, day } = formatDate(event.event_date || event.date || event.startDate || event.start_date);
           const status = event.status || 'draft';
           const statusStyle = getStatusStyle(status);
           const guestCount = event.guestCount ?? event.guest_count ?? event.guests ?? 0;
-          const location = event.location || event.venue || '';
+          const location = event.location_name || event.location || event.venue || '';
           const title = event.title || event.name || 'Untitled Event';
 
           return (

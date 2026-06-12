@@ -1,6 +1,18 @@
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 
+// Normalize response checking — matches frontend responseHelpers.js
+function isAcceptedResponse(response) {
+  if (!response) return false;
+  const r = response.toLowerCase().trim();
+  return ['yes', 'accepted', 'attending'].includes(r);
+}
+function isDeclinedResponse(response) {
+  if (!response) return false;
+  const r = response.toLowerCase().trim();
+  return ['no', 'declined', 'not attending'].includes(r);
+}
+
 /**
  * Fetches aggregated dashboard data for the authenticated organizer.
  * GET /api/v1/dashboard
@@ -128,9 +140,9 @@ const getDashboardData = async (req, res, next) => {
     rsvps.forEach(rsvp => {
       const size = rsvp.party_size || 1;
       totalGuests += size;
-      if (rsvp.response === 'yes') {
+      if (isAcceptedResponse(rsvp.response)) {
         acceptedCount += size;
-      } else if (rsvp.response === 'no') {
+      } else if (isDeclinedResponse(rsvp.response)) {
         declinedCount += size;
       } else {
         pendingCount += size;
@@ -167,9 +179,9 @@ const getDashboardData = async (req, res, next) => {
           dailyMap[dateKey] = { accepted: 0, declined: 0, pending: 0 };
         }
         const size = rsvp.party_size || 1;
-        if (rsvp.response === 'yes') {
+        if (isAcceptedResponse(rsvp.response)) {
           dailyMap[dateKey].accepted += size;
-        } else if (rsvp.response === 'no') {
+        } else if (isDeclinedResponse(rsvp.response)) {
           dailyMap[dateKey].declined += size;
         } else {
           dailyMap[dateKey].pending += size;
@@ -211,32 +223,36 @@ const getDashboardData = async (req, res, next) => {
     } else {
       const upcomingRaw = upcomingEventsResult.data || [];
 
-      // For each upcoming event, get count of RSVPs with response='yes'
-      upcomingEvents = await Promise.all(
-        upcomingRaw.map(async (event) => {
-          let guestCount = 0;
-          try {
-            const { data: yesRsvps } = await supabase
-              .from('rsvps')
-              .select('party_size')
-              .eq('event_id', event.id)
-              .eq('response', 'yes');
+      // Batch query: get accepted RSVP counts for all upcoming events at once
+      const upcomingIds = upcomingRaw.map(e => e.id);
+      let guestCountMap = {};
+      if (upcomingIds.length > 0) {
+        try {
+          const { data: allYesRsvps } = await supabase
+            .from('rsvps')
+            .select('event_id, party_size, response')
+            .in('event_id', upcomingIds);
 
-            guestCount = (yesRsvps || []).reduce((sum, r) => sum + (r.party_size || 1), 0);
-          } catch (e) {
-            logger.warn({ eventId: event.id, error: e }, 'Dashboard: failed to get guest count for event');
+          if (allYesRsvps) {
+            allYesRsvps.forEach(r => {
+              if (isAcceptedResponse(r.response)) {
+                guestCountMap[r.event_id] = (guestCountMap[r.event_id] || 0) + (r.party_size || 1);
+              }
+            });
           }
+        } catch (e) {
+          logger.warn({ error: e }, 'Dashboard: failed to batch-fetch guest counts');
+        }
+      }
 
-          return {
-            id: event.id,
-            title: event.title,
-            event_date: event.event_date,
-            location_name: event.location_name,
-            status: event.status,
-            guestCount
-          };
-        })
-      );
+      upcomingEvents = upcomingRaw.map(event => ({
+        id: event.id,
+        title: event.title,
+        event_date: event.event_date,
+        location_name: event.location_name,
+        status: event.status,
+        guestCount: guestCountMap[event.id] || 0
+      }));
     }
 
     // --- Process e) Recent Activity ---

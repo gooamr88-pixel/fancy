@@ -22,7 +22,7 @@ export default function RsvpTrendChart({ rsvpTrend }) {
   }, []);
 
   const data = Array.isArray(rsvpTrend) ? rsvpTrend : [];
-  const hasData = data.length >= 2;
+  const hasData = data.length >= 1;
 
   // Compute acceptance percentages
   const points = data.map((d) => {

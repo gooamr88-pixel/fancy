@@ -30,7 +30,7 @@ function toLocalDateString(dateStr) {
 
 export default function EventSettings({ eventId, event, onEventUpdated }) {
   const [form, setForm] = useState({
-    title: '', description: '', date: '', end_date: '', location_name: '', location_address: '',
+    title: '', description: '', event_date: '', end_date: '', location_name: '', location_address: '',
     location_lat: null, location_lng: null, location_place_id: '',
     rsvp_deadline: '', privacy_mode: 'public', access_password: '',
     dress_code: '', cover_image_url: '', primary_color: '#B8944F',
@@ -46,7 +46,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
       setForm({
         title: event.title || '',
         description: event.description || '',
-        date: toLocalDatetimeString(event.date || event.event_date),
+        event_date: toLocalDatetimeString(event.event_date || event.date),
         end_date: toLocalDatetimeString(event.end_date),
         location_name: event.location_name || event.venue_name || '',
         location_address: event.location_address || event.venue_address || '',
@@ -73,7 +73,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     try {
       const body = { ...form };
       // Convert all dates to ISO strings for consistent backend parsing
-      if (body.date) body.date = new Date(body.date).toISOString();
+      if (body.event_date) body.event_date = new Date(body.event_date).toISOString();
       if (body.end_date) body.end_date = new Date(body.end_date).toISOString();
       if (body.rsvp_deadline) body.rsvp_deadline = new Date(body.rsvp_deadline).toISOString();
       if (body.privacy_mode !== 'password') delete body.access_password;
@@ -170,7 +170,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         <div style={rowStyle}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Start Date &amp; Time</label>
-            <input type="datetime-local" value={form.date} onChange={handleChange('date')} style={inputStyle}
+            <input type="datetime-local" value={form.event_date} onChange={handleChange('event_date')} style={inputStyle}
               onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
               onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
             />
