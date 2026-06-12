@@ -88,13 +88,50 @@ const createEvent = async (req, res, next) => {
       is_paid: false
     };
 
-    const { data: event, error } = await supabase
+    let event, error;
+
+    // Attempt insert
+    ({ data: event, error } = await supabase
       .from('events')
       .insert(insertPayload)
       .select()
-      .single();
+      .single());
 
-    if (error) throw error;
+    // If the insert failed due to an unknown column (e.g. template_data not yet migrated),
+    // retry without the potentially missing column
+    if (error && (error.code === '42703' || (error.message && error.message.includes('column')))) {
+      const logger = require('../utils/logger');
+      logger.warn({ code: error.code, message: error.message }, 'createEvent: retrying without template_data (column may not exist yet)');
+      const { template_data, ...fallbackPayload } = insertPayload;
+      ({ data: event, error } = await supabase
+        .from('events')
+        .insert(fallbackPayload)
+        .select()
+        .single());
+    }
+
+    if (error) {
+      const logger = require('../utils/logger');
+      logger.error({
+        err: error,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        message: error.message,
+        insertPayloadKeys: Object.keys(insertPayload),
+        userId: req.user?.id,
+        slug,
+      }, 'createEvent: Supabase insert failed');
+
+      // Return a more informative error instead of a generic 500
+      return res.status(500).json({
+        success: false,
+        error: 'EVENT_CREATE_FAILED',
+        code: error.code || 'UNKNOWN',
+        message: error.message || 'Failed to create event. Please try again.',
+        hint: error.hint || undefined,
+      });
+    }
 
     return res.status(201).json({
       success: true,
