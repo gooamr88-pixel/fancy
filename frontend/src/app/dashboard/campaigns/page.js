@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../utils/apiClient';
 
+const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8', error: '#C45E5E', success: '#3B9B6D' };
+
 export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -170,10 +172,10 @@ export default function CampaignsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-slate-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-400 font-medium">Loading campaign dashboard...</p>
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, border: `4px solid ${C.border}`, borderTop: `4px solid ${C.gold}`, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}></div>
+          <p style={{ color: C.stone, fontWeight: 500, fontFamily: 'var(--font-sans)', fontSize: 14 }}>Loading campaign dashboard...</p>
         </div>
       </div>
     );
@@ -181,14 +183,16 @@ export default function CampaignsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center px-6">
-        <div className="max-w-md w-full text-center bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-xl">
-          <span className="text-4xl">🔌</span>
-          <h2 className="text-xl font-bold mt-4 text-rose-500">Backend Connection Error</h2>
-          <p className="text-slate-455 mt-2 text-sm leading-relaxed">{error}</p>
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
+        <div style={{ maxWidth: 440, width: '100%', textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: 32, borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+          <span style={{ fontSize: 40 }}>🔌</span>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginTop: 16, color: C.error, fontFamily: 'var(--font-serif)' }}>Backend Connection Error</h2>
+          <p style={{ color: C.stone, marginTop: 8, fontSize: 13, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>{error}</p>
           <button 
             onClick={() => { setLoading(true); loadCampaignData(); }} 
-            className="mt-6 px-5 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-xs rounded-lg font-bold"
+            style={{ marginTop: 24, padding: '8px 20px', background: 'transparent', border: `1px solid ${C.border}`, color: C.gold, fontSize: 12, borderRadius: 8, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = C.softBg; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
           >
             Retry Connection
           </button>
@@ -198,33 +202,40 @@ export default function CampaignsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+    <div style={{ minHeight: '100vh', background: C.ivory, color: C.charcoal, padding: 32, fontFamily: 'var(--font-sans)' }}>
       
       {/* ─── Header ─── */}
-      <div className="max-w-7xl mx-auto border-b border-slate-900 pb-6 mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
+      <div style={{ maxWidth: 1200, margin: '0 auto', borderBottom: `1px solid ${C.border}`, paddingBottom: 24, marginBottom: 32, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div>
-          <div className="flex items-center gap-2">
-            <Link href="/dashboard" className="text-amber-500 text-sm hover:underline">← Back to List</Link>
-            <span className="text-slate-700">/</span>
-            <span className="text-xs uppercase text-slate-500 font-bold">SMS Engine</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Link href="/dashboard" style={{ color: C.gold, fontSize: 13, textDecoration: 'none', fontFamily: 'var(--font-sans)' }}
+              onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
+              onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
+            >← Back to List</Link>
+            <span style={{ color: C.border }}>/</span>
+            <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, letterSpacing: '0.1em' }}>SMS Engine</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight mt-1">SMS Campaign Manager</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 4, fontFamily: 'var(--font-serif)', color: C.charcoal }}>SMS Campaign Manager</h1>
         </div>
 
-        <div className="mt-4 md:mt-0 flex gap-3">
+        <div style={{ display: 'flex', gap: 12 }}>
           <button 
             onClick={() => setShowSMSModal(true)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm hover:bg-slate-700 transition cursor-pointer text-slate-200"
+            style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', color: C.gold, fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = C.softBg; e.currentTarget.style.borderColor = C.gold; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.border; }}
           >
             Buy SMS Credits
           </button>
           <button
             onClick={handleLogout}
             aria-label="Sign out"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-red-400 hover:bg-red-950/30 transition-colors cursor-pointer"
             title="Sign out"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, color: C.stone, background: 'transparent', border: 'none', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { e.currentTarget.style.color = C.error; e.currentTarget.style.background = 'rgba(196,94,94,0.08)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = C.stone; e.currentTarget.style.background = 'transparent'; }}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg xmlns="http://www.w3.org/2000/svg" style={{ width: 16, height: 16 }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
             Sign Out
@@ -232,63 +243,66 @@ export default function CampaignsPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr', gap: 32 }}>
         
         {/* Left/Middle Column: Template Composer & Campaign launcher */}
-        <div className="lg:col-span-2 space-y-6">
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 32 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           
           {/* 1. Wallet Status Widget */}
-          <div className="bg-slate-900 border border-slate-850 p-6 rounded-2xl grid grid-cols-3 gap-6 text-center">
+          <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 24, borderRadius: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, textAlign: 'center' }}>
             <div>
-              <span className="text-xs uppercase text-slate-400 font-bold block">Purchased</span>
-              <span className="text-xl font-black block mt-2 text-slate-200">{creditsPurchased}</span>
+              <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.1em' }}>Purchased</span>
+              <span style={{ fontSize: 20, fontWeight: 900, display: 'block', marginTop: 8, color: C.charcoal }}>{creditsPurchased}</span>
             </div>
             <div>
-              <span className="text-xs uppercase text-slate-400 font-bold block">Consumed</span>
-              <span className="text-xl font-black block mt-2 text-slate-350">{creditsUsed}</span>
+              <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.1em' }}>Consumed</span>
+              <span style={{ fontSize: 20, fontWeight: 900, display: 'block', marginTop: 8, color: C.stone }}>{creditsUsed}</span>
             </div>
-            <div className="border-l border-slate-800">
-              <span className="text-xs uppercase text-slate-455 font-bold block">Remaining Balance</span>
-              <span className="text-2xl font-black block mt-1.5 text-amber-400">{creditsRemaining} Credits</span>
+            <div style={{ borderLeft: `1px solid ${C.border}` }}>
+              <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.1em' }}>Remaining Balance</span>
+              <span style={{ fontSize: 22, fontWeight: 900, display: 'block', marginTop: 6, color: C.gold }}>{creditsRemaining} Credits</span>
             </div>
           </div>
 
           {/* 2. Composer */}
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-6">
-            <h3 className="text-lg font-bold border-b border-slate-800 pb-3">Campaign Composer & Live Mobile Preview</h3>
+          <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 24, borderRadius: 12 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, borderBottom: `1px solid ${C.border}`, paddingBottom: 12, fontFamily: 'var(--font-serif)', color: C.charcoal }}>Campaign Composer & Live Mobile Preview</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+            <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: 32, alignItems: 'start', marginTop: 24 }}>
               
-              {/* Form Block (Col span 7) */}
-              <form onSubmit={handleLaunchCampaign} className="md:col-span-7 space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs text-slate-400 font-semibold block">Message Body</label>
+              {/* Form Block */}
+              <form onSubmit={handleLaunchCampaign} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 11, color: C.stone, fontWeight: 600, display: 'block' }}>Message Body</label>
                   <textarea
                     value={messageTemplate}
                     onChange={e => setMessageTemplate(e.target.value)}
                     rows={5}
-                    className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500 leading-relaxed bg-background text-foreground"
+                    style={{ width: '100%', background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 16px', fontSize: 13, color: C.charcoal, outline: 'none', lineHeight: 1.7, fontFamily: 'var(--font-sans)', resize: 'vertical', boxSizing: 'border-box' }}
                     placeholder="Enter invitation message..."
+                    onFocus={e => { e.currentTarget.style.borderColor = C.gold; }}
+                    onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
                   />
-                  <span className="text-[10px] text-slate-500 block leading-relaxed mt-1">
-                    Supported dynamic tags: <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-500 font-mono">{`{name}`}</code> for guest name, <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-500 font-mono">{`{url}`}</code> for direct unique guest RSVP invitation links.
+                  <span style={{ fontSize: 10, color: C.stone, display: 'block', lineHeight: 1.7, marginTop: 2 }}>
+                    Supported dynamic tags: <code style={{ background: C.softBg, padding: '2px 4px', borderRadius: 3, color: C.gold, fontFamily: 'monospace', fontSize: 10 }}>{`{name}`}</code> for guest name, <code style={{ background: C.softBg, padding: '2px 4px', borderRadius: 3, color: C.gold, fontFamily: 'monospace', fontSize: 10 }}>{`{url}`}</code> for direct unique guest RSVP invitation links.
                   </span>
                 </div>
 
                 {recipientCount > 0 ? (
-                  <div className="bg-slate-950/50 p-4 border border-slate-850 rounded-xl space-y-2.5">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-400 font-semibold">Target Recipients:</span>
-                      <span className="font-bold text-slate-200">{recipientCount} pending guests</span>
+                  <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span style={{ color: C.stone, fontWeight: 600 }}>Target Recipients:</span>
+                      <span style={{ fontWeight: 700, color: C.charcoal }}>{recipientCount} pending guests</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs border-t border-slate-850/40 pt-2.5 font-bold">
-                      <span className="text-slate-400">Total Credits Required:</span>
-                      <span className="text-amber-500">{recipientCount} Credits</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 10, fontWeight: 700 }}>
+                      <span style={{ color: C.stone }}>Total Credits Required:</span>
+                      <span style={{ color: C.gold }}>{recipientCount} Credits</span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-slate-950/30 p-4 border border-slate-850 rounded-xl text-center">
-                    <p className="text-xs text-slate-550">All pending guest lists have already been notified. No pending SMS targets left.</p>
+                  <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, textAlign: 'center' }}>
+                    <p style={{ fontSize: 12, color: C.stone }}>All pending guest lists have already been notified. No pending SMS targets left.</p>
                   </div>
                 )}
 
@@ -296,61 +310,63 @@ export default function CampaignsPage() {
                   <button
                     type="submit"
                     disabled={sending}
-                    className="w-full py-3 bg-amber-600 font-bold rounded-xl text-sm hover:bg-amber-500 transition disabled:opacity-50 shadow-lg active:scale-98 cursor-pointer text-white"
+                    style={{ width: '100%', padding: '12px 0', background: C.gold, fontWeight: 700, borderRadius: 8, fontSize: 12, border: 'none', cursor: 'pointer', transition: 'all 0.2s', color: C.white, opacity: sending ? 0.5 : 1, boxShadow: '0 2px 8px rgba(184,148,79,0.25)', fontFamily: 'var(--font-sans)' }}
+                    onMouseEnter={e => { if (!sending) e.currentTarget.style.background = C.goldHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
                   >
                     {sending ? 'Dispatching campaign...' : `Launch SMS Campaign to ${recipientCount} Guests`}
                   </button>
                 )}
               </form>
 
-              {/* Smartphone Mockup Preview Block (Col span 5) */}
-              <div className="md:col-span-5 flex flex-col items-center justify-center">
-                <span className="text-[10px] uppercase tracking-wider text-slate-550 font-bold mb-3">Live SMS Preview</span>
+              {/* Smartphone Mockup Preview Block */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.stone, fontWeight: 700, marginBottom: 12 }}>Live SMS Preview</span>
                 
                 {/* Smartphone Shell */}
-                <div className="w-[220px] aspect-[9/18] rounded-[2.2rem] border-[8px] border-zinc-800 bg-slate-900 shadow-xl relative overflow-hidden flex flex-col p-2 select-none">
+                <div style={{ width: 220, aspectRatio: '9/18', borderRadius: '2.2rem', border: '8px solid #3a3a3c', background: C.softBg, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 8, userSelect: 'none' }}>
                   {/* Top Notch speaker */}
-                  <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-14 h-3 bg-zinc-800 rounded-full flex items-center justify-center z-20">
-                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-900 absolute left-2"></div>
+                  <div style={{ position: 'absolute', top: 6, left: '50%', transform: 'translateX(-50%)', width: 56, height: 12, background: '#3a3a3c', borderRadius: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20 }}>
+                    <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#2a2a2c', position: 'absolute', left: 8 }}></div>
                   </div>
 
                   {/* Screen Content */}
-                  <div className="w-full h-full bg-[#ebebeb] dark:bg-zinc-950 rounded-[1.6rem] overflow-hidden flex flex-col justify-between pt-5 text-zinc-900 dark:text-slate-100 relative">
+                  <div style={{ width: '100%', height: '100%', background: '#ebebeb', borderRadius: '1.6rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingTop: 20, color: C.charcoal, position: 'relative' }}>
                     
                     {/* Mock SMS App Header */}
-                    <div className="bg-zinc-100 dark:bg-zinc-900/80 border-b border-zinc-200/50 dark:border-zinc-800/40 py-1.5 px-3 flex items-center gap-1.5 text-left">
-                      <div className="w-5 h-5 rounded-full bg-amber-600 flex items-center justify-center text-[9px] font-black text-amber-100">
+                    <div style={{ background: '#f5f5f5', borderBottom: '1px solid rgba(0,0,0,0.06)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, textAlign: 'left' }}>
+                      <div style={{ width: 20, height: 20, borderRadius: '50%', background: C.gold, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: C.ivory }}>
                         F
                       </div>
-                      <div className="flex flex-col text-[7.5px] leading-none">
-                        <span className="font-bold">Fancy RSVP</span>
-                        <span className="text-[5.5px] text-slate-500 mt-0.5">iMessage / SMS</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', fontSize: 7.5, lineHeight: 1 }}>
+                        <span style={{ fontWeight: 700 }}>Fancy RSVP</span>
+                        <span style={{ fontSize: 5.5, color: C.stone, marginTop: 2 }}>iMessage / SMS</span>
                       </div>
                     </div>
 
                     {/* Chat Messages Body */}
-                    <div className="flex-1 p-2 space-y-3 overflow-y-auto no-scrollbar flex flex-col justify-start">
+                    <div style={{ flex: 1, padding: 8, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', gap: 12, overflowY: 'auto' }}>
                       
                       {/* Incoming text message bubble */}
-                      <div className="flex flex-col gap-1 items-start text-left max-w-[85%] self-start">
-                        <div className="bg-[#e9e9eb] dark:bg-zinc-850 p-2.5 rounded-2xl rounded-bl-sm text-[8.5px] leading-relaxed text-zinc-855 dark:text-zinc-200 shadow-sm border border-zinc-200/30 dark:border-zinc-805/20 whitespace-pre-wrap break-words">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start', textAlign: 'left', maxWidth: '85%', alignSelf: 'flex-start' }}>
+                        <div style={{ background: '#e9e9eb', padding: 10, borderRadius: 16, borderBottomLeftRadius: 4, fontSize: 8.5, lineHeight: 1.7, color: '#3a3a3c', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.04)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                           {messageTemplate
                             .replaceAll('{name}', 'Alexander')
                             .replaceAll('{url}', 'fancyrsvp.com/s/e5x2')
                           }
                         </div>
-                        <span className="text-[5.5px] text-slate-500 px-1 font-semibold">Today 10:24 AM</span>
+                        <span style={{ fontSize: 5.5, color: C.stone, paddingLeft: 4, fontWeight: 600 }}>Today 10:24 AM</span>
                       </div>
 
                     </div>
 
                     {/* Chat footer input bar */}
-                    <div className="bg-zinc-100 dark:bg-zinc-900 border-t border-zinc-200/50 dark:border-zinc-850 py-1.5 px-2 flex items-center justify-between gap-1.5">
-                      <div className="flex-1 bg-white dark:bg-zinc-950 border border-zinc-300/40 dark:border-zinc-800 rounded-full px-2 py-0.5 text-[6px] text-zinc-400 text-left">
+                    <div style={{ background: '#f5f5f5', borderTop: '1px solid rgba(0,0,0,0.06)', padding: '6px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+                      <div style={{ flex: 1, background: C.white, border: `1px solid ${C.border}`, borderRadius: 9999, padding: '2px 8px', fontSize: 6, color: C.stone, textAlign: 'left' }}>
                         iMessage
                       </div>
-                      <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-white">
-                        <svg className="w-2.5 h-2.5 rotate-90" fill="currentColor" viewBox="0 0 24 24">
+                      <div style={{ width: 16, height: 16, borderRadius: '50%', background: C.success, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.white }}>
+                        <svg style={{ width: 10, height: 10, transform: 'rotate(90deg)' }} fill="currentColor" viewBox="0 0 24 24">
                           <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                         </svg>
                       </div>
@@ -364,53 +380,58 @@ export default function CampaignsPage() {
             </div>
 
             {campaignReport && (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded-xl text-sm">
+              <div style={{ padding: 16, background: 'rgba(59,155,109,0.08)', border: `1px solid rgba(59,155,109,0.2)`, color: C.success, borderRadius: 12, fontSize: 13, marginTop: 24 }}>
                 <strong>🟢 Campaign Dispatched:</strong> {campaignReport.message}
               </div>
             )}
           </div>
 
-        </div>
+          </div>
 
         {/* Right Column: Transaction Logs Ledger */}
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex flex-col h-[460px] overflow-hidden">
-          <h3 className="text-base font-bold border-b border-slate-800 pb-3 mb-4">Transaction History</h3>
+        <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 24, borderRadius: 12, display: 'flex', flexDirection: 'column', height: 460, overflow: 'hidden' }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, borderBottom: `1px solid ${C.border}`, paddingBottom: 12, marginBottom: 16, fontFamily: 'var(--font-serif)', color: C.charcoal }}>Transaction History</h3>
           
-          <div className="space-y-3 overflow-y-auto flex-1 pr-1">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', flex: 1, paddingRight: 4 }}>
+            {ledger.length === 0 && <p style={{ fontSize: 13, color: C.stone, textAlign: 'center', marginTop: 24, fontFamily: 'var(--font-sans)' }}>No campaign history yet.</p>}
             {ledger.map(row => {
               const isPurchase = row.type === 'purchase';
               return (
-                <div key={row.id} className="bg-slate-950 p-4 border border-slate-850 rounded-xl flex justify-between items-center">
-                  <div className="space-y-1">
-                    <span className="text-xs font-semibold text-slate-200 block max-w-[170px] truncate" title={row.description}>
+                <div key={row.id} style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'background 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = C.ivory; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = C.softBg; }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: C.charcoal, display: 'block', maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.description}>
                       {row.description}
                     </span>
-                    <span className="text-[10px] text-slate-550 block">{row.timestamp}</span>
+                    <span style={{ fontSize: 10, color: C.stone, display: 'block' }}>{row.timestamp}</span>
                   </div>
-                  <div className="text-right">
-                    <span className={`font-bold text-sm block ${isPurchase ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontWeight: 700, fontSize: 13, display: 'block', color: isPurchase ? C.success : C.stone }}>
                       {isPurchase ? `+${row.credits}` : row.credits}
                     </span>
-                    <span className="text-[9px] text-slate-500 uppercase tracking-widest block mt-0.5">Credits</span>
+                    <span style={{ fontSize: 9, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginTop: 2 }}>Credits</span>
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
+        </div>
       </div>
 
       {/* Purchase SMS Credits Modal Overlay */}
       {showSMSModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-2xl p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-slate-100">Purchase SMS Credits</h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: C.white, border: `1px solid ${C.border}`, width: '100%', maxWidth: 440, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-serif)' }}>Purchase SMS Credits</h3>
+            <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>
               SMS credits are used to send bulk mobile invitations to your guests. Volume discount of 12.5% is automatically applied on packages of 500 credits or more.
             </p>
-            <form onSubmit={handleBuySMSCredits} className="space-y-4">
+            <form onSubmit={handleBuySMSCredits} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <label className="text-xs text-slate-400 font-semibold block mb-1">Number of Credits</label>
+                <label style={{ fontSize: 11, color: C.stone, fontWeight: 600, display: 'block', marginBottom: 4 }}>Number of Credits</label>
                 <input
                   type="number"
                   min="50"
@@ -418,27 +439,29 @@ export default function CampaignsPage() {
                   value={smsCreditsToBuy}
                   onChange={e => setSmsCreditsToBuy(e.target.value)}
                   placeholder="e.g. 100"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-amber-500 bg-background text-foreground"
+                  style={{ width: '100%', background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, color: C.charcoal, outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }}
+                  onFocus={e => { e.currentTarget.style.borderColor = C.gold; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
                 />
-                <span className="text-[10px] text-slate-550 block mt-1">Minimum purchase of 50 credits.</span>
+                <span style={{ fontSize: 10, color: C.stone, display: 'block', marginTop: 4 }}>Minimum purchase of 50 credits.</span>
               </div>
               
-              <div className="bg-slate-950/60 p-4 border border-slate-850 rounded-xl space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-450">Price Per Credit:</span>
-                  <span className="font-semibold text-slate-200">8¢</span>
+              <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                  <span style={{ color: C.stone }}>Price Per Credit:</span>
+                  <span style={{ fontWeight: 600, color: C.charcoal }}>8¢</span>
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-455">Subtotal:</span>
-                  <span className="font-semibold text-slate-200">${((smsCreditsToBuy * 8) / 100).toFixed(2)} USD</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                  <span style={{ color: C.stone }}>Subtotal:</span>
+                  <span style={{ fontWeight: 600, color: C.charcoal }}>${((smsCreditsToBuy * 8) / 100).toFixed(2)} USD</span>
                 </div>
                 {smsCreditsToBuy >= 500 && (
-                  <div className="flex justify-between items-center text-xs text-emerald-400">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: C.success }}>
                     <span>Volume Discount (12.5%):</span>
                     <span>-${(((smsCreditsToBuy * 8) / 100) * 0.125).toFixed(2)} USD</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center text-sm border-t border-slate-850 pt-2 font-bold text-amber-500">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, borderTop: `1px solid ${C.border}`, paddingTop: 8, fontWeight: 700, color: C.gold }}>
                   <span>Total Amount:</span>
                   <span>
                     ${(
@@ -451,18 +474,22 @@ export default function CampaignsPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8 }}>
                 <button
                   type="button"
                   onClick={() => setShowSMSModal(false)}
-                  className="px-4 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-xs font-bold rounded-lg transition cursor-pointer text-slate-300"
+                  style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${C.border}`, color: C.stone, fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = C.softBg; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={buyingCredits}
-                  className="px-4 py-2 bg-amber-600 text-xs font-bold rounded-lg hover:bg-amber-500 transition cursor-pointer text-white disabled:opacity-50"
+                  style={{ padding: '8px 16px', background: C.gold, color: C.white, fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'all 0.2s', opacity: buyingCredits ? 0.5 : 1, fontFamily: 'var(--font-sans)' }}
+                  onMouseEnter={e => { if (!buyingCredits) e.currentTarget.style.background = C.goldHover; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
                 >
                   {buyingCredits ? 'Connecting to Stripe...' : 'Proceed to Checkout'}
                 </button>
@@ -472,6 +499,7 @@ export default function CampaignsPage() {
         </div>
       )}
 
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

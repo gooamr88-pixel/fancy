@@ -237,7 +237,7 @@ const searchGuests = async (req, res, next) => {
     const results = data.map(item => {
       const isCheckedIn = item.check_ins && item.check_ins.length > 0;
       const tableName = item.seating_assignments && item.seating_assignments.length > 0 
-        ? item.seating_assignments[0].tables.table_name 
+        ? item.seating_assignments[0]?.tables?.table_name || 'Unassigned'
         : 'Unassigned';
       
       // Extract meal selections from rsvp_guests

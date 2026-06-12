@@ -53,9 +53,15 @@ export function useRealtimeRSVPs(eventId, onNewRsvp) {
     // Case 2: Local fallback mode (no Supabase env vars configured)
     // We start a mock simulation interval to showcase dashboard real-time capabilities
     else {
+      if (process.env.NODE_ENV !== 'development') return;
 
+      let iterationCount = 0;
+      const MAX_MOCK_ITERATIONS = 10;
       
       const interval = setInterval(() => {
+        if (iterationCount >= MAX_MOCK_ITERATIONS) { clearInterval(interval); return; }
+        iterationCount++;
+
         if (!callbackRef.current) return;
         
         // Randomly pick a guest from pool

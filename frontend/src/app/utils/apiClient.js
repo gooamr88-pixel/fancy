@@ -100,6 +100,7 @@ export async function logout() {
   localStorage.removeItem('org_id');
   localStorage.removeItem('user_role');
   localStorage.removeItem('active_event_id');
+  document.cookie = 'fancy_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
   window.location.href = '/login';
 }
 

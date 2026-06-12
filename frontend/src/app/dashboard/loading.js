@@ -6,8 +6,8 @@ export default function DashboardLoading() {
       {/* Sidebar skeleton */}
       <aside style={styles.sidebar}>
         <div style={{ ...styles.bar, width: '60%', height: 28, marginBottom: 32 }} />
-        {[...Array(6)].map((_, i) => (
-          <div key={i} style={{ ...styles.bar, width: `${65 + Math.random() * 30}%`, height: 16, marginBottom: 20 }} />
+        {[72, 85, 68, 90, 76, 82].map((w, i) => (
+          <div key={i} style={{ ...styles.bar, width: `${w}%`, height: 16, marginBottom: 20 }} />
         ))}
       </aside>
 

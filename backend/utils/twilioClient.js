@@ -22,7 +22,7 @@ function getTwilioClient() {
 }
 
 function getTwilioFromNumber() {
-  return process.env.TWILIO_FROM_NUMBER || '+15005550006';
+  return process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_NUMBER || '+15005550006';
 }
 
 module.exports = { getTwilioClient, getTwilioFromNumber };

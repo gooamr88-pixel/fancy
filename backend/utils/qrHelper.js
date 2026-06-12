@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const QRCode = require('qrcode');
+const logger = require('./logger');
 
 const QR_JWT_SECRET = process.env.QR_JWT_SECRET;
 if (!QR_JWT_SECRET) throw new Error('FATAL: QR_JWT_SECRET environment variable is required');
@@ -46,7 +47,7 @@ const generateQRCodeDataURL = async (text) => {
       margin: 2
     });
   } catch (err) {
-    console.error('Error generating QR code data URL:', err);
+    logger.error({ err }, 'Error generating QR code data URL');
     throw err;
   }
 };
@@ -66,7 +67,7 @@ const generateQRCodeBuffer = async (text) => {
       margin: 2
     });
   } catch (err) {
-    console.error('Error generating QR code buffer:', err);
+    logger.error({ err }, 'Error generating QR code buffer');
     throw err;
   }
 };

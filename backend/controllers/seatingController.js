@@ -45,9 +45,8 @@ const assignSeat = async (req, res, next) => {
     }
 
     // Broadcast the update using Supabase Realtime channel
-    await supabase
-      .channel(`event-${eventId}`)
-      .send({
+    const channel = supabase.channel(`event-${eventId}`);
+    await channel.send({
         type: 'broadcast',
         event: 'seating_update',
         payload: {
@@ -56,6 +55,7 @@ const assignSeat = async (req, res, next) => {
           seatsRemaining: data.seats_remaining
         }
       });
+    supabase.removeChannel(channel);
 
     // Auto-fire QR ticket email on successful seating assignment
     try {
@@ -118,9 +118,8 @@ const reassignSeat = async (req, res, next) => {
     }
 
     // Broadcast the update using Supabase Realtime channel
-    await supabase
-      .channel(`event-${eventId}`)
-      .send({
+    const channel = supabase.channel(`event-${eventId}`);
+    await channel.send({
         type: 'broadcast',
         event: 'seating_update',
         payload: {
@@ -130,6 +129,7 @@ const reassignSeat = async (req, res, next) => {
           seatsRemainingNewTable: data.seats_remaining_new_table
         }
       });
+    supabase.removeChannel(channel);
 
     // Auto-fire updated QR ticket email on successful reassignment
     try {
@@ -190,9 +190,8 @@ const unassignSeat = async (req, res, next) => {
     }
 
     // Broadcast the update using Supabase Realtime channel
-    await supabase
-      .channel(`event-${eventId}`)
-      .send({
+    const channel = supabase.channel(`event-${eventId}`);
+    await channel.send({
         type: 'broadcast',
         event: 'seating_update',
         payload: {
@@ -201,6 +200,7 @@ const unassignSeat = async (req, res, next) => {
           seatsRemaining: data.seats_remaining
         }
       });
+    supabase.removeChannel(channel);
 
     // Auto-fire updated ticket email (no seating details / unseated notice if needed, or skip)
     // For now we don't need to auto-fire a ticket since they are unseated, but they can be notified.

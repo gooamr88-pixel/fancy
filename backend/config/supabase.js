@@ -13,7 +13,9 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('CRITICAL ERROR: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured in environment variables.');
 }
 
-console.log('🔌 Connecting to remote Supabase instance...');
+const logger = require('../utils/logger');
+
+logger.info('Connecting to Supabase instance');
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
   realtime: {

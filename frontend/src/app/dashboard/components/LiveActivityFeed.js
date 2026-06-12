@@ -1,4 +1,5 @@
 import React from "react";
+import { isAccepted } from '../../utils/responseHelpers';
 
 export default function LiveActivityFeed({ rsvps }) {
   const recentRsvps = [...rsvps].slice(0, 8);
@@ -108,10 +109,7 @@ export default function LiveActivityFeed({ rsvps }) {
                   .toUpperCase()
               : "?";
 
-            const isYes =
-              guest.response === "yes" ||
-              guest.response === "YES" ||
-              guest.response === "Accepted";
+            const isYes = isAccepted(guest.response);
 
             return (
               <div

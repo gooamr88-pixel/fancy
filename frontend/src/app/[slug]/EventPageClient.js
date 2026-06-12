@@ -501,12 +501,21 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               {isRTL ? 'الموقع' : 'Location'}
             </h2>
             <div style={{ borderRadius: '12px', overflow: 'hidden', height: '300px', border: '1px solid #E8E2D6' }}>
-              <iframe
-                title="Event Location Map"
-                width="100%" height="100%" style={{ border: 0 }}
-                loading="lazy" referrerPolicy="no-referrer-when-downgrade"
-                src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${event.location_lat},${event.location_lng}&zoom=15`}
-              />
+              {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+                <iframe
+                  title="Event Location Map"
+                  width="100%" height="100%" style={{ border: 0 }}
+                  loading="lazy" referrerPolicy="no-referrer-when-downgrade"
+                  src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${event.location_lat},${event.location_lng}&zoom=15`}
+                />
+              ) : (
+                <iframe
+                  title="Event Location Map"
+                  width="100%" height="100%" style={{ border: 0 }}
+                  loading="lazy"
+                  src={`https://www.openstreetmap.org/export/embed.html?bbox=${event.location_lng - 0.01},${event.location_lat - 0.01},${event.location_lng + 0.01},${event.location_lat + 0.01}&layer=mapnik&marker=${event.location_lat},${event.location_lng}`}
+                />
+              )}
             </div>
             {event.location_address && (
               <p style={{ fontSize: '13px', color: '#77736A', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>

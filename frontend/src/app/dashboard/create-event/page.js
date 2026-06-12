@@ -138,12 +138,14 @@ export default function CreateEventWizard() {
         const res = await fetch(`${apiUrl}/public/events/${slug}`);
         if (res.status === 404) {
           setSlugStatus('available');
-        } else {
+        } else if (res.ok) {
           setSlugStatus('taken');
           setSuggestedSlug(`${slug}-${new Date().getFullYear()}`);
+        } else {
+          setSlugStatus('error');
         }
       } catch {
-        setSlugStatus('available'); // Network error = probably available
+        setSlugStatus('error');
       }
     }, 500);
     return () => clearTimeout(timer);
@@ -355,6 +357,7 @@ export default function CreateEventWizard() {
                     </button>
                   </span>
                 )}
+                {slugStatus === 'error' && <span style={{ color: C.stone }}>⚠ Could not verify availability. Try again.</span>}
               </div>
             </div>
 

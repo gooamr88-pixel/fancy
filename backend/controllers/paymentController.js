@@ -162,6 +162,14 @@ const purchaseSMSCredits = async (req, res, next) => {
 
     const customerId = eventData.organizations.stripe_customer_id;
 
+    if (!customerId) {
+      return res.status(400).json({
+        success: false,
+        error: 'NO_STRIPE_CUSTOMER',
+        message: 'Please complete your first event payment before purchasing SMS credits.'
+      });
+    }
+
     // 3. Create checkout session
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',

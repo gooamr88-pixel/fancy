@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../utils/apiClient';
+import { isAccepted } from '../../utils/responseHelpers';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -137,14 +138,14 @@ export default function SeatingMapPage() {
     try {
       setLoading(true);
       const res = await fetch(`${API_URL}/events/${eventId}/tables/${selectedTable.id}`, { method: 'DELETE', credentials: 'include' });
-      if (!res.ok) { const errData = await res.json(); throw new Error(errData.message || 'Failed to delete table'); }
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to delete table');
       if (data.success) { setSelectedTable(null); loadLayoutData(); }
     } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
-  const selectedTableGuests = selectedTable ? guests.filter(g => g.tableId === selectedTable.id && g.response === 'yes') : [];
-  const unassignedGuests = guests.filter(g => !g.tableId && g.response === 'yes');
+  const selectedTableGuests = selectedTable ? guests.filter(g => g.tableId === selectedTable.id && isAccepted(g.response)) : [];
+  const unassignedGuests = guests.filter(g => !g.tableId && isAccepted(g.response));
 
   const btnBase = { padding: '8px 16px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'all 0.2s' };
 

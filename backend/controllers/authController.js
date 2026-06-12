@@ -397,7 +397,7 @@ const login = async (req, res, next) => {
       await supabase
         .from('organizations')
         .update({ failed_login_attempts: 0, lockout_until: null })
-        .eq('email', email);
+        .eq('email', normalizedEmail);
     }
 
     const userId = org.owner_user_id;

@@ -6,9 +6,17 @@ export default function ResponsiveChartBoard({ stats }) {
   const pending = stats.pendingGuests || 0;
   const total = attending + declined + pending || 1;
 
-  const yesPercent = Math.round((attending / total) * 100);
-  const noPercent = Math.round((declined / total) * 100);
-  const pendingPercent = Math.round((pending / total) * 100);
+  function roundPercentages(values) {
+    const sum = values.reduce((a, b) => a + b, 0);
+    if (sum === 0) return values.map(() => 0);
+    const raw = values.map(v => (v / sum) * 100);
+    const floored = raw.map(v => Math.floor(v));
+    let remainder = 100 - floored.reduce((a, b) => a + b, 0);
+    const remainders = raw.map((v, i) => ({ i, r: v - floored[i] })).sort((a, b) => b.r - a.r);
+    for (let j = 0; j < remainder; j++) floored[remainders[j].i]++;
+    return floored;
+  }
+  const [yesPercent, noPercent, pendingPercent] = roundPercentages([attending, declined, pending]);
 
   const radius = 50;
   const circumference = 2 * Math.PI * radius;

@@ -41,6 +41,15 @@ const saveField = async (req, res, next) => {
     });
   }
 
+  const ALLOWED_FIELD_TYPES = ['text', 'select', 'checkbox', 'radio', 'textarea', 'date', 'number', 'email', 'phone', 'url'];
+  if (!ALLOWED_FIELD_TYPES.includes(fieldType)) {
+    return res.status(400).json({
+      success: false,
+      error: 'INVALID_FIELD_TYPE',
+      message: `fieldType must be one of: ${ALLOWED_FIELD_TYPES.join(', ')}`
+    });
+  }
+
   try {
     const { data: field, error } = await supabase
       .from('rsvp_form_fields')

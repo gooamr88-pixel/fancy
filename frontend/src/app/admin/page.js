@@ -35,6 +35,7 @@ export default function AdminPage() {
 
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [initialData, setInitialData] = useState(null);
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -49,12 +50,16 @@ export default function AdminPage() {
       // Server-side role verification: attempt to fetch admin data
       // If the server returns 401/403, the localStorage role was spoofed
       fetch(`${apiUrl}/admin/events`, { credentials: 'include' })
-        .then(res => {
+        .then(async (res) => {
           if (res.status === 401 || res.status === 403) {
             localStorage.removeItem('user_role');
             router.push('/dashboard');
             return;
           }
+          try {
+            const data = await res.json();
+            if (data.success) setInitialData(data);
+          } catch {}
           setAuthChecked(true);
         })
         .catch(() => {
@@ -67,9 +72,14 @@ export default function AdminPage() {
   const loadAdminData = useCallback(async () => {
     if (!authChecked) return;
     try {
-      const eventsRes = await fetch(`${apiUrl}/admin/events`, { credentials: 'include' });
-      const eventsData = await eventsRes.json();
-      if (eventsData.success) setEvents(eventsData.events);
+      if (initialData) {
+        setEvents(initialData.events);
+        setInitialData(null);
+      } else {
+        const eventsRes = await fetch(`${apiUrl}/admin/events`, { credentials: 'include' });
+        const eventsData = await eventsRes.json();
+        if (eventsData.success) setEvents(eventsData.events);
+      }
 
       const configRes = await fetch(`${apiUrl}/admin/pricing`, { credentials: 'include' });
       const configData = await configRes.json();
@@ -83,7 +93,7 @@ export default function AdminPage() {
       // Admin data loading failed
       setError('Could not connect to the administration API. Verify port 5000 is running.');
     } finally { setLoading(false); }
-  }, [apiUrl, authChecked]);
+  }, [apiUrl, authChecked, initialData]);
 
   useEffect(() => { if (authChecked) loadAdminData(); }, [authChecked, loadAdminData]);
 
@@ -107,7 +117,7 @@ export default function AdminPage() {
           orgName: selectedEvent.organizations?.name || 'Unnamed Org',
           amountCents: parseInt(approveAmountCents),
           activationDate: new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }),
-          transactionId: `TXN-ACTIV-${Math.random().toString(36).substring(2, 11).toUpperCase()}`
+          transactionId: data.receiptId || data.transactionId || 'pending'
         });
         setSelectedEvent(null);
         setShowReceiptOverlay(true);

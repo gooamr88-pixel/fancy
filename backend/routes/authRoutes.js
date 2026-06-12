@@ -55,6 +55,7 @@ router.post('/reset-password', [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('otp').isLength({ min: 6, max: 6 }).isNumeric().withMessage('Valid 6-digit OTP is required'),
   body('newPassword').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('confirmPassword').notEmpty().withMessage('Confirm password is required'),
   validate
 ], authController.resetPassword);
 

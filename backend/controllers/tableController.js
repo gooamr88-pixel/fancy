@@ -99,11 +99,18 @@ const updateTablePositions = async (req, res, next) => {
   const { eventId } = req.params;
   const { tablePositions } = req.body; // Array: [{ id, x, y }]
 
-  if (!tablePositions || !Array.isArray(tablePositions)) {
+  if (!Array.isArray(tablePositions) || tablePositions.length === 0) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
       message: 'tablePositions array is required.'
+    });
+  }
+  if (tablePositions.length > 200) {
+    return res.status(400).json({
+      success: false,
+      error: 'PAYLOAD_TOO_LARGE',
+      message: 'Cannot update more than 200 table positions at once.'
     });
   }
 

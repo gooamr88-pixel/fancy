@@ -1,6 +1,6 @@
 const { supabase } = require('../config/supabase');
 const notificationService = require('../utils/notificationService');
-const { parseCSV, generateCSV } = require('../utils/excelHelper');
+const { parseCSV, generateCSV } = require('../utils/csvHelper');
 const { escapeHtml, getDeclineConfirmationTemplate } = require('../utils/emailTemplates');
 
 /** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
@@ -138,7 +138,23 @@ const submitPublicRSVP = async (req, res, next) => {
         await supabase.from('seating_assignments').delete().eq('rsvp_id', rsvp.id);
       }
     } else {
-      // 3. Insert new RSVP record
+      // 3. Check for duplicate RSVP
+      const { data: existingRsvp } = await supabase
+        .from('rsvps')
+        .select('id')
+        .eq('event_id', event.id)
+        .eq('guest_email', email)
+        .limit(1);
+
+      if (existingRsvp && existingRsvp.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: 'DUPLICATE_RSVP',
+          message: 'An RSVP with this email already exists for this event. Use the search page to update your existing RSVP.'
+        });
+      }
+
+      // 4. Insert new RSVP record
       const { data: insertedRsvp, error: rsvpError } = await supabase
         .from('rsvps')
         .insert({
@@ -248,7 +264,7 @@ const submitPublicRSVP = async (req, res, next) => {
             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0; padding: 15px;">
               <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${response === 'yes' ? '#10b981' : '#ef4444'};">${response === 'yes' ? 'Attending' : 'Declined'}</td></tr>
               <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Party Size</td><td style="padding: 8px 15px; font-size: 15px;">${computedPartySize}</td></tr>
-              ${email ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + email + '</td></tr>' : ''}
+              ${email ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + escapeHtml(email) + '</td></tr>' : ''}
             </table>
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">This is an automated notification from Fancy RSVP.</p>
           </div>
@@ -364,18 +380,21 @@ const getRSVPs = async (req, res, next) => {
 
     if (error) throw error;
 
-    // Post-filter for seated status (Supabase can't filter on relation existence)
+    // Post-filter for seated status (Supabase can't filter on relation existence directly)
     let filtered = rsvps;
+    let effectiveTotal = totalCount;
     if (seated === 'true') {
       filtered = rsvps.filter(r => r.seating_assignments && r.seating_assignments.length > 0);
+      effectiveTotal = null; // Cannot reliably know total across all pages
     } else if (seated === 'false') {
       filtered = rsvps.filter(r => !r.seating_assignments || r.seating_assignments.length === 0);
+      effectiveTotal = null; // Cannot reliably know total across all pages
     }
 
     return res.json({
       success: true,
       rsvps: filtered,
-      pagination: { page, limit, count: filtered.length, total: totalCount }
+      pagination: { page, limit, count: filtered.length, total: effectiveTotal ?? totalCount }
     });
   } catch (err) {
     next(err);
@@ -448,7 +467,8 @@ const exportGuestsCSV = async (req, res, next) => {
         seating_assignments(table_id, tables(table_name)),
         check_ins(checked_in_at, method)
       `)
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      .limit(10000);
 
     if (error) throw error;
 

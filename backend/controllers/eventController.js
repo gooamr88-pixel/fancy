@@ -202,9 +202,15 @@ const getPublicEventBySlug = async (req, res, next) => {
         });
       }
 
-      if (!providedPassword ||
-          providedPassword.length !== event.access_password.length ||
-          !require('crypto').timingSafeEqual(Buffer.from(providedPassword, 'utf8'), Buffer.from(event.access_password, 'utf8'))) {
+      const crypto = require('crypto');
+      const providedBuf = Buffer.from(String(providedPassword || ''), 'utf8');
+      const storedBuf = Buffer.from(event.access_password, 'utf8');
+      const maxLen = Math.max(providedBuf.length, storedBuf.length, 1);
+      const paddedProvided = Buffer.alloc(maxLen); providedBuf.copy(paddedProvided);
+      const paddedStored = Buffer.alloc(maxLen); storedBuf.copy(paddedStored);
+      const isMatch = providedBuf.length === storedBuf.length && crypto.timingSafeEqual(paddedProvided, paddedStored);
+
+      if (!isMatch) {
         // Don't expose whether event exists, just return password required
         return res.status(401).json({
           success: false,
@@ -458,9 +464,9 @@ const getEvents = async (req, res, next) => {
     }
 
     // 2. Fetch events matching organization id
-    const { data: events, error } = await supabase
+    const { data: events, error, count } = await supabase
       .from('events')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('org_id', org.id)
       .order('created_at', { ascending: false })
       .range(from, to);
@@ -471,7 +477,7 @@ const getEvents = async (req, res, next) => {
     return res.json({
       success: true,
       events: items,
-      pagination: { page, limit, count: items.length }
+      pagination: { page, limit, count: items.length, total: count }
     });
   } catch (err) {
     next(err);

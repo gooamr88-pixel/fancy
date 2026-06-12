@@ -14,6 +14,7 @@ import FormBuilder from './components/FormBuilder';
 import AddGuestModal from './components/AddGuestModal';
 import ImportGuestsModal from './components/ImportGuestsModal';
 import EventSettings from './components/EventSettings';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 /* ═══════════════════════════════════════════════
    Brand Design Tokens
@@ -103,6 +104,7 @@ export default function DashboardPage() {
   const [showAddGuestModal, setShowAddGuestModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [copyTooltip, setCopyTooltip] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
 
   const [events, setEvents] = useState([]);
@@ -114,6 +116,7 @@ export default function DashboardPage() {
     if (typeof window !== 'undefined') {
       const orgId = localStorage.getItem('org_id');
       if (!orgId) { router.push('/login'); return; }
+      setIsSuperAdmin(localStorage.getItem('user_role') === 'super_admin');
       setAuthChecked(true);
     }
   }, [router]);
@@ -125,8 +128,8 @@ export default function DashboardPage() {
         const res = await fetch(`${apiUrl}/events`, { credentials: 'include' });
         const data = await res.json();
         if (data.success && data.events.length > 0) { setEvents(data.events); setEventId(data.events[0].id); }
-        else { setEventId('demo-event'); }
-      } catch (err) { setEventId('demo-event'); }
+        else { setEventId(''); }
+      } catch (err) { setEventId(''); }
     };
     fetchEvents();
   }, [authChecked, apiUrl]);
@@ -358,7 +361,7 @@ export default function DashboardPage() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {typeof window !== 'undefined' && localStorage.getItem('user_role') === 'super_admin' && (
+            {isSuperAdmin && (
               <Link href="/admin" id="btn-open-super-admin" style={{
                 padding: '8px 16px', background: COLORS.ivory, color: COLORS.gold, border: `1px solid ${COLORS.border}`,
                 borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
@@ -445,6 +448,7 @@ export default function DashboardPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
+              {eventId && (<>
               {/* KPI Metrics Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
                 <StatMetricsCard label="Total Invited" value={`${stats.invitedParties} parties`} subtext="Event campaigns reached" accentColor="slate"
@@ -461,15 +465,25 @@ export default function DashboardPage() {
 
               {/* Charts & Activity Feed */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-                <ResponsiveChartBoard stats={stats} />
-                <LiveActivityFeed rsvps={rsvps} />
+                <ErrorBoundary><ResponsiveChartBoard stats={stats} /></ErrorBoundary>
+                <ErrorBoundary><LiveActivityFeed rsvps={rsvps} /></ErrorBoundary>
               </div>
 
               {/* Seating & Tables */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
                 <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} />
-                <SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} />
+                <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>
               </div>
+              </>)}
+
+              {!eventId && activeTab === 'overview' && (
+                <div style={{ textAlign: 'center', padding: '64px 24px', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '16px' }}>
+                  <span style={{ fontSize: '48px', display: 'block', marginBottom: '16px' }}>🎉</span>
+                  <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 500, color: '#191B1E', marginBottom: '8px' }}>Welcome to Fancy RSVP!</h2>
+                  <p style={{ fontSize: '14px', color: '#77736A', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px' }}>Create your first event to start managing RSVPs, seating, and check-ins.</p>
+                  <a href="/dashboard/create-event" style={{ display: 'inline-block', padding: '12px 28px', background: '#B8944F', color: '#FFFFFF', borderRadius: '10px', fontWeight: 700, fontSize: '14px', textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>+ Create Your First Event</a>
+                </div>
+              )}
             </div>
           )}
         </div>

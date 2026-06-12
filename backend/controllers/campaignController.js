@@ -202,6 +202,10 @@ const sendBulkSMSCampaign = async (req, res, next) => {
  */
 const getCampaignHistory = async (req, res, next) => {
   const { eventId } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = Math.min(parseInt(req.query.limit) || 50, 500);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
   try {
     const { data: wallet } = await supabase
@@ -210,18 +214,20 @@ const getCampaignHistory = async (req, res, next) => {
       .eq('event_id', eventId)
       .single();
 
-    const { data: ledger, error } = await supabase
+    const { data: ledger, error, count: totalCount } = await supabase
       .from('sms_credit_ledger')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('event_id', eventId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
     if (error) throw error;
 
     return res.json({
       success: true,
       wallet: wallet || { credits_purchased: 0, credits_used: 0, credits_remaining: 0 },
-      history: ledger || []
+      history: ledger || [],
+      pagination: { page, limit, count: (ledger || []).length, total: totalCount }
     });
   } catch (err) {
     next(err);

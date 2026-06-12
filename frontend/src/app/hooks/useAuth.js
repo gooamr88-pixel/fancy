@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/apiClient';
 
 export function useAuth() {

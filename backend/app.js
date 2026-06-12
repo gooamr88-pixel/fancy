@@ -19,12 +19,20 @@ const app = express();
 // Enable security headers
 app.use(helmet());
 
-// Configure CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+// Configure CORS with multi-origin support
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(s => s.trim());
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200
-}));
+};
+app.use(cors(corsOptions));
 
 // Parse cookies (httpOnly auth cookie)
 app.use(cookieParser());

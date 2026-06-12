@@ -61,7 +61,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         primary_color: event.primary_color || '#B8944F',
       });
     }
-  }, [event]);
+  }, [event?.id]);
 
   const handleChange = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -72,7 +72,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     setSaving(true); setError(''); setSuccess(false);
     try {
       const body = { ...form };
-      if (body.date) body.date = new Date(body.date).toISOString();
+      // Send raw datetime-local string as-is; server/DB handles timezone
       if (body.end_date) body.end_date = new Date(body.end_date).toISOString();
       if (body.rsvp_deadline) body.rsvp_deadline = new Date(body.rsvp_deadline).toISOString();
       if (body.privacy_mode !== 'password') delete body.access_password;

@@ -1,4 +1,5 @@
 import React, { useMemo, memo } from "react";
+import { isAccepted, isDeclined } from '../../utils/responseHelpers';
 
 const SeatingManager = memo(function SeatingManager({
   rsvps,
@@ -157,14 +158,8 @@ const SeatingManager = memo(function SeatingManager({
             </thead>
             <tbody>
               {filteredRsvps.map((guest) => {
-                const isYes =
-                  guest.response === "yes" ||
-                  guest.response === "YES" ||
-                  guest.response === "Accepted";
-                const isNo =
-                  guest.response === "no" ||
-                  guest.response === "NO" ||
-                  guest.response === "Declined";
+                const isYes = isAccepted(guest.response);
+                const isNo = isDeclined(guest.response);
 
                 return (
                   <tr
