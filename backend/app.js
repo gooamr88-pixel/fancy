@@ -17,7 +17,11 @@ if (missing.length > 0) {
 const app = express();
 
 // Enable security headers
-app.use(helmet());
+app.use(helmet({
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+  crossOriginEmbedderPolicy: false,
+}));
+
 
 // Configure CORS with multi-origin support
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(s => s.trim());
