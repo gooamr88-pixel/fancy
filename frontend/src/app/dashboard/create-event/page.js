@@ -12,25 +12,8 @@ const C = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
   champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF',
   softBg: '#FAFAF8', error: '#C45E5E', success: '#3B9B6D',
+  darkBg: '#0F1114', darkCard: 'rgba(255,255,255,0.04)', goldGlow: 'rgba(184,148,79,0.25)',
 };
-
-const inputStyle = {
-  width: '100%', boxSizing: 'border-box', padding: '12px 14px',
-  background: C.white, border: `1px solid ${C.border}`, borderRadius: '8px',
-  fontSize: '14px', color: C.charcoal, outline: 'none', fontFamily: 'var(--font-sans)',
-  transition: 'border-color 0.25s ease',
-};
-const labelStyle = {
-  fontSize: '12px', fontWeight: 600, color: C.stone, display: 'block',
-  marginBottom: '6px', fontFamily: 'var(--font-sans)',
-};
-const goldBtn = (disabled) => ({
-  padding: '14px 32px', background: disabled ? C.champagne : C.gold,
-  color: C.white, border: 'none', borderRadius: '8px', fontWeight: 700,
-  fontSize: '14px', cursor: disabled ? 'default' : 'pointer',
-  fontFamily: 'var(--font-sans)', opacity: disabled ? 0.6 : 1,
-  transition: 'all 0.3s ease', letterSpacing: '0.3px',
-});
 
 /* ═══════════════════════════════════════════════
    Template Definitions
@@ -40,31 +23,37 @@ const TEMPLATES = [
     key: 'wedding', label: 'Wedding',
     icon: '💍', desc: 'Elegant ceremony & reception RSVP with meal selection',
     colors: { primary: '#B8944F', secondary: '#D7BE80', accent: '#191B1E', background: '#F8F4EC' },
+    gradient: 'linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)',
   },
   {
     key: 'engagement', label: 'Engagement',
     icon: '💎', desc: 'Celebrate your love story with a stunning invitation',
     colors: { primary: '#C27B8E', secondary: '#E8B4C0', accent: '#2D1F26', background: '#FDF5F7' },
+    gradient: 'linear-gradient(135deg, #C27B8E 0%, #E8B4C0 100%)',
   },
   {
     key: 'corporate', label: 'Corporate',
     icon: '🏢', desc: 'Professional event with agenda, speakers & check-in',
     colors: { primary: '#2563EB', secondary: '#60A5FA', accent: '#1E293B', background: '#F8FAFC' },
+    gradient: 'linear-gradient(135deg, #2563EB 0%, #60A5FA 100%)',
   },
   {
     key: 'birthday', label: 'Birthday',
     icon: '🎂', desc: 'Fun and colorful birthday party invitation',
     colors: { primary: '#E85D75', secondary: '#F9A8B8', accent: '#3D1520', background: '#FFF5F7' },
+    gradient: 'linear-gradient(135deg, #E85D75 0%, #F9A8B8 100%)',
   },
   {
     key: 'gala', label: 'Gala / Formal',
     icon: '🥂', desc: 'Black-tie galas, fundraisers, and prestigious events',
     colors: { primary: '#1E293B', secondary: '#475569', accent: '#B8944F', background: '#F1F5F9' },
+    gradient: 'linear-gradient(135deg, #1E293B 0%, #475569 100%)',
   },
   {
     key: 'custom', label: 'Custom',
     icon: '✨', desc: 'Start from scratch — fully customizable event page',
     colors: { primary: '#B8944F', secondary: '#D7BE80', accent: '#191B1E', background: '#F8F4EC' },
+    gradient: 'linear-gradient(135deg, #B8944F 0%, #8B6F3A 100%)',
   },
 ];
 
@@ -73,9 +62,17 @@ const TEMPLATES = [
    ═══════════════════════════════════════════════ */
 const STEPS = [
   { key: 'template', label: 'Template', icon: '🎨' },
-  { key: 'details', label: 'Event Details', icon: '📋' },
+  { key: 'details', label: 'Details', icon: '📋' },
   { key: 'settings', label: 'Settings', icon: '⚙️' },
-  { key: 'preview', label: 'Preview & Create', icon: '👁️' },
+  { key: 'preview', label: 'Create', icon: '🚀' },
+];
+
+/* ═══════════════════════════════════════════════
+   Dress Code Options
+   ═══════════════════════════════════════════════ */
+const DRESS_CODES = [
+  '', 'Black Tie', 'Black Tie Optional', 'Cocktail Attire',
+  'Semi-Formal', 'Business Casual', 'Casual', 'White Party', 'Themed',
 ];
 
 export default function CreateEventWizard() {
@@ -86,6 +83,8 @@ export default function CreateEventWizard() {
   const [error, setError] = useState('');
   const [slugStatus, setSlugStatus] = useState(null); // null | 'checking' | 'available' | 'taken'
   const [suggestedSlug, setSuggestedSlug] = useState('');
+  const [mounted, setMounted] = useState(false);
+  const [hoveredCard, setHoveredCard] = useState(null);
 
   // Form state
   const [templateType, setTemplateType] = useState('');
@@ -106,6 +105,9 @@ export default function CreateEventWizard() {
   const [locationLat, setLocationLat] = useState(null);
   const [locationLng, setLocationLng] = useState(null);
   const [locationPlaceId, setLocationPlaceId] = useState('');
+
+  // Mount animation
+  useEffect(() => { setMounted(true); }, []);
 
   // Auth check
   useEffect(() => {
@@ -219,352 +221,603 @@ export default function CreateEventWizard() {
   const selectedTemplate = TEMPLATES.find(t => t.key === templateType);
   const frontendUrl = typeof window !== 'undefined' ? window.location.origin : 'https://fancyrsvp.com';
 
+  /* ═══════════════════════════════════════
+     Reusable styled input
+     ═══════════════════════════════════════ */
+  const Input = ({ label, required, children, hint }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {label && (
+        <label style={{
+          fontSize: '12px', fontWeight: 700, color: C.stone, textTransform: 'uppercase',
+          letterSpacing: '0.08em', fontFamily: 'var(--font-sans)',
+        }}>
+          {label} {required && <span style={{ color: C.gold }}>*</span>}
+        </label>
+      )}
+      {children}
+      {hint && <span style={{ fontSize: '11px', color: C.stone, lineHeight: 1.4 }}>{hint}</span>}
+    </div>
+  );
+
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box', padding: '14px 16px',
+    background: C.white, border: `1.5px solid ${C.border}`, borderRadius: '12px',
+    fontSize: '14px', color: C.charcoal, outline: 'none', fontFamily: 'var(--font-sans)',
+    transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+  };
+
+  const handleFocus = (e) => {
+    e.target.style.borderColor = C.gold;
+    e.target.style.boxShadow = `0 0 0 3px ${C.goldGlow}`;
+  };
+  const handleBlur = (e) => {
+    e.target.style.borderColor = C.border;
+    e.target.style.boxShadow = 'none';
+  };
+
   return (
-    <div style={{ minHeight: '100vh', background: C.softBg, fontFamily: 'var(--font-sans)' }}>
+    <div style={{ minHeight: '100vh', background: step === 0 ? C.darkBg : C.softBg, fontFamily: 'var(--font-sans)', transition: 'background 0.6s ease' }}>
 
       {/* ═══ TOP BAR ═══ */}
       <div style={{
-        padding: '16px 32px', background: C.white, borderBottom: `1px solid ${C.border}`,
+        padding: '0 32px', height: '64px',
+        background: step === 0 ? 'rgba(15,17,20,0.95)' : C.white,
+        borderBottom: step === 0 ? '1px solid rgba(184,148,79,0.15)' : `1px solid ${C.border}`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        backdropFilter: 'blur(20px)', position: 'sticky', top: 0, zIndex: 100,
+        transition: 'all 0.4s ease',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link href="/dashboard" style={{ fontSize: '13px', color: C.stone, textDecoration: 'none', fontWeight: 600, fontFamily: 'var(--font-sans)' }}>
-            ← Back to Dashboard
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <Link href="/dashboard" style={{
+            fontSize: '13px', color: step === 0 ? 'rgba(255,255,255,0.5)' : C.stone,
+            textDecoration: 'none', fontWeight: 600, fontFamily: 'var(--font-sans)',
+            display: 'flex', alignItems: 'center', gap: '6px',
+            transition: 'color 0.2s',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ opacity: 0.7 }}>
+              <path d="M10 12L6 8L10 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Dashboard
           </Link>
-          <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: C.charcoal, margin: 0 }}>
-            Create New Event
+          <div style={{ width: '1px', height: '20px', background: step === 0 ? 'rgba(255,255,255,0.1)' : C.border }} />
+          <h1 style={{
+            fontFamily: 'var(--font-sans)', fontSize: '15px', fontWeight: 700,
+            color: step === 0 ? C.white : C.charcoal, margin: 0,
+            letterSpacing: '-0.01em',
+          }}>
+            Create Event
           </h1>
         </div>
-      </div>
 
-      {/* ═══ STEP INDICATOR ═══ */}
-      <div style={{ maxWidth: '800px', margin: '32px auto 0', padding: '0 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', marginBottom: '40px' }}>
+        {/* Step indicator mini */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           {STEPS.map((s, i) => (
-            <React.Fragment key={s.key}>
-              <div
-                onClick={() => { if (i < step) setStep(i); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
-                  borderRadius: '20px', cursor: i < step ? 'pointer' : 'default',
-                  background: step === i ? C.gold : i < step ? 'rgba(184,148,79,0.1)' : C.white,
-                  color: step === i ? C.white : i < step ? C.gold : C.stone,
-                  border: `1px solid ${step === i ? C.gold : i < step ? 'rgba(184,148,79,0.2)' : C.border}`,
-                  fontWeight: step === i ? 700 : 400, fontSize: '12px',
-                  transition: 'all 0.3s ease',
-                }}
-              >
-                <span>{s.icon}</span> {s.label}
-              </div>
-              {i < STEPS.length - 1 && (
-                <div style={{ width: '32px', height: '2px', background: i < step ? C.gold : C.border, borderRadius: '2px', transition: 'background 0.3s' }} />
-              )}
-            </React.Fragment>
+            <div key={s.key} style={{
+              width: i === step ? '24px' : '8px', height: '8px',
+              borderRadius: '4px',
+              background: i === step ? C.gold : i < step ? C.champagne : (step === 0 ? 'rgba(255,255,255,0.15)' : C.border),
+              transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              cursor: i < step ? 'pointer' : 'default',
+            }} onClick={() => { if (i < step) setStep(i); }} />
           ))}
         </div>
       </div>
 
+      {/* ═══ STEP INDICATOR BAR ═══ */}
+      {step > 0 && (
+        <div style={{
+          maxWidth: '900px', margin: '32px auto 0', padding: '0 24px',
+          animation: 'ce-fadeIn 0.4s ease',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0',
+            background: C.white, borderRadius: '16px', padding: '6px',
+            border: `1px solid ${C.border}`,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.03)',
+          }}>
+            {STEPS.map((s, i) => (
+              <React.Fragment key={s.key}>
+                <button
+                  onClick={() => { if (i < step) setStep(i); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '10px 20px', borderRadius: '12px', border: 'none',
+                    cursor: i <= step ? 'pointer' : 'default',
+                    background: step === i
+                      ? `linear-gradient(135deg, ${C.gold}, ${C.champagne})`
+                      : 'transparent',
+                    color: step === i ? C.white : i < step ? C.gold : C.stone,
+                    fontWeight: step === i ? 700 : 500, fontSize: '13px',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                    opacity: i > step ? 0.4 : 1,
+                  }}
+                >
+                  {i < step ? (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="7" fill={C.gold} opacity="0.15"/>
+                      <path d="M5 8L7 10L11 6" stroke={C.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : (
+                    <span style={{ fontSize: '14px' }}>{s.icon}</span>
+                  )}
+                  <span className="ce-step-label">{s.label}</span>
+                </button>
+                {i < STEPS.length - 1 && (
+                  <div style={{
+                    width: '32px', height: '2px', borderRadius: '1px',
+                    background: i < step
+                      ? `linear-gradient(90deg, ${C.gold}, ${C.champagne})`
+                      : C.border,
+                    transition: 'background 0.5s ease',
+                    flexShrink: 0,
+                  }} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ═══ STEP CONTENT ═══ */}
-      <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 24px 64px' }}>
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: step === 0 ? '0' : '32px 24px 80px' }}>
 
         {/* ════ STEP 0: TEMPLATE SELECTION ════ */}
         {step === 0 && (
-          <div>
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '28px', fontWeight: 500, color: C.charcoal }}>
-                Choose Your Event Template
+          <div style={{
+            padding: '60px 24px 80px',
+            opacity: mounted ? 1 : 0,
+            transform: mounted ? 'translateY(0)' : 'translateY(20px)',
+            transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}>
+            {/* Hero Header */}
+            <div style={{ textAlign: 'center', marginBottom: '56px' }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px',
+                padding: '8px 20px', borderRadius: '100px',
+                background: 'rgba(184,148,79,0.1)', border: '1px solid rgba(184,148,79,0.2)',
+                marginBottom: '24px',
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: C.gold, animation: 'ce-pulse 2s ease-in-out infinite' }} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: C.champagne, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  Step 1 of 4
+                </span>
+              </div>
+              <h2 style={{
+                fontFamily: 'var(--font-serif)', fontSize: 'clamp(28px, 4vw, 42px)',
+                fontWeight: 600, color: C.white, margin: '0 0 16px',
+                letterSpacing: '-0.02em', lineHeight: 1.2,
+              }}>
+                Choose Your{' '}
+                <span style={{
+                  background: `linear-gradient(135deg, ${C.gold}, ${C.champagne})`,
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>
+                  Template
+                </span>
               </h2>
-              <p style={{ color: C.stone, fontSize: '14px', marginTop: '8px', fontWeight: 300 }}>
-                Select the type of event you're hosting. Each template comes with tailored fields and styling.
+              <p style={{
+                color: 'rgba(255,255,255,0.45)', fontSize: '15px', fontWeight: 400,
+                maxWidth: '480px', margin: '0 auto', lineHeight: 1.7,
+              }}>
+                Each template is tailored with unique fields, color schemes, and styling to match your occasion perfectly.
               </p>
+              {/* Gold ornament line */}
+              <div style={{
+                width: '60px', height: '2px', margin: '28px auto 0',
+                background: `linear-gradient(90deg, transparent, ${C.gold}, transparent)`,
+                borderRadius: '1px',
+              }} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-              {TEMPLATES.map(tpl => (
-                <button
-                  key={tpl.key}
-                  onClick={() => handleTemplateSelect(tpl)}
-                  style={{
-                    padding: '32px 20px', border: `2px solid ${templateType === tpl.key ? C.gold : C.border}`,
-                    borderRadius: '16px', background: templateType === tpl.key ? 'rgba(184,148,79,0.04)' : C.white,
-                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.3s ease',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = C.gold}
-                  onMouseLeave={e => { if (templateType !== tpl.key) e.currentTarget.style.borderColor = C.border; }}
-                >
-                  <span style={{ fontSize: '40px', display: 'block' }}>{tpl.icon}</span>
-                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600, color: C.charcoal }}>{tpl.label}</span>
-                  <span style={{ fontSize: '12px', color: C.stone, lineHeight: 1.5 }}>{tpl.desc}</span>
-                  <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
-                    {Object.values(tpl.colors).map((color, i) => (
-                      <div key={i} style={{ width: '16px', height: '16px', borderRadius: '50%', background: color, border: '1px solid rgba(0,0,0,0.1)' }} />
-                    ))}
-                  </div>
-                </button>
-              ))}
+
+            {/* Template Grid */}
+            <div className="ce-template-grid" style={{
+              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '16px', maxWidth: '860px', margin: '0 auto',
+            }}>
+              {TEMPLATES.map((tpl, idx) => {
+                const isSelected = templateType === tpl.key;
+                const isHovered = hoveredCard === tpl.key;
+                return (
+                  <button
+                    key={tpl.key}
+                    onClick={() => handleTemplateSelect(tpl)}
+                    onMouseEnter={() => setHoveredCard(tpl.key)}
+                    onMouseLeave={() => setHoveredCard(null)}
+                    style={{
+                      position: 'relative', padding: '36px 24px 28px',
+                      border: `1.5px solid ${isSelected ? C.gold : isHovered ? 'rgba(184,148,79,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                      borderRadius: '20px',
+                      background: isSelected
+                        ? 'rgba(184,148,79,0.08)'
+                        : isHovered
+                          ? 'rgba(255,255,255,0.04)'
+                          : 'rgba(255,255,255,0.02)',
+                      backdropFilter: 'blur(12px)',
+                      cursor: 'pointer', textAlign: 'center',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px',
+                      transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                      transform: isHovered ? 'translateY(-4px)' : 'translateY(0)',
+                      boxShadow: isSelected
+                        ? `0 0 0 1px ${C.gold}, 0 8px 32px rgba(184,148,79,0.2)`
+                        : isHovered
+                          ? '0 12px 40px rgba(0,0,0,0.3)'
+                          : '0 4px 16px rgba(0,0,0,0.15)',
+                      animation: `ce-fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) ${idx * 0.08}s both`,
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* Selected badge */}
+                    {isSelected && (
+                      <div style={{
+                        position: 'absolute', top: '12px', right: '12px',
+                        width: '24px', height: '24px', borderRadius: '50%',
+                        background: C.gold, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        animation: 'ce-scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                          <path d="M3 6L5 8L9 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+
+                    {/* Icon with gradient circle */}
+                    <div style={{
+                      width: '72px', height: '72px', borderRadius: '50%',
+                      background: tpl.gradient, opacity: isSelected || isHovered ? 1 : 0.7,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '32px', transition: 'all 0.4s ease',
+                      boxShadow: isHovered ? `0 4px 20px ${tpl.colors.primary}40` : 'none',
+                      transform: isHovered ? 'scale(1.08)' : 'scale(1)',
+                    }}>
+                      {tpl.icon}
+                    </div>
+
+                    {/* Label */}
+                    <span style={{
+                      fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600,
+                      color: C.white, letterSpacing: '-0.01em',
+                    }}>
+                      {tpl.label}
+                    </span>
+
+                    {/* Description */}
+                    <span style={{
+                      fontSize: '12px', color: 'rgba(255,255,255,0.4)', lineHeight: 1.6,
+                      fontWeight: 400, maxWidth: '200px',
+                    }}>
+                      {tpl.desc}
+                    </span>
+
+                    {/* Color dots */}
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                      {Object.values(tpl.colors).map((color, i) => (
+                        <div key={i} style={{
+                          width: '12px', height: '12px', borderRadius: '50%', background: color,
+                          border: '1.5px solid rgba(255,255,255,0.15)',
+                          transition: 'transform 0.3s ease',
+                          transform: isHovered ? 'scale(1.15)' : 'scale(1)',
+                        }} />
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* ════ STEP 1: EVENT DETAILS ════ */}
         {step === 1 && (
-          <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '40px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '24px' }}>{selectedTemplate?.icon}</span>
+          <div style={{
+            background: C.white, border: `1px solid ${C.border}`,
+            borderRadius: '20px', padding: '48px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.04)',
+            animation: 'ce-fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '36px' }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '14px',
+                background: selectedTemplate?.gradient || C.gold,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '22px',
+              }}>
+                {selectedTemplate?.icon}
+              </div>
               <div>
-                <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 500, color: C.charcoal, margin: 0 }}>
+                <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: C.charcoal, margin: 0 }}>
                   Event Details
                 </h2>
-                <span style={{ fontSize: '12px', color: C.stone }}>Template: {selectedTemplate?.label}</span>
-              </div>
-            </div>
-
-            {/* Title */}
-            <div>
-              <label style={labelStyle}>Event Title <span style={{ color: C.error }}>*</span></label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Julian & Sophia's Wedding Gala"
-                style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-            </div>
-
-            {/* Slug with availability */}
-            <div>
-              <label style={labelStyle}>Event URL <span style={{ color: C.error }}>*</span></label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0px' }}>
-                <div style={{
-                  padding: '12px 14px', background: C.ivory, border: `1px solid ${C.border}`,
-                  borderRadius: '8px 0 0 8px', borderRight: 'none', fontSize: '13px', color: C.stone,
-                  whiteSpace: 'nowrap', fontFamily: 'var(--font-sans)',
-                }}>
-                  {frontendUrl}/
-                </div>
-                <input
-                  type="text" value={slug}
-                  onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-'))}
-                  placeholder="your-event-slug"
-                  style={{ ...inputStyle, borderRadius: '0 8px 8px 0', flex: 1, borderColor: slugStatus === 'taken' ? C.error : slugStatus === 'available' ? C.success : C.border }}
-                  onFocus={e => e.target.style.borderColor = C.gold}
-                  onBlur={e => e.target.style.borderColor = slugStatus === 'taken' ? C.error : C.border}
-                />
-              </div>
-              <div style={{ marginTop: '6px', fontSize: '11px', fontWeight: 500 }}>
-                {slugStatus === 'checking' && <span style={{ color: C.stone }}>⏳ Checking availability...</span>}
-                {slugStatus === 'available' && <span style={{ color: C.success }}>✓ This URL is available</span>}
-                {slugStatus === 'taken' && (
-                  <span style={{ color: C.error }}>
-                    ✕ Already taken.{' '}
-                    <button onClick={() => setSlug(suggestedSlug)} style={{ background: 'none', border: 'none', color: C.gold, cursor: 'pointer', fontWeight: 700, textDecoration: 'underline', fontSize: '11px', fontFamily: 'var(--font-sans)' }}>
-                      Try "{suggestedSlug}"
-                    </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <span style={{
+                    fontSize: '11px', fontWeight: 600, color: C.gold,
+                    padding: '2px 10px', borderRadius: '100px',
+                    background: 'rgba(184,148,79,0.1)',
+                  }}>
+                    {selectedTemplate?.label}
                   </span>
-                )}
-                {slugStatus === 'error' && <span style={{ color: C.stone }}>⚠ Could not verify availability. Try again.</span>}
-              </div>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label style={labelStyle}>Description</label>
-              <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
-                placeholder="Tell your guests about the event..."
-                style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
-                onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-            </div>
-
-            {/* Dates */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={labelStyle}>Event Date & Time <span style={{ color: C.error }}>*</span></label>
-                <input type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)}
-                  style={{ ...inputStyle, cursor: 'pointer' }} />
-              </div>
-              <div>
-                <label style={labelStyle}>End Date & Time <span style={{ fontSize: '10px', color: C.stone }}>(optional)</span></label>
-                <input type="datetime-local" value={eventEndDate} onChange={e => setEventEndDate(e.target.value)}
-                  style={{ ...inputStyle, cursor: 'pointer' }} />
-              </div>
-            </div>
-
-            {/* Location */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div>
-                <label style={labelStyle}>Venue Name</label>
-                <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)}
-                  placeholder="e.g. The Grand Ballroom" style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-              </div>
-              <div>
-                <label style={labelStyle}>Full Address</label>
-                <PlacesAutocomplete
-                  value={locationAddress}
-                  onChange={setLocationAddress}
-                  onPlaceSelect={(place) => {
-                    setLocationAddress(place.address);
-                    setLocationName(place.name || locationName);
-                    setLocationLat(place.lat);
-                    setLocationLng(place.lng);
-                    setLocationPlaceId(place.placeId);
-                  }}
-                  placeholder="Search for a venue or address..."
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-
-            {/* Template-Specific Fields */}
-            {templateType && templateType !== 'custom' && (
-              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '24px' }}>
-                <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 500, color: C.charcoal, marginBottom: '16px' }}>
-                  {selectedTemplate?.icon} {selectedTemplate?.label} Details
-                </h3>
-
-                {/* Wedding Fields */}
-                {templateType === 'wedding' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <div>
-                        <label style={labelStyle}>Partner 1 Name</label>
-                        <input type="text" value={templateData.partner1Name || ''} onChange={e => setTemplateData(d => ({ ...d, partner1Name: e.target.value }))} placeholder="e.g. Julian" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Partner 2 Name</label>
-                        <input type="text" value={templateData.partner2Name || ''} onChange={e => setTemplateData(d => ({ ...d, partner2Name: e.target.value }))} placeholder="e.g. Sophia" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                      </div>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Our Love Story</label>
-                      <textarea value={templateData.loveStory || ''} onChange={e => setTemplateData(d => ({ ...d, loveStory: e.target.value }))} rows={4} placeholder="Share how you met and your journey together..." style={{ ...inputStyle, resize: 'vertical', minHeight: '100px' }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <div>
-                        <label style={labelStyle}>Ceremony Location <span style={{ fontSize: '10px', color: C.stone }}>(if different)</span></label>
-                        <input type="text" value={templateData.ceremonyLocation || ''} onChange={e => setTemplateData(d => ({ ...d, ceremonyLocation: e.target.value }))} placeholder="e.g. St. Patrick's Cathedral" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Reception Location <span style={{ fontSize: '10px', color: C.stone }}>(if different)</span></label>
-                        <input type="text" value={templateData.receptionLocation || ''} onChange={e => setTemplateData(d => ({ ...d, receptionLocation: e.target.value }))} placeholder="e.g. The Plaza Hotel" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                      </div>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Registry URL</label>
-                      <input type="text" value={templateData.registryUrl || ''} onChange={e => setTemplateData(d => ({ ...d, registryUrl: e.target.value }))} placeholder="https://www.zola.com/registry/..." style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Accommodations Info</label>
-                      <textarea value={templateData.accommodations || ''} onChange={e => setTemplateData(d => ({ ...d, accommodations: e.target.value }))} rows={3} placeholder="Hotel blocks, travel tips, parking info..." style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Engagement Fields */}
-                {templateType === 'engagement' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <div>
-                        <label style={labelStyle}>Partner 1 Name</label>
-                        <input type="text" value={templateData.partner1Name || ''} onChange={e => setTemplateData(d => ({ ...d, partner1Name: e.target.value }))} placeholder="e.g. Julian" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Partner 2 Name</label>
-                        <input type="text" value={templateData.partner2Name || ''} onChange={e => setTemplateData(d => ({ ...d, partner2Name: e.target.value }))} placeholder="e.g. Sophia" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                      </div>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Our Story</label>
-                      <textarea value={templateData.ourStory || ''} onChange={e => setTemplateData(d => ({ ...d, ourStory: e.target.value }))} rows={4} placeholder="Share how you met and your engagement story..." style={{ ...inputStyle, resize: 'vertical', minHeight: '100px' }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Registry URL</label>
-                      <input type="text" value={templateData.registryUrl || ''} onChange={e => setTemplateData(d => ({ ...d, registryUrl: e.target.value }))} placeholder="https://www.zola.com/registry/..." style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Corporate Fields */}
-                {templateType === 'corporate' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div>
-                      <label style={labelStyle}>Company / Organization Name</label>
-                      <input type="text" value={templateData.companyName || ''} onChange={e => setTemplateData(d => ({ ...d, companyName: e.target.value }))} placeholder="e.g. Acme Corporation" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Agenda / Schedule</label>
-                      <textarea value={templateData.agenda || ''} onChange={e => setTemplateData(d => ({ ...d, agenda: e.target.value }))} rows={6} placeholder="List your event agenda with times..." style={{ ...inputStyle, resize: 'vertical', minHeight: '140px' }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Speakers / Presenters</label>
-                      <textarea value={templateData.speakers || ''} onChange={e => setTemplateData(d => ({ ...d, speakers: e.target.value }))} rows={3} placeholder="Name - Title - Topic, one per line" style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Sponsors</label>
-                      <textarea value={templateData.sponsors || ''} onChange={e => setTemplateData(d => ({ ...d, sponsors: e.target.value }))} rows={2} placeholder="List event sponsors..." style={{ ...inputStyle, resize: 'vertical', minHeight: '60px' }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Networking Notes</label>
-                      <input type="text" value={templateData.networkingNotes || ''} onChange={e => setTemplateData(d => ({ ...d, networkingNotes: e.target.value }))} placeholder="e.g. Networking reception follows the keynote" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Birthday Fields */}
-                {templateType === 'birthday' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                      <div>
-                        <label style={labelStyle}>Birthday Person's Name</label>
-                        <input type="text" value={templateData.birthdayPersonName || ''} onChange={e => setTemplateData(d => ({ ...d, birthdayPersonName: e.target.value }))} placeholder="e.g. Emma" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                      </div>
-                      <div>
-                        <label style={labelStyle}>Age / Milestone</label>
-                        <input type="text" value={templateData.ageMilestone || ''} onChange={e => setTemplateData(d => ({ ...d, ageMilestone: e.target.value }))} placeholder="e.g. Turning 30!" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                      </div>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Theme</label>
-                      <input type="text" value={templateData.theme || ''} onChange={e => setTemplateData(d => ({ ...d, theme: e.target.value }))} placeholder="e.g. Tropical Luau, 90s Retro, Garden Party" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Gift Registry URL</label>
-                      <input type="text" value={templateData.registryUrl || ''} onChange={e => setTemplateData(d => ({ ...d, registryUrl: e.target.value }))} placeholder="https://www.amazon.com/registry/..." style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Gala Fields */}
-                {templateType === 'gala' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div>
-                      <label style={labelStyle}>Honoree(s)</label>
-                      <input type="text" value={templateData.honorees || ''} onChange={e => setTemplateData(d => ({ ...d, honorees: e.target.value }))} placeholder="e.g. Dr. Jane Smith, Community Service Award" style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Program / Entertainment</label>
-                      <textarea value={templateData.program || ''} onChange={e => setTemplateData(d => ({ ...d, program: e.target.value }))} rows={4} placeholder="Describe the evening's program, performances, and entertainment..." style={{ ...inputStyle, resize: 'vertical', minHeight: '100px' }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Sponsor Tiers</label>
-                      <textarea value={templateData.sponsorTiers || ''} onChange={e => setTemplateData(d => ({ ...d, sponsorTiers: e.target.value }))} rows={3} placeholder={'Platinum: $10,000\nGold: $5,000\nSilver: $2,500'} style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Custom Template Note */}
-            {templateType === 'custom' && (
-              <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '24px' }}>
-                <div style={{ padding: '16px', background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.15)', borderRadius: '8px', fontSize: '13px', color: C.stone, lineHeight: 1.7 }}>
-                  ✨ <strong>Custom templates</strong> have no pre-built sections. Use the <strong>Form Builder</strong> from the dashboard to add custom questions after creating your event.
+                  <button onClick={() => setStep(0)} style={{
+                    background: 'none', border: 'none', fontSize: '11px',
+                    color: C.stone, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    textDecoration: 'underline', textUnderlineOffset: '2px',
+                  }}>
+                    Change
+                  </button>
                 </div>
               </div>
-            )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Title */}
+              <Input label="Event Title" required>
+                <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+                  placeholder="e.g. Julian & Sophia's Wedding Gala"
+                  style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+              </Input>
+
+              {/* Slug with availability */}
+              <Input label="Event URL" required>
+                <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                  <div style={{
+                    padding: '14px 14px', background: C.ivory, border: `1.5px solid ${C.border}`,
+                    borderRadius: '12px 0 0 12px', borderRight: 'none', fontSize: '13px', color: C.stone,
+                    whiteSpace: 'nowrap', fontFamily: 'var(--font-sans)',
+                    display: 'flex', alignItems: 'center',
+                  }}>
+                    {frontendUrl}/
+                  </div>
+                  <input
+                    type="text" value={slug}
+                    onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-'))}
+                    placeholder="your-event-slug"
+                    style={{
+                      ...inputStyle, borderRadius: '0 12px 12px 0', flex: 1,
+                      borderColor: slugStatus === 'taken' ? C.error : slugStatus === 'available' ? C.success : C.border,
+                    }}
+                    onFocus={handleFocus} onBlur={handleBlur}
+                  />
+                </div>
+                <div style={{ fontSize: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {slugStatus === 'checking' && (
+                    <span style={{ color: C.stone, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '12px', height: '12px', border: `2px solid ${C.stone}`, borderTopColor: 'transparent', borderRadius: '50%', animation: 'ce-spin 0.6s linear infinite', display: 'inline-block' }} />
+                      Checking availability…
+                    </span>
+                  )}
+                  {slugStatus === 'available' && (
+                    <span style={{ color: C.success, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill={C.success} opacity="0.15"/><path d="M4.5 7L6 8.5L9.5 5.5" stroke={C.success} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      Available
+                    </span>
+                  )}
+                  {slugStatus === 'taken' && (
+                    <span style={{ color: C.error, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" fill={C.error} opacity="0.15"/><path d="M5 5L9 9M9 5L5 9" stroke={C.error} strokeWidth="1.5" strokeLinecap="round"/></svg>
+                      Taken —{' '}
+                      <button onClick={() => setSlug(suggestedSlug)} style={{ background: 'none', border: 'none', color: C.gold, cursor: 'pointer', fontWeight: 700, textDecoration: 'underline', fontSize: '12px', fontFamily: 'var(--font-sans)' }}>
+                        Try &ldquo;{suggestedSlug}&rdquo;
+                      </button>
+                    </span>
+                  )}
+                  {slugStatus === 'error' && <span style={{ color: C.stone }}>⚠ Could not verify. Try again.</span>}
+                </div>
+              </Input>
+
+              {/* Description */}
+              <Input label="Description">
+                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
+                  placeholder="Tell your guests about the event…"
+                  style={{ ...inputStyle, resize: 'vertical', minHeight: '90px' }}
+                  onFocus={handleFocus} onBlur={handleBlur} />
+              </Input>
+
+              {/* Dates */}
+              <div className="ce-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <Input label="Event Date & Time" required>
+                  <input type="datetime-local" value={eventDate} onChange={e => setEventDate(e.target.value)}
+                    style={{ ...inputStyle, cursor: 'pointer' }} onFocus={handleFocus} onBlur={handleBlur} />
+                </Input>
+                <Input label="End Date & Time" hint="Optional">
+                  <input type="datetime-local" value={eventEndDate} onChange={e => setEventEndDate(e.target.value)}
+                    style={{ ...inputStyle, cursor: 'pointer' }} onFocus={handleFocus} onBlur={handleBlur} />
+                </Input>
+              </div>
+
+              {/* Location */}
+              <div className="ce-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <Input label="Venue Name">
+                  <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)}
+                    placeholder="e.g. The Grand Ballroom" style={inputStyle}
+                    onFocus={handleFocus} onBlur={handleBlur} />
+                </Input>
+                <Input label="Full Address">
+                  <PlacesAutocomplete
+                    value={locationAddress}
+                    onChange={setLocationAddress}
+                    onPlaceSelect={(place) => {
+                      setLocationAddress(place.address);
+                      setLocationName(place.name || locationName);
+                      setLocationLat(place.lat);
+                      setLocationLng(place.lng);
+                      setLocationPlaceId(place.placeId);
+                    }}
+                    placeholder="Search for a venue or address…"
+                    style={inputStyle}
+                  />
+                </Input>
+              </div>
+
+              {/* ─── Divider ─── */}
+              <div style={{ height: '1px', background: `linear-gradient(90deg, transparent, ${C.border}, transparent)`, margin: '8px 0' }} />
+
+              {/* Template-Specific Fields */}
+              {templateType && templateType !== 'custom' && (
+                <div>
+                  <h3 style={{
+                    fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600,
+                    color: C.charcoal, marginBottom: '20px',
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                  }}>
+                    <span style={{
+                      width: '32px', height: '32px', borderRadius: '8px',
+                      background: 'rgba(184,148,79,0.1)',
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '16px',
+                    }}>
+                      {selectedTemplate?.icon}
+                    </span>
+                    {selectedTemplate?.label} Details
+                  </h3>
+
+                  {/* Wedding Fields */}
+                  {templateType === 'wedding' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div className="ce-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <Input label="Partner 1 Name">
+                          <input type="text" value={templateData.partner1Name || ''} onChange={e => setTemplateData(d => ({ ...d, partner1Name: e.target.value }))} placeholder="e.g. Julian" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                        </Input>
+                        <Input label="Partner 2 Name">
+                          <input type="text" value={templateData.partner2Name || ''} onChange={e => setTemplateData(d => ({ ...d, partner2Name: e.target.value }))} placeholder="e.g. Sophia" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                        </Input>
+                      </div>
+                      <Input label="Our Love Story">
+                        <textarea value={templateData.loveStory || ''} onChange={e => setTemplateData(d => ({ ...d, loveStory: e.target.value }))} rows={4} placeholder="Share how you met and your journey together…" style={{ ...inputStyle, resize: 'vertical', minHeight: '100px' }} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <div className="ce-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <Input label="Ceremony Location" hint="If different from main venue">
+                          <input type="text" value={templateData.ceremonyLocation || ''} onChange={e => setTemplateData(d => ({ ...d, ceremonyLocation: e.target.value }))} placeholder="e.g. St. Patrick's Cathedral" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                        </Input>
+                        <Input label="Reception Location" hint="If different from main venue">
+                          <input type="text" value={templateData.receptionLocation || ''} onChange={e => setTemplateData(d => ({ ...d, receptionLocation: e.target.value }))} placeholder="e.g. The Plaza Hotel" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                        </Input>
+                      </div>
+                      <Input label="Registry URL">
+                        <input type="text" value={templateData.registryUrl || ''} onChange={e => setTemplateData(d => ({ ...d, registryUrl: e.target.value }))} placeholder="https://www.zola.com/registry/…" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Accommodations Info">
+                        <textarea value={templateData.accommodations || ''} onChange={e => setTemplateData(d => ({ ...d, accommodations: e.target.value }))} rows={3} placeholder="Hotel blocks, travel tips, parking info…" style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                    </div>
+                  )}
+
+                  {/* Engagement Fields */}
+                  {templateType === 'engagement' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div className="ce-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <Input label="Partner 1 Name">
+                          <input type="text" value={templateData.partner1Name || ''} onChange={e => setTemplateData(d => ({ ...d, partner1Name: e.target.value }))} placeholder="e.g. Julian" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                        </Input>
+                        <Input label="Partner 2 Name">
+                          <input type="text" value={templateData.partner2Name || ''} onChange={e => setTemplateData(d => ({ ...d, partner2Name: e.target.value }))} placeholder="e.g. Sophia" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                        </Input>
+                      </div>
+                      <Input label="Our Story">
+                        <textarea value={templateData.ourStory || ''} onChange={e => setTemplateData(d => ({ ...d, ourStory: e.target.value }))} rows={4} placeholder="Share how you met and your engagement story…" style={{ ...inputStyle, resize: 'vertical', minHeight: '100px' }} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Registry URL">
+                        <input type="text" value={templateData.registryUrl || ''} onChange={e => setTemplateData(d => ({ ...d, registryUrl: e.target.value }))} placeholder="https://www.zola.com/registry/…" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                    </div>
+                  )}
+
+                  {/* Corporate Fields */}
+                  {templateType === 'corporate' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <Input label="Company / Organization Name">
+                        <input type="text" value={templateData.companyName || ''} onChange={e => setTemplateData(d => ({ ...d, companyName: e.target.value }))} placeholder="e.g. Acme Corporation" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Agenda / Schedule">
+                        <textarea value={templateData.agenda || ''} onChange={e => setTemplateData(d => ({ ...d, agenda: e.target.value }))} rows={6} placeholder="List your event agenda with times…" style={{ ...inputStyle, resize: 'vertical', minHeight: '140px' }} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Speakers / Presenters">
+                        <textarea value={templateData.speakers || ''} onChange={e => setTemplateData(d => ({ ...d, speakers: e.target.value }))} rows={3} placeholder="Name — Title — Topic, one per line" style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Sponsors">
+                        <textarea value={templateData.sponsors || ''} onChange={e => setTemplateData(d => ({ ...d, sponsors: e.target.value }))} rows={2} placeholder="List event sponsors…" style={{ ...inputStyle, resize: 'vertical', minHeight: '60px' }} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Networking Notes">
+                        <input type="text" value={templateData.networkingNotes || ''} onChange={e => setTemplateData(d => ({ ...d, networkingNotes: e.target.value }))} placeholder="e.g. Networking reception follows the keynote" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                    </div>
+                  )}
+
+                  {/* Birthday Fields */}
+                  {templateType === 'birthday' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div className="ce-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <Input label="Birthday Person's Name">
+                          <input type="text" value={templateData.birthdayPersonName || ''} onChange={e => setTemplateData(d => ({ ...d, birthdayPersonName: e.target.value }))} placeholder="e.g. Emma" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                        </Input>
+                        <Input label="Age / Milestone">
+                          <input type="text" value={templateData.ageMilestone || ''} onChange={e => setTemplateData(d => ({ ...d, ageMilestone: e.target.value }))} placeholder="e.g. Turning 30!" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                        </Input>
+                      </div>
+                      <Input label="Theme">
+                        <input type="text" value={templateData.theme || ''} onChange={e => setTemplateData(d => ({ ...d, theme: e.target.value }))} placeholder="e.g. Tropical Luau, 90s Retro, Garden Party" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Gift Registry URL">
+                        <input type="text" value={templateData.registryUrl || ''} onChange={e => setTemplateData(d => ({ ...d, registryUrl: e.target.value }))} placeholder="https://www.amazon.com/registry/…" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                    </div>
+                  )}
+
+                  {/* Gala Fields */}
+                  {templateType === 'gala' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <Input label="Honoree(s)">
+                        <input type="text" value={templateData.honorees || ''} onChange={e => setTemplateData(d => ({ ...d, honorees: e.target.value }))} placeholder="e.g. Dr. Jane Smith, Community Service Award" style={inputStyle} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Program / Entertainment">
+                        <textarea value={templateData.program || ''} onChange={e => setTemplateData(d => ({ ...d, program: e.target.value }))} rows={4} placeholder="Describe the evening's program, performances, and entertainment…" style={{ ...inputStyle, resize: 'vertical', minHeight: '100px' }} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                      <Input label="Sponsor Tiers">
+                        <textarea value={templateData.sponsorTiers || ''} onChange={e => setTemplateData(d => ({ ...d, sponsorTiers: e.target.value }))} rows={3} placeholder={'Platinum: $10,000\nGold: $5,000\nSilver: $2,500'} style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }} onFocus={handleFocus} onBlur={handleBlur} />
+                      </Input>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Custom Template Note */}
+              {templateType === 'custom' && (
+                <div style={{
+                  padding: '20px', borderRadius: '14px',
+                  background: 'rgba(184,148,79,0.04)',
+                  border: '1px solid rgba(184,148,79,0.12)',
+                  display: 'flex', alignItems: 'flex-start', gap: '12px',
+                }}>
+                  <span style={{ fontSize: '20px' }}>✨</span>
+                  <div style={{ fontSize: '13px', color: C.stone, lineHeight: 1.7 }}>
+                    <strong style={{ color: C.charcoal }}>Custom templates</strong> have no pre-built sections. Use the <strong style={{ color: C.charcoal }}>Form Builder</strong> from the dashboard to add custom questions after creating your event.
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Navigation */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${C.border}`, paddingTop: '20px' }}>
-              <button onClick={() => setStep(0)} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.stone, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 600 }}>
-                ← Change Template
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '36px', paddingTop: '24px', borderTop: `1px solid ${C.border}` }}>
+              <button onClick={() => setStep(0)} style={{
+                background: 'none', border: `1.5px solid ${C.border}`, borderRadius: '12px',
+                padding: '12px 24px', fontSize: '13px', color: C.stone, cursor: 'pointer',
+                fontFamily: 'var(--font-sans)', fontWeight: 600, transition: 'all 0.2s',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                Templates
               </button>
-              <button disabled={!canProceed()} onClick={() => setStep(2)} style={goldBtn(!canProceed())}>
-                Continue →
+              <button disabled={!canProceed()} onClick={() => setStep(2)} style={{
+                padding: '14px 32px', border: 'none', borderRadius: '12px', fontWeight: 700,
+                fontSize: '14px', cursor: canProceed() ? 'pointer' : 'default',
+                fontFamily: 'var(--font-sans)', letterSpacing: '0.3px',
+                background: canProceed() ? `linear-gradient(135deg, ${C.gold}, ${C.goldHover})` : C.border,
+                color: canProceed() ? C.white : C.stone,
+                transition: 'all 0.3s ease',
+                boxShadow: canProceed() ? '0 4px 16px rgba(184,148,79,0.3)' : 'none',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                Continue
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
             </div>
           </div>
@@ -572,89 +825,133 @@ export default function CreateEventWizard() {
 
         {/* ════ STEP 2: SETTINGS ════ */}
         {step === 2 && (
-          <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: '16px', padding: '40px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 500, color: C.charcoal }}>
-              ⚙️ Event Settings
-            </h2>
-            <p style={{ fontSize: '13px', color: C.stone, marginTop: '-12px' }}>These are optional — you can always change them later from the dashboard.</p>
-
-            {/* Dress Code */}
-            <div>
-              <label style={labelStyle}>Dress Code</label>
-              <select value={dressCode} onChange={e => setDressCode(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
-                <option value="">No dress code specified</option>
-                <option value="Black Tie">Black Tie</option>
-                <option value="Black Tie Optional">Black Tie Optional</option>
-                <option value="Cocktail Attire">Cocktail Attire</option>
-                <option value="Semi-Formal">Semi-Formal</option>
-                <option value="Business Casual">Business Casual</option>
-                <option value="Casual">Casual</option>
-                <option value="White Party">White Party</option>
-                <option value="Themed">Themed / Costume</option>
-              </select>
+          <div style={{
+            background: C.white, border: `1px solid ${C.border}`,
+            borderRadius: '20px', padding: '48px',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.04)',
+            animation: 'ce-fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}>
+            <div style={{ marginBottom: '36px' }}>
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: C.charcoal, margin: '0 0 8px' }}>
+                Event Settings
+              </h2>
+              <p style={{ fontSize: '13px', color: C.stone, margin: 0 }}>
+                These are optional — you can always change them later from the dashboard.
+              </p>
             </div>
 
-            {/* RSVP Deadline */}
-            <div>
-              <label style={labelStyle}>RSVP Deadline</label>
-              <input type="datetime-local" value={rsvpDeadline} onChange={e => setRsvpDeadline(e.target.value)}
-                style={{ ...inputStyle, cursor: 'pointer' }} />
-              <span style={{ fontSize: '11px', color: C.stone, marginTop: '4px', display: 'block' }}>
-                After this date, guests will not be able to submit RSVPs
-              </span>
-            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+              {/* Dress Code as Chips */}
+              <Input label="Dress Code">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {DRESS_CODES.map(dc => {
+                    const isActive = dressCode === dc;
+                    const label = dc || 'No dress code';
+                    return (
+                      <button key={dc} onClick={() => setDressCode(dc)} style={{
+                        padding: '10px 18px', borderRadius: '100px',
+                        border: `1.5px solid ${isActive ? C.gold : C.border}`,
+                        background: isActive ? 'rgba(184,148,79,0.08)' : C.white,
+                        color: isActive ? C.gold : C.stone,
+                        fontSize: '13px', fontWeight: isActive ? 700 : 500,
+                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                        transition: 'all 0.25s ease',
+                      }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Input>
 
-            {/* Privacy Mode */}
-            <div>
-              <label style={labelStyle}>Event Visibility</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-                {[
-                  { key: 'public', label: 'Public', desc: 'Anyone with the link', icon: '🌐' },
-                  { key: 'private', label: 'Private', desc: 'Invite-only access', icon: '🔒' },
-                  { key: 'password', label: 'Password', desc: 'Requires a passcode', icon: '🔐' },
-                ].map(mode => (
-                  <button key={mode.key} onClick={() => setPrivacyMode(mode.key)} style={{
-                    padding: '16px', border: `2px solid ${privacyMode === mode.key ? C.gold : C.border}`,
-                    borderRadius: '10px', background: privacyMode === mode.key ? 'rgba(184,148,79,0.04)' : C.white,
-                    cursor: 'pointer', textAlign: 'center', transition: 'all 0.2s',
+              {/* RSVP Deadline */}
+              <Input label="RSVP Deadline" hint="After this date, guests will not be able to submit RSVPs">
+                <input type="datetime-local" value={rsvpDeadline} onChange={e => setRsvpDeadline(e.target.value)}
+                  style={{ ...inputStyle, cursor: 'pointer' }} onFocus={handleFocus} onBlur={handleBlur} />
+              </Input>
+
+              {/* Privacy Mode */}
+              <Input label="Event Visibility">
+                <div className="ce-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  {[
+                    { key: 'public', label: 'Public', desc: 'Anyone with the link', icon: '🌐' },
+                    { key: 'private', label: 'Private', desc: 'Invite-only access', icon: '🔒' },
+                    { key: 'password', label: 'Password', desc: 'Requires a passcode', icon: '🔐' },
+                  ].map(mode => {
+                    const isActive = privacyMode === mode.key;
+                    return (
+                      <button key={mode.key} onClick={() => setPrivacyMode(mode.key)} style={{
+                        padding: '20px 16px', border: `1.5px solid ${isActive ? C.gold : C.border}`,
+                        borderRadius: '16px',
+                        background: isActive ? 'rgba(184,148,79,0.05)' : C.white,
+                        cursor: 'pointer', textAlign: 'center', transition: 'all 0.3s ease',
+                        transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                        boxShadow: isActive ? `0 4px 16px ${C.goldGlow}` : 'none',
+                      }}>
+                        <span style={{
+                          fontSize: '28px', display: 'block', marginBottom: '10px',
+                          transition: 'transform 0.3s ease',
+                          transform: isActive ? 'scale(1.15)' : 'scale(1)',
+                        }}>{mode.icon}</span>
+                        <span style={{ fontWeight: 700, fontSize: '14px', color: isActive ? C.gold : C.charcoal, display: 'block', marginBottom: '4px' }}>
+                          {mode.label}
+                        </span>
+                        <span style={{ fontSize: '11px', color: C.stone }}>{mode.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {privacyMode === 'password' && (
+                  <div style={{ marginTop: '12px', animation: 'ce-fadeInUp 0.3s ease' }}>
+                    <input type="text" value={accessPassword} onChange={e => setAccessPassword(e.target.value)}
+                      placeholder="Enter access password" style={inputStyle}
+                      onFocus={handleFocus} onBlur={handleBlur} />
+                  </div>
+                )}
+              </Input>
+
+              {/* Cover Image */}
+              <Input label="Cover Image URL" hint="Paste a link to your event's hero image">
+                <input type="url" value={coverImageUrl} onChange={e => setCoverImageUrl(e.target.value)}
+                  placeholder="https://images.unsplash.com/…" style={inputStyle}
+                  onFocus={handleFocus} onBlur={handleBlur} />
+                {coverImageUrl && (
+                  <div style={{
+                    marginTop: '8px', borderRadius: '14px', overflow: 'hidden',
+                    height: '180px', position: 'relative',
                   }}>
-                    <span style={{ fontSize: '20px', display: 'block', marginBottom: '6px' }}>{mode.icon}</span>
-                    <span style={{ fontWeight: 600, fontSize: '13px', color: C.charcoal, display: 'block' }}>{mode.label}</span>
-                    <span style={{ fontSize: '10px', color: C.stone }}>{mode.desc}</span>
-                  </button>
-                ))}
-              </div>
-              {privacyMode === 'password' && (
-                <div style={{ marginTop: '12px' }}>
-                  <label style={{ ...labelStyle, fontSize: '11px' }}>Event Password</label>
-                  <input type="text" value={accessPassword} onChange={e => setAccessPassword(e.target.value)}
-                    placeholder="Enter access password" style={inputStyle}
-                    onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-                </div>
-              )}
-            </div>
-
-            {/* Cover Image */}
-            <div>
-              <label style={labelStyle}>Cover Image URL <span style={{ fontSize: '10px', color: C.stone }}>(optional)</span></label>
-              <input type="url" value={coverImageUrl} onChange={e => setCoverImageUrl(e.target.value)}
-                placeholder="https://images.unsplash.com/..." style={inputStyle}
-                onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-              {coverImageUrl && (
-                <div style={{ marginTop: '12px', borderRadius: '8px', overflow: 'hidden', height: '160px', background: C.ivory }}>
-                  <img src={coverImageUrl} alt="Cover preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={e => e.target.style.display = 'none'} />
-                </div>
-              )}
+                    <img src={coverImageUrl} alt="Cover preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={e => e.target.style.display = 'none'} />
+                    <div style={{
+                      position: 'absolute', bottom: 0, left: 0, right: 0, height: '60px',
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.4), transparent)',
+                    }} />
+                  </div>
+                )}
+              </Input>
             </div>
 
             {/* Navigation */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${C.border}`, paddingTop: '20px' }}>
-              <button onClick={() => setStep(1)} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.stone, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 600 }}>
-                ← Back
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '36px', paddingTop: '24px', borderTop: `1px solid ${C.border}` }}>
+              <button onClick={() => setStep(1)} style={{
+                background: 'none', border: `1.5px solid ${C.border}`, borderRadius: '12px',
+                padding: '12px 24px', fontSize: '13px', color: C.stone, cursor: 'pointer',
+                fontFamily: 'var(--font-sans)', fontWeight: 600, transition: 'all 0.2s',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                Back
               </button>
-              <button onClick={() => setStep(3)} style={goldBtn(false)}>
-                Review & Create →
+              <button onClick={() => setStep(3)} style={{
+                padding: '14px 32px', border: 'none', borderRadius: '12px', fontWeight: 700,
+                fontSize: '14px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                background: `linear-gradient(135deg, ${C.gold}, ${C.goldHover})`,
+                color: C.white, transition: 'all 0.3s ease', letterSpacing: '0.3px',
+                boxShadow: '0 4px 16px rgba(184,148,79,0.3)',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                Review & Create
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3L9 7L5 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
               </button>
             </div>
           </div>
@@ -662,33 +959,57 @@ export default function CreateEventWizard() {
 
         {/* ════ STEP 3: PREVIEW & CREATE ════ */}
         {step === 3 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', animation: 'ce-fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1)' }}>
             {/* Preview Card */}
-            <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: '16px', overflow: 'hidden' }}>
+            <div style={{
+              background: C.white, border: `1px solid ${C.border}`,
+              borderRadius: '20px', overflow: 'hidden',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+            }}>
               {/* Hero Preview */}
               <div style={{
-                height: '200px', background: coverImageUrl
-                  ? `linear-gradient(to top, rgba(25,27,30,0.85), rgba(25,27,30,0.3)), url(${coverImageUrl}) center/cover`
-                  : `linear-gradient(135deg, ${customColors.primary || C.gold}, ${customColors.accent || C.charcoal})`,
-                display: 'flex', alignItems: 'flex-end', padding: '32px',
+                height: '220px', position: 'relative',
+                background: coverImageUrl
+                  ? `linear-gradient(to top, rgba(25,27,30,0.9), rgba(25,27,30,0.2)), url(${coverImageUrl}) center/cover`
+                  : `linear-gradient(135deg, ${customColors.primary || C.gold} 0%, ${customColors.accent || C.charcoal} 100%)`,
+                display: 'flex', alignItems: 'flex-end', padding: '36px',
               }}>
-                <div>
-                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: C.champagne, fontWeight: 700, display: 'block', marginBottom: '8px' }}>
-                    {templateType} invitation
-                  </span>
-                  <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '28px', fontWeight: 400, color: C.white, margin: 0 }}>
+                {/* Decorative overlay pattern */}
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                  background: 'radial-gradient(circle at 20% 80%, rgba(184,148,79,0.15) 0%, transparent 50%)',
+                  pointerEvents: 'none',
+                }} />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '4px 12px', borderRadius: '100px',
+                    background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(8px)',
+                    marginBottom: '12px', border: '1px solid rgba(255,255,255,0.1)',
+                  }}>
+                    <span style={{ fontSize: '12px' }}>{selectedTemplate?.icon}</span>
+                    <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'rgba(255,255,255,0.8)', fontWeight: 700 }}>
+                      {templateType} Event
+                    </span>
+                  </div>
+                  <h2 style={{
+                    fontFamily: 'var(--font-serif)', fontSize: 'clamp(24px, 3vw, 32px)',
+                    fontWeight: 500, color: C.white, margin: 0, letterSpacing: '-0.01em',
+                  }}>
                     {title || 'Untitled Event'}
                   </h2>
                 </div>
               </div>
 
               {/* Details Preview */}
-              <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600, color: C.charcoal }}>Event Summary</h3>
+              <div style={{ padding: '36px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: C.charcoal, margin: 0 }}>
+                  Event Summary
+                </h3>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="ce-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   {[
-                    { label: 'URL', value: `${frontendUrl}/${slug}`, icon: '🔗' },
+                    { label: 'Event URL', value: `${frontendUrl}/${slug}`, icon: '🔗' },
                     { label: 'Template', value: selectedTemplate?.label, icon: selectedTemplate?.icon },
                     { label: 'Date', value: eventDate ? new Date(eventDate).toLocaleString() : 'Not set', icon: '📅' },
                     { label: 'Location', value: locationName || 'Not specified', icon: '📍' },
@@ -696,45 +1017,85 @@ export default function CreateEventWizard() {
                     { label: 'Privacy', value: privacyMode.charAt(0).toUpperCase() + privacyMode.slice(1), icon: privacyMode === 'public' ? '🌐' : privacyMode === 'password' ? '🔐' : '🔒' },
                     { label: 'RSVP Deadline', value: rsvpDeadline ? new Date(rsvpDeadline).toLocaleDateString() : 'No deadline', icon: '⏰' },
                   ].map(item => (
-                    <div key={item.label} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px', background: C.ivory, borderRadius: '8px', border: `1px solid ${C.border}` }}>
-                      <span style={{ fontSize: '16px' }}>{item.icon}</span>
-                      <div>
-                        <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, fontWeight: 700, display: 'block' }}>{item.label}</span>
-                        <span style={{ fontSize: '13px', color: C.charcoal, fontWeight: 500, wordBreak: 'break-all' }}>{item.value}</span>
+                    <div key={item.label} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '12px',
+                      padding: '14px 16px', background: C.softBg, borderRadius: '14px',
+                      border: `1px solid ${C.border}`,
+                    }}>
+                      <span style={{ fontSize: '18px', lineHeight: 1 }}>{item.icon}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, fontWeight: 700, display: 'block', marginBottom: '2px' }}>{item.label}</span>
+                        <span style={{ fontSize: '13px', color: C.charcoal, fontWeight: 500, wordBreak: 'break-all', lineHeight: 1.4 }}>{item.value}</span>
                       </div>
                     </div>
                   ))}
                 </div>
 
                 {description && (
-                  <div style={{ padding: '16px', background: C.ivory, borderRadius: '8px', border: `1px solid ${C.border}` }}>
-                    <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, fontWeight: 700, display: 'block', marginBottom: '6px' }}>Description</span>
-                    <p style={{ fontSize: '13px', color: C.charcoal, lineHeight: 1.6, margin: 0 }}>{description}</p>
+                  <div style={{ padding: '18px', background: C.softBg, borderRadius: '14px', border: `1px solid ${C.border}` }}>
+                    <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, fontWeight: 700, display: 'block', marginBottom: '8px' }}>Description</span>
+                    <p style={{ fontSize: '13px', color: C.charcoal, lineHeight: 1.7, margin: 0 }}>{description}</p>
                   </div>
                 )}
 
-                {/* Important Notice */}
-                <div style={{ padding: '16px', background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.15)', borderRadius: '8px', fontSize: '12px', color: C.stone, lineHeight: 1.7 }}>
-                  💡 <strong>Note:</strong> Your event will be created in <strong>draft</strong> state. Complete payment from the dashboard to activate it and make it publicly accessible. You can configure form fields, tables, and seating after creation.
+                {/* Note */}
+                <div style={{
+                  padding: '18px 20px', borderRadius: '14px',
+                  background: 'rgba(184,148,79,0.04)',
+                  border: '1px solid rgba(184,148,79,0.12)',
+                  display: 'flex', gap: '12px', alignItems: 'flex-start',
+                }}>
+                  <span style={{ fontSize: '16px' }}>💡</span>
+                  <span style={{ fontSize: '12px', color: C.stone, lineHeight: 1.7 }}>
+                    Your event will be created in <strong style={{ color: C.charcoal }}>draft</strong> state. Complete payment from the dashboard to activate it and make it publicly accessible.
+                  </span>
                 </div>
 
                 {error && (
-                  <div style={{ padding: '12px 16px', borderRadius: '8px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', fontSize: '12px', color: C.error }}>
-                    ⚠️ {error}
+                  <div style={{
+                    padding: '14px 18px', borderRadius: '14px',
+                    background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)',
+                    fontSize: '13px', color: C.error, display: 'flex', alignItems: 'center', gap: '8px',
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill={C.error} opacity="0.15"/><path d="M8 5V8.5M8 10.5V11" stroke={C.error} strokeWidth="1.5" strokeLinecap="round"/></svg>
+                    {error}
                   </div>
                 )}
 
                 {/* Navigation */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${C.border}`, paddingTop: '20px' }}>
-                  <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', fontSize: '13px', color: C.stone, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 600 }}>
-                    ← Back to Settings
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '12px', borderTop: `1px solid ${C.border}` }}>
+                  <button onClick={() => setStep(2)} style={{
+                    background: 'none', border: `1.5px solid ${C.border}`, borderRadius: '12px',
+                    padding: '12px 24px', fontSize: '13px', color: C.stone, cursor: 'pointer',
+                    fontFamily: 'var(--font-sans)', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 11L5 7L9 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    Settings
                   </button>
                   <button disabled={submitting} onClick={handleSubmit}
-                    style={{ ...goldBtn(submitting), padding: '14px 40px', fontSize: '15px' }}
-                    onMouseEnter={e => { if (!submitting) e.target.style.background = C.goldHover; }}
-                    onMouseLeave={e => { if (!submitting) e.target.style.background = C.gold; }}
+                    style={{
+                      padding: '16px 40px', border: 'none', borderRadius: '14px',
+                      fontWeight: 700, fontSize: '15px',
+                      cursor: submitting ? 'default' : 'pointer',
+                      fontFamily: 'var(--font-sans)',
+                      background: submitting ? C.champagne : `linear-gradient(135deg, ${C.gold}, ${C.goldHover})`,
+                      color: C.white, opacity: submitting ? 0.7 : 1,
+                      transition: 'all 0.3s ease', letterSpacing: '0.3px',
+                      boxShadow: submitting ? 'none' : '0 6px 24px rgba(184,148,79,0.35)',
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                    }}
                   >
-                    {submitting ? '⏳ Creating Event...' : '🎉 Create Event'}
+                    {submitting ? (
+                      <>
+                        <span style={{ width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'ce-spin 0.6s linear infinite', display: 'inline-block' }} />
+                        Creating…
+                      </>
+                    ) : (
+                      <>
+                        🎉 Create Event
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -743,10 +1104,35 @@ export default function CreateEventWizard() {
         )}
       </div>
 
+      {/* ═══ CSS Animations ═══ */}
       <style jsx>{`
-        @media (max-width: 768px) {
-          div[style*="grid-template-columns: repeat(3"] { grid-template-columns: 1fr 1fr !important; }
-          div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+        @keyframes ce-fadeInUp {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes ce-fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes ce-scaleIn {
+          from { opacity: 0; transform: scale(0.5); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes ce-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(0.85); }
+        }
+        @keyframes ce-spin {
+          to { transform: rotate(360deg); }
+        }
+        @media (max-width: 900px) {
+          .ce-template-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .ce-step-label { display: none; }
+        }
+        @media (max-width: 640px) {
+          .ce-template-grid { grid-template-columns: 1fr !important; }
+          .ce-grid-2 { grid-template-columns: 1fr !important; }
+          .ce-grid-3 { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>
