@@ -251,11 +251,18 @@ app.use((req, res) => {
 
 // Centralized error handling middleware
 app.use((err, req, res, next) => {
-  logger.error({ err, stack: err.stack }, 'Unhandled error');
+  logger.error({ err, stack: err.stack, url: req.originalUrl, method: req.method }, 'Unhandled error');
+  
+  // In production, include a sanitized error code so logs can be cross-referenced
+  const errorCode = err.code || err.name || 'UNKNOWN';
   res.status(500).json({
     success: false,
     error: 'INTERNAL_SERVER_ERROR',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred on the server.'
+    code: errorCode,
+    message: process.env.NODE_ENV === 'development'
+      ? err.message
+      : 'An unexpected error occurred on the server.',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
 
