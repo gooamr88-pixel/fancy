@@ -15,6 +15,7 @@ const getDashboardData = async (req, res, next) => {
       .single();
 
     if (orgError || !org) {
+      logger.warn({ orgError, userId: req.user.id }, 'Dashboard: org not found');
       return res.status(403).json({
         success: false,
         error: 'ORG_NOT_FOUND',
@@ -30,7 +31,10 @@ const getDashboardData = async (req, res, next) => {
       .select('id, status, event_date')
       .eq('org_id', orgId);
 
-    if (eventsError) throw eventsError;
+    if (eventsError) {
+      logger.error({ eventsError }, 'Dashboard: failed to fetch events');
+      throw eventsError;
+    }
 
     const events = orgEvents || [];
     const eventIds = events.map(e => e.id);
@@ -80,7 +84,7 @@ const getDashboardData = async (req, res, next) => {
       // b) Check-ins count
       supabase
         .from('check_ins')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .in('event_id', eventIds),
 
       // c) RSVP Trend — raw data to aggregate by date
@@ -88,6 +92,7 @@ const getDashboardData = async (req, res, next) => {
         .from('rsvps')
         .select('submitted_at, response, party_size')
         .in('event_id', eventIds)
+        .not('submitted_at', 'is', null)
         .order('submitted_at', { ascending: true }),
 
       // d) Upcoming Events
@@ -109,7 +114,10 @@ const getDashboardData = async (req, res, next) => {
     ]);
 
     // --- Process a) Stats ---
-    if (statsResult.error) throw statsResult.error;
+    if (statsResult.error) {
+      logger.error({ error: statsResult.error }, 'Dashboard: stats query failed');
+      throw statsResult.error;
+    }
     const rsvps = statsResult.data || [];
 
     let totalGuests = 0;
@@ -118,7 +126,7 @@ const getDashboardData = async (req, res, next) => {
     let pendingCount = 0;
 
     rsvps.forEach(rsvp => {
-      const size = rsvp.party_size || 0;
+      const size = rsvp.party_size || 1;
       totalGuests += size;
       if (rsvp.response === 'yes') {
         acceptedCount += size;
@@ -134,117 +142,144 @@ const getDashboardData = async (req, res, next) => {
     const pendingPercent = totalGuests > 0 ? Math.round((pendingCount / totalGuests) * 100) : 0;
 
     // --- Process b) Check-ins ---
-    if (checkInsResult.error) throw checkInsResult.error;
+    if (checkInsResult.error) {
+      logger.error({ error: checkInsResult.error }, 'Dashboard: check-ins query failed');
+      // Non-fatal: default to 0
+    }
     const checkedIn = checkInsResult.count || 0;
     const notArrived = Math.max(acceptedCount - checkedIn, 0);
 
     // --- Process c) RSVP Trend ---
-    if (rsvpTrendResult.error) throw rsvpTrendResult.error;
-    const trendRsvps = rsvpTrendResult.data || [];
+    let rsvpTrendLimited = [];
+    if (rsvpTrendResult.error) {
+      logger.error({ error: rsvpTrendResult.error }, 'Dashboard: rsvp trend query failed');
+      // Non-fatal: return empty trend
+    } else {
+      const trendRsvps = rsvpTrendResult.data || [];
 
-    // Group by date (day) and build cumulative running totals
-    const dailyMap = {};
-    trendRsvps.forEach(rsvp => {
-      if (!rsvp.submitted_at) return;
-      const dateObj = new Date(rsvp.submitted_at);
-      const dateKey = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD for sorting
-      if (!dailyMap[dateKey]) {
-        dailyMap[dateKey] = { accepted: 0, declined: 0, pending: 0 };
-      }
-      const size = rsvp.party_size || 0;
-      if (rsvp.response === 'yes') {
-        dailyMap[dateKey].accepted += size;
-      } else if (rsvp.response === 'no') {
-        dailyMap[dateKey].declined += size;
-      } else {
-        dailyMap[dateKey].pending += size;
-      }
-    });
+      // Group by date (day) and build cumulative running totals
+      const dailyMap = {};
+      trendRsvps.forEach(rsvp => {
+        if (!rsvp.submitted_at) return;
+        const dateObj = new Date(rsvp.submitted_at);
+        const dateKey = dateObj.toISOString().split('T')[0]; // YYYY-MM-DD for sorting
+        if (!dailyMap[dateKey]) {
+          dailyMap[dateKey] = { accepted: 0, declined: 0, pending: 0 };
+        }
+        const size = rsvp.party_size || 1;
+        if (rsvp.response === 'yes') {
+          dailyMap[dateKey].accepted += size;
+        } else if (rsvp.response === 'no') {
+          dailyMap[dateKey].declined += size;
+        } else {
+          dailyMap[dateKey].pending += size;
+        }
+      });
 
-    const sortedDates = Object.keys(dailyMap).sort();
-    let cumAccepted = 0;
-    let cumDeclined = 0;
-    let cumPending = 0;
+      const sortedDates = Object.keys(dailyMap).sort();
+      let cumAccepted = 0;
+      let cumDeclined = 0;
+      let cumPending = 0;
 
-    const rsvpTrend = sortedDates.map(dateKey => {
-      cumAccepted += dailyMap[dateKey].accepted;
-      cumDeclined += dailyMap[dateKey].declined;
-      cumPending += dailyMap[dateKey].pending;
+      const rsvpTrend = sortedDates.map(dateKey => {
+        cumAccepted += dailyMap[dateKey].accepted;
+        cumDeclined += dailyMap[dateKey].declined;
+        cumPending += dailyMap[dateKey].pending;
 
-      // Format date as 'MMM DD' (e.g. 'Apr 20')
-      const d = new Date(dateKey + 'T00:00:00Z');
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const formattedDate = `${months[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2, '0')}`;
-
-      return {
-        date: formattedDate,
-        accepted: cumAccepted,
-        declined: cumDeclined,
-        pending: cumPending
-      };
-    });
-
-    // Limit to last 30 data points
-    const rsvpTrendLimited = rsvpTrend.slice(-30);
-
-    // --- Process d) Upcoming Events ---
-    if (upcomingEventsResult.error) throw upcomingEventsResult.error;
-    const upcomingRaw = upcomingEventsResult.data || [];
-
-    // For each upcoming event, get count of RSVPs with response='yes'
-    const upcomingEvents = await Promise.all(
-      upcomingRaw.map(async (event) => {
-        const { data: yesRsvps } = await supabase
-          .from('rsvps')
-          .select('party_size')
-          .eq('event_id', event.id)
-          .eq('response', 'yes');
-
-        const guestCount = (yesRsvps || []).reduce((sum, r) => sum + (r.party_size || 0), 0);
+        // Format date as 'MMM DD' (e.g. 'Apr 20')
+        const d = new Date(dateKey + 'T00:00:00Z');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const formattedDate = `${months[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2, '0')}`;
 
         return {
-          id: event.id,
-          title: event.title,
-          event_date: event.event_date,
-          location_name: event.location_name,
-          status: event.status,
-          guestCount
+          date: formattedDate,
+          accepted: cumAccepted,
+          declined: cumDeclined,
+          pending: cumPending
         };
-      })
-    );
+      });
 
-    // --- Process e) Recent Activity ---
-    if (recentActivityResult.error) throw recentActivityResult.error;
-    const activityRaw = recentActivityResult.data || [];
-
-    // Join with rsvps table to get guest_name where entity_type = 'rsvp'
-    const rsvpEntityIds = activityRaw
-      .filter(a => a.entity_type === 'rsvp' && a.entity_id)
-      .map(a => a.entity_id);
-
-    let rsvpNameMap = {};
-    if (rsvpEntityIds.length > 0) {
-      const { data: rsvpNames } = await supabase
-        .from('rsvps')
-        .select('id, guest_name')
-        .in('id', rsvpEntityIds);
-
-      if (rsvpNames) {
-        rsvpNames.forEach(r => {
-          rsvpNameMap[r.id] = r.guest_name;
-        });
-      }
+      // Limit to last 30 data points
+      rsvpTrendLimited = rsvpTrend.slice(-30);
     }
 
-    const recentActivity = activityRaw.map(activity => ({
-      id: activity.id,
-      action: activity.action,
-      metadata: activity.metadata,
-      created_at: activity.created_at,
-      guest_name: (activity.entity_type === 'rsvp' && activity.entity_id)
-        ? (rsvpNameMap[activity.entity_id] || null)
-        : null
-    }));
+    // --- Process d) Upcoming Events ---
+    let upcomingEvents = [];
+    if (upcomingEventsResult.error) {
+      logger.error({ error: upcomingEventsResult.error }, 'Dashboard: upcoming events query failed');
+      // Non-fatal: return empty
+    } else {
+      const upcomingRaw = upcomingEventsResult.data || [];
+
+      // For each upcoming event, get count of RSVPs with response='yes'
+      upcomingEvents = await Promise.all(
+        upcomingRaw.map(async (event) => {
+          let guestCount = 0;
+          try {
+            const { data: yesRsvps } = await supabase
+              .from('rsvps')
+              .select('party_size')
+              .eq('event_id', event.id)
+              .eq('response', 'yes');
+
+            guestCount = (yesRsvps || []).reduce((sum, r) => sum + (r.party_size || 1), 0);
+          } catch (e) {
+            logger.warn({ eventId: event.id, error: e }, 'Dashboard: failed to get guest count for event');
+          }
+
+          return {
+            id: event.id,
+            title: event.title,
+            event_date: event.event_date,
+            location_name: event.location_name,
+            status: event.status,
+            guestCount
+          };
+        })
+      );
+    }
+
+    // --- Process e) Recent Activity ---
+    let recentActivity = [];
+    if (recentActivityResult.error) {
+      logger.error({ error: recentActivityResult.error }, 'Dashboard: activity query failed');
+      // Non-fatal: return empty
+    } else {
+      const activityRaw = recentActivityResult.data || [];
+
+      // Join with rsvps table to get guest_name where entity_type = 'rsvp'
+      const rsvpEntityIds = activityRaw
+        .filter(a => a.entity_type === 'rsvp' && a.entity_id)
+        .map(a => a.entity_id);
+
+      let rsvpNameMap = {};
+      if (rsvpEntityIds.length > 0) {
+        try {
+          const { data: rsvpNames } = await supabase
+            .from('rsvps')
+            .select('id, guest_name')
+            .in('id', rsvpEntityIds);
+
+          if (rsvpNames) {
+            rsvpNames.forEach(r => {
+              rsvpNameMap[r.id] = r.guest_name;
+            });
+          }
+        } catch (e) {
+          logger.warn({ error: e }, 'Dashboard: failed to resolve guest names');
+        }
+      }
+
+      recentActivity = activityRaw.map(activity => ({
+        id: activity.id,
+        action: activity.action,
+        metadata: activity.metadata,
+        created_at: activity.created_at,
+        guest_name: (activity.entity_type === 'rsvp' && activity.entity_id)
+          ? (rsvpNameMap[activity.entity_id] || null)
+          : null
+      }));
+    }
 
     // 5. Build and return response
     return res.json({
@@ -270,7 +305,7 @@ const getDashboardData = async (req, res, next) => {
       }
     });
   } catch (err) {
-    logger.error({ err, userId: req.user?.id }, 'getDashboardData failed');
+    logger.error({ err, message: err.message, code: err.code, details: err.details, hint: err.hint, userId: req.user?.id }, 'getDashboardData failed');
     next(err);
   }
 };
