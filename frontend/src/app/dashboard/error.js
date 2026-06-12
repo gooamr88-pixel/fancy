@@ -59,10 +59,10 @@ const styles = {
     fontSize: 48,
   },
   heading: {
-    fontFamily: '"Playfair Display", Georgia, serif',
+    fontFamily: 'var(--font-serif), "Playfair Display", Georgia, serif',
     fontSize: 24,
     fontWeight: 700,
-    color: '#2C2C2C',
+    color: '#191B1E',
     margin: '0 0 12px 0',
   },
   message: {
@@ -78,7 +78,7 @@ const styles = {
     gap: 16,
   },
   retryButton: {
-    backgroundColor: '#C9A96E',
+    backgroundColor: '#B8944F',
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
@@ -91,7 +91,7 @@ const styles = {
     maxWidth: 220,
   },
   homeLink: {
-    color: '#C9A96E',
+    color: '#B8944F',
     fontSize: 14,
     fontWeight: 500,
     textDecoration: 'none',

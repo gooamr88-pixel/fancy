@@ -118,13 +118,12 @@ export default function ResponsiveChartBoard({ stats }) {
                   fill="transparent"
                   stroke="#B8944F"
                   strokeWidth="10"
-                  strokeDasharray={`${yesDash} ${circumference}`}
+                  strokeDasharray={`${yesDash} ${circumference - yesDash}`}
                   strokeDashoffset="0"
-                  strokeLinecap="round"
                   style={{ transition: "all 1s ease" }}
                 />
               )}
-              {/* Declined - Muted Rose */}
+              {/* Declined - Muted Stone */}
               {declined > 0 && (
                 <circle
                   cx="60"
@@ -133,9 +132,8 @@ export default function ResponsiveChartBoard({ stats }) {
                   fill="transparent"
                   stroke="#77736A"
                   strokeWidth="10"
-                  strokeDasharray={`${noDash} ${circumference}`}
-                  strokeDashoffset={-yesDash}
-                  strokeLinecap="round"
+                  strokeDasharray={`${noDash} ${circumference - noDash}`}
+                  strokeDashoffset={`${-yesDash}`}
                   style={{ transition: "all 1s ease" }}
                 />
               )}
@@ -148,9 +146,8 @@ export default function ResponsiveChartBoard({ stats }) {
                   fill="transparent"
                   stroke="#D7BE80"
                   strokeWidth="10"
-                  strokeDasharray={`${pendingDash} ${circumference}`}
-                  strokeDashoffset={-(yesDash + noDash)}
-                  strokeLinecap="round"
+                  strokeDasharray={`${pendingDash} ${circumference - pendingDash}`}
+                  strokeDashoffset={`${-(yesDash + noDash)}`}
                   style={{ transition: "all 1s ease" }}
                 />
               )}

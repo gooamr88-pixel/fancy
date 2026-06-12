@@ -18,7 +18,10 @@ const SeatingManager = memo(function SeatingManager({
         name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         email.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesFilter =
-        filterResponse === "all" || r.response === filterResponse;
+        filterResponse === "all" ||
+        (filterResponse === "yes" && isAccepted(r.response)) ||
+        (filterResponse === "no" && isDeclined(r.response)) ||
+        (filterResponse === "pending" && !isAccepted(r.response) && !isDeclined(r.response));
       return matchesSearch && matchesFilter;
     });
   }, [rsvps, searchQuery, filterResponse]);
@@ -208,7 +211,7 @@ const SeatingManager = memo(function SeatingManager({
                           color: isYes ? "#B8944F" : isNo ? "#C45E5E" : "#77736A",
                         }}
                       >
-                        {guest.response.toUpperCase()}
+                        {(guest.response || 'PENDING').toUpperCase()}
                       </span>
                     </td>
                     <td

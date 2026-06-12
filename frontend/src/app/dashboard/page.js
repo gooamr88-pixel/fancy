@@ -15,6 +15,9 @@ import AddGuestModal from './components/AddGuestModal';
 import ImportGuestsModal from './components/ImportGuestsModal';
 import EventSettings from './components/EventSettings';
 import ErrorBoundary from '../components/ErrorBoundary';
+import EventsTab from './components/EventsTab';
+import RSVPsTab from './components/RSVPsTab';
+import GuestsTab from './components/GuestsTab';
 
 /* ═══════════════════════════════════════════════
    Brand Design Tokens
@@ -445,7 +448,52 @@ export default function DashboardPage() {
             }} />
           ) : activeTab === 'form-builder' ? (
             <FormBuilder eventId={eventId} />
+          ) : activeTab === 'events' ? (
+            <EventsTab
+              events={events}
+              activeEventId={eventId}
+              onSelectEvent={(id) => { setEventId(id); setActiveTab('overview'); }}
+              onRefresh={loadDashboardData}
+            />
+          ) : activeTab === 'rsvps' ? (
+            <RSVPsTab rsvps={rsvps} eventId={eventId} onRefresh={loadDashboardData} />
+          ) : activeTab === 'guests' ? (
+            <GuestsTab
+              rsvps={rsvps}
+              tables={tables}
+              eventId={eventId}
+              onAssignTable={handleAssignTable}
+              onRefresh={loadDashboardData}
+              onOpenAddGuest={() => setShowAddGuestModal(true)}
+              onOpenImport={() => setShowImportModal(true)}
+            />
+          ) : activeTab === 'seating' ? (
+            /* ═══ SEATING TAB ═══ */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {eventId && (<>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
+                  <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} />
+                  <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <Link href="/dashboard/seating-map" style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '8px',
+                    padding: '10px 24px', background: COLORS.gold, color: COLORS.white, borderRadius: '8px',
+                    fontSize: '13px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                    Open Full Seating Map
+                  </Link>
+                </div>
+              </>)}
+              {!eventId && (
+                <div style={{ textAlign: 'center', padding: '48px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }}>
+                  <p style={{ color: COLORS.stone, fontSize: '14px', fontStyle: 'italic' }}>Select or create an event first to manage seating.</p>
+                </div>
+              )}
+            </div>
           ) : (
+            /* ═══ OVERVIEW TAB (default) ═══ */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
               {eventId && (<>

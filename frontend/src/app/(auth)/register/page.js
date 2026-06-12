@@ -48,7 +48,9 @@ export default function RegisterPage() {
       if (data.success && data.requiresVerification) {
         setOtpStep(true);
       } else if (data.success) {
-        // Success but no verification needed
+        // Success but no verification needed — store session data before redirect
+        if (data.organization?.id) localStorage.setItem('org_id', data.organization.id);
+        if (data.user?.role) localStorage.setItem('user_role', data.user.role);
         router.push('/dashboard');
       } else {
         setError(data.message || 'Registration failed. Please try again.');
