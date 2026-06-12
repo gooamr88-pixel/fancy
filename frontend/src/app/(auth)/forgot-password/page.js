@@ -14,6 +14,7 @@ export default function ForgotPasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const handleRequestOtp = async (e) => {
     e.preventDefault();
@@ -23,10 +24,43 @@ export default function ForgotPasswordPage() {
       const data = await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
       if (data.success) {
         setStep(2);
+        startResendCooldown();
       } else {
         setError(data.message || 'Failed to send reset code. Please try again.');
       }
-    } catch (err) { setError(err.message); } finally { setSubmitting(false); }
+    } catch (err) {
+      const msg = err.message || '';
+      if (msg.includes('status 5')) setError('Server error. Please try again later.');
+      else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Network error. Check your connection.');
+      else setError(msg);
+    } finally { setSubmitting(false); }
+  };
+
+  const startResendCooldown = () => {
+    setResendCooldown(60);
+    const timer = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError(null);
+    try {
+      const data = await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
+      if (data.success) {
+        setOtp('');
+        startResendCooldown();
+        setError(null);
+      } else {
+        setError(data.message || 'Failed to resend code.');
+      }
+    } catch (err) {
+      setError('Failed to resend code. Please try again.');
+    }
   };
 
   const handleResetPassword = async (e) => {
@@ -46,9 +80,19 @@ export default function ForgotPasswordPage() {
       if (data.success) {
         setStep(3);
       } else {
-        setError(data.message || 'Password reset failed. Please try again.');
+        // Make error messages user-friendly
+        const msg = data.message || 'Password reset failed.';
+        if (msg.includes('invalid or has expired')) setError('Invalid or expired code. Please request a new one.');
+        else if (msg.includes('Too many attempts')) setError('Too many attempts. Please request a new code.');
+        else setError(msg);
       }
-    } catch (err) { setError(err.message); } finally { setSubmitting(false); }
+    } catch (err) {
+      const msg = err.message || '';
+      if (msg.includes('invalid or has expired')) setError('Invalid or expired code. Please request a new one.');
+      else if (msg.includes('status 5')) setError('Server error. Please try again later.');
+      else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Network error. Check your connection.');
+      else setError(msg);
+    } finally { setSubmitting(false); }
   };
 
   const EyeIcon = ({ show }) => show ? (
@@ -185,7 +229,17 @@ export default function ForgotPasswordPage() {
 
               <div className="auth-footer-row">
                 <button type="button" className="auth-back-btn" onClick={() => { setStep(1); setError(null); }}>← Back</button>
-                <Link href="/login" className="auth-gold-link">Return to Login</Link>
+                <button
+                  type="button"
+                  className="auth-resend-btn"
+                  onClick={handleResendOtp}
+                  disabled={resendCooldown > 0}
+                >
+                  {resendCooldown > 0 ? `Resend Code (${resendCooldown}s)` : 'Resend Code'}
+                </button>
+              </div>
+              <div style={{ textAlign: 'center', marginTop: '8px' }}>
+                <Link href="/login" className="auth-gold-link" style={{ fontSize: '13px' }}>Return to Login</Link>
               </div>
             </>
           )}
@@ -327,6 +381,9 @@ export default function ForgotPasswordPage() {
         .auth-footer-row { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid #E8E2D6; font-size: 13px; }
         .auth-back-btn { background: none; border: none; color: #77736A; font-weight: 600; cursor: pointer; font-family: var(--font-sans); font-size: 13px; transition: color 0.2s; padding: 0; }
         .auth-back-btn:hover { color: #191B1E; }
+        .auth-resend-btn { background: none; border: 1px solid rgba(184,148,79,0.3); color: #B8944F; font-weight: 600; cursor: pointer; font-family: var(--font-sans); font-size: 13px; transition: all 0.2s; padding: 8px 16px; border-radius: 8px; }
+        .auth-resend-btn:hover:not(:disabled) { background: rgba(184,148,79,0.08); border-color: #B8944F; }
+        .auth-resend-btn:disabled { opacity: 0.5; cursor: not-allowed; color: #999; border-color: rgba(184,148,79,0.15); }
 
         /* ── Success ── */
         .success-container { text-align: center; }

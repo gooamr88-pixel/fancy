@@ -41,7 +41,11 @@ export default function LoginPage() {
         setError(data.message || 'Login failed. Please try again.');
       }
     } catch (err) {
-      setError(err.message);
+      const msg = err.message || '';
+      if (msg.includes('Session expired')) setError('Session expired. Please log in again.');
+      else if (msg.includes('status 5') || msg.includes('unexpected')) setError('An unexpected error occurred. Please try again.');
+      else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Network error. Please check your connection.');
+      else setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -74,7 +78,10 @@ export default function LoginPage() {
               setGoogleLoading(false);
             }
           } catch (err) {
-            setError(err.message);
+            const msg = err.message || '';
+            if (msg.includes('status 5') || msg.includes('unexpected')) setError('An unexpected error occurred. Please try again.');
+            else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Connection error. Please try again.');
+            else setError(msg);
             setGoogleLoading(false);
           }
         },
@@ -86,6 +93,7 @@ export default function LoginPage() {
         size: 'large',
         text: 'continue_with',
         shape: 'rectangular',
+        locale: 'en',
         width: googleBtnRef.current.offsetWidth || 360,
       });
     };
