@@ -285,9 +285,18 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
     <div className="relative w-full max-w-[270px] h-[300px] flex items-center justify-center mx-auto mt-2 z-10 select-none">
       
       {/* 3D Envelope Body Container */}
-      <div 
+      <motion.div 
         className="relative w-full h-[150px] mt-[100px] cursor-pointer perspective-1000 transform-style-3d"
         onClick={handleOpen}
+        animate={{
+          y: isCardOut ? 70 : 0
+        }}
+        transition={{
+          type: "spring",
+          stiffness: 85,
+          damping: 18,
+          delay: 0.1
+        }}
       >
         
         {/* Layer 1: Envelope Back */}
@@ -315,12 +324,14 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           }}
           initial={{ y: 0, scale: 0.94 }}
           animate={{
-            y: isCardOut ? -100 : 0,
-            scale: isCardOut ? 1.05 : 0.94
+            y: isCardOut ? -160 : 0,
+            scale: isCardOut ? 1.15 : 0.94,
+            rotate: isCardOut ? [0, -10, -3, 0] : 0
           }}
           transition={{
-            y: { type: "spring", stiffness: 100, damping: 20 },
-            scale: { type: "spring", stiffness: 100, damping: 20, delay: 0.05 }
+            y: { type: "spring", stiffness: 90, damping: 18 },
+            scale: { type: "spring", stiffness: 90, damping: 18, delay: 0.05 },
+            rotate: { duration: 0.9, ease: "easeInOut" }
           }}
         >
           {renderCardContent()}
@@ -409,7 +420,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           </div>
         </motion.div>
  
-      </div>
+      </motion.div>
  
       {/* Pulsing Tap Indicator */}
       {showTapIndicator && (
