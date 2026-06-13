@@ -47,7 +47,7 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
           aspectRatio: '9 / 18.5',
           position: 'relative',
         }}>
-          <MobilePreview template={template} theme={theme} guestName={guestName} />
+          <MobilePreview template={template} theme={theme} guestName={guestName} isBare={true} />
         </div>
  
         {/* Home Indicator */}

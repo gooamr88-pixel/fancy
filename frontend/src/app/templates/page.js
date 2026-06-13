@@ -370,6 +370,18 @@ export default function TemplatesPage() {
   const [selectedThemeColor, setSelectedThemeColor] = useState(themeColors[0]);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
+  // Lock body scroll when mobile preview modal is open
+  useEffect(() => {
+    if (isPreviewModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isPreviewModalOpen]);
+
   const filteredTemplates =
     activeCategory === "All"
       ? templates
@@ -592,16 +604,18 @@ export default function TemplatesPage() {
             {/* Right: Sticky Mobile Phone Preview Simulator */}
             <div 
               id="sticky-preview-section" 
-              className="hidden lg:block lg:col-span-4 sticky top-24 flex flex-col items-center border border-[#E8E2D6] bg-[#FBF9F6] p-6 rounded-3xl"
+              className="hidden lg:block lg:col-span-4 sticky top-24"
             >
-              <span className="text-[10px] font-bold uppercase tracking-[3px] mb-4 flex items-center gap-1.5" style={{ color: selectedThemeColor.accent }}>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Live Preview Simulator
-              </span>
-              <MobilePreview template={selectedTemplate} theme={selectedThemeColor} />
-              <p className="text-[11px] text-stone-400 font-sans mt-3 text-center max-w-[85%] leading-relaxed">
-                Click <strong>&quot;Live Preview&quot;</strong> on any template card to load it here. Tap the envelope to test the unboxing flow.
-              </p>
+              <div className="flex flex-col items-center border border-[#E8E2D6] bg-[#FBF9F6] p-6 rounded-3xl inner-simulator-container">
+                <span className="text-[10px] font-bold uppercase tracking-[3px] mb-4 flex items-center gap-1.5" style={{ color: selectedThemeColor.accent }}>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Preview Simulator
+                </span>
+                <MobilePreview template={selectedTemplate} theme={selectedThemeColor} />
+                <p className="text-[11px] text-stone-400 font-sans mt-3 text-center max-w-[85%] leading-relaxed">
+                  Click <strong>&quot;Live Preview&quot;</strong> on any template card to load it here. Tap the envelope to test the unboxing flow.
+                </p>
+              </div>
             </div>
           </div>
         </section>
@@ -786,39 +800,69 @@ export default function TemplatesPage() {
       <AnimatePresence>
         {isPreviewModalOpen && (
           <div 
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:hidden"
+            className="fixed inset-0 z-[100] bg-white lg:hidden flex flex-col"
             style={{ pointerEvents: "auto" }}
           >
-            {/* Backdrop */}
-            <motion.div
-              className="fixed inset-0 bg-black/65 backdrop-blur-[4px]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            {/* Elegant Floating Close Button */}
+            <button
               onClick={() => setIsPreviewModalOpen(false)}
-            />
-            {/* Modal Body Container */}
-            <motion.div
-              className="relative z-10 w-full max-w-[340px] flex justify-center items-center"
-              initial={{ scale: 0.9, opacity: 0, y: 55 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 55 }}
-              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="fixed top-4 right-4 z-[110] w-10 h-10 rounded-full bg-stone-900/40 hover:bg-stone-900/60 active:bg-stone-900/80 backdrop-blur-sm text-white flex items-center justify-center border border-white/20 cursor-pointer shadow-xl transition-all"
+              aria-label="Close Preview"
             >
-              {/* Close Button positioned above the phone mockup */}
-              <button
-                onClick={() => setIsPreviewModalOpen(false)}
-                className="absolute -top-11 right-2.5 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center border border-white/25 cursor-pointer shadow-lg active:scale-95 transition-all text-xs font-bold"
-              >
-                ✕
-              </button>
-              <MobilePreview template={selectedTemplate} theme={selectedThemeColor} />
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Immersive full-screen mobile view screen */}
+            <motion.div
+              className="flex-1 w-full h-full relative overflow-hidden bg-white"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+            >
+              <MobilePreview template={selectedTemplate} theme={selectedThemeColor} isBare={true} />
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
       <style jsx>{`
+        .inner-simulator-container {
+          transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        /* Desktop Sticky Simulator Scale Adjustments to prevent bottom-cropping */
+        @media (min-width: 1024px) and (max-height: 860px) {
+          .inner-simulator-container {
+            transform: scale(0.9);
+            transform-origin: top center;
+            margin-bottom: -50px;
+          }
+        }
+        @media (min-width: 1024px) and (max-height: 770px) {
+          .inner-simulator-container {
+            transform: scale(0.8);
+            transform-origin: top center;
+            margin-bottom: -100px;
+          }
+        }
+        @media (min-width: 1024px) and (max-height: 690px) {
+          .inner-simulator-container {
+            transform: scale(0.7);
+            transform-origin: top center;
+            margin-bottom: -150px;
+          }
+        }
+        @media (min-width: 1024px) and (max-height: 620px) {
+          .inner-simulator-container {
+            transform: scale(0.6);
+            transform-origin: top center;
+            margin-bottom: -200px;
+          }
+        }
+
         @media (max-width: 1024px) {
           .templates-grid {
             grid-template-columns: repeat(2, 1fr) !important;

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import RSVPBottomSheet from "./RSVPBottomSheet";
 
-export default function MobilePreview({ template, theme, guestName }) {
+export default function MobilePreview({ template, theme, guestName, isBare = false }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isCardOpened, setIsCardOpened] = useState(false);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
@@ -48,17 +48,19 @@ export default function MobilePreview({ template, theme, guestName }) {
   const accentColor = theme?.accent || template?.accent || "#B8944F";
 
   return (
-    <div className="w-full max-w-[340px] min-h-[580px] max-h-[630px] border-[10px] border-stone-850 dark:border-stone-800 rounded-[2.5rem] bg-stone-900 shadow-2xl relative overflow-hidden flex flex-col select-none aspect-[9/18.5]">
+    <div className={isBare ? "w-full h-full relative overflow-hidden flex flex-col select-none bg-white" : "w-full max-w-[340px] min-h-[580px] max-h-[630px] border-[10px] border-stone-850 dark:border-stone-800 rounded-[2.5rem] bg-stone-900 shadow-2xl relative overflow-hidden flex flex-col select-none aspect-[9/18.5]"}>
       
       {/* Phone Notch & Camera Mock */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-4 bg-stone-850 dark:bg-stone-800 rounded-full flex items-center justify-center gap-1.5 px-3 z-50">
-        <div className="w-1 h-1 bg-stone-700 dark:bg-stone-600 rounded-full" />
-        <div className="w-6 h-0.5 bg-stone-750 dark:bg-stone-700 rounded-full" />
-        <div className="w-1.5 h-1.5 bg-indigo-950 dark:bg-indigo-900 rounded-full border border-indigo-900/50" />
-      </div>
+      {!isBare && (
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-4 bg-stone-850 dark:bg-stone-800 rounded-full flex items-center justify-center gap-1.5 px-3 z-50">
+          <div className="w-1 h-1 bg-stone-700 dark:bg-stone-600 rounded-full" />
+          <div className="w-6 h-0.5 bg-stone-750 dark:bg-stone-700 rounded-full" />
+          <div className="w-1.5 h-1.5 bg-indigo-950 dark:bg-indigo-900 rounded-full border border-indigo-900/50" />
+        </div>
+      )}
 
       {/* Screen Area */}
-      <div className="flex-1 flex flex-col bg-white overflow-hidden relative rounded-[2rem]">
+      <div className={isBare ? "flex-1 flex flex-col bg-white overflow-hidden relative" : "flex-1 flex flex-col bg-white overflow-hidden relative rounded-[2rem]"}>
         
         {/* Simulated Browser URL Header */}
         <div className="flex items-center gap-2.5 px-3.5 pt-6 pb-2.5 bg-stone-50 border-b border-stone-150 text-stone-500 font-sans z-40 shrink-0 text-[10px]">
@@ -245,7 +247,9 @@ export default function MobilePreview({ template, theme, guestName }) {
       </div>
 
       {/* Phone Home Indicator Bar */}
-      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-24 h-1 bg-stone-750 dark:bg-stone-700 rounded-full z-50 pointer-events-none opacity-80" />
+      {!isBare && (
+        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-24 h-1 bg-stone-750 dark:bg-stone-700 rounded-full z-50 pointer-events-none opacity-80" />
+      )}
 
     </div>
   );
