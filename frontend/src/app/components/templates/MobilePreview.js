@@ -5,26 +5,26 @@ import { motion, AnimatePresence } from "framer-motion";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import RSVPBottomSheet from "./RSVPBottomSheet";
 
-export default function MobilePreview({ template }) {
+export default function MobilePreview({ template, theme }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isCardOpened, setIsCardOpened] = useState(false);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   const [rsvpData, setRsvpData] = useState(null);
   const scrollContainerRef = useRef(null);
 
-  // Reset states when template changes to simulate a fresh load
+  // Reset states when template or theme changes to simulate a fresh URL loading experience
   useEffect(() => {
     setIsLoading(true);
     setIsCardOpened(false);
     setIsBottomSheetOpen(false);
-    setRsvpData(null);
+    setRsvpData(null); // Clear previous RSVP simulation to let them test the new template
 
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [template]);
+  }, [template, theme]);
 
   const handleCardOpenComplete = () => {
     setIsCardOpened(true);
@@ -45,7 +45,7 @@ export default function MobilePreview({ template }) {
     setRsvpData(data);
   };
 
-  const accentColor = template?.accent || "#B8944F";
+  const accentColor = theme?.accent || template?.accent || "#B8944F";
 
   return (
     <div className="w-full max-w-[340px] min-h-[580px] max-h-[630px] border-[10px] border-stone-850 dark:border-stone-800 rounded-[2.5rem] bg-stone-900 shadow-2xl relative overflow-hidden flex flex-col select-none aspect-[9/18.5]">
@@ -119,10 +119,12 @@ export default function MobilePreview({ template }) {
                   backgroundPosition: "center"
                 }}
               >
-                {/* 3D Envelope Container */}
+                {/* 3D Envelope Container with remounting key constraint */}
                 <div className="w-full shrink-0 flex items-center justify-center py-6 min-h-[380px]">
                   <EnvelopeAnimation 
+                    key={`${template.name}_${theme?.id || "gold"}`}
                     template={template} 
+                    theme={theme}
                     onOpenComplete={handleCardOpenComplete} 
                   />
                 </div>
@@ -136,18 +138,18 @@ export default function MobilePreview({ template }) {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.6, ease: "easeOut" }}
                     >
-                      {/* Gold Divider Ornament */}
+                      {/* Divider Ornament styled with theme secondary color */}
                       <div className="flex items-center justify-center gap-3 py-2">
-                        <div className="flex-1 h-[0.5px] bg-gradient-to-r from-transparent to-[#D7BE80]" />
-                        <svg className="w-3.5 h-3.5 text-[#B8944F]/60" fill="currentColor" viewBox="0 0 24 24">
+                        <div className="flex-1 h-[0.5px] bg-gradient-to-r from-transparent" style={{ "--tw-gradient-to": theme?.secondary || "#D7BE80" }} />
+                        <svg className="w-3.5 h-3.5" fill="currentColor" style={{ color: accentColor }} viewBox="0 0 24 24">
                           <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5Z" />
                         </svg>
-                        <div className="flex-1 h-[0.5px] bg-gradient-to-r from-[#D7BE80] to-transparent" />
+                        <div className="flex-1 h-[0.5px] bg-gradient-to-r to-transparent" style={{ "--tw-gradient-from": theme?.secondary || "#D7BE80" }} />
                       </div>
 
                       {/* Guest Info & Action Card */}
-                      <div className="bg-white/92 backdrop-blur-md border border-stone-200/50 p-5 rounded-2xl shadow-xl text-center text-stone-800 font-sans">
-                        <span className="text-[10px] uppercase tracking-[3px] text-[#B8944F] font-bold block mb-1">WELCOME GUEST</span>
+                      <div className="bg-white/92 backdrop-blur-md border border-stone-200/50 p-5 rounded-2xl shadow-xl text-center text-stone-850 font-sans">
+                        <span className="text-[10px] uppercase tracking-[3px] font-bold block mb-1" style={{ color: accentColor }}>WELCOME GUEST</span>
                         <h2 className="font-serif text-xl font-bold text-stone-900 leading-tight">To: جميل الموسم</h2>
                         
                         <div className="h-[1px] bg-stone-100 my-4" />
@@ -155,8 +157,15 @@ export default function MobilePreview({ template }) {
                         {rsvpData ? (
                           /* RSVP Submitted View */
                           <div className="bg-stone-50 border border-stone-200/50 rounded-xl p-3.5 mb-4 text-center">
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100/50 mb-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                            <span 
+                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border"
+                              style={{ 
+                                backgroundColor: `${accentColor}10`, 
+                                color: accentColor,
+                                borderColor: `${accentColor}25`
+                              }}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
                               Response Submitted
                             </span>
                             

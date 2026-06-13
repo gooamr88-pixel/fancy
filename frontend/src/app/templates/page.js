@@ -8,6 +8,36 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const categories = ["All", "Classic", "Modern", "Rustic", "Luxury", "Minimal", "Floral"];
 
+const themeColors = [
+  { 
+    id: "gold", 
+    name: "Royale Gold", 
+    primary: "#B8944F", 
+    secondary: "#D7BE80", 
+    accent: "#B8944F",
+    gradient: "linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)",
+    liningGradId: "goldGrad"
+  },
+  { 
+    id: "emerald", 
+    name: "Emerald Ivy", 
+    primary: "#064E3B", 
+    secondary: "#10B981", 
+    accent: "#10B981",
+    gradient: "linear-gradient(135deg, #064E3B 0%, #10B981 100%)",
+    liningGradId: "emeraldGrad"
+  },
+  { 
+    id: "burgundy", 
+    name: "Burgundy Rose", 
+    primary: "#722F37", 
+    secondary: "#E89FB0", 
+    accent: "#722F37",
+    gradient: "linear-gradient(135deg, #722F37 0%, #E89FB0 100%)",
+    liningGradId: "burgundyGrad"
+  }
+];
+
 const templates = [
   {
     name: "Timeless Elegance",
@@ -167,6 +197,7 @@ function TemplateCard({ template, onPreview, isSelected }) {
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={() => onPreview(template)}
       style={{
         borderRadius: "16px",
         overflow: "hidden",
@@ -256,7 +287,14 @@ function TemplateCard({ template, onPreview, isSelected }) {
 
       {/* Action Buttons */}
       <div style={{ padding: "0 28px 24px", display: "flex", gap: "12px", zIndex: 10 }}>
-        <Link href="/register" style={{ flex: 1, textDecoration: "none" }}>
+        <Link 
+          href="/register" 
+          style={{ flex: 1, textDecoration: "none" }}
+          onClick={(e) => {
+            // Prevent bubbling to the card body onClick preview trigger
+            e.stopPropagation();
+          }}
+        >
           <button 
             style={{
               width: "100%",
@@ -329,6 +367,7 @@ export default function TemplatesPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [filterHover, setFilterHover] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
+  const [selectedThemeColor, setSelectedThemeColor] = useState(themeColors[0]);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   const filteredTemplates =
@@ -451,6 +490,63 @@ export default function TemplatesPage() {
 
           <GoldDivider />
 
+          {/* Theme Color Picker Section */}
+          <div 
+            style={{ 
+              marginTop: "40px",
+              marginBottom: "8px", 
+              background: "#FFFFFF", 
+              padding: "20px 24px", 
+              borderRadius: "16px", 
+              border: "1px solid #E8E2D6",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.015)"
+            }}
+          >
+            <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "17px", fontWeight: 650, color: "#191B1E", margin: "0 0 4px" }}>
+              Customize Invitation Theme Color
+            </h3>
+            <p style={{ fontFamily: "var(--font-sans)", fontSize: "12.5px", color: "#5E5A52", margin: "0 0 16px" }}>
+              Choose a color preset to customize the envelope lining, card accents, and buttons in the live simulator.
+            </p>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
+              {themeColors.map((theme) => {
+                const isActive = selectedThemeColor.id === theme.id;
+                return (
+                  <button
+                    key={theme.id}
+                    onClick={() => setSelectedThemeColor(theme)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "8px 18px",
+                      borderRadius: "100px",
+                      border: isActive ? "2px solid #191B1E" : "1px solid #E8E2D6",
+                      background: isActive ? "rgba(25,27,30,0.02)" : "#FFFFFF",
+                      cursor: "pointer",
+                      transition: "all 0.3s ease",
+                      fontFamily: "var(--font-sans)",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#191B1E"
+                    }}
+                  >
+                    <span 
+                      style={{ 
+                        width: "12px", 
+                        height: "12px", 
+                        borderRadius: "50%", 
+                        background: theme.gradient,
+                        border: "1px solid rgba(0,0,0,0.1)"
+                      }} 
+                    />
+                    {theme.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Responsive Layout with sticky preview simulator on desktop */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-14 items-start">
             {/* Left: Templates Gallery Grid */}
@@ -498,11 +594,11 @@ export default function TemplatesPage() {
               id="sticky-preview-section" 
               className="hidden lg:block lg:col-span-4 sticky top-24 flex flex-col items-center border border-[#E8E2D6] bg-[#FBF9F6] p-6 rounded-3xl"
             >
-              <span className="text-[10px] font-bold text-[#B8944F] uppercase tracking-[3px] mb-4 flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[3px] mb-4 flex items-center gap-1.5" style={{ color: selectedThemeColor.accent }}>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 Live Preview Simulator
               </span>
-              <MobilePreview template={selectedTemplate} />
+              <MobilePreview template={selectedTemplate} theme={selectedThemeColor} />
               <p className="text-[11px] text-stone-400 font-sans mt-3 text-center max-w-[85%] leading-relaxed">
                 Click <strong>&quot;Live Preview&quot;</strong> on any template card to load it here. Tap the envelope to test the unboxing flow.
               </p>
@@ -716,7 +812,7 @@ export default function TemplatesPage() {
               >
                 ✕
               </button>
-              <MobilePreview template={selectedTemplate} />
+              <MobilePreview template={selectedTemplate} theme={selectedThemeColor} />
             </motion.div>
           </div>
         )}
