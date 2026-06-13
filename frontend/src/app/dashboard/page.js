@@ -20,10 +20,7 @@ import RSVPsTab from './components/RSVPsTab';
 import GuestsTab from './components/GuestsTab';
 import OrganizerOverview from './components/OrganizerOverview';
 
-/* ═══════════════════════════════════════════════
-   Brand Design Tokens
-   ═══════════════════════════════════════════════ */
-const COLORS = {
+/* ═════════════════════════════════════════�const COLORS = {
   gold: '#B8944F',
   goldHover: '#a6833f',
   charcoal: '#191B1E',
@@ -57,8 +54,13 @@ const sidebarNav = [
   { key: 'form-builder', label: 'Form Builder', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
   )},
+  { key: 'campaigns', label: 'SMS Campaigns', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+  )},
   { key: 'settings', label: 'Settings', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  )},
+];0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
   )},
 ];
 
@@ -107,6 +109,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddGuestModal, setShowAddGuestModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const [copyTooltip, setCopyTooltip] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
@@ -324,7 +327,13 @@ export default function DashboardPage() {
           {sidebarNav.map(item => {
             const isActive = activeTab === item.key;
             return (
-              <button key={item.key} onClick={() => setActiveTab(item.key)}
+              <button key={item.key} onClick={() => {
+                if (item.key === 'campaigns') {
+                  router.push('/dashboard/campaigns');
+                } else {
+                  setActiveTab(item.key);
+                }
+              }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
                   borderRadius: '8px', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%',
@@ -471,6 +480,17 @@ export default function DashboardPage() {
                     }}>Copied!</span>
                   )}
                 </div>
+                <button onClick={() => setShowQRModal(true)} id="btn-show-qr" style={{
+                  padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
+                  borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+                  cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M7 7h2v2H7zm0 8h2v2H7zm8-8h2v2h-2z" /><path d="M12 7h1v1h-1zm0 2h1v1h-1zm2-2h1v1h-1zm0 2h1v1h-1zm-2 4h1v1h-1zm2 0h1v1h-1zm-2 2h1v1h-1zm2 0h1v1h-1zm-4 2h1v1h-1zm2 0h1v1h-1z" /></svg>
+                  QR Code
+                </button>
                 <button onClick={async () => {
                   try {
                     const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export`, { credentials: 'include' });
@@ -570,6 +590,80 @@ export default function DashboardPage() {
         eventId={eventId}
         onImportComplete={loadDashboardData}
       />
+
+      {/* ═══ QR CODE MODAL ═══ */}
+      {showQRModal && activeEvent && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, width: '100%', maxWidth: 400, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', textAlign: 'center' }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-serif)', margin: 0 }}>Event QR Code</h3>
+            <p style={{ fontSize: 12, color: COLORS.stone, margin: '0 0 8px 0', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
+              Scan this code to go directly to the RSVP page of your event
+            </p>
+            
+            <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 16, borderRadius: 12, display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
+              <img 
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`} 
+                alt="Event QR Code" 
+                style={{ width: 200, height: 200, display: 'block' }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 8 }}>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${activeEvent.slug}-qrcode.png`;
+                    link.click();
+                    window.URL.revokeObjectURL(url);
+                  } catch (err) {
+                    alert('Failed to download QR code. Please try again.');
+                  }
+                }}
+                style={{ flex: 1, padding: '10px', background: COLORS.gold, color: COLORS.white, fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = COLORS.goldHover; }}
+                onMouseLeave={e => { e.currentTarget.style.background = COLORS.gold; }}
+              >
+                Download PNG
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=svg&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${activeEvent.slug}-qrcode.svg`;
+                    link.click();
+                    window.URL.revokeObjectURL(url);
+                  } catch (err) {
+                    alert('Failed to download QR code. Please try again.');
+                  }
+                }}
+                style={{ flex: 1, padding: '10px', background: 'transparent', border: `1px solid ${COLORS.border}`, color: COLORS.gold, fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = COLORS.softBg; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Download SVG
+              </button>
+            </div>
+            
+            <button
+              onClick={() => setShowQRModal(false)}
+              style={{ marginTop: 8, padding: '8px 16px', background: 'transparent', border: 'none', color: COLORS.stone, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = COLORS.charcoal; }}
+              onMouseLeave={e => { e.currentTarget.style.color = COLORS.stone; }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         @media (max-width: 1024px) {
