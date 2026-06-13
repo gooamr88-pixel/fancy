@@ -312,7 +312,14 @@ const updateEvent = async (req, res, next) => {
   const filteredUpdates = {};
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) {
-      filteredUpdates[field] = req.body[field];
+      let val = req.body[field];
+      // Normalize empty strings to null for date and numeric fields to prevent database syntax errors
+      if (val === '') {
+        if (['rsvp_deadline', 'event_end_date', 'location_lat', 'location_lng'].includes(field)) {
+          val = null;
+        }
+      }
+      filteredUpdates[field] = val;
     }
   }
 
