@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import MobilePreview from "../components/templates/MobilePreview";
+import { motion, AnimatePresence } from "framer-motion";
 
 const categories = ["All", "Classic", "Modern", "Rustic", "Luxury", "Minimal", "Floral"];
 
@@ -158,115 +160,156 @@ function TemplatePreview({ template }) {
   );
 }
 
-function TemplateCard({ template }) {
+function TemplateCard({ template, onPreview, isSelected }) {
   const [hovered, setHovered] = useState(false);
 
   return (
-    <Link href="/register" style={{ textDecoration: "none", color: "inherit", display: "block" }}>
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        borderRadius: "16px",
+        overflow: "hidden",
+        border: isSelected 
+          ? "2px solid #B8944F" 
+          : hovered 
+          ? "1.5px solid #B8944F" 
+          : "1px solid #E8E2D6",
+        transition: "all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+        transform: hovered ? "translateY(-6px)" : "translateY(0)",
+        boxShadow: isSelected
+          ? "0 12px 30px rgba(184,148,79,0.15), 0 4px 12px rgba(0,0,0,0.02)"
+          : hovered
+          ? "0 20px 60px rgba(184,148,79,0.12), 0 8px 24px rgba(0,0,0,0.04)"
+          : "0 2px 12px rgba(0,0,0,0.03)",
+        background: "#FFFFFF",
+        cursor: "pointer",
+        position: "relative",
+      }}
+    >
+      {/* Preview area */}
       <div
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
         style={{
-          borderRadius: "16px",
+          height: "240px",
+          background: template.gradient,
+          position: "relative",
           overflow: "hidden",
-          border: `1px solid ${hovered ? "#B8944F" : "#E8E2D6"}`,
-          transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-          transform: hovered ? "translateY(-6px)" : "translateY(0)",
-          boxShadow: hovered
-            ? "0 20px 60px rgba(184,148,79,0.12), 0 8px 24px rgba(0,0,0,0.04)"
-            : "0 2px 12px rgba(0,0,0,0.03)",
-          background: "#FFFFFF",
-          cursor: "pointer",
         }}
       >
-        {/* Preview area */}
+        <TemplatePreview template={template} />
+
+        {/* Hover overlay */}
         <div
           style={{
-            height: "240px",
-            background: template.gradient,
-            position: "relative",
-            overflow: "hidden",
+            position: "absolute",
+            inset: 0,
+            background: hovered ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0)",
+            transition: "all 0.4s ease",
+            pointerEvents: "none",
           }}
-        >
-          <TemplatePreview template={template} />
+        />
+      </div>
 
-          {/* Hover overlay */}
-          <div
+      {/* Card info */}
+      <div style={{ padding: "24px 28px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+          <h3
             style={{
-              position: "absolute",
-              inset: 0,
-              background: hovered ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.4s ease",
-            }}
-          >
-            <span
-              style={{
-                padding: "12px 32px",
-                borderRadius: "8px",
-                background: "linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)",
-                color: "#FFFFFF",
-                fontFamily: "var(--font-sans)",
-                fontSize: "14px",
-                fontWeight: 700,
-                opacity: hovered ? 1 : 0,
-                transform: hovered ? "translateY(0)" : "translateY(10px)",
-                transition: "all 0.3s ease",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Use This Template
-            </span>
-          </div>
-        </div>
-
-        {/* Card info */}
-        <div style={{ padding: "24px 28px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-            <h3
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "20px",
-                fontWeight: 600,
-                color: "#191B1E",
-                margin: 0,
-              }}
-            >
-              {template.name}
-            </h3>
-            <span
-              style={{
-                padding: "4px 14px",
-                borderRadius: "100px",
-                background: "rgba(184,148,79,0.08)",
-                border: "1px solid rgba(184,148,79,0.15)",
-                fontFamily: "var(--font-sans)",
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "#B8944F",
-                letterSpacing: "0.5px",
-                textTransform: "uppercase",
-              }}
-            >
-              {template.category}
-            </span>
-          </div>
-          <p
-            style={{
-              fontFamily: "var(--font-sans)",
-              fontSize: "14px",
-              color: "#5E5A52",
-              lineHeight: 1.6,
+              fontFamily: "var(--font-serif)",
+              fontSize: "20px",
+              fontWeight: 600,
+              color: "#191B1E",
               margin: 0,
             }}
           >
-            {template.description}
-          </p>
+            {template.name}
+          </h3>
+          <span
+            style={{
+              padding: "4px 14px",
+              borderRadius: "100px",
+              background: "rgba(184,148,79,0.08)",
+              border: "1px solid rgba(184,148,79,0.15)",
+              fontFamily: "var(--font-sans)",
+              fontSize: "11px",
+              fontWeight: 600,
+              color: "#B8944F",
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+            }}
+          >
+            {template.category}
+          </span>
         </div>
+        <p
+          style={{
+            fontFamily: "var(--font-sans)",
+            fontSize: "14px",
+            color: "#5E5A52",
+            lineHeight: 1.6,
+            margin: 0,
+          }}
+        >
+          {template.description}
+        </p>
       </div>
-    </Link>
+
+      {/* Action Buttons */}
+      <div style={{ padding: "0 28px 24px", display: "flex", gap: "12px", zIndex: 10 }}>
+        <Link href="/register" style={{ flex: 1, textDecoration: "none" }}>
+          <button 
+            style={{
+              width: "100%",
+              backgroundColor: "#B8944F",
+              color: "#FFFFFF",
+              border: "none",
+              padding: "10px 16px",
+              borderRadius: "8px",
+              fontFamily: "var(--font-sans)",
+              fontSize: "13px",
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+              boxShadow: "0 4px 12px rgba(184,148,79,0.2)",
+            }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = "#a6833f"}
+            onMouseLeave={(e) => e.target.style.backgroundColor = "#B8944F"}
+          >
+            Use Template
+          </button>
+        </Link>
+        <button 
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onPreview(template);
+          }}
+          style={{
+            flex: 1,
+            backgroundColor: "#FFFFFF",
+            color: "#5E5A52",
+            border: "1px solid #E8E2D6",
+            padding: "10px 16px",
+            borderRadius: "8px",
+            fontFamily: "var(--font-sans)",
+            fontSize: "13px",
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = "#F8F4EC";
+            e.target.style.color = "#191B1E";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = "#FFFFFF";
+            e.target.style.color = "#5E5A52";
+          }}
+        >
+          Live Preview
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -285,6 +328,8 @@ function GoldDivider() {
 export default function TemplatesPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [filterHover, setFilterHover] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   const filteredTemplates =
     activeCategory === "All"
@@ -363,7 +408,7 @@ export default function TemplatesPage() {
         </section>
 
         {/* ════════════════════ FILTER & GALLERY ════════════════════ */}
-        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "60px 48px 100px" }}>
+        <section style={{ maxWidth: "1280px", margin: "0 auto", padding: "60px 24px 100px" }}>
           {/* Filter Buttons */}
           <div
             style={{
@@ -406,29 +451,63 @@ export default function TemplatesPage() {
 
           <GoldDivider />
 
-          {/* Template Grid */}
-          <div
-            className="templates-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "28px",
-              marginTop: "56px",
-            }}
-          >
-            {filteredTemplates.map((template) => (
-              <TemplateCard key={template.name} template={template} />
-            ))}
-          </div>
+          {/* Responsive Layout with sticky preview simulator on desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-14 items-start">
+            {/* Left: Templates Gallery Grid */}
+            <div className="lg:col-span-8">
+              <div
+                className="templates-grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "28px",
+                }}
+              >
+                {filteredTemplates.map((template) => (
+                  <TemplateCard 
+                    key={template.name} 
+                    template={template} 
+                    onPreview={(t) => {
+                      setSelectedTemplate(t);
+                      if (window.innerWidth < 1024) {
+                        setIsPreviewModalOpen(true);
+                      } else {
+                        const previewEl = document.getElementById("sticky-preview-section");
+                        if (previewEl) {
+                          previewEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                        }
+                      }
+                    }}
+                    isSelected={selectedTemplate.name === template.name}
+                  />
+                ))}
+              </div>
 
-          {/* Empty state */}
-          {filteredTemplates.length === 0 && (
-            <div style={{ textAlign: "center", padding: "80px 0" }}>
-              <p style={{ fontFamily: "var(--font-sans)", fontSize: "17px", color: "#5E5A52" }}>
-                No templates found in this category.
+              {/* Empty state */}
+              {filteredTemplates.length === 0 && (
+                <div style={{ textAlign: "center", padding: "80px 0" }}>
+                  <p style={{ fontFamily: "var(--font-sans)", fontSize: "17px", color: "#5E5A52" }}>
+                    No templates found in this category.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Sticky Mobile Phone Preview Simulator */}
+            <div 
+              id="sticky-preview-section" 
+              className="hidden lg:block lg:col-span-4 sticky top-24 flex flex-col items-center border border-[#E8E2D6] bg-[#FBF9F6] p-6 rounded-3xl"
+            >
+              <span className="text-[10px] font-bold text-[#B8944F] uppercase tracking-[3px] mb-4 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Live Preview Simulator
+              </span>
+              <MobilePreview template={selectedTemplate} />
+              <p className="text-[11px] text-stone-400 font-sans mt-3 text-center max-w-[85%] leading-relaxed">
+                Click <strong>&quot;Live Preview&quot;</strong> on any template card to load it here. Tap the envelope to test the unboxing flow.
               </p>
             </div>
-          )}
+          </div>
         </section>
 
         {/* ════════════════════ HOW IT WORKS ════════════════════ */}
@@ -606,6 +685,42 @@ export default function TemplatesPage() {
         </section>
       </main>
       <FooterSection />
+
+      {/* Floating Preview Modal Overlay (Mobile/Tablet Viewports) */}
+      <AnimatePresence>
+        {isPreviewModalOpen && (
+          <div 
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 lg:hidden"
+            style={{ pointerEvents: "auto" }}
+          >
+            {/* Backdrop */}
+            <motion.div
+              className="fixed inset-0 bg-black/65 backdrop-blur-[4px]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsPreviewModalOpen(false)}
+            />
+            {/* Modal Body Container */}
+            <motion.div
+              className="relative z-10 w-full max-w-[340px] flex justify-center items-center"
+              initial={{ scale: 0.9, opacity: 0, y: 55 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 55 }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+            >
+              {/* Close Button positioned above the phone mockup */}
+              <button
+                onClick={() => setIsPreviewModalOpen(false)}
+                className="absolute -top-11 right-2.5 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center border border-white/25 cursor-pointer shadow-lg active:scale-95 transition-all text-xs font-bold"
+              >
+                ✕
+              </button>
+              <MobilePreview template={selectedTemplate} />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <style jsx>{`
         @media (max-width: 1024px) {
