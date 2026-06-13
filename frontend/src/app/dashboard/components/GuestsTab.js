@@ -157,8 +157,8 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
   const counts = useMemo(() => {
     const total = rsvps.reduce((sum, r) => sum + (r.party_size || 1), 0);
     const acceptedRsvps = rsvps.filter(r => isAccepted(r.response));
-    const seated = acceptedRsvps.filter(r => r.tableId).length;
-    const unseated = acceptedRsvps.filter(r => !r.tableId).length;
+    const seated = acceptedRsvps.filter(r => r.tableId).reduce((sum, r) => sum + (r.party_size || 1), 0);
+    const unseated = acceptedRsvps.filter(r => !r.tableId).reduce((sum, r) => sum + (r.party_size || 1), 0);
     return { total, accepted: acceptedRsvps.length, seated, unseated };
   }, [rsvps]);
 

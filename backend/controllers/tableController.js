@@ -229,8 +229,8 @@ const updateTable = async (req, res, next) => {
     updates.max_capacity = cap;
   }
   if (shape !== undefined) {
-    if (!['round', 'rectangle', 'square', 'custom'].includes(shape)) {
-      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'shape must be round, rectangle, square, or custom.' });
+    if (!['round', 'rectangular'].includes(shape)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'shape must be round or rectangular.' });
     }
     updates.shape = shape;
   }
@@ -313,8 +313,8 @@ const duplicateTable = async (req, res, next) => {
         table_name: `${source.table_name} (Copy ${i + 1})`,
         max_capacity: source.max_capacity,
         shape: source.shape,
-        position_x: source.position_x + (60 * (i + 1)),
-        position_y: source.position_y + (40 * (i + 1)),
+        position_x: Math.min(88, parseFloat(source.position_x || 0) + (6 * (i + 1))),
+        position_y: Math.min(88, parseFloat(source.position_y || 0) + (6 * (i + 1))),
         sort_order: (existingCount || 0) + i + 1
       });
     }

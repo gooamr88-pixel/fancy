@@ -63,14 +63,23 @@ export default function SeatingMapPage() {
     try {
       const rawData = e.dataTransfer.getData('application/json'); if (!rawData) return;
       const { rsvpId, partySize } = JSON.parse(rawData);
+      const guest = guests.find(g => g.id === rsvpId);
+      const oldTableId = guest?.tableId;
+      if (oldTableId === tableId) return;
       const table = tables.find(t => t.id === tableId);
       if (table) { const remaining = table.max_capacity - table.occupied; if (partySize > remaining) { alert(`Warning: Table ${table.table_name} only has ${remaining} seats left, party size is ${partySize}.`); return; } }
       setLoading(true);
       const headers = { 'Content-Type': 'application/json' };
-      const res = await fetch(`${API_URL}/events/${eventId}/seating/assign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, tableId }) });
+      let res;
+      if (oldTableId) {
+        res = await fetch(`${API_URL}/events/${eventId}/seating/reassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, newTableId: tableId }) });
+      } else {
+        res = await fetch(`${API_URL}/events/${eventId}/seating/assign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, tableId }) });
+      }
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Seating assignment failed.');
       await loadLayoutData();
       if (selectedTable && selectedTable.id === tableId) setSelectedTable(prev => prev ? { ...prev, occupied: prev.occupied + partySize } : null);
+      if (selectedTable && selectedTable.id === oldTableId) setSelectedTable(prev => prev ? { ...prev, occupied: Math.max(0, prev.occupied - partySize) } : null);
     } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
@@ -291,7 +300,7 @@ export default function SeatingMapPage() {
                   <span style={{ fontSize: '10px', color: C.stone, fontWeight: 700, display: 'block', marginBottom: '4px' }}>Seated Party Members:</span>
                   {selectedTableGuests.length > 0 ? (
                     selectedTableGuests.map(g => (
-                      <div key={g.id} style={{ background: '#FAFAF8', padding: '10px', border: `1px solid #F0ECE3`, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div key={g.id} draggable="true" onDragStart={(e) => handleGuestDragStart(e, g)} style={{ background: '#FAFAF8', padding: '10px', border: `1px solid #F0ECE3`, borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'grab' }}>
                         <div>
                           <span style={{ fontSize: '12px', fontWeight: 600, color: C.charcoal, display: 'block' }}>{g.guest_name}</span>
                           <span style={{ fontSize: '10px', color: C.stone, display: 'block', marginTop: '2px' }}>Party of {g.party_size}</span>

@@ -1,0 +1,421 @@
+'use client';
+
+import React, { useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const C = {
+  gold: '#B8944F', goldHover: '#a6833f',
+  charcoal: '#191B1E', ivory: '#F8F4EC',
+  stone: '#77736A', border: '#E8E2D6',
+  white: '#FFFFFF', softBg: '#FAFAF8',
+  error: '#C45E5E', success: '#3B9B6D',
+};
+
+export default function Stage3_Distribution({
+  slug, distributionMethods, onMethodToggle,
+  smsTemplate, setSmsTemplate,
+  onSubmit, onBack, submitting, error,
+}) {
+  const [copied, setCopied] = useState(false);
+  const eventUrl = `fancyrsvp.com/${slug || 'your-event'}`;
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(`https://${eventUrl}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* fallback */ }
+  }, [eventUrl]);
+
+  const methods = [
+    {
+      key: 'link', icon: '🔗', locked: true,
+      title: 'Unique Invitation Link',
+      desc: 'Share a personalized URL with your guests',
+    },
+    {
+      key: 'qr', icon: '📱',
+      title: 'QR Code',
+      desc: 'Generate a scannable QR code for printed invitations',
+    },
+    {
+      key: 'sms', icon: '💬',
+      title: 'SMS Invitations',
+      desc: 'Send personalized text messages to your guest list',
+    },
+  ];
+
+  return (
+    <div style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 36 }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.15)',
+          borderRadius: 20, padding: '5px 14px', marginBottom: 12,
+        }}>
+          <span style={{ fontSize: 11, color: C.gold, fontWeight: 600, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Step 3 of 3 — Final Step
+          </span>
+        </div>
+        <h2 style={{
+          fontFamily: 'var(--font-serif)', fontSize: 28,
+          fontWeight: 600, color: C.charcoal, margin: 0,
+        }}>Distribution Methods</h2>
+        <p style={{
+          fontFamily: 'var(--font-sans)', fontSize: 14,
+          color: C.stone, margin: '8px 0 0',
+        }}>Choose how you&apos;ll share your invitation with guests</p>
+      </div>
+
+      {/* Method Cards */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {methods.map(m => {
+          const isActive = distributionMethods[m.key];
+          return (
+            <div key={m.key}
+              onClick={() => !m.locked && onMethodToggle(m.key)}
+              style={{
+                background: C.white,
+                border: isActive ? `2px solid ${C.gold}` : `1.5px solid ${C.border}`,
+                borderRadius: 16, padding: 24,
+                cursor: m.locked ? 'default' : 'pointer',
+                transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)',
+                boxShadow: isActive ? '0 4px 20px rgba(184,148,79,0.1)' : '0 2px 8px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 16,
+              }}>
+                {/* Icon */}
+                <div style={{
+                  width: 52, height: 52, borderRadius: 14,
+                  background: isActive ? 'rgba(184,148,79,0.08)' : C.ivory,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 24, flexShrink: 0,
+                  transition: 'background 0.2s',
+                }}>{m.icon}</div>
+
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{
+                      fontFamily: 'var(--font-serif)', fontSize: 16,
+                      fontWeight: 600, color: C.charcoal, margin: 0,
+                    }}>{m.title}</h3>
+                    {/* Toggle circle */}
+                    <div style={{
+                      width: 24, height: 24, borderRadius: '50%',
+                      border: isActive ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
+                      background: isActive ? C.gold : 'transparent',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.2s', flexShrink: 0,
+                    }}>
+                      {isActive && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="#fff" strokeWidth="3" strokeLinecap="round">
+                          <path d="M5 13l4 4L19 7"/>
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <p style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 12,
+                    color: C.stone, margin: '4px 0 0',
+                  }}>{m.desc}</p>
+
+                  {/* Expanded content per method */}
+                  <AnimatePresence>
+                    {isActive && m.key === 'link' && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          background: C.ivory, border: `1px solid ${C.border}`,
+                          borderRadius: 8, padding: '10px 14px', marginTop: 14,
+                        }}>
+                          <span style={{
+                            fontFamily: 'monospace', fontSize: 13,
+                            color: C.charcoal, flex: 1,
+                            overflow: 'hidden', textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>{eventUrl}</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleCopy(); }}
+                            style={{
+                              padding: '6px 14px', borderRadius: 6,
+                              background: copied ? C.success : C.gold,
+                              color: C.white, border: 'none', fontSize: 11,
+                              fontWeight: 700, cursor: 'pointer',
+                              fontFamily: 'var(--font-sans)',
+                              transition: 'background 0.2s',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >{copied ? 'Copied! ✓' : 'Copy Link'}</button>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {isActive && m.key === 'qr' && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div style={{
+                          marginTop: 14, display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', gap: 12,
+                        }}>
+                          {/* QR Placeholder */}
+                          <div style={{
+                            width: 160, height: 160, borderRadius: 12,
+                            background: C.white, border: `2px solid ${C.border}`,
+                            display: 'flex', flexDirection: 'column',
+                            alignItems: 'center', justifyContent: 'center',
+                            gap: 8,
+                          }}>
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+                              stroke={C.stone} strokeWidth="1.5" strokeLinecap="round">
+                              <rect x="3" y="3" width="7" height="7" rx="1"/>
+                              <rect x="14" y="3" width="7" height="7" rx="1"/>
+                              <rect x="3" y="14" width="7" height="7" rx="1"/>
+                              <rect x="14" y="14" width="3" height="3"/>
+                              <rect x="18" y="18" width="3" height="3"/>
+                              <rect x="18" y="14" width="3" height="1"/>
+                              <rect x="14" y="18" width="1" height="3"/>
+                            </svg>
+                            <span style={{
+                              fontSize: 10, color: C.stone,
+                              fontFamily: 'var(--font-sans)', textAlign: 'center',
+                              lineHeight: 1.3,
+                            }}>QR Code generated<br/>after event creation</span>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button disabled style={{
+                              padding: '6px 14px', borderRadius: 6,
+                              background: C.ivory, border: `1px solid ${C.border}`,
+                              color: C.stone, fontSize: 11, fontWeight: 600,
+                              cursor: 'not-allowed', opacity: 0.6,
+                              fontFamily: 'var(--font-sans)',
+                            }}>Download PNG</button>
+                            <button disabled style={{
+                              padding: '6px 14px', borderRadius: 6,
+                              background: C.ivory, border: `1px solid ${C.border}`,
+                              color: C.stone, fontSize: 11, fontWeight: 600,
+                              cursor: 'not-allowed', opacity: 0.6,
+                              fontFamily: 'var(--font-sans)',
+                            }}>Download SVG</button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {isActive && m.key === 'sms' && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <textarea
+                            value={smsTemplate}
+                            onChange={e => { e.stopPropagation(); setSmsTemplate(e.target.value); }}
+                            onClick={e => e.stopPropagation()}
+                            rows={3}
+                            placeholder="Hey {name}, you're invited! RSVP at {url}"
+                            style={{
+                              width: '100%', boxSizing: 'border-box',
+                              background: C.white, border: `1px solid ${C.border}`,
+                              borderRadius: 8, padding: '10px 14px',
+                              fontSize: 13, color: C.charcoal,
+                              outline: 'none', fontFamily: 'var(--font-sans)',
+                              resize: 'vertical',
+                            }}
+                          />
+                          <div style={{
+                            display: 'flex', justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              {['{name}', '{url}'].map(v => (
+                                <span key={v} style={{
+                                  fontSize: 10, fontWeight: 600,
+                                  background: 'rgba(184,148,79,0.08)',
+                                  color: C.gold, borderRadius: 4,
+                                  padding: '3px 8px', fontFamily: 'monospace',
+                                }}>{v}</span>
+                              ))}
+                            </div>
+                            <span style={{
+                              fontSize: 10, color: C.stone,
+                              fontFamily: 'var(--font-sans)',
+                            }}>{smsTemplate.length}/160</span>
+                          </div>
+
+                          <div style={{
+                            background: 'rgba(184,148,79,0.04)',
+                            border: '1px solid rgba(184,148,79,0.12)',
+                            borderRadius: 10, padding: '10px 14px',
+                            display: 'flex', alignItems: 'center', gap: 8,
+                          }}>
+                            <span style={{ fontSize: 14 }}>💡</span>
+                            <span style={{
+                              fontSize: 11, color: C.gold,
+                              fontFamily: 'var(--font-sans)',
+                            }}>SMS credits required — configure in dashboard after event creation</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Summary */}
+      <div style={{
+        borderTop: `1px solid ${C.border}`,
+        marginTop: 32, paddingTop: 28,
+      }}>
+        <h3 style={{
+          fontFamily: 'var(--font-serif)', fontSize: 20,
+          fontWeight: 600, color: C.charcoal, margin: 0,
+        }}>Ready to Launch</h3>
+        <div style={{
+          display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14,
+        }}>
+          <span style={{
+            fontSize: 11, fontWeight: 600,
+            background: 'rgba(184,148,79,0.08)',
+            color: C.gold, borderRadius: 6,
+            padding: '4px 10px', fontFamily: 'var(--font-sans)',
+          }}>🎨 Template configured</span>
+          <span style={{
+            fontSize: 11, fontWeight: 600,
+            background: 'rgba(59,155,109,0.06)',
+            color: C.success, borderRadius: 6,
+            padding: '4px 10px', fontFamily: 'var(--font-sans)',
+          }}>📅 Date set</span>
+          <span style={{
+            fontSize: 11, fontWeight: 600,
+            background: 'rgba(59,130,246,0.06)',
+            color: '#3B82F6', borderRadius: 6,
+            padding: '4px 10px', fontFamily: 'var(--font-sans)',
+          }}>🚀 {Object.values(distributionMethods).filter(Boolean).length} method(s) selected</span>
+        </div>
+        <p style={{
+          fontFamily: 'var(--font-sans)', fontSize: 12,
+          color: C.stone, marginTop: 12, lineHeight: 1.5,
+        }}>
+          Your event will be created and ready for distribution. You can further customize
+          settings, manage guest lists, and send campaigns from the dashboard.
+        </p>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div style={{
+          background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)',
+          borderRadius: 10, padding: '12px 16px', marginTop: 16,
+          color: C.error, fontFamily: 'var(--font-sans)', fontSize: 13,
+          fontWeight: 600,
+        }}>⚠️ {error}</div>
+      )}
+
+      {/* ═══ ACTION FOOTER ═══ */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
+        borderTop: `1px solid ${C.border}`,
+        padding: '16px 24px', zIndex: 50,
+        display: 'flex', justifyContent: 'center',
+      }}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', maxWidth: 860, width: '100%',
+        }}>
+          <button onClick={onBack} style={{
+            height: 48, padding: '0 24px',
+            background: 'none', border: `1.5px solid ${C.charcoal}`,
+            borderRadius: 12, fontFamily: 'var(--font-sans)',
+            fontSize: 14, fontWeight: 700, color: C.charcoal,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
+            transition: 'all 0.2s',
+          }}
+            onMouseEnter={e => { e.currentTarget.style.background = C.charcoal; e.currentTarget.style.color = C.white; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = C.charcoal; }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back
+          </button>
+
+          <button onClick={onSubmit} disabled={submitting}
+            className="s3-cta"
+            style={{
+              height: 56, padding: '0 40px',
+              background: submitting ? '#B0B0B0' : 'linear-gradient(135deg, #B8944F, #a6833f)',
+              color: C.white, border: 'none', borderRadius: 14,
+              fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 10,
+              boxShadow: submitting ? 'none' : '0 4px 20px rgba(184,148,79,0.35)',
+              transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)',
+              position: 'relative', overflow: 'hidden',
+            }}
+            onMouseEnter={e => { if (!submitting) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(184,148,79,0.45)'; }}}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(184,148,79,0.35)'; }}
+          >
+            {/* Shimmer overlay */}
+            {!submitting && <div className="s3-shimmer" />}
+
+            {submitting ? (
+              <>
+                <div style={{
+                  width: 18, height: 18,
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTopColor: '#fff', borderRadius: '50%',
+                  animation: 's3-spin 0.6s linear infinite',
+                }} />
+                Creating Your Event...
+              </>
+            ) : (
+              <>✨ Create Event</>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .s3-shimmer {
+          position: absolute; top: 0; left: -100%;
+          width: 100%; height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+          animation: s3-shimmerMove 2.5s ease-in-out infinite;
+        }
+        @keyframes s3-shimmerMove {
+          0% { left: -100%; }
+          100% { left: 200%; }
+        }
+        @keyframes s3-spin {
+          to { transform: rotate(360deg); }
+        }
+        .s3-cta:active {
+          transform: scale(0.98) !important;
+        }
+      `}</style>
+    </div>
+  );
+}

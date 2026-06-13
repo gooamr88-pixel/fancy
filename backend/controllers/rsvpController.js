@@ -139,19 +139,21 @@ const submitPublicRSVP = async (req, res, next) => {
       }
     } else {
       // 3. Check for duplicate RSVP
-      const { data: existingRsvp } = await supabase
-        .from('rsvps')
-        .select('id')
-        .eq('event_id', event.id)
-        .eq('email', email)
-        .limit(1);
+      if (email && email.trim()) {
+        const { data: existingRsvp } = await supabase
+          .from('rsvps')
+          .select('id')
+          .eq('event_id', event.id)
+          .eq('email', email.trim())
+          .limit(1);
 
-      if (existingRsvp && existingRsvp.length > 0) {
-        return res.status(409).json({
-          success: false,
-          error: 'DUPLICATE_RSVP',
-          message: 'An RSVP with this email already exists for this event. Use the search page to update your existing RSVP.'
-        });
+        if (existingRsvp && existingRsvp.length > 0) {
+          return res.status(409).json({
+            success: false,
+            error: 'DUPLICATE_RSVP',
+            message: 'An RSVP with this email already exists for this event. Use the search page to update your existing RSVP.'
+          });
+        }
       }
 
       // 4. Insert new RSVP record
@@ -736,13 +738,28 @@ const addGuestManually = async (req, res, next) => {
 
     if (rsvpError) throw rsvpError;
 
+    // 2.2 Insert primary guest into rsvp_guests if response is yes
+    if (guestResponse === 'yes') {
+      const { error: guestInsertError } = await supabase
+        .from('rsvp_guests')
+        .insert({
+          rsvp_id: rsvp.id,
+          full_name: guestName.trim(),
+          is_primary: true,
+          meal_selection: null
+        });
+      if (guestInsertError) throw guestInsertError;
+    }
+
     // 3. Log activity
     await supabase
       .from('activity_logs')
       .insert({
         event_id: eventId,
         action: 'guest_added_manually',
-        details: `Organizer manually added guest: ${guestName.trim()} (response: ${guestResponse}, party size: ${computedPartySize})`
+        metadata: {
+          description: `Organizer manually added guest: ${guestName.trim()} (response: ${guestResponse}, party size: ${computedPartySize})`
+        }
       })
       .then(() => {})
       .catch(err => console.error('Activity log insert error:', err.message));
