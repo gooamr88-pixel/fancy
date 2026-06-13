@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import RSVPBottomSheet from "./RSVPBottomSheet";
 
-export default function MobilePreview({ template, theme }) {
+export default function MobilePreview({ template, theme, guestName }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isCardOpened, setIsCardOpened] = useState(false);
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
@@ -126,6 +126,7 @@ export default function MobilePreview({ template, theme }) {
                     template={template} 
                     theme={theme}
                     onOpenComplete={handleCardOpenComplete} 
+                    guestName={guestName}
                   />
                 </div>
 
@@ -150,7 +151,7 @@ export default function MobilePreview({ template, theme }) {
                       {/* Guest Info & Action Card */}
                       <div className="bg-white/92 backdrop-blur-md border border-stone-200/50 p-5 rounded-2xl shadow-xl text-center text-stone-850 font-sans">
                         <span className="text-[10px] uppercase tracking-[3px] font-bold block mb-1" style={{ color: accentColor }}>WELCOME GUEST</span>
-                        <h2 className="font-serif text-xl font-bold text-stone-900 leading-tight">To: جميل الموسم</h2>
+                        <h2 className="font-serif text-xl font-bold text-stone-900 leading-tight">To: {guestName || "Sarah & John"}</h2>
                         
                         <div className="h-[1px] bg-stone-100 my-4" />
 

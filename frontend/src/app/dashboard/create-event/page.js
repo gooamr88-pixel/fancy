@@ -434,7 +434,7 @@ export default function CreateEventWizard() {
   if (!mounted) {
     return (
       <div style={{
-        minHeight: '100vh', background: C.darkBg,
+        minHeight: '100vh', background: '#FAF8F5',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
         <div style={{

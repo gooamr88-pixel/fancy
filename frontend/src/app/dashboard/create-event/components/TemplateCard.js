@@ -1,11 +1,11 @@
 'use client';
-
+ 
 import React, { useState } from 'react';
-
+ 
 export default function TemplateCard({ template, isSelected, onSelect, index, activePresetIndex, onPresetSelect }) {
   const [hovered, setHovered] = useState(false);
   const preset = template.presets[activePresetIndex || 0];
-
+ 
   return (
     <div
       onClick={() => onSelect(template.key)}
@@ -15,18 +15,18 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
         position: 'relative', cursor: 'pointer',
         borderRadius: 18, overflow: 'hidden',
         aspectRatio: '1 / 1.3',
-        background: 'rgba(255,255,255,0.04)',
+        background: isSelected ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.65)',
         backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
         border: isSelected
           ? '2px solid #B8944F'
           : hovered
             ? '1.5px solid rgba(184,148,79,0.4)'
-            : '1px solid rgba(255,255,255,0.08)',
+            : '1px solid rgba(184,148,79,0.12)',
         boxShadow: isSelected
-          ? '0 0 30px rgba(184,148,79,0.2), 0 8px 32px rgba(0,0,0,0.3)'
+          ? '0 12px 30px rgba(184,148,79,0.12), 0 8px 32px rgba(0,0,0,0.06)'
           : hovered
-            ? '0 12px 40px rgba(0,0,0,0.3)'
-            : '0 4px 20px rgba(0,0,0,0.2)',
+            ? '0 12px 40px rgba(0,0,0,0.08)'
+            : '0 4px 20px rgba(0,0,0,0.03)',
         transform: hovered && !isSelected ? 'scale(1.03) translateY(-4px)' : 'scale(1)',
         transition: 'all 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         animation: `ce-cardEntrance 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${index * 0.08}s both`,
@@ -48,7 +48,7 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
           </svg>
         </div>
       )}
-
+ 
       {/* ─── Gradient Banner (40%) ─── */}
       <div style={{
         height: '40%', minHeight: 90,
@@ -58,16 +58,16 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
       }}>
         <div style={{
           width: 52, height: 52, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.2)',
+          background: 'rgba(255,255,255,0.25)',
           backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 26,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
         }}>
           {template.icon}
         </div>
       </div>
-
+ 
       {/* ─── Content Area (60%) ─── */}
       <div style={{
         flex: 1, padding: '16px 18px 14px',
@@ -77,17 +77,17 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
         <div>
           <h3 style={{
             fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 600,
-            color: '#FFFFFF', margin: 0, lineHeight: 1.2,
+            color: '#191B1E', margin: 0, lineHeight: 1.2,
           }}>{template.label}</h3>
           <p style={{
             fontFamily: 'var(--font-sans)', fontSize: 11,
-            color: 'rgba(255,255,255,0.5)', margin: '6px 0 0',
+            color: '#77736A', margin: '6px 0 0',
             lineHeight: 1.4, display: '-webkit-box',
             WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
           }}>{template.desc}</p>
         </div>
-
+ 
         {/* ─── Preset Dots ─── */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
@@ -103,9 +103,9 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
                 background: p.primary, cursor: 'pointer',
                 border: pi === (activePresetIndex || 0)
                   ? '2px solid #B8944F'
-                  : '2px solid rgba(255,255,255,0.15)',
+                  : '2px solid rgba(184, 148, 79, 0.15)',
                 boxShadow: pi === (activePresetIndex || 0)
-                  ? '0 0 0 2px rgba(184,148,79,0.3)'
+                  ? '0 0 0 2px rgba(184,148,79,0.25)'
                   : 'none',
                 transition: 'all 0.25s ease',
                 transform: pi === (activePresetIndex || 0) ? 'scale(1.15)' : 'scale(1)',
@@ -114,12 +114,12 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
           ))}
           <span style={{
             fontFamily: 'var(--font-sans)', fontSize: 9,
-            color: 'rgba(255,255,255,0.35)', marginLeft: 4,
+            color: '#77736A', marginLeft: 4,
             letterSpacing: '0.03em',
           }}>{preset.name}</span>
         </div>
       </div>
-
+ 
       <style jsx>{`
         @keyframes ce-cardEntrance {
           from { opacity: 0; transform: translateY(40px) scale(0.94); }

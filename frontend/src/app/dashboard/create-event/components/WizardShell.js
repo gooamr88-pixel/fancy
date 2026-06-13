@@ -1,22 +1,23 @@
 'use client';
-
+ 
 import React from 'react';
 import Link from 'next/link';
-
+ 
 const C = {
-  gold: '#B8944F', charcoal: '#191B1E', darkBg: '#0A0A0F',
-  stone: '#77736A', border: 'rgba(184,148,79,0.1)',
+  gold: '#B8944F', charcoal: '#191B1E', 
+  border: 'rgba(184,148,79,0.15)',
+  lightBg: '#FAF8F5',
 };
-
+ 
 const STEP_LABELS = ['Templates', 'Configure', 'Distribute'];
-
+ 
 export default function WizardShell({ step, onStepClick, children }) {
   return (
-    <div style={{ minHeight: '100vh', background: step === 0 ? C.darkBg : '#F9F8F6' }}>
+    <div style={{ minHeight: '100vh', background: C.lightBg }}>
       {/* ═══ TOP BAR ═══ */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 100,
-        background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(20px)',
+        background: 'rgba(250,248,245,0.85)', backdropFilter: 'blur(20px)',
         borderBottom: `1px solid ${C.border}`,
         height: 60, display: 'flex', alignItems: 'center',
         padding: '0 24px',
@@ -41,7 +42,7 @@ export default function WizardShell({ step, onStepClick, children }) {
             color: C.gold, letterSpacing: 1,
           }}>Fancy</span>
         </div>
-
+ 
         {/* Center: Step Indicator */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: 0,
@@ -72,7 +73,7 @@ export default function WizardShell({ step, onStepClick, children }) {
                     animation: 'wz-pulse 2s ease-in-out infinite',
                   } : {
                     background: 'transparent',
-                    border: '2px solid #3A3A3A', color: '#3A3A3A',
+                    border: '2px solid #D1CFC9', color: '#77736A',
                   }),
                 }}>
                   {i < step ? (
@@ -87,18 +88,18 @@ export default function WizardShell({ step, onStepClick, children }) {
                   fontSize: 10, fontFamily: 'var(--font-sans)',
                   fontWeight: i === step ? 700 : 500,
                   letterSpacing: '0.05em', textTransform: 'uppercase',
-                  color: i <= step ? C.gold : '#555',
+                  color: i <= step ? C.gold : '#77736A',
                   transition: 'color 0.3s',
                 }}>{label}</span>
               </div>
-
+ 
               {/* Connector Line */}
               {i < STEP_LABELS.length - 1 && (
                 <div style={{
                   width: 56, height: 2, margin: '0 4px',
                   marginBottom: 18,
                   borderRadius: 1,
-                  background: '#2A2A2A',
+                  background: '#E8E2D6',
                   position: 'relative', overflow: 'hidden',
                 }}>
                   <div style={{
@@ -113,16 +114,16 @@ export default function WizardShell({ step, onStepClick, children }) {
             </React.Fragment>
           ))}
         </div>
-
+ 
         {/* Right: spacer */}
         <div style={{ flex: '1 1 0', minWidth: 0 }} />
       </div>
-
+ 
       {/* ═══ CONTENT ═══ */}
       <div style={{ position: 'relative' }}>
         {children}
       </div>
-
+ 
       <style jsx>{`
         @keyframes wz-pulse {
           0%, 100% { box-shadow: 0 0 0 4px rgba(184,148,79,0.15); }
