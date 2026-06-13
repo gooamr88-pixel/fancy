@@ -106,7 +106,8 @@ const sendQRTicketEmail = async (eventId, rsvpId) => {
     event_id: eventId,
     assignment_id: assignment.id,
     table_name: assignment.tables.table_name,
-    party_size: assignment.rsvps.party_size
+    party_size: assignment.rsvps.party_size,
+    event_date: assignment.events.event_date
   });
 
   // 3. Convert token to QR base64 image
