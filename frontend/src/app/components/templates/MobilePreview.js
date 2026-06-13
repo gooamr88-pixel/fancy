@@ -12,7 +12,7 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
   const [rsvpData, setRsvpData] = useState(null);
   const scrollContainerRef = useRef(null);
 
-  // Reset states when template or theme changes to simulate a fresh URL loading experience
+  // Reset states when template changes to simulate a fresh URL loading experience (snappier transition)
   useEffect(() => {
     setIsLoading(true);
     setIsCardOpened(false);
@@ -21,10 +21,10 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
 
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 1200);
+    }, 600);
 
     return () => clearTimeout(timer);
-  }, [template, theme]);
+  }, [template?.pattern]);
 
   const handleCardOpenComplete = () => {
     setIsCardOpened(true);

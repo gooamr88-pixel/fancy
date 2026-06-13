@@ -10,12 +10,12 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
 
   const accentColor = theme?.primary || "#B8944F";
 
-  // Reset envelope state when template or theme changes
+  // Reset envelope state when template changes
   useEffect(() => {
     setIsOpen(false);
     setIsCardOut(false);
     setShowTapIndicator(true);
-  }, [template, theme]);
+  }, [template?.pattern]);
 
   const handleOpen = () => {
     if (isOpen) return;
@@ -310,18 +310,17 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           className="absolute left-3 right-3 h-[190px] rounded-lg shadow-xl cursor-default"
           style={{ 
             bottom: "8px", 
-            transformOrigin: "bottom center"
+            transformOrigin: "bottom center",
+            zIndex: 20 // Fixed z-index so it slides out of the pocket naturally behind front flaps!
           }}
-          initial={{ y: 0, scale: 0.94, zIndex: 20 }}
+          initial={{ y: 0, scale: 0.94 }}
           animate={{
             y: isCardOut ? -100 : 0,
-            scale: isCardOut ? 1.05 : 0.94,
-            zIndex: isCardOut ? 35 : 20
+            scale: isCardOut ? 1.05 : 0.94
           }}
           transition={{
-            y: { type: "spring", stiffness: 100, damping: 20, delay: 0.75 },
-            scale: { type: "spring", stiffness: 100, damping: 20, delay: 0.8 },
-            zIndex: { delay: isCardOut ? 0.9 : 0 }
+            y: { type: "spring", stiffness: 100, damping: 20 },
+            scale: { type: "spring", stiffness: 100, damping: 20, delay: 0.05 }
           }}
         >
           {renderCardContent()}
@@ -343,12 +342,15 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
  
         {/* Layer 4: Envelope Flap (Top Folding Flap) */}
         <motion.div
-          className="absolute top-0 left-0 w-full h-[75px] origin-top transform-style-3d z-35"
-          initial={{ rotateX: 0 }}
-          animate={{ rotateX: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
-          style={{
+          className="absolute top-0 left-0 w-full h-[75px] origin-top transform-style-3d"
+          initial={{ rotateX: 0, zIndex: 31 }}
+          animate={{ 
+            rotateX: isOpen ? 180 : 0,
             zIndex: isOpen ? 5 : 31
+          }}
+          transition={{
+            rotateX: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
+            zIndex: { delay: isOpen ? 0.35 : 0 } // Delay z-index drop when opening so it doesn't clip instantly!
           }}
         >
           {/* Flap Outer (faces us when closed) */}
