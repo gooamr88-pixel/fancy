@@ -9,12 +9,21 @@ import PlacesAutocomplete from '../../components/PlacesAutocomplete';
    DESIGN TOKENS (Ivory & Gold Theme)
    ═══════════════════════════════════════════════════════════ */
 const C = {
-  gold: '#B8944F', goldHover: '#a6833f', goldLight: '#D4B96A',
-  charcoal: '#191B1E', ivory: '#F8F4EC', linen: '#F5EFEB',
-  champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6',
-  white: '#FFFFFF', softBg: '#FAFAF8', error: '#C45E5E', success: '#3B9B6D',
-  goldGlow: 'rgba(184,148,79,0.15)',
-  waxRed: 'radial-gradient(circle, #A62B2B 0%, #7A1414 100%)',
+  gold: '#2563EB', // Indigo Blue accent instead of gold
+  goldHover: '#1D4ED8',
+  goldLight: '#60A5FA',
+  charcoal: '#0F172A', // Slate 900
+  ivory: '#FFFFFF', // Pure White
+  linen: '#F8FAFC', // Slate 50
+  champagne: '#3B82F6', // Blue 500
+  stone: '#64748B', // Slate 500
+  border: '#E2E8F0', // Slate 200
+  white: '#FFFFFF',
+  softBg: '#F8FAFC', // Slate 50
+  error: '#EF4444',
+  success: '#10B981',
+  goldGlow: 'rgba(37,99,235,0.05)',
+  waxRed: 'radial-gradient(circle, #3B82F6 0%, #1D4ED8 100%)',
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -224,7 +233,7 @@ function FloatingParticles() {
             position: 'absolute',
             width: `${p.width}px`,
             height: `${p.height}px`,
-            background: 'rgba(184, 148, 79, 0.07)',
+            background: 'rgba(37, 99, 235, 0.03)',
             borderRadius: '50%',
             top: `${p.top}%`,
             left: `${p.left}%`,
@@ -238,9 +247,9 @@ function FloatingParticles() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   STATIONERY ENVELOPE (Unfolding lightness)
+   PREMIUM MINIMALIST CARD SELECTOR
    ═══════════════════════════════════════════════════════════ */
-function InvitationEnvelope({ tpl, isSelected, onSelect, index, activePreset }) {
+function InvitationCard({ tpl, isSelected, onSelect, index, activePreset }) {
   const [hovered, setHovered] = useState(false);
   const t = tpl.cardTheme;
 
@@ -248,8 +257,6 @@ function InvitationEnvelope({ tpl, isSelected, onSelect, index, activePreset }) 
   const secondaryColor = activePreset.secondary;
   const accentColor = activePreset.accent;
   const backgroundColor = activePreset.background;
-
-  const isActive = isSelected || hovered;
 
   return (
     <div style={{ animation: `ce-cardEntrance 0.8s cubic-bezier(0.16, 1, 0.3, 1) ${index * 0.1}s both` }}>
@@ -261,245 +268,172 @@ function InvitationEnvelope({ tpl, isSelected, onSelect, index, activePreset }) 
         style={{
           position: 'relative',
           width: '100%',
-          aspectRatio: '1/1.3',
+          aspectRatio: '1/1.25',
           border: 'none',
           background: 'none',
           cursor: 'pointer',
           padding: 0,
           display: 'block',
           outline: 'none',
-          perspective: '1500px',
         }}
       >
-        {/* Shadow glow matching gold theme */}
+        {/* Glow effect on hover/selection */}
         <div style={{
           position: 'absolute',
-          inset: '-12px',
-          borderRadius: '24px',
+          inset: '-8px',
+          borderRadius: '20px',
           background: isSelected
-            ? `radial-gradient(circle, ${C.gold}20 0%, transparent 70%)`
+            ? `radial-gradient(circle, ${primaryColor}15 0%, transparent 70%)`
             : hovered
-              ? `radial-gradient(circle, ${C.gold}10 0%, transparent 70%)`
+              ? `radial-gradient(circle, ${primaryColor}08 0%, transparent 70%)`
               : 'none',
-          transition: 'all 0.6s ease',
+          transition: 'all 0.4s ease',
           zIndex: 0,
         }} />
 
-        {/* Outer Envelope Wrapper */}
+        {/* The Card Component */}
         <div style={{
           width: '100%',
           height: '100%',
           position: 'relative',
-          background: '#F9F7F4', // Premium linen cream color
+          background: '#FFFFFF',
           borderRadius: '16px',
-          border: `1px solid ${C.border}`,
-          overflow: 'visible',
+          border: `1.5px solid ${isSelected ? primaryColor : '#E2E8F0'}`,
+          overflow: 'hidden',
           boxShadow: hovered 
-            ? '0 20px 40px rgba(184, 148, 79, 0.15)' 
+            ? '0 16px 36px rgba(0, 0, 0, 0.08)' 
             : isSelected
-              ? '0 12px 28px rgba(184, 148, 79, 0.12)'
-              : '0 6px 16px rgba(0,0,0,0.05)',
-          transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
-          transform: hovered ? 'translateY(-6px) rotateY(-2deg)' : 'none',
+              ? '0 10px 24px rgba(0, 0, 0, 0.05)'
+              : '0 4px 12px rgba(0, 0, 0, 0.02)',
+          transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          transform: hovered ? 'translateY(-4px)' : 'none',
+          display: 'flex',
+          flexDirection: 'column',
         }}>
-
-          {/* 1. Envelope Back Interior (Inner fold) */}
+          {/* Card Visual Header Bar (Represents Header Banner) */}
           <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(180deg, #FDFDFB 0%, #F4ECE1 100%)',
-            borderRadius: '16px',
-            zIndex: 1,
-            overflow: 'hidden',
-          }}>
-            {/* Gold foil liner details */}
-            <div style={{
-              position: 'absolute',
-              inset: '8px',
-              border: `1.5px solid ${C.gold}30`,
-              borderRadius: '12px',
-              opacity: 0.7,
-            }} />
-          </div>
-
-          {/* 2. Slide-out Card */}
-          <div style={{
-            position: 'absolute',
-            top: '8%',
-            left: '7%',
-            right: '7%',
-            height: '84%',
-            background: backgroundColor,
-            borderRadius: '10px',
-            zIndex: 2,
-            border: `1px solid ${secondaryColor}40`,
-            boxShadow: '0 6px 18px rgba(184,148,79,0.12)',
-            transition: 'all 0.6s cubic-bezier(0.25, 1, 0.5, 1)',
-            transform: isActive
-              ? 'translateY(-55%) scale(1.03) rotate(0.8deg)'
-              : 'translateY(0) scale(0.96)',
+            height: '42%',
+            background: `linear-gradient(135deg, ${primaryColor}f0 0%, ${secondaryColor}cc 100%)`,
+            position: 'relative',
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '16px',
-            boxSizing: 'border-box',
+            overflow: 'hidden',
           }}>
-            {/* Card inner foil frame */}
+            {/* Visual pattern/lines inside banner */}
             <div style={{
               position: 'absolute',
-              inset: '8px',
-              border: `1.5px double ${primaryColor}40`,
-              borderRadius: '8px',
-              pointerEvents: 'none',
+              inset: 0,
+              opacity: 0.08,
+              backgroundImage: 'radial-gradient(circle at 1px 1px, #FFF 1px, transparent 0)',
+              backgroundSize: '8px 8px',
             }} />
             
-            {/* Card mini text details */}
-            <span style={{ fontSize: '18px', color: primaryColor, marginBottom: '4px' }}>{tpl.icon}</span>
-            <span style={{
-              fontFamily: t.headerFont || 'var(--font-serif)',
-              fontSize: '11px',
+            {/* Template icon in badge */}
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              background: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '22px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              zIndex: 2,
+            }}>
+              {tpl.icon}
+            </div>
+
+            {/* Template Badge label */}
+            <div style={{
+              position: 'absolute',
+              bottom: '8px',
+              right: '8px',
+              background: 'rgba(255,255,255,0.2)',
+              backdropFilter: 'blur(8px)',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              fontSize: '8px',
               fontWeight: 700,
-              color: primaryColor,
-              textAlign: 'center',
-              lineHeight: 1.2,
-              marginBottom: '4px',
+              color: '#FFFFFF',
+              letterSpacing: '0.05em',
               textTransform: 'uppercase',
-              letterSpacing: '0.5px',
             }}>
-              {tpl.label === 'Custom Canvas' ? 'Custom RSVP' : t.line2.split('\n')[0]}
-            </span>
-            <span style={{
-              fontSize: '7.5px',
-              color: accentColor,
-              opacity: 0.75,
-              textAlign: 'center',
-              lineHeight: 1.4,
-              maxWidth: '85%',
-              display: 'block',
-            }}>
-              {tpl.label === 'Custom Canvas' ? 'Design from Scratch' : t.line3.split('\n')[0]}
-            </span>
+              {tpl.key}
+            </div>
           </div>
 
-          {/* 3. Envelope V-Neck Front Pocket (Covers bottom half of card) */}
+          {/* Card Text Content */}
           <div style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: '60%',
-            background: '#FAF8F5',
-            borderTop: '1px solid #E8E2D6',
-            borderRadius: '0 0 16px 16px',
-            zIndex: 3,
-            boxShadow: '0 -4px 12px rgba(0,0,0,0.02)',
-            overflow: 'hidden',
-          }}>
-            {/* V-Pocket shape */}
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              height: '42px',
-              background: 'linear-gradient(180deg, rgba(184,148,79,0.06) 0%, transparent 100%)',
-              clipPath: 'polygon(0 0, 50% 100%, 100% 0, 100% 20%, 50% 100%, 0 20%)',
-            }} />
-            {/* Gold foil edging */}
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              border: `1px solid ${C.gold}15`,
-              borderRadius: '0 0 16px 16px',
-              pointerEvents: 'none',
-            }} />
-          </div>
-
-          {/* 4. Triangular Envelope Flap */}
-          <div style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '46%',
-            transformOrigin: 'top center',
-            zIndex: isActive ? 1 : 4,
-            transition: 'transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), z-index 0s linear ' + (isActive ? '0s' : '0.3s'),
-            transform: isActive ? 'rotateX(180deg)' : 'rotateX(0deg)',
-            clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
-            boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
-          }}>
-            {/* Flap stock front */}
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              background: '#FAF8F5',
-              borderBottom: `1.5px solid ${C.gold}30`,
-              backfaceVisibility: 'hidden',
-            }} />
-            {/* Flap gold foil interior (shown when open) */}
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              background: `linear-gradient(135deg, ${C.gold}30 0%, ${C.champagne}30 100%)`,
-              transform: 'rotateX(180deg)',
-              backfaceVisibility: 'hidden',
-              border: `1px solid ${C.gold}45`,
-            }} />
-          </div>
-
-          {/* Wax Seal (remains at center point, shifts in z-index based on flap status) */}
-          <div style={{
-            position: 'absolute',
-            top: isActive ? '90%' : '46%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '34px',
-            height: '34px',
-            borderRadius: '50%',
-            background: C.waxRed,
+            flex: 1,
+            padding: '20px 18px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '15px',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.18), inset 0 2px 4px rgba(255,255,255,0.2)',
-            zIndex: isActive ? 10 : 5,
-            transition: 'top 0.6s cubic-bezier(0.25, 1, 0.5, 1), z-index 0.6s',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            background: '#FFFFFF',
+            textAlign: 'left',
           }}>
-            {/* Gold foil emblem stamp inside wax */}
-            <span style={{ fontSize: '13px', filter: 'brightness(1.2) sepia(1) hue-rotate(15deg)' }}>{tpl.icon}</span>
-          </div>
+            <div style={{ width: '100%' }}>
+              <span style={{
+                display: 'block',
+                fontFamily: 'var(--font-serif)',
+                fontSize: '15px',
+                fontWeight: 650,
+                color: '#1E293B',
+                marginBottom: '6px',
+              }}>
+                {tpl.label}
+              </span>
+              
+              <span style={{
+                display: 'block',
+                fontSize: '11px',
+                color: '#64748B',
+                lineHeight: 1.4,
+                marginBottom: '10px',
+              }}>
+                {tpl.desc}
+              </span>
+            </div>
 
-          {/* Selection indicator border */}
-          {isSelected && (
+            {/* Bottom tags */}
             <div style={{
-              position: 'absolute',
-              inset: '-2px',
-              borderRadius: '18px',
-              border: `2.5px solid ${C.gold}`,
-              pointerEvents: 'none',
-              zIndex: 10,
-              boxShadow: `0 0 24px ${C.goldGlow}`,
-            }} />
-          )}
-
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingTop: '10px',
+              borderTop: '1px solid #F1F5F9',
+            }}>
+              <span style={{
+                fontSize: '9px',
+                color: primaryColor,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}>
+                {activePreset.name}
+              </span>
+              
+              <span style={{
+                fontSize: '10px',
+                color: isSelected ? primaryColor : '#94A3B8',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px',
+              }}>
+                {isSelected ? 'Selected ✓' : 'Use Template'}
+              </span>
+            </div>
+          </div>
         </div>
       </button>
-      
-      {/* Label */}
-      <div style={{ textAlign: 'center', marginTop: '16px' }}>
-        <span style={{
-          fontFamily: 'var(--font-serif)',
-          fontSize: '14px',
-          fontWeight: 600,
-          color: isSelected ? C.gold : C.charcoal,
-          transition: 'color 0.2s',
-          display: 'block',
-        }}>
-          {tpl.label}
-        </span>
-      </div>
     </div>
   );
 }
@@ -718,7 +652,7 @@ export default function CreateEventWizard() {
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: step === 0 ? `radial-gradient(circle at top, #FAF6F0 0%, ${C.linen} 100%)` : C.softBg, fontFamily: 'var(--font-sans)', transition: 'background 0.8s ease' }}>
+    <div style={{ minHeight: '100vh', background: step === 0 ? `radial-gradient(circle at top, #FFFFFF 0%, ${C.linen} 100%)` : C.softBg, fontFamily: 'var(--font-sans)', transition: 'background 0.8s ease' }}>
 
       {/* ═══ TOPBAR ═══ */}
       <div style={{
@@ -788,7 +722,7 @@ export default function CreateEventWizard() {
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: '8px',
                 padding: '6px 18px', borderRadius: '100px',
-                background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.15)',
+                background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.15)',
                 marginBottom: '20px',
               }}>
                 <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: C.gold, animation: 'ce-pulse 2s ease-in-out infinite' }} />
@@ -824,7 +758,7 @@ export default function CreateEventWizard() {
                   gap: '32px 24px',
                 }}>
                   {TEMPLATES.map((tpl, idx) => (
-                    <InvitationEnvelope
+                    <InvitationCard
                       key={tpl.key}
                       tpl={tpl}
                       isSelected={templateType === tpl.key}
@@ -846,7 +780,7 @@ export default function CreateEventWizard() {
                 border: `1px solid ${C.border}`,
                 borderRadius: '24px',
                 padding: '32px',
-                boxShadow: '0 12px 32px rgba(184, 148, 79, 0.08)',
+                boxShadow: '0 12px 32px rgba(0,0,0,0.03)',
                 position: 'sticky',
                 top: '96px',
                 display: 'flex',
@@ -885,7 +819,7 @@ export default function CreateEventWizard() {
                             padding: '8px 14px',
                             borderRadius: '100px',
                             border: `1.5px solid ${isPresetSelected ? C.gold : C.border}`,
-                            background: isPresetSelected ? 'rgba(184,148,79,0.08)' : C.white,
+                            background: isPresetSelected ? 'rgba(37,99,235,0.06)' : C.white,
                             color: isPresetSelected ? C.gold : C.stone,
                             fontSize: '12px',
                             fontWeight: isPresetSelected ? 700 : 500,
@@ -932,17 +866,17 @@ export default function CreateEventWizard() {
                     </div>
                   </div>
 
-                  {/* Right: Gold iPhone Simulator */}
+                  {/* Right: Silver/Glass iPhone Simulator */}
                   <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    {/* Device Bezel (Gold iPhone) */}
+                    {/* Device Bezel (Silver/White iPhone) */}
                     <div style={{
                       width: '150px',
                       height: '275px',
-                      background: '#FFFDF9',
+                      background: '#FFFFFF',
                       borderRadius: '24px',
                       padding: '8px',
-                      boxShadow: '0 12px 28px rgba(184,148,79,0.18), inset 0 0 0 1px rgba(184,148,79,0.4)',
-                      border: `2px solid ${C.gold}`,
+                      boxShadow: '0 12px 28px rgba(0,0,0,0.06), inset 0 0 0 1.5px rgba(0,0,0,0.08)',
+                      border: `2px solid ${C.border}`,
                       boxSizing: 'border-box',
                       display: 'flex',
                       flexDirection: 'column',
@@ -958,10 +892,10 @@ export default function CreateEventWizard() {
                         fontSize: '9px',
                         position: 'relative',
                         color: activePresetColors.accent,
-                        border: '1px solid rgba(184,148,79,0.1)',
+                        border: '1px solid rgba(0,0,0,0.04)',
                       }}>
                         {/* Device Notch */}
-                        <div style={{ width: '45px', height: '6px', background: '#FFFDF9', borderRadius: '0 0 6px 6px', position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 10, border: `1px solid ${C.gold}30`, borderTop: 'none' }} />
+                        <div style={{ width: '45px', height: '6px', background: '#FFFFFF', borderRadius: '0 0 6px 6px', position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 10, border: `1.5px solid ${C.border}`, borderTop: 'none' }} />
 
                         {/* Top banner image placeholder */}
                         <div style={{
@@ -1033,7 +967,7 @@ export default function CreateEventWizard() {
                                 </div>
                               )}
 
-                              <button onClick={() => setMockSuccess(true)} style={{ marginTop: 'auto', background: `linear-gradient(135deg, ${activePresetColors.primary}, ${activePresetColors.secondary})`, color: '#fff', border: 'none', borderRadius: '6px', padding: '5px 0', fontSize: '7.5px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(184,148,79,0.2)' }}>
+                              <button onClick={() => setMockSuccess(true)} style={{ marginTop: 'auto', background: `linear-gradient(135deg, ${activePresetColors.primary}, ${activePresetColors.secondary})`, color: '#fff', border: 'none', borderRadius: '6px', padding: '5px 0', fontSize: '7.5px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
                                 Send RSVP
                               </button>
                             </>
@@ -1059,7 +993,7 @@ export default function CreateEventWizard() {
               <div>
                 <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: C.charcoal, margin: 0 }}>Event Details</h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                  <span style={{ fontSize: '10px', fontWeight: 700, color: C.gold, padding: '3px 10px', borderRadius: '100px', background: 'rgba(184,148,79,0.08)', letterSpacing: '0.05em' }}>{selectedTemplate?.label} Preset</span>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: C.gold, padding: '3px 10px', borderRadius: '100px', background: 'rgba(37,99,235,0.08)', letterSpacing: '0.05em' }}>{selectedTemplate?.label} Preset</span>
                   <button onClick={() => setStep(0)} style={{ background: 'none', border: 'none', fontSize: '11px', color: C.stone, cursor: 'pointer', fontFamily: 'var(--font-sans)', textDecoration: 'underline', textUnderlineOffset: '2px', opacity: 0.7 }}>change template</button>
                 </div>
               </div>
@@ -1094,7 +1028,7 @@ export default function CreateEventWizard() {
               {templateType && templateType !== 'custom' && (
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: C.charcoal, marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(184,148,79,0.08)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: C.gold }}>{selectedTemplate?.icon}</span>
+                    <span style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(37,99,235,0.08)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', color: C.gold }}>{selectedTemplate?.icon}</span>
                     {selectedTemplate?.label} Profile Information
                   </h3>
                   
@@ -1154,7 +1088,7 @@ export default function CreateEventWizard() {
                 </div>
               )}
               {templateType === 'custom' && (
-                <div style={{ padding: '20px', borderRadius: '14px', background: 'rgba(184,148,79,0.04)', border: '1px solid rgba(184,148,79,0.15)', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ padding: '20px', borderRadius: '14px', background: 'rgba(37,99,235,0.04)', border: '1px solid rgba(37,99,235,0.12)', display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <span style={{ fontSize: '24px' }}>✨</span>
                   <span style={{ fontSize: '13px', color: C.stone, lineHeight: 1.6 }}>
                     <strong style={{ color: C.charcoal }}>Custom Canvas Selected</strong> — You can build a completely custom questionnaire and add unlimited custom form questions directly from the dashboard after creation.
@@ -1194,7 +1128,7 @@ export default function CreateEventWizard() {
                           padding: '10px 18px',
                           borderRadius: '100px',
                           border: `1.5px solid ${isActive ? C.gold : C.border}`,
-                          background: isActive ? 'rgba(184,148,79,0.08)' : C.white,
+                          background: isActive ? 'rgba(37,99,235,0.08)' : C.white,
                           color: isActive ? C.gold : C.stone,
                           fontSize: '12px',
                           fontWeight: isActive ? 700 : 500,
@@ -1231,7 +1165,7 @@ export default function CreateEventWizard() {
                           padding: '20px 14px',
                           border: `1.5px solid ${isSelectedPrivacy ? C.gold : C.border}`,
                           borderRadius: '16px',
-                          background: isSelectedPrivacy ? 'rgba(184,148,79,0.04)' : C.white,
+                          background: isSelectedPrivacy ? 'rgba(37,99,235,0.04)' : C.white,
                           cursor: 'pointer',
                           textAlign: 'center',
                           transition: 'all 0.3s ease',
@@ -1351,7 +1285,7 @@ export default function CreateEventWizard() {
                   </div>
                 )}
 
-                <div style={{ padding: '16px 20px', borderRadius: '16px', background: 'rgba(184,148,79,0.04)', border: '1px solid rgba(184,148,79,0.15)', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{ padding: '16px 20px', borderRadius: '16px', background: 'rgba(37,99,235,0.04)', border: '1px solid rgba(37,99,235,0.12)', display: 'flex', gap: '12px', alignItems: 'center' }}>
                   <span style={{ fontSize: '18px' }}>💡</span>
                   <span style={{ fontSize: '12px', color: C.stone, lineHeight: 1.6 }}>
                     This event will be created in <strong style={{ color: C.charcoal }}>draft mode</strong>. You can customize guest lists, edit fields, and fully activate it for public RSVPs anytime from your main dashboard tab.
