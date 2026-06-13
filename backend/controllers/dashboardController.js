@@ -79,7 +79,10 @@ const getDashboardData = async (req, res, next) => {
       });
     }
 
-    // 4. Run all dashboard queries in parallel
+    // 4. Run all dashboard queries in parallel — each wrapped to handle missing tables/columns gracefully
+    const safeQuery = (promise, fallback = { data: null, error: null, count: 0 }) =>
+      promise.then(r => r).catch(() => fallback);
+
     const [
       statsResult,
       checkInsResult,
@@ -88,41 +91,66 @@ const getDashboardData = async (req, res, next) => {
       recentActivityResult
     ] = await Promise.all([
       // a) Stats — RSVP aggregation
-      supabase
-        .from('rsvps')
-        .select('response, party_size')
-        .in('event_id', eventIds),
+      safeQuery(
+        supabase
+          .from('rsvps')
+          .select('response, party_size')
+          .in('event_id', eventIds)
+      ),
 
-      // b) Check-ins count
-      supabase
-        .from('check_ins')
-        .select('id', { count: 'exact', head: true })
-        .in('event_id', eventIds),
+      // b) Check-ins count (check_ins table may not exist)
+      safeQuery(
+        supabase
+          .from('check_ins')
+          .select('id', { count: 'exact', head: true })
+          .in('event_id', eventIds),
+        { data: null, error: null, count: 0 }
+      ),
 
-      // c) RSVP Trend — raw data to aggregate by date
-      supabase
-        .from('rsvps')
-        .select('submitted_at, response, party_size')
-        .in('event_id', eventIds)
-        .not('submitted_at', 'is', null)
-        .order('submitted_at', { ascending: true }),
+      // c) RSVP Trend — try submitted_at first, fall back to created_at
+      (async () => {
+        const tryCol = async (col) => {
+          const result = await supabase
+            .from('rsvps')
+            .select(`${col}, response, party_size`)
+            .in('event_id', eventIds)
+            .not(col, 'is', null)
+            .order(col, { ascending: true });
+          if (result.error) throw result.error;
+          // Normalize to submitted_at key for downstream processing
+          return { ...result, data: (result.data || []).map(r => ({ ...r, submitted_at: r[col] })) };
+        };
+        try {
+          return await tryCol('submitted_at');
+        } catch (e1) {
+          try {
+            return await tryCol('created_at');
+          } catch (e2) {
+            return { data: [], error: e2 };
+          }
+        }
+      })(),
 
       // d) Upcoming Events
-      supabase
-        .from('events')
-        .select('id, title, event_date, location_name, status')
-        .eq('org_id', orgId)
-        .gte('event_date', new Date().toISOString())
-        .order('event_date', { ascending: true })
-        .limit(5),
+      safeQuery(
+        supabase
+          .from('events')
+          .select('id, title, event_date, location_name, status')
+          .eq('org_id', orgId)
+          .gte('event_date', new Date().toISOString())
+          .order('event_date', { ascending: true })
+          .limit(5)
+      ),
 
       // e) Recent Activity
-      supabase
-        .from('activity_logs')
-        .select('id, action, metadata, created_at, entity_type, entity_id')
-        .in('event_id', eventIds)
-        .order('created_at', { ascending: false })
-        .limit(10)
+      safeQuery(
+        supabase
+          .from('activity_logs')
+          .select('id, action, metadata, created_at, entity_type, entity_id')
+          .in('event_id', eventIds)
+          .order('created_at', { ascending: false })
+          .limit(10)
+      )
     ]);
 
     // --- Process a) Stats ---

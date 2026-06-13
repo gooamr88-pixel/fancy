@@ -50,34 +50,47 @@ const getTables = async (req, res, next) => {
   const { eventId } = req.params;
 
   try {
-    // 1. Fetch tables
-    const { data: tables, error: tableError } = await supabase
+    // 1. Fetch tables — try sort_order first, fall back to created_at if column missing
+    let tables, tableError;
+    ({ data: tables, error: tableError } = await supabase
       .from('tables')
       .select('*')
       .eq('event_id', eventId)
-      .order('sort_order', { ascending: true });
+      .order('sort_order', { ascending: true }));
+
+    // Fall back if sort_order column doesn't exist (code 42703 = undefined_column)
+    if (tableError && (tableError.code === '42703' || (tableError.message && tableError.message.includes('sort_order')))) {
+      ({ data: tables, error: tableError } = await supabase
+        .from('tables')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: true }));
+    }
 
     if (tableError) throw tableError;
 
     // 2. Fetch seating assignments aggregations to calculate occupied seats
-    const { data: assignments, error: assignError } = await supabase
-      .from('seating_assignments')
-      .select('table_id, rsvps(party_size)')
-      .eq('event_id', eventId);
+    let assignments = [];
+    try {
+      const { data, error: assignError } = await supabase
+        .from('seating_assignments')
+        .select('table_id, rsvps(party_size)')
+        .eq('event_id', eventId);
 
-    if (assignError) throw assignError;
+      if (!assignError) assignments = data || [];
+    } catch (e) {
+      // seating_assignments table may not exist yet
+    }
 
     // Calculate occupancy map
     const occupancyMap = {};
-    if (assignments) {
-      assignments.forEach(sa => {
-        if (sa.table_id && sa.rsvps) {
-          occupancyMap[sa.table_id] = (occupancyMap[sa.table_id] || 0) + sa.rsvps.party_size;
-        }
-      });
-    }
+    assignments.forEach(sa => {
+      if (sa.table_id && sa.rsvps) {
+        occupancyMap[sa.table_id] = (occupancyMap[sa.table_id] || 0) + sa.rsvps.party_size;
+      }
+    });
 
-    const results = tables.map(t => ({
+    const results = (tables || []).map(t => ({
       ...t,
       occupied: occupancyMap[t.id] || 0
     }));

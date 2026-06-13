@@ -347,48 +347,78 @@ const getRSVPs = async (req, res, next) => {
   const to = from + limit - 1;
 
   try {
-    let query = supabase
-      .from('rsvps')
-      .select('*, rsvp_guests(*), custom_answers(*), seating_assignments(id, table_id, tables(table_name))', { count: 'exact' })
-      .eq('event_id', eventId);
+    // Build fallback chain: try full select + submitted_at, then full + created_at, then simple + created_at
+    const fullSelect = '*, rsvp_guests(*), custom_answers(*), seating_assignments(id, table_id, tables(table_name))';
+    const simpleSelect = '*, rsvp_guests(*), custom_answers(*)';
+    const fallbacks = [
+      { sel: fullSelect, sortCol: 'submitted_at' },
+      { sel: fullSelect, sortCol: 'created_at' },
+      { sel: simpleSelect, sortCol: 'created_at' },
+    ];
 
-    // Apply filters
-    if (response && ['yes', 'no', 'pending'].includes(response)) {
-      query = query.eq('response', response);
-    }
-    if (search && search.trim()) {
-      query = query.ilike('guest_name', `%${escapeLikePattern(search.trim())}%`);
-    }
+    let rsvps, queryError, totalCount;
 
-    // Apply sorting
-    switch (sort) {
-      case 'name_asc':
-        query = query.order('guest_name', { ascending: true });
+    for (const { sel, sortCol } of fallbacks) {
+      let query = supabase
+        .from('rsvps')
+        .select(sel, { count: 'exact' })
+        .eq('event_id', eventId);
+
+      // Apply filters
+      if (response && ['yes', 'no', 'pending'].includes(response)) {
+        query = query.eq('response', response);
+      }
+      if (search && search.trim()) {
+        query = query.ilike('guest_name', `%${escapeLikePattern(search.trim())}%`);
+      }
+
+      // Apply sorting
+      switch (sort) {
+        case 'name_asc':
+          query = query.order('guest_name', { ascending: true });
+          break;
+        case 'name_desc':
+          query = query.order('guest_name', { ascending: false });
+          break;
+        case 'date_asc':
+          query = query.order(sortCol, { ascending: true });
+          break;
+        default:
+          query = query.order(sortCol, { ascending: false });
+      }
+
+      query = query.range(from, to);
+      const result = await query;
+
+      if (!result.error) {
+        rsvps = result.data;
+        totalCount = result.count;
+        queryError = null;
         break;
-      case 'name_desc':
-        query = query.order('guest_name', { ascending: false });
-        break;
-      case 'date_asc':
-        query = query.order('submitted_at', { ascending: true });
-        break;
-      default:
-        query = query.order('submitted_at', { ascending: false });
+      }
+
+      queryError = result.error;
+      // If it's a column/relation error, try next fallback
+      const msg = result.error.message || '';
+      const code = result.error.code || '';
+      if (code === '42703' || code === 'PGRST200' || msg.includes('column') || msg.includes('relation')) {
+        continue;
+      }
+      // Other errors — throw immediately
+      throw result.error;
     }
 
-    query = query.range(from, to);
-    const { data: rsvps, error, count: totalCount } = await query;
+    if (queryError) throw queryError;
 
-    if (error) throw error;
-
-    // Post-filter for seated status (Supabase can't filter on relation existence directly)
-    let filtered = rsvps;
+    // Post-filter for seated status
+    let filtered = rsvps || [];
     let effectiveTotal = totalCount;
     if (seated === 'true') {
-      filtered = rsvps.filter(r => r.seating_assignments && r.seating_assignments.length > 0);
-      effectiveTotal = null; // Cannot reliably know total across all pages
+      filtered = filtered.filter(r => r.seating_assignments && r.seating_assignments.length > 0);
+      effectiveTotal = null;
     } else if (seated === 'false') {
-      filtered = rsvps.filter(r => !r.seating_assignments || r.seating_assignments.length === 0);
-      effectiveTotal = null; // Cannot reliably know total across all pages
+      filtered = filtered.filter(r => !r.seating_assignments || r.seating_assignments.length === 0);
+      effectiveTotal = null;
     }
 
     return res.json({
@@ -459,36 +489,54 @@ const exportGuestsCSV = async (req, res, next) => {
   const { eventId } = req.params;
 
   try {
-    const { data: rsvps, error } = await supabase
-      .from('rsvps')
-      .select(`
-        guest_name, email, phone, response, party_size, notes,
-        rsvp_guests(meal_selection),
-        seating_assignments(table_id, tables(table_name)),
-        check_ins(checked_in_at, method)
-      `)
-      .eq('event_id', eventId)
-      .limit(10000);
+    // Try full query with check_ins, fall back without
+    const fullSelect = `
+      guest_name, email, phone, response, party_size, notes,
+      rsvp_guests(meal_selection),
+      seating_assignments(table_id, tables(table_name)),
+      check_ins(checked_in_at, method)
+    `;
+    const simpleSelect = `
+      guest_name, email, phone, response, party_size, notes,
+      rsvp_guests(meal_selection)
+    `;
 
-    if (error) throw error;
+    let rsvps;
+    for (const selectStr of [fullSelect, simpleSelect]) {
+      const { data, error } = await supabase
+        .from('rsvps')
+        .select(selectStr)
+        .eq('event_id', eventId)
+        .limit(10000);
+
+      if (!error) {
+        rsvps = data || [];
+        break;
+      }
+      // If it's a relation/column error, try simpler query
+      if (error.code === '42703' || error.code === 'PGRST200'
+          || (error.message && (error.message.includes('column') || error.message.includes('relation')))) {
+        continue;
+      }
+      throw error;
+    }
+
+    if (!rsvps) rsvps = [];
 
     const headers = ['guest_name', 'email', 'phone', 'response', 'party_size', 'table_name', 'meal_selections', 'checked_in', 'checked_in_at', 'check_in_method', 'notes'];
     const csvContent = generateCSV(
       headers,
-      rsvps || [],
+      rsvps,
       (item) => {
-        // Aggregate meal selections from rsvp_guests
         const meals = (item.rsvp_guests || [])
           .map(g => g.meal_selection)
           .filter(Boolean)
           .join('; ');
 
-        // Get table name from first seating assignment
         const tableName = item.seating_assignments && item.seating_assignments.length > 0
           ? item.seating_assignments[0].tables?.table_name || ''
           : '';
 
-        // Check-in status
         const checkedIn = item.check_ins && item.check_ins.length > 0 ? 'Yes' : 'No';
         const checkedInAt = item.check_ins && item.check_ins.length > 0
           ? item.check_ins[0].checked_in_at
