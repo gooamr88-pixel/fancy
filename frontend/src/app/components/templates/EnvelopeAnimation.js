@@ -8,6 +8,8 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete }) {
   const [isCardOut, setIsCardOut] = useState(false);
   const [showTapIndicator, setShowTapIndicator] = useState(true);
 
+  const accentColor = theme?.primary || "#B8944F";
+
   // Reset envelope state when template or theme changes
   useEffect(() => {
     setIsOpen(false);
@@ -34,7 +36,6 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete }) {
   // Card Content & Styles based on Template (layout) and Theme (colors)
   const renderCardContent = () => {
     const { name, pattern } = template;
-    const accentColor = theme?.primary || "#B8944F";
     const lightAccentColor = theme?.secondary || "#D7BE80";
     
     switch (pattern) {
