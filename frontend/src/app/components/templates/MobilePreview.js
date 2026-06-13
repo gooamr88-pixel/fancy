@@ -120,7 +120,7 @@ export default function MobilePreview({ template, theme, guestName }) {
                 }}
               >
                 {/* 3D Envelope Container with remounting key constraint */}
-                <div className="w-full shrink-0 flex items-center justify-center py-6 min-h-[380px]">
+                <div className="w-full shrink-0 flex items-center justify-center py-4 min-h-[320px]">
                   <EnvelopeAnimation 
                     key={`${template.name}_${theme?.id || "gold"}`}
                     template={template} 

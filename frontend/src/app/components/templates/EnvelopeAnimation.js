@@ -282,11 +282,11 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
   };
 
   return (
-    <div className="relative w-full max-w-[300px] h-[360px] flex items-center justify-center mx-auto mt-6 z-10 select-none">
+    <div className="relative w-full max-w-[270px] h-[300px] flex items-center justify-center mx-auto mt-2 z-10 select-none">
       
       {/* 3D Envelope Body Container */}
       <div 
-        className="relative w-full h-[180px] mt-[90px] cursor-pointer perspective-1000 transform-style-3d"
+        className="relative w-full h-[150px] mt-[100px] cursor-pointer perspective-1000 transform-style-3d"
         onClick={handleOpen}
       >
         
@@ -304,19 +304,19 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
             style={{ transform: "translateZ(1px)" }}
           />
         </div>
-
+ 
         {/* Layer 2: The Invitation Card */}
         <motion.div
-          className="absolute left-3.5 right-3.5 h-[230px] rounded-lg shadow-xl cursor-default"
+          className="absolute left-3 right-3 h-[190px] rounded-lg shadow-xl cursor-default"
           style={{ 
             bottom: "8px", 
             transformOrigin: "bottom center"
           }}
           initial={{ y: 0, scale: 0.94, zIndex: 20 }}
           animate={{
-            y: isCardOut ? -135 : 0,
-            scale: isCardOut ? 1.06 : 0.94,
-            zIndex: isCardOut ? 40 : 20
+            y: isCardOut ? -100 : 0,
+            scale: isCardOut ? 1.05 : 0.94,
+            zIndex: isCardOut ? 35 : 20
           }}
           transition={{
             y: { type: "spring", stiffness: 100, damping: 20, delay: 0.75 },
@@ -326,7 +326,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         >
           {renderCardContent()}
         </motion.div>
-
+ 
         {/* Layer 3: Envelope Front Flaps (Bottom and Sides) */}
         <div 
           className="absolute inset-0 pointer-events-none"
@@ -340,10 +340,10 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
             <path d="M 0,70 L 50,34 L 100,70 Z" fill="#F5EFE6" stroke="#E5D8C6" strokeWidth="0.3" />
           </svg>
         </div>
-
+ 
         {/* Layer 4: Envelope Flap (Top Folding Flap) */}
         <motion.div
-          className="absolute top-0 left-0 w-full h-[85px] origin-top transform-style-3d z-35"
+          className="absolute top-0 left-0 w-full h-[75px] origin-top transform-style-3d z-35"
           initial={{ rotateX: 0 }}
           animate={{ rotateX: isOpen ? 180 : 0 }}
           transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
@@ -357,7 +357,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
               <polygon points="0,0 50,45 100,0" fill="#FAF9F6" stroke="#DFD3C3" strokeWidth="0.3" />
             </svg>
           </div>
-
+ 
           {/* Flap Inner (reflects theme lining when opened) */}
           <div 
             className="absolute inset-0 backface-hidden" 
@@ -406,9 +406,9 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
             </svg>
           </div>
         </motion.div>
-
+ 
       </div>
-
+ 
       {/* Pulsing Tap Indicator */}
       {showTapIndicator && (
         <div 
@@ -434,7 +434,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           </span>
         </div>
       )}
-
+ 
     </div>
   );
 }

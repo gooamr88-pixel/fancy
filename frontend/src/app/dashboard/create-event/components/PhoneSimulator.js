@@ -5,11 +5,7 @@ import MobilePreview from '../../../../app/components/templates/MobilePreview';
  
 export default function PhoneSimulator({ template, theme, guestName, onGuestNameChange }) {
   return (
-    <div style={{
-      position: 'sticky', top: 100,
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', gap: 16,
-    }}>
+    <div className="ce-phone-container">
       {/* ─── iPhone Frame ─── */}
       <div style={{
         width: '100%', maxWidth: 310,
@@ -122,9 +118,32 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
       </div>
  
       <style jsx>{`
+        .ce-phone-container {
+          position: sticky;
+          top: 32px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          width: 100%;
+        }
         @keyframes ps-blink {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.3; }
+        }
+        @media (max-width: 768px) {
+          .ce-phone-container {
+            position: relative !important;
+            top: 0 !important;
+            margin-bottom: 24px;
+          }
+        }
+        @media (max-width: 480px) {
+          .ce-phone-container {
+            transform: scale(0.88);
+            transform-origin: top center;
+            margin-bottom: -40px;
+          }
         }
       `}</style>
     </div>
