@@ -103,7 +103,6 @@ export default function DashboardPage() {
 
   const [tables, setTables] = useState([]);
   const [rsvps, setRsvps] = useState([]);
-  const [seatingChanges, setSeatingChanges] = useState({});
   const [newTableName, setNewTableName] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,6 +111,7 @@ export default function DashboardPage() {
   const [showAddGuestModal, setShowAddGuestModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [qrModalTab, setQrModalTab] = useState('qr');
   const [copyTooltip, setCopyTooltip] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
@@ -173,7 +173,6 @@ export default function DashboardPage() {
           };
         });
         setRsvps(formattedGuests);
-        setSeatingChanges({});
       }
       setError(null);
     } catch (err) {
@@ -199,67 +198,44 @@ export default function DashboardPage() {
     } catch (err) { alert(err.message); }
   }, [apiUrl, eventId, newTableName, newTableCapacity, loadDashboardData]);
 
-  const handleAssignTable = useCallback((rsvpId, targetTableId) => {
-    const guest = rsvps.find(g => g.id === rsvpId);
-    if (!guest) return;
-
-    if (targetTableId) {
-      const targetTable = tables.find(t => t.id === targetTableId);
-      if (targetTable) {
-        const occupied = rsvps
-          .filter(r => r.tableId === targetTableId && r.id !== rsvpId)
-          .reduce((sum, r) => sum + (r.party_size || 1), 0);
-        const remaining = targetTable.max_capacity - occupied;
-        if (guest.party_size > remaining) {
-          alert(`Warning: Table ${targetTable.table_name} only has ${remaining} seats left, party size is ${guest.party_size}.`);
-          return;
-        }
-      }
-    }
-
-    // Update local guests array
-    setRsvps(prev => prev.map(r => r.id === rsvpId ? { ...r, tableId: targetTableId } : r));
-
-    // Update table occupied metrics locally
-    setTables(prevTables => prevTables.map(t => {
-      const occupied = rsvps
-        .map(r => r.id === rsvpId ? { ...r, tableId: targetTableId } : r)
-        .filter(r => r.tableId === t.id && (r.response === 'yes' || r.response === 'accepted' || r.response === 'attending'))
-        .reduce((sum, r) => sum + (r.party_size || 1), 0);
-      return { ...t, occupied };
-    }));
-
-    setSeatingChanges(prev => ({ ...prev, [rsvpId]: targetTableId }));
-  }, [rsvps, tables]);
-
-  const handleSaveSeating = useCallback(async () => {
+  const handleUpdateTable = useCallback(async (tableId, updates) => {
     if (!eventId) return;
-    setLoading(true);
     try {
-      const payload = Object.entries(seatingChanges).map(([rsvpId, tableId]) => ({
-        rsvpId,
-        tableId: tableId || null
-      }));
-
-      const res = await fetch(`${apiUrl}/events/${eventId}/seating/save-batch`, {
-        method: 'POST',
+      const res = await fetch(`${apiUrl}/events/${eventId}/tables/${tableId}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ assignments: payload })
+        body: JSON.stringify(updates)
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to save seating assignments.');
-
-      setSeatingChanges({});
-      alert('Seating assignments saved successfully!');
-      await loadDashboardData();
+      if (!res.ok) throw new Error(data.message || 'Failed to update table');
+      if (data.success) {
+        loadDashboardData();
+      }
     } catch (err) {
       alert(err.message);
-    } finally {
-      setLoading(false);
     }
-  }, [apiUrl, eventId, seatingChanges, loadDashboardData]);
+  }, [apiUrl, eventId, loadDashboardData]);
+
+  const handleAssignTable = useCallback(async (rsvpId, targetTableId) => {
+    const guest = rsvps.find(g => g.id === rsvpId);
+    if (!guest || !eventId) return;
+    const oldTableId = guest.tableId;
+    try {
+      let res;
+      const headers = { 'Content-Type': 'application/json' };
+      if (!oldTableId) {
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/assign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, tableId: targetTableId }) });
+      } else if (!targetTableId) {
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/unassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId }) });
+      } else {
+        res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, newTableId: targetTableId }) });
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Seat assignment failed');
+      loadDashboardData();
+    } catch (err) { alert(err.message); }
+  }, [apiUrl, eventId, rsvps, loadDashboardData]);
 
   const handleRealtimeRsvp = useCallback((payload) => {
     if (payload.eventType === 'INSERT') {
@@ -748,7 +724,7 @@ export default function DashboardPage() {
                 </div>
 
                 <button
-                  onClick={() => setShowQRModal(true)}
+                  onClick={() => { setQrModalTab('qr'); setShowQRModal(true); }}
                   id="btn-show-qr"
                   style={{
                     padding: '8px 16px',
@@ -842,20 +818,8 @@ export default function DashboardPage() {
             /* ═══ SEATING TAB ═══ */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {eventId && (<>
-                {Object.keys(seatingChanges).length > 0 && (
-                  <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: '16px 24px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-sans)', animation: 'fadeIn 0.25s ease' }}>
-                    <span style={{ fontSize: '13px', color: COLORS.stone }}>
-                      You have <strong style={{ color: COLORS.gold }}>{Object.keys(seatingChanges).length}</strong> unsaved seating assignment changes.
-                    </span>
-                    <button onClick={handleSaveSeating} style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', background: COLORS.gold, color: COLORS.white, transition: 'all 0.2s' }}
-                      onMouseEnter={e => e.currentTarget.style.background = COLORS.goldHover}
-                      onMouseLeave={e => e.currentTarget.style.background = COLORS.gold}>
-                      Save Seating Assignments
-                    </button>
-                  </div>
-                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
-                  <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} />
+                  <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} onUpdateTable={handleUpdateTable} />
                   <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>
                 </div>
                 <div style={{ textAlign: 'center' }}>
@@ -903,64 +867,281 @@ export default function DashboardPage() {
       {/* ═══ QR CODE MODAL ═══ */}
       {showQRModal && activeEvent && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, width: '100%', maxWidth: 400, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', textAlign: 'center' }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-serif)', margin: 0 }}>Event QR Code</h3>
-            <p style={{ fontSize: 12, color: COLORS.stone, margin: '0 0 8px 0', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
-              Scan this code to go directly to the RSVP page of your event
-            </p>
+          <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, width: '100%', maxWidth: 420, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', textAlign: 'center' }}>
             
-            <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 16, borderRadius: 12, display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`} 
-                alt="Event QR Code" 
-                style={{ width: 200, height: 200, display: 'block' }}
-              />
-            </div>
-            
-            <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 8 }}>
+            {/* Modal Tabs */}
+            <div style={{ display: 'flex', gap: '8px', background: COLORS.softBg, padding: '4px', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
               <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`);
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `${activeEvent.slug}-qrcode.png`;
-                    link.click();
-                    window.URL.revokeObjectURL(url);
-                  } catch (err) {
-                    alert('Failed to download QR code. Please try again.');
-                  }
+                type="button"
+                onClick={() => setQrModalTab('qr')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: qrModalTab === 'qr' ? COLORS.white : 'transparent',
+                  color: qrModalTab === 'qr' ? COLORS.charcoal : COLORS.stone,
+                  fontFamily: 'var(--font-sans)',
+                  transition: 'all 0.2s',
+                  boxShadow: qrModalTab === 'qr' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none'
                 }}
-                style={{ flex: 1, padding: '10px', background: COLORS.gold, color: COLORS.white, fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
-                onMouseEnter={e => { e.currentTarget.style.background = COLORS.goldHover; }}
-                onMouseLeave={e => { e.currentTarget.style.background = COLORS.gold; }}
               >
-                Download PNG
+                QR Code Only
               </button>
               <button
-                onClick={async () => {
-                  try {
-                    const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=svg&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`);
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `${activeEvent.slug}-qrcode.svg`;
-                    link.click();
-                    window.URL.revokeObjectURL(url);
-                  } catch (err) {
-                    alert('Failed to download QR code. Please try again.');
-                  }
+                type="button"
+                onClick={() => setQrModalTab('card')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: 'none',
+                  background: qrModalTab === 'card' ? COLORS.white : 'transparent',
+                  color: qrModalTab === 'card' ? COLORS.charcoal : COLORS.stone,
+                  fontFamily: 'var(--font-sans)',
+                  transition: 'all 0.2s',
+                  boxShadow: qrModalTab === 'card' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none'
                 }}
-                style={{ flex: 1, padding: '10px', background: 'transparent', border: `1px solid ${COLORS.border}`, color: COLORS.gold, fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
-                onMouseEnter={e => { e.currentTarget.style.background = COLORS.softBg; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
-                Download SVG
+                Invitation Card
               </button>
             </div>
+
+            {qrModalTab === 'qr' ? (
+              <>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-serif)', margin: 0 }}>Event QR Code</h3>
+                <p style={{ fontSize: 12, color: COLORS.stone, margin: '0 0 8px 0', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
+                  Scan this code to go directly to the RSVP page of your event
+                </p>
+                
+                <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 16, borderRadius: 12, display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`} 
+                    alt="Event QR Code" 
+                    style={{ width: 200, height: 200, display: 'block' }}
+                  />
+                </div>
+                
+                <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 8 }}>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`);
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `${activeEvent.slug}-qrcode.png`;
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                      } catch (err) {
+                        alert('Failed to download QR code. Please try again.');
+                      }
+                    }}
+                    style={{ flex: 1, padding: '10px', background: COLORS.gold, color: COLORS.white, fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = COLORS.goldHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = COLORS.gold; }}
+                  >
+                    Download PNG
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=svg&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`);
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `${activeEvent.slug}-qrcode.svg`;
+                        link.click();
+                        window.URL.revokeObjectURL(url);
+                      } catch (err) {
+                        alert('Failed to download QR code. Please try again.');
+                      }
+                    }}
+                    style={{ flex: 1, padding: '10px', background: 'transparent', border: `1px solid ${COLORS.border}`, color: COLORS.gold, fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = COLORS.softBg; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    Download SVG
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-serif)', margin: 0 }}>Printable Invitation</h3>
+                <p style={{ fontSize: 12, color: COLORS.stone, margin: '0 0 8px 0', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
+                  Preview of your event's printable/downloadable invitation card
+                </p>
+                
+                {/* Printable Card Preview */}
+                <div style={{
+                  width: '100%',
+                  background: COLORS.white,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                  textAlign: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  maxHeight: '320px',
+                  overflowY: 'auto'
+                }}>
+                  <div style={{
+                    height: '110px',
+                    backgroundImage: `url(${activeEvent.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    width: '100%'
+                  }} />
+                  <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: 600, color: COLORS.charcoal, fontFamily: 'var(--font-serif)', margin: 0 }}>
+                      {activeEvent.title}
+                    </h4>
+                    <p style={{ fontSize: '11px', color: COLORS.stone, margin: 0, fontFamily: 'var(--font-sans)', lineHeight: 1.4 }}>
+                      <strong>Date:</strong> {activeEvent.event_date ? new Date(activeEvent.event_date).toLocaleDateString() : 'N/A'}<br/>
+                      <strong>Venue:</strong> {activeEvent.location_name || 'TBA'}
+                    </p>
+                    <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 8, borderRadius: 8, marginTop: 8 }}>
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`} 
+                        alt="Event QR Code" 
+                        style={{ width: 100, height: 100, display: 'block' }}
+                      />
+                    </div>
+                    <span style={{ fontSize: '8px', textTransform: 'uppercase', letterSpacing: '2px', color: COLORS.gold, fontWeight: 700, marginTop: 4 }}>
+                      Scan to RSVP
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ width: '100%', marginTop: 8 }}>
+                  <button
+                    onClick={() => {
+                      const printWindow = window.open('', '_blank');
+                      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`;
+                      const coverUrl = activeEvent.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070';
+                      const dateFormatted = activeEvent.event_date ? new Date(activeEvent.event_date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
+                      const timeFormatted = activeEvent.event_date ? new Date(activeEvent.event_date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
+
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Print Invitation Card - ${activeEvent.title}</title>
+                            <style>
+                              body {
+                                font-family: sans-serif;
+                                display: flex;
+                                justify-content: center;
+                                align-items: center;
+                                min-height: 100vh;
+                                margin: 0;
+                                background-color: #fafafa;
+                              }
+                              .card {
+                                width: 420px;
+                                background: #ffffff;
+                                border: 1px solid #e8e2d6;
+                                border-radius: 16px;
+                                overflow: hidden;
+                                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+                                text-align: center;
+                                padding-bottom: 24px;
+                              }
+                              .cover {
+                                width: 100%;
+                                height: 200px;
+                                background-image: url('${coverUrl}');
+                                background-size: cover;
+                                background-position: center;
+                              }
+                              .content {
+                                padding: 24px;
+                              }
+                              .title {
+                                font-family: serif;
+                                font-size: 24px;
+                                margin: 0 0 12px 0;
+                                color: #191b1e;
+                              }
+                              .details {
+                                font-size: 13px;
+                                color: #77736a;
+                                margin: 6px 0;
+                                line-height: 1.5;
+                              }
+                              .qr-container {
+                                margin: 20px 0;
+                                display: inline-block;
+                                padding: 12px;
+                                background: #fafaf8;
+                                border: 1px solid #e8e2d6;
+                                border-radius: 12px;
+                              }
+                              .qr-image {
+                                width: 150px;
+                                height: 150px;
+                                display: block;
+                              }
+                              .scan-text {
+                                font-size: 11px;
+                                text-transform: uppercase;
+                                letter-spacing: 2px;
+                                color: #b8944f;
+                                font-weight: bold;
+                                margin-top: 8px;
+                              }
+                              @media print {
+                                body {
+                                  background: none;
+                                }
+                                .card {
+                                  box-shadow: none;
+                                  border: none;
+                                }
+                              }
+                            </style>
+                          </head>
+                          <body>
+                            <div class="card">
+                              <div class="cover"></div>
+                              <div class="content">
+                                <h1 class="title">${activeEvent.title}</h1>
+                                <p class="details"><strong>Date:</strong> ${dateFormatted} at ${timeFormatted}</p>
+                                <p class="details"><strong>Venue:</strong> ${activeEvent.location_name || 'TBA'}</p>
+                                <p class="details">${activeEvent.location_address || ''}</p>
+                                <div class="qr-container">
+                                  <img class="qr-image" src="${qrUrl}" alt="RSVP QR Code" />
+                                </div>
+                                <div class="scan-text">Scan to RSVP</div>
+                              </div>
+                            </div>
+                            <script>
+                              window.onload = function() {
+                                window.print();
+                              }
+                            </script>
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                    }}
+                    style={{ width: '100%', padding: '10px', background: COLORS.gold, color: COLORS.white, fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = COLORS.goldHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = COLORS.gold; }}
+                  >
+                    Print / Save as PDF
+                  </button>
+                </div>
+              </>
+            )}
             
             <button
               onClick={() => setShowQRModal(false)}

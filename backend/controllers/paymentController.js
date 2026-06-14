@@ -3,6 +3,7 @@ if (!STRIPE_SECRET_KEY) throw new Error('FATAL: STRIPE_SECRET_KEY environment va
 const stripe = require('stripe')(STRIPE_SECRET_KEY);
 const { supabase } = require('../config/supabase');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
+const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
 
 /**
  * Creates a Stripe Checkout Session for event payment fees.
@@ -381,55 +382,99 @@ const manualCashApproval = async (req, res, next) => {
   }
 
   try {
-    const { data, error } = await supabase.rpc('approve_event_cash', {
-      p_event_id: eventId,
-      p_approved_by: req.user.id,
-      p_amount_cents: amountCents
-    });
+    // 1. Check if there is an existing pending cash_manual payment record
+    const { data: pendingPayment, error: findError } = await supabase
+      .from('event_payments')
+      .select('id, amount_cents, stripe_checkout_session_id')
+      .eq('event_id', eventId)
+      .eq('payment_method', 'cash_manual')
+      .eq('status', 'pending')
+      .limit(1);
 
-    if (error) throw error;
+    let paymentId;
+    let refNumber;
 
-    if (!data || !data.success) {
-      return res.status(400).json({
-        success: false,
-        error: data?.error || 'APPROVAL_FAILED',
-        message: data?.message || 'Manual cash approval failed.'
-      });
-    }
-
-    // Send payment approval confirmation email to organizer
-    try {
-      const { data: eventData } = await supabase
-        .from('events')
-        .select('title, organizations(email, name)')
-        .eq('id', eventId)
+    if (pendingPayment && pendingPayment.length > 0) {
+      // Update the pending payment
+      const { data: updatedPayment, error: updateErr } = await supabase
+        .from('event_payments')
+        .update({
+          status: 'completed',
+          approved_by: req.user.id,
+          completed_at: new Date().toISOString(),
+          amount_cents: amountCents
+        })
+        .eq('id', pendingPayment[0].id)
+        .select()
         .single();
 
-      if (eventData && eventData.organizations?.email) {
-        const orgEmail = eventData.organizations.email;
-        const orgName = eventData.organizations.name || 'Event Organizer';
-        const eventTitle = eventData.title;
+      if (updateErr) throw updateErr;
+      paymentId = updatedPayment.id;
+      refNumber = updatedPayment.stripe_checkout_session_id;
 
-        const emailHtml = `
-          <div style="font-family: sans-serif; padding: 24px; max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px;">
-            <h2 style="color: #0f172a; margin-bottom: 16px;">Payment Approved Confirming Activation</h2>
-            <p style="color: #334155; font-size: 15px; line-height: 1.6;">Hello ${orgName},</p>
-            <p style="color: #334155; font-size: 15px; line-height: 1.6;">We are pleased to inform you that your manual transfer / cash payment for the event <strong>${eventTitle}</strong> has been verified and approved.</p>
-            <p style="color: #334155; font-size: 15px; line-height: 1.6;">Your event has now been activated, and guests can access the invitation and RSVP pages.</p>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
-            <p style="color: #64748b; font-size: 12px;">This is an automated notification from Fancy RSVP. Please do not reply directly to this email.</p>
-          </div>
-        `;
-        await sendEmailViaBrevo(orgEmail, `Payment Approved: ${eventTitle}`, emailHtml);
+      // Activate the event
+      const { error: eventUpdateErr } = await supabase
+        .from('events')
+        .update({
+          is_paid: true,
+          status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', eventId);
+
+      if (eventUpdateErr) throw eventUpdateErr;
+      
+      // Log activity
+      await supabase.from('activity_logs').insert({
+        event_id: eventId,
+        actor_id: req.user.id,
+        action: 'event_payment_manual_approved',
+        entity_type: 'event_payment',
+        entity_id: paymentId,
+        metadata: { amount_cents: amountCents }
+      });
+    } else {
+      // Fallback: Use approve_event_cash RPC function
+      const { data, error } = await supabase.rpc('approve_event_cash', {
+        p_event_id: eventId,
+        p_approved_by: req.user.id,
+        p_amount_cents: amountCents
+      });
+
+      if (error) throw error;
+
+      if (!data || !data.success) {
+        return res.status(400).json({
+          success: false,
+          error: data?.error || 'APPROVAL_FAILED',
+          message: data?.message || 'Manual cash approval failed.'
+        });
       }
-    } catch (emailErr) {
-      console.error('Failed to send payment approval email:', emailErr);
+
+      paymentId = data.payment_id;
+      refNumber = `CASH-${paymentId.slice(0, 6).toUpperCase()}`;
+    }
+
+    // 2. Fetch event and organization details to send email receipt
+    const { data: eventData } = await supabase
+      .from('events')
+      .select('title, organizations(email, name)')
+      .eq('id', eventId)
+      .single();
+
+    if (eventData && eventData.organizations?.email) {
+      const orgEmail = eventData.organizations.email;
+      const orgName = eventData.organizations.name || 'Organizer';
+      const eventTitle = eventData.title;
+
+      const emailHtml = getCashPaymentApprovedTemplate(orgName, eventTitle, refNumber || `CASH-${paymentId.slice(0, 6).toUpperCase()}`, amountCents);
+      await sendEmailViaBrevo(orgEmail, `Payment Approved & Event Activated: ${eventTitle}`, emailHtml);
     }
 
     return res.status(200).json({
       success: true,
       message: 'Event manually approved and activated.',
-      paymentId: data.payment_id
+      paymentId
     });
   } catch (err) {
     next(err);
@@ -493,32 +538,42 @@ const getPricingConfig = async (req, res, next) => {
   }
 };
 
-const generateManualPaymentRef = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let ref = 'TX-';
-  for (let i = 0; i < 6; i++) {
-    ref += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return ref;
-};
-
 /**
- * Initiates a manual cash/transfer payment request for an event.
+ * Initiates a manual cash transfer request, pre-inserting a pending record.
  * POST /api/v1/payments/events/:eventId/manual-payment
  */
 const initiateManualPayment = async (req, res, next) => {
-  const { eventId, tierName } = req.body;
+  const { eventId } = req.params;
+  const { tierName } = req.body;
 
-  if (!eventId || !tierName) {
+  if (!tierName) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'eventId and tierName are required.'
+      message: 'tierName is required.'
     });
   }
 
   try {
-    // 1. Fetch pricing tiers from super_admin_config
+    // 1. Check if there is already a pending cash payment for this event
+    const { data: existingPending } = await supabase
+      .from('event_payments')
+      .select('id, stripe_checkout_session_id, amount_cents')
+      .eq('event_id', eventId)
+      .eq('payment_method', 'cash_manual')
+      .eq('status', 'pending')
+      .limit(1);
+
+    if (existingPending && existingPending.length > 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'Existing pending cash payment found.',
+        referenceNumber: existingPending[0].stripe_checkout_session_id,
+        payment: existingPending[0]
+      });
+    }
+
+    // 2. Fetch pricing tiers from super_admin_config
     const { data: adminConfig, error: configError } = await supabase
       .from('super_admin_config')
       .select('pricing_tiers')
@@ -541,61 +596,44 @@ const initiateManualPayment = async (req, res, next) => {
       });
     }
 
-    // Generate a unique reference number
-    let referenceNumber;
-    let isUnique = false;
-    let attempts = 0;
-
-    while (!isUnique && attempts < 10) {
-      referenceNumber = generateManualPaymentRef();
-      const { data: existingPayment } = await supabase
-        .from('event_payments')
-        .select('id')
-        .eq('reference_number', referenceNumber)
-        .limit(1);
-
-      if (!existingPayment || existingPayment.length === 0) {
-        isUnique = true;
-      }
-      attempts++;
+    // 3. Generate a random reference number
+    const refChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let refCode = 'CASH-';
+    for (let i = 0; i < 6; i++) {
+      refCode += refChars.charAt(Math.floor(Math.random() * refChars.length));
     }
 
-    if (!isUnique) {
-      throw new Error('Failed to generate a unique manual payment reference number.');
-    }
-
-    // Insert pending payment record
-    const { data: payment, error: insertError } = await supabase
+    // 4. Insert pending cash payment
+    const { data, error } = await supabase
       .from('event_payments')
       .insert({
         event_id: eventId,
+        stripe_checkout_session_id: refCode,
         amount_cents: tier.price_cents,
-        currency: 'usd',
         status: 'pending',
         payment_method: 'cash_manual',
-        reference_number: referenceNumber
+        currency: 'usd'
       })
       .select()
       .single();
 
-    if (insertError) throw insertError;
+    if (error) throw error;
 
-    // Audit log
+    // Log activity
     await supabase.from('activity_logs').insert({
       event_id: eventId,
+      actor_id: req.user.id,
       action: 'event_payment_manual_initiated',
       entity_type: 'event_payment',
-      metadata: { amount_cents: tier.price_cents, reference_number: referenceNumber }
+      entity_id: data.id,
+      metadata: { ref_code: refCode, tier_name: tier.name }
     });
 
-    return res.status(201).json({
+    return res.status(200).json({
       success: true,
-      message: 'Manual payment initiated. Please transfer funds with the reference number.',
-      payment: {
-        id: payment.id,
-        referenceNumber: payment.reference_number,
-        amountCents: payment.amount_cents
-      }
+      message: 'Manual cash payment initiated.',
+      referenceNumber: refCode,
+      payment: data
     });
   } catch (err) {
     next(err);

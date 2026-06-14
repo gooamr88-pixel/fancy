@@ -26,7 +26,19 @@ export default function SeatingMapPage() {
   const [newTableName, setNewTableName] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState('8');
   const [newTableShape, setNewTableShape] = useState('round');
+  const [inspectName, setInspectName] = useState('');
+  const [inspectCapacity, setInspectCapacity] = useState('');
   const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (selectedTable) {
+      setInspectName(selectedTable.table_name || '');
+      setInspectCapacity(selectedTable.max_capacity?.toString() || '');
+    } else {
+      setInspectName('');
+      setInspectCapacity('');
+    }
+  }, [selectedTable]);
 
   const handleLogout = logout;
 
@@ -179,6 +191,41 @@ export default function SeatingMapPage() {
     } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
+  const handleSaveInspectorTableSettings = async () => {
+    if (!selectedTable || !eventId) return;
+    if (!inspectName.trim() || !inspectCapacity) {
+      alert('Please fill in table name and capacity.');
+      return;
+    }
+    const cap = parseInt(inspectCapacity);
+    if (isNaN(cap) || cap < 1) {
+      alert('Capacity must be a valid positive integer.');
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_URL}/events/${eventId}/tables/${selectedTable.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          tableName: inspectName,
+          maxCapacity: cap
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update table settings');
+      if (data.success) {
+        setSelectedTable(prev => prev ? { ...prev, table_name: inspectName, max_capacity: cap } : null);
+        await loadLayoutData();
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const selectedTableGuests = selectedTable ? guests.filter(g => g.tableId === selectedTable.id && isAccepted(g.response)) : [];
   const unassignedGuests = guests.filter(g => !g.tableId && isAccepted(g.response));
 
@@ -322,13 +369,75 @@ export default function SeatingMapPage() {
           {selectedTable ? (
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flex: 1, gap: '16px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div>
-                  <h4 style={{ fontSize: '18px', fontWeight: 700, color: C.charcoal }}>{selectedTable.table_name}</h4>
-                  <span style={{ fontSize: '10px', color: C.stone, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600, display: 'block', marginTop: '4px' }}>
-                    Shape: {selectedTable.shape} • Max: {selectedTable.max_capacity} seats
-                  </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '10px', color: C.stone, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Table Name</label>
+                    <input
+                      type="text"
+                      value={inspectName}
+                      onChange={(e) => setInspectName(e.target.value)}
+                      style={{
+                        width: '100%',
+                        boxSizing: 'border-box',
+                        background: C.white,
+                        border: `1px solid ${C.border}`,
+                        borderRadius: '6px',
+                        padding: '6px 10px',
+                        fontSize: '12px',
+                        color: C.charcoal,
+                        outline: 'none',
+                        marginTop: '4px',
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '10px', color: C.stone, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Max Capacity</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={inspectCapacity}
+                        onChange={(e) => setInspectCapacity(e.target.value)}
+                        style={{
+                          width: '100%',
+                          boxSizing: 'border-box',
+                          background: C.white,
+                          border: `1px solid ${C.border}`,
+                          borderRadius: '6px',
+                          padding: '6px 10px',
+                          fontSize: '12px',
+                          color: C.charcoal,
+                          outline: 'none',
+                          marginTop: '4px',
+                        }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={handleSaveInspectorTableSettings}
+                        style={{
+                          ...btnBase,
+                          background: C.gold,
+                          color: C.white,
+                          width: '100%',
+                          padding: '6px 12px',
+                          fontSize: '11px',
+                          height: '32px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        Save Settings
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '9px', color: C.stone, textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 600 }}>
+                    Shape: {selectedTable.shape} • Seated: {selectedTable.occupied} seats
+                  </div>
                 </div>
-                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', flex: 1, overflowY: 'auto', maxHeight: '260px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: '12px', flex: 1, overflowY: 'auto', maxHeight: '150px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <span style={{ fontSize: '10px', color: C.stone, fontWeight: 700, display: 'block', marginBottom: '4px' }}>Seated Party Members:</span>
                   {selectedTableGuests.length > 0 ? (
                     selectedTableGuests.map(g => (

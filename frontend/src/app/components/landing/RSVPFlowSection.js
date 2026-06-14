@@ -231,78 +231,7 @@ const Screen1_InvitationLanding = () => (
 );
 
 const Screen2_GuestCount = () => {
-  const CounterRow = ({ label, value }) => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "8px 0",
-        borderBottom: `1px solid ${BORDER}`,
-      }}
-    >
-      <span
-        style={{
-          fontFamily: "var(--font-sans)",
-          fontSize: "10px",
-          fontWeight: 500,
-          color: CHARCOAL,
-        }}
-      >
-        {label}
-      </span>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-        <div
-          style={{
-            width: "22px",
-            height: "22px",
-            borderRadius: "50%",
-            border: `1px solid ${BORDER}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "var(--font-sans)",
-            fontSize: "12px",
-            color: STONE,
-            cursor: "default",
-            background: WHITE,
-          }}
-        >
-          −
-        </div>
-        <span
-          style={{
-            fontFamily: "var(--font-sans)",
-            fontSize: "14px",
-            fontWeight: 700,
-            color: CHARCOAL,
-            minWidth: "16px",
-            textAlign: "center",
-          }}
-        >
-          {value}
-        </span>
-        <div
-          style={{
-            width: "22px",
-            height: "22px",
-            borderRadius: "50%",
-            border: `1px solid ${GOLD}`,
-            background: `${GOLD}12`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontFamily: "var(--font-sans)",
-            fontSize: "12px",
-            color: GOLD,
-            cursor: "default",
-          }}
-        >
-          +
-        </div>
-      </div>
-    </div>
-  );
+
 
   return (
     <div
@@ -394,49 +323,7 @@ const Screen2_GuestCount = () => {
 };
 
 const Screen3_Preferences = () => {
-  const SelectRow = ({ label, value }) => (
-    <div style={{ marginBottom: "10px" }}>
-      <label
-        style={{
-          fontFamily: "var(--font-sans)",
-          fontSize: "8px",
-          fontWeight: 700,
-          color: STONE,
-          textTransform: "uppercase",
-          letterSpacing: "1px",
-          display: "block",
-          marginBottom: "4px",
-        }}
-      >
-        {label}
-      </label>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "8px 10px",
-          border: `1px solid ${BORDER}`,
-          borderRadius: "8px",
-          background: WHITE,
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "var(--font-sans)",
-            fontSize: "10px",
-            fontWeight: 500,
-            color: CHARCOAL,
-          }}
-        >
-          {value}
-        </span>
-        <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-          <path d="M1 1L5 5L9 1" stroke={STONE} strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-      </div>
-    </div>
-  );
+
 
   return (
     <div
@@ -911,3 +798,120 @@ export default function RSVPFlowSection() {
     </>
   );
 }
+
+const CounterRow = ({ label, value }) => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "8px 0",
+      borderBottom: `1px solid ${BORDER}`,
+    }}
+  >
+    <span
+      style={{
+        fontFamily: "var(--font-sans)",
+        fontSize: "10px",
+        fontWeight: 500,
+        color: CHARCOAL,
+      }}
+    >
+      {label}
+    </span>
+    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+      <div
+        style={{
+          width: "22px",
+          height: "22px",
+          borderRadius: "50%",
+          border: `1px solid ${BORDER}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "var(--font-sans)",
+          fontSize: "12px",
+          color: STONE,
+          cursor: "default",
+          background: WHITE,
+        }}
+      >
+        −
+      </div>
+      <span
+        style={{
+          fontFamily: "var(--font-sans)",
+          fontSize: "14px",
+          fontWeight: 700,
+          color: CHARCOAL,
+          minWidth: "16px",
+          textAlign: "center",
+        }}
+      >
+        {value}
+      </span>
+      <div
+        style={{
+          width: "22px",
+          height: "22px",
+          borderRadius: "50%",
+          border: `1px solid ${GOLD}`,
+          background: `${GOLD}12`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "var(--font-sans)",
+          fontSize: "12px",
+          color: GOLD,
+          cursor: "default",
+        }}
+      >
+        +
+      </div>
+    </div>
+  </div>
+);
+
+const SelectRow = ({ label, value }) => (
+  <div style={{ marginBottom: "10px" }}>
+    <label
+      style={{
+        fontFamily: "var(--font-sans)",
+        fontSize: "8px",
+        fontWeight: 700,
+        color: STONE,
+        textTransform: "uppercase",
+        letterSpacing: "1px",
+        display: "block",
+        marginBottom: "4px",
+      }}
+    >
+      {label}
+    </label>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "8px 10px",
+        border: `1px solid ${BORDER}`,
+        borderRadius: "8px",
+        background: WHITE,
+      }}
+    >
+      <span
+        style={{
+          fontFamily: "var(--font-sans)",
+          fontSize: "10px",
+          fontWeight: 500,
+          color: CHARCOAL,
+        }}
+      >
+        {value}
+      </span>
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+        <path d="M1 1L5 5L9 1" stroke={STONE} strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    </div>
+  </div>
+);

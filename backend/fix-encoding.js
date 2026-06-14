@@ -1,6 +1,7 @@
 const fs = require('fs');
 
-const filePath = 'c:/Users/yousef amr/Desktop/fancy/fancy/frontend/src/app/dashboard/page.js';
+const path = require('path');
+const filePath = path.join(__dirname, '..', 'frontend', 'src', 'app', 'dashboard', 'page.js');
 
 try {
   const buffer = fs.readFileSync(filePath);

@@ -24,7 +24,7 @@ export default function CampaignsPage() {
   const [showSMSModal, setShowSMSModal] = useState(false);
   const [smsCreditsToBuy, setSmsCreditsToBuy] = useState(100);
   const [buyingCredits, setBuyingCredits] = useState(false);
-  const [smsRateCents, setSmsRateCents] = useState(8);
+  const [smsRate, setSmsRate] = useState(8);
 
   const [authChecked, setAuthChecked] = useState(false);
   const [eventId, setEventId] = useState('');
@@ -91,9 +91,6 @@ export default function CampaignsPage() {
       if (historyData.success) {
         setCreditsPurchased(historyData.wallet.credits_purchased || 0);
         setCreditsUsed(historyData.wallet.credits_used || 0);
-        if (historyData.smsRateCents !== undefined) {
-          setSmsRateCents(historyData.smsRateCents);
-        }
         
         // Format ledger timestamps
         const formattedLedger = (historyData.history || []).map(item => ({
@@ -115,6 +112,13 @@ export default function CampaignsPage() {
         // Calculate number of guests who are response === 'pending' and have a phone number
         const pendingWithPhone = rsvpsData.rsvps.filter(r => r.response === 'pending' && r.phone);
         setRecipientCount(pendingWithPhone.length);
+      }
+
+      // 3. Fetch pricing configuration for dynamic SMS rates
+      const configRes = await fetch(`${apiUrl}/payments/pricing-config`, { credentials: 'include' });
+      const configData = await configRes.json();
+      if (configData.success && configData.config) {
+        setSmsRate(configData.config.sms_rate_cents_per_credit || 8);
       }
       
       setError(null);
@@ -311,20 +315,15 @@ export default function CampaignsPage() {
                 )}
 
                 {recipientCount > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ fontSize: 11, color: C.stone, textAlign: 'center', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
-                      Estimated Cost: <strong style={{ color: C.gold }}>${((recipientCount * smsRateCents) / 100).toFixed(2)} USD</strong> ({smsRateCents}¢/SMS)
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={sending}
-                      style={{ width: '100%', padding: '12px 0', background: C.gold, fontWeight: 700, borderRadius: 8, fontSize: 12, border: 'none', cursor: 'pointer', transition: 'all 0.2s', color: C.white, opacity: sending ? 0.5 : 1, boxShadow: '0 2px 8px rgba(184,148,79,0.25)', fontFamily: 'var(--font-sans)' }}
-                      onMouseEnter={e => { if (!sending) e.currentTarget.style.background = C.goldHover; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
-                    >
-                      {sending ? 'Dispatching campaign...' : `Launch SMS Campaign to ${recipientCount} Guests`}
-                    </button>
-                  </div>
+                  <button
+                    type="submit"
+                    disabled={sending}
+                    style={{ width: '100%', padding: '12px 0', background: C.gold, fontWeight: 700, borderRadius: 8, fontSize: 12, border: 'none', cursor: 'pointer', transition: 'all 0.2s', color: C.white, opacity: sending ? 0.5 : 1, boxShadow: '0 2px 8px rgba(184,148,79,0.25)', fontFamily: 'var(--font-sans)' }}
+                    onMouseEnter={e => { if (!sending) e.currentTarget.style.background = C.goldHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
+                  >
+                    {sending ? 'Dispatching campaign...' : `Launch SMS Campaign to ${recipientCount} Guests`}
+                  </button>
                 )}
               </form>
 
@@ -458,16 +457,16 @@ export default function CampaignsPage() {
               <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                   <span style={{ color: C.stone }}>Price Per Credit:</span>
-                  <span style={{ fontWeight: 600, color: C.charcoal }}>{smsRateCents}¢</span>
+                  <span style={{ fontWeight: 600, color: C.charcoal }}>{smsRate}¢</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                   <span style={{ color: C.stone }}>Subtotal:</span>
-                  <span style={{ fontWeight: 600, color: C.charcoal }}>${((smsCreditsToBuy * smsRateCents) / 100).toFixed(2)} USD</span>
+                  <span style={{ fontWeight: 600, color: C.charcoal }}>${((smsCreditsToBuy * smsRate) / 100).toFixed(2)} USD</span>
                 </div>
                 {smsCreditsToBuy >= 500 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: C.success }}>
                     <span>Volume Discount (12.5%):</span>
-                    <span>-${(((smsCreditsToBuy * smsRateCents) / 100) * 0.125).toFixed(2)} USD</span>
+                    <span>-${(((smsCreditsToBuy * smsRate) / 100) * 0.125).toFixed(2)} USD</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, borderTop: `1px solid ${C.border}`, paddingTop: 8, fontWeight: 700, color: C.gold }}>
@@ -475,8 +474,8 @@ export default function CampaignsPage() {
                   <span>
                     ${(
                       smsCreditsToBuy >= 500
-                        ? ((smsCreditsToBuy * smsRateCents) / 100) * 0.875
-                        : (smsCreditsToBuy * smsRateCents) / 100
+                        ? ((smsCreditsToBuy * smsRate) / 100) * 0.875
+                        : (smsCreditsToBuy * smsRate) / 100
                     ).toFixed(2)}{' '}
                     USD
                   </span>

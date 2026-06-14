@@ -50,7 +50,14 @@ export const translations = {
     attending_success_desc: 'Your RSVP is recorded. We are thrilled to celebrate with you. A confirmation email has been dispatched to {email}.',
     qr_notice: 'Note: Your entry QR ticket with table assignments will be emailed to you separately as soon as seating assignments are finalized.',
     decline_success_desc: 'We appreciate your response, and you will be missed! Your decline message has been shared with the hosts.',
-    return_btn: 'Return to Invitation Page'
+    return_btn: 'Return to Invitation Page',
+    find_table_title: 'Find Your Table',
+    find_table_desc: 'Attending guests can search their name to view their table assignment.',
+    find_table_placeholder: 'Enter guest name...',
+    find_table_btn: 'Search Seating',
+    find_table_no_results: 'No seating assignment found. Please make sure you RSVPed "Yes" or contact the host.',
+    find_table_assigned: '{name}, your assigned table is: {tableName}.',
+    find_table_party: 'Party Size: {partySize}',
   },
   ar: {
     invitation: 'بطاقة دعوة',
@@ -103,6 +110,13 @@ export const translations = {
     attending_success_desc: 'تم تسجيل تأكيد حضورك بنجاح. نحن نتطلع للاحتفال معك. تم إرسال رسالة تأكيد إلكترونية إلى {email}.',
     qr_notice: 'تنبيه: سيتم إرسال تذكرة دخولك الـ QR Code وبها رقم طاولتك في بريد إلكتروني منفصل فور قيام المنظم بتوزيع المقاعد.',
     decline_success_desc: 'نشكرك على إبلاغنا بقرارك، وسنفتقد وجودك معنا! تمت مشاركة اعتذارك مع المضيفين.',
-    return_btn: 'العودة لصفحة الدعوة الرئيسية'
+    return_btn: 'العودة لصفحة الدعوة الرئيسية',
+    find_table_title: 'ابحث عن طاولتك',
+    find_table_desc: 'يمكن للضيوف الذين أكدوا الحضور البحث عن أسمائهم لمعرفة توزيع المقاعد.',
+    find_table_placeholder: 'أدخل اسم الضيف...',
+    find_table_btn: 'بحث عن المقعد',
+    find_table_no_results: 'لم يتم العثور على توزيع للمقاعد. يرجى التأكد من تسجيل الحضور بنعم أو التواصل مع المنظم.',
+    find_table_assigned: '{name}، طاولتك المخصصة هي: {tableName}.',
+    find_table_party: 'عدد الأفراد: {partySize}',
   }
 };
