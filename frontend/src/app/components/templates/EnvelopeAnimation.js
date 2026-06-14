@@ -282,7 +282,11 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
   };
 
   return (
-    <div className="relative w-full max-w-[270px] h-[380px] flex items-center justify-center mx-auto mt-2 z-10 select-none">
+    <motion.div 
+      className="relative w-full max-w-[270px] flex items-center justify-center mx-auto mt-2 z-10 select-none"
+      animate={{ height: isCardOut ? 230 : 380 }}
+      transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
+    >
       
       {/* 3D Envelope Body Container */}
       <motion.div 
@@ -465,6 +469,6 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         </div>
       )}
  
-    </div>
+    </motion.div>
   );
 }

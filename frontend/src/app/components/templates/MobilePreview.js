@@ -33,7 +33,7 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
     setTimeout(() => {
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTo({
-          top: 150,
+          top: 45,
           behavior: "smooth"
         });
       }
@@ -122,7 +122,11 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                 }}
               >
                 {/* 3D Envelope Container with remounting key constraint */}
-                <div className="w-full shrink-0 flex items-center justify-center py-4 min-h-[400px]">
+                <motion.div 
+                  className="w-full shrink-0 flex items-center justify-center py-4"
+                  animate={{ minHeight: isCardOpened ? 250 : 400 }}
+                  transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
+                >
                   <EnvelopeAnimation 
                     key={`${template.name}_${theme?.id || "gold"}`}
                     template={template} 
@@ -130,7 +134,7 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                     onOpenComplete={handleCardOpenComplete} 
                     guestName={guestName}
                   />
-                </div>
+                </motion.div>
 
                 {/* RSVP Details - Fades in once card slides open */}
                 <AnimatePresence>
