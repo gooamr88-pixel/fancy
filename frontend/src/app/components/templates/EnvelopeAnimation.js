@@ -282,14 +282,14 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
   };
 
   return (
-    <div className="relative w-full max-w-[270px] h-[300px] flex items-center justify-center mx-auto mt-2 z-10 select-none">
+    <div className="relative w-full max-w-[270px] h-[380px] flex items-center justify-center mx-auto mt-2 z-10 select-none">
       
       {/* 3D Envelope Body Container */}
       <motion.div 
-        className="relative w-full h-[150px] mt-[100px] cursor-pointer perspective-1000 transform-style-3d"
+        className="relative w-full h-[200px] mt-[130px] cursor-pointer perspective-1000 transform-style-3d"
         onClick={handleOpen}
         animate={{
-          y: isCardOut ? 70 : 0
+          y: isCardOut ? 40 : 0
         }}
         transition={{
           type: "spring",
@@ -318,13 +318,13 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         <motion.div
           className="absolute left-3 right-3 h-[190px] rounded-lg shadow-xl cursor-default"
           style={{ 
-            bottom: "8px", 
+            bottom: "6px", 
             transformOrigin: "bottom center",
             zIndex: 20 // Fixed z-index so it slides out of the pocket naturally behind front flaps!
           }}
           initial={{ y: 0, scale: 0.94 }}
           animate={{
-            y: isCardOut ? -160 : 0,
+            y: isCardOut ? -175 : 0,
             scale: isCardOut ? 1.15 : 0.94,
             rotate: isCardOut ? [0, -10, -3, 0] : 0
           }}
@@ -353,7 +353,8 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
  
         {/* Layer 4: Envelope Flap (Top Folding Flap) */}
         <motion.div
-          className="absolute top-0 left-0 w-full h-[75px] origin-top transform-style-3d"
+          className="absolute top-0 left-0 w-full h-[85px] transform-style-3d"
+          style={{ transformOrigin: "top", originY: 0 }}
           initial={{ rotateX: 0, zIndex: 31 }}
           animate={{ 
             rotateX: isOpen ? 180 : 0,
@@ -375,7 +376,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           <div 
             className="absolute inset-0 backface-hidden" 
             style={{ 
-              transform: "rotateX(180deg)",
+              transform: "rotateY(180deg)",
               zIndex: 31
             }}
           >
