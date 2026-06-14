@@ -112,7 +112,7 @@ const sendSMSInvitation = async (req, res, next) => {
     try {
       const twilioMessage = await twilio.messages.create({
         body: brandedBody,
-        from: process.env.TWILIO_PHONE_NUMBER,
+        from: getTwilioFromNumber(),
         to: phoneNumber
       });
 

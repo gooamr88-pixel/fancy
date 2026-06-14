@@ -186,7 +186,7 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
     pending: true,
   });
   const [hoverIdx, setHoverIdx] = useState(-1);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0, flipX: false });
   const svgRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -277,7 +277,13 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
       }
 
       setHoverIdx(nearest);
-      setTooltipPos({ x: e.clientX, y: e.clientY });
+      if (containerRef.current) {
+        const containerRect = containerRef.current.getBoundingClientRect();
+        const tLeft = e.clientX - containerRect.left + 16;
+        const tTop = e.clientY - containerRect.top - 20;
+        const flipX = tLeft + 160 > containerRect.width;
+        setTooltipPos({ x: tLeft, y: tTop, flipX });
+      }
     },
     [hasData, data, seriesMapped, chartW, svgW],
   );
@@ -566,63 +572,57 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
         </svg>
 
         {/* Tooltip */}
-        {tooltipData && containerRef.current && (() => {
-          const containerRect = containerRef.current.getBoundingClientRect();
-          const tLeft = tooltipPos.x - containerRect.left + 16;
-          const tTop = tooltipPos.y - containerRect.top - 20;
-          const flipX = tLeft + 160 > containerRect.width;
-          return (
+        {tooltipData && (
+          <div
+            className="rsvp-trend-tooltip"
+            style={{
+              left: tooltipPos.flipX ? tooltipPos.x - 176 : tooltipPos.x,
+              top: tooltipPos.y,
+              opacity: 1,
+              transform: 'translateY(-8px)',
+            }}
+          >
             <div
-              className="rsvp-trend-tooltip"
               style={{
-                left: flipX ? tLeft - 176 : tLeft,
-                top: tTop,
-                opacity: 1,
-                transform: 'translateY(-8px)',
+                fontSize: 11,
+                fontWeight: 600,
+                color: '#D7BE80',
+                marginBottom: 8,
+                letterSpacing: '0.02em',
               }}
             >
+              {tooltipData.date}
+            </div>
+            {tooltipData.values.map((v) => (
               <div
+                key={v.label}
                 style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: '#D7BE80',
-                  marginBottom: 8,
-                  letterSpacing: '0.02em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  marginBottom: 4,
                 }}
               >
-                {tooltipData.date}
-              </div>
-              {tooltipData.values.map((v) => (
-                <div
-                  key={v.label}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 16,
-                    marginBottom: 4,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: '50%',
-                        background: v.color,
-                        display: 'inline-block',
-                      }}
-                    />
-                    <span style={{ fontSize: 11, color: '#B5B1AA' }}>{v.label}</span>
-                  </div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#F8F4EC' }}>
-                    {v.value}
-                  </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      background: v.color,
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span style={{ fontSize: 11, color: '#B5B1AA' }}>{v.label}</span>
                 </div>
-              ))}
-            </div>
-          );
-        })()}
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#F8F4EC' }}>
+                  {v.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

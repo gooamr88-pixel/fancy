@@ -145,6 +145,7 @@ const submitPublicRSVP = async (req, res, next) => {
           .select('id')
           .eq('event_id', event.id)
           .eq('email', email.trim())
+          .neq('response', 'no')
           .limit(1);
 
         if (existingRsvp && existingRsvp.length > 0) {

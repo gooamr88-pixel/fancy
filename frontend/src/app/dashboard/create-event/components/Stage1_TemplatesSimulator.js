@@ -27,15 +27,19 @@ function getLiningGradId(templateKey, presetIndex) {
  
 /* ═══ Floating Champagne Shimmers ═══ */
 function FloatingParticles() {
-  const particles = useMemo(() =>
-    Array.from({ length: 15 }, (_, i) => ({
-      id: i,
-      size: 4 + Math.random() * 6,
-      left: `${Math.random() * 100}%`,
-      delay: `${Math.random() * 12}s`,
-      duration: `${14 + Math.random() * 8}s`,
-      opacity: 0.15 + Math.random() * 0.2,
-    })), []);
+  const [particles, setParticles] = useState([]);
+  React.useEffect(() => {
+    setParticles(
+      Array.from({ length: 15 }, (_, i) => ({
+        id: i,
+        size: 4 + Math.random() * 6,
+        left: `${Math.random() * 100}%`,
+        delay: `${Math.random() * 12}s`,
+        duration: `${14 + Math.random() * 8}s`,
+        opacity: 0.15 + Math.random() * 0.2,
+      }))
+    );
+  }, []);
  
   return (
     <div style={{

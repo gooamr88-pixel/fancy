@@ -327,6 +327,15 @@ DECLARE
     v_existing UUID;
     v_table_name TEXT;
 BEGIN
+    -- Authorization: verify caller owns this event or is super_admin
+    IF NOT public._is_event_authorized(p_event_id, p_assigned_by) THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'UNAUTHORIZED',
+            'message', 'You are not authorized to manage seating for this event.'
+        );
+    END IF;
+
     -- Acquire transactional advisory lock based on the table's UUID hash
     PERFORM pg_advisory_xact_lock(hashtext(p_table_id::text));
 
@@ -427,6 +436,15 @@ DECLARE
     v_new_table_name TEXT;
     v_assignment_id UUID;
 BEGIN
+    -- Authorization: verify caller owns this event or is super_admin
+    IF NOT public._is_event_authorized(p_event_id, p_assigned_by) THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'UNAUTHORIZED',
+            'message', 'You are not authorized to manage seating for this event.'
+        );
+    END IF;
+
     -- Resolve old assignment
     SELECT sa.table_id, t.table_name
     INTO v_old_table_id, v_old_table_name

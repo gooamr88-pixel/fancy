@@ -123,7 +123,7 @@ const sendBulkSMSCampaign = async (req, res, next) => {
         try {
           const msg = await twilio.messages.create({
             body: personalizedBody,
-            from: process.env.TWILIO_PHONE_NUMBER,
+            from: getTwilioFromNumber(),
             to: guest.phone
           });
 
