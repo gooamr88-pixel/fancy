@@ -31,6 +31,8 @@ export default function AdminPage() {
 
   const [smsRate, setSmsRate] = useState(8);
   const [pricingTiers, setPricingTiers] = useState([]);
+  const [smsMarkupPercentage, setSmsMarkupPercentage] = useState(40.0);
+  const [platformCommissionPct, setPlatformCommissionPct] = useState(0.0);
   const [savingConfig, setSavingConfig] = useState(false);
 
 
@@ -87,6 +89,8 @@ export default function AdminPage() {
         setPricingConfig(configData.config);
         setSmsRate(configData.config.sms_rate_cents_per_credit || 8);
         setPricingTiers(configData.config.pricing_tiers || []);
+        setSmsMarkupPercentage(configData.config.sms_markup_percentage !== undefined ? configData.config.sms_markup_percentage : 40.0);
+        setPlatformCommissionPct(configData.config.platform_commission_pct !== undefined ? configData.config.platform_commission_pct : 0.0);
       }
       setError(null);
     } catch (err) {
@@ -135,7 +139,12 @@ export default function AdminPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ pricingTiers, smsRateCentsPerCredit: parseInt(smsRate) })
+        body: JSON.stringify({
+          pricingTiers,
+          smsRateCentsPerCredit: parseInt(smsRate),
+          smsMarkupPercentage: parseFloat(smsMarkupPercentage),
+          platformCommissionPct: parseFloat(platformCommissionPct)
+        })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Config update failed.');
@@ -268,13 +277,27 @@ export default function AdminPage() {
                         <td style={{ padding: '16px 24px' }}>
                           {event.is_paid ? (
                             <span style={{ background: 'rgba(16,185,129,0.1)', color: D.emerald, border: '1px solid rgba(16,185,129,0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>Paid</span>
-                          ) : (
-                            <span style={{ background: 'rgba(244,63,94,0.1)', color: D.roseLight, border: '1px solid rgba(244,63,94,0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>Unpaid</span>
-                          )}
+                          ) : (() => {
+                            const pendingPayment = event.event_payments?.find(p => p.payment_method === 'cash_manual' && p.status === 'pending');
+                            return pendingPayment ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span style={{ background: 'rgba(245,158,11,0.1)', color: D.amber, border: '1px solid rgba(245,158,11,0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, width: 'fit-content' }}>Pending Cash</span>
+                                <span style={{ fontSize: '10px', color: D.text400 }}>Ref: <code style={{ color: D.amber }}>{pendingPayment.reference_number}</code></span>
+                                <span style={{ fontSize: '10px', color: D.text400 }}>Amt: ${(pendingPayment.amount_cents / 100).toFixed(2)}</span>
+                              </div>
+                            ) : (
+                              <span style={{ background: 'rgba(244,63,94,0.1)', color: D.roseLight, border: '1px solid rgba(244,63,94,0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>Unpaid</span>
+                            );
+                          })()}
                         </td>
                         <td style={{ padding: '16px 24px', textAlign: 'right' }}>
                           {!event.is_paid && (
-                            <button onClick={() => { setSelectedEvent(event); setShowApprovalModal(true); }}
+                            <button onClick={() => {
+                              setSelectedEvent(event);
+                              const pendingPayment = event.event_payments?.find(p => p.payment_method === 'cash_manual' && p.status === 'pending');
+                              setApproveAmountCents(pendingPayment ? pendingPayment.amount_cents : 7900);
+                              setShowApprovalModal(true);
+                            }}
                               style={{ padding: '6px 14px', background: D.amberDark, fontSize: '11px', fontWeight: 700, borderRadius: '8px', color: D.white, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'background 0.2s' }}
                               onMouseEnter={e => e.currentTarget.style.background = D.amber}
                               onMouseLeave={e => e.currentTarget.style.background = D.amberDark}>
@@ -298,10 +321,22 @@ export default function AdminPage() {
               <p style={{ fontSize: '12px', color: D.text400, marginTop: '4px' }}>Configure pricing tiers, capacity limits, and SMS credit base markup rates.</p>
             </div>
             <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <div>
-                <label style={{ fontSize: '11px', color: D.text400, fontWeight: 600, display: 'block', marginBottom: '6px' }}>SMS Base Rate (cents per credit)</label>
-                <input type="number" value={smsRate} onChange={e => setSmsRate(e.target.value)} style={inputStyle}
-                  onFocus={e => e.target.style.borderColor = D.amber} onBlur={e => e.target.style.borderColor = D.cardBorder} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', color: D.text400, fontWeight: 600, display: 'block', marginBottom: '6px' }}>SMS Base Rate (¢)</label>
+                  <input type="number" value={smsRate} onChange={e => setSmsRate(e.target.value)} style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = D.amber} onBlur={e => e.target.style.borderColor = D.cardBorder} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: D.text400, fontWeight: 600, display: 'block', marginBottom: '6px' }}>SMS Markup (%)</label>
+                  <input type="number" step="0.1" value={smsMarkupPercentage} onChange={e => setSmsMarkupPercentage(e.target.value)} style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = D.amber} onBlur={e => e.target.style.borderColor = D.cardBorder} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', color: D.text400, fontWeight: 600, display: 'block', marginBottom: '6px' }}>Platform Commission (%)</label>
+                  <input type="number" step="0.1" value={platformCommissionPct} onChange={e => setPlatformCommissionPct(e.target.value)} style={inputStyle}
+                    onFocus={e => e.target.style.borderColor = D.amber} onBlur={e => e.target.style.borderColor = D.cardBorder} />
+                </div>
               </div>
               <div>
                 <label style={{ fontSize: '11px', color: D.text400, fontWeight: 700, display: 'block', borderBottom: `1px solid ${D.cardBorder}`, paddingBottom: '8px', marginBottom: '16px' }}>Configure Pricing License Tiers</label>

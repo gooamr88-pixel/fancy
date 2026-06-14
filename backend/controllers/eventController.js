@@ -9,7 +9,8 @@ const createEvent = async (req, res, next) => {
     slug, templateType, title, description, eventDate, eventEndDate,
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword,
-    coverImageUrl, galleryUrls, customColors, customFonts, templateData
+    coverImageUrl, galleryUrls, customColors, customFonts, templateData,
+    eventType, backgroundMusicUrl
   } = req.body;
 
   if (!slug || !templateType || !title || !eventDate) {
@@ -84,6 +85,8 @@ const createEvent = async (req, res, next) => {
       custom_colors: customColors || {},
       custom_fonts: customFonts || {},
       template_data: templateData || {},
+      event_type: eventType || 'wedding',
+      background_music_url: backgroundMusicUrl || null,
       status: 'draft',
       is_paid: false
     };
@@ -181,6 +184,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         id,
         slug,
         template_type,
+        event_type,
         title,
         description,
         event_date,
@@ -197,6 +201,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         gallery_urls,
         custom_colors,
         custom_fonts,
+        background_music_url,
         template_data,
         is_paid,
         rsvp_form_fields(*)
@@ -294,7 +299,9 @@ const updateEvent = async (req, res, next) => {
     'gallery_urls',
     'custom_colors',
     'custom_fonts',
-    'template_data'
+    'template_data',
+    'event_type',
+    'background_music_url'
   ];
 
   // Status can only be set to 'paused' or 'completed' by organizer.
@@ -541,7 +548,7 @@ const getAdminEvents = async (req, res, next) => {
   try {
     const { data: events, error } = await supabase
       .from('events')
-      .select('*, organizations(name, email)')
+      .select('*, organizations(name, email), event_payments(*)')
       .order('created_at', { ascending: false })
       .range(from, to);
 

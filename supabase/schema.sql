@@ -69,6 +69,8 @@ CREATE TABLE IF NOT EXISTS events (
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'paused', 'completed')),
     is_paid BOOLEAN DEFAULT FALSE,
     manual_override BOOLEAN DEFAULT FALSE,
+    event_type TEXT DEFAULT 'wedding',
+    background_music_url TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -183,6 +185,7 @@ CREATE TABLE IF NOT EXISTS event_payments (
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
     payment_method TEXT DEFAULT 'stripe' CHECK (payment_method IN ('stripe', 'cash_manual')),
     approved_by UUID,
+    reference_number TEXT UNIQUE,
     created_at TIMESTAMPTZ DEFAULT now(),
     completed_at TIMESTAMPTZ
 );
@@ -307,6 +310,24 @@ $$;
 
 -- ─── 6. STORED FUNCTIONS & CONCURRENCY SEATING LOGIC ───
 
+-- Helper: check if a user is authorized for a given event
+-- (they must be the org owner or a super admin)
+CREATE OR REPLACE FUNCTION _is_event_authorized(p_event_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM events e
+        JOIN organizations o ON e.org_id = o.id
+        WHERE e.id = p_event_id
+          AND (o.owner_user_id = p_user_id OR is_super_admin(p_user_id))
+    );
+END;
+$$;
+
 -- Atomic Seating Function
 CREATE OR REPLACE FUNCTION assign_seat(
     p_event_id UUID,
@@ -327,6 +348,15 @@ DECLARE
     v_existing UUID;
     v_table_name TEXT;
 BEGIN
+    -- Authorization: verify caller owns this event or is super_admin
+    IF NOT _is_event_authorized(p_event_id, p_assigned_by) THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'UNAUTHORIZED',
+            'message', 'You are not authorized to manage seating for this event.'
+        );
+    END IF;
+
     -- Acquire transactional advisory lock based on the table's UUID hash
     PERFORM pg_advisory_xact_lock(hashtext(p_table_id::text));
 
@@ -427,6 +457,15 @@ DECLARE
     v_new_table_name TEXT;
     v_assignment_id UUID;
 BEGIN
+    -- Authorization: verify caller owns this event or is super_admin
+    IF NOT _is_event_authorized(p_event_id, p_assigned_by) THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'error', 'UNAUTHORIZED',
+            'message', 'You are not authorized to manage seating for this event.'
+        );
+    END IF;
+
     -- Resolve old assignment
     SELECT sa.table_id, t.table_name
     INTO v_old_table_id, v_old_table_name
@@ -635,24 +674,38 @@ BEGIN
         updated_at = now()
     WHERE id = p_event_id;
 
-    -- Insert payment record
-    INSERT INTO event_payments (
-        event_id,
-        amount_cents,
-        currency,
-        status,
-        payment_method,
-        approved_by,
-        completed_at
-    ) VALUES (
-        p_event_id,
-        p_amount_cents,
-        'usd',
-        'completed',
-        'cash_manual',
-        p_approved_by,
-        now()
-    ) RETURNING id INTO v_payment_id;
+    -- Check if there is an existing pending cash_manual payment record for this event
+    SELECT id INTO v_payment_id FROM event_payments
+    WHERE event_id = p_event_id AND payment_method = 'cash_manual' AND status = 'pending'
+    LIMIT 1;
+
+    IF v_payment_id IS NOT NULL THEN
+        UPDATE event_payments
+        SET status = 'completed',
+            approved_by = p_approved_by,
+            completed_at = now(),
+            amount_cents = p_amount_cents
+        WHERE id = v_payment_id;
+    ELSE
+        -- Insert a new payment record if none existed
+        INSERT INTO event_payments (
+            event_id,
+            amount_cents,
+            currency,
+            status,
+            payment_method,
+            approved_by,
+            completed_at
+        ) VALUES (
+            p_event_id,
+            p_amount_cents,
+            'usd',
+            'completed',
+            'cash_manual',
+            p_approved_by,
+            now()
+        ) RETURNING id INTO v_payment_id;
+    END IF;
 
     -- Insert activity log
     INSERT INTO activity_logs (

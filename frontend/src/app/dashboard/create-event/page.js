@@ -363,6 +363,8 @@ export default function CreateEventWizard() {
         coverImageUrl: coverImageUrl || undefined,
         customColors,
         templateData: Object.keys(templateData).length > 0 ? templateData : undefined,
+        eventType: templateType,
+        backgroundMusicUrl: '',
       };
 
       const eventRes = await fetch(`${apiUrl}/events`, {

@@ -123,7 +123,7 @@ const sendBulkSMSCampaign = async (req, res, next) => {
         try {
           const msg = await twilio.messages.create({
             body: personalizedBody,
-            from: process.env.TWILIO_PHONE_NUMBER,
+            from: getTwilioFromNumber(),
             to: guest.phone
           });
 
@@ -214,6 +214,12 @@ const getCampaignHistory = async (req, res, next) => {
       .eq('event_id', eventId)
       .single();
 
+    const { data: config } = await supabase
+      .from('super_admin_config')
+      .select('sms_rate_cents_per_credit')
+      .eq('id', '00000000-0000-0000-0000-000000000000')
+      .single();
+
     const { data: ledger, error, count: totalCount } = await supabase
       .from('sms_credit_ledger')
       .select('*', { count: 'exact' })
@@ -227,6 +233,7 @@ const getCampaignHistory = async (req, res, next) => {
       success: true,
       wallet: wallet || { credits_purchased: 0, credits_used: 0, credits_remaining: 0 },
       history: ledger || [],
+      smsRateCents: config?.sms_rate_cents_per_credit || 8,
       pagination: { page, limit, count: (ledger || []).length, total: totalCount }
     });
   } catch (err) {

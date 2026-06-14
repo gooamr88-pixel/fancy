@@ -34,6 +34,8 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     location_lat: null, location_lng: null, location_place_id: '',
     rsvp_deadline: '', privacy_mode: 'public', access_password: '',
     dress_code: '', cover_image_url: '', primary_color: '#B8944F',
+    event_type: 'wedding', background_music_url: '',
+    card_title_font: 'Playfair Display', card_body_font: 'Montserrat'
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -59,6 +61,10 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         dress_code: event.dress_code || '',
         cover_image_url: event.cover_image_url || '',
         primary_color: event.primary_color || '#B8944F',
+        event_type: event.event_type || 'wedding',
+        background_music_url: event.background_music_url || '',
+        card_title_font: event.custom_fonts?.card_title || 'Playfair Display',
+        card_body_font: event.custom_fonts?.card_body || 'Montserrat'
       });
     }
   }, [event]);
@@ -71,7 +77,16 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
   const handleSave = async () => {
     setSaving(true); setError(''); setSuccess(false);
     try {
-      const body = { ...form };
+      const body = {
+        ...form,
+        custom_fonts: {
+          card_title: form.card_title_font,
+          card_body: form.card_body_font
+        }
+      };
+      delete body.card_title_font;
+      delete body.card_body_font;
+
       // Convert all dates to ISO strings for consistent backend parsing
       if (body.event_date) body.event_date = new Date(body.event_date).toISOString();
       if (body.event_end_date) body.event_end_date = new Date(body.event_end_date).toISOString();
@@ -309,6 +324,82 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
               width: '40px', height: '40px', borderRadius: '8px', background: form.primary_color,
               border: `1px solid ${COLORS.border}`,
             }} />
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ CUSTOMIZATION & MUSIC ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            Design & Background Music
+          </span>
+        </h3>
+
+        <div style={rowStyle}>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Event Type</label>
+            <select value={form.event_type} onChange={handleChange('event_type')} style={{ ...inputStyle, cursor: 'pointer' }}>
+              <option value="wedding">💍 Wedding</option>
+              <option value="engagement">💎 Engagement</option>
+              <option value="birthday">🎂 Birthday</option>
+              <option value="other">🎉 Other Celebration</option>
+            </select>
+          </div>
+
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Background Music</label>
+            <select value={form.background_music_url} onChange={(e) => {
+              const val = e.target.value;
+              setForm(prev => ({ ...prev, background_music_url: val }));
+            }} style={{ ...inputStyle, cursor: 'pointer' }}>
+              <option value="">🔇 None</option>
+              <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">🎹 Classical Piano</option>
+              <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3">🎷 Jazz Vibe</option>
+              <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3">🎻 Acoustic Strings</option>
+              <option value="custom">🔗 Custom MP3 URL...</option>
+            </select>
+          </div>
+        </div>
+
+        {form.background_music_url === 'custom' && (
+          <div style={{ ...fieldGroupStyle, marginTop: '-12px' }}>
+            <label style={labelStyle}>Custom Music Audio URL (Direct MP3 Link)</label>
+            <input
+              type="url"
+              placeholder="https://example.com/audio.mp3"
+              style={inputStyle}
+              onChange={(e) => {
+                const val = e.target.value;
+                setForm(prev => ({ ...prev, background_music_url: val }));
+              }}
+              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            />
+          </div>
+        )}
+
+        <div style={rowStyle}>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Invitation Title Font</label>
+            <select value={form.card_title_font} onChange={handleChange('card_title_font')} style={{ ...inputStyle, cursor: 'pointer' }}>
+              <option value="Playfair Display">Playfair Display (Elegant Serif)</option>
+              <option value="Great Vibes">Great Vibes (Romantic Script)</option>
+              <option value="Cinzel">Cinzel (Classic Roman)</option>
+              <option value="Alex Brush">Alex Brush (Calligraphy Script)</option>
+              <option value="Montserrat">Montserrat (Modern Sans)</option>
+            </select>
+          </div>
+
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Invitation Body Font</label>
+            <select value={form.card_body_font} onChange={handleChange('card_body_font')} style={{ ...inputStyle, cursor: 'pointer' }}>
+              <option value="Montserrat">Montserrat (Clean Sans)</option>
+              <option value="Inter">Inter (Simple Sans)</option>
+              <option value="Playfair Display">Playfair Display (Classic Serif)</option>
+              <option value="Cormorant Garamond">Cormorant Garamond (Fine Serif)</option>
+            </select>
           </div>
         </div>
       </div>

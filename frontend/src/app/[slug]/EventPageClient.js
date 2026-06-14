@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
 
 export default function EventPageClient({ initialEvent, slug: serverSlug }) {
@@ -17,6 +18,13 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const [isPrivate, setIsPrivate] = useState(false);
 
   const fetchEventWithPasswordRef = useRef(null);
+
+  const searchParams = useSearchParams();
+  const guestIdParam = searchParams ? searchParams.get('g') : null;
+  const [guestDetails, setGuestDetails] = useState(null);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef(null);
 
   const fetchEvent = useCallback(async (password) => {
     try {
@@ -94,6 +102,79 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       else { const meta = document.createElement('meta'); meta.name = 'description'; meta.content = event.description || `RSVP to ${event.title}`; document.head.appendChild(meta); }
     }
   }, [event]);
+
+  // 1. Fetch personalized guest details
+  useEffect(() => {
+    if (!guestIdParam) return;
+    async function fetchGuest() {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+        const res = await fetch(`${apiUrl}/public/rsvp/guest/${guestIdParam}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.guest) {
+            setGuestDetails(data.guest);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch guest details:', err);
+      }
+    }
+    fetchGuest();
+  }, [guestIdParam]);
+
+  // 2. Play background music
+  useEffect(() => {
+    if (event?.background_music_url) {
+      audioRef.current = new Audio(event.background_music_url);
+      audioRef.current.loop = true;
+      audioRef.current.volume = 0.5;
+    }
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, [event?.background_music_url]);
+
+  // 3. Dynamic Font Loader
+  useEffect(() => {
+    if (!event) return;
+    const titleFont = event.custom_fonts?.card_title;
+    const bodyFont = event.custom_fonts?.card_body;
+
+    const fontsToLoad = [];
+    if (titleFont && titleFont !== 'Playfair Display') fontsToLoad.push(titleFont.replace(/ /g, '+'));
+    if (bodyFont && bodyFont !== 'Montserrat') fontsToLoad.push(bodyFont.replace(/ /g, '+'));
+
+    if (fontsToLoad.length > 0) {
+      const link = document.createElement('link');
+      link.href = `https://fonts.googleapis.com/css2?family=${fontsToLoad.join('&family=')}&display=swap`;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+
+      return () => {
+        if (document.head.contains(link)) {
+          document.head.removeChild(link);
+        }
+      };
+    }
+  }, [event]);
+
+  const toggleMusic = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(err => {
+        console.error('Playback failed:', err);
+      });
+    }
+  };
 
   // LOADING
   if (loading) {
@@ -212,13 +293,18 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(25,27,30,0.85), rgba(25,27,30,0.3), transparent)' }} />
 
         <div style={{ position: 'relative', textAlign: 'center', paddingBottom: '64px', padding: '0 24px 64px', maxWidth: '800px', zIndex: 10 }}>
-          <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '4px', color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '12px', fontFamily: 'var(--font-sans)' }}>
+          <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '4px', color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '12px', fontFamily: event?.custom_fonts?.card_body || 'var(--font-sans)' }}>
             {isRTL ? (event.template_type === 'wedding' ? 'بطاقة زفاف' : 'تفاصيل الفعالية') : `${event.template_type} invitation`}
           </span>
-          <h1 style={{ fontSize: '48px', fontWeight: isWedding ? 400 : 700, color: '#FFFFFF', letterSpacing: '1px', marginBottom: '16px', fontFamily: isWedding ? 'var(--font-serif)' : 'var(--font-sans)', lineHeight: 1.15 }}>
+          {guestDetails && (
+            <div style={{ fontSize: '20px', color: '#D7BE80', fontStyle: 'italic', marginBottom: '16px', fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)' }}>
+              {isRTL ? `مرحباً بك، ${guestDetails.guest_name}` : `Welcome, ${guestDetails.guest_name}`}
+            </div>
+          )}
+          <h1 style={{ fontSize: '48px', fontWeight: isWedding ? 400 : 700, color: '#FFFFFF', letterSpacing: '1px', marginBottom: '16px', fontFamily: event?.custom_fonts?.card_title || (isWedding ? 'var(--font-serif)' : 'var(--font-sans)'), lineHeight: 1.15 }}>
             {localizedTitle}
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.75)', maxWidth: '640px', margin: '0 auto', fontWeight: 300, fontSize: '15px', lineHeight: 1.7 }}>
+          <p style={{ color: 'rgba(255,255,255,0.75)', maxWidth: '640px', margin: '0 auto', fontWeight: 300, fontSize: '15px', lineHeight: 1.7, fontFamily: event?.custom_fonts?.card_body || 'var(--font-sans)' }}>
             {localizedDesc}
           </p>
         </div>
@@ -230,7 +316,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         {/* Left: Details */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E8E2D6', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{t.details_title}</h2>
+            <h2 style={{ fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{t.details_title}</h2>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
               <div>
@@ -447,11 +533,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         {/* Right: RSVP Card */}
         <div>
           <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E8E2D6', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', position: 'sticky', top: '32px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
-            <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
+            <h3 style={{ fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
+            <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6, fontFamily: event?.custom_fonts?.card_body || 'var(--font-sans)' }}>
               {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : undefined) : 'N/A'}</strong> {t.card_desc}
             </p>
-            <Link href={`/${slug}/rsvp?lang=${lang}`} style={{
+            <Link href={`/${slug}/rsvp?lang=${lang}${guestIdParam ? `&g=${guestIdParam}` : ''}`} style={{
               display: 'block', width: '100%', padding: '14px', textAlign: 'center', color: '#FFFFFF', fontWeight: 700,
               fontSize: '14px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'var(--font-sans)',
               background: themeColor, transition: 'all 0.3s ease', letterSpacing: '0.5px',
@@ -491,6 +577,44 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ═══ BACKGROUND MUSIC FLOAT WIDGET ═══ */}
+      {event?.background_music_url && (
+        <button 
+          onClick={toggleMusic} 
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '24px',
+            zIndex: 99,
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            background: 'rgba(25, 27, 30, 0.85)',
+            border: '1px solid #B8944F',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+            transition: 'all 0.3s ease',
+            color: '#B8944F',
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          aria-label={isPlaying ? 'Pause music' : 'Play music'}
+        >
+          {isPlaying ? (
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+            </svg>
+          ) : (
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          )}
+        </button>
       )}
 
       {/* ═══ MAP EMBED ═══ */}

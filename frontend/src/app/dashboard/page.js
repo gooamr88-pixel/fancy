@@ -103,6 +103,7 @@ export default function DashboardPage() {
 
   const [tables, setTables] = useState([]);
   const [rsvps, setRsvps] = useState([]);
+  const [seatingChanges, setSeatingChanges] = useState({});
   const [newTableName, setNewTableName] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
@@ -172,6 +173,7 @@ export default function DashboardPage() {
           };
         });
         setRsvps(formattedGuests);
+        setSeatingChanges({});
       }
       setError(null);
     } catch (err) {
@@ -197,25 +199,67 @@ export default function DashboardPage() {
     } catch (err) { alert(err.message); }
   }, [apiUrl, eventId, newTableName, newTableCapacity, loadDashboardData]);
 
-  const handleAssignTable = useCallback(async (rsvpId, targetTableId) => {
+  const handleAssignTable = useCallback((rsvpId, targetTableId) => {
     const guest = rsvps.find(g => g.id === rsvpId);
-    if (!guest || !eventId) return;
-    const oldTableId = guest.tableId;
-    try {
-      let res;
-      const headers = { 'Content-Type': 'application/json' };
-      if (!oldTableId) {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/assign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, tableId: targetTableId }) });
-      } else if (!targetTableId) {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/unassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId }) });
-      } else {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, newTableId: targetTableId }) });
+    if (!guest) return;
+
+    if (targetTableId) {
+      const targetTable = tables.find(t => t.id === targetTableId);
+      if (targetTable) {
+        const occupied = rsvps
+          .filter(r => r.tableId === targetTableId && r.id !== rsvpId)
+          .reduce((sum, r) => sum + (r.party_size || 1), 0);
+        const remaining = targetTable.max_capacity - occupied;
+        if (guest.party_size > remaining) {
+          alert(`Warning: Table ${targetTable.table_name} only has ${remaining} seats left, party size is ${guest.party_size}.`);
+          return;
+        }
       }
+    }
+
+    // Update local guests array
+    setRsvps(prev => prev.map(r => r.id === rsvpId ? { ...r, tableId: targetTableId } : r));
+
+    // Update table occupied metrics locally
+    setTables(prevTables => prevTables.map(t => {
+      const occupied = rsvps
+        .map(r => r.id === rsvpId ? { ...r, tableId: targetTableId } : r)
+        .filter(r => r.tableId === t.id && (r.response === 'yes' || r.response === 'accepted' || r.response === 'attending'))
+        .reduce((sum, r) => sum + (r.party_size || 1), 0);
+      return { ...t, occupied };
+    }));
+
+    setSeatingChanges(prev => ({ ...prev, [rsvpId]: targetTableId }));
+  }, [rsvps, tables]);
+
+  const handleSaveSeating = useCallback(async () => {
+    if (!eventId) return;
+    setLoading(true);
+    try {
+      const payload = Object.entries(seatingChanges).map(([rsvpId, tableId]) => ({
+        rsvpId,
+        tableId: tableId || null
+      }));
+
+      const res = await fetch(`${apiUrl}/events/${eventId}/seating/save-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ assignments: payload })
+      });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Seat assignment failed');
-      loadDashboardData();
-    } catch (err) { alert(err.message); }
-  }, [apiUrl, eventId, rsvps, loadDashboardData]);
+      if (!res.ok) throw new Error(data.message || 'Failed to save seating assignments.');
+
+      setSeatingChanges({});
+      alert('Seating assignments saved successfully!');
+      await loadDashboardData();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiUrl, eventId, seatingChanges, loadDashboardData]);
 
   const handleRealtimeRsvp = useCallback((payload) => {
     if (payload.eventType === 'INSERT') {
@@ -798,6 +842,18 @@ export default function DashboardPage() {
             /* ═══ SEATING TAB ═══ */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {eventId && (<>
+                {Object.keys(seatingChanges).length > 0 && (
+                  <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: '16px 24px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'var(--font-sans)', animation: 'fadeIn 0.25s ease' }}>
+                    <span style={{ fontSize: '13px', color: COLORS.stone }}>
+                      You have <strong style={{ color: COLORS.gold }}>{Object.keys(seatingChanges).length}</strong> unsaved seating assignment changes.
+                    </span>
+                    <button onClick={handleSaveSeating} style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', background: COLORS.gold, color: COLORS.white, transition: 'all 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = COLORS.goldHover}
+                      onMouseLeave={e => e.currentTarget.style.background = COLORS.gold}>
+                      Save Seating Assignments
+                    </button>
+                  </div>
+                )}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
                   <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} />
                   <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>

@@ -389,10 +389,12 @@ const PlusIcon = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="no
 const ChevronIcon = ({ open }) => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ transition: 'transform 0.3s ease', transform: open ? 'rotate(180deg)' : 'rotate(0)' }}><polyline points="6 9 12 15 18 9"/></svg>);
 
 /* ═══ Event Card ═══ */
-const EventCard = React.memo(function EventCard({ event, index, isActive, onSelect }) {
+const EventCard = React.memo(function EventCard({ event, index, isActive, onSelect, onOpenPayment }) {
   const [copiedSlug, setCopiedSlug] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const status = STATUS_CFG[event.status] || STATUS_CFG.active;
+  const status = event.is_paid
+    ? (STATUS_CFG[event.status] || STATUS_CFG.active)
+    : { bg: 'rgba(239, 68, 68, 0.07)', color: '#EF4444', border: 'rgba(239, 68, 68, 0.18)', label: 'Inactive / Unpaid', dot: '#EF4444', pulse: false };
   const gradient = GRADS[index % GRADS.length];
   const eventDate = event.event_date || event.date;
   const rel = relDate(eventDate);
@@ -497,13 +499,49 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
             )}
           </div>
 
+          {event.is_paid && (
+            <div style={{
+              marginTop: '12px', padding: '10px 14px', borderRadius: '10px',
+              background: '#F8F4EC', border: '1px solid #E8E2D6',
+              display: 'flex', alignItems: 'center', gap: '14px'
+            }} onClick={e => e.stopPropagation()}>
+              {/* QR Code */}
+              <div style={{ background: '#fff', padding: '4px', borderRadius: '6px', border: '1px solid #E8E2D6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=${encodeURIComponent(`${window.location.origin}/${event.slug || event.id}`)}`}
+                  alt="QR Code"
+                  style={{ width: '64px', height: '64px' }}
+                />
+              </div>
+              
+              {/* Link Info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: '10px', textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.05em' }}>Event Invitation URL & QR</span>
+                <a
+                  href={`${window.location.origin}/${event.slug || event.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: '12px', fontWeight: 600, color: C.gold, textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}
+                >
+                  {window.location.origin}/{event.slug || event.id}
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="evt2-actions">
-            <button className="evt2-action-btn" data-variant="primary" onClick={toggleExpand}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
-              {expanded ? 'Hide Stats' : 'View Dashboard'}
-              <ChevronIcon open={expanded} />
-            </button>
+            {!event.is_paid ? (
+              <button className="evt2-action-btn" data-variant="primary" style={{ background: '#C45E5E', borderColor: 'transparent', color: '#fff' }} onClick={(e) => { e.stopPropagation(); onOpenPayment(event); }}>
+                💳 Pay & Activate
+              </button>
+            ) : (
+              <button className="evt2-action-btn" data-variant="primary" onClick={toggleExpand}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+                {expanded ? 'Hide Stats' : 'View Dashboard'}
+                <ChevronIcon open={expanded} />
+              </button>
+            )}
             <button className="evt2-action-btn" onClick={goSettings}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               Settings
@@ -605,10 +643,199 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
       {events.length === 0 ? <EmptyState /> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {events.map((evt, i) => (
-            <EventCard key={evt.id} event={evt} index={i} isActive={evt.id === activeEventId} onSelect={onSelectEvent} />
+            <EventCard key={evt.id} event={evt} index={i} isActive={evt.id === activeEventId} onSelect={onSelectEvent} onOpenPayment={setPaymentEvent} />
           ))}
         </div>
       )}
+
+      {/* Payment Activation Modal */}
+      {paymentEvent && (
+        <PaymentModal event={paymentEvent} onClose={() => setPaymentEvent(null)} onRefresh={onRefresh} />
+      )}
+    </div>
+  );
+}
+
+/* ═══ Payment Activation Modal Component ═══ */
+function PaymentModal({ event, onClose, onRefresh }) {
+  const [tier, setTier] = useState('Premium');
+  const [method, setMethod] = useState('stripe');
+  const [submitting, setSubmitting] = useState(false);
+  const [manualResult, setManualResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  const tiers = [
+    { name: 'Essential', price: '$79', cents: 7900, desc: 'Up to 100 guests' },
+    { name: 'Premium', price: '$149', cents: 14900, desc: 'Up to 300 guests' },
+    { name: 'Enterprise', price: '$249', cents: 24900, desc: 'Up to 1000 guests' }
+  ];
+
+  const handleCheckout = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      if (method === 'stripe') {
+        const res = await fetch(`${apiUrl}/payments/events/${event.id}/create-checkout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ eventId: event.id, tierName: tier })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Stripe Checkout failed');
+        if (data.checkoutUrl) {
+          window.location.href = data.checkoutUrl;
+        }
+      } else {
+        const res = await fetch(`${apiUrl}/payments/events/${event.id}/manual-payment`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ eventId: event.id, tierName: tier })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Manual payment registration failed');
+        if (data.success && data.payment) {
+          setManualResult(data.payment);
+          onRefresh?.();
+        }
+      }
+    } catch (err) {
+      setError(err.message || 'Payment initiation failed.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(10,12,16,0.8)', backdropFilter: 'blur(8px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '24px'
+    }}>
+      <div style={{
+        background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E8E2D6',
+        maxWidth: '540px', width: '100%', padding: '36px', boxSizing: 'border-box',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.15)', position: 'relative'
+      }}>
+        {/* Close Button */}
+        <button onClick={onClose} aria-label="Close modal" style={{
+          position: 'absolute', top: '24px', right: '24px',
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#77736A', fontSize: '20px'
+        }}>&times;</button>
+
+        {!manualResult ? (
+          <div>
+            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', color: '#191B1E', margin: '0 0 8px 0' }}>Activate Your Event</h2>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', color: '#77736A', margin: '0 0 24px 0', lineHeight: '1.5' }}>
+              Activate premium features for <strong>{event.title}</strong>. Choose a pricing tier and payment option below.
+            </p>
+
+            {/* Pricing Tiers Selection */}
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Select Pricing Tier</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '24px' }}>
+              {tiers.map(t => (
+                <button key={t.name} onClick={() => setTier(t.name)} style={{
+                  padding: '16px 12px', borderRadius: '12px', border: tier === t.name ? '2px solid #B8944F' : '1px solid #E8E2D6',
+                  background: tier === t.name ? 'rgba(184,148,79,0.04)' : '#FFFFFF', cursor: 'pointer',
+                  textAlign: 'center', transition: 'all 0.2s'
+                }}>
+                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#191B1E' }}>{t.name}</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#B8944F', margin: '4px 0' }}>{t.price}</div>
+                  <div style={{ fontSize: '10px', color: '#77736A' }}>{t.desc}</div>
+                </button>
+              ))}
+            </div>
+
+            {/* Payment Method Selection */}
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Select Payment Method</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '28px' }}>
+              <button onClick={() => setMethod('stripe')} style={{
+                padding: '14px', borderRadius: '10px', border: method === 'stripe' ? '2px solid #B8944F' : '1px solid #E8E2D6',
+                background: method === 'stripe' ? 'rgba(184,148,79,0.04)' : '#FFFFFF', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 600, fontSize: '13px'
+              }}>
+                💳 Stripe / Card
+              </button>
+              <button onClick={() => setMethod('manual')} style={{
+                padding: '14px', borderRadius: '10px', border: method === 'manual' ? '2px solid #B8944F' : '1px solid #E8E2D6',
+                background: method === 'manual' ? 'rgba(184,148,79,0.04)' : '#FFFFFF', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontWeight: 600, fontSize: '13px'
+              }}>
+                🏦 Bank / Cash
+              </button>
+            </div>
+
+            {error && (
+              <div style={{ padding: '12px 16px', background: '#FEF2F2', border: '1px solid #FECACA', color: '#C45E5E', borderRadius: '8px', fontSize: '13px', marginBottom: '16px' }}>
+                {error}
+              </div>
+            )}
+
+            <button onClick={handleCheckout} disabled={submitting} style={{
+              width: '100%', padding: '14px 24px', borderRadius: '10px', border: 'none',
+              background: 'linear-gradient(135deg, #B8944F, #D7BE80)', color: '#FFFFFF',
+              fontWeight: 700, fontSize: '15px', cursor: submitting ? 'not-allowed' : 'pointer',
+              boxShadow: '0 4px 16px rgba(184,148,79,0.25)', transition: 'all 0.2s'
+            }}>
+              {submitting ? 'Processing...' : method === 'stripe' ? 'Proceed to Card Payment' : 'Generate Reference Number'}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+              <span style={{ fontSize: '48px' }}>🏦</span>
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', color: '#191B1E', margin: '16px 0 8px 0' }}>Manual Transfer Requested</h2>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', color: '#77736A', margin: 0 }}>
+                Please transfer the amount below to complete activation.
+              </p>
+            </div>
+
+            <div style={{ background: '#FAFAF8', border: '1px solid #E8E2D6', borderRadius: '12px', padding: '20px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ color: '#77736A', fontSize: '13px' }}>Event Name:</span>
+                <span style={{ fontWeight: 600, color: '#191B1E', fontSize: '13px' }}>{event.title}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ color: '#77736A', fontSize: '13px' }}>Selected Plan:</span>
+                <span style={{ fontWeight: 600, color: '#191B1E', fontSize: '13px' }}>{tier} Tier</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid #E8E2D6', paddingBottom: '12px' }}>
+                <span style={{ color: '#77736A', fontSize: '13px' }}>Amount Due:</span>
+                <span style={{ fontWeight: 700, color: '#B8944F', fontSize: '15px' }}>${(manualResult.amountCents / 100).toFixed(2)}</span>
+              </div>
+              
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ color: '#77736A', fontSize: '11px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px' }}>Unique Reference Number</span>
+                <span style={{ fontSize: '24px', fontWeight: 800, color: '#B8944F', letterSpacing: '1px', background: '#FFFFFF', padding: '8px 16px', borderRadius: '8px', border: '1px solid #D7BE80', display: 'inline-block' }}>
+                  {manualResult.referenceNumber}
+                </span>
+                <span style={{ color: '#EF4444', fontSize: '11px', display: 'block', marginTop: '6px', fontWeight: 500 }}>⚠️ You MUST include this reference in your transfer notes!</span>
+              </div>
+            </div>
+
+            <h3 style={{ fontSize: '12px', fontWeight: 700, color: '#191B1E', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Bank Account Details</h3>
+            <div style={{ background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '10px', padding: '14px', fontSize: '12px', color: '#5E5A52', lineHeight: '1.6', marginBottom: '24px' }}>
+              <div><strong>Bank Name:</strong> Fancy RSVP Bank Ltd</div>
+              <div><strong>Account Name:</strong> Fancy RSVP Operations</div>
+              <div><strong>IBAN:</strong> US12 3456 7890 1234 5678</div>
+              <div><strong>SWIFT / BIC:</strong> FRSVUS33XXX</div>
+            </div>
+
+            <button onClick={onClose} style={{
+              width: '100%', padding: '12px 24px', borderRadius: '10px', border: '1px solid #E8E2D6',
+              background: '#FFFFFF', color: '#77736A', fontWeight: 600, fontSize: '14px', cursor: 'pointer',
+              transition: 'all 0.2s'
+            }} onMouseEnter={(e) => e.currentTarget.style.background = '#FAFAF8'} onMouseLeave={(e) => e.currentTarget.style.background = '#FFFFFF'}>
+              Done & Close
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

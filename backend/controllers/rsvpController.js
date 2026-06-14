@@ -312,10 +312,10 @@ const searchPublicGuests = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
 
-    // 2. Search guests matching query prefix/substring (public: only non-PII fields, no internal IDs)
+    // 2. Search guests matching query prefix/substring
     const { data, error } = await supabase
       .from('rsvps')
-      .select('guest_name, response')
+      .select('id, guest_name, email, phone, response, party_size')
       .eq('event_id', event.id)
       .ilike('guest_name', `%${escapeLikePattern(query.trim())}%`)
       .limit(10);
@@ -325,8 +325,12 @@ const searchPublicGuests = async (req, res, next) => {
     return res.json({
       success: true,
       results: data.map(item => ({
+        id: item.id,
         guestName: item.guest_name,
-        response: item.response
+        email: item.email,
+        phone: item.phone,
+        response: item.response,
+        partySize: item.party_size
       }))
     });
   } catch (err) {
@@ -455,15 +459,25 @@ const importGuestsCSV = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'CSV_TOO_LARGE', message: 'CSV import limited to 500 rows per batch. Please split your file.' });
     }
 
-    const insertRows = parsedRows.map(row => ({
-      event_id: eventId,
-      guest_name: row.guest_name || 'Unnamed Guest',
-      email: row.email || null,
-      phone: row.phone || null,
-      response: 'pending',
-      party_size: parseInt(row.party_size) || 1,
-      notes: row.notes || null
-    }));
+    const insertRows = parsedRows.map(row => {
+      const findVal = (possibleKeys) => {
+        const key = Object.keys(row).find(k => {
+          const cleanK = k.toLowerCase().replace(/[\s_-]/g, '');
+          return possibleKeys.includes(cleanK);
+        });
+        return key ? row[key] : null;
+      };
+
+      return {
+        event_id: eventId,
+        guest_name: findVal(['guestname', 'name', 'fullname', 'guest']) || 'Unnamed Guest',
+        email: findVal(['email', 'emailaddress']) || null,
+        phone: findVal(['phone', 'phonenumber', 'cell', 'mobile']) || null,
+        response: 'pending',
+        party_size: parseInt(findVal(['partysize', 'size', 'party', 'guests'])) || 1,
+        notes: findVal(['notes', 'note', 'comment']) || null
+      };
+    });
 
     const { data: inserted, error } = await supabase
       .from('rsvps')
@@ -788,6 +802,57 @@ const addGuestManually = async (req, res, next) => {
   }
 };
 
+const getPublicGuestById = async (req, res, next) => {
+  const { guestId } = req.params;
+
+  try {
+    const { data: guest, error } = await supabase
+      .from('rsvps')
+      .select(`
+        *,
+        events (
+          slug,
+          title,
+          event_date,
+          template_type
+        ),
+        seating_assignments (
+          table_id,
+          tables (
+            table_name
+          )
+        )
+      `)
+      .eq('id', guestId)
+      .single();
+
+    if (error || !guest) {
+      return res.status(404).json({
+        success: false,
+        error: 'GUEST_NOT_FOUND',
+        message: 'No guest found with the specified ID.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      guest: {
+        id: guest.id,
+        guest_name: guest.guest_name,
+        email: guest.email,
+        phone: guest.phone,
+        response: guest.response,
+        party_size: guest.party_size,
+        notes: guest.notes,
+        table_name: guest.seating_assignments?.[0]?.tables?.table_name || null
+      },
+      slug: guest.events?.slug || null
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   submitPublicRSVP,
   getRSVPs,
@@ -796,5 +861,6 @@ module.exports = {
   searchPublicGuests,
   deleteRSVP,
   updateRSVP,
-  addGuestManually
+  addGuestManually,
+  getPublicGuestById
 };

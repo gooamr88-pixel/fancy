@@ -20,6 +20,7 @@ export default function SeatingMapPage() {
   const [activeDragId, setActiveDragId] = useState(null);
   const [selectedTable, setSelectedTable] = useState(null);
   const [hasChanges, setHasChanges] = useState(false);
+  const [seatingChanges, setSeatingChanges] = useState({});
   const [dragOverTableId, setDragOverTableId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTableName, setNewTableName] = useState('');
@@ -45,6 +46,7 @@ export default function SeatingMapPage() {
           return { id: r.id, guest_name: r.guest_name, party_size: r.party_size, response: r.response, tableId: assignedTableId };
         });
         setGuests(formattedGuests);
+        setSeatingChanges({});
       }
       setError(null);
     } catch (err) { setError('Could not connect to backend. Verify your backend server is running on port 5000.'); }
@@ -58,7 +60,7 @@ export default function SeatingMapPage() {
   const handleDragOver = (e, tableId) => { e.preventDefault(); if (dragOverTableId !== tableId) setDragOverTableId(tableId); };
   const handleDragLeave = () => { setDragOverTableId(null); };
 
-  const handleGuestDrop = async (e, tableId) => {
+  const handleGuestDrop = (e, tableId) => {
     e.preventDefault(); setDragOverTableId(null);
     try {
       const rawData = e.dataTransfer.getData('application/json'); if (!rawData) return;
@@ -67,32 +69,27 @@ export default function SeatingMapPage() {
       const oldTableId = guest?.tableId;
       if (oldTableId === tableId) return;
       const table = tables.find(t => t.id === tableId);
-      if (table) { const remaining = table.max_capacity - table.occupied; if (partySize > remaining) { alert(`Warning: Table ${table.table_name} only has ${remaining} seats left, party size is ${partySize}.`); return; } }
-      setLoading(true);
-      const headers = { 'Content-Type': 'application/json' };
-      let res;
-      if (oldTableId) {
-        res = await fetch(`${API_URL}/events/${eventId}/seating/reassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, newTableId: tableId }) });
-      } else {
-        res = await fetch(`${API_URL}/events/${eventId}/seating/assign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, tableId }) });
+      if (table) {
+        const occupied = guests
+          .filter(g => g.tableId === tableId && g.id !== rsvpId && isAccepted(g.response))
+          .reduce((sum, g) => sum + g.party_size, 0);
+        const remaining = table.max_capacity - occupied;
+        if (partySize > remaining) {
+          alert(`Warning: Table ${table.table_name} only has ${remaining} seats left, party size is ${partySize}.`);
+          return;
+        }
       }
-      const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Seating assignment failed.');
-      await loadLayoutData();
-      if (selectedTable && selectedTable.id === tableId) setSelectedTable(prev => prev ? { ...prev, occupied: prev.occupied + partySize } : null);
-      if (selectedTable && selectedTable.id === oldTableId) setSelectedTable(prev => prev ? { ...prev, occupied: Math.max(0, prev.occupied - partySize) } : null);
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
+
+      setGuests(prev => prev.map(g => g.id === rsvpId ? { ...g, tableId } : g));
+      setSeatingChanges(prev => ({ ...prev, [rsvpId]: tableId }));
+    } catch (err) { alert(err.message); }
   };
 
-  const handleUnseatGuest = async (rsvpId) => {
+  const handleUnseatGuest = (rsvpId) => {
     try {
-      setLoading(true);
-      const headers = { 'Content-Type': 'application/json' };
-      const res = await fetch(`${API_URL}/events/${eventId}/seating/unassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId }) });
-      const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Unseating failed.');
-      const guestPartySize = guests.find(g => g.id === rsvpId)?.party_size || 0;
-      await loadLayoutData();
-      setSelectedTable(prev => prev ? { ...prev, occupied: Math.max(0, prev.occupied - guestPartySize) } : null);
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
+      setGuests(prev => prev.map(g => g.id === rsvpId ? { ...g, tableId: '' } : g));
+      setSeatingChanges(prev => ({ ...prev, [rsvpId]: '' }));
+    } catch (err) { alert(err.message); }
   };
 
   const handlePointerMove = (e) => {
@@ -116,6 +113,35 @@ export default function SeatingMapPage() {
       const data = await res.json();
       if (data.success) { setHasChanges(false); alert('Table coordinates saved in backend successfully!'); loadLayoutData(); }
     } catch (err) { alert(err.message); } finally { setLoading(false); }
+  };
+
+  const handleSaveSeating = async () => {
+    if (!eventId) return;
+    setLoading(true);
+    try {
+      const payload = Object.entries(seatingChanges).map(([rsvpId, tableId]) => ({
+        rsvpId,
+        tableId: tableId || null
+      }));
+
+      const res = await fetch(`${API_URL}/events/${eventId}/seating/save-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ assignments: payload })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to save seating assignments.');
+
+      setSeatingChanges({});
+      alert('Seating assignments saved successfully!');
+      await loadLayoutData();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddTable = async () => {
@@ -196,7 +222,12 @@ export default function SeatingMapPage() {
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 500, color: C.charcoal, marginTop: '4px' }}>Drag-and-Drop Seating Map</h1>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          {hasChanges && (<button onClick={handleSaveLayout} style={{ ...btnBase, background: C.gold, color: C.white }}>Save Layout Positions</button>)}
+          {Object.keys(seatingChanges).length > 0 && (
+            <button onClick={handleSaveSeating} style={{ ...btnBase, background: C.gold, color: C.white }}>Save Seating Assignments</button>
+          )}
+          {hasChanges && (
+            <button onClick={handleSaveLayout} style={{ ...btnBase, background: C.white, border: `1px solid ${C.gold}`, color: C.gold }}>Save Table Layout</button>
+          )}
           <button onClick={handleLogout} aria-label="Sign out" style={{ ...btnBase, background: 'transparent', border: `1px solid ${C.border}`, color: C.stone }}
             onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.color = '#C45E5E'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.stone; }}>
@@ -251,7 +282,8 @@ export default function SeatingMapPage() {
             {tables.map(table => {
               const isSelected = selectedTable && selectedTable.id === table.id;
               const isRound = table.shape === 'round';
-              const fillPercent = (table.occupied / table.max_capacity) * 100;
+              const occupiedCount = guests.filter(g => g.tableId === table.id && isAccepted(g.response)).reduce((sum, g) => sum + g.party_size, 0);
+              const fillPercent = (occupiedCount / table.max_capacity) * 100;
               const isDragOver = dragOverTableId === table.id;
               const isDraggingTable = activeDragId === table.id;
 
@@ -275,7 +307,7 @@ export default function SeatingMapPage() {
                     userSelect: 'none',
                   }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, color: C.charcoal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', display: 'block', padding: '0 4px' }}>{table.table_name}</span>
-                  <span style={{ fontSize: '9px', color: C.stone, marginTop: '4px' }}>{table.occupied} / {table.max_capacity} Seats</span>
+                  <span style={{ fontSize: '9px', color: C.stone, marginTop: '4px' }}>{occupiedCount} / {table.max_capacity} Seats</span>
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', marginTop: '6px', border: `1px solid ${C.border}`, transition: 'background 0.3s', background: fillPercent >= 100 ? '#C45E5E' : fillPercent >= 80 ? C.champagne : C.gold }} />
                 </div>
               );

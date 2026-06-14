@@ -215,8 +215,118 @@ const unassignSeat = async (req, res, next) => {
   }
 };
 
+/**
+ * Saves a batch of seating assignments/unassignments for an event.
+ * POST /api/v1/events/:eventId/seating/save-batch
+ */
+const saveSeatingBatch = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { assignments } = req.body; // Array of { rsvpId, tableId }
+  const assignedBy = req.user?.id || null;
+
+  if (!Array.isArray(assignments)) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: 'assignments must be an array.'
+    });
+  }
+
+  try {
+    // 1. Fetch current seating assignments for this event to compare
+    const { data: currentAssignments, error: fetchErr } = await supabase
+      .from('seating_assignments')
+      .select('rsvp_id, table_id')
+      .eq('event_id', eventId);
+
+    if (fetchErr) throw fetchErr;
+
+    const currentMap = {};
+    (currentAssignments || []).forEach(a => {
+      currentMap[a.rsvp_id] = a.table_id;
+    });
+
+    const results = [];
+
+    // 2. Process each assignment in the batch
+    for (const item of assignments) {
+      const { rsvpId, tableId } = item;
+      if (!rsvpId) continue;
+
+      const currentTableId = currentMap[rsvpId];
+
+      if (!tableId) {
+        // We want to unassign
+        if (currentTableId) {
+          const { data, error } = await supabase.rpc('unassign_seat', {
+            p_event_id: eventId,
+            p_rsvp_id: rsvpId,
+            p_assigned_by: assignedBy
+          });
+          results.push({ rsvpId, action: 'unassign', success: !error && data?.success, error: error || data?.message });
+        }
+      } else {
+        // We want to assign or reassign
+        if (!currentTableId) {
+          // Assign
+          const { data, error } = await supabase.rpc('assign_seat', {
+            p_event_id: eventId,
+            p_rsvp_id: rsvpId,
+            p_table_id: tableId,
+            p_assigned_by: assignedBy
+          });
+          results.push({ rsvpId, tableId, action: 'assign', success: !error && data?.success, error: error || data?.message });
+        } else if (currentTableId !== tableId) {
+          // Reassign
+          const { data, error } = await supabase.rpc('reassign_seat', {
+            p_event_id: eventId,
+            p_rsvp_id: rsvpId,
+            p_new_table_id: tableId,
+            p_assigned_by: assignedBy
+          });
+          results.push({ rsvpId, tableId, action: 'reassign', success: !error && data?.success, error: error || data?.message });
+        }
+      }
+    }
+
+    // 3. Broadcast seating_update event to Supabase Realtime channel
+    const channel = supabase.channel(`event-${eventId}`);
+    await channel.send({
+      type: 'broadcast',
+      event: 'seating_update',
+      payload: {
+        batch: true,
+        results
+      }
+    });
+    supabase.removeChannel(channel);
+
+    // Check if there was any failure in the batch
+    const failures = results.filter(r => !r.success);
+    if (failures.length > 0) {
+      const errorMsg = failures.map(f => f.error).join(', ');
+      return res.status(400).json({
+        success: false,
+        error: 'BATCH_SAVE_FAILED',
+        message: `Some seating assignments failed: ${errorMsg}`,
+        results
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'All seating assignments saved successfully.',
+      results
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   assignSeat,
   reassignSeat,
-  unassignSeat
+  unassignSeat,
+  saveSeatingBatch
 };

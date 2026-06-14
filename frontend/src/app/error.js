@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function Error({ error, reset }) {
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function Error({ error, reset }) {
           >
             Try Again
           </button>
-          <a
+          <Link
             href="/"
             style={{
               padding: '12px 28px',
@@ -92,10 +93,11 @@ export default function Error({ error, reset }) {
               textDecoration: 'none',
               cursor: 'pointer',
               fontFamily: 'var(--font-sans)',
+              display: 'inline-block', // Ensure styling is consistent
             }}
           >
             Go Home
-          </a>
+          </Link>
         </div>
       </div>
     </div>

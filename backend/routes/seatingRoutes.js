@@ -1,5 +1,5 @@
 const express = require('express');
-const { assignSeat, reassignSeat, unassignSeat } = require('../controllers/seatingController');
+const { assignSeat, reassignSeat, unassignSeat, saveSeatingBatch } = require('../controllers/seatingController');
 
 const router = express.Router({ mergeParams: true });
 
@@ -11,5 +11,8 @@ router.post('/reassign', reassignSeat);
 
 // Route to unassign a guest from their table
 router.post('/unassign', unassignSeat);
+
+// Route to batch save seating assignments
+router.post('/save-batch', saveSeatingBatch);
 
 module.exports = router;

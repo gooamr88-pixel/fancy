@@ -40,6 +40,9 @@ function RSVPFormContent({ slug }) {
   const [searching, setSearching] = useState(false);
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
+  const [assignedTableName, setAssignedTableName] = useState(null);
+
+  const guestIdParam = searchParams ? searchParams.get('g') : null;
 
   useEffect(() => { setSearchPerformed(false); setSearchResults([]); setRsvpId(null); }, [guestName]);
 
@@ -100,6 +103,61 @@ function RSVPFormContent({ slug }) {
       const metaDesc = document.querySelector('meta[name="description"]');
       if (metaDesc) { metaDesc.setAttribute('content', event.description || `RSVP to ${event.title}`); }
       else { const meta = document.createElement('meta'); meta.name = 'description'; meta.content = event.description || `RSVP to ${event.title}`; document.head.appendChild(meta); }
+    }
+  }, [event]);
+
+  // 1. Resolve guest details from token parameter
+  useEffect(() => {
+    if (!guestIdParam || !event) return;
+    async function loadGuestFromToken() {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+        const res = await fetch(`${apiUrl}/public/rsvp/guest/${guestIdParam}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.guest) {
+            const g = data.guest;
+            setRsvpId(g.id);
+            setGuestName(g.guest_name);
+            if (g.email) setEmail(g.email);
+            if (g.phone) setPhone(g.phone);
+            if (g.party_size) setPartySize(g.party_size);
+            if (g.notes) setNotes(g.notes);
+            if (g.table_name) setAssignedTableName(g.table_name);
+            if (g.response === 'yes' || g.response === 'no') {
+              setAttending(g.response);
+            }
+            setStep(2);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading guest from token:', err);
+      }
+    }
+    loadGuestFromToken();
+  }, [guestIdParam, event]);
+
+  // 2. Dynamic Font Loader
+  useEffect(() => {
+    if (!event) return;
+    const titleFont = event.custom_fonts?.card_title;
+    const bodyFont = event.custom_fonts?.card_body;
+
+    const fontsToLoad = [];
+    if (titleFont && titleFont !== 'Playfair Display') fontsToLoad.push(titleFont.replace(/ /g, '+'));
+    if (bodyFont && bodyFont !== 'Montserrat') fontsToLoad.push(bodyFont.replace(/ /g, '+'));
+
+    if (fontsToLoad.length > 0) {
+      const link = document.createElement('link');
+      link.href = `https://fonts.googleapis.com/css2?family=${fontsToLoad.join('&family=')}&display=swap`;
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+
+      return () => {
+        if (document.head.contains(link)) {
+          document.head.removeChild(link);
+        }
+      };
     }
   }, [event]);
 
@@ -212,8 +270,8 @@ function RSVPFormContent({ slug }) {
               }}>{l.label}</button>
             ))}
           </div>
-          <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '3px', color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '8px' }}>{t.rsvp_portal}</span>
-          <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 400, letterSpacing: '0.5px' }}>{localizedTitle}</h1>
+          <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '3px', color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '8px', fontFamily: 'var(--font-sans)' }}>{t.rsvp_portal}</span>
+          <h1 style={{ fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)', fontSize: '22px', fontWeight: 400, letterSpacing: '0.5px' }}>{localizedTitle}</h1>
         </div>
 
         {/* Card Body */}
@@ -431,13 +489,23 @@ function RSVPFormContent({ slug }) {
               {attending === 'yes' ? (
                 <>
                   <span style={{ fontSize: '56px' }}>🎉</span>
-                  <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '26px', fontWeight: 600, color: '#191B1E' }}>
+                  <h2 style={{ fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)', fontSize: '26px', fontWeight: 600, color: '#191B1E' }}>
                     {t.thank_you.replace('{name}', guestName)}
                   </h2>
-                  <p style={{ color: '#77736A', maxWidth: '400px', margin: '0 auto', fontSize: '14px', lineHeight: 1.7 }}>
+                  <p style={{ color: '#77736A', maxWidth: '400px', margin: '0 auto', fontSize: '14px', lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>
                     {t.attending_success_desc.replace('{email}', email)}
                   </p>
-                  <p style={{ fontSize: '12px', color: '#A09A91', fontStyle: 'italic' }}>{t.qr_notice}</p>
+                  {assignedTableName && (
+                    <div style={{ background: '#F8F4EC', border: '1px solid #E8E2D6', padding: '16px 24px', borderRadius: '12px', marginTop: '16px', display: 'inline-block', margin: '16px auto 0' }}>
+                      <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '4px', fontFamily: 'var(--font-sans)' }}>
+                        {isRTL ? 'طاولتك المخصصة' : 'Your Assigned Table'}
+                      </span>
+                      <strong style={{ fontSize: '18px', color: '#B8944F', fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)' }}>
+                        {assignedTableName}
+                      </strong>
+                    </div>
+                  )}
+                  <p style={{ fontSize: '12px', color: '#A09A91', fontStyle: 'italic', fontFamily: 'var(--font-sans)', marginTop: '12px' }}>{t.qr_notice}</p>
                 </>
               ) : (
                 <>
