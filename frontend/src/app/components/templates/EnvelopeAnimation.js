@@ -300,19 +300,21 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
       >
         
         {/* Layer 1: Envelope Back */}
-        <div 
+        <motion.div 
           className="absolute inset-0 bg-[#F4EFE6] rounded-b-2xl border border-amber-900/10 shadow-lg"
           style={{ 
             zIndex: 10,
             transformStyle: "preserve-3d"
           }}
+          animate={{ opacity: isCardOut ? 0 : 1 }}
+          transition={{ duration: 0.6, ease: "easeInOut", delay: 0.3 }}
         >
           {/* Inner back lining color coordinate - visible inside envelope behind the card */}
           <div 
             className="absolute inset-2 top-0 bg-gradient-to-b from-[#DFD3C3] via-[#FAF9F6] to-[#FAF9F6] rounded-b-xl"
             style={{ transform: "translateZ(1px)" }}
           />
-        </div>
+        </motion.div>
  
         {/* Layer 2: The Invitation Card */}
         <motion.div
@@ -338,37 +340,51 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         </motion.div>
  
         {/* Layer 3: Envelope Front Flaps (Bottom and Sides) */}
-        <div 
+        <motion.div 
           className="absolute inset-0 pointer-events-none"
           style={{ zIndex: 30 }}
+          animate={{ opacity: isCardOut ? 0 : 1 }}
+          transition={{ duration: 0.6, ease: "easeInOut", delay: 0.3 }}
         >
-          <svg className="w-full h-full drop-shadow-md" viewBox="0 0 100 70" preserveAspectRatio="none">
+          <svg className="w-full h-full filter drop-shadow-md" viewBox="0 0 100 70" preserveAspectRatio="none">
+            <defs>
+              <filter id="flapShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="#5C4D3C" floodOpacity="0.22" />
+              </filter>
+            </defs>
             {/* Side Flaps */}
-            <path d="M 0,0 L 46,38 L 0,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" />
-            <path d="M 100,0 L 54,38 L 100,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" />
+            <path d="M 0,0 L 46,38 L 0,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
+            <path d="M 100,0 L 54,38 L 100,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
             {/* Bottom Flap */}
-            <path d="M 0,70 L 50,34 L 100,70 Z" fill="#F5EFE6" stroke="#E5D8C6" strokeWidth="0.3" />
+            <path d="M 0,70 L 50,34 L 100,70 Z" fill="#F5EFE6" stroke="#E5D8C6" strokeWidth="0.3" filter="url(#flapShadow)" />
           </svg>
-        </div>
+        </motion.div>
  
         {/* Layer 4: Envelope Flap (Top Folding Flap) */}
         <motion.div
           className="absolute top-0 left-0 w-full h-[85px] transform-style-3d"
           style={{ transformOrigin: "top", originY: 0 }}
-          initial={{ rotateX: 0, zIndex: 31 }}
+          initial={{ rotateX: 0, zIndex: 31, opacity: 1 }}
           animate={{ 
             rotateX: isOpen ? 180 : 0,
-            zIndex: isOpen ? 5 : 31
+            zIndex: isOpen ? 5 : 31,
+            opacity: isCardOut ? 0 : 1
           }}
           transition={{
             rotateX: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
-            zIndex: { delay: isOpen ? 0.35 : 0 } // Delay z-index drop when opening so it doesn't clip instantly!
+            zIndex: { delay: isOpen ? 0.35 : 0 },
+            opacity: { duration: 0.6, ease: "easeInOut", delay: 0.3 }
           }}
         >
           {/* Flap Outer (faces us when closed) */}
           <div className="absolute inset-0 backface-hidden" style={{ zIndex: 32 }}>
-            <svg className="w-full h-full drop-shadow-sm" viewBox="0 0 100 45" preserveAspectRatio="none">
-              <polygon points="0,0 50,45 100,0" fill="#FAF9F6" stroke="#DFD3C3" strokeWidth="0.3" />
+            <svg className="w-full h-full filter drop-shadow-sm" viewBox="0 0 100 45" preserveAspectRatio="none">
+              <defs>
+                <filter id="topFlapShadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#5C4D3C" floodOpacity="0.25" />
+                </filter>
+              </defs>
+              <polygon points="0,0 50,45 100,0" fill="#FAF9F6" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#topFlapShadow)" />
             </svg>
           </div>
  
