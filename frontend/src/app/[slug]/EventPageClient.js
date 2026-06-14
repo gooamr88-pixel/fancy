@@ -12,6 +12,50 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const [timeLeft, setTimeLeft] = useState({});
   const [lang, setLang] = useState('en');
 
+  // Seating Search and Audio Player States
+  const [seatingSearchQuery, setSeatingSearchQuery] = useState('');
+  const [seatingSearching, setSeatingSearching] = useState(false);
+  const [seatingResults, setSeatingResults] = useState(null);
+  const [seatingError, setSeatingError] = useState('');
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef(null);
+
+  const handleSeatingSearch = async (e) => {
+    e.preventDefault();
+    if (!seatingSearchQuery.trim()) return;
+    setSeatingSearching(true);
+    setSeatingError('');
+    setSeatingResults(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      const res = await fetch(`${apiUrl}/public/events/${slug}/seating/search?query=${encodeURIComponent(seatingSearchQuery)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Search failed');
+      setSeatingResults(data.results || []);
+    } catch (err) {
+      setSeatingError(err.message || 'Something went wrong');
+    } finally {
+      setSeatingSearching(false);
+    }
+  };
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play()
+        .then(() => {
+          setIsPlaying(true);
+        })
+        .catch((err) => {
+          console.error('Audio play failed:', err);
+          alert('Please interact with the page first or check if the audio URL is valid.');
+        });
+    }
+  };
+
   const [passwordRequired, setPasswordRequired] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
@@ -444,9 +488,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           )}
         </div>
 
-        {/* Right: RSVP Card */}
-        <div>
-          <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E8E2D6', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', position: 'sticky', top: '32px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+        {/* Right: RSVP Card & Seating Finder */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', position: 'sticky', top: '32px', alignSelf: 'start' }}>
+          <div style={{ background: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E8E2D6', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
             <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
             <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
               {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : undefined) : 'N/A'}</strong> {t.card_desc}
@@ -458,6 +502,92 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             }}>
               {t.rsvp_now}
             </Link>
+          </div>
+
+          {/* Guest Seating Finder */}
+          <div style={{
+            background: '#FFFFFF',
+            padding: '32px',
+            borderRadius: '16px',
+            border: '1px solid #E8E2D6',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600, color: '#191B1E' }}>{t.find_table_title}</h3>
+            <p style={{ fontSize: '12px', color: '#77736A', lineHeight: 1.6 }}>{t.find_table_desc}</p>
+            
+            <form onSubmit={handleSeatingSearch} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <input
+                type="text"
+                value={seatingSearchQuery}
+                onChange={(e) => setSeatingSearchQuery(e.target.value)}
+                placeholder={t.find_table_placeholder}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  padding: '12px 14px',
+                  border: '1px solid #E8E2D6',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  color: '#191B1E',
+                  outline: 'none',
+                  textAlign: 'center',
+                  fontFamily: 'var(--font-sans)',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={seatingSearching}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: themeColor,
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'opacity 0.2s',
+                  fontFamily: 'var(--font-sans)',
+                }}
+              >
+                {seatingSearching ? '...' : t.find_table_btn}
+              </button>
+            </form>
+
+            {/* Seating search results */}
+            {seatingResults !== null && (
+              <div style={{ marginTop: '8px', textAlign: isRTL ? 'right' : 'left' }}>
+                {seatingResults.length === 0 ? (
+                  <p style={{ fontSize: '12px', color: '#C45E5E', textAlign: 'center' }}>{t.find_table_no_results}</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {seatingResults.map((res, i) => (
+                      <div key={i} style={{
+                        background: '#FAFAF8',
+                        border: '1px solid #E8E2D6',
+                        borderRadius: '8px',
+                        padding: '12px',
+                      }}>
+                        <span style={{ fontWeight: 600, fontSize: '13px', color: '#191B1E', display: 'block' }}>
+                          {t.find_table_assigned.replace('{name}', res.guestName).replace('{tableName}', res.tableName)}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#77736A', display: 'block', marginTop: '4px' }}>
+                          {t.find_table_party.replace('{partySize}', res.partySize.toString())}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {seatingError && (
+              <p style={{ fontSize: '12px', color: '#C45E5E', marginTop: '8px' }}>{seatingError}</p>
+            )}
           </div>
         </div>
       </div>
@@ -526,8 +656,59 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         </div>
       )}
 
+      {event.template_data?.bg_music_url && (
+        <>
+          <audio ref={audioRef} src={event.template_data.bg_music_url} loop />
+          <div style={{
+            position: 'fixed',
+            bottom: '24px',
+            zIndex: 100,
+            ...(isRTL ? { left: '24px' } : { right: '24px' })
+          }}>
+            <button
+              onClick={togglePlay}
+              style={{
+                width: '50px',
+                height: '50px',
+                borderRadius: '50%',
+                background: '#FFFFFF',
+                border: `2px solid ${themeColor}`,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                outline: 'none',
+                transition: 'all 0.3s ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+              title="Background Music"
+            >
+              {isPlaying ? (
+                <div style={{ display: 'flex', gap: '3px', alignItems: 'flex-end', height: '18px' }}>
+                  <span style={{ width: '3px', background: themeColor, height: '14px', animation: 'pulseBar 0.8s infinite alternate' }} />
+                  <span style={{ width: '3px', background: themeColor, height: '8px', animation: 'pulseBar 0.5s infinite alternate' }} />
+                  <span style={{ width: '3px', background: themeColor, height: '18px', animation: 'pulseBar 0.7s infinite alternate' }} />
+                </div>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={themeColor} strokeWidth="2.5">
+                  <path d="M9 18V5l12-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="16" r="3" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </>
+      )}
+
       <style jsx>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulseBar {
+          0% { height: 4px; }
+          100% { height: 18px; }
+        }
         @media (max-width: 768px) {
           div[style*="grid-template-columns: 2fr 1fr"] { grid-template-columns: 1fr !important; }
           h1[style*="font-size: 48px"] { font-size: 32px !important; }

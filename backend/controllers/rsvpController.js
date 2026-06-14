@@ -789,6 +789,71 @@ const addGuestManually = async (req, res, next) => {
   }
 };
 
+/**
+ * Searches guest seating assignment by name (public endpoint).
+ * GET /api/v1/public/events/:slug/seating/search
+ */
+const searchPublicSeating = async (req, res, next) => {
+  const { slug } = req.params;
+  const { query } = req.query;
+
+  if (!query || !query.trim()) {
+    return res.json({ success: true, results: [] });
+  }
+
+  try {
+    // 1. Resolve event from slug
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id')
+      .eq('slug', slug)
+      .single();
+
+    if (eventError || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+
+    // 2. Search guests matching query substring, join with seating_assignments and tables
+    const { data, error } = await supabase
+      .from('rsvps')
+      .select(`
+        id,
+        guest_name,
+        response,
+        party_size,
+        seating_assignments (
+          table_id,
+          tables (
+            table_name
+          )
+        )
+      `)
+      .eq('event_id', event.id)
+      .eq('response', 'yes') // only attending guests can check seating
+      .ilike('guest_name', `%${escapeLikePattern(query.trim())}%`)
+      .limit(10);
+
+    if (error) throw error;
+
+    return res.json({
+      success: true,
+      results: data.map(item => {
+        const seating = item.seating_assignments?.[0] || item.seating_assignments;
+        // Handle if it is an array or object due to postgrest format
+        const resolvedSeating = Array.isArray(seating) ? seating[0] : seating;
+        const tableName = resolvedSeating?.tables?.table_name || 'Unassigned';
+        return {
+          guestName: item.guest_name,
+          partySize: item.party_size,
+          tableName
+        };
+      })
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   submitPublicRSVP,
   getRSVPs,
@@ -797,5 +862,6 @@ module.exports = {
   searchPublicGuests,
   deleteRSVP,
   updateRSVP,
-  addGuestManually
+  addGuestManually,
+  searchPublicSeating
 };

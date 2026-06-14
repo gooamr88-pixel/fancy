@@ -2,7 +2,7 @@ const express = require('express');
 const { body, param, query } = require('express-validator');
 const validate = require('../middleware/validate');
 const { getPublicEventBySlug } = require('../controllers/eventController');
-const { submitPublicRSVP, searchPublicGuests } = require('../controllers/rsvpController');
+const { submitPublicRSVP, searchPublicGuests, searchPublicSeating } = require('../controllers/rsvpController');
 const checkinController = require('../controllers/checkinController');
 
 const router = express.Router();
@@ -15,6 +15,12 @@ router.get('/events/:slug/rsvp/search', [
   query('query').optional().trim().isLength({ max: 200 }).withMessage('Search query too long'),
   validate
 ], searchPublicGuests);
+
+// Public guest seating search
+router.get('/events/:slug/seating/search', [
+  query('query').optional().trim().isLength({ max: 200 }).withMessage('Search query too long'),
+  validate
+], searchPublicSeating);
 
 // Public guest RSVP form submit
 router.post('/events/:slug/rsvp', [

@@ -220,9 +220,72 @@ const getDeclineConfirmationTemplate = (rsvp, event) => {
   `;
 };
 
+/**
+ * Generates an email body confirming offline/cash payment approval.
+ */
+const getCashPaymentApprovedTemplate = (orgName, eventTitle, refNumber, amountCents) => {
+  const amountPaid = (amountCents / 100).toFixed(2);
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Payment Approved & Event Activated</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 0;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          <!-- Header Banner -->
+          <tr>
+            <td align="center" style="background-color: #10b981; padding: 40px 20px;">
+              <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.25em; color: #ffffff; font-weight: bold; display: block; margin-bottom: 8px;">PAYMENT APPROVED</span>
+              <h1 style="color: #ffffff; font-size: 24px; font-weight: 300; margin: 0; letter-spacing: 0.05em;">Your Event is Active!</h1>
+            </td>
+          </tr>
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="font-size: 16px; color: #334155; margin-top: 0; line-height: 1.6;">Dear <strong>${escapeHtml(orgName)}</strong>,</p>
+              <p style="font-size: 15px; color: #475569; line-height: 1.6;">We are pleased to inform you that your offline cash payment has been approved. Your event page has been successfully activated and is now online!</p>
+              
+              <!-- Details Box -->
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 25px 0; padding: 20px;">
+                <tr>
+                  <td style="padding-bottom: 10px; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; width: 120px;">Event Title</td>
+                  <td style="padding-bottom: 10px; font-size: 15px; color: #0f172a; font-weight: 600;">${escapeHtml(eventTitle)}</td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom: 10px; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Reference No.</td>
+                  <td style="padding-bottom: 10px; font-size: 15px; color: #0f172a; font-family: monospace;">${escapeHtml(refNumber)}</td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom: 10px; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Amount Paid</td>
+                  <td style="padding-bottom: 10px; font-size: 15px; color: #10b981; font-weight: bold;">$${amountPaid} USD</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Status</td>
+                  <td style="font-size: 15px; color: #10b981; font-weight: bold;">ACTIVE / ONLINE</td>
+                </tr>
+              </table>
+
+              <p style="font-size: 15px; color: #475569; line-height: 1.6;">You can now log in to your dashboard to manage guests, customize forms, setup tables, and distribute invitation links.</p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="background-color: #f8fafc; border-top: 1px solid #f1f5f9; padding: 25px 20px; font-size: 12px; color: #94a3b8;">
+              Thank you for choosing Fancy RSVP. System notification sent automatically.
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+};
+
 module.exports = {
   escapeHtml,
   getRSVPConfirmationTemplate,
   getQRTicketTemplate,
-  getDeclineConfirmationTemplate
+  getDeclineConfirmationTemplate,
+  getCashPaymentApprovedTemplate
 };

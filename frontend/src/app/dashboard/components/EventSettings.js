@@ -34,6 +34,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     location_lat: null, location_lng: null, location_place_id: '',
     rsvp_deadline: '', privacy_mode: 'public', access_password: '',
     dress_code: '', cover_image_url: '', primary_color: '#B8944F',
+    bg_music_url: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -59,6 +60,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         dress_code: event.dress_code || '',
         cover_image_url: event.cover_image_url || '',
         primary_color: event.primary_color || '#B8944F',
+        bg_music_url: event.template_data?.bg_music_url || '',
       });
     }
   }, [event]);
@@ -77,6 +79,13 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
       if (body.event_end_date) body.event_end_date = new Date(body.event_end_date).toISOString();
       if (body.rsvp_deadline) body.rsvp_deadline = new Date(body.rsvp_deadline).toISOString();
       if (body.privacy_mode !== 'password') delete body.access_password;
+
+      // Pack bg_music_url into template_data
+      body.template_data = {
+        ...(event?.template_data || {}),
+        bg_music_url: body.bg_music_url || '',
+      };
+      delete body.bg_music_url;
 
       const res = await fetch(`${apiUrl}/events/${eventId}`, {
         method: 'PATCH',
@@ -310,6 +319,22 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
               border: `1px solid ${COLORS.border}`,
             }} />
           </div>
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Background Music Audio URL</label>
+          <input
+            value={form.bg_music_url}
+            onChange={handleChange('bg_music_url')}
+            type="url"
+            placeholder="https://example.com/music.mp3"
+            style={inputStyle}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+          />
+          <span style={{ fontSize: '11px', color: COLORS.stone, display: 'block', marginTop: '6px' }}>
+            Provide a direct audio file URL (.mp3 or .ogg) to play ambient music on the public event page.
+          </span>
         </div>
       </div>
 

@@ -153,7 +153,7 @@ const getEvent = async (req, res, next) => {
   try {
     const { data: event, error } = await supabase
       .from('events')
-      .select('*, rsvp_form_fields(*)')
+      .select('*, rsvp_form_fields(*), event_payments(*)')
       .eq('id', eventId)
       .single();
 
@@ -510,7 +510,7 @@ const getEvents = async (req, res, next) => {
     // 2. Fetch events matching organization id
     const { data: events, error, count } = await supabase
       .from('events')
-      .select('*', { count: 'exact' })
+      .select('*, event_payments(*)', { count: 'exact' })
       .eq('org_id', org.id)
       .order('created_at', { ascending: false })
       .range(from, to);

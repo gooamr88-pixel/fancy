@@ -2,6 +2,8 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 if (!STRIPE_SECRET_KEY) throw new Error('FATAL: STRIPE_SECRET_KEY environment variable is required');
 const stripe = require('stripe')(STRIPE_SECRET_KEY);
 const { supabase } = require('../config/supabase');
+const { sendEmailViaBrevo } = require('../utils/notificationService');
+const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
 
 /**
  * Creates a Stripe Checkout Session for event payment fees.
@@ -380,26 +382,99 @@ const manualCashApproval = async (req, res, next) => {
   }
 
   try {
-    const { data, error } = await supabase.rpc('approve_event_cash', {
-      p_event_id: eventId,
-      p_approved_by: req.user.id,
-      p_amount_cents: amountCents
-    });
+    // 1. Check if there is an existing pending cash_manual payment record
+    const { data: pendingPayment, error: findError } = await supabase
+      .from('event_payments')
+      .select('id, amount_cents, stripe_checkout_session_id')
+      .eq('event_id', eventId)
+      .eq('payment_method', 'cash_manual')
+      .eq('status', 'pending')
+      .limit(1);
 
-    if (error) throw error;
+    let paymentId;
+    let refNumber;
 
-    if (!data || !data.success) {
-      return res.status(400).json({
-        success: false,
-        error: data?.error || 'APPROVAL_FAILED',
-        message: data?.message || 'Manual cash approval failed.'
+    if (pendingPayment && pendingPayment.length > 0) {
+      // Update the pending payment
+      const { data: updatedPayment, error: updateErr } = await supabase
+        .from('event_payments')
+        .update({
+          status: 'completed',
+          approved_by: req.user.id,
+          completed_at: new Date().toISOString(),
+          amount_cents: amountCents
+        })
+        .eq('id', pendingPayment[0].id)
+        .select()
+        .single();
+
+      if (updateErr) throw updateErr;
+      paymentId = updatedPayment.id;
+      refNumber = updatedPayment.stripe_checkout_session_id;
+
+      // Activate the event
+      const { error: eventUpdateErr } = await supabase
+        .from('events')
+        .update({
+          is_paid: true,
+          status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', eventId);
+
+      if (eventUpdateErr) throw eventUpdateErr;
+      
+      // Log activity
+      await supabase.from('activity_logs').insert({
+        event_id: eventId,
+        actor_id: req.user.id,
+        action: 'event_payment_manual_approved',
+        entity_type: 'event_payment',
+        entity_id: paymentId,
+        metadata: { amount_cents: amountCents }
       });
+    } else {
+      // Fallback: Use approve_event_cash RPC function
+      const { data, error } = await supabase.rpc('approve_event_cash', {
+        p_event_id: eventId,
+        p_approved_by: req.user.id,
+        p_amount_cents: amountCents
+      });
+
+      if (error) throw error;
+
+      if (!data || !data.success) {
+        return res.status(400).json({
+          success: false,
+          error: data?.error || 'APPROVAL_FAILED',
+          message: data?.message || 'Manual cash approval failed.'
+        });
+      }
+
+      paymentId = data.payment_id;
+      refNumber = `CASH-${paymentId.slice(0, 6).toUpperCase()}`;
+    }
+
+    // 2. Fetch event and organization details to send email receipt
+    const { data: eventData } = await supabase
+      .from('events')
+      .select('title, organizations(email, name)')
+      .eq('id', eventId)
+      .single();
+
+    if (eventData && eventData.organizations?.email) {
+      const orgEmail = eventData.organizations.email;
+      const orgName = eventData.organizations.name || 'Organizer';
+      const eventTitle = eventData.title;
+
+      const emailHtml = getCashPaymentApprovedTemplate(orgName, eventTitle, refNumber || `CASH-${paymentId.slice(0, 6).toUpperCase()}`, amountCents);
+      await sendEmailViaBrevo(orgEmail, `Payment Approved & Event Activated: ${eventTitle}`, emailHtml);
     }
 
     return res.status(200).json({
       success: true,
       message: 'Event manually approved and activated.',
-      paymentId: data.payment_id
+      paymentId
     });
   } catch (err) {
     next(err);
@@ -463,11 +538,114 @@ const getPricingConfig = async (req, res, next) => {
   }
 };
 
+/**
+ * Initiates a manual cash transfer request, pre-inserting a pending record.
+ * POST /api/v1/payments/events/:eventId/manual-payment
+ */
+const initiateManualPayment = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { tierName } = req.body;
+
+  if (!tierName) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: 'tierName is required.'
+    });
+  }
+
+  try {
+    // 1. Check if there is already a pending cash payment for this event
+    const { data: existingPending } = await supabase
+      .from('event_payments')
+      .select('id, stripe_checkout_session_id, amount_cents')
+      .eq('event_id', eventId)
+      .eq('payment_method', 'cash_manual')
+      .eq('status', 'pending')
+      .limit(1);
+
+    if (existingPending && existingPending.length > 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'Existing pending cash payment found.',
+        referenceNumber: existingPending[0].stripe_checkout_session_id,
+        payment: existingPending[0]
+      });
+    }
+
+    // 2. Fetch pricing tiers from super_admin_config
+    const { data: adminConfig, error: configError } = await supabase
+      .from('super_admin_config')
+      .select('pricing_tiers')
+      .single();
+
+    if (configError || !adminConfig) {
+      return res.status(500).json({
+        success: false,
+        error: 'CONFIG_ERROR',
+        message: 'Could not retrieve pricing configuration.'
+      });
+    }
+
+    const tier = adminConfig.pricing_tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase());
+    if (!tier) {
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_TIER',
+        message: `Pricing tier '${tierName}' not found.`
+      });
+    }
+
+    // 3. Generate a random reference number
+    const refChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let refCode = 'CASH-';
+    for (let i = 0; i < 6; i++) {
+      refCode += refChars.charAt(Math.floor(Math.random() * refChars.length));
+    }
+
+    // 4. Insert pending cash payment
+    const { data, error } = await supabase
+      .from('event_payments')
+      .insert({
+        event_id: eventId,
+        stripe_checkout_session_id: refCode,
+        amount_cents: tier.price_cents,
+        status: 'pending',
+        payment_method: 'cash_manual',
+        currency: 'usd'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Log activity
+    await supabase.from('activity_logs').insert({
+      event_id: eventId,
+      actor_id: req.user.id,
+      action: 'event_payment_manual_initiated',
+      entity_type: 'event_payment',
+      entity_id: data.id,
+      metadata: { ref_code: refCode, tier_name: tier.name }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Manual cash payment initiated.',
+      referenceNumber: refCode,
+      payment: data
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   purchaseSMSCredits,
   stripeWebhook,
   manualCashApproval,
   updatePricingConfig,
-  getPricingConfig
+  getPricingConfig,
+  initiateManualPayment
 };

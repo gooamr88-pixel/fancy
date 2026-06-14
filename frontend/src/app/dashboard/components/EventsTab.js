@@ -276,12 +276,167 @@ function MiniStat({ label, value, color, delay, icon }) {
   );
 }
 
-/* ═══ Expanded Panel ═══ */
-function ExpandedPanel({ eventId, onClose }) {
-  const [stats, setStats] = useState(null);
+/* ═══ Event Payment / Activation Panel ═══ */
+function EventPaymentPanel({ eventId, event }) {
+  const [pricingTiers, setPricingTiers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTier, setSelectedTier] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  const [pendingRef, setPendingRef] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
+
+  const initialPendingPayment = event.event_payments?.find(
+    p => p.payment_method === 'cash_manual' && p.status === 'pending'
+  );
 
   useEffect(() => {
+    if (initialPendingPayment) {
+      setPendingRef(initialPendingPayment.stripe_checkout_session_id);
+    }
+    const loadPricing = async () => {
+      try {
+        const res = await apiFetch('/payments/pricing-config');
+        if (res.success && res.config?.pricing_tiers) {
+          setPricingTiers(res.config.pricing_tiers);
+          setSelectedTier(res.config.pricing_tiers[0]);
+        }
+      } catch (e) {
+        console.error('Failed to load pricing config', e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPricing();
+  }, [initialPendingPayment]);
+
+  const handlePayment = async () => {
+    if (!selectedTier) return;
+    setProcessing(true);
+    setError('');
+
+    try {
+      if (paymentMethod === 'stripe') {
+        const res = await apiFetch(`/payments/events/${eventId}/create-checkout`, {
+          method: 'POST',
+          body: JSON.stringify({ eventId, tierName: selectedTier.name })
+        });
+        if (res.checkoutUrl) {
+          window.location.href = res.checkoutUrl;
+        } else {
+          throw new Error('No checkout URL returned.');
+        }
+      } else {
+        const res = await apiFetch(`/payments/events/${eventId}/manual-payment`, {
+          method: 'POST',
+          body: JSON.stringify({ tierName: selectedTier.name })
+        });
+        if (res.success && res.referenceNumber) {
+          setPendingRef(res.referenceNumber);
+        } else {
+          throw new Error(res.message || 'Manual payment initiation failed.');
+        }
+      }
+    } catch (e) {
+      setError(e.message || 'An error occurred during payment processing.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+        <div style={{ width: '24px', height: '24px', border: '2px solid rgba(184,148,79,0.2)', borderTopColor: C.gold, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  if (pendingRef) {
+    return (
+      <div style={{ padding: '20px 24px', background: 'rgba(245,158,11,0.05)', border: `1px solid rgba(245,158,11,0.2)`, borderRadius: '12px', textAlign: 'center' }}>
+        <span style={{ fontSize: '32px' }}>⏳</span>
+        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#D97706', margin: '8px 0 4px' }}>Payment Verification Pending</h4>
+        <p style={{ fontSize: '12px', color: C.stone, lineHeight: 1.5, margin: '0 0 16px', fontFamily: 'var(--font-sans)' }}>
+          Your offline cash payment request has been submitted successfully. Please share this reference code with the coordinator for manual activation:
+        </p>
+        <div style={{ background: '#FFFFFF', border: `1px solid rgba(245,158,11,0.2)`, display: 'inline-block', padding: '10px 24px', borderRadius: '8px', fontSize: '18px', fontWeight: 700, fontFamily: 'monospace', color: '#D97706', letterSpacing: '1px' }}>
+          {pendingRef}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', animation: 'evtStatPop 0.5s ease both' }}>
+      <div style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: '12px' }}>
+        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: C.charcoal, margin: 0 }}>Activate Event Page</h4>
+        <p style={{ fontSize: '12px', color: C.stone, margin: '4px 0 0', fontFamily: 'var(--font-sans)' }}>This event is currently offline. Choose a license tier to bring it online.</p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+        {pricingTiers.map(tier => {
+          const isSelected = selectedTier && selectedTier.name === tier.name;
+          return (
+            <div key={tier.name} onClick={() => setSelectedTier(tier)}
+              style={{
+                background: isSelected ? 'rgba(184,148,79,0.05)' : C.white,
+                border: isSelected ? `2px solid ${C.gold}` : `1px solid ${C.border}`,
+                borderRadius: '10px', padding: '16px', cursor: 'pointer', transition: 'all 0.2s',
+              }}>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: C.charcoal, display: 'block' }}>{tier.name} License</span>
+              <span style={{ fontSize: '11px', color: C.stone, display: 'block', marginTop: '2px' }}>Up to {tier.max_guests} Guests</span>
+              <span style={{ fontSize: '16px', fontWeight: 900, color: C.gold, display: 'block', marginTop: '10px' }}>
+                ${(tier.price_cents / 100).toFixed(2)} USD
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div>
+        <span style={{ fontSize: '11px', color: C.stone, fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Payment Method</span>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.charcoal, cursor: 'pointer' }}>
+            <input type="radio" name="pay_method" checked={paymentMethod === 'stripe'} onChange={() => setPaymentMethod('stripe')} style={{ accentColor: C.gold }} />
+            💳 Credit/Debit Card (Stripe)
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.charcoal, cursor: 'pointer' }}>
+            <input type="radio" name="pay_method" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} style={{ accentColor: C.gold }} />
+            💵 Offline Cash Transfer
+          </label>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ fontSize: '12px', color: '#C45E5E', background: '#FEF2F2', padding: '10px 14px', borderRadius: '8px', border: '1px solid #FECACA' }}>
+          {error}
+        </div>
+      )}
+
+      <button onClick={handlePayment} disabled={processing || !selectedTier}
+        style={{
+          padding: '12px 24px', background: C.gold, color: '#FFFFFF', border: 'none', borderRadius: '8px',
+          fontWeight: 700, fontSize: '12px', cursor: processing ? 'default' : 'pointer',
+          transition: 'all 0.2s', opacity: processing ? 0.7 : 1, width: '220px', alignSelf: 'flex-start',
+        }}
+        onMouseEnter={e => { if (!processing) e.currentTarget.style.background = C.goldHover; }}
+        onMouseLeave={e => { if (!processing) e.currentTarget.style.background = C.gold; }}>
+        {processing ? 'Processing activation...' : (paymentMethod === 'stripe' ? 'Pay & Activate Online' : 'Initiate Offline Transfer')}
+      </button>
+    </div>
+  );
+}
+
+/* ═══ Expanded Panel ═══ */
+function ExpandedPanel({ eventId, event, onClose }) {
+  const isPaid = event.is_paid;
+
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(!isPaid ? false : true);
+
+  useEffect(() => {
+    if (!isPaid) return;
     let cancelled = false;
     const load = async () => {
       try {
@@ -292,7 +447,15 @@ function ExpandedPanel({ eventId, onClose }) {
     };
     load();
     return () => { cancelled = true; };
-  }, [eventId]);
+  }, [eventId, isPaid]);
+
+  if (!isPaid) {
+    return (
+      <div className="evt2-expand-panel" style={{ padding: '20px 24px', background: '#FDFCFA' }}>
+        <EventPaymentPanel eventId={eventId} event={event} />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -392,7 +555,10 @@ const ChevronIcon = ({ open }) => (<svg width="14" height="14" viewBox="0 0 24 2
 const EventCard = React.memo(function EventCard({ event, index, isActive, onSelect }) {
   const [copiedSlug, setCopiedSlug] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const status = STATUS_CFG[event.status] || STATUS_CFG.active;
+  const isPaid = event.is_paid;
+  const status = !isPaid
+    ? { bg: 'rgba(196,94,94,0.08)', color: '#C45E5E', border: 'rgba(196,94,94,0.18)', label: 'Payment Required', dot: '#C45E5E', pulse: false }
+    : (STATUS_CFG[event.status] || STATUS_CFG.active);
   const gradient = GRADS[index % GRADS.length];
   const eventDate = event.event_date || event.date;
   const rel = relDate(eventDate);
@@ -518,7 +684,7 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
 
       {/* ── Expanded Stats Panel ── */}
       {expanded && (
-        <ExpandedPanel eventId={event.id} onClose={() => setExpanded(false)} />
+        <ExpandedPanel eventId={event.id} event={event} onClose={() => setExpanded(false)} />
       )}
     </div>
   );

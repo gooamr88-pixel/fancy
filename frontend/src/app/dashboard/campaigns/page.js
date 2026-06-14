@@ -24,6 +24,7 @@ export default function CampaignsPage() {
   const [showSMSModal, setShowSMSModal] = useState(false);
   const [smsCreditsToBuy, setSmsCreditsToBuy] = useState(100);
   const [buyingCredits, setBuyingCredits] = useState(false);
+  const [smsRate, setSmsRate] = useState(8);
 
   const [authChecked, setAuthChecked] = useState(false);
   const [eventId, setEventId] = useState('');
@@ -111,6 +112,13 @@ export default function CampaignsPage() {
         // Calculate number of guests who are response === 'pending' and have a phone number
         const pendingWithPhone = rsvpsData.rsvps.filter(r => r.response === 'pending' && r.phone);
         setRecipientCount(pendingWithPhone.length);
+      }
+
+      // 3. Fetch pricing configuration for dynamic SMS rates
+      const configRes = await fetch(`${apiUrl}/payments/pricing-config`, { credentials: 'include' });
+      const configData = await configRes.json();
+      if (configData.success && configData.config) {
+        setSmsRate(configData.config.sms_rate_cents_per_credit || 8);
       }
       
       setError(null);
@@ -449,16 +457,16 @@ export default function CampaignsPage() {
               <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                   <span style={{ color: C.stone }}>Price Per Credit:</span>
-                  <span style={{ fontWeight: 600, color: C.charcoal }}>8¢</span>
+                  <span style={{ fontWeight: 600, color: C.charcoal }}>{smsRate}¢</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                   <span style={{ color: C.stone }}>Subtotal:</span>
-                  <span style={{ fontWeight: 600, color: C.charcoal }}>${((smsCreditsToBuy * 8) / 100).toFixed(2)} USD</span>
+                  <span style={{ fontWeight: 600, color: C.charcoal }}>${((smsCreditsToBuy * smsRate) / 100).toFixed(2)} USD</span>
                 </div>
                 {smsCreditsToBuy >= 500 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: C.success }}>
                     <span>Volume Discount (12.5%):</span>
-                    <span>-${(((smsCreditsToBuy * 8) / 100) * 0.125).toFixed(2)} USD</span>
+                    <span>-${(((smsCreditsToBuy * smsRate) / 100) * 0.125).toFixed(2)} USD</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, borderTop: `1px solid ${C.border}`, paddingTop: 8, fontWeight: 700, color: C.gold }}>
@@ -466,8 +474,8 @@ export default function CampaignsPage() {
                   <span>
                     ${(
                       smsCreditsToBuy >= 500
-                        ? ((smsCreditsToBuy * 8) / 100) * 0.875
-                        : (smsCreditsToBuy * 8) / 100
+                        ? ((smsCreditsToBuy * smsRate) / 100) * 0.875
+                        : (smsCreditsToBuy * smsRate) / 100
                     ).toFixed(2)}{' '}
                     USD
                   </span>
