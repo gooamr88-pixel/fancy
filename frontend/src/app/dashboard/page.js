@@ -311,20 +311,22 @@ export default function DashboardPage() {
 
       {/* ═══ LEFT SIDEBAR ═══ */}
       <aside className="dashboard-sidebar" style={{
-        width: '240px', minHeight: '100vh', background: COLORS.white, borderRight: `1px solid ${COLORS.border}`,
+        width: '240px', minHeight: '100vh', 
+        background: 'linear-gradient(180deg, #1A1C1F 0%, #0F1012 100%)', 
+        borderRight: '1px solid rgba(184, 148, 79, 0.15)',
         display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, zIndex: 50,
         transition: 'transform 0.3s ease',
       }}>
         {/* Logo */}
-        <div style={{ padding: '24px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
+        <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(184, 148, 79, 0.15)' }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'baseline', gap: '6px', textDecoration: 'none' }}>
-            <span style={{ fontFamily: 'var(--font-script)', fontSize: '26px', fontWeight: 400, color: COLORS.gold, lineHeight: 1 }}>Fancy</span>
-            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: COLORS.charcoal, letterSpacing: '2.5px', textTransform: 'uppercase', lineHeight: 1 }}>RSVP</span>
+            <span style={{ fontFamily: 'var(--font-script)', fontSize: '26px', fontWeight: 400, color: COLORS.champagne, lineHeight: 1, textShadow: '0 0 12px rgba(215, 190, 128, 0.25)' }}>Fancy</span>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', fontWeight: 700, color: '#FFFFFF', letterSpacing: '3px', textTransform: 'uppercase', lineHeight: 1 }}>RSVP</span>
           </Link>
         </div>
 
         {/* Nav Items */}
-        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <nav style={{ flex: 1, padding: '20px 12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {sidebarNav.map(item => {
             const isActive = activeTab === item.key;
             return (
@@ -338,16 +340,30 @@ export default function DashboardPage() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
                   borderRadius: '8px', border: 'none', cursor: 'pointer', textAlign: 'left', width: '100%',
-                  background: isActive ? COLORS.ivory : 'transparent',
-                  color: isActive ? COLORS.gold : COLORS.stone,
+                  background: isActive ? 'rgba(184, 148, 79, 0.08)' : 'transparent',
+                  color: isActive ? COLORS.champagne : '#8A8882',
                   borderLeft: isActive ? `3px solid ${COLORS.gold}` : '3px solid transparent',
                   fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: isActive ? 600 : 400,
-                  transition: 'all 0.2s ease',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: isActive ? 'inset 1px 0 0 rgba(184,148,79,0.2)' : 'none',
+                  textShadow: isActive ? '0 0 8px rgba(184, 148, 79, 0.15)' : 'none',
                 }}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = '#FDFCF9'; e.currentTarget.style.color = COLORS.charcoal; } }}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; } }}
+                onMouseEnter={e => { 
+                  if (!isActive) { 
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)'; 
+                    e.currentTarget.style.color = '#FFFFFF'; 
+                    e.currentTarget.style.transform = 'translateX(4px)';
+                  } 
+                }}
+                onMouseLeave={e => { 
+                  if (!isActive) { 
+                    e.currentTarget.style.background = 'transparent'; 
+                    e.currentTarget.style.color = '#8A8882'; 
+                    e.currentTarget.style.transform = 'translateX(0)';
+                  } 
+                }}
               >
-                <span style={{ display: 'flex', width: '18px', height: '18px' }}>{item.icon}</span>
+                <span style={{ display: 'flex', width: '18px', height: '18px', transition: 'transform 0.3s' }} className="icon-container">{item.icon}</span>
                 {item.label}
               </button>
             );
@@ -355,15 +371,23 @@ export default function DashboardPage() {
         </nav>
 
         {/* Bottom: Log Out */}
-        <div style={{ padding: '16px 12px', borderTop: `1px solid ${COLORS.border}` }}>
+        <div style={{ padding: '16px 12px', borderTop: '1px solid rgba(184, 148, 79, 0.15)' }}>
           <button onClick={handleLogout} aria-label="Log out" style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', width: '100%',
             background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer',
-            fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 400, color: COLORS.stone,
-            transition: 'all 0.2s ease',
+            fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 400, color: '#8A8882',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.color = '#C45E5E'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; }}
+            onMouseEnter={e => { 
+              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)'; 
+              e.currentTarget.style.color = '#EF4444'; 
+              e.currentTarget.style.transform = 'scale(0.98)';
+            }}
+            onMouseLeave={e => { 
+              e.currentTarget.style.background = 'transparent'; 
+              e.currentTarget.style.color = '#8A8882'; 
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Log Out
@@ -376,8 +400,12 @@ export default function DashboardPage() {
 
         {/* Top Bar — contextual based on active tab */}
         <div style={{
-          padding: '20px 32px', background: COLORS.white, borderBottom: `1px solid ${COLORS.border}`,
+          padding: '16px 32px', 
+          background: 'rgba(250, 250, 248, 0.85)', 
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(184, 148, 79, 0.15)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          position: 'sticky', top: 0, zIndex: 40,
         }}>
           {(activeTab === 'overview' || activeTab === 'events') ? (
             /* ── Overview / Events: clean header, no event-specific controls ── */
@@ -395,16 +423,23 @@ export default function DashboardPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {isSuperAdmin && (
                   <Link href="/admin" id="btn-open-super-admin" style={{
-                    padding: '8px 16px', background: COLORS.ivory, color: COLORS.gold, border: `1px solid ${COLORS.border}`,
+                    padding: '8px 16px', background: COLORS.ivory, color: COLORS.gold, border: '1px solid rgba(184, 148, 79, 0.15)',
                     borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
-                  }}>Super Admin</Link>
+                    transition: 'all 0.2s ease',
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = COLORS.ivory; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >Super Admin</Link>
                 )}
                 <Link href="/dashboard/create-event" style={{
                   display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  padding: '8px 16px', background: COLORS.gold, color: COLORS.white, border: 'none',
+                  padding: '8px 16px', background: 'linear-gradient(90deg, #B8944F 0%, #A6833F 100%)', color: COLORS.white, border: 'none',
                   borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-                  textDecoration: 'none', transition: 'all 0.2s',
-                }}>
+                  textDecoration: 'none', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(184, 148, 79, 0.15)',
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(184, 148, 79, 0.25)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(184, 148, 79, 0.15)'; }}
+                >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Create Event
                 </Link>
@@ -414,12 +449,22 @@ export default function DashboardPage() {
             /* ── Event-specific tabs: show event name, selector, and action buttons ── */
             <>
               <div>
-                <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 500, color: COLORS.charcoal, margin: 0 }}>
+                <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 500, color: COLORS.charcoal, margin: 0, letterSpacing: '-0.01em' }}>
                   {activeEvent?.title || 'Select an Event'}
                 </h1>
                 {events.length > 1 && (
                   <select value={eventId} onChange={e => setEventId(e.target.value)}
-                    style={{ marginTop: '4px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '6px', padding: '4px 8px', fontSize: '11px', color: COLORS.charcoal, fontFamily: 'var(--font-sans)', cursor: 'pointer', outline: 'none' }}>
+                    style={{ 
+                      marginTop: '6px', background: COLORS.white, 
+                      border: '1px solid rgba(184, 148, 79, 0.15)', 
+                      borderRadius: '6px', padding: '4px 10px', fontSize: '11px', 
+                      color: COLORS.charcoal, fontFamily: 'var(--font-sans)', 
+                      cursor: 'pointer', outline: 'none', fontWeight: 600,
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.gold; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(184, 148, 79, 0.15)'; }}
+                  >
                     {events.map(ev => (<option key={ev.id} value={ev.id}>{ev.title}</option>))}
                   </select>
                 )}
@@ -428,28 +473,34 @@ export default function DashboardPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 {isSuperAdmin && (
                   <Link href="/admin" id="btn-open-super-admin" style={{
-                    padding: '8px 16px', background: COLORS.ivory, color: COLORS.gold, border: `1px solid ${COLORS.border}`,
+                    padding: '8px 16px', background: COLORS.ivory, color: COLORS.gold, border: '1px solid rgba(184, 148, 79, 0.15)',
                     borderRadius: '8px', fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
-                  }}>Super Admin</Link>
+                    transition: 'all 0.2s ease',
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = COLORS.ivory; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >Super Admin</Link>
                 )}
                 <button onClick={() => setShowAddGuestModal(true)} id="btn-add-guest" style={{
-                  padding: '8px 16px', background: COLORS.gold, color: COLORS.white, border: 'none',
+                  padding: '8px 16px', background: 'linear-gradient(90deg, #B8944F 0%, #A6833F 100%)', color: COLORS.white, border: 'none',
                   borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
                   cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+                  boxShadow: '0 4px 12px rgba(184, 148, 79, 0.15)',
                 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.goldHover; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.gold; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(184, 148, 79, 0.25)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(184, 148, 79, 0.15)'; }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Add Guest
                 </button>
                 <button onClick={() => setShowImportModal(true)} id="btn-import-csv" style={{
-                  padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
+                  padding: '8px 16px', background: COLORS.white, border: '1px solid rgba(184, 148, 79, 0.15)', color: COLORS.stone,
                   borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
                   cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
                 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(184, 148, 79, 0.15)'; e.currentTarget.style.color = COLORS.stone; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   Import CSV
@@ -462,12 +513,13 @@ export default function DashboardPage() {
                       setTimeout(() => setCopyTooltip(false), 1800);
                     }).catch(() => {});
                   }} id="btn-copy-link" style={{
-                    padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
+                    padding: '8px 16px', background: COLORS.white, border: '1px solid rgba(184, 148, 79, 0.15)', color: COLORS.stone,
                     borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
                     cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
                   }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(184, 148, 79, 0.15)'; e.currentTarget.style.color = COLORS.stone; e.currentTarget.style.transform = 'translateY(0)'; }}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                     Copy Link
@@ -482,12 +534,13 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <button onClick={() => setShowQRModal(true)} id="btn-show-qr" style={{
-                  padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
+                  padding: '8px 16px', background: COLORS.white, border: '1px solid rgba(184, 148, 79, 0.15)', color: COLORS.stone,
                   borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
                   cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
                 }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(184, 148, 79, 0.15)'; e.currentTarget.style.color = COLORS.stone; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M7 7h2v2H7zm0 8h2v2H7zm8-8h2v2h-2z" /><path d="M12 7h1v1h-1zm0 2h1v1h-1zm2-2h1v1h-1zm0 2h1v1h-1zm-2 4h1v1h-1zm2 0h1v1h-1zm-2 2h1v1h-1zm2 0h1v1h-1zm-4 2h1v1h-1zm2 0h1v1h-1z" /></svg>
                   QR Code
@@ -503,13 +556,21 @@ export default function DashboardPage() {
                     URL.revokeObjectURL(url);
                   } catch (err) { alert(err.message); }
                 }} id="btn-export-excel" style={{
-                  padding: '8px 16px', background: COLORS.white, border: `1px solid ${COLORS.border}`, color: COLORS.stone,
+                  padding: '8px 16px', background: COLORS.white, border: '1px solid rgba(184, 148, 79, 0.15)', color: COLORS.stone,
                   borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)', transition: 'all 0.2s', cursor: 'pointer',
-                }}>Export Sheet</button>
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.color = COLORS.gold; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(184, 148, 79, 0.15)'; e.currentTarget.style.color = COLORS.stone; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >Export Sheet</button>
                 <Link href="/dashboard/seating-map" id="btn-open-seating-map" style={{
-                  padding: '8px 16px', background: COLORS.gold, color: COLORS.white, borderRadius: '8px',
+                  padding: '8px 16px', background: 'linear-gradient(90deg, #B8944F 0%, #A6833F 100%)', color: COLORS.white, borderRadius: '8px',
                   fontSize: '12px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
-                }}>Open Seating Map</Link>
+                  boxShadow: '0 4px 12px rgba(184, 148, 79, 0.15)',
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(184, 148, 79, 0.25)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(184, 148, 79, 0.15)'; }}
+                >Open Seating Map</Link>
               </div>
             </>
           )}
