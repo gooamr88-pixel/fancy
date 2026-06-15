@@ -23,8 +23,11 @@ app.use(helmet({
 }));
 
 
-// Configure CORS with multi-origin support
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(s => s.trim());
+// Configure CORS with multi-origin support.
+// Use the shared resolver so malformed FRONTEND_URL entries (missing colon, trailing
+// slash) are repaired into valid origins instead of silently failing CORS.
+const { getAllowedOrigins } = require('./utils/publicUrl');
+const allowedOrigins = getAllowedOrigins();
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {

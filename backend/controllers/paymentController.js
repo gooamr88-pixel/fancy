@@ -4,16 +4,9 @@ const stripe = require('stripe')(STRIPE_SECRET_KEY);
 const { supabase } = require('../config/supabase');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
-
-/**
- * Resolve the public-facing base URL. FRONTEND_URL may be a comma-separated list
- * of allowed origins (see CORS config in app.js); Stripe needs a single valid URL,
- * so we take the first origin and strip any trailing slash. Interpolating the raw
- * env var would produce an invalid URL like "https://a.com,https://b.com/dashboard"
- * which Stripe rejects, blocking checkout.
- */
-const getPublicBaseUrl = () =>
-  (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '');
+// Bulletproof resolver: splits FRONTEND_URL on commas, repairs typos, and returns
+// only the first valid https:// origin — never a raw, malformed env string.
+const { getPublicBaseUrl } = require('../utils/publicUrl');
 
 /**
  * Creates a Stripe Checkout Session for event payment fees.

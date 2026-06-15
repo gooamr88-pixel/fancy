@@ -11,12 +11,8 @@ const escapeHtml = (str) => {
     .replace(/'/g, '&#039;');
 };
 
-/**
- * Resolve the public-facing base URL. FRONTEND_URL may be a comma-separated list of
- * allowed origins (see CORS config); links must use a single valid origin.
- */
-const getPublicBaseUrl = () =>
-  (process.env.FRONTEND_URL || 'https://fancyrsvp.com').split(',')[0].trim().replace(/\/$/, '');
+// Shared bulletproof resolver (splits commas, repairs typos, first valid https origin).
+const { getPublicBaseUrl } = require('./publicUrl');
 
 /**
  * Builds a guest's personal event link. When an rsvpId is supplied it is appended as

@@ -1,11 +1,8 @@
 const { supabase } = require('../config/supabase');
 const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
 const { generateQRCodeDataURL } = require('../utils/qrHelper');
+const { getPublicBaseUrl } = require('../utils/publicUrl');
 const logger = require('../utils/logger');
-
-/** Resolve the public-facing base URL (first origin if FRONTEND_URL is comma-separated). */
-const getPublicBaseUrl = () =>
-  (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '');
 
 /** Strict UUID matcher — used to validate invitation tokens before querying. */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
