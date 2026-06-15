@@ -1,4 +1,11 @@
 const { supabase } = require('../config/supabase');
+const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
+const { generateQRCodeDataURL } = require('../utils/qrHelper');
+const logger = require('../utils/logger');
+
+/** Resolve the public-facing base URL (first origin if FRONTEND_URL is comma-separated). */
+const getPublicBaseUrl = () =>
+  (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '');
 
 /**
  * Creates a new event in draft state.
@@ -13,22 +20,25 @@ const createEvent = async (req, res, next) => {
     eventType, backgroundMusicUrl
   } = req.body;
 
-  if (!slug || !templateType || !title || !eventDate) {
+  if (!templateType || !title || !eventDate) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'slug, templateType, title, and eventDate are required fields.'
+      message: 'templateType, title, and eventDate are required fields.'
     });
   }
 
-  // URL Slug format validation (lowercase, alphanumeric, dashes)
-  const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-  if (!slugRegex.test(slug)) {
-    return res.status(400).json({
-      success: false,
-      error: 'INVALID_SLUG',
-      message: 'Slug must contain only lowercase alphanumeric characters and single dashes.'
-    });
+  // If the organizer supplied a slug, it must match the URL-safe format.
+  // If omitted, the system auto-generates a unique one (see below).
+  if (slug) {
+    const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    if (!slugRegex.test(slug)) {
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_SLUG',
+        message: 'Slug must contain only lowercase alphanumeric characters and single dashes.'
+      });
+    }
   }
 
   try {
@@ -44,28 +54,37 @@ const createEvent = async (req, res, next) => {
     }
     const orgId = org.id;
 
-    // Check slug availability
-    const { data: existingEvents } = await supabase
-      .from('events')
-      .select('id')
-      .eq('slug', slug)
-      .limit(1);
+    const eventYear = new Date(eventDate).getFullYear();
+    let finalSlug;
 
-    if (existingEvents && existingEvents.length > 0) {
-      // Recommend alternative slug
-      const suggestedSlug = `${slug}-${new Date(eventDate).getFullYear()}`;
-      return res.status(409).json({
-        success: false,
-        error: 'SLUG_TAKEN',
-        message: 'This event URL is already taken.',
-        suggestedSlug
-      });
+    if (slug) {
+      // Organizer chose an explicit slug — respect it, but reject collisions so
+      // they stay in control of their URL (offer a suggestion).
+      const { data: existingEvents } = await supabase
+        .from('events')
+        .select('id')
+        .eq('slug', slug)
+        .limit(1);
+
+      if (existingEvents && existingEvents.length > 0) {
+        return res.status(409).json({
+          success: false,
+          error: 'SLUG_TAKEN',
+          message: 'This event URL is already taken.',
+          suggestedSlug: await generateUniqueSlug(supabase, slug, { year: eventYear })
+        });
+      }
+      finalSlug = slug;
+    } else {
+      // No slug supplied — auto-generate a unique link from the event details.
+      const baseSlug = deriveBaseSlug({ title, templateType, templateData });
+      finalSlug = await generateUniqueSlug(supabase, baseSlug, { year: eventYear });
     }
 
     // Build insert payload with all available fields
     const insertPayload = {
       org_id: orgId,
-      slug,
+      slug: finalSlug,
       template_type: templateType,
       title,
       description: description || null,
@@ -103,7 +122,6 @@ const createEvent = async (req, res, next) => {
     // If the insert failed due to an unknown column (e.g. template_data not yet migrated),
     // retry without the potentially missing column
     if (error && (error.code === '42703' || (error.message && error.message.includes('column')))) {
-      const logger = require('../utils/logger');
       logger.warn({ code: error.code, message: error.message }, 'createEvent: retrying without template_data (column may not exist yet)');
       const { template_data, ...fallbackPayload } = insertPayload;
       ({ data: event, error } = await supabase
@@ -114,7 +132,6 @@ const createEvent = async (req, res, next) => {
     }
 
     if (error) {
-      const logger = require('../utils/logger');
       logger.error({
         err: error,
         code: error.code,
@@ -123,7 +140,7 @@ const createEvent = async (req, res, next) => {
         message: error.message,
         insertPayloadKeys: Object.keys(insertPayload),
         userId: req.user?.id,
-        slug,
+        slug: finalSlug,
       }, 'createEvent: Supabase insert failed');
 
       // Return a more informative error instead of a generic 500
@@ -134,6 +151,25 @@ const createEvent = async (req, res, next) => {
         message: error.message || 'Failed to create event. Please try again.',
         hint: error.hint || undefined,
       });
+    }
+
+    // Auto-generate and persist the event QR code (encodes the public event link).
+    // Best-effort: a failure here (e.g. qr_code_url column not yet migrated) must not
+    // block event creation — the dashboard can still render a QR live as a fallback.
+    try {
+      const eventUrl = `${getPublicBaseUrl()}/${event.slug}`;
+      const qrCodeUrl = await generateQRCodeDataURL(eventUrl);
+      const { error: qrError } = await supabase
+        .from('events')
+        .update({ qr_code_url: qrCodeUrl })
+        .eq('id', event.id);
+      if (qrError) {
+        logger.warn({ code: qrError.code, message: qrError.message, eventId: event.id }, 'createEvent: QR persistence skipped');
+      } else {
+        event.qr_code_url = qrCodeUrl;
+      }
+    } catch (qrErr) {
+      logger.warn({ err: qrErr, eventId: event.id }, 'createEvent: QR generation failed (non-fatal)');
     }
 
     return res.status(201).json({

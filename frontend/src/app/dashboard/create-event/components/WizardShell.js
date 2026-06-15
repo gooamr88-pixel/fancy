@@ -9,9 +9,10 @@ const C = {
   lightBg: '#FAF8F5',
 };
  
-const STEP_LABELS = ['Templates', 'Configure', 'Distribute'];
- 
-export default function WizardShell({ step, onStepClick, children }) {
+const DEFAULT_STEP_LABELS = ['Templates', 'Configure', 'Distribute'];
+
+export default function WizardShell({ step, onStepClick, children, labels }) {
+  const STEP_LABELS = labels && labels.length ? labels : DEFAULT_STEP_LABELS;
   return (
     <div style={{ minHeight: '100vh', background: C.lightBg }}>
       {/* ═══ TOP BAR ═══ */}

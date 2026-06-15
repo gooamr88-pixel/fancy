@@ -547,7 +547,7 @@ function ExpandedPanel({ eventId, event, onClose }) {
 
       {/* Share & QR Code Section */}
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'center' }}>
-        <EventQRCode slug={event.slug} />
+        <EventQRCode slug={event.slug} qrCodeUrl={event.qr_code_url} />
       </div>
     </div>
   );

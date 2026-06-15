@@ -2,6 +2,7 @@ const express = require('express');
 const { requireAuth, requireSuperAdmin } = require('../middleware/auth');
 const { manualCashApproval, updatePricingConfig, getPricingConfig, getPendingPayments } = require('../controllers/paymentController');
 const { getAdminEvents } = require('../controllers/eventController');
+const { listPlatformUsers, setUserRole } = require('../controllers/adminController');
 
 const router = express.Router();
 
@@ -23,5 +24,11 @@ router.post('/manual-approve', manualCashApproval);
 
 // PATCH /api/v1/admin/pricing
 router.patch('/pricing', updatePricingConfig);
+
+// GET /api/v1/admin/users
+router.get('/users', listPlatformUsers);
+
+// PATCH /api/v1/admin/users/role
+router.patch('/users/role', setUserRole);
 
 module.exports = router;

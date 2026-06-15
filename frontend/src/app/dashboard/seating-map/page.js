@@ -201,7 +201,7 @@ export default function SeatingMapPage() {
     } catch (err) { alert(err.message); } finally { setLoading(false); }
   };
 
-  const handleSaveSeating = async () => {
+  const handleSaveSeating = async (force = false) => {
     if (!eventId) return;
     setLoading(true);
     try {
@@ -214,14 +214,23 @@ export default function SeatingMapPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ assignments: payload })
+        body: JSON.stringify({ assignments: payload, force })
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to save seating assignments.');
+      if (!res.ok) {
+        // Offer a manual overbooking override when the only problem is capacity.
+        const capacityIssue = !force && (data.error === 'BATCH_SAVE_FAILED') &&
+          /remaining seats|CAPACITY_EXCEEDED/i.test(data.message || '');
+        if (capacityIssue && window.confirm(`${data.message}\n\nAssign anyway and overbook the table(s)?`)) {
+          setLoading(false);
+          return handleSaveSeating(true);
+        }
+        throw new Error(data.message || 'Failed to save seating assignments.');
+      }
 
       setSeatingChanges({});
-      alert('Seating assignments saved successfully!');
+      alert(force ? 'Seating saved (capacity overridden).' : 'Seating assignments saved successfully!');
       await loadLayoutData();
     } catch (err) {
       alert(err.message);
@@ -344,7 +353,7 @@ export default function SeatingMapPage() {
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
           {Object.keys(seatingChanges).length > 0 && (
-            <button onClick={handleSaveSeating} style={{ ...btnBase, background: C.gold, color: C.white }}>Save Seating Assignments</button>
+            <button onClick={() => handleSaveSeating()} style={{ ...btnBase, background: C.gold, color: C.white }}>Save Seating Assignments</button>
           )}
           {hasChanges && (
             <button onClick={handleSaveLayout} style={{ ...btnBase, background: C.white, border: `1px solid ${C.gold}`, color: C.gold }}>Save Table Layout</button>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
+import { supabase } from '../../utils/supabaseClient';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -10,7 +11,13 @@ import dynamic from 'next/dynamic';
 const WizardShell = dynamic(() => import('./components/WizardShell'), { ssr: false });
 const Stage1_TemplatesSimulator = dynamic(() => import('./components/Stage1_TemplatesSimulator'), { ssr: false });
 const Stage2_FormConfiguration = dynamic(() => import('./components/Stage2_FormConfiguration'), { ssr: false });
+const StagePayment = dynamic(() => import('./components/StagePayment'), { ssr: false });
+const StageTables = dynamic(() => import('./components/StageTables'), { ssr: false });
 const Stage3_Distribution = dynamic(() => import('./components/Stage3_Distribution'), { ssr: false });
+
+/* Wizard step labels (drives the top progress bar) */
+const WIZARD_LABELS = ['Templates', 'Configure', 'Payment', 'Tables', 'Distribute'];
+const LAST_STEP = 4;
 
 /* ═══════════════════════════════════════════════════════
    DESIGN TOKENS
@@ -142,6 +149,14 @@ export default function CreateEventWizard() {
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
 
+  /* ─── Draft event + payment state ─── */
+  const [eventId, setEventId] = useState(null);
+  const [pricingTiers, setPricingTiers] = useState([]);
+  const [selectedTierName, setSelectedTierName] = useState('');
+  const [manualRef, setManualRef] = useState('');
+  const [payProcessing, setPayProcessing] = useState(false);
+  const [payError, setPayError] = useState('');
+
   /* ─── Template & Preset State ─── */
   const [templateType, setTemplateType] = useState('wedding');
   const [selectedPresets, setSelectedPresets] = useState({
@@ -172,6 +187,10 @@ export default function CreateEventWizard() {
   const [privacyMode, setPrivacyMode] = useState('private');
   const [accessPassword, setAccessPassword] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('');
+  const [musicUploading, setMusicUploading] = useState(false);
+  const [galleryUrls, setGalleryUrls] = useState([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
 
   /* ─── Custom Colors (derived from preset) ─── */
   const [customColors, setCustomColors] = useState({
@@ -205,6 +224,22 @@ export default function CreateEventWizard() {
       }
     }
   }, []);
+
+  /* ═══ Fetch platform pricing tiers (for the payment step) ═══ */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/payments/pricing-config`, { credentials: 'include' });
+        const data = await res.json();
+        if (!cancelled && data.success && data.config?.pricing_tiers) {
+          setPricingTiers(data.config.pricing_tiers);
+          if (data.config.pricing_tiers[0]) setSelectedTierName(data.config.pricing_tiers[0].name);
+        }
+      } catch { /* non-fatal — payment step shows a skip option */ }
+    })();
+    return () => { cancelled = true; };
+  }, [apiUrl]);
 
   /* ═══ Sync preset colors → customColors ═══ */
   useEffect(() => {
@@ -296,24 +331,84 @@ export default function CreateEventWizard() {
     setDistributionMethods(prev => ({ ...prev, [method]: !prev[method] }));
   }, []);
 
-  /* ═══ Step validation ═══ */
-  const canProceed = useCallback(() => {
-    if (step === 0) return !!templateType;
-    if (step === 1) {
-      return !!(title && slug && eventDate && slugStatus !== 'taken');
+  /* ═══ Background music upload (Supabase storage, base64 fallback) ═══ */
+  const handleMusicUpload = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      return;
     }
-    if (step === 2) return true;
-    return true;
-  }, [step, templateType, title, slug, eventDate, slugStatus]);
+    setMusicUploading(true);
+    try {
+      if (!supabase) throw new Error('Storage client not configured.');
+      const ext = file.name.split('.').pop();
+      const filePath = `music/wizard-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
+      setBackgroundMusicUrl(publicUrl);
+    } catch (err) {
+      console.error('Music upload failed, falling back to inline encoding:', err);
+      const reader = new FileReader();
+      reader.onload = (ev) => { setBackgroundMusicUrl(ev.target.result); setMusicUploading(false); };
+      reader.readAsDataURL(file);
+      return;
+    }
+    setMusicUploading(false);
+  }, []);
+
+  /* ═══ Gallery image upload (Supabase storage, base64 fallback) ═══ */
+  const handleGalleryUpload = useCallback(async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setGalleryUploading(true);
+    for (const file of files) {
+      if (file.size > 8 * 1024 * 1024) {
+        alert(`"${file.name}" exceeds 8MB and was skipped.`);
+        continue;
+      }
+      try {
+        if (!supabase) throw new Error('Storage client not configured.');
+        const ext = file.name.split('.').pop();
+        const filePath = `gallery/wizard-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        const { error: uploadErr } = await supabase.storage
+          .from('event-assets')
+          .upload(filePath, file, { cacheControl: '3600', upsert: true });
+        if (uploadErr) throw uploadErr;
+        const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
+        setGalleryUrls(prev => [...prev, publicUrl]);
+      } catch (err) {
+        console.error('Gallery upload failed, falling back to inline encoding:', err);
+        await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => { setGalleryUrls(prev => [...prev, ev.target.result]); resolve(); };
+          reader.onerror = resolve;
+          reader.readAsDataURL(file);
+        });
+      }
+    }
+    setGalleryUploading(false);
+  }, []);
+
+  const addGalleryUrl = useCallback((url) => {
+    const trimmed = (url || '').trim();
+    if (trimmed) setGalleryUrls(prev => [...prev, trimmed]);
+  }, []);
+
+  const removeGalleryUrl = useCallback((index) => {
+    setGalleryUrls(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
   /* ═══ Step navigation ═══ */
   const goNext = useCallback(() => {
-    if (!canProceed()) return;
     setDirection(1);
-    setStep(prev => Math.min(prev + 1, 2));
+    setStep(prev => Math.min(prev + 1, LAST_STEP));
     setError('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [canProceed]);
+  }, []);
 
   const goBack = useCallback(() => {
     setDirection(-1);
@@ -331,6 +426,177 @@ export default function CreateEventWizard() {
     }
   }, [step]);
 
+  /* ═══ Build the create (camelCase) payload from current state ═══ */
+  const buildCreatePayload = useCallback(() => ({
+    slug,
+    templateType,
+    title,
+    description: description || undefined,
+    eventDate,
+    eventEndDate: eventEndDate || undefined,
+    locationName: locationName || undefined,
+    locationAddress: locationAddress || undefined,
+    locationLat: locationLat || undefined,
+    locationLng: locationLng || undefined,
+    locationPlaceId: locationPlaceId || undefined,
+    dressCode: dressCode || undefined,
+    rsvpDeadline: rsvpDeadline || undefined,
+    privacyMode,
+    accessPassword: privacyMode === 'password' ? accessPassword : undefined,
+    coverImageUrl: coverImageUrl || undefined,
+    galleryUrls: galleryUrls.length > 0 ? galleryUrls : undefined,
+    customColors,
+    templateData: Object.keys(templateData).length > 0 ? templateData : undefined,
+    eventType: templateType,
+    backgroundMusicUrl: backgroundMusicUrl || '',
+  }), [
+    slug, templateType, title, description, eventDate, eventEndDate,
+    locationName, locationAddress, locationLat, locationLng, locationPlaceId,
+    dressCode, rsvpDeadline, privacyMode, accessPassword, coverImageUrl,
+    galleryUrls, customColors, templateData, backgroundMusicUrl,
+  ]);
+
+  /* ═══ Create the draft event (first time) or update it (on revisits) ═══ */
+  const ensureDraftEvent = useCallback(async () => {
+    // Returns the eventId. Creates a draft if none exists yet, otherwise PATCHes it.
+    if (!eventId) {
+      const res = await fetch(`${apiUrl}/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(buildCreatePayload()),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === 'SLUG_TAKEN') {
+          setSlugStatus('taken');
+          setSuggestedSlug(data.suggestedSlug || `${slug}-${new Date().getFullYear()}`);
+          const e = new Error('This event URL is already taken. Please choose a different slug.');
+          e.code = 'SLUG_TAKEN';
+          throw e;
+        }
+        throw new Error(data.message || 'Failed to create event.');
+      }
+      setEventId(data.event.id);
+      return data.event.id;
+    }
+
+    // Existing draft → push the latest details (PATCH uses snake_case fields).
+    const res = await fetch(`${apiUrl}/events/${eventId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        slug,
+        template_type: templateType,
+        title,
+        description: description || null,
+        event_date: eventDate,
+        event_end_date: eventEndDate || null,
+        location_name: locationName || null,
+        location_address: locationAddress || null,
+        location_lat: locationLat || null,
+        location_lng: locationLng || null,
+        location_place_id: locationPlaceId || null,
+        dress_code: dressCode || null,
+        rsvp_deadline: rsvpDeadline || null,
+        privacy_mode: privacyMode,
+        access_password: privacyMode === 'password' ? accessPassword : null,
+        cover_image_url: coverImageUrl || null,
+        gallery_urls: galleryUrls,
+        background_music_url: backgroundMusicUrl || null,
+        custom_colors: customColors,
+        template_data: templateData,
+        event_type: templateType,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (data.error === 'SLUG_TAKEN') {
+        setSlugStatus('taken');
+        const e = new Error('This event URL is already taken. Please choose a different slug.');
+        e.code = 'SLUG_TAKEN';
+        throw e;
+      }
+      throw new Error(data.message || 'Failed to update event.');
+    }
+    return eventId;
+  }, [
+    eventId, apiUrl, buildCreatePayload, slug, templateType, title, description,
+    eventDate, eventEndDate, locationName, locationAddress, locationLat, locationLng,
+    locationPlaceId, dressCode, rsvpDeadline, privacyMode, accessPassword,
+    coverImageUrl, galleryUrls, customColors, templateData, backgroundMusicUrl,
+  ]);
+
+  /* ═══ Advance from Configure → create/update draft, then go to Payment ═══ */
+  const handleConfigureNext = useCallback(async () => {
+    if (submitting) return;
+    if (!title || !slug || !eventDate) {
+      setError('Please complete the title, URL, and date before continuing.');
+      return;
+    }
+    if (slugStatus === 'taken') {
+      setError('Please choose an available event URL.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await ensureDraftEvent();
+      goNext();
+    } catch (err) {
+      if (err.code === 'SLUG_TAKEN') {
+        setError('This event URL is already taken. Please choose a different slug.');
+      } else {
+        setError(err.message || 'Could not save your event. Please try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }, [submitting, title, slug, eventDate, slugStatus, ensureDraftEvent, goNext]);
+
+  /* ═══ Payment handlers ═══ */
+  const handlePayStripe = useCallback(async () => {
+    if (!eventId || !selectedTierName) return;
+    setPayProcessing(true);
+    setPayError('');
+    try {
+      const res = await fetch(`${apiUrl}/payments/events/${eventId}/create-checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ eventId, tierName: selectedTierName }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.checkoutUrl) throw new Error(data.message || 'Could not start checkout.');
+      window.location.href = data.checkoutUrl; // redirect to Stripe
+    } catch (err) {
+      setPayError(err.message || 'Payment could not be started.');
+      setPayProcessing(false);
+    }
+  }, [apiUrl, eventId, selectedTierName]);
+
+  const handlePayManual = useCallback(async () => {
+    if (!eventId || !selectedTierName) return;
+    setPayProcessing(true);
+    setPayError('');
+    try {
+      const res = await fetch(`${apiUrl}/payments/events/${eventId}/manual-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ tierName: selectedTierName }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Could not record manual payment.');
+      setManualRef(data.referenceNumber);
+    } catch (err) {
+      setPayError(err.message || 'Manual payment could not be recorded.');
+    } finally {
+      setPayProcessing(false);
+    }
+  }, [apiUrl, eventId, selectedTierName]);
+
   /* ═══ FINAL SUBMISSION ═══ */
   const handleSubmit = useCallback(async () => {
     if (submitting) return;
@@ -343,59 +609,27 @@ export default function CreateEventWizard() {
     setError('');
 
     try {
-      /* ─── 1. Create the event ─── */
-      const payload = {
-        slug,
-        templateType,
-        title,
-        description: description || undefined,
-        eventDate,
-        eventEndDate: eventEndDate || undefined,
-        locationName: locationName || undefined,
-        locationAddress: locationAddress || undefined,
-        locationLat: locationLat || undefined,
-        locationLng: locationLng || undefined,
-        locationPlaceId: locationPlaceId || undefined,
-        dressCode: dressCode || undefined,
-        rsvpDeadline: rsvpDeadline || undefined,
-        privacyMode,
-        accessPassword: privacyMode === 'password' ? accessPassword : undefined,
-        coverImageUrl: coverImageUrl || undefined,
-        customColors,
-        templateData: Object.keys(templateData).length > 0 ? templateData : undefined,
-        eventType: templateType,
-        backgroundMusicUrl: '',
-      };
-
-      const eventRes = await fetch(`${apiUrl}/events`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      });
-
-      const eventData = await eventRes.json();
-
-      if (!eventRes.ok) {
-        if (eventData.error === 'SLUG_TAKEN') {
-          setSlugStatus('taken');
-          setSuggestedSlug(eventData.suggestedSlug || `${slug}-${new Date().getFullYear()}`);
-          setDirection(-1);
-          setStep(1);
-          setError('This event URL is already taken. Please choose a different slug.');
-          setSubmitting(false);
-          return;
+      /* ─── 1. Ensure the event exists (it normally does from the Configure step) ─── */
+      let id = eventId;
+      if (!id) {
+        try {
+          id = await ensureDraftEvent();
+        } catch (err) {
+          if (err.code === 'SLUG_TAKEN') {
+            setDirection(-1);
+            setStep(1);
+            setError('This event URL is already taken. Please choose a different slug.');
+            setSubmitting(false);
+            return;
+          }
+          throw err;
         }
-        throw new Error(eventData.message || 'Failed to create event');
       }
 
-      const createdEvent = eventData.event;
-      const eventId = createdEvent?.id;
-
       /* ─── 2. Batch-save custom form fields ─── */
-      if (eventId && customFields.length > 0) {
+      if (id && customFields.length > 0) {
         const fieldPromises = customFields.map((field, idx) =>
-          fetch(`${apiUrl}/events/${eventId}/fields`, {
+          fetch(`${apiUrl}/events/${id}/fields`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -420,17 +654,12 @@ export default function CreateEventWizard() {
       window.location.href = '/dashboard';
 
     } catch (err) {
-      console.error('Event creation failed:', err);
+      console.error('Event finalization failed:', err);
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
     }
-  }, [
-    submitting, title, slug, eventDate, templateType, description,
-    eventEndDate, locationName, locationAddress, locationLat, locationLng,
-    locationPlaceId, dressCode, rsvpDeadline, privacyMode, accessPassword,
-    coverImageUrl, customColors, templateData, customFields, apiUrl,
-  ]);
+  }, [submitting, title, slug, eventDate, eventId, ensureDraftEvent, customFields, apiUrl]);
 
   /* ═══ Loading state ═══ */
   if (!mounted) {
@@ -453,7 +682,7 @@ export default function CreateEventWizard() {
 
   /* ═══ RENDER ═══ */
   return (
-    <WizardShell step={step} onStepClick={goToStep}>
+    <WizardShell step={step} onStepClick={goToStep} labels={WIZARD_LABELS}>
       <AnimatePresence mode="wait" custom={direction}>
         {step === 0 && (
           <motion.div
@@ -504,13 +733,60 @@ export default function CreateEventWizard() {
               privacyMode={privacyMode} setPrivacyMode={setPrivacyMode}
               accessPassword={accessPassword} setAccessPassword={setAccessPassword}
               coverImageUrl={coverImageUrl} setCoverImageUrl={setCoverImageUrl}
+              backgroundMusicUrl={backgroundMusicUrl} setBackgroundMusicUrl={setBackgroundMusicUrl}
+              onMusicUpload={handleMusicUpload} musicUploading={musicUploading}
+              galleryUrls={galleryUrls} onGalleryUpload={handleGalleryUpload}
+              galleryUploading={galleryUploading} onAddGalleryUrl={addGalleryUrl} onRemoveGalleryUrl={removeGalleryUrl}
               customFields={customFields} onFieldsChange={setCustomFields}
-              onNext={goNext} onBack={goBack}
+              onNext={handleConfigureNext} onBack={goBack}
             />
           </motion.div>
         )}
 
         {step === 2 && (
+          <motion.div
+            key="stagePayment"
+            custom={direction}
+            variants={stepVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+          >
+            <StagePayment
+              tiers={pricingTiers}
+              selectedTierName={selectedTierName}
+              onSelectTier={setSelectedTierName}
+              onPayStripe={handlePayStripe}
+              onPayManual={handlePayManual}
+              manualRef={manualRef}
+              processing={payProcessing}
+              error={payError}
+              onContinue={goNext}
+              onBack={goBack}
+              onSkip={goNext}
+            />
+          </motion.div>
+        )}
+
+        {step === 3 && (
+          <motion.div
+            key="stageTables"
+            custom={direction}
+            variants={stepVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+          >
+            <StageTables
+              apiUrl={apiUrl}
+              eventId={eventId}
+              onContinue={goNext}
+              onBack={goBack}
+            />
+          </motion.div>
+        )}
+
+        {step === 4 && (
           <motion.div
             key="stage3"
             custom={direction}

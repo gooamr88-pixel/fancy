@@ -3,28 +3,32 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 
-export default function EventQRCode({ slug }) {
-  const [qrUrl, setQrUrl] = useState('');
+export default function EventQRCode({ slug, qrCodeUrl }) {
+  const [generatedQr, setGeneratedQr] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const eventUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/${slug}` 
+  const eventUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/${slug}`
     : `http://localhost:3000/${slug}`;
 
   useEffect(() => {
-    if (slug) {
-      QRCode.toDataURL(eventUrl, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#0f172a', // dark slate
-          light: '#ffffff'
-        }
-      })
-        .then(url => setQrUrl(url))
-        .catch(err => console.error('Failed to generate QR Code:', err));
-    }
-  }, [slug, eventUrl]);
+    // Prefer the QR persisted by the backend at event creation/publish; only
+    // generate live as a fallback (e.g. legacy events created before QR persistence).
+    if (qrCodeUrl || !slug) return;
+    QRCode.toDataURL(eventUrl, {
+      width: 200,
+      margin: 2,
+      color: {
+        dark: '#0f172a', // dark slate
+        light: '#ffffff'
+      }
+    })
+      .then(url => setGeneratedQr(url))
+      .catch(err => console.error('Failed to generate QR Code:', err));
+  }, [slug, eventUrl, qrCodeUrl]);
+
+  // Persisted QR wins; fall back to the locally generated one.
+  const qrUrl = qrCodeUrl || generatedQr;
 
   const handleCopy = async () => {
     try {

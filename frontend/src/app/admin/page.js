@@ -36,6 +36,9 @@ export default function AdminPage() {
   const [platformCommissionPct, setPlatformCommissionPct] = useState(0.0);
   const [savingConfig, setSavingConfig] = useState(false);
 
+  const [users, setUsers] = useState([]);
+  const [roleSavingId, setRoleSavingId] = useState(null);
+
 
   const [authChecked, setAuthChecked] = useState(false);
   const [initialData, setInitialData] = useState(null);
@@ -98,6 +101,12 @@ export default function AdminPage() {
         setSmsMarkupPercentage(configData.config.sms_markup_percentage !== undefined ? configData.config.sms_markup_percentage : 40.0);
         setPlatformCommissionPct(configData.config.platform_commission_pct !== undefined ? configData.config.platform_commission_pct : 0.0);
       }
+
+      // Fetch platform users + roles
+      const usersRes = await fetch(`${apiUrl}/admin/users`, { credentials: 'include' });
+      const usersData = await usersRes.json();
+      if (usersData.success) setUsers(usersData.users || []);
+
       setError(null);
     } catch (err) {
       // Admin data loading failed
@@ -163,6 +172,22 @@ export default function AdminPage() {
     const updated = [...pricingTiers];
     updated[index] = { ...updated[index], [field]: field === 'name' ? value : parseInt(value) || 0 };
     setPricingTiers(updated);
+  };
+
+  const handleSetRole = async (userId, role) => {
+    setRoleSavingId(userId);
+    try {
+      const res = await fetch(`${apiUrl}/admin/users/role`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId, role })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Failed to update role.');
+      setUsers(prev => prev.map(u => (u.userId === userId ? { ...u, role } : u)));
+    } catch (err) { alert(err.message); }
+    finally { setRoleSavingId(null); }
   };
 
   const inputStyle = { width: '100%', background: D.bg, border: `1px solid ${D.cardBorder}`, borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: D.text200, outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box', transition: 'border-color 0.2s' };
@@ -239,7 +264,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', borderBottom: `1px solid ${D.card}`, gap: '24px', marginBottom: '32px' }}>
-        {[{ key: 'events', label: 'Event Ledger' }, { key: 'pending-payments', label: `Pending Payments (${pendingPayments.length})` }, { key: 'config', label: 'Pricing Configurator' }].map(tab => (
+        {[{ key: 'events', label: 'Event Ledger' }, { key: 'pending-payments', label: `Pending Payments (${pendingPayments.length})` }, { key: 'config', label: 'Pricing Configurator' }, { key: 'roles', label: 'Roles & Access' }].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             style={{ paddingBottom: '12px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.15em', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', borderBottom: activeTab === tab.key ? `2px solid ${D.amber}` : '2px solid transparent', color: activeTab === tab.key ? D.amber : D.text500, transition: 'all 0.2s' }}>
             {tab.label}
@@ -379,7 +404,7 @@ export default function AdminPage() {
               </table>
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'config' ? (
           <div style={{ ...cardStyle, padding: '24px', maxWidth: '640px' }}>
             <div style={{ borderBottom: `1px solid ${D.cardBorder}`, paddingBottom: '16px', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 700, color: D.text100 }}>Platform Configuration Settings</h3>
@@ -427,6 +452,55 @@ export default function AdminPage() {
                 {savingConfig ? 'Saving Configurations...' : 'Save Config Updates'}
               </button>
             </form>
+          </div>
+        ) : (
+          <div style={{ ...cardStyle, overflow: 'hidden' }}>
+            <div style={{ padding: '24px', borderBottom: `1px solid ${D.cardBorder}` }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: D.text100 }}>Roles &amp; Access Control</h3>
+              <p style={{ fontSize: '12px', color: D.text400, marginTop: '4px' }}>Promote organizers to Super Admin or revoke access. You cannot remove your own Super Admin role.</p>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', textAlign: 'left', fontSize: '13px', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: D.bg, borderBottom: `1px solid ${D.cardBorder}` }}>
+                    {['Account Name', 'Email', 'Current Role', ''].map((h, i) => (
+                      <th key={i} style={{ padding: '12px 24px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: D.text400, fontWeight: 700, textAlign: i === 3 ? 'right' : 'left' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.length > 0 ? users.map(u => {
+                    const isAdmin = u.role === 'super_admin';
+                    const saving = roleSavingId === u.userId;
+                    return (
+                      <tr key={u.userId} style={{ borderBottom: `1px solid ${D.cardBorder}` }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{ padding: '16px 24px', fontWeight: 700, color: D.text200 }}>{u.name || 'Unnamed'}</td>
+                        <td style={{ padding: '16px 24px', color: D.text400 }}>{u.email || '-'}</td>
+                        <td style={{ padding: '16px 24px' }}>
+                          {isAdmin ? (
+                            <span style={{ background: 'rgba(245,158,11,0.1)', color: D.amber, border: '1px solid rgba(245,158,11,0.2)', padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>Super Admin</span>
+                          ) : (
+                            <span style={{ background: 'rgba(255,255,255,0.04)', color: D.text300, border: `1px solid ${D.cardBorder}`, padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>Organizer</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                          <button
+                            onClick={() => handleSetRole(u.userId, isAdmin ? 'organizer' : 'super_admin')}
+                            disabled={saving}
+                            style={{ padding: '6px 14px', background: isAdmin ? 'transparent' : D.amberDark, border: isAdmin ? `1px solid ${D.borderLight}` : 'none', fontSize: '11px', fontWeight: 700, borderRadius: '8px', color: isAdmin ? D.roseLight : D.white, cursor: saving ? 'wait' : 'pointer', fontFamily: 'var(--font-sans)', opacity: saving ? 0.5 : 1, transition: 'background 0.2s' }}>
+                            {saving ? 'Saving…' : isAdmin ? 'Revoke Admin' : 'Promote to Super Admin'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr><td colSpan="4" style={{ textAlign: 'center', padding: '48px', color: D.text500 }}>No platform users found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

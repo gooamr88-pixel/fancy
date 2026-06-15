@@ -42,6 +42,13 @@ function RSVPFormContent({ slug }) {
   const [validationErrors, setValidationErrors] = useState({});
   const [assignedTableName, setAssignedTableName] = useState(null);
 
+  /* "Find my table" lookup (for guests who already RSVP'd) */
+  const [tableQuery, setTableQuery] = useState('');
+  const [tableResults, setTableResults] = useState([]);
+  const [tableLookingUp, setTableLookingUp] = useState(false);
+  const [tableLookupDone, setTableLookupDone] = useState(false);
+  const [showTableLookup, setShowTableLookup] = useState(false);
+
   const guestIdParam = searchParams ? searchParams.get('g') : null;
 
   useEffect(() => { setSearchPerformed(false); setSearchResults([]); setRsvpId(null); }, [guestName]);
@@ -67,6 +74,24 @@ function RSVPFormContent({ slug }) {
       setSearchResults(data.results || []);
     } catch (err) { console.error(err); setSearchResults([]); }
     finally { setSearching(false); setSearchPerformed(true); }
+  };
+
+  const handleTableLookup = async () => {
+    if (!tableQuery.trim()) return;
+    setTableLookingUp(true);
+    setTableLookupDone(false);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      const res = await fetch(`${apiUrl}/public/events/${slug}/seating/search?query=${encodeURIComponent(tableQuery.trim())}`);
+      const data = await res.json();
+      setTableResults(data.results || []);
+    } catch (err) {
+      console.error('Table lookup failed:', err);
+      setTableResults([]);
+    } finally {
+      setTableLookingUp(false);
+      setTableLookupDone(true);
+    }
   };
 
   const [prevLangParam, setPrevLangParam] = useState(langParam);
@@ -337,6 +362,49 @@ function RSVPFormContent({ slug }) {
                   )}
                 </div>
               )}
+
+              {/* Find my table — for guests who already RSVP'd */}
+              <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+                {!showTableLookup ? (
+                  <button onClick={() => setShowTableLookup(true)} style={{ ...S.backBtn, color: '#B8944F', fontWeight: 600 }}>
+                    {isRTL ? 'هل سجّلت بالفعل؟ ابحث عن طاولتك' : "Already RSVP'd? Find your table"}
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <label style={S.labelBase}>{isRTL ? 'ابحث باسمك لعرض طاولتك' : 'Search your name to see your table'}</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input type="text" value={tableQuery} onChange={e => setTableQuery(e.target.value)} placeholder={t.name_placeholder}
+                        style={{ ...S.inputBase, flex: 1 }} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'}
+                        onKeyDown={e => { if (e.key === 'Enter') handleTableLookup(); }} />
+                      <button disabled={!tableQuery.trim() || tableLookingUp} onClick={handleTableLookup} style={S.goldBtn(!tableQuery.trim() || tableLookingUp)}>
+                        {tableLookingUp ? '...' : (isRTL ? 'بحث' : 'Find')}
+                      </button>
+                    </div>
+                    {tableLookupDone && (
+                      tableResults.length > 0 ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {tableResults.map((r, i) => (
+                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', border: '1px solid #E8E2D6', borderRadius: '10px', background: '#FFFFFF' }}>
+                              <span style={{ fontWeight: 600, color: '#191B1E', fontSize: '14px' }}>{r.guestName}</span>
+                              <span style={{ fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '6px',
+                                background: r.tableName === 'Unassigned' ? '#F8F4EC' : 'rgba(184,148,79,0.12)',
+                                color: r.tableName === 'Unassigned' ? '#A09A91' : '#B8944F' }}>
+                                {r.tableName === 'Unassigned'
+                                  ? (isRTL ? 'لم تُخصّص بعد' : 'Not assigned yet')
+                                  : r.tableName}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: '13px', color: '#77736A' }}>
+                          {isRTL ? 'لم نعثر على حجز مطابق. تأكد من اسمك أو سجّل أعلاه.' : "No matching reservation found. Check your name or RSVP above."}
+                        </p>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

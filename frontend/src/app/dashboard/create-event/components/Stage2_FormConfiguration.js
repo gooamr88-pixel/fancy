@@ -115,12 +115,15 @@ export default function Stage2_FormConfiguration({
   privacyMode, setPrivacyMode,
   accessPassword, setAccessPassword,
   coverImageUrl, setCoverImageUrl,
+  backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
+  galleryUrls = [], onGalleryUpload, galleryUploading, onAddGalleryUrl, onRemoveGalleryUrl,
   customFields, onFieldsChange,
   onNext, onBack,
 }) {
   const tpl = templates.find(t => t.key === templateType) || templates[0];
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
+  const [galleryInput, setGalleryInput] = useState('');
 
   return (
     <div style={{ padding: '40px 24px 120px', maxWidth: 860, margin: '0 auto' }}>
@@ -446,6 +449,65 @@ export default function Stage2_FormConfiguration({
               }} />
             </div>
           )}
+
+          <Field label="Background Music (optional)">
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input type="url" value={backgroundMusicUrl || ''}
+                onChange={e => setBackgroundMusicUrl(e.target.value)}
+                placeholder="https://example.com/song.mp3"
+                style={{ ...iStyle, flex: '1 1 240px' }} onFocus={onFocus} onBlur={onBlur} />
+              <label style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, cursor: musicUploading ? 'wait' : 'pointer',
+                padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, color: C.gold,
+                fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+                opacity: musicUploading ? 0.6 : 1,
+              }}>
+                {musicUploading ? 'Uploading…' : '⬆ Upload'}
+                <input type="file" accept="audio/*" onChange={onMusicUpload} disabled={musicUploading} style={{ display: 'none' }} />
+              </label>
+            </div>
+            {backgroundMusicUrl && (
+              <audio controls src={backgroundMusicUrl} style={{ width: '100%', marginTop: 10 }} />
+            )}
+            <p style={{ fontSize: 11, color: C.stone, marginTop: 6, fontFamily: 'var(--font-sans)' }}>
+              Plays softly on your invitation page. Paste a link or upload a file (max 8MB).
+            </p>
+          </Field>
+
+          <Field label="Photo Gallery (optional)">
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input type="url" value={galleryInput}
+                onChange={e => setGalleryInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onAddGalleryUrl?.(galleryInput); setGalleryInput(''); } }}
+                placeholder="https://example.com/photo.jpg"
+                style={{ ...iStyle, flex: '1 1 220px' }} onFocus={onFocus} onBlur={onBlur} />
+              <button type="button" onClick={() => { onAddGalleryUrl?.(galleryInput); setGalleryInput(''); }}
+                style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, background: C.white, color: C.gold, fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                + Add
+              </button>
+              <label style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, cursor: galleryUploading ? 'wait' : 'pointer',
+                padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, color: C.gold,
+                fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+                opacity: galleryUploading ? 0.6 : 1,
+              }}>
+                {galleryUploading ? 'Uploading…' : '⬆ Upload'}
+                <input type="file" accept="image/*" multiple onChange={onGalleryUpload} disabled={galleryUploading} style={{ display: 'none' }} />
+              </label>
+            </div>
+            {galleryUrls.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
+                {galleryUrls.map((url, i) => (
+                  <div key={i} style={{ position: 'relative', width: 84, height: 84, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}`, background: C.softBg }}>
+                    <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={e => { e.target.style.display = 'none'; }} />
+                    <button type="button" onClick={() => onRemoveGalleryUrl?.(i)} title="Remove"
+                      style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Field>
         </Section>
 
         {/* ═══ Section D: Custom Questions ═══ */}

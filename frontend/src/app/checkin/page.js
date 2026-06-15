@@ -7,7 +7,8 @@ import { logout } from '../utils/apiClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
-const inputStyle = { width: '100%', boxSizing: 'border-box', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '12px 16px', fontSize: '14px', color: C.charcoal, outline: 'none', fontFamily: 'var(--font-sans)', transition: 'border-color 0.25s ease' };
+// Roomier padding + 16px font for touch kiosks (16px also prevents iOS focus-zoom).
+const inputStyle = { width: '100%', boxSizing: 'border-box', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px 18px', fontSize: '16px', color: C.charcoal, outline: 'none', fontFamily: 'var(--font-sans)', transition: 'border-color 0.25s ease' };
 
 export default function CheckInPage() {
   const [loading, setLoading] = useState(true);
@@ -156,7 +157,7 @@ export default function CheckInPage() {
                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)', overflow: 'hidden', zIndex: 20, maxHeight: '220px', overflowY: 'auto' }}>
                   {searchResults.map(guest => (
                     <div key={guest.id} onClick={() => { setSelectedGuest(guest); setSearchQuery(''); }}
-                      style={{ padding: '12px 16px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.ivory}`, transition: 'background 0.15s' }}
+                      style={{ padding: '16px 18px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${C.ivory}`, transition: 'background 0.15s' }}
                       onMouseEnter={e => e.currentTarget.style.background = C.ivory} onMouseLeave={e => e.currentTarget.style.background = C.white}>
                       <div>
                         <span style={{ fontWeight: 600, color: C.charcoal, display: 'block', fontSize: '14px' }}>{guest.guestName}</span>

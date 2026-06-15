@@ -7,7 +7,7 @@ const notificationService = require('../utils/notificationService');
  */
 const assignSeat = async (req, res, next) => {
   const { eventId } = req.params;
-  const { rsvpId, tableId } = req.body;
+  const { rsvpId, tableId, force } = req.body;
   const assignedBy = req.user?.id || null; // Assume auth middleware sets req.user
 
   if (!rsvpId || !tableId) {
@@ -24,7 +24,8 @@ const assignSeat = async (req, res, next) => {
       p_event_id: eventId,
       p_rsvp_id: rsvpId,
       p_table_id: tableId,
-      p_assigned_by: assignedBy
+      p_assigned_by: assignedBy,
+      p_force: !!force
     });
 
     if (error) {
@@ -221,8 +222,9 @@ const unassignSeat = async (req, res, next) => {
  */
 const saveSeatingBatch = async (req, res, next) => {
   const { eventId } = req.params;
-  const { assignments } = req.body; // Array of { rsvpId, tableId }
+  const { assignments, force } = req.body; // Array of { rsvpId, tableId }; force = override capacity
   const assignedBy = req.user?.id || null;
+  const forceFlag = !!force;
 
   if (!Array.isArray(assignments)) {
     return res.status(400).json({
@@ -273,7 +275,8 @@ const saveSeatingBatch = async (req, res, next) => {
             p_event_id: eventId,
             p_rsvp_id: rsvpId,
             p_table_id: tableId,
-            p_assigned_by: assignedBy
+            p_assigned_by: assignedBy,
+            p_force: forceFlag
           });
           results.push({ rsvpId, tableId, action: 'assign', success: !error && data?.success, error: error || data?.message });
         } else if (currentTableId !== tableId) {
@@ -282,7 +285,8 @@ const saveSeatingBatch = async (req, res, next) => {
             p_event_id: eventId,
             p_rsvp_id: rsvpId,
             p_new_table_id: tableId,
-            p_assigned_by: assignedBy
+            p_assigned_by: assignedBy,
+            p_force: forceFlag
           });
           results.push({ rsvpId, tableId, action: 'reassign', success: !error && data?.success, error: error || data?.message });
         }

@@ -200,14 +200,30 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
                   {result.errors.length} row(s) had errors
                 </p>
               )}
-              <button onClick={onClose} style={{
-                marginTop: '24px', padding: '10px 28px', borderRadius: '8px', border: 'none',
-                background: COLORS.gold, color: COLORS.white, fontSize: '13px', fontWeight: 700,
-                fontFamily: 'var(--font-sans)', cursor: 'pointer', transition: 'all 0.2s',
-              }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.goldHover; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.gold; }}
-              >Done</button>
+              <p style={{ fontSize: '13px', color: COLORS.stone, marginTop: '16px', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
+                Ready to invite them? Send personalized SMS invitations now, or share your link / QR code from the dashboard.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px', flexWrap: 'wrap' }}>
+                <button onClick={() => {
+                  try { if (eventId) localStorage.setItem('active_event_id', eventId); } catch { /* ignore */ }
+                  window.location.href = '/dashboard/campaigns';
+                }} style={{
+                  padding: '10px 24px', borderRadius: '8px', border: 'none',
+                  background: COLORS.gold, color: COLORS.white, fontSize: '13px', fontWeight: 700,
+                  fontFamily: 'var(--font-sans)', cursor: 'pointer', transition: 'all 0.2s',
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.goldHover; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.gold; }}
+                >Send Invitations</button>
+                <button onClick={onClose} style={{
+                  padding: '10px 24px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+                  background: COLORS.white, color: COLORS.stone, fontSize: '13px', fontWeight: 600,
+                  fontFamily: 'var(--font-sans)', cursor: 'pointer', transition: 'all 0.2s',
+                }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.ivory; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
+                >Done</button>
+              </div>
             </div>
           ) : (
             <>

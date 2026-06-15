@@ -96,8 +96,8 @@ const createCheckoutSession = async (req, res, next) => {
         tier_name: tier.name,
         type: 'event_fee'
       },
-      success_url: `${process.env.FRONTEND_URL}/events/${eventId}/setup?payment=success`,
-      cancel_url: `${process.env.FRONTEND_URL}/events/${eventId}/payment?payment=cancelled`
+      success_url: `${process.env.FRONTEND_URL}/dashboard?payment=success&event=${eventId}`,
+      cancel_url: `${process.env.FRONTEND_URL}/dashboard/create-event?payment=cancelled&event=${eventId}`
     });
 
     return res.status(200).json({
@@ -558,7 +558,7 @@ const initiateManualPayment = async (req, res, next) => {
     // 1. Check if there is already a pending cash payment for this event
     const { data: existingPending } = await supabase
       .from('event_payments')
-      .select('id, stripe_checkout_session_id, amount_cents')
+      .select('id, reference_number, amount_cents')
       .eq('event_id', eventId)
       .eq('payment_method', 'cash_manual')
       .eq('status', 'pending')
@@ -568,7 +568,7 @@ const initiateManualPayment = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         message: 'Existing pending cash payment found.',
-        referenceNumber: existingPending[0].stripe_checkout_session_id,
+        referenceNumber: existingPending[0].reference_number,
         payment: existingPending[0]
       });
     }
@@ -608,7 +608,6 @@ const initiateManualPayment = async (req, res, next) => {
       .from('event_payments')
       .insert({
         event_id: eventId,
-        stripe_checkout_session_id: refCode,
         reference_number: refCode,
         amount_cents: tier.price_cents,
         status: 'pending',

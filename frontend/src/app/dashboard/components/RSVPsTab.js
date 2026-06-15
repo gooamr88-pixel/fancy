@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo, useCallback } from 'react';
 import { isAccepted, isDeclined } from '../../utils/responseHelpers';
+import EditGuestModal from './EditGuestModal';
 
 const COLORS = {
   gold: '#B8944F',
@@ -46,6 +47,27 @@ const DownloadIcon = () => (
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
     <polyline points="7 10 12 15 17 10" />
     <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+const PencilIcon = ({ color = COLORS.stone }) => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </svg>
+);
+
+const MailIcon = ({ color = COLORS.stone }) => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="m22 7-10 5L2 7" />
+  </svg>
+);
+
+const TicketIcon = ({ color = COLORS.stone }) => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
+    <path d="M13 5v14" />
   </svg>
 );
 
@@ -136,6 +158,8 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
   const [deletingId, setDeletingId] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [resending, setResending] = useState(null); // `${rsvpId}:${type}` while a resend is in flight
+  const [editingGuest, setEditingGuest] = useState(null);
 
   /* counts */
   const counts = useMemo(() => {
@@ -222,6 +246,29 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
       setExportingExcel(false);
     }
   }, [eventId, exportingExcel]);
+
+  /* resend confirmation or QR-ticket email */
+  const handleResend = useCallback(async (rsvpId, type) => {
+    const endpoint = type === 'qr' ? 'send-qr-ticket' : 'send-confirmation';
+    setResending(`${rsvpId}:${type}`);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/notifications/${endpoint}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rsvpId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || 'Failed to send email.');
+      }
+      alert(type === 'qr' ? 'QR ticket email sent.' : 'Confirmation email sent.');
+    } catch (err) {
+      alert(err.message || 'Failed to send email.');
+    } finally {
+      setResending(null);
+    }
+  }, [eventId]);
 
   /* delete RSVP */
   const handleDelete = useCallback(async (rsvpId) => {
@@ -406,6 +453,9 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
                     isEven={idx % 2 === 0}
                     deletingId={deletingId}
                     onDelete={handleDelete}
+                    resending={resending}
+                    onResend={handleResend}
+                    onEdit={setEditingGuest}
                   />
                 ))}
               </tbody>
@@ -451,12 +501,20 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
           </div>
         </div>
       )}
+
+      <EditGuestModal
+        isOpen={!!editingGuest}
+        onClose={() => setEditingGuest(null)}
+        eventId={eventId}
+        rsvp={editingGuest}
+        onGuestUpdated={onRefresh}
+      />
     </div>
   );
 }
 
 /* ── Table Row ───────────────────────────────────────────────── */
-const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete }) {
+const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onResend, onEdit }) {
   const [hovered, setHovered] = useState(false);
   const badge = responseBadge(rsvp.response);
 
@@ -552,7 +610,24 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
         borderBottom: `1px solid ${COLORS.border}`,
         textAlign: 'center',
       }}>
-        <DeleteButton rsvpId={rsvp.id} deletingId={deletingId} onDelete={onDelete} />
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          <IconActionButton title="Edit guest" onClick={() => onEdit(rsvp)} icon={PencilIcon} />
+          <ResendButton
+            type="confirmation"
+            rsvpId={rsvp.id}
+            resending={resending}
+            onResend={onResend}
+            title="Resend confirmation email"
+          />
+          <ResendButton
+            type="qr"
+            rsvpId={rsvp.id}
+            resending={resending}
+            onResend={onResend}
+            title="Resend QR ticket email (requires table assignment)"
+          />
+          <DeleteButton rsvpId={rsvp.id} deletingId={deletingId} onDelete={onDelete} />
+        </div>
       </td>
     </tr>
   );
@@ -585,6 +660,59 @@ function DeleteButton({ rsvpId, deletingId, onDelete }) {
       }}
     >
       <TrashIcon color={hovered ? COLORS.rose : COLORS.stone} />
+    </button>
+  );
+}
+
+/* ── Generic Icon Action Button ──────────────────────────────── */
+function IconActionButton({ title, onClick, icon: Icon }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title={title}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 32, height: 32, borderRadius: 8, border: 'none',
+        cursor: 'pointer', background: hovered ? COLORS.champagneLight : 'transparent',
+        transition: 'all 0.2s ease',
+      }}
+    >
+      <Icon color={hovered ? COLORS.gold : COLORS.stone} />
+    </button>
+  );
+}
+
+/* ── Resend Button ───────────────────────────────────────────── */
+function ResendButton({ type, rsvpId, resending, onResend, title }) {
+  const [hovered, setHovered] = useState(false);
+  const isBusy = resending === `${rsvpId}:${type}`;
+  const Icon = type === 'qr' ? TicketIcon : MailIcon;
+
+  return (
+    <button
+      onClick={() => onResend(rsvpId, type)}
+      disabled={isBusy}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      title={title}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        border: 'none',
+        cursor: isBusy ? 'wait' : 'pointer',
+        background: hovered ? COLORS.champagneLight : 'transparent',
+        transition: 'all 0.2s ease',
+        opacity: isBusy ? 0.4 : 1,
+      }}
+    >
+      <Icon color={hovered ? COLORS.gold : COLORS.stone} />
     </button>
   );
 }
