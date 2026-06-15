@@ -125,7 +125,7 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                 {/* 3D Envelope Container with remounting key constraint */}
                 <motion.div 
                   className="w-full shrink-0 flex items-center justify-center py-4"
-                  animate={{ minHeight: isCardOpened ? 480 : 400 }}
+                  animate={{ minHeight: isCardOpened ? 490 : 400 }}
                   transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
                 >
                   <EnvelopeAnimation 
@@ -151,18 +151,18 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                   >
                     <button
                       onClick={() => setIsBottomSheetOpen(true)}
-                      className="w-full max-w-[240px] text-white py-3 rounded-full font-bold font-sans text-xs shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider bg-gradient-to-r from-[#B8944F] to-[#D7BE80]"
-                      style={{ boxShadow: '0 6px 20px rgba(184, 148, 79, 0.4)' }}
+                      className="w-full max-w-[240px] text-[#FAF9F6] py-3 rounded-full font-bold font-sans text-xs shadow-lg active:scale-[0.97] transition-all cursor-pointer flex items-center justify-center gap-2 uppercase tracking-[2px] bg-[#191B1E] border border-[#B8944F]/40 hover:bg-[#B8944F] hover:border-transparent hover:text-white transition-all duration-300"
+                      style={{ boxShadow: '0 6px 20px rgba(25, 27, 30, 0.15)' }}
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <svg className="w-4 h-4 text-[#D7BE80] hover:text-white transition-colors duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      {rsvpData ? "Update RSVP" : "Confirm RSVP"}
+                      <span className="font-sans font-semibold">{rsvpData ? "Update RSVP" : "Confirm RSVP"}</span>
                     </button>
 
                     <button
                       onClick={() => setIsBottomSheetOpen(true)}
-                      className="text-stone-550 hover:text-stone-755 font-bold font-sans text-[10px] uppercase tracking-wider flex items-center gap-1 active:scale-[0.98] transition-all cursor-pointer bg-white/70 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-stone-200/40"
+                      className="text-[#B8944F] hover:text-[#a6833f] font-semibold font-sans text-[10px] uppercase tracking-[1.5px] flex items-center gap-1.5 active:scale-[0.97] transition-all cursor-pointer bg-[#F8F4EC]/90 backdrop-blur-md px-4.5 py-1.5 rounded-full shadow-sm border border-[#D7BE80]/30 hover:bg-white transition-all duration-300"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />

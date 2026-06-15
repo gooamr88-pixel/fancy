@@ -293,7 +293,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         className="relative w-full h-[200px] mt-[130px] cursor-pointer perspective-1000 transform-style-3d"
         onClick={handleOpen}
         animate={{
-          y: isCardOut ? -120 : 0
+          y: isCardOut ? -100 : 0
         }}
         transition={{
           type: "spring",
