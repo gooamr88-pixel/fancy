@@ -410,7 +410,7 @@ const manualCashApproval = async (req, res, next) => {
 
       if (updateErr) throw updateErr;
       paymentId = updatedPayment.id;
-      refNumber = updatedPayment.stripe_checkout_session_id;
+      refNumber = updatedPayment.reference_number || updatedPayment.stripe_checkout_session_id;
 
       // Activate the event
       const { error: eventUpdateErr } = await supabase
@@ -609,6 +609,7 @@ const initiateManualPayment = async (req, res, next) => {
       .insert({
         event_id: eventId,
         stripe_checkout_session_id: refCode,
+        reference_number: refCode,
         amount_cents: tier.price_cents,
         status: 'pending',
         payment_method: 'cash_manual',
@@ -640,6 +641,35 @@ const initiateManualPayment = async (req, res, next) => {
   }
 };
 
+const getPendingPayments = async (req, res, next) => {
+  try {
+    const { data, error } = await supabase
+      .from('event_payments')
+      .select(`
+        *,
+        events(
+          id,
+          title,
+          organizations(
+            name,
+            email
+          )
+        )
+      `)
+      .eq('status', 'pending')
+      .eq('payment_method', 'cash_manual');
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      payments: data || []
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   purchaseSMSCredits,
@@ -647,5 +677,7 @@ module.exports = {
   manualCashApproval,
   updatePricingConfig,
   getPricingConfig,
-  initiateManualPayment
+  initiateManualPayment,
+  getPendingPayments
 };
+

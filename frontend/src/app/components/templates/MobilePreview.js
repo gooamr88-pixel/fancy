@@ -48,34 +48,61 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
   const accentColor = theme?.accent || template?.accent || "#B8944F";
 
   return (
-    <div className={isBare ? "w-full h-full relative overflow-hidden flex flex-col select-none bg-white" : "w-full max-w-[340px] min-h-[580px] max-h-[630px] border-[10px] border-stone-850 dark:border-stone-800 rounded-[2.5rem] bg-stone-900 shadow-2xl relative overflow-hidden flex flex-col select-none aspect-[9/18.5]"}>
+    <div className={isBare ? "w-full h-full relative overflow-hidden flex flex-col select-none bg-white" : "w-[315px] h-[630px] bg-stone-950 p-[8px] rounded-[44px] relative shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5),_inset_0_0_2px_2px_rgba(255,255,255,0.15)] ring-1 ring-white/10 select-none flex flex-col aspect-[9/18]"}>
       
-      {/* Phone Notch & Camera Mock */}
+      {/* Glossy Screen Glass Reflection */}
       {!isBare && (
-        <div className="absolute top-2 left-1/2 -translate-x-1/2 w-24 h-4 bg-stone-850 dark:bg-stone-800 rounded-full flex items-center justify-center gap-1.5 px-3 z-50">
-          <div className="w-1 h-1 bg-stone-700 dark:bg-stone-600 rounded-full" />
-          <div className="w-6 h-0.5 bg-stone-750 dark:bg-stone-700 rounded-full" />
-          <div className="w-1.5 h-1.5 bg-indigo-950 dark:bg-indigo-900 rounded-full border border-indigo-900/50" />
-        </div>
+        <div 
+          className="absolute inset-[8px] pointer-events-none z-50 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-60 mix-blend-overlay rounded-[36px] overflow-hidden" 
+          style={{ transform: "skewY(-30deg) scale(2.2)", transformOrigin: "center" }} 
+        />
       )}
 
       {/* Screen Area */}
-      <div className={isBare ? "flex-1 flex flex-col bg-white overflow-hidden relative" : "flex-1 flex flex-col bg-white overflow-hidden relative rounded-[2rem]"}>
+      <div className={isBare ? "flex-1 flex flex-col bg-white overflow-hidden relative" : "flex-1 flex flex-col bg-white overflow-hidden relative rounded-[36px] border border-black/10"}>
         
+        {/* iOS style Status Bar */}
+        {!isBare && (
+          <div className="flex justify-between items-center px-6 pt-3.5 pb-1 bg-white text-stone-900 font-sans z-50 shrink-0 select-none">
+            {/* Time */}
+            <span className="text-[9.5px] font-bold tracking-tight text-stone-800">9:41</span>
+            
+            {/* Dynamic Island Notch */}
+            <div className="w-[72px] h-[16px] bg-black rounded-full flex items-center justify-center gap-1.5 px-2 relative -top-0.5">
+              <div className="w-1.5 h-1.5 bg-stone-900 rounded-full" />
+              <div className="w-5 h-0.5 bg-stone-900 rounded-full" />
+              <div className="w-1 h-1 bg-indigo-950 rounded-full border border-indigo-900/30" />
+            </div>
+
+            {/* Icons */}
+            <div className="flex items-center gap-1 text-stone-800">
+              <svg className="w-3.5 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2 18h2v-2H2v2zm4 0h2v-4H6v4zm4 0h2V9h-2v9zm4 0h2V5h-2v13zm4 0h2V1h-2v17z" />
+              </svg>
+              <svg className="w-3 h-2.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 21l-12-12c2.5-2.5 6-4 10-4s7.5 1.5 10 4l-8 12z" />
+              </svg>
+              <div className="w-4.5 h-2.5 border border-stone-800 rounded-[3px] p-[0.7px] flex items-center">
+                <div className="h-full w-full bg-stone-850 rounded-[1px]" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Simulated Browser URL Header */}
-        <div className="flex items-center gap-2.5 px-3.5 pt-6 pb-2.5 bg-stone-50 border-b border-stone-150 text-stone-500 font-sans z-40 shrink-0 text-[10px]">
+        <div className="flex items-center gap-2 px-3 pb-2.5 pt-1.5 bg-stone-50 border-b border-stone-150 text-stone-500 font-sans z-40 shrink-0 text-[10px]">
           {/* Back Icon */}
           <svg className="w-3.5 h-3.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           
           {/* URL bar */}
-          <div className="flex-1 bg-stone-200/55 rounded-lg py-1 px-2.5 flex items-center justify-between text-stone-600 text-[9.5px]">
+          <div className="flex-1 bg-stone-200/50 rounded-lg py-1 px-2.5 flex items-center justify-between text-stone-600 text-[9.5px]">
             <div className="flex items-center gap-1.5 overflow-hidden">
               <svg className="w-2.5 h-2.5 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                 <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3c0-2.9-2.35-5.25-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clipRule="evenodd" />
               </svg>
-              <span className="truncate text-stone-550 tracking-wide">fancyrsvp.com/invite/jamil</span>
+              <span className="truncate text-stone-550 tracking-wide font-medium">fancyrsvp.com/invite/jamil</span>
             </div>
             {/* Reload Icon */}
             <svg className="w-2.5 h-2.5 opacity-40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>

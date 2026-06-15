@@ -47,22 +47,44 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
 
   const processFile = (file) => {
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      setError('Please select a .csv file'); return;
+    const name = file.name.toLowerCase();
+    const isCsv = name.endsWith('.csv');
+    const isXlsx = name.endsWith('.xlsx');
+    if (!isCsv && !isXlsx) {
+      setError('Please select a .csv or .xlsx file'); return;
     }
     setError('');
     setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result;
-      setFileContent(text);
-      const rows = parseCSVRows(text);
-      const dataRows = rows.length > 1 ? rows.slice(1) : rows;
-      setTotalRows(dataRows.length);
-      setPreview(rows.slice(0, 6)); // header + 5 data rows
-    };
-    reader.onerror = () => setError('Failed to read file');
-    reader.readAsText(file);
+
+    if (isCsv) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        setFileContent(text);
+        const rows = parseCSVRows(text);
+        const dataRows = rows.length > 1 ? rows.slice(1) : rows;
+        setTotalRows(dataRows.length);
+        setPreview(rows.slice(0, 6)); // header + 5 data rows
+      };
+      reader.onerror = () => setError('Failed to read file');
+      reader.readAsText(file);
+    } else if (isXlsx) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const arrayBuffer = e.target.result;
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64 = btoa(binary);
+        setFileContent(base64);
+        setTotalRows(0); // Cannot count easily client-side
+        setPreview([]); // No preview for Excel files
+      };
+      reader.onerror = () => setError('Failed to read file');
+      reader.readAsArrayBuffer(file);
+    }
   };
 
   const handleFileChange = (e) => processFile(e.target.files[0]);
@@ -75,14 +97,19 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
   };
 
   const handleSubmit = async () => {
-    if (!fileContent) { setError('Please select a CSV file first.'); return; }
+    if (!fileContent) { setError('Please select a file first.'); return; }
     setLoading(true); setError('');
     try {
+      const isXlsx = fileName.toLowerCase().endsWith('.xlsx');
+      const bodyPayload = isXlsx 
+        ? { fileData: fileContent, fileName } 
+        : { csvData: fileContent };
+
       const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ csvData: fileContent }),
+        body: JSON.stringify(bodyPayload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Import failed');
@@ -196,7 +223,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
                   background: dragOver ? '#FFFDF5' : COLORS.softBg, transition: 'all 0.2s',
                 }}
               >
-                <input ref={fileRef} type="file" accept=".csv" onChange={handleFileChange}
+                <input ref={fileRef} type="file" accept=".csv, .xlsx" onChange={handleFileChange}
                   style={{ display: 'none' }}
                 />
                 <div style={{
@@ -222,10 +249,10 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
                 ) : (
                   <div>
                     <p style={{ fontSize: '14px', fontWeight: 500, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', margin: '0 0 4px' }}>
-                      Drop your CSV here or <span style={{ color: COLORS.gold, fontWeight: 600 }}>browse</span>
+                      Drop your CSV or Excel file here or <span style={{ color: COLORS.gold, fontWeight: 600 }}>browse</span>
                     </p>
                     <p style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: 0 }}>
-                      Accepts .csv files · Columns: guest_name, email, phone, party_size, response
+                      Accepts .csv or .xlsx files · Columns: guest_name, email, phone, party_size, notes
                     </p>
                   </div>
                 )}

@@ -2,6 +2,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
+import EventQRCode from './EventQRCode';
 
 /* ═══ Design Tokens ═══ */
 const C = {
@@ -543,6 +544,11 @@ function ExpandedPanel({ eventId, event, onClose }) {
           </div>
         </div>
       )}
+
+      {/* Share & QR Code Section */}
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'center' }}>
+        <EventQRCode slug={event.slug} />
+      </div>
     </div>
   );
 }

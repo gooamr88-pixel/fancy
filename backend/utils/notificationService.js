@@ -129,6 +129,13 @@ const sendQRTicketEmail = async (eventId, rsvpId) => {
 
   if (success) {
     await supabase.from('rsvps').update({ qr_email_sent: true }).eq('id', rsvpId);
+    await supabase.from('activity_logs').insert({
+      event_id: assignment.events.id,
+      action: 'qr_email_sent',
+      entity_type: 'rsvp',
+      entity_id: rsvpId,
+      metadata: { guest_name: assignment.rsvps.guest_name, email: assignment.rsvps.email }
+    });
   }
 
   return success;

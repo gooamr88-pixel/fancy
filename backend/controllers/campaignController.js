@@ -16,6 +16,17 @@ const sendBulkSMSCampaign = async (req, res, next) => {
   }
 
   try {
+    // Fetch event slug
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('slug')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      return res.status(404).json({ success: false, error: 'Event not found.' });
+    }
+
     // 1. Fetch pending guest list with phones
     const { data: guests, error: guestError } = await supabase
       .from('rsvps')
@@ -78,7 +89,7 @@ const sendBulkSMSCampaign = async (req, res, next) => {
     // Processes a single guest; returns a result object for aggregation
     const processGuest = async (guest) => {
       // Personalize template
-      const guestUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/events/rsvp/${guest.id}`;
+      const guestUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/${event.slug}?guest=${encodeURIComponent(guest.guest_name)}`;
       let personalizedBody = messageTemplate
         .replace(/{name}/g, guest.guest_name)
         .replace(/{url}/g, guestUrl);

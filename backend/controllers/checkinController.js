@@ -86,6 +86,15 @@ const scanCheckIn = async (req, res, next) => {
       .eq('id', guest_id)
       .single();
 
+    // Insert activity log
+    await supabase.from('activity_logs').insert({
+      event_id: eventId,
+      action: 'guest_checked_in',
+      entity_type: 'check_in',
+      entity_id: checkInData.id,
+      metadata: { guest_name: rsvp?.guest_name, party_size, method: 'qr_scan' }
+    });
+
     // Broadcast checkin event via Realtime
     const scanChannel = supabase.channel(`event-${eventId}`);
     await scanChannel.send({
@@ -165,6 +174,15 @@ const manualCheckIn = async (req, res, next) => {
       }
       return res.status(500).json({ success: false, error: 'CHECKIN_FAILED' });
     }
+
+    // Insert activity log
+    await supabase.from('activity_logs').insert({
+      event_id: eventId,
+      action: 'guest_checked_in',
+      entity_type: 'check_in',
+      entity_id: checkInData.id,
+      metadata: { guest_name: guestData.guest_name, party_size: guestData.party_size, method: 'manual_search' }
+    });
 
     // Broadcast checkin event via Realtime
     const manualChannel = supabase.channel(`event-${eventId}`);

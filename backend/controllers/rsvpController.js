@@ -28,7 +28,7 @@ const submitPublicRSVP = async (req, res, next) => {
     // 1. Resolve event from slug
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, org_id, rsvp_deadline, title, is_paid, slug')
+      .select('id, org_id, rsvp_deadline, title, is_paid, slug, notification_preferences')
       .eq('slug', slug)
       .single();
 
@@ -56,6 +56,60 @@ const submitPublicRSVP = async (req, res, next) => {
 
     // Validate additional guests names if attending with a party size > 1
     if (response === 'yes') {
+      // Validate meal selections against options if field exists
+      const { data: mealField } = await supabase
+        .from('rsvp_form_fields')
+        .select('options, is_required')
+        .eq('event_id', event.id)
+        .eq('field_key', 'meal_selection')
+        .maybeSingle();
+
+      if (mealField) {
+        const mealOptions = Array.isArray(mealField.options) ? mealField.options : [];
+        const isMealRequired = !!mealField.is_required;
+
+        if (mealOptions.length > 0 || isMealRequired) {
+          // Validate primary guest meal
+          if (isMealRequired && (!primaryGuestMeal || !primaryGuestMeal.trim())) {
+            return res.status(400).json({
+              success: false,
+              error: 'VALIDATION_ERROR',
+              message: 'Meal selection is required for the primary guest.'
+            });
+          }
+          if (primaryGuestMeal && mealOptions.length > 0 && !mealOptions.includes(primaryGuestMeal)) {
+            return res.status(400).json({
+              success: false,
+              error: 'VALIDATION_ERROR',
+              message: `Meal selection '${primaryGuestMeal}' is invalid. Valid options are: ${mealOptions.join(', ')}`
+            });
+          }
+
+          // Validate additional guests meals
+          const size = partySize || 1;
+          if (size > 1 && additionalGuests && Array.isArray(additionalGuests)) {
+            for (let idx = 0; idx < size - 1; idx++) {
+              const g = additionalGuests[idx];
+              const meal = g?.mealSelection;
+              if (isMealRequired && (!meal || !meal.trim())) {
+                return res.status(400).json({
+                  success: false,
+                  error: 'VALIDATION_ERROR',
+                  message: `Meal selection is required for Guest #${idx + 2} (${g?.fullName || 'Additional Guest'}).`
+                });
+              }
+              if (meal && mealOptions.length > 0 && !mealOptions.includes(meal)) {
+                return res.status(400).json({
+                  success: false,
+                  error: 'VALIDATION_ERROR',
+                  message: `Meal selection '${meal}' for Guest #${idx + 2} is invalid. Valid options are: ${mealOptions.join(', ')}`
+                });
+              }
+            }
+          }
+        }
+      }
+
       const size = partySize || 1;
       if (size > 1) {
         if (!additionalGuests || !Array.isArray(additionalGuests) || additionalGuests.length < size - 1) {
@@ -219,6 +273,15 @@ const submitPublicRSVP = async (req, res, next) => {
       }
     }
 
+    // Insert activity log entry
+    await supabase.from('activity_logs').insert({
+      event_id: event.id,
+      action: 'rsvp_submitted',
+      entity_type: 'rsvp',
+      entity_id: rsvp.id,
+      metadata: { guest_name: guestName, response, party_size: computedPartySize }
+    });
+
     // 6. Broadcast RSVP update via real-time channel
     const rsvpChannel = supabase.channel(`event-${event.id}`);
     await rsvpChannel.send({
@@ -248,32 +311,55 @@ const submitPublicRSVP = async (req, res, next) => {
 
     // 8. Notify organizer of new RSVP
     try {
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('email, name')
-        .eq('id', event.org_id || '')
-        .single();
+      const isEmailPref = !event.notification_preferences || event.notification_preferences.email !== false;
+      const isWhatsappPref = !!event.notification_preferences?.whatsapp;
 
-      if (org && org.email) {
-        const { sendEmailViaBrevo } = require('../utils/notificationService');
-        const orgEmailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-            <div style="text-align: center; margin-bottom: 20px;">
-              <span style="font-size: 12px; font-weight: bold; color: #10b981; text-transform: uppercase; letter-spacing: 0.15em;">NEW RSVP RECEIVED</span>
-              <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">${escapeHtml(event.title)}</h2>
-            </div>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
-            <p style="color: #334155; font-size: 15px; line-height: 1.6;"><strong>${escapeHtml(guestName)}</strong> has ${response === 'yes' ? 'accepted' : response === 'no' ? 'declined' : 'submitted an RSVP for'} your event invitation.</p>
-            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0; padding: 15px;">
-              <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${response === 'yes' ? '#10b981' : '#ef4444'};">${response === 'yes' ? 'Attending' : 'Declined'}</td></tr>
-              <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Party Size</td><td style="padding: 8px 15px; font-size: 15px;">${computedPartySize}</td></tr>
-              ${email ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + escapeHtml(email) + '</td></tr>' : ''}
-            </table>
-            <p style="color: #94a3b8; font-size: 12px; text-align: center;">This is an automated notification from Fancy RSVP.</p>
-          </div>
-        `;
-        sendEmailViaBrevo(org.email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`, orgEmailHtml)
-          .catch(err => console.error('Failed to notify organizer:', err.message));
+      if (isEmailPref || isWhatsappPref) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('email, name, phone')
+          .eq('id', event.org_id || '')
+          .single();
+
+        if (org) {
+          if (isEmailPref && org.email) {
+            const { sendEmailViaBrevo } = require('../utils/notificationService');
+            const orgEmailHtml = `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+                <div style="text-align: center; margin-bottom: 20px;">
+                  <span style="font-size: 12px; font-weight: bold; color: #10b981; text-transform: uppercase; letter-spacing: 0.15em;">NEW RSVP RECEIVED</span>
+                  <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">${escapeHtml(event.title)}</h2>
+                </div>
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
+                <p style="color: #334155; font-size: 15px; line-height: 1.6;"><strong>${escapeHtml(guestName)}</strong> has ${response === 'yes' ? 'accepted' : response === 'no' ? 'declined' : 'submitted an RSVP for'} your event invitation.</p>
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0; padding: 15px;">
+                  <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${response === 'yes' ? '#10b981' : '#ef4444'};">${response === 'yes' ? 'Attending' : 'Declined'}</td></tr>
+                  <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Party Size</td><td style="padding: 8px 15px; font-size: 15px;">${computedPartySize}</td></tr>
+                  ${email ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + escapeHtml(email) + '</td></tr>' : ''}
+                </table>
+                <p style="color: #94a3b8; font-size: 12px; text-align: center;">This is an automated notification from Fancy RSVP.</p>
+              </div>
+            `;
+            sendEmailViaBrevo(org.email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`, orgEmailHtml)
+              .catch(err => console.error('Failed to notify organizer via email:', err.message));
+          }
+
+          if (isWhatsappPref && org.phone) {
+            const { getTwilioClient } = require('../utils/twilioClient');
+            const twilio = getTwilioClient();
+            const messageText = `New RSVP Received for ${event.title}: ${guestName} has replied ${response === 'yes' ? 'Attending (Party of ' + computedPartySize + ')' : 'Declined'}. — Fancy RSVP`;
+
+            if (twilio) {
+              twilio.messages.create({
+                body: messageText,
+                from: 'whatsapp:+14155238886',
+                to: `whatsapp:${org.phone}`
+              }).catch(err => console.error('Failed to notify organizer via WhatsApp:', err.message));
+            } else {
+              logger.info(`[MOCK WHATSAPP NOTIFICATION] To: ${org.phone} | Content: ${messageText}`);
+            }
+          }
+        }
       }
     } catch (orgNotifyErr) {
       console.error('Organizer notification error:', orgNotifyErr.message);
@@ -313,10 +399,10 @@ const searchPublicGuests = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
 
-    // 2. Search guests matching query prefix/substring (public: only non-PII fields, no internal IDs)
+    // 2. Search guests matching query prefix/substring (public: include ID for public RSVP selection)
     const { data, error } = await supabase
       .from('rsvps')
-      .select('guest_name, response')
+      .select('id, guest_name, response')
       .eq('event_id', event.id)
       .ilike('guest_name', `%${escapeLikePattern(query.trim())}%`)
       .limit(10);
@@ -326,6 +412,7 @@ const searchPublicGuests = async (req, res, next) => {
     return res.json({
       success: true,
       results: data.map(item => ({
+        id: item.id,
         guestName: item.guest_name,
         response: item.response
       }))
@@ -342,7 +429,7 @@ const searchPublicGuests = async (req, res, next) => {
  */
 const getRSVPs = async (req, res, next) => {
   const { eventId } = req.params;
-  const { response, search, seated, sort } = req.query;
+  const { response, search, seated, sort, meal, customFieldId, customFieldValue } = req.query;
 
   const page = parseInt(req.query.page) || 1;
   const limit = Math.min(parseInt(req.query.limit) || 50, 100);
@@ -424,6 +511,25 @@ const getRSVPs = async (req, res, next) => {
       effectiveTotal = null;
     }
 
+    // Post-filter for meal
+    if (meal && meal.trim()) {
+      filtered = filtered.filter(r => 
+        r.rsvp_guests && r.rsvp_guests.some(g => g.meal_selection === meal.trim())
+      );
+      effectiveTotal = null;
+    }
+
+    // Post-filter for custom answers
+    if (customFieldId) {
+      filtered = filtered.filter(r => 
+        r.custom_answers && r.custom_answers.some(ans => 
+          ans.field_id === customFieldId && 
+          (!customFieldValue || String(ans.answer_value).trim().toLowerCase() === String(customFieldValue).trim().toLowerCase())
+        )
+      );
+      effectiveTotal = null;
+    }
+
     return res.json({
       success: true,
       rsvps: filtered,
@@ -440,20 +546,67 @@ const getRSVPs = async (req, res, next) => {
  */
 const importGuestsCSV = async (req, res, next) => {
   const { eventId } = req.params;
-  const { csvData } = req.body;
+  const { csvData, fileData, fileName } = req.body;
 
-  if (!csvData) {
-    return res.status(400).json({ success: false, error: 'csvData string is required.' });
+  if (!csvData && !fileData) {
+    return res.status(400).json({ success: false, error: 'csvData or fileData string is required.' });
   }
 
   try {
-    const parsedRows = parseCSV(csvData);
+    let parsedRows = [];
+
+    if (fileData) {
+      const buffer = Buffer.from(fileData, 'base64');
+      const isExcel = fileName && fileName.toLowerCase().endsWith('.xlsx');
+
+      if (isExcel) {
+        const ExcelJS = require('exceljs');
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(buffer);
+        const worksheet = workbook.getWorksheet(1);
+
+        const headers = [];
+        worksheet.getRow(1).eachCell((cell, colNumber) => {
+          headers[colNumber] = cell.text ? cell.text.trim().toLowerCase().replace(/\s+/g, '_') : '';
+        });
+
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return;
+          const rowObj = {};
+          row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            const header = headers[colNumber];
+            if (header) {
+              rowObj[header] = cell.text ? cell.text.trim() : '';
+            }
+          });
+
+          // support flexible field headers
+          const mappedRow = {
+            guest_name: rowObj.guest_name || rowObj.name || rowObj.guest || '',
+            email: rowObj.email || '',
+            phone: rowObj.phone || '',
+            party_size: parseInt(rowObj.party_size || rowObj.size || rowObj.count || '1') || 1,
+            notes: rowObj.notes || rowObj.note || ''
+          };
+
+          if (mappedRow.guest_name) {
+            parsedRows.push(mappedRow);
+          }
+        });
+      } else {
+        const csvText = buffer.toString('utf-8');
+        parsedRows = parseCSV(csvText);
+      }
+    } else {
+      parsedRows = parseCSV(csvData);
+    }
+
     if (parsedRows.length === 0) {
-      return res.status(400).json({ success: false, error: 'NO_VALID_ROWS', message: 'No valid data rows found in CSV.' });
+      return res.status(400).json({ success: false, error: 'NO_VALID_ROWS', message: 'No valid data rows found.' });
     }
 
     if (parsedRows.length > 500) {
-      return res.status(400).json({ success: false, error: 'CSV_TOO_LARGE', message: 'CSV import limited to 500 rows per batch. Please split your file.' });
+      return res.status(400).json({ success: false, error: 'FILE_TOO_LARGE', message: 'Import limited to 500 rows per batch. Please split your file.' });
     }
 
     const insertRows = parsedRows.map(row => ({
@@ -567,6 +720,56 @@ const exportGuestsCSV = async (req, res, next) => {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=event-${eventId}-rsvps.csv`);
     return res.send(csvContent);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Exports RSVPs dataset to a downloadable Excel (.xlsx) file.
+ * GET /api/v1/events/:eventId/rsvps/export-excel
+ */
+const exportGuestsExcel = async (req, res, next) => {
+  const { eventId } = req.params;
+
+  try {
+    // 1. Fetch RSVPs
+    const { data: rsvps, error: rsvpsError } = await supabase
+      .from('rsvps')
+      .select(`
+        id, guest_name, email, phone, response, party_size, notes,
+        rsvp_guests(meal_selection, is_primary),
+        seating_assignments(table_id, tables(table_name))
+      `)
+      .eq('event_id', eventId);
+
+    if (rsvpsError) throw rsvpsError;
+
+    // 2. Fetch tables
+    const { data: tables, error: tablesError } = await supabase
+      .from('tables')
+      .select('*')
+      .eq('event_id', eventId);
+
+    if (tablesError) throw tablesError;
+
+    // 3. Fetch checkins
+    const { data: checkins, error: checkinsError } = await supabase
+      .from('check_ins')
+      .select(`
+        *,
+        rsvps(guest_name)
+      `)
+      .eq('event_id', eventId);
+
+    if (checkinsError) throw checkinsError;
+
+    const { generateExcelExport } = require('../utils/excelHelper');
+    const excelBuffer = await generateExcelExport(rsvps || [], tables || [], checkins || []);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=event-${eventId}-rsvps.xlsx`);
+    return res.send(excelBuffer);
   } catch (err) {
     next(err);
   }
@@ -859,6 +1062,7 @@ module.exports = {
   getRSVPs,
   importGuestsCSV,
   exportGuestsCSV,
+  exportGuestsExcel,
   searchPublicGuests,
   deleteRSVP,
   updateRSVP,

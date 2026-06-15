@@ -7,7 +7,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
   const [isOpen, setIsOpen] = useState(false);
   const [isCardOut, setIsCardOut] = useState(false);
   const [showTapIndicator, setShowTapIndicator] = useState(true);
-  const [isEnvelopeHidden, setIsEnvelopeHidden] = useState(false);
+  const [isCardForeground, setIsCardForeground] = useState(false);
 
   const accentColor = theme?.primary || "#B8944F";
 
@@ -16,7 +16,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
     setIsOpen(false);
     setIsCardOut(false);
     setShowTapIndicator(true);
-    setIsEnvelopeHidden(false);
+    setIsCardForeground(false);
   }, [template?.pattern]);
 
   const handleOpen = () => {
@@ -29,15 +29,15 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
       setIsCardOut(true);
     }, 600);
 
-    // Hide envelope body after fade-out transition completes (600ms start + 600ms duration = 1200ms)
+    // Swap z-index to foreground when the card is about halfway out (approx 950ms)
     setTimeout(() => {
-      setIsEnvelopeHidden(true);
-    }, 1200);
+      setIsCardForeground(true);
+    }, 950);
 
     // Step 3: Trigger callback once animation completes
     setTimeout(() => {
       if (onOpenComplete) onOpenComplete();
-    }, 1600);
+    }, 1500);
   };
 
   // Card Content & Styles based on Template (layout) and Theme (colors)
@@ -291,7 +291,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
   return (
     <motion.div 
       className="relative w-full max-w-[270px] flex items-center justify-center mx-auto mt-2 z-10 select-none"
-      animate={{ height: isCardOut ? 480 : 380 }}
+      animate={{ height: isCardOut ? 460 : 360 }}
       transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
     >
       
@@ -300,7 +300,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         className="relative w-full h-[200px] mt-[130px] cursor-pointer perspective-1000 transform-style-3d"
         onClick={handleOpen}
         animate={{
-          y: isCardOut ? -100 : 0
+          y: isCardOut ? -70 : 0
         }}
         transition={{
           type: "spring",
@@ -311,40 +311,36 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
       >
         
         {/* Layer 1: Envelope Back */}
-        {!isEnvelopeHidden && (
-          <motion.div 
-            className="absolute inset-0 bg-[#F4EFE6] rounded-b-2xl border border-amber-900/10 shadow-lg"
-            style={{ 
-              zIndex: 10,
-              transformStyle: "preserve-3d"
-            }}
-            animate={{ opacity: isCardOut ? 0 : 1 }}
-            transition={{ duration: 0.6, ease: "easeInOut", delay: 0.3 }}
-          >
-            {/* Inner back lining color coordinate - visible inside envelope behind the card */}
-            <div 
-              className="absolute inset-2 top-0 bg-gradient-to-b from-[#DFD3C3] via-[#FAF9F6] to-[#FAF9F6] rounded-b-xl"
-              style={{ transform: "translateZ(1px)" }}
-            />
-          </motion.div>
-        )}
+        <motion.div 
+          className="absolute inset-0 bg-[#F4EFE6] rounded-b-2xl border border-amber-900/10 shadow-lg"
+          style={{ 
+            zIndex: 10,
+            transformStyle: "preserve-3d"
+          }}
+        >
+          {/* Inner back lining color coordinate - visible inside envelope behind the card */}
+          <div 
+            className="absolute inset-2 top-0 bg-gradient-to-b from-[#DFD3C3] via-[#FAF9F6] to-[#FAF9F6] rounded-b-xl"
+            style={{ transform: "translateZ(1px)" }}
+          />
+        </motion.div>
  
         {/* Layer 2: The Invitation Card */}
         <motion.div
           className="absolute left-3 right-3 rounded-lg shadow-xl cursor-default"
           style={{ 
             transformOrigin: "bottom center",
-            zIndex: 20 // Fixed z-index so it slides out of the pocket naturally behind front flaps!
+            zIndex: isCardForeground ? 40 : 20 // Pops to the front once it clears the pocket
           }}
-          initial={{ bottom: "6px", height: 190, y: 0, scale: 0.94 }}
+          initial={{ top: "10px", height: 185, y: 0, scale: 0.95 }}
           animate={{
-            bottom: isCardOut ? "-250px" : "6px",
-            height: isCardOut ? 430 : 190,
-            scale: isCardOut ? 1.08 : 0.94,
-            rotate: isCardOut ? [0, -10, -3, 0] : 0
+            height: isCardOut ? 350 : 185,
+            y: isCardOut ? -210 : 0,
+            scale: isCardOut ? 1.05 : 0.95,
+            rotate: isCardOut ? [0, -8, -2, 0] : 0
           }}
           transition={{
-            bottom: { type: "spring", stiffness: 90, damping: 18 },
+            y: { type: "spring", stiffness: 90, damping: 18 },
             height: { type: "spring", stiffness: 90, damping: 18 },
             scale: { type: "spring", stiffness: 90, damping: 18, delay: 0.05 },
             rotate: { duration: 0.9, ease: "easeInOut" }
@@ -354,106 +350,98 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         </motion.div>
  
         {/* Layer 3: Envelope Front Flaps (Bottom and Sides) */}
-        {!isEnvelopeHidden && (
-          <motion.div 
-            className="absolute inset-0 pointer-events-none"
-            style={{ zIndex: 30 }}
-            animate={{ opacity: isCardOut ? 0 : 1 }}
-            transition={{ duration: 0.6, ease: "easeInOut", delay: 0.3 }}
-          >
-            <svg className="w-full h-full filter drop-shadow-md" viewBox="0 0 100 70" preserveAspectRatio="none">
-              <defs>
-                <filter id="flapShadow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="#5C4D3C" floodOpacity="0.22" />
-                </filter>
-              </defs>
-              {/* Side Flaps */}
-              <path d="M 0,0 L 46,38 L 0,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
-              <path d="M 100,0 L 54,38 L 100,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
-              {/* Bottom Flap */}
-              <path d="M 0,70 L 50,34 L 100,70 Z" fill="#F5EFE6" stroke="#E5D8C6" strokeWidth="0.3" filter="url(#flapShadow)" />
-            </svg>
-          </motion.div>
-        )}
+        <motion.div 
+          className="absolute inset-0 pointer-events-none"
+          style={{ zIndex: 30 }}
+        >
+          <svg className="w-full h-full filter drop-shadow-md" viewBox="0 0 100 70" preserveAspectRatio="none">
+            <defs>
+              <filter id="flapShadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="#5C4D3C" floodOpacity="0.22" />
+              </filter>
+            </defs>
+            {/* Side Flaps */}
+            <path d="M 0,0 L 46,38 L 0,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
+            <path d="M 100,0 L 54,38 L 100,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
+            {/* Bottom Flap */}
+            <path d="M 0,70 L 50,34 L 100,70 Z" fill="#F5EFE6" stroke="#E5D8C6" strokeWidth="0.3" filter="url(#flapShadow)" />
+          </svg>
+        </motion.div>
  
         {/* Layer 4: Envelope Flap (Top Folding Flap) */}
-        {!isEnvelopeHidden && (
-          <motion.div
-            className="absolute top-0 left-0 w-full h-[85px] transform-style-3d"
-            style={{ transformOrigin: "top", originY: 0 }}
-            initial={{ rotateX: 0, zIndex: 31, opacity: 1 }}
-            animate={{ 
-              rotateX: isOpen ? 180 : 0,
-              zIndex: isOpen ? 5 : 31,
-              opacity: isCardOut ? 0 : 1
-            }}
-            transition={{
-              rotateX: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
-              zIndex: { delay: isOpen ? 0.35 : 0 },
-              opacity: { duration: 0.6, ease: "easeInOut", delay: 0.3 }
+        <motion.div
+          className="absolute top-0 left-0 w-full h-[85px] transform-style-3d"
+          style={{ transformOrigin: "top", originY: 0 }}
+          initial={{ rotateX: 0, zIndex: 31 }}
+          animate={{ 
+            rotateX: isOpen ? 180 : 0,
+            zIndex: isOpen ? 5 : 31
+          }}
+          transition={{
+            rotateX: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
+            zIndex: { delay: isOpen ? 0.35 : 0 }
+          }}
+        >
+          {/* Flap Outer (faces us when closed) */}
+          <div className="absolute inset-0 backface-hidden" style={{ zIndex: 32 }}>
+            <svg className="w-full h-full filter drop-shadow-sm" viewBox="0 0 100 45" preserveAspectRatio="none">
+              <defs>
+                <filter id="topFlapShadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#5C4D3C" floodOpacity="0.25" />
+                </filter>
+              </defs>
+              <polygon points="0,0 50,45 100,0" fill="#FAF9F6" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#topFlapShadow)" />
+            </svg>
+          </div>
+  
+          {/* Flap Inner (reflects theme lining when opened) */}
+          <div 
+            className="absolute inset-0 backface-hidden" 
+            style={{ 
+              transform: "rotateY(180deg)",
+              zIndex: 31
             }}
           >
-            {/* Flap Outer (faces us when closed) */}
-            <div className="absolute inset-0 backface-hidden" style={{ zIndex: 32 }}>
-              <svg className="w-full h-full filter drop-shadow-sm" viewBox="0 0 100 45" preserveAspectRatio="none">
-                <defs>
-                  <filter id="topFlapShadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#5C4D3C" floodOpacity="0.25" />
-                  </filter>
-                </defs>
-                <polygon points="0,0 50,45 100,0" fill="#FAF9F6" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#topFlapShadow)" />
-              </svg>
-            </div>
-   
-            {/* Flap Inner (reflects theme lining when opened) */}
-            <div 
-              className="absolute inset-0 backface-hidden" 
-              style={{ 
-                transform: "rotateY(180deg)",
-                zIndex: 31
-              }}
-            >
-              <svg className="w-full h-full drop-shadow-md" viewBox="0 0 100 45" preserveAspectRatio="none">
-                <polygon points="0,0 50,45 100,0" fill="#FAF9F6" />
+            <svg className="w-full h-full drop-shadow-md" viewBox="0 0 100 45" preserveAspectRatio="none">
+              <polygon points="0,0 50,45 100,0" fill="#FAF9F6" />
+              
+              {/* Dynamic Theme Lining Inset */}
+              <polygon points="4,1 50,41 96,1" fill={`url(#${theme?.liningGradId || "goldGrad"})`} />
+              
+              <defs>
+                {/* 1. Royale Gold lining gradient */}
+                <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#C5A059" />
+                  <stop offset="20%" stopColor="#FDF0CD" />
+                  <stop offset="40%" stopColor="#D4AF37" />
+                  <stop offset="60%" stopColor="#F3E5AB" />
+                  <stop offset="80%" stopColor="#AA7A1E" />
+                  <stop offset="100%" stopColor="#D4AF37" />
+                </linearGradient>
                 
-                {/* Dynamic Theme Lining Inset */}
-                <polygon points="4,1 50,41 96,1" fill={`url(#${theme?.liningGradId || "goldGrad"})`} />
+                {/* 2. Emerald lining gradient */}
+                <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#043A1D" />
+                  <stop offset="20%" stopColor="#A3D5A5" />
+                  <stop offset="40%" stopColor="#0D6D3A" />
+                  <stop offset="60%" stopColor="#BEE5BF" />
+                  <stop offset="80%" stopColor="#032A15" />
+                  <stop offset="100%" stopColor="#0D6D3A" />
+                </linearGradient>
                 
-                <defs>
-                  {/* 1. Royale Gold lining gradient */}
-                  <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#C5A059" />
-                    <stop offset="20%" stopColor="#FDF0CD" />
-                    <stop offset="40%" stopColor="#D4AF37" />
-                    <stop offset="60%" stopColor="#F3E5AB" />
-                    <stop offset="80%" stopColor="#AA7A1E" />
-                    <stop offset="100%" stopColor="#D4AF37" />
-                  </linearGradient>
-                  
-                  {/* 2. Emerald lining gradient */}
-                  <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#043A1D" />
-                    <stop offset="20%" stopColor="#A3D5A5" />
-                    <stop offset="40%" stopColor="#0D6D3A" />
-                    <stop offset="60%" stopColor="#BEE5BF" />
-                    <stop offset="80%" stopColor="#032A15" />
-                    <stop offset="100%" stopColor="#0D6D3A" />
-                  </linearGradient>
-                  
-                  {/* 3. Burgundy lining gradient */}
-                  <linearGradient id="burgundyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#4A0E17" />
-                    <stop offset="20%" stopColor="#F2C9D0" />
-                    <stop offset="40%" stopColor="#800020" />
-                    <stop offset="60%" stopColor="#E89FB0" />
-                    <stop offset="80%" stopColor="#3A080F" />
-                    <stop offset="100%" stopColor="#800020" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-          </motion.div>
-        )}
+                {/* 3. Burgundy lining gradient */}
+                <linearGradient id="burgundyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#4A0E17" />
+                  <stop offset="20%" stopColor="#F2C9D0" />
+                  <stop offset="40%" stopColor="#800020" />
+                  <stop offset="60%" stopColor="#E89FB0" />
+                  <stop offset="80%" stopColor="#3A080F" />
+                  <stop offset="100%" stopColor="#800020" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+        </motion.div>
  
       </motion.div>
  

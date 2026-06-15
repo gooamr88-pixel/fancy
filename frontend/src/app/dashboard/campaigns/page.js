@@ -22,6 +22,7 @@ export default function CampaignsPage() {
   const [campaignReport, setCampaignReport] = useState(null);
 
   const [showSMSModal, setShowSMSModal] = useState(false);
+  const [showConfirmSendModal, setShowConfirmSendModal] = useState(false);
   const [smsCreditsToBuy, setSmsCreditsToBuy] = useState(100);
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [smsRate, setSmsRate] = useState(8);
@@ -136,14 +137,17 @@ export default function CampaignsPage() {
   }, [loadCampaignData, eventId]);
 
   // Handle campaign dispatch API call
-  const handleLaunchCampaign = async (e) => {
+  const handleLaunchCampaign = (e) => {
     e.preventDefault();
     if (!eventId) return;
     if (recipientCount > creditsRemaining) {
       alert(`Insufficient credits. You need ${recipientCount} credits, but only have ${creditsRemaining} remaining.`);
       return;
     }
+    setShowConfirmSendModal(true);
+  };
 
+  const executeLaunchCampaign = async () => {
     setSending(true);
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/send-sms`, {
@@ -298,14 +302,28 @@ export default function CampaignsPage() {
                 </div>
 
                 {recipientCount > 0 ? (
-                  <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12 }}>
+                  <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                      <span style={{ color: C.stone, fontWeight: 600 }}>Target Recipients:</span>
+                      <span style={{ color: C.stone, fontWeight: 600 }}>Recipients:</span>
                       <span style={{ fontWeight: 700, color: C.charcoal }}>{recipientCount} pending guests</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10, marginTop: 10, fontWeight: 700 }}>
-                      <span style={{ color: C.stone }}>Total Credits Required:</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span style={{ color: C.stone, fontWeight: 600 }}>Cost Per SMS:</span>
+                      <span style={{ fontWeight: 700, color: C.charcoal }}>${(smsRate / 100).toFixed(2)} ({smsRate}¢)</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10, fontWeight: 700 }}>
+                      <span style={{ color: C.stone }}>Credits Required:</span>
                       <span style={{ color: C.gold }}>{recipientCount} Credits</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
+                      <span style={{ color: C.stone }}>Estimated Cost:</span>
+                      <span style={{ color: C.gold }}>${((recipientCount * smsRate) / 100).toFixed(2)} USD</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                      <span style={{ color: C.stone }}>Wallet Balance:</span>
+                      <span style={{ fontWeight: 700, color: creditsRemaining >= recipientCount ? C.success : C.error }}>
+                        {creditsRemaining} Credits available
+                      </span>
                     </div>
                   </div>
                 ) : (
@@ -428,6 +446,58 @@ export default function CampaignsPage() {
         </div>
         </div>
       </div>
+
+      {/* Confirm Send Campaign Modal Overlay */}
+      {showConfirmSendModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: C.white, border: `1px solid ${C.border}`, width: '100%', maxWidth: 400, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-serif)' }}>Confirm Campaign Launch</h3>
+            <p style={{ fontSize: 13, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+              You are about to launch an SMS campaign to <strong>{recipientCount}</strong> recipients.
+            </p>
+            <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: C.stone }}>Credits to use:</span>
+                <strong style={{ color: C.charcoal }}>{recipientCount} Credits</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: C.stone }}>Remaining balance:</span>
+                <strong style={{ color: C.gold }}>{creditsRemaining} Credits</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${C.border}`, paddingTop: 8, marginTop: 4 }}>
+                <span style={{ color: C.stone }}>Balance after send:</span>
+                <strong style={{ color: C.charcoal }}>{creditsRemaining - recipientCount} Credits</strong>
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)', fontStyle: 'italic' }}>
+              This action cannot be undone. Credits will be deducted from your wallet.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => setShowConfirmSendModal(false)}
+                style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${C.border}`, color: C.stone, fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = C.softBg; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowConfirmSendModal(false);
+                  await executeLaunchCampaign();
+                }}
+                style={{ padding: '8px 16px', background: C.gold, color: C.white, fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = C.goldHover; }}
+                onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
+              >
+                Launch Campaign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Purchase SMS Credits Modal Overlay */}
       {showSMSModal && (

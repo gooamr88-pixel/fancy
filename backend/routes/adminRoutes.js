@@ -1,6 +1,6 @@
 const express = require('express');
 const { requireAuth, requireSuperAdmin } = require('../middleware/auth');
-const { manualCashApproval, updatePricingConfig, getPricingConfig } = require('../controllers/paymentController');
+const { manualCashApproval, updatePricingConfig, getPricingConfig, getPendingPayments } = require('../controllers/paymentController');
 const { getAdminEvents } = require('../controllers/eventController');
 
 const router = express.Router();
@@ -14,6 +14,9 @@ router.get('/events', getAdminEvents);
 
 // GET /api/v1/admin/pricing
 router.get('/pricing', getPricingConfig);
+
+// GET /api/v1/admin/pending-payments
+router.get('/pending-payments', getPendingPayments);
 
 // POST /api/v1/admin/manual-approve
 router.post('/manual-approve', manualCashApproval);

@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [events, setEvents] = useState([]);
+  const [pendingPayments, setPendingPayments] = useState([]);
   const [pricingConfig, setPricingConfig] = useState(null);
   const [activeTab, setActiveTab] = useState('events');
 
@@ -82,6 +83,11 @@ export default function AdminPage() {
         const eventsData = await eventsRes.json();
         if (eventsData.success) setEvents(eventsData.events);
       }
+
+      // Fetch pending payments
+      const pendingRes = await fetch(`${apiUrl}/admin/pending-payments`, { credentials: 'include' });
+      const pendingData = await pendingRes.json();
+      if (pendingData.success) setPendingPayments(pendingData.payments || []);
 
       const configRes = await fetch(`${apiUrl}/admin/pricing`, { credentials: 'include' });
       const configData = await configRes.json();
@@ -233,7 +239,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', borderBottom: `1px solid ${D.card}`, gap: '24px', marginBottom: '32px' }}>
-        {[{ key: 'events', label: 'Event Ledger' }, { key: 'config', label: 'Pricing Configurator' }].map(tab => (
+        {[{ key: 'events', label: 'Event Ledger' }, { key: 'pending-payments', label: `Pending Payments (${pendingPayments.length})` }, { key: 'config', label: 'Pricing Configurator' }].map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             style={{ paddingBottom: '12px', fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.15em', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', borderBottom: activeTab === tab.key ? `2px solid ${D.amber}` : '2px solid transparent', color: activeTab === tab.key ? D.amber : D.text500, transition: 'all 0.2s' }}>
             {tab.label}
@@ -309,6 +315,65 @@ export default function AdminPage() {
                     );
                   }) : (
                     <tr><td colSpan="5" style={{ textAlign: 'center', padding: '48px', color: D.text500 }}>No events registered on the platform.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : activeTab === 'pending-payments' ? (
+          <div style={{ ...cardStyle, overflow: 'hidden' }}>
+            <div style={{ padding: '24px', borderBottom: `1px solid ${D.cardBorder}` }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: D.text100 }}>Pending Payments Ledger</h3>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', textAlign: 'left', fontSize: '13px', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: D.bg, borderBottom: `1px solid ${D.cardBorder}` }}>
+                    {['Reference Code', 'Event Title', 'Organizer Details', 'Amount Due', 'Date Submitted', ''].map((h, i) => (
+                      <th key={i} style={{ padding: '12px 24px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: D.text400, fontWeight: 700, textAlign: i === 5 ? 'right' : 'left' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingPayments.length > 0 ? pendingPayments.map(payment => {
+                    const eventTitle = payment.events?.title || 'Unknown Event';
+                    const orgName = payment.events?.organizations?.name || 'Unknown Org';
+                    const orgEmail = payment.events?.organizations?.email || '-';
+                    const dateStr = new Date(payment.created_at).toLocaleDateString();
+                    return (
+                      <tr key={payment.id} style={{ borderBottom: `1px solid ${D.cardBorder}` }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        <td style={{ padding: '16px 24px' }}>
+                          <code style={{ color: D.amber, fontSize: '12px', fontWeight: 700 }}>{payment.reference_number || payment.stripe_checkout_session_id}</code>
+                        </td>
+                        <td style={{ padding: '16px 24px', fontWeight: 700, color: D.text200 }}>
+                          {eventTitle}
+                        </td>
+                        <td style={{ padding: '16px 24px' }}>
+                          <span style={{ fontWeight: 500, color: D.text300, display: 'block' }}>{orgName}</span>
+                          <span style={{ fontSize: '11px', color: D.text500 }}>{orgEmail}</span>
+                        </td>
+                        <td style={{ padding: '16px 24px', color: D.text200, fontWeight: 700 }}>
+                          ${(payment.amount_cents / 100).toFixed(2)}
+                        </td>
+                        <td style={{ padding: '16px 24px', color: D.text400 }}>{dateStr}</td>
+                        <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                          <button onClick={() => {
+                            setSelectedEvent(payment.events);
+                            setApproveAmountCents(payment.amount_cents);
+                            setShowApprovalModal(true);
+                          }}
+                            style={{ padding: '6px 14px', background: D.amberDark, fontSize: '11px', fontWeight: 700, borderRadius: '8px', color: D.white, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'background 0.2s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = D.amber}
+                            onMouseLeave={e => e.currentTarget.style.background = D.amberDark}>
+                            Approve Payment
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr><td colSpan="6" style={{ textAlign: 'center', padding: '48px', color: D.text500 }}>No pending cash payments awaiting approval.</td></tr>
                   )}
                 </tbody>
               </table>

@@ -135,6 +135,7 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
   const [page, setPage] = useState(1);
   const [deletingId, setDeletingId] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   /* counts */
   const counts = useMemo(() => {
@@ -198,6 +199,29 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
       setExporting(false);
     }
   }, [eventId, exporting]);
+
+  /* export Excel */
+  const handleExportExcel = useCallback(async () => {
+    if (exportingExcel) return;
+    setExportingExcel(true);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export-excel`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rsvps_${eventId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Excel export error:', err);
+    } finally {
+      setExportingExcel(false);
+    }
+  }, [eventId, exportingExcel]);
 
   /* delete RSVP */
   const handleDelete = useCallback(async (rsvpId) => {
@@ -313,7 +337,10 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
         </div>
 
         {/* Export */}
-        <ExportButton exporting={exporting} onClick={handleExport} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <ExportButton exporting={exporting} onClick={handleExport} label="Export CSV" />
+          <ExportButton exporting={exportingExcel} onClick={handleExportExcel} label="Export Excel" />
+        </div>
       </div>
 
       {/* ── Table / Empty ────────────────────────────────────── */}
@@ -563,7 +590,7 @@ function DeleteButton({ rsvpId, deletingId, onDelete }) {
 }
 
 /* ── Export Button ───────────────────────────────────────────── */
-function ExportButton({ exporting, onClick }) {
+function ExportButton({ exporting, onClick, label = 'Export CSV' }) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -592,7 +619,7 @@ function ExportButton({ exporting, onClick }) {
       }}
     >
       <DownloadIcon />
-      {exporting ? 'Exporting…' : 'Export CSV'}
+      {exporting ? 'Exporting…' : label}
     </button>
   );
 }

@@ -136,6 +136,23 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       const metaDesc = document.querySelector('meta[name="description"]');
       if (metaDesc) { metaDesc.setAttribute('content', event.description || `RSVP to ${event.title}`); }
       else { const meta = document.createElement('meta'); meta.name = 'description'; meta.content = event.description || `RSVP to ${event.title}`; document.head.appendChild(meta); }
+
+      // Dynamically load custom fonts
+      if (event.custom_fonts) {
+        const headingFont = event.custom_fonts.heading || 'Playfair Display';
+        const bodyFont = event.custom_fonts.body || 'Inter';
+
+        [headingFont, bodyFont].forEach(fontName => {
+          const id = `font-link-${fontName.replace(/ /g, '-').toLowerCase()}`;
+          if (!document.getElementById(id)) {
+            const link = document.createElement('link');
+            link.id = id;
+            link.rel = 'stylesheet';
+            link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}&display=swap`;
+            document.head.appendChild(link);
+          }
+        });
+      }
     }
   }, [event]);
 
@@ -225,12 +242,27 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const localizedDesc = isRTL && event.description_ar ? event.description_ar : event.description;
   const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
 
+  const musicUrl = event.background_music_url || event.template_data?.bg_music_url;
+
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} style={{
       minHeight: '100vh', position: 'relative',
       backgroundColor: customColors.background || '#F8F4EC', color: '#191B1E',
       fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
     }}>
+      {event.custom_fonts && (
+        <style dangerouslySetInnerHTML={{ __html: `
+          h1, h2, h3, h4, h5, h6, .font-serif {
+            font-family: '${event.custom_fonts.heading || 'Playfair Display'}', Georgia, serif !important;
+          }
+          .font-sans, button, input, select, textarea, label {
+            font-family: '${event.custom_fonts.body || 'Inter'}', sans-serif !important;
+          }
+          div, p, span, a, td, th {
+            font-family: '${event.custom_fonts.body || 'Inter'}', sans-serif;
+          }
+        `}} />
+      )}
 
       {/* Language Toggle */}
       <div style={{ position: 'absolute', top: '24px', zIndex: 30, display: 'flex', gap: '8px', ...(isRTL ? { left: '24px' } : { right: '24px' }) }}>
@@ -332,11 +364,16 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           {/* Wedding Section */}
           {event.template_type === 'wedding' && event.template_data && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {(event.template_data.partner1Name || event.template_data.partner2Name) && (
+              {(event.template_data.partner1Name || event.template_data.partner2Name || event.template_data.groom_name || event.template_data.bride_name) && (
                 <div style={{ textAlign: 'center', padding: '24px', background: 'rgba(184,148,79,0.04)', borderRadius: '12px', border: '1px solid rgba(184,148,79,0.12)' }}>
-                  <span style={{ fontFamily: 'var(--font-script)', fontSize: '28px', color: themeColor }}>
-                    {event.template_data.partner1Name} & {event.template_data.partner2Name}
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '28px', color: themeColor, fontWeight: 500 }}>
+                    {event.template_data.groom_name || event.template_data.partner1Name} &amp; {event.template_data.bride_name || event.template_data.partner2Name}
                   </span>
+                </div>
+              )}
+              {event.template_data.family_names && (
+                <div style={{ textAlign: 'center', padding: '12px', color: '#77736A', fontSize: '13px' }}>
+                  {isRTL ? 'بدعوة من' : 'With the honor of'} {event.template_data.family_names}
                 </div>
               )}
               {event.template_data.loveStory && (
@@ -345,18 +382,18 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   <p style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.loveStory}</p>
                 </div>
               )}
-              {(event.template_data.ceremonyLocation || event.template_data.receptionLocation) && (
+              {(event.template_data.ceremonyLocation || event.template_data.receptionLocation || event.template_data.ceremony_time || event.template_data.reception_time) && (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  {event.template_data.ceremonyLocation && (
+                  {(event.template_data.ceremonyLocation || event.template_data.ceremony_time) && (
                     <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
                       <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '4px' }}>💒 Ceremony</span>
-                      <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.ceremonyLocation}</span>
+                      <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.ceremony_time || event.template_data.ceremonyLocation}</span>
                     </div>
                   )}
-                  {event.template_data.receptionLocation && (
+                  {(event.template_data.receptionLocation || event.template_data.reception_time) && (
                     <div style={{ background: '#FFFFFF', padding: '20px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
                       <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '4px' }}>🥂 Reception</span>
-                      <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.receptionLocation}</span>
+                      <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.reception_time || event.template_data.receptionLocation}</span>
                     </div>
                   )}
                 </div>
@@ -381,7 +418,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               {(event.template_data.partner1Name || event.template_data.partner2Name) && (
                 <div style={{ textAlign: 'center', padding: '24px', background: 'rgba(194,123,142,0.04)', borderRadius: '12px', border: '1px solid rgba(194,123,142,0.12)' }}>
                   <span style={{ fontFamily: 'var(--font-script)', fontSize: '28px', color: themeColor }}>
-                    {event.template_data.partner1Name} & {event.template_data.partner2Name}
+                    {event.template_data.partner1Name} &amp; {event.template_data.partner2Name}
                   </span>
                 </div>
               )}
@@ -402,9 +439,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           {/* Corporate Section */}
           {event.template_type === 'corporate' && event.template_data && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {event.template_data.companyName && (
+              {(event.template_data.companyName || event.template_data.company_name) && (
                 <div style={{ textAlign: 'center', padding: '16px', background: '#F8FAFC', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B', letterSpacing: '0.5px' }}>Hosted by {event.template_data.companyName}</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B', letterSpacing: '0.5px' }}>Hosted by {event.template_data.company_name || event.template_data.companyName}</span>
                 </div>
               )}
               {event.template_data.agenda && (
@@ -415,7 +452,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               )}
               {event.template_data.speakers && (
                 <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: '12px', border: '1px solid #E8E2D6' }}>
-                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🎤 Speakers & Presenters</h4>
+                  <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🎤 Speakers &amp; Presenters</h4>
                   <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.speakers}</div>
                 </div>
               )}
@@ -656,9 +693,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         </div>
       )}
 
-      {event.template_data?.bg_music_url && (
+      {musicUrl && (
         <>
-          <audio ref={audioRef} src={event.template_data.bg_music_url} loop />
+          <audio ref={audioRef} src={musicUrl} loop />
           <div style={{
             position: 'fixed',
             bottom: '24px',

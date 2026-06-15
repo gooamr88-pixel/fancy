@@ -15,6 +15,9 @@ router.post('/import', rsvpController.importGuestsCSV);
 // Route to export guests to downloadable CSV stream
 router.get('/export', rsvpController.exportGuestsCSV);
 
+// Route to export guests to downloadable Excel stream
+router.get('/export-excel', rsvpController.exportGuestsExcel);
+
 // Route to update a single RSVP (organizer edit)
 router.patch('/:rsvpId', rsvpController.updateRSVP);
 

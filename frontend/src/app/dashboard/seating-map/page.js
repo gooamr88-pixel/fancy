@@ -9,6 +9,80 @@ import { isAccepted } from '../../utils/responseHelpers';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
 
+// Render visual seat dots around the table
+const renderSeats = (maxCapacity, occupiedCount, isRound) => {
+  const dots = [];
+  const radius = 54; // radius of seats circle from center
+
+  for (let i = 0; i < maxCapacity; i++) {
+    const isSeated = i < occupiedCount;
+    const dotColor = isSeated ? C.gold : '#E8E2D6';
+    
+    if (isRound) {
+      // Calculate angle in radians
+      const angle = (i * 2 * Math.PI) / maxCapacity - Math.PI / 2;
+      const x = 48 + radius * Math.cos(angle) - 4; // 48 is center-x of 96px width, 4 is half of 8px dot size
+      const y = 48 + radius * Math.sin(angle) - 4; // 48 is center-y of 96px height
+
+      dots.push(
+        <div 
+          key={i} 
+          style={{
+            position: 'absolute',
+            left: `${x}px`,
+            top: `${y}px`,
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: dotColor,
+            border: '1px solid rgba(0,0,0,0.05)',
+            zIndex: 10,
+            pointerEvents: 'none',
+            transition: 'background 0.3s'
+          }}
+        />
+      );
+    } else {
+      // Rectangular seating placement
+      const seatsPerLongEdge = Math.ceil(maxCapacity / 2);
+      const isTop = i < seatsPerLongEdge;
+      const indexOnEdge = isTop ? i : i - seatsPerLongEdge;
+      
+      let x, y;
+      if (isTop) {
+        const step = 128 / (seatsPerLongEdge + 1);
+        x = step * (indexOnEdge + 1) - 4;
+        y = -10;
+      } else {
+        const seatsBottom = maxCapacity - seatsPerLongEdge;
+        const step = 128 / (seatsBottom + 1);
+        x = step * (indexOnEdge + 1) - 4;
+        y = 82;
+      }
+
+      dots.push(
+        <div 
+          key={i} 
+          style={{
+            position: 'absolute',
+            left: `${x}px`,
+            top: `${y}px`,
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: dotColor,
+            border: '1px solid rgba(0,0,0,0.05)',
+            zIndex: 10,
+            pointerEvents: 'none',
+            transition: 'background 0.3s'
+          }}
+        />
+      );
+    }
+  }
+  return dots;
+};
+
 export default function SeatingMapPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -353,6 +427,7 @@ export default function SeatingMapPage() {
                     transition: activeDragId === table.id ? 'none' : 'all 0.2s ease',
                     userSelect: 'none',
                   }}>
+                  {renderSeats(table.max_capacity, occupiedCount, isRound)}
                   <span style={{ fontSize: '11px', fontWeight: 700, color: C.charcoal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', display: 'block', padding: '0 4px' }}>{table.table_name}</span>
                   <span style={{ fontSize: '9px', color: C.stone, marginTop: '4px' }}>{occupiedCount} / {table.max_capacity} Seats</span>
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', marginTop: '6px', border: `1px solid ${C.border}`, transition: 'background 0.3s', background: fillPercent >= 100 ? '#C45E5E' : fillPercent >= 80 ? C.champagne : C.gold }} />

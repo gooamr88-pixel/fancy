@@ -301,7 +301,8 @@ const updateEvent = async (req, res, next) => {
     'custom_fonts',
     'template_data',
     'event_type',
-    'background_music_url'
+    'background_music_url',
+    'notification_preferences'
   ];
 
   // Status can only be set to 'paused' or 'completed' by organizer.

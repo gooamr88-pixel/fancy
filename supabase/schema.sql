@@ -69,6 +69,9 @@ CREATE TABLE IF NOT EXISTS events (
     status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'paused', 'completed')),
     is_paid BOOLEAN DEFAULT FALSE,
     manual_override BOOLEAN DEFAULT FALSE,
+    event_type TEXT DEFAULT 'wedding',
+    background_music_url TEXT,
+    notification_preferences JSONB DEFAULT '{"email": true, "whatsapp": false}',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -178,6 +181,7 @@ CREATE TABLE IF NOT EXISTS event_payments (
     event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     stripe_checkout_session_id TEXT UNIQUE,
     stripe_payment_intent_id TEXT UNIQUE,
+    reference_number TEXT UNIQUE,
     amount_cents INTEGER NOT NULL,
     currency TEXT DEFAULT 'usd',
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
@@ -300,6 +304,25 @@ BEGIN
     RETURN EXISTS (
         SELECT 1 FROM user_roles
         WHERE user_id = p_user_id AND role = 'super_admin'
+    );
+END;
+$$;
+
+
+-- Helper: check if a user is authorized for a given event
+-- (they must be the org owner or a super admin)
+CREATE OR REPLACE FUNCTION _is_event_authorized(p_event_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM events e
+        JOIN organizations o ON e.org_id = o.id
+        WHERE e.id = p_event_id
+          AND (o.owner_user_id = p_user_id OR is_super_admin(p_user_id))
     );
 END;
 $$;

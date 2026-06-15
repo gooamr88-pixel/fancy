@@ -175,6 +175,9 @@ export default function Stage2_FormConfiguration({
                 style={{ ...iStyle, borderRadius: '0 8px 8px 0', flex: 1 }}
                 onFocus={onFocus} onBlur={onBlur} />
             </div>
+            <p className="url-preview" style={{ fontSize: '12px', color: C.stone, marginTop: '8px', fontFamily: 'monospace' }}>
+              Live Preview: <strong style={{ color: C.gold }}>fancyrsvp.com/{slug || 'your-event-name'}</strong>
+            </p>
           </Field>
 
           <Field label="Description">
