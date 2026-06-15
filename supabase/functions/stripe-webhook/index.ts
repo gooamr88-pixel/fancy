@@ -139,7 +139,7 @@ serve(async (req) => {
           }
         }
 
-        // Atomically increment credits using RPC to prevent race conditions
+        // Resolve (or create) the wallet WITHOUT yet crediting it.
         const { data: wallet, error: walletError } = await supabase
           .from('sms_credit_wallets')
           .select('id')
@@ -149,20 +149,18 @@ serve(async (req) => {
         if (walletError) throw walletError;
 
         let walletId;
+        let walletAlreadyExisted = false;
         if (wallet) {
           walletId = wallet.id;
-          // Use atomic RPC instead of read-modify-write
-          const { error: rpcError } = await supabase.rpc('increment_sms_credits', {
-            p_event_id: event_id,
-            p_credit_amount: creditCount
-          });
-          if (rpcError) throw rpcError;
+          walletAlreadyExisted = true;
         } else {
+          // Create the wallet with ZERO credits — the increment happens only after
+          // the ledger row is committed, so a retry can never double-credit.
           const { data: newWallet, error: insertError } = await supabase
             .from('sms_credit_wallets')
             .insert({
               event_id,
-              credits_purchased: creditCount,
+              credits_purchased: 0,
               credits_used: 0
             })
             .select()
@@ -172,7 +170,10 @@ serve(async (req) => {
           walletId = newWallet.id;
         }
 
-        // Record SMS credit purchase ledger entry
+        // 1. Insert the ledger row FIRST. The unique index on (stripe_payment_intent_id,
+        //    transaction_type='purchase') is the idempotency guard: if Stripe retries
+        //    after a partial failure, this insert fails with a duplicate-key error and
+        //    we bail out BEFORE incrementing the wallet a second time.
         const { error: ledgerError } = await supabase
           .from('sms_credit_ledger')
           .insert({
@@ -183,7 +184,23 @@ serve(async (req) => {
             stripe_payment_intent_id: session.payment_intent
           });
 
-        if (ledgerError) throw ledgerError;
+        if (ledgerError) {
+          if (ledgerError.code === '23505' || (ledgerError.message || '').includes('duplicate key')) {
+            console.log(`[Webhook] Duplicate SMS ledger insert caught for payment intent: ${session.payment_intent}`);
+            return new Response(JSON.stringify({ received: true, message: 'Already processed' }), {
+              headers: responseHeaders,
+              status: 200
+            })
+          }
+          throw ledgerError;
+        }
+
+        // 2. Now that the ledger row is committed, atomically credit the wallet.
+        const { error: rpcError } = await supabase.rpc('increment_sms_credits', {
+          p_event_id: event_id,
+          p_credit_amount: creditCount
+        });
+        if (rpcError) throw rpcError;
       }
     } else if (event.type === 'charge.refunded') {
       const charge = event.data.object

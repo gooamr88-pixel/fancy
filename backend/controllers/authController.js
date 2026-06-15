@@ -104,7 +104,10 @@ const issueAuthCookie = (res, payload) => {
  * POST /api/v1/auth/register
  */
 const register = async (req, res, next) => {
-  const { email, password, name, orgName } = req.body;
+  const { password, name, orgName } = req.body;
+  // Normalize email to lowercase so registration and login resolve the same record.
+  // (login() looks up by lowercased email; storing verbatim here would lock the user out.)
+  const email = req.body.email ? req.body.email.toLowerCase().trim() : '';
 
   if (!email || !password || !name || !orgName) {
     return res.status(400).json({
@@ -227,7 +230,8 @@ const register = async (req, res, next) => {
  * POST /api/v1/auth/verify-registration
  */
 const verifyRegistration = async (req, res, next) => {
-  const { email, otp } = req.body;
+  const { otp } = req.body;
+  const email = req.body.email ? req.body.email.toLowerCase().trim() : '';
 
   if (!email || !otp) {
     return res.status(400).json({
@@ -412,12 +416,12 @@ const login = async (req, res, next) => {
     const role = roleData?.role || 'organizer';
 
     // Issue httpOnly auth cookie
-    issueAuthCookie(res, { id: userId, email, role });
+    issueAuthCookie(res, { id: userId, email: normalizedEmail, role });
 
     return res.status(200).json({
       success: true,
       message: 'Login successful.',
-      user: { id: userId, email, name: org.name, role },
+      user: { id: userId, email: normalizedEmail, name: org.name, role },
       organization: {
         id: org.id,
         owner_user_id: org.owner_user_id,
@@ -445,7 +449,7 @@ const logout = (req, res) => {
  * POST /api/v1/auth/forgot-password
  */
 const forgotPassword = async (req, res, next) => {
-  const { email } = req.body;
+  const email = req.body.email ? req.body.email.toLowerCase().trim() : '';
 
   if (!email) {
     return res.status(400).json({
@@ -536,7 +540,8 @@ const forgotPassword = async (req, res, next) => {
  * POST /api/v1/auth/reset-password
  */
 const resetPassword = async (req, res, next) => {
-  const { email, otp, newPassword, confirmPassword } = req.body;
+  const { otp, newPassword, confirmPassword } = req.body;
+  const email = req.body.email ? req.body.email.toLowerCase().trim() : '';
 
   if (!email || !otp || !newPassword || !confirmPassword) {
     return res.status(400).json({

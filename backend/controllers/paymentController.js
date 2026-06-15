@@ -6,6 +6,16 @@ const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
 
 /**
+ * Resolve the public-facing base URL. FRONTEND_URL may be a comma-separated list
+ * of allowed origins (see CORS config in app.js); Stripe needs a single valid URL,
+ * so we take the first origin and strip any trailing slash. Interpolating the raw
+ * env var would produce an invalid URL like "https://a.com,https://b.com/dashboard"
+ * which Stripe rejects, blocking checkout.
+ */
+const getPublicBaseUrl = () =>
+  (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '');
+
+/**
  * Creates a Stripe Checkout Session for event payment fees.
  * POST /api/v1/payments/create-checkout
  */
@@ -96,8 +106,8 @@ const createCheckoutSession = async (req, res, next) => {
         tier_name: tier.name,
         type: 'event_fee'
       },
-      success_url: `${process.env.FRONTEND_URL}/dashboard?payment=success&event=${eventId}`,
-      cancel_url: `${process.env.FRONTEND_URL}/dashboard/create-event?payment=cancelled&event=${eventId}`
+      success_url: `${getPublicBaseUrl()}/dashboard?payment=success&event=${eventId}`,
+      cancel_url: `${getPublicBaseUrl()}/dashboard/create-event?payment=cancelled&event=${eventId}`
     });
 
     return res.status(200).json({
@@ -192,8 +202,8 @@ const purchaseSMSCredits = async (req, res, next) => {
         type: 'sms_credits',
         credit_count: creditCount.toString()
       },
-      success_url: `${process.env.FRONTEND_URL}/events/${eventId}/sms?purchase=success`,
-      cancel_url: `${process.env.FRONTEND_URL}/events/${eventId}/sms?purchase=cancelled`
+      success_url: `${getPublicBaseUrl()}/dashboard/campaigns?event=${eventId}&purchase=success`,
+      cancel_url: `${getPublicBaseUrl()}/dashboard/campaigns?event=${eventId}&purchase=cancelled`
     });
 
     return res.status(200).json({
@@ -358,6 +368,90 @@ const stripeWebhook = async (req, res, next) => {
           metadata: { credit_count: creditCount }
         });
       }
+    } else if (stripeEvent.type === 'charge.refunded') {
+      // Mirror the edge-function refund logic so refunds are handled no matter which
+      // webhook endpoint Stripe is configured to call.
+      const charge = stripeEvent.data.object;
+      const paymentIntentId = charge.payment_intent;
+
+      if (!paymentIntentId) {
+        console.error('charge.refunded received but missing payment_intent.');
+        return res.status(400).json({ success: false, error: 'Missing payment_intent' });
+      }
+
+      // 1. Event-fee payment? Mark refunded and pause the event.
+      const { data: payment } = await supabase
+        .from('event_payments')
+        .select('id, event_id, status')
+        .eq('stripe_payment_intent_id', paymentIntentId)
+        .maybeSingle();
+
+      if (payment) {
+        if (payment.status === 'refunded') {
+          return res.json({ received: true, message: 'Already refunded' });
+        }
+        await supabase.from('event_payments').update({ status: 'refunded' }).eq('id', payment.id);
+        await supabase
+          .from('events')
+          .update({ is_paid: false, status: 'paused', updated_at: new Date().toISOString() })
+          .eq('id', payment.event_id);
+        await supabase.from('activity_logs').insert({
+          event_id: payment.event_id,
+          action: 'event_payment_refunded',
+          entity_type: 'event_payment',
+          entity_id: payment.id,
+        });
+      } else {
+        // 2. SMS-credit purchase? Reverse the credits (idempotent via refund ledger row).
+        const { data: ledgerEntry } = await supabase
+          .from('sms_credit_ledger')
+          .select('id, wallet_id, event_id, credits')
+          .eq('stripe_payment_intent_id', paymentIntentId)
+          .eq('transaction_type', 'purchase')
+          .maybeSingle();
+
+        if (ledgerEntry) {
+          const refundCredits = Math.abs(ledgerEntry.credits);
+
+          // Idempotency: skip if a matching refund row already exists.
+          const { data: existingRefund } = await supabase
+            .from('sms_credit_ledger')
+            .select('id')
+            .eq('stripe_payment_intent_id', paymentIntentId)
+            .eq('transaction_type', 'refund')
+            .limit(1);
+
+          if (existingRefund && existingRefund.length > 0) {
+            return res.json({ received: true, message: 'Already refunded' });
+          }
+
+          const { data: wallet } = await supabase
+            .from('sms_credit_wallets')
+            .select('id, credits_purchased')
+            .eq('id', ledgerEntry.wallet_id)
+            .single();
+
+          if (wallet) {
+            await supabase
+              .from('sms_credit_wallets')
+              .update({
+                credits_purchased: Math.max(0, (wallet.credits_purchased || 0) - refundCredits),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', wallet.id);
+
+            await supabase.from('sms_credit_ledger').insert({
+              wallet_id: wallet.id,
+              event_id: ledgerEntry.event_id,
+              transaction_type: 'refund',
+              credits: -refundCredits,
+              stripe_payment_intent_id: paymentIntentId
+            });
+          }
+        } else {
+          console.warn(`[Webhook] No matching payment or SMS purchase for refunded payment intent: ${paymentIntentId}`);
+        }
+      }
     }
 
     return res.json({ received: true });
@@ -378,6 +472,16 @@ const manualCashApproval = async (req, res, next) => {
       success: false,
       error: 'VALIDATION_ERROR',
       message: 'eventId and amountCents are required.'
+    });
+  }
+
+  // amountCents must be a positive integer — guard against negative/NaN/float amounts
+  // being written into the financial ledger.
+  if (!Number.isInteger(amountCents) || amountCents <= 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'INVALID_AMOUNT',
+      message: 'amountCents must be a positive integer (in cents).'
     });
   }
 
