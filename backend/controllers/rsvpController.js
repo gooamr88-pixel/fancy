@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 const notificationService = require('../utils/notificationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
 const { escapeHtml, getDeclineConfirmationTemplate } = require('../utils/emailTemplates');
@@ -152,7 +153,14 @@ const submitPublicRSVP = async (req, res, next) => {
         });
       }
 
-      // If the existing RSVP has an email, the caller must provide a matching email
+      // Ownership enforcement.
+      //  • If the record HAS an email, the caller must supply a matching email — this
+      //    proves ownership for self-service (search-then-update) edits.
+      //  • If the record has NO email (host-imported guest), the only way to obtain its
+      //    rsvpId is the host's private invitation link: the rsvpId is itself the
+      //    capability token. The public name-search deliberately does NOT expose ids
+      //    for null-email records (see searchPublicGuests), so this is not the IDOR
+      //    vector it would otherwise be, and it lets invited guests respond.
       if (existingRsvp.email) {
         if (!email || existingRsvp.email.toLowerCase() !== email.toLowerCase()) {
           return res.status(403).json({
@@ -399,10 +407,10 @@ const searchPublicGuests = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
 
-    // 2. Search guests matching query prefix/substring (public: include ID for public RSVP selection)
+    // 2. Search guests matching query prefix/substring.
     const { data, error } = await supabase
       .from('rsvps')
-      .select('id, guest_name, response')
+      .select('id, guest_name, response, email')
       .eq('event_id', event.id)
       .ilike('guest_name', `%${escapeLikePattern(query.trim())}%`)
       .limit(10);
@@ -412,7 +420,11 @@ const searchPublicGuests = async (req, res, next) => {
     return res.json({
       success: true,
       results: data.map(item => ({
-        id: item.id,
+        // Only expose the rsvpId when the record has an email — updating such a record
+        // still requires a matching email, so the id is safe to surface. For null-email
+        // (host-imported) guests we withhold the id: their only authorized entry point
+        // is the host's private invitation link (which carries the id directly).
+        id: item.email ? item.id : null,
         guestName: item.guest_name,
         response: item.response
       }))

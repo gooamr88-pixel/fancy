@@ -330,6 +330,13 @@ const selfCheckIn = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'rsvpId is required.' });
   }
 
+  // Require a guest name and enforce that it matches the record below. The public
+  // guest search can surface rsvpIds, so rsvpId alone must not be sufficient to
+  // check a guest in — otherwise anyone could fraudulently check in arbitrary guests.
+  if (!guestName || !guestName.trim()) {
+    return res.status(400).json({ success: false, error: 'GUEST_NAME_REQUIRED', message: 'Guest name is required to confirm your check-in.' });
+  }
+
   try {
     // 1. Resolve event
     const { data: event, error: eventError } = await supabase
@@ -358,8 +365,8 @@ const selfCheckIn = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'RSVP_NOT_FOUND', message: 'Guest not found for this event.' });
     }
 
-    // Optional: verify guest name matches for extra security
-    if (guestName && rsvp.guest_name.toLowerCase() !== guestName.toLowerCase()) {
+    // Verify guest name matches the record (required — see guard above)
+    if (rsvp.guest_name.trim().toLowerCase() !== guestName.trim().toLowerCase()) {
       return res.status(400).json({ success: false, error: 'NAME_MISMATCH', message: 'Guest name does not match the RSVP record.' });
     }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense, use } from 'react';
+import React, { useEffect, useState, useRef, Suspense, use } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { translations } from '../../utils/translations';
@@ -50,8 +50,18 @@ function RSVPFormContent({ slug }) {
   const [showTableLookup, setShowTableLookup] = useState(false);
 
   const guestIdParam = searchParams ? searchParams.get('g') : null;
+  // Per-guest invitation token (unlocks private events + pre-fills this guest).
+  const invitationRsvpId = searchParams ? searchParams.get('rsvp_id') : null;
 
-  useEffect(() => { setSearchPerformed(false); setSearchResults([]); setRsvpId(null); }, [guestName]);
+  // When the form is pre-filled programmatically (from an invitation token), we must
+  // NOT let the name-change reset below wipe the resolved rsvpId — otherwise the
+  // submission would create a duplicate record instead of updating the invited guest.
+  const skipNameResetRef = useRef(false);
+
+  useEffect(() => {
+    if (skipNameResetRef.current) { skipNameResetRef.current = false; return; }
+    setSearchPerformed(false); setSearchResults([]); setRsvpId(null);
+  }, [guestName]);
 
   const handleSearchName = async () => {
     if (!guestName.trim()) return;
@@ -113,14 +123,30 @@ function RSVPFormContent({ slug }) {
           setLoading(false); return;
         }
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-        const res = await fetch(`${apiUrl}/public/events/${slug}`);
+        // Forward the invitation token so private events resolve (instead of 403).
+        const query = invitationRsvpId ? `?rsvp_id=${encodeURIComponent(invitationRsvpId)}` : '';
+        const res = await fetch(`${apiUrl}/public/events/${slug}${query}`);
         if (!res.ok) throw new Error('EVENT_NOT_FOUND');
         const data = await res.json();
         setEvent(data.event);
+
+        // Pre-fill the form with the invited guest's existing RSVP record.
+        if (data.guestRsvp) {
+          const g = data.guestRsvp;
+          skipNameResetRef.current = true; // preserve rsvpId across the name-change effect
+          setRsvpId(g.id);
+          setGuestName(g.guest_name || '');
+          if (g.email) setEmail(g.email);
+          if (g.phone) setPhone(g.phone);
+          if (g.party_size) setPartySize(g.party_size);
+          if (g.notes) setNotes(g.notes);
+          if (g.response === 'yes' || g.response === 'no') setAttending(g.response);
+          setStep(2); // skip the name-search step — we already know who they are
+        }
       } catch (err) { setError(err.message); } finally { setLoading(false); }
     }
     fetchEvent();
-  }, [slug]);
+  }, [slug, invitationRsvpId]);
 
   useEffect(() => {
     if (event) {

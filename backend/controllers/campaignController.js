@@ -1,6 +1,7 @@
 const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { buildGuestEventUrl } = require('../utils/emailTemplates');
 
 /**
  * Dispatches bulk SMS invitations to all pending guests.
@@ -88,8 +89,9 @@ const sendBulkSMSCampaign = async (req, res, next) => {
 
     // Processes a single guest; returns a result object for aggregation
     const processGuest = async (guest) => {
-      // Personalize template
-      const guestUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/${event.slug}?guest=${encodeURIComponent(guest.guest_name)}`;
+      // Personalize template. The link carries the per-guest invitation token (rsvp_id)
+      // so it unlocks private events and pre-fills this guest's RSVP form.
+      const guestUrl = buildGuestEventUrl(event.slug, guest.id);
       let personalizedBody = messageTemplate
         .replace(/{name}/g, guest.guest_name)
         .replace(/{url}/g, guestUrl);
