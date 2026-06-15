@@ -1,14 +1,14 @@
 'use client';
- 
+
 import React from 'react';
 import Link from 'next/link';
- 
+
 const C = {
-  gold: '#B8944F', charcoal: '#191B1E', 
+  gold: '#B8944F', charcoal: '#191B1E',
   border: 'rgba(184,148,79,0.15)',
   lightBg: '#FAF8F5',
 };
- 
+
 const DEFAULT_STEP_LABELS = ['Templates', 'Configure', 'Distribute'];
 
 export default function WizardShell({ step, onStepClick, children, labels }) {
@@ -16,7 +16,7 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
   return (
     <div style={{ minHeight: '100vh', background: C.lightBg }}>
       {/* ═══ TOP BAR ═══ */}
-      <div style={{
+      <div className="wz-topbar" style={{
         position: 'sticky', top: 0, zIndex: 100,
         background: 'rgba(250,248,245,0.85)', backdropFilter: 'blur(20px)',
         borderBottom: `1px solid ${C.border}`,
@@ -38,14 +38,14 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
               <path d="M15 18l-6-6 6-6"/>
             </svg>
           </Link>
-          <span style={{
+          <span className="wz-logo" style={{
             fontFamily: 'var(--font-script)', fontSize: 22,
             color: C.gold, letterSpacing: 1,
           }}>Fancy</span>
         </div>
- 
+
         {/* Center: Step Indicator */}
-        <div style={{
+        <div className="wz-steps" style={{
           display: 'flex', alignItems: 'center', gap: 0,
           justifyContent: 'center', flex: '2 1 0',
         }}>
@@ -59,7 +59,7 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
                   gap: 4, cursor: i < step ? 'pointer' : 'default',
                 }}
               >
-                <div style={{
+                <div className="wz-circle" style={{
                   width: 32, height: 32, borderRadius: '50%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)',
@@ -93,10 +93,10 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
                   transition: 'color 0.3s',
                 }}>{label}</span>
               </div>
- 
+
               {/* Connector Line */}
               {i < STEP_LABELS.length - 1 && (
-                <div style={{
+                <div className="wz-connector" style={{
                   width: 56, height: 2, margin: '0 4px',
                   marginBottom: 18,
                   borderRadius: 1,
@@ -115,23 +115,33 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
             </React.Fragment>
           ))}
         </div>
- 
+
         {/* Right: spacer */}
         <div style={{ flex: '1 1 0', minWidth: 0 }} />
       </div>
- 
+
       {/* ═══ CONTENT ═══ */}
       <div style={{ position: 'relative' }}>
         {children}
       </div>
- 
+
       <style jsx>{`
         @keyframes wz-pulse {
           0%, 100% { box-shadow: 0 0 0 4px rgba(184,148,79,0.15); }
           50% { box-shadow: 0 0 0 8px rgba(184,148,79,0.08); }
         }
+
         @media (max-width: 768px) {
           .wz-step-label { display: none !important; }
+          .wz-topbar { padding: 0 12px !important; height: 52px !important; }
+          .wz-logo { font-size: 18px !important; }
+          .wz-connector { width: 24px !important; margin: 0 2px !important; margin-bottom: 0 !important; }
+          .wz-circle { width: 26px !important; height: 26px !important; font-size: 11px !important; }
+        }
+
+        @media (max-width: 400px) {
+          .wz-connector { width: 16px !important; }
+          .wz-circle { width: 24px !important; height: 24px !important; font-size: 10px !important; }
         }
       `}</style>
     </div>
