@@ -2,11 +2,21 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
+import InvitationEnvelope from './InvitationEnvelope';
 
 export default function EventPageClient({ initialEvent, slug: serverSlug }) {
+  const searchParams = useSearchParams();
+  // Per-guest invitation token. Unlocks private events and lets the RSVP form pre-fill.
+  const invitationRsvpId = searchParams?.get('rsvp_id') || null;
+  // Skip the envelope intro when the host links straight to details (?view=full).
+  const skipEnvelope = searchParams?.get('view') === 'full';
+
   const [slug, setSlug] = useState(serverSlug || '');
   const [event, setEvent] = useState(initialEvent || null);
+  const [guestRsvp, setGuestRsvp] = useState(null);
+  const [opened, setOpened] = useState(false);
   const [loading, setLoading] = useState(!initialEvent);
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState({});
@@ -88,8 +98,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
       const headers = {};
       if (password) headers['x-event-password'] = password;
-      const res = await fetch(`${apiUrl}/public/events/${slug}`, { headers });
-      
+      // Forward the invitation token so the backend can unlock a private event.
+      const query = invitationRsvpId ? `?rsvp_id=${encodeURIComponent(invitationRsvpId)}` : '';
+      const res = await fetch(`${apiUrl}/public/events/${slug}${query}`, { headers });
+
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 402) throw new Error('PAYMENT_REQUIRED');
@@ -99,9 +111,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       }
       const data = await res.json();
       setEvent(data.event);
+      setGuestRsvp(data.guestRsvp || null);
       setPasswordRequired(false);
+      setIsPrivate(false);
     } catch (err) { setError(err.message); } finally { setLoading(false); }
-  }, [slug]);
+  }, [slug, invitationRsvpId]);
 
   useEffect(() => {
     fetchEventWithPasswordRef.current = (pw) => { setLoading(true); setError(null); fetchEvent(pw); };
@@ -243,6 +257,21 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
 
   const musicUrl = event.background_music_url || event.template_data?.bg_music_url;
+
+  // ─── Premium entry: the sealed envelope greets the guest before any details. ───
+  if (!opened && !skipEnvelope) {
+    return (
+      <InvitationEnvelope
+        event={event}
+        slug={slug}
+        guestRsvp={guestRsvp}
+        themeColor={themeColor}
+        secondaryColor={customColors.secondary || '#D7BE80'}
+        isRTL={isRTL}
+        onEnter={() => setOpened(true)}
+      />
+    );
+  }
 
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} style={{
@@ -532,7 +561,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
               {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : undefined) : 'N/A'}</strong> {t.card_desc}
             </p>
-            <Link href={`/${slug}/rsvp?lang=${lang}`} style={{
+            <Link href={`/${slug}/rsvp?lang=${lang}${invitationRsvpId ? `&rsvp_id=${encodeURIComponent(invitationRsvpId)}` : ''}`} style={{
               display: 'block', width: '100%', padding: '14px', textAlign: 'center', color: '#FFFFFF', fontWeight: 700,
               fontSize: '14px', borderRadius: '8px', textDecoration: 'none', fontFamily: 'var(--font-sans)',
               background: themeColor, transition: 'all 0.3s ease', letterSpacing: '0.5px',

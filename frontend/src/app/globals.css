@@ -309,3 +309,22 @@ h3 {
   transform: rotateX(0deg);
   z-index: 25;
 }
+
+/* ─── Invitation template utilities ───
+   The envelope/preview templates reference fractional text sizes and intermediate
+   stone/gray shades that Tailwind v4 does NOT generate (unknown utilities are
+   silently dropped). Without these, the script display names fell back to inherited
+   sizes and the phone-chrome elements rendered with no color. Defined explicitly. */
+.text-2\.2xl { font-size: 1.6rem;  line-height: 1.15; }
+.text-2\.5xl { font-size: 1.7rem;  line-height: 1.15; }
+.text-3\.5xl { font-size: 2.05rem; line-height: 1.1; }
+.text-4\.2xl { font-size: 2.4rem;  line-height: 1.1; }
+
+.bg-stone-750     { background-color: #383430; }
+.bg-stone-850     { background-color: #221f1d; }
+.text-stone-550   { color: #686460; }
+.text-stone-650   { color: #4e4a45; }
+.text-stone-750   { color: #383430; }
+.text-stone-850   { color: #221f1d; }
+.border-stone-150 { border-color: #ededec; }
+.border-gray-150  { border-color: #eceef1; }

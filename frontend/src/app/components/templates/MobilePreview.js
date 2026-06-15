@@ -155,11 +155,14 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                   animate={{ minHeight: isCardOpened ? 510 : 400 }}
                   transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
                 >
-                  <EnvelopeAnimation 
-                    key={`${template.name}_${theme?.id || "gold"}`}
-                    template={template} 
+                  {/* Remount only when the template LAYOUT (pattern) changes — a color
+                      preset change flows through as props (theme), so the envelope no
+                      longer replays its whole open animation on every palette tap. */}
+                  <EnvelopeAnimation
+                    key={template.name}
+                    template={template}
                     theme={theme}
-                    onOpenComplete={handleCardOpenComplete} 
+                    onOpenComplete={handleCardOpenComplete}
                     guestName={guestName}
                   />
                 </motion.div>
