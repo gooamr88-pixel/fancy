@@ -284,7 +284,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
   return (
     <motion.div 
       className="relative w-full max-w-[270px] flex items-center justify-center mx-auto mt-2 z-10 select-none"
-      animate={{ height: isCardOut ? 230 : 380 }}
+      animate={{ height: isCardOut ? 460 : 380 }}
       transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
     >
       
@@ -293,7 +293,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         className="relative w-full h-[200px] mt-[130px] cursor-pointer perspective-1000 transform-style-3d"
         onClick={handleOpen}
         animate={{
-          y: isCardOut ? 40 : 0
+          y: isCardOut ? -120 : 0
         }}
         transition={{
           type: "spring",
@@ -322,20 +322,21 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
  
         {/* Layer 2: The Invitation Card */}
         <motion.div
-          className="absolute left-3 right-3 h-[190px] rounded-lg shadow-xl cursor-default"
+          className="absolute left-3 right-3 rounded-lg shadow-xl cursor-default"
           style={{ 
-            bottom: "6px", 
             transformOrigin: "bottom center",
             zIndex: 20 // Fixed z-index so it slides out of the pocket naturally behind front flaps!
           }}
-          initial={{ y: 0, scale: 0.94 }}
+          initial={{ bottom: "6px", height: 190, y: 0, scale: 0.94 }}
           animate={{
-            y: isCardOut ? -175 : 0,
-            scale: isCardOut ? 1.15 : 0.94,
+            bottom: isCardOut ? "-230px" : "6px",
+            height: isCardOut ? 430 : 190,
+            scale: isCardOut ? 1.08 : 0.94,
             rotate: isCardOut ? [0, -10, -3, 0] : 0
           }}
           transition={{
-            y: { type: "spring", stiffness: 90, damping: 18 },
+            bottom: { type: "spring", stiffness: 90, damping: 18 },
+            height: { type: "spring", stiffness: 90, damping: 18 },
             scale: { type: "spring", stiffness: 90, damping: 18, delay: 0.05 },
             rotate: { duration: 0.9, ease: "easeInOut" }
           }}

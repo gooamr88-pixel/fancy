@@ -33,7 +33,7 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
     setTimeout(() => {
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollTo({
-          top: 45,
+          top: 0,
           behavior: "smooth"
         });
       }
@@ -107,7 +107,8 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                 <div className="w-5 h-5 border-2 border-stone-200 border-t-stone-850 rounded-full animate-spin" />
               </motion.div>
             ) : (
-              /* Phase 2: Envelope unboxing & RSVP Page */
+              <>
+              {/* Phase 2: Envelope unboxing & RSVP Page */}
               <motion.div
                 key="content"
                 ref={scrollContainerRef}
@@ -124,7 +125,7 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                 {/* 3D Envelope Container with remounting key constraint */}
                 <motion.div 
                   className="w-full shrink-0 flex items-center justify-center py-4"
-                  animate={{ minHeight: isCardOpened ? 250 : 400 }}
+                  animate={{ minHeight: isCardOpened ? 480 : 400 }}
                   transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
                 >
                   <EnvelopeAnimation 
@@ -136,106 +137,42 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                   />
                 </motion.div>
 
-                {/* RSVP Details - Fades in once card slides open */}
-                <AnimatePresence>
-                  {isCardOpened && (
-                    <motion.div
-                      className="w-full px-4 pb-12 shrink-0 flex flex-col gap-4"
-                      initial={{ opacity: 0, y: 30 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.6, ease: "easeOut" }}
-                    >
-                      {/* Divider Ornament styled with theme secondary color */}
-                      <div className="flex items-center justify-center gap-3 py-2">
-                        <div className="flex-1 h-[0.5px] bg-gradient-to-r from-transparent" style={{ "--tw-gradient-to": theme?.secondary || "#D7BE80" }} />
-                        <svg className="w-3.5 h-3.5" fill="currentColor" style={{ color: accentColor }} viewBox="0 0 24 24">
-                          <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5Z" />
-                        </svg>
-                        <div className="flex-1 h-[0.5px] bg-gradient-to-r to-transparent" style={{ "--tw-gradient-from": theme?.secondary || "#D7BE80" }} />
-                      </div>
-
-                      {/* Guest Info & Action Card */}
-                      <div className="bg-white/92 backdrop-blur-md border border-stone-200/50 p-5 rounded-2xl shadow-xl text-center text-stone-850 font-sans">
-                        <span className="text-[10px] uppercase tracking-[3px] font-bold block mb-1" style={{ color: accentColor }}>WELCOME GUEST</span>
-                        <h2 className="font-serif text-xl font-bold text-stone-900 leading-tight">To: {guestName || "Sarah & John"}</h2>
-                        
-                        <div className="h-[1px] bg-stone-100 my-4" />
-
-                        {rsvpData ? (
-                          /* RSVP Submitted View */
-                          <div className="bg-stone-50 border border-stone-200/50 rounded-xl p-3.5 mb-4 text-center">
-                            <span 
-                              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 border"
-                              style={{ 
-                                backgroundColor: `${accentColor}10`, 
-                                color: accentColor,
-                                borderColor: `${accentColor}25`
-                              }}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }} />
-                              Response Submitted
-                            </span>
-                            
-                            <p className="text-xs font-bold text-stone-850">
-                              {rsvpData.attending ? (
-                                `Attending (${rsvpData.adults} ${rsvpData.adults > 1 ? "Adults" : "Adult"}${
-                                  rsvpData.children > 0 ? `, ${rsvpData.children} ${rsvpData.children > 1 ? "Children" : "Child"}` : ""
-                                })`
-                              ) : (
-                                "Declined Invitation"
-                              )}
-                            </p>
-                            {rsvpData.message && (
-                              <p className="text-[11px] text-stone-500 italic mt-2 border-t border-stone-200/50 pt-2 max-w-[90%] mx-auto leading-relaxed">
-                                &ldquo;{rsvpData.message}&rdquo;
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          /* Pending RSVP View */
-                          <div className="mb-4">
-                            <p className="text-xs text-stone-500 max-w-[85%] mx-auto leading-relaxed">
-                              You are cordially invited to celebrate this special day. Please confirm your attendance.
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Interactive RSVP Action Button */}
-                        <button
-                          onClick={() => setIsBottomSheetOpen(true)}
-                          className="w-full text-white py-2.5 rounded-xl font-bold font-sans text-xs shadow-md active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
-                          style={{ backgroundColor: accentColor }}
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          {rsvpData ? "Update Response" : "You are attending (RSVP)"}
-                        </button>
-
-                        {/* Message Host secondary trigger */}
-                        <button
-                          onClick={() => setIsBottomSheetOpen(true)}
-                          className="w-full bg-stone-100 hover:bg-stone-200/60 text-stone-600 py-2.5 rounded-xl font-bold font-sans text-xs active:scale-[0.98] transition-all cursor-pointer mt-2.5 flex items-center justify-center gap-2 border border-stone-200/30"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                          Message Host
-                        </button>
-
-                        {/* RSVP Deadline date info */}
-                        <div className="flex items-center justify-center gap-1.5 mt-4 text-[10px] text-stone-400 font-bold uppercase tracking-wider">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>RSVP Deadline: June 30, 2026</span>
-                        </div>
-
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </motion.div>
+              
+              {/* Floating RSVP Button overlaying the card */}
+              <AnimatePresence>
+                {isCardOpened && (
+                  <motion.div
+                    className="absolute bottom-6 left-0 right-0 px-6 z-40 flex flex-col gap-2.5 items-center"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 30 }}
+                    transition={{ duration: 0.5, delay: 0.6 }}
+                  >
+                    <button
+                      onClick={() => setIsBottomSheetOpen(true)}
+                      className="w-full max-w-[240px] text-white py-3 rounded-full font-bold font-sans text-xs shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider bg-gradient-to-r from-[#B8944F] to-[#D7BE80]"
+                      style={{ boxShadow: '0 6px 20px rgba(184, 148, 79, 0.4)' }}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      {rsvpData ? "Update RSVP" : "Confirm RSVP"}
+                    </button>
+
+                    <button
+                      onClick={() => setIsBottomSheetOpen(true)}
+                      className="text-stone-550 hover:text-stone-755 font-bold font-sans text-[10px] uppercase tracking-wider flex items-center gap-1 active:scale-[0.98] transition-all cursor-pointer bg-white/70 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-stone-200/40"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
+                      Message Host
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              </>
             )}
           </AnimatePresence>
 
