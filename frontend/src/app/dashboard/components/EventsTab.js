@@ -586,6 +586,14 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
     onSelect(event.id, 'settings');
   }, [event.id, onSelect]);
 
+  // "Pay Later" activation: open the inline payment panel so organizers can review
+  // their pricing tiers and choose card vs. offline cash before heading to Stripe.
+  // (The panel's own CTA performs the create-checkout + full-page redirect.)
+  const handleActivateNow = useCallback((e) => {
+    e.stopPropagation();
+    setExpanded(prev => !prev);
+  }, []);
+
   return (
     <div
       className="evt2-card"
@@ -668,6 +676,36 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
               </div>
             )}
           </div>
+
+          {/* ── Pay-Later Activation CTA (unpaid / draft events) ── */}
+          {!isPaid && (
+            <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+              <button
+                onClick={handleActivateNow}
+                aria-expanded={expanded}
+                style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  padding: '13px 18px', borderRadius: 12, border: 'none',
+                  background: 'linear-gradient(135deg, #B8944F 0%, #D7BE80 50%, #B8944F 100%)',
+                  backgroundSize: '200% 100%',
+                  color: '#fff', fontFamily: 'var(--font-sans)', fontSize: 13.5, fontWeight: 800,
+                  letterSpacing: '0.02em', cursor: 'pointer',
+                  boxShadow: '0 6px 18px rgba(184,148,79,0.35)',
+                  animation: expanded ? 'none' : 'evtGradShift 4s ease infinite',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(184,148,79,0.45)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(184,148,79,0.35)'; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+                {expanded ? 'Hide payment options' : 'Complete Payment · Activate Event'}
+                <ChevronIcon open={expanded} />
+              </button>
+              <span style={{ display: 'block', margin: '6px auto 0', textAlign: 'center', fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+                Choose a tier · pay by card or offline cash
+              </span>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="evt2-actions">
