@@ -38,6 +38,26 @@ const resolveReturnBase = (req) => {
 };
 
 /**
+ * Best-effort write for columns introduced by migration 20260616300000
+ * (manual_method, payer_reference, verified_by, verified_at, admin_note,
+ * manual_payment_methods). If that migration hasn't been applied yet the column
+ * won't exist and a normal update would throw — which previously broke the whole
+ * payment flow. Here we swallow the error so the core flow always succeeds; apply
+ * the migration to actually persist this metadata.
+ */
+const setOptionalColumns = async (table, match, fields) => {
+  // Drop undefined/empty so we never send an empty update.
+  const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+  if (Object.keys(clean).length === 0) return;
+  try {
+    const { error } = await supabase.from(table).update(clean).match(match);
+    if (error) console.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${error.message}`);
+  } catch (e) {
+    console.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${e.message}`);
+  }
+};
+
+/**
  * Creates a Stripe Checkout Session for event payment fees.
  * POST /api/v1/payments/create-checkout
  */
