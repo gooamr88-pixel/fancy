@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
+import { isSeatingRevealed, seatingRevealAt } from '../utils/seating';
 import InvitationEnvelope from './InvitationEnvelope';
 
 export default function EventPageClient({ initialEvent, slug: serverSlug }) {
@@ -257,6 +258,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
 
   const musicUrl = event.background_music_url || event.template_data?.bg_music_url;
+  // Guest seating is hidden until 24h before the event. The per-second countdown
+  // interval re-renders the page, so this flips on its own when the window opens.
+  const seatingRevealed = isSeatingRevealed(event.event_date);
 
   // ─── Premium entry: the sealed envelope greets the guest before any details. ───
   if (!opened && !skipEnvelope) {
@@ -570,7 +574,25 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             </Link>
           </div>
 
-          {/* Guest Seating Finder */}
+          {/* Guest Seating Finder — hidden until 24h before the event */}
+          {!seatingRevealed ? (
+            <div style={{
+              background: '#FFFFFF', padding: '32px', borderRadius: '16px', border: '1px solid #E8E2D6',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.04)', textAlign: 'center', display: 'flex',
+              flexDirection: 'column', gap: '12px', alignItems: 'center',
+            }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '26px' }}>🔒</span>
+              </div>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600, color: '#191B1E' }}>{t.seating_locked_title}</h3>
+              <p style={{ fontSize: '12px', color: '#77736A', lineHeight: 1.6 }}>{t.seating_locked_desc}</p>
+              {seatingRevealAt(event.event_date) && (
+                <p style={{ fontSize: '11px', color: '#B8944F', fontWeight: 700 }}>
+                  {t.seating_locked_reveal.replace('{date}', seatingRevealAt(event.event_date).toLocaleString(lang === 'ar' ? 'ar-EG' : undefined, { dateStyle: 'medium', timeStyle: 'short' }))}
+                </p>
+              )}
+            </div>
+          ) : (
           <div style={{
             background: '#FFFFFF',
             padding: '32px',
@@ -655,6 +677,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <p style={{ fontSize: '12px', color: '#C45E5E', marginTop: '8px' }}>{seatingError}</p>
             )}
           </div>
+          )}
         </div>
       </div>
 

@@ -9,6 +9,56 @@ function escapeLikePattern(str) {
   return str.replace(/[%_\\]/g, '\\$&');
 }
 
+/** Guest-facing seating becomes visible only within this window before event start. */
+const SEATING_REVEAL_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** True once we're within 24h of the event start (seating may be shown to guests). */
+function isSeatingRevealed(eventDate) {
+  if (!eventDate) return false;
+  const start = new Date(eventDate).getTime();
+  if (Number.isNaN(start)) return false;
+  return Date.now() >= start - SEATING_REVEAL_WINDOW_MS;
+}
+
+/** ISO timestamp of the moment seating unlocks (event start − 24h), or null. */
+function seatingRevealAtISO(eventDate) {
+  const start = new Date(eventDate).getTime();
+  if (Number.isNaN(start)) return null;
+  return new Date(start - SEATING_REVEAL_WINDOW_MS).toISOString();
+}
+
+/** Locale-aware natural comparator: "Table 2" < "Table 10", and orders Arabic names. */
+function naturalCompare(a, b) {
+  return String(a == null ? '' : a)
+    .localeCompare(String(b == null ? '' : b), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/**
+ * Sort RSVP rows for export.
+ *  - 'name'  → alphabetical by guest name (A→Z / أ→ي)
+ *  - 'table' → grouped/sequenced by table name (unassigned last; A→Z within a table)
+ */
+function sortRsvpsForExport(rows, sort) {
+  const tableNameOf = (r) => {
+    const sa = r.seating_assignments;
+    const first = Array.isArray(sa) ? sa[0] : sa;
+    return first?.tables?.table_name || '';
+  };
+  const list = [...(rows || [])];
+  if (sort === 'table') {
+    list.sort((a, b) => {
+      const ta = tableNameOf(a), tb = tableNameOf(b);
+      if (!ta && tb) return 1;   // unassigned sinks to the bottom
+      if (ta && !tb) return -1;
+      const cmp = naturalCompare(ta, tb);
+      return cmp !== 0 ? cmp : naturalCompare(a.guest_name, b.guest_name);
+    });
+  } else {
+    list.sort((a, b) => naturalCompare(a.guest_name, b.guest_name));
+  }
+  return list;
+}
+
 /**
  * Handles guest RSVP form submissions (supports both inserts and updates).
  * POST /api/v1/public/events/:slug/rsvp
@@ -402,7 +452,7 @@ const getGuestById = async (req, res, next) => {
       .from('rsvps')
       .select(`
         id, guest_name, email, phone, party_size, notes, response,
-        events!inner(slug, is_paid, status),
+        events!inner(slug, is_paid, status, event_date),
         seating_assignments(tables(table_name))
       `)
       .eq('id', guestId)
@@ -417,11 +467,15 @@ const getGuestById = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
 
-    const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || null;
+    // Withhold the table assignment until 24h before the event (seating reveal window).
+    const seatingRevealed = isSeatingRevealed(rsvp.events.event_date);
+    const tableName = seatingRevealed ? (rsvp.seating_assignments?.[0]?.tables?.table_name || null) : null;
 
     return res.json({
       success: true,
       slug: rsvp.events.slug,
+      seatingLocked: !seatingRevealed,
+      revealAt: seatingRevealed ? null : seatingRevealAtISO(rsvp.events.event_date),
       guest: {
         id: rsvp.id,
         guest_name: rsvp.guest_name,
@@ -785,6 +839,11 @@ const importGuestsCSV = async (req, res, next) => {
  */
 const exportGuestsCSV = async (req, res, next) => {
   const { eventId } = req.params;
+  // Optional export controls (used by the "attending guest list" export):
+  //   ?attending=true  → only guests who responded 'yes'
+  //   ?sort=name|table → alphabetical by name, or grouped/sequenced by table
+  const attendingOnly = req.query.attending === 'true';
+  const sort = ['name', 'table'].includes(req.query.sort) ? req.query.sort : null;
 
   try {
     // Try full query with check_ins, fall back without
@@ -820,6 +879,10 @@ const exportGuestsCSV = async (req, res, next) => {
     }
 
     if (!rsvps) rsvps = [];
+
+    // Apply the attending filter and chosen ordering before serializing.
+    if (attendingOnly) rsvps = rsvps.filter(r => r.response === 'yes');
+    if (sort) rsvps = sortRsvpsForExport(rsvps, sort);
 
     const headers = ['guest_name', 'email', 'phone', 'response', 'party_size', 'table_name', 'meal_selections', 'checked_in', 'checked_in_at', 'check_in_method', 'notes'];
     const csvContent = generateCSV(
@@ -859,8 +922,9 @@ const exportGuestsCSV = async (req, res, next) => {
       }
     );
 
+    const csvName = `event-${eventId}-${attendingOnly ? 'attending' : 'rsvps'}${sort ? '-by-' + sort : ''}.csv`;
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=event-${eventId}-rsvps.csv`);
+    res.setHeader('Content-Disposition', `attachment; filename=${csvName}`);
     return res.send(csvContent);
   } catch (err) {
     next(err);
@@ -873,6 +937,9 @@ const exportGuestsCSV = async (req, res, next) => {
  */
 const exportGuestsExcel = async (req, res, next) => {
   const { eventId } = req.params;
+  // Same export controls as the CSV export (attending filter + name/table sort).
+  const attendingOnly = req.query.attending === 'true';
+  const sort = ['name', 'table'].includes(req.query.sort) ? req.query.sort : null;
 
   try {
     // 1. Fetch RSVPs
@@ -906,11 +973,17 @@ const exportGuestsExcel = async (req, res, next) => {
 
     if (checkinsError) throw checkinsError;
 
-    const { generateExcelExport } = require('../utils/excelHelper');
-    const excelBuffer = await generateExcelExport(rsvps || [], tables || [], checkins || []);
+    // Filter/sort the Guest List sheet rows (the Seating & Meal sheets stay complete).
+    let guestRows = rsvps || [];
+    if (attendingOnly) guestRows = guestRows.filter(r => r.response === 'yes');
+    if (sort) guestRows = sortRsvpsForExport(guestRows, sort);
 
+    const { generateExcelExport } = require('../utils/excelHelper');
+    const excelBuffer = await generateExcelExport(guestRows, tables || [], checkins || []);
+
+    const xlsxName = `event-${eventId}-${attendingOnly ? 'attending' : 'rsvps'}${sort ? '-by-' + sort : ''}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=event-${eventId}-rsvps.xlsx`);
+    res.setHeader('Content-Disposition', `attachment; filename=${xlsxName}`);
     return res.send(excelBuffer);
   } catch (err) {
     next(err);
@@ -1162,7 +1235,7 @@ const searchPublicSeating = async (req, res, next) => {
     // event can't be enumerated by anyone who guesses the slug.
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, is_paid, status')
+      .select('id, is_paid, status, event_date')
       .eq('slug', slug)
       .single();
 
@@ -1171,6 +1244,10 @@ const searchPublicSeating = async (req, res, next) => {
     }
     if (!event.is_paid || event.status !== 'active') {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
+    }
+    // Seating is hidden from guests until 24h before the event begins.
+    if (!isSeatingRevealed(event.event_date)) {
+      return res.json({ success: true, locked: true, revealAt: seatingRevealAtISO(event.event_date), results: [] });
     }
 
     // 2. Search guests matching query substring, join with seating_assignments and tables
@@ -1234,7 +1311,7 @@ const getGuestSeatingMap = async (req, res, next) => {
     // 1. Resolve event and ensure it is live (paid + active).
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, is_paid, status')
+      .select('id, is_paid, status, event_date')
       .eq('slug', slug)
       .single();
 
@@ -1243,6 +1320,15 @@ const getGuestSeatingMap = async (req, res, next) => {
     }
     if (!event.is_paid || event.status !== 'active') {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
+    }
+    // The seating chart stays hidden from guests until 24h before the event begins,
+    // regardless of when the organizer built it. (Organizer dashboard uses the
+    // authenticated /events/:eventId/* endpoints and is unaffected.)
+    if (!isSeatingRevealed(event.event_date)) {
+      return res.json({
+        success: true, locked: true, revealAt: seatingRevealAtISO(event.event_date),
+        myTableId: null, myTableName: null, party: [], tables: [],
+      });
     }
 
     // 2. Resolve the guest's RSVP (must belong to this event) + their own party.

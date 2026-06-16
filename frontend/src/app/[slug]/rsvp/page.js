@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef, Suspense, use } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { translations } from '../../utils/translations';
+import { isSeatingRevealed } from '../../utils/seating';
 import SeatingMiniMap from './SeatingMiniMap';
 
 /* ═══ Brand Inline Style Helpers ═══ */
@@ -275,6 +276,8 @@ function RSVPFormContent({ slug }) {
   const t = translations[lang];
   const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
   const isContinueDisabled = partySize > 1 && additionalGuests.some(g => !g.fullName || !g.fullName.trim());
+  // The seating chart (table search + personal map) is hidden until 24h before the event.
+  const seatingRevealed = isSeatingRevealed(event.event_date);
 
   // Meal options: prefer a configured meal field's options (so guest choices match
   // what the organizer set up — and what the backend validates against). Fall back
@@ -449,9 +452,14 @@ function RSVPFormContent({ slug }) {
                 </div>
               )}
 
-              {/* Find my table — for guests who already RSVP'd */}
+              {/* Find my table — for guests who already RSVP'd (hidden until 24h before event) */}
               <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-                {!showTableLookup ? (
+                {!seatingRevealed ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', background: '#F8F4EC', border: '1px solid #E8E2D6', borderRadius: '10px' }}>
+                    <span style={{ fontSize: '18px' }}>🔒</span>
+                    <span style={{ fontSize: '12px', color: '#77736A', lineHeight: 1.5 }}>{t.seating_locked_desc}</span>
+                  </div>
+                ) : !showTableLookup ? (
                   <button onClick={() => setShowTableLookup(true)} style={{ ...S.backBtn, color: '#B8944F', fontWeight: 600 }}>
                     {isRTL ? 'هل سجّلت بالفعل؟ ابحث عن طاولتك' : "Already RSVP'd? Find your table"}
                   </button>
@@ -723,8 +731,8 @@ function RSVPFormContent({ slug }) {
                     </div>
                   )}
 
-                  {/* Personal seating map */}
-                  {rsvpId && (
+                  {/* Personal seating map — only within the 24h reveal window */}
+                  {rsvpId && seatingRevealed && (
                     seatingView ? (
                       <div style={{ marginTop: '8px' }}>
                         <SeatingResultPanel view={seatingView} loading={seatingLoading} isRTL={isRTL} onBack={() => setSeatingView(null)} />
