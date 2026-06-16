@@ -5,6 +5,11 @@ const { supabase } = require('../config/supabase');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
 
+// FRONTEND_URL may be a comma-separated allowlist (see app.js CORS). Stripe redirect
+// URLs must be a single, valid absolute URL — take the first origin, strip trailing slash.
+const frontendBaseUrl = () =>
+  (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '');
+
 /**
  * Creates a Stripe Checkout Session for event payment fees.
  * POST /api/v1/payments/create-checkout
@@ -96,8 +101,8 @@ const createCheckoutSession = async (req, res, next) => {
         tier_name: tier.name,
         type: 'event_fee'
       },
-      success_url: `${process.env.FRONTEND_URL}/dashboard?payment=success&event=${eventId}`,
-      cancel_url: `${process.env.FRONTEND_URL}/dashboard/create-event?payment=cancelled&event=${eventId}`
+      success_url: `${frontendBaseUrl()}/dashboard?payment=success&event=${eventId}`,
+      cancel_url: `${frontendBaseUrl()}/dashboard/create-event?payment=cancelled&event=${eventId}`
     });
 
     return res.status(200).json({
@@ -192,8 +197,8 @@ const purchaseSMSCredits = async (req, res, next) => {
         type: 'sms_credits',
         credit_count: creditCount.toString()
       },
-      success_url: `${process.env.FRONTEND_URL}/events/${eventId}/sms?purchase=success`,
-      cancel_url: `${process.env.FRONTEND_URL}/events/${eventId}/sms?purchase=cancelled`
+      success_url: `${frontendBaseUrl()}/dashboard/campaigns?purchase=success&event=${eventId}`,
+      cancel_url: `${frontendBaseUrl()}/dashboard/campaigns?purchase=cancelled&event=${eventId}`
     });
 
     return res.status(200).json({
@@ -285,78 +290,31 @@ const stripeWebhook = async (req, res, next) => {
       } else if (type === 'sms_credits') {
         const creditCount = parseInt(session.metadata.credit_count);
 
-        // Fetch wallet to see if it exists
-        const { data: wallets } = await supabase
-          .from('sms_credit_wallets')
-          .select('id, credits_purchased')
-          .eq('event_id', event_id);
+        // Single transactional RPC: ensures the wallet, writes the idempotency
+        // ledger row, and credits the wallet — all atomically. A duplicate
+        // delivery is caught inside the function (already_processed) and never
+        // double-credits; a mid-way failure rolls back fully for a clean retry.
+        const { data: purchaseResult, error: purchaseError } = await supabase
+          .rpc('record_sms_purchase', {
+            p_event_id: event_id,
+            p_credits: creditCount,
+            p_payment_intent: session.payment_intent
+          });
 
-        let wallet = wallets && wallets[0];
-        let walletId;
-
-        if (!wallet) {
-          // Try inserting a new wallet
-          const { data: newWallet, error: insertError } = await supabase
-            .from('sms_credit_wallets')
-            .insert({
-              event_id,
-              credits_purchased: 0,
-              credits_used: 0
-            })
-            .select()
-            .single();
-
-          if (insertError) {
-            // Handle race condition on duplicate wallet creation
-            if (insertError.code === '23505' || insertError.message.includes('duplicate key')) {
-              const { data: refetchedWallets } = await supabase
-                .from('sms_credit_wallets')
-                .select('id, credits_purchased')
-                .eq('event_id', event_id);
-              wallet = refetchedWallets && refetchedWallets[0];
-              if (!wallet) throw new Error('Failed to resolve wallet after unique constraint collision');
-              walletId = wallet.id;
-            } else {
-              throw insertError;
-            }
-          } else {
-            walletId = newWallet.id;
-            wallet = newWallet;
-          }
-        } else {
-          walletId = wallet.id;
+        if (purchaseError) throw purchaseError;
+        if (purchaseResult && purchaseResult.success === false) {
+          throw new Error(`record_sms_purchase failed: ${purchaseResult.error}`);
         }
 
-        // Atomically insert the ledger entry first to guarantee idempotency
-        const { error: ledgerError } = await supabase.from('sms_credit_ledger').insert({
-          wallet_id: walletId,
-          event_id,
-          transaction_type: 'purchase',
-          credits: creditCount,
-          stripe_payment_intent_id: session.payment_intent
-        });
-
-        if (ledgerError) {
-          if (ledgerError.code === '23505' || ledgerError.message.includes('duplicate key')) {
-            console.log(`[Webhook] Duplicate SMS ledger insert caught for payment intent: ${session.payment_intent}`);
-            return res.json({ received: true });
-          }
-          throw ledgerError;
+        // Audit log only on the first (newly credited) delivery
+        if (!purchaseResult?.already_processed) {
+          await supabase.from('activity_logs').insert({
+            event_id,
+            action: 'sms_credits_purchased',
+            entity_type: 'sms_wallet',
+            metadata: { credit_count: creditCount }
+          });
         }
-
-        // Atomically increment wallet credits via database RPC (prevents race conditions)
-        const { error: walletUpdateError } = await supabase
-          .rpc('increment_sms_credits', { p_event_id: event_id, p_credit_amount: creditCount });
-
-        if (walletUpdateError) throw walletUpdateError;
-
-        // Audit log
-        await supabase.from('activity_logs').insert({
-          event_id,
-          action: 'sms_credits_purchased',
-          entity_type: 'sms_wallet',
-          metadata: { credit_count: creditCount }
-        });
       }
     }
 

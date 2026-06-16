@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../../utils/apiClient';
 import OverviewStatCards from './OverviewStatCards';
 import RsvpProgressDonut from './RsvpProgressDonut';
@@ -9,6 +9,7 @@ import UpcomingEventsCards from './UpcomingEventsCards';
 import RecentActivityFeed from './RecentActivityFeed';
 
 /* ═══ CSS Animations ═══ */
+const OV_STYLES_ID = 'organizer-overview-styles';
 const GLOBAL_STYLES = `
 @keyframes ov-shimmer {
   0% { background-position: -600px 0; }
@@ -257,15 +258,15 @@ export default function OrganizerOverview() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const styleInjected = useRef(false);
 
   useEffect(() => {
-    if (!styleInjected.current) {
+    if (typeof document === 'undefined') return;
+    // Keyed by id so a StrictMode remount (or multiple instances) doesn't drop the styles.
+    if (!document.getElementById(OV_STYLES_ID)) {
       const styleEl = document.createElement('style');
+      styleEl.id = OV_STYLES_ID;
       styleEl.textContent = GLOBAL_STYLES;
       document.head.appendChild(styleEl);
-      styleInjected.current = true;
-      return () => { document.head.removeChild(styleEl); };
     }
   }, []);
 

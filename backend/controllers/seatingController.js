@@ -328,9 +328,79 @@ const saveSeatingBatch = async (req, res, next) => {
   }
 };
 
+/**
+ * Paginated + searchable list of ATTENDING guests for the seating panel.
+ * Backed by the get_seating_guests RPC so we never stream 100k rows into Node.
+ * GET /api/v1/events/:eventId/seating/guests?search=&filter=all|seated|unseated&page=&pageSize=
+ */
+const getSeatingGuests = async (req, res, next) => {
+  const { eventId } = req.params;
+  const search = (req.query.search || '').toString().trim();
+  const filter = ['all', 'seated', 'unseated'].includes(req.query.filter) ? req.query.filter : 'all';
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const pageSize = Math.min(Math.max(parseInt(req.query.pageSize) || 100, 1), 500);
+  const offset = (page - 1) * pageSize;
+  const tableId = req.query.tableId ? String(req.query.tableId) : null;
+
+  try {
+    const { data, error } = await supabase.rpc('get_seating_guests', {
+      p_event_id: eventId,
+      p_search: search,
+      p_filter: filter,
+      p_limit: pageSize,
+      p_offset: offset,
+      p_table_id: tableId
+    });
+
+    if (error) throw error;
+
+    const rows = data || [];
+    const total = rows.length > 0 ? Number(rows[0].total_count) : 0;
+    const guests = rows.map(r => ({
+      id: r.id,
+      guest_name: r.guest_name,
+      party_size: r.party_size,
+      tableId: r.table_id || ''
+    }));
+
+    return res.json({
+      success: true,
+      guests,
+      pagination: { page, pageSize, total, hasMore: offset + guests.length < total }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Aggregate seating summary counts (attending / seated / unseated) without
+ * loading any rows client-side.
+ * GET /api/v1/events/:eventId/seating/summary
+ */
+const getSeatingSummary = async (req, res, next) => {
+  const { eventId } = req.params;
+  try {
+    const { data, error } = await supabase.rpc('get_seating_summary', { p_event_id: eventId });
+    if (error) throw error;
+    return res.json({
+      success: true,
+      summary: data || {
+        attendingParties: 0, attendingGuests: 0,
+        seatedParties: 0, seatedGuests: 0,
+        unseatedParties: 0, unseatedGuests: 0
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   assignSeat,
   reassignSeat,
   unassignSeat,
-  saveSeatingBatch
+  saveSeatingBatch,
+  getSeatingGuests,
+  getSeatingSummary
 };

@@ -40,10 +40,10 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          guest_name: formData.guest_name.trim(),
+          guestName: formData.guest_name.trim(),
           email: formData.email.trim() || undefined,
           phone: formData.phone.trim() || undefined,
-          party_size: parseInt(formData.party_size, 10),
+          partySize: parseInt(formData.party_size, 10),
           response: formData.response,
           notes: formData.notes.trim() || undefined,
         }),

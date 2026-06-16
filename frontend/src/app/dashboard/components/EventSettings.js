@@ -92,10 +92,21 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
       setSuccess(false);
     } catch (err) {
       console.error("Storage upload failed, falling back to base64 encoding:", err);
+      // base64 inflates the payload by ~33%; the API server rejects bodies over 5MB.
+      // Keep the embedded data URL safely under that limit, otherwise require an external URL.
+      if (file.size > 3.5 * 1024 * 1024) {
+        alert("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
+        setMusicUploading(false);
+        return;
+      }
       const reader = new FileReader();
       reader.onload = (event) => {
         setForm(prev => ({ ...prev, background_music_url: event.target.result }));
         setSuccess(false);
+        setMusicUploading(false);
+      };
+      reader.onerror = () => {
+        alert("Failed to read the audio file. Please try again or paste an external URL.");
         setMusicUploading(false);
       };
       reader.readAsDataURL(file);

@@ -1,7 +1,13 @@
 const express = require('express');
-const { assignSeat, reassignSeat, unassignSeat, saveSeatingBatch } = require('../controllers/seatingController');
+const { assignSeat, reassignSeat, unassignSeat, saveSeatingBatch, getSeatingGuests, getSeatingSummary } = require('../controllers/seatingController');
 
 const router = express.Router({ mergeParams: true });
+
+// Paginated + searchable attending-guest list for the seating panel
+router.get('/guests', getSeatingGuests);
+
+// Aggregate seating summary counts
+router.get('/summary', getSeatingSummary);
 
 // Route to assign a guest party to a table
 router.post('/assign', assignSeat);

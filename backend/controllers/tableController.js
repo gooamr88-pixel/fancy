@@ -1,19 +1,41 @@
 const { supabase } = require('../config/supabase');
 
+// Seatable table shapes vs non-seating venue zones (must match the DB shape CHECK).
+const TABLE_SHAPES = ['round', 'oval', 'square', 'rectangle', 'rectangular', 'banquet', 'head'];
+const ZONE_SHAPES = ['stage', 'dance_floor', 'bar', 'dj_booth', 'entrance', 'custom'];
+const ALL_SHAPES = [...TABLE_SHAPES, ...ZONE_SHAPES];
+
+const toNum = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
+
 /**
- * Creates a new table for an event.
+ * Creates a new seating element (table or venue zone) for an event.
  * POST /api/v1/events/:eventId/tables
  */
 const createTable = async (req, res, next) => {
   const { eventId } = req.params;
-  const { tableName, maxCapacity, shape, x, y } = req.body;
+  const { tableName, maxCapacity, shape, x, y, width, height, rotation, color } = req.body;
+  const elementType = req.body.elementType === 'zone' ? 'zone' : 'table';
 
-  if (!tableName || !maxCapacity) {
+  if (!tableName || !tableName.trim()) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'tableName and maxCapacity are required.'
+      message: 'tableName is required.'
     });
+  }
+
+  const resolvedShape = shape || (elementType === 'zone' ? 'custom' : 'round');
+  if (!ALL_SHAPES.includes(resolvedShape)) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: `Invalid shape "${resolvedShape}".` });
+  }
+
+  // Tables must have a capacity; zones never do.
+  let capacity = null;
+  if (elementType === 'table') {
+    capacity = parseInt(maxCapacity);
+    if (isNaN(capacity) || capacity < 1 || capacity > 500) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'maxCapacity must be between 1 and 500 for a table.' });
+    }
   }
 
   try {
@@ -21,11 +43,16 @@ const createTable = async (req, res, next) => {
       .from('tables')
       .insert({
         event_id: eventId,
-        table_name: tableName,
-        max_capacity: parseInt(maxCapacity),
-        shape: shape || 'round',
-        position_x: x || 0,
-        position_y: y || 0
+        table_name: tableName.trim(),
+        element_type: elementType,
+        max_capacity: capacity,
+        shape: resolvedShape,
+        position_x: toNum(x) ?? 0,
+        position_y: toNum(y) ?? 0,
+        width: toNum(width),
+        height: toNum(height),
+        rotation: toNum(rotation) ?? 0,
+        color: color || null
       })
       .select()
       .single();
@@ -34,7 +61,7 @@ const createTable = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Table created successfully.',
+      message: 'Element created successfully.',
       table
     });
   } catch (err) {
@@ -69,28 +96,40 @@ const getTables = async (req, res, next) => {
 
     if (tableError) throw tableError;
 
-    // 2. Fetch seating assignments aggregations to calculate occupied seats
-    let assignments = [];
-    try {
-      const { data, error: assignError } = await supabase
-        .from('seating_assignments')
-        .select('table_id, rsvps(party_size)')
-        .eq('event_id', eventId);
+    // 2. Occupancy via a single DB-side aggregate (scales to 100k+ guests; never
+    //    streams every assignment into Node). Falls back to a manual sum if the
+    //    RPC isn't present yet (pre-migration environments).
+    const occupancyMap = {};
+    const { data: occRows, error: occError } = await supabase
+      .rpc('get_table_occupancy', { p_event_id: eventId });
 
-      if (!assignError) assignments = data || [];
-    } catch (e) {
-      // seating_assignments table may not exist yet
+    if (!occError && Array.isArray(occRows)) {
+      occRows.forEach(row => { occupancyMap[row.table_id] = Number(row.occupied) || 0; });
+    } else {
+      try {
+        const { data: assignments } = await supabase
+          .from('seating_assignments')
+          .select('table_id, rsvps(party_size)')
+          .eq('event_id', eventId);
+        (assignments || []).forEach(sa => {
+          if (sa.table_id && sa.rsvps) {
+            occupancyMap[sa.table_id] = (occupancyMap[sa.table_id] || 0) + sa.rsvps.party_size;
+          }
+        });
+      } catch (e) {
+        // seating_assignments table may not exist yet — leave occupancy at 0
+      }
     }
 
-    // Calculate occupancy map
-    const occupancyMap = {};
-    assignments.forEach(sa => {
-      if (sa.table_id && sa.rsvps) {
-        occupancyMap[sa.table_id] = (occupancyMap[sa.table_id] || 0) + sa.rsvps.party_size;
-      }
-    });
+    // By default only return seatable tables so legacy consumers (dashboard
+    // seating tab, guest table-picker) never see venue zones. The seating map
+    // opts into zones with ?include=all.
+    let rows = tables || [];
+    if (req.query.include !== 'all') {
+      rows = rows.filter(t => (t.element_type || 'table') === 'table');
+    }
 
-    const results = (tables || []).map(t => ({
+    const results = rows.map(t => ({
       ...t,
       occupied: occupancyMap[t.id] || 0
     }));
@@ -119,11 +158,11 @@ const updateTablePositions = async (req, res, next) => {
       message: 'tablePositions array is required.'
     });
   }
-  if (tablePositions.length > 200) {
+  if (tablePositions.length > 500) {
     return res.status(400).json({
       success: false,
       error: 'PAYLOAD_TOO_LARGE',
-      message: 'Cannot update more than 200 table positions at once.'
+      message: 'Cannot update more than 500 table positions at once.'
     });
   }
 
@@ -217,23 +256,32 @@ const deleteTable = async (req, res, next) => {
  */
 const updateTable = async (req, res, next) => {
   const { eventId, tableId } = req.params;
-  const { tableName, maxCapacity, shape } = req.body;
+  const { tableName, maxCapacity, shape, width, height, rotation, color } = req.body;
 
   const updates = {};
   if (tableName !== undefined) updates.table_name = tableName.trim();
   if (maxCapacity !== undefined) {
-    const cap = parseInt(maxCapacity);
-    if (isNaN(cap) || cap < 1 || cap > 500) {
-      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'maxCapacity must be between 1 and 500.' });
+    // null/'' clears capacity (zones); otherwise validate range.
+    if (maxCapacity === null || maxCapacity === '') {
+      updates.max_capacity = null;
+    } else {
+      const cap = parseInt(maxCapacity);
+      if (isNaN(cap) || cap < 1 || cap > 500) {
+        return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'maxCapacity must be between 1 and 500.' });
+      }
+      updates.max_capacity = cap;
     }
-    updates.max_capacity = cap;
   }
   if (shape !== undefined) {
-    if (!['round', 'rectangular'].includes(shape)) {
-      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'shape must be round or rectangular.' });
+    if (!ALL_SHAPES.includes(shape)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: `Invalid shape "${shape}".` });
     }
     updates.shape = shape;
   }
+  if (width !== undefined) updates.width = toNum(width);
+  if (height !== undefined) updates.height = toNum(height);
+  if (rotation !== undefined) updates.rotation = toNum(rotation) ?? 0;
+  if (color !== undefined) updates.color = color || null;
 
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ success: false, error: 'NO_UPDATES', message: 'No fields to update.' });
@@ -311,10 +359,15 @@ const duplicateTable = async (req, res, next) => {
       insertRows.push({
         event_id: eventId,
         table_name: `${source.table_name} (Copy ${i + 1})`,
+        element_type: source.element_type || 'table',
         max_capacity: source.max_capacity,
         shape: source.shape,
         position_x: Math.min(88, parseFloat(source.position_x || 0) + (6 * (i + 1))),
         position_y: Math.min(88, parseFloat(source.position_y || 0) + (6 * (i + 1))),
+        width: source.width,
+        height: source.height,
+        rotation: source.rotation || 0,
+        color: source.color || null,
         sort_order: (existingCount || 0) + i + 1
       });
     }

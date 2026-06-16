@@ -1,6 +1,7 @@
 const { supabase } = require('../config/supabase');
 const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
 const { generateQRCodeDataURL } = require('../utils/qrHelper');
+const { isAcceptedResponse, isDeclinedResponse } = require('../utils/responseHelpers');
 const logger = require('../utils/logger');
 
 /** Resolve the public-facing base URL (first origin if FRONTEND_URL is comma-separated). */
@@ -447,28 +448,30 @@ const getEventStats = async (req, res, next) => {
     };
 
     rsvps.forEach(rsvp => {
-      if (rsvp.response === 'yes') {
+      const size = rsvp.party_size || 1;
+      if (isAcceptedResponse(rsvp.response)) {
         stats.attendingParties++;
-        stats.attendingGuests += rsvp.party_size;
-      } else if (rsvp.response === 'no') {
+        stats.attendingGuests += size;
+      } else if (isDeclinedResponse(rsvp.response)) {
         stats.declinedParties++;
-        stats.declinedGuests += rsvp.party_size;
+        stats.declinedGuests += size;
       } else {
         stats.pendingParties++;
-        stats.pendingGuests += rsvp.party_size;
+        stats.pendingGuests += size;
       }
     });
 
     stats.totalExpectedGuests = stats.attendingGuests;
 
-    // 2. Fetch meals count summary
+    // 2. Fetch meals count summary (normalize response check to match aggregation above)
     const { data: attendingRsvps } = await supabase
       .from('rsvps')
-      .select('id')
-      .eq('event_id', eventId)
-      .eq('response', 'yes');
-      
-    const attendingRsvpIds = (attendingRsvps || []).map(r => r.id);
+      .select('id, response')
+      .eq('event_id', eventId);
+
+    const attendingRsvpIds = (attendingRsvps || [])
+      .filter(r => isAcceptedResponse(r.response))
+      .map(r => r.id);
     let meals = [];
     if (attendingRsvpIds.length > 0) {
       const { data: fetchedMeals } = await supabase

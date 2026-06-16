@@ -156,7 +156,9 @@ const getDeclineConfirmationTemplate = (rsvp, event) => {
     day: 'numeric'
   });
 
-  const eventPageUrl = `${process.env.FRONTEND_URL || 'https://fancyrsvp.com'}/e/${event.slug || ''}`;
+  // Public event route is /<slug> (not /e/<slug>); FRONTEND_URL may be a comma-separated allowlist → take the first origin.
+  const frontendBase = (process.env.FRONTEND_URL || 'https://fancyrsvp.com').split(',')[0].trim().replace(/\/$/, '');
+  const eventPageUrl = `${frontendBase}/${event.slug || ''}`;
 
   return `
     <!DOCTYPE html>

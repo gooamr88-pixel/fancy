@@ -149,10 +149,16 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
                   backgroundPosition: "center"
                 }}
               >
+                {/* Soft vignette for depth on the wood surface */}
+                <div
+                  className="pointer-events-none absolute inset-0 z-0"
+                  style={{ background: "radial-gradient(120% 80% at 50% 38%, transparent 40%, rgba(20,14,8,0.28) 100%)" }}
+                />
+
                 {/* 3D Envelope Container with remounting key constraint */}
-                <motion.div 
-                  className="w-full shrink-0 flex items-center justify-center py-4"
-                  animate={{ minHeight: isCardOpened ? 510 : 400 }}
+                <motion.div
+                  className="w-full shrink-0 flex items-center justify-center py-4 relative z-10"
+                  animate={{ minHeight: isCardOpened ? 470 : 400 }}
                   transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
                 >
                   <EnvelopeAnimation 
@@ -166,11 +172,26 @@ export default function MobilePreview({ template, theme, guestName, isBare = fal
 
               </motion.div>
               
+              {/* Bottom scrim — turns the floating buttons into a premium CTA bar instead of dead wood */}
+              <AnimatePresence>
+                {isCardOpened && (
+                  <motion.div
+                    key="cta-scrim"
+                    className="absolute bottom-0 left-0 right-0 h-44 z-30 pointer-events-none"
+                    style={{ background: "linear-gradient(to top, rgba(28,20,12,0.92) 0%, rgba(28,20,12,0.65) 45%, rgba(28,20,12,0) 100%)" }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5, delay: 0.5 }}
+                  />
+                )}
+              </AnimatePresence>
+
               {/* Floating RSVP Button overlaying the card */}
               <AnimatePresence>
                 {isCardOpened && (
                   <motion.div
-                    className="absolute bottom-6 left-0 right-0 px-6 z-40 flex flex-col gap-2.5 items-center animate-subtle-float"
+                    className="absolute bottom-7 left-0 right-0 px-6 z-40 flex flex-col gap-3 items-center"
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 30 }}
