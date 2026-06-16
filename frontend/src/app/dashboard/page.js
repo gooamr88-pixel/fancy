@@ -136,7 +136,17 @@ export default function DashboardPage() {
       try {
         const res = await fetch(`${apiUrl}/events`, { credentials: 'include' });
         const data = await res.json();
-        if (data.success && data.events.length > 0) { setEvents(data.events); setEventId(data.events[0].id); }
+        if (data.success && data.events.length > 0) {
+          setEvents(data.events);
+          // Prefer the event passed back from a Stripe return (?event=…) or the last
+          // active event, so the user lands on the section they were working in —
+          // not always the first event.
+          const params = new URLSearchParams(window.location.search);
+          const returnedId = params.get('event');
+          const storedId = localStorage.getItem('active_event_id');
+          const preferred = [returnedId, storedId].find(id => id && data.events.some(e => e.id === id));
+          setEventId(preferred || data.events[0].id);
+        }
         else { setEventId(''); setLoading(false); }
       } catch (err) { setEventId(''); setLoading(false); }
     };
@@ -169,6 +179,9 @@ export default function DashboardPage() {
           return {
             id: r.id, guest_name: r.guest_name, party_size: r.party_size, response: r.response,
             email: r.email || '-', phone: r.phone || '-', tableId: assignedTableId, meal: guestMeals,
+            // Full per-companion details so the organizer sees everyone in the party.
+            guests: r.rsvp_guests || [],
+            notes: r.notes || '',
             timestamp: r.created_at || null
           };
         });

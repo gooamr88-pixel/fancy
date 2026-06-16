@@ -4,11 +4,38 @@ const stripe = require('stripe')(STRIPE_SECRET_KEY);
 const { supabase } = require('../config/supabase');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
+const { computeSmsChargeCents } = require('../utils/pricing');
 
-// FRONTEND_URL may be a comma-separated allowlist (see app.js CORS). Stripe redirect
-// URLs must be a single, valid absolute URL — take the first origin, strip trailing slash.
-const frontendBaseUrl = () =>
-  (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '');
+// FRONTEND_URL may be a comma-separated allowlist (see app.js CORS).
+const allowedReturnOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map(s => s.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+/**
+ * Resolves the frontend origin to send the user back to after Stripe Checkout.
+ *
+ * Returning to a DIFFERENT origin than the one the user started on logs them out:
+ * `localStorage` (org_id) and the auth cookie are both per-origin, so they'd land
+ * on the login page and on the wrong section. We therefore echo back the exact
+ * origin the checkout request came from (validated against the FRONTEND_URL
+ * allowlist), falling back to the first configured origin only if we can't match.
+ */
+const resolveReturnBase = (req) => {
+  const fromOrigin = (req.headers.origin || '').trim().replace(/\/$/, '');
+  if (fromOrigin && allowedReturnOrigins.includes(fromOrigin)) return fromOrigin;
+
+  // Fall back to the Referer's origin (e.g. some browsers omit Origin on same-site).
+  if (req.headers.referer) {
+    try {
+      const u = new URL(req.headers.referer);
+      const refOrigin = `${u.protocol}//${u.host}`;
+      if (allowedReturnOrigins.includes(refOrigin)) return refOrigin;
+    } catch { /* malformed referer — ignore */ }
+  }
+
+  return allowedReturnOrigins[0] || 'http://localhost:3000';
+};
 
 /**
  * Creates a Stripe Checkout Session for event payment fees.
@@ -101,8 +128,8 @@ const createCheckoutSession = async (req, res, next) => {
         tier_name: tier.name,
         type: 'event_fee'
       },
-      success_url: `${frontendBaseUrl()}/dashboard?payment=success&event=${eventId}`,
-      cancel_url: `${frontendBaseUrl()}/dashboard/create-event?payment=cancelled&event=${eventId}`
+      success_url: `${resolveReturnBase(req)}/dashboard?payment=success&event=${eventId}`,
+      cancel_url: `${resolveReturnBase(req)}/dashboard/create-event?payment=cancelled&event=${eventId}`
     });
 
     return res.status(200).json({
@@ -133,7 +160,7 @@ const purchaseSMSCredits = async (req, res, next) => {
     // 1. Fetch SMS rates
     const { data: config } = await supabase
       .from('super_admin_config')
-      .select('sms_rate_cents_per_credit')
+      .select('sms_rate_cents_per_credit, sms_markup_percentage')
       .single();
 
     if (!config) {
@@ -144,13 +171,12 @@ const purchaseSMSCredits = async (req, res, next) => {
       });
     }
 
-    const unitPrice = config.sms_rate_cents_per_credit;
-    let totalCents = unitPrice * creditCount;
-
-    // Apply volume discount (12.5% discount for 500+ credits)
-    if (creditCount >= 500) {
-      totalCents = Math.round(totalCents * 0.875);
-    }
+    // Base carrier cost → admin markup → volume discount, rounded once at the end.
+    const totalCents = computeSmsChargeCents({
+      unitPriceCents: config.sms_rate_cents_per_credit,
+      creditCount,
+      markupPct: config.sms_markup_percentage,
+    });
 
     // 2. Fetch customer details
     const { data: eventData } = await supabase
@@ -181,24 +207,27 @@ const purchaseSMSCredits = async (req, res, next) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
+      // Charge the computed total as a single line item. Splitting it into a
+      // per-unit price × quantity would re-round per credit and silently discard
+      // the markup/volume-discount cents (e.g. an intended 2188¢ collapses to 2000¢).
       line_items: [{
         price_data: {
           currency: 'usd',
-          unit_amount: Math.round(totalCents / creditCount),
+          unit_amount: totalCents,
           product_data: {
             name: `Fancy RSVP - SMS Credits (${creditCount} Pack)`,
             description: `Pre-paid SMS credits for event invitations`
           }
         },
-        quantity: creditCount
+        quantity: 1
       }],
       metadata: {
         event_id: eventId,
         type: 'sms_credits',
         credit_count: creditCount.toString()
       },
-      success_url: `${frontendBaseUrl()}/dashboard/campaigns?purchase=success&event=${eventId}`,
-      cancel_url: `${frontendBaseUrl()}/dashboard/campaigns?purchase=cancelled&event=${eventId}`
+      success_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=success&event=${eventId}`,
+      cancel_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=cancelled&event=${eventId}`
     });
 
     return res.status(200).json({
@@ -359,6 +388,8 @@ const manualCashApproval = async (req, res, next) => {
         .update({
           status: 'completed',
           approved_by: req.user.id,
+          verified_by: req.user.id,
+          verified_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
           amount_cents: amountCents
         })
@@ -444,13 +475,29 @@ const manualCashApproval = async (req, res, next) => {
  * PATCH /api/v1/admin/pricing
  */
 const updatePricingConfig = async (req, res, next) => {
-  const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct } = req.body;
+  const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct, manualPaymentMethods } = req.body;
 
   const updates = {};
   if (pricingTiers) updates.pricing_tiers = pricingTiers;
   if (smsRateCentsPerCredit !== undefined) updates.sms_rate_cents_per_credit = smsRateCentsPerCredit;
   if (smsMarkupPercentage !== undefined) updates.sms_markup_percentage = smsMarkupPercentage;
   if (platformCommissionPct !== undefined) updates.platform_commission_pct = platformCommissionPct;
+  if (manualPaymentMethods !== undefined) {
+    if (!Array.isArray(manualPaymentMethods)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'manualPaymentMethods must be an array.' });
+    }
+    // Normalize each method to the documented shape and drop empties.
+    updates.manual_payment_methods = manualPaymentMethods
+      .filter(m => m && (m.label || '').trim())
+      .map((m, i) => ({
+        id: m.id || `method_${i}_${Date.now()}`,
+        label: String(m.label).trim(),
+        type: m.type || 'other',
+        details: (m.details || '').trim(),
+        instructions: (m.instructions || '').trim(),
+        is_active: m.is_active !== false,
+      }));
+  }
   updates.updated_at = new Date().toISOString();
   updates.updated_by = req.user.id;
 
@@ -502,7 +549,7 @@ const getPricingConfig = async (req, res, next) => {
  */
 const initiateManualPayment = async (req, res, next) => {
   const { eventId } = req.params;
-  const { tierName } = req.body;
+  const { tierName, methodLabel, payerReference } = req.body;
 
   if (!tierName) {
     return res.status(400).json({
@@ -523,6 +570,13 @@ const initiateManualPayment = async (req, res, next) => {
       .limit(1);
 
     if (existingPending && existingPending.length > 0) {
+      // Keep the payer's declared method / proof reference fresh if they re-submit.
+      if (methodLabel !== undefined || payerReference !== undefined) {
+        const patch = {};
+        if (methodLabel !== undefined) patch.manual_method = (methodLabel || '').toString().slice(0, 200);
+        if (payerReference !== undefined) patch.payer_reference = (payerReference || '').toString().slice(0, 300);
+        await supabase.from('event_payments').update(patch).eq('id', existingPending[0].id);
+      }
       return res.status(200).json({
         success: true,
         message: 'Existing pending cash payment found.',
@@ -570,7 +624,9 @@ const initiateManualPayment = async (req, res, next) => {
         amount_cents: tier.price_cents,
         status: 'pending',
         payment_method: 'cash_manual',
-        currency: 'usd'
+        currency: 'usd',
+        manual_method: methodLabel ? methodLabel.toString().slice(0, 200) : null,
+        payer_reference: payerReference ? payerReference.toString().slice(0, 300) : null
       })
       .select()
       .single();

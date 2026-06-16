@@ -1,7 +1,24 @@
 -- ═══════════════════════════════════════════════════════════
 -- FANCY RSVP - DATABASE SCHEMA & CORE LOGIC
 -- Target Database: PostgreSQL 15+ / Supabase
--- This file represents the FINAL state after all migrations.
+--
+-- ⚠ NOT THE SOURCE OF TRUTH. `supabase/migrations/` is canonical and is what
+--   actually provisions the database. This file is a hand-maintained reference
+--   snapshot of the final schema. It is reconciled through migration
+--   20260616200000_party_size_bound (the latest at time of writing) and is kept
+--   in sync deliberately — but to stand up or migrate a real database you should
+--   still run the migrations in order, not apply this file.
+--
+--   Reconciled drift now reflected below:
+--     • assign_seat / reassign_seat carry the `p_force BOOLEAN` override arg
+--       (20260615300000_seating_force_override).
+--     • SMS purchase + seating aggregate RPCs are present: record_sms_purchase
+--       (20260616100000), get_table_occupancy / get_seating_summary /
+--       get_seating_guests (20260616000000_seating_elements_scale).
+--     • events.qr_code_url (20260615200000_event_qr_persistence).
+--     • tables venue-element/geometry columns + relaxed capacity/shape checks
+--       (20260616000000_seating_elements_scale).
+--     • rsvps.party_size upper-bound CHECK 1..20 (20260616200000_party_size_bound).
 -- ═══════════════════════════════════════════════════════════
 
 -- Enable UUID generation extension
@@ -72,6 +89,9 @@ CREATE TABLE IF NOT EXISTS events (
     event_type TEXT DEFAULT 'wedding',
     background_music_url TEXT,
     notification_preferences JSONB DEFAULT '{"email": true, "whatsapp": false}',
+    -- Auto-generated event QR code (PNG data URL) for the public event link;
+    -- set at creation/publish (20260615200000_event_qr_persistence).
+    qr_code_url TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -91,17 +111,32 @@ CREATE TABLE IF NOT EXISTS rsvp_form_fields (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- `tables` stores both seatable tables and non-seating venue zones (stage, bar,
+-- dance floor, etc.). Zones carry no capacity and use width/height/rotation/color
+-- geometry. Final state after 20260616000000_seating_elements_scale.
 CREATE TABLE IF NOT EXISTS tables (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     table_name TEXT NOT NULL,
-    max_capacity INTEGER NOT NULL CHECK (max_capacity > 0),
-    shape TEXT DEFAULT 'round' CHECK (shape IN ('round', 'rectangular')),
+    -- NULL capacity allowed for zones; seatable tables must be > 0.
+    max_capacity INTEGER CHECK (max_capacity IS NULL OR max_capacity > 0),
+    element_type TEXT NOT NULL DEFAULT 'table' CHECK (element_type IN ('table', 'zone')),
+    shape TEXT DEFAULT 'round' CHECK (shape IN (
+        'round', 'oval', 'square', 'rectangle', 'rectangular', 'banquet', 'head',
+        'stage', 'dance_floor', 'bar', 'dj_booth', 'entrance', 'custom'
+    )),
     position_x DECIMAL DEFAULT 0,
     position_y DECIMAL DEFAULT 0,
+    width DECIMAL,
+    height DECIMAL,
+    rotation DECIMAL NOT NULL DEFAULT 0,
+    color TEXT,
     sort_order INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT now()
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_tables_event ON tables(event_id);
 
 CREATE TABLE IF NOT EXISTS rsvps (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -110,7 +145,8 @@ CREATE TABLE IF NOT EXISTS rsvps (
     email TEXT,
     phone TEXT,
     response TEXT NOT NULL CHECK (response IN ('yes', 'no', 'pending')),
-    party_size INTEGER DEFAULT 1 CHECK (party_size >= 1),
+    -- Upper bound added by 20260616200000_party_size_bound (seating math trusts SUM).
+    party_size INTEGER DEFAULT 1 CHECK (party_size BETWEEN 1 AND 20),
     notes TEXT,
     confirmation_email_sent BOOLEAN DEFAULT FALSE,
     qr_email_sent BOOLEAN DEFAULT FALSE,
@@ -123,6 +159,10 @@ CREATE INDEX IF NOT EXISTS idx_rsvps_event_response ON rsvps(event_id, response)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_event_email_unique
   ON rsvps(event_id, email)
   WHERE response != 'no';
+-- Trigram index powering the fast, paginated guest-search panel at scale
+-- (20260616000000_seating_elements_scale).
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_rsvps_guest_name_trgm ON rsvps USING gin (guest_name gin_trgm_ops);
 
 CREATE TABLE IF NOT EXISTS rsvp_guests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -187,6 +227,12 @@ CREATE TABLE IF NOT EXISTS event_payments (
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
     payment_method TEXT DEFAULT 'stripe' CHECK (payment_method IN ('stripe', 'cash_manual')),
     approved_by UUID,
+    -- Manual/offline transfer verification context (20260616300000_manual_payment_methods).
+    manual_method   TEXT,
+    payer_reference TEXT,
+    verified_by     UUID,
+    verified_at     TIMESTAMPTZ,
+    admin_note      TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
     completed_at TIMESTAMPTZ
 );
@@ -230,6 +276,9 @@ CREATE TABLE IF NOT EXISTS super_admin_config (
     sms_rate_cents_per_credit INTEGER DEFAULT 8,
     sms_markup_percentage DECIMAL DEFAULT 40.0,
     platform_commission_pct DECIMAL DEFAULT 0.0,
+    -- Admin-managed manual payment methods shown to organizers paying offline
+    -- (20260616300000_manual_payment_methods).
+    manual_payment_methods JSONB NOT NULL DEFAULT '[]',
     updated_at TIMESTAMPTZ DEFAULT now(),
     updated_by UUID
 );
@@ -331,11 +380,14 @@ $$;
 -- ─── 6. STORED FUNCTIONS & CONCURRENCY SEATING LOGIC ───
 
 -- Atomic Seating Function
+-- p_force skips the capacity assertion to allow deliberate overbooking
+-- (20260615300000_seating_force_override).
 CREATE OR REPLACE FUNCTION assign_seat(
     p_event_id UUID,
     p_rsvp_id UUID,
     p_table_id UUID,
-    p_assigned_by UUID
+    p_assigned_by UUID,
+    p_force BOOLEAN DEFAULT false
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -410,9 +462,9 @@ BEGIN
         );
     END IF;
 
-    -- Capacity Assertion
+    -- Capacity Assertion (skipped when the organizer forces the override)
     v_remaining := v_table_capacity - v_current_occupied;
-    IF v_party_size > v_remaining THEN
+    IF (NOT p_force) AND v_party_size > v_remaining THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'CAPACITY_EXCEEDED',
@@ -428,22 +480,26 @@ BEGIN
     -- Log transaction
     INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
     VALUES (p_event_id, p_assigned_by, 'table_assigned', 'seating_assignment', v_assignment_id,
-            jsonb_build_object('table_id', p_table_id, 'table_name', v_table_name, 'party_size', v_party_size));
+            jsonb_build_object('table_id', p_table_id, 'table_name', v_table_name, 'party_size', v_party_size, 'forced', p_force));
 
     RETURN jsonb_build_object(
         'success', true,
         'assignment_id', v_assignment_id,
-        'seats_remaining', v_remaining - v_party_size
+        'seats_remaining', v_remaining - v_party_size,
+        'forced', p_force
     );
 END;
 $$;
 
 -- Atomic Reassignment Function
+-- p_force skips the capacity assertion to allow deliberate overbooking
+-- (20260615300000_seating_force_override).
 CREATE OR REPLACE FUNCTION reassign_seat(
     p_event_id UUID,
     p_rsvp_id UUID,
     p_new_table_id UUID,
-    p_assigned_by UUID
+    p_assigned_by UUID,
+    p_force BOOLEAN DEFAULT false
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -518,7 +574,7 @@ BEGIN
 
     v_new_remaining := v_new_table_capacity - v_new_occupied;
 
-    IF v_party_size > v_new_remaining THEN
+    IF (NOT p_force) AND v_party_size > v_new_remaining THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'CAPACITY_EXCEEDED',
@@ -537,14 +593,15 @@ BEGIN
     -- Log transaction
     INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
     VALUES (p_event_id, p_assigned_by, 'table_reassigned', 'seating_assignment', v_assignment_id,
-            jsonb_build_object('from_table', v_old_table_name, 'to_table', v_new_table_name, 'party_size', v_party_size));
+            jsonb_build_object('from_table', v_old_table_name, 'to_table', v_new_table_name, 'party_size', v_party_size, 'forced', p_force));
 
     RETURN jsonb_build_object(
         'success', true,
         'assignment_id', v_assignment_id,
         'from_table', v_old_table_name,
         'to_table', v_new_table_name,
-        'seats_remaining_new_table', v_new_remaining - v_party_size
+        'seats_remaining_new_table', v_new_remaining - v_party_size,
+        'forced', p_force
     );
 END;
 $$;
@@ -824,6 +881,145 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- Webhook-safe atomic SMS credit purchase: ensure wallet + write idempotency
+-- ledger row + credit wallet, all in one transaction. A duplicate Stripe delivery
+-- is caught via the partial unique index and returns already_processed=true
+-- without double-crediting (20260616100000_atomic_sms_purchase).
+CREATE OR REPLACE FUNCTION public.record_sms_purchase(
+  p_event_id        UUID,
+  p_credits         INTEGER,
+  p_payment_intent  TEXT
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_wallet_id UUID;
+BEGIN
+  IF p_credits IS NULL OR p_credits <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'INVALID_CREDITS');
+  END IF;
+
+  INSERT INTO sms_credit_wallets (event_id, credits_purchased, credits_used)
+  VALUES (p_event_id, 0, 0)
+  ON CONFLICT (event_id) DO NOTHING;
+
+  SELECT id INTO v_wallet_id FROM sms_credit_wallets WHERE event_id = p_event_id;
+  IF v_wallet_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'WALLET_NOT_FOUND');
+  END IF;
+
+  BEGIN
+    INSERT INTO sms_credit_ledger (wallet_id, event_id, transaction_type, credits, stripe_payment_intent_id)
+    VALUES (v_wallet_id, p_event_id, 'purchase', p_credits, p_payment_intent);
+  EXCEPTION WHEN unique_violation THEN
+    RETURN jsonb_build_object('success', true, 'already_processed', true);
+  END;
+
+  UPDATE sms_credit_wallets
+  SET credits_purchased = credits_purchased + p_credits,
+      updated_at = now()
+  WHERE id = v_wallet_id;
+
+  RETURN jsonb_build_object('success', true, 'already_processed', false);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_sms_purchase(UUID, INTEGER, TEXT) FROM anon, authenticated;
+
+-- Aggregate occupancy per table (DB-side SUM; never streams rows to Node).
+-- 20260616000000_seating_elements_scale.
+CREATE OR REPLACE FUNCTION public.get_table_occupancy(p_event_id UUID)
+RETURNS TABLE(table_id UUID, occupied BIGINT)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT t.id AS table_id,
+         COALESCE(SUM(r.party_size), 0)::BIGINT AS occupied
+  FROM tables t
+  LEFT JOIN seating_assignments sa ON sa.table_id = t.id
+  LEFT JOIN rsvps r ON r.id = sa.rsvp_id AND r.response = 'yes'
+  WHERE t.event_id = p_event_id
+  GROUP BY t.id;
+$$;
+
+-- Seating summary counts (header stats without loading rows).
+CREATE OR REPLACE FUNCTION public.get_seating_summary(p_event_id UUID)
+RETURNS JSONB
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH attending AS (
+    SELECT id, party_size FROM rsvps
+    WHERE event_id = p_event_id AND response = 'yes'
+  ),
+  seated AS (
+    SELECT DISTINCT sa.rsvp_id
+    FROM seating_assignments sa
+    JOIN attending a ON a.id = sa.rsvp_id
+    WHERE sa.event_id = p_event_id
+  )
+  SELECT jsonb_build_object(
+    'attendingParties', (SELECT COUNT(*) FROM attending),
+    'attendingGuests',  (SELECT COALESCE(SUM(party_size), 0) FROM attending),
+    'seatedParties',    (SELECT COUNT(*) FROM seated),
+    'seatedGuests',     (SELECT COALESCE(SUM(a.party_size), 0)
+                           FROM attending a WHERE a.id IN (SELECT rsvp_id FROM seated)),
+    'unseatedParties',  (SELECT COUNT(*) FROM attending a WHERE a.id NOT IN (SELECT rsvp_id FROM seated)),
+    'unseatedGuests',   (SELECT COALESCE(SUM(a.party_size), 0)
+                           FROM attending a WHERE a.id NOT IN (SELECT rsvp_id FROM seated))
+  );
+$$;
+
+-- Paginated + searchable attending-guest list (server-side; total_count is a
+-- window count so the UI paginates without a second round-trip).
+-- p_filter: 'all' | 'seated' | 'unseated'.
+CREATE OR REPLACE FUNCTION public.get_seating_guests(
+  p_event_id UUID,
+  p_search   TEXT DEFAULT '',
+  p_filter   TEXT DEFAULT 'all',
+  p_limit    INT  DEFAULT 100,
+  p_offset   INT  DEFAULT 0,
+  p_table_id UUID DEFAULT NULL
+)
+RETURNS TABLE(id UUID, guest_name TEXT, party_size INT, table_id UUID, total_count BIGINT)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT r.id,
+         r.guest_name,
+         r.party_size,
+         sa.table_id,
+         COUNT(*) OVER() AS total_count
+  FROM rsvps r
+  LEFT JOIN seating_assignments sa
+    ON sa.rsvp_id = r.id AND sa.event_id = p_event_id
+  WHERE r.event_id = p_event_id
+    AND r.response = 'yes'
+    AND (p_search IS NULL OR p_search = '' OR r.guest_name ILIKE '%' || p_search || '%')
+    AND (
+      p_table_id IS NOT NULL AND sa.table_id = p_table_id
+      OR (p_table_id IS NULL AND (
+            p_filter = 'all'
+            OR (p_filter = 'seated'   AND sa.table_id IS NOT NULL)
+            OR (p_filter = 'unseated' AND sa.table_id IS NULL)
+      ))
+    )
+  ORDER BY r.guest_name, r.id
+  LIMIT GREATEST(p_limit, 0) OFFSET GREATEST(p_offset, 0);
+$$;
+
+-- Seating aggregate RPCs are server-side only (service role), invoked after the
+-- event-owner middleware authorizes the caller.
+REVOKE ALL ON FUNCTION public.get_table_occupancy(UUID) FROM anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_seating_summary(UUID) FROM anon, authenticated;
+REVOKE ALL ON FUNCTION public.get_seating_guests(UUID, TEXT, TEXT, INT, INT, UUID) FROM anon, authenticated;
 
 
 -- ─── 7. RSVP MODIFICATION TRIGGER ───

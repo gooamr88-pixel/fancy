@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -10,19 +10,43 @@ const C = {
   error: '#C45E5E', success: '#3B9B6D',
 };
 
+const METHOD_ICON = { bank: '🏦', wallet: '📱', instapay: '⚡', cash: '💵', paypal: '🅿️', other: '💳' };
+
+function CopyBtn({ value }) {
+  const [copied, setCopied] = useState(false);
+  if (!value) return null;
+  return (
+    <button type="button"
+      onClick={() => { navigator.clipboard?.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}
+      style={{ border: `1px solid ${C.border}`, background: C.white, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: copied ? C.success : C.gold, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>
+      {copied ? '✓ Copied' : 'Copy'}
+    </button>
+  );
+}
+
 /**
  * Step 3 — Platform Fee Payment.
- * The PRD requires the organizer to pay the fixed platform fee before the event
- * goes live. The draft event already exists at this point, so we can either:
- *   • Pay by card  → redirect to Stripe Checkout (returns to dashboard)
- *   • Manual/Cash  → generate a reference number inline; a Super Admin approves later
+ *   • Pay by card  → redirect to Stripe Checkout
+ *   • Manual/Cash  → choose one of the Super-Admin-configured methods, transfer
+ *     to those details, submit the proof reference, get a reference code; a Super
+ *     Admin then verifies the money arrived and activates the event.
  */
 export default function StagePayment({
-  tiers, selectedTierName, onSelectTier,
+  tiers, manualMethods = [], selectedTierName, onSelectTier,
   onPayStripe, onPayManual, manualRef,
   processing, error, onContinue, onBack, onSkip,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
+  const [showManual, setShowManual] = useState(false);
+  const [chosenMethod, setChosenMethod] = useState('');
+  const [payerRef, setPayerRef] = useState('');
+
+  const activeMethods = (manualMethods || []).filter(m => m && m.is_active !== false);
+
+  const submitManual = () => {
+    const label = chosenMethod || (activeMethods[0]?.label || 'Manual Transfer');
+    onPayManual(label, payerRef.trim());
+  };
 
   return (
     <div style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
@@ -90,51 +114,142 @@ export default function StagePayment({
       {manualRef && (
         <div style={{
           background: 'rgba(59,155,109,0.06)', border: '1px solid rgba(59,155,109,0.25)',
-          borderRadius: 12, padding: '16px 18px', marginBottom: 20,
+          borderRadius: 12, padding: '18px 20px', marginBottom: 20,
         }}>
-          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal, margin: '0 0 6px', fontWeight: 600 }}>
-            ✓ Manual payment recorded
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: C.charcoal, margin: '0 0 8px', fontWeight: 700 }}>
+            ✓ Payment submitted — pending verification
           </p>
-          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0, lineHeight: 1.5 }}>
-            Your reference number is{' '}
-            <code style={{ background: C.ivory, padding: '2px 8px', borderRadius: 6, color: C.gold, fontWeight: 700 }}>{manualRef}</code>.
-            Send the transfer with this reference; a Super Admin will approve it and your event will go live. You can continue setting up tables now.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone }}>Reference code:</span>
+            <code style={{ background: C.ivory, padding: '4px 10px', borderRadius: 6, color: C.gold, fontWeight: 700, fontSize: 14 }}>{manualRef}</code>
+            <CopyBtn value={manualRef} />
+          </div>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0, lineHeight: 1.6 }}>
+            Make sure you have sent the transfer using this reference as the note. A Super Admin will confirm the money arrived and your event will go live automatically. You can continue setting up tables now.
           </p>
         </div>
       )}
 
-      {/* Payment method buttons */}
+      {/* Payment method selection */}
       {!manualRef && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          <button
-            onClick={onPayStripe}
-            disabled={processing || !selectedTierName}
-            style={{
-              flex: '1 1 240px', height: 54,
-              background: (processing || !selectedTierName) ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
-              color: C.white, border: 'none', borderRadius: 14,
-              fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
-              cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
-              boxShadow: (processing || !selectedTierName) ? 'none' : '0 4px 18px rgba(184,148,79,0.3)',
-            }}
-          >
-            💳 Pay with Card
-          </button>
-          <button
-            onClick={onPayManual}
-            disabled={processing || !selectedTierName}
-            style={{
-              flex: '1 1 240px', height: 54,
-              background: C.white, color: C.charcoal,
-              border: `1.5px solid ${C.charcoal}`, borderRadius: 14,
-              fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
-              cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
-              opacity: (processing || !selectedTierName) ? 0.5 : 1,
-            }}
-          >
-            🏦 Manual / Cash Transfer
-          </button>
-        </div>
+        <>
+          {!showManual ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              <button
+                onClick={onPayStripe}
+                disabled={processing || !selectedTierName}
+                style={{
+                  flex: '1 1 240px', height: 54,
+                  background: (processing || !selectedTierName) ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
+                  color: C.white, border: 'none', borderRadius: 14,
+                  fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
+                  cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
+                  boxShadow: (processing || !selectedTierName) ? 'none' : '0 4px 18px rgba(184,148,79,0.3)',
+                }}
+              >
+                💳 Pay with Card
+              </button>
+              <button
+                onClick={() => setShowManual(true)}
+                disabled={processing || !selectedTierName}
+                style={{
+                  flex: '1 1 240px', height: 54,
+                  background: C.white, color: C.charcoal,
+                  border: `1.5px solid ${C.charcoal}`, borderRadius: 14,
+                  fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
+                  cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
+                  opacity: (processing || !selectedTierName) ? 0.5 : 1,
+                }}
+              >
+                🏦 Manual / Bank Transfer
+              </button>
+            </div>
+          ) : (
+            <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 22, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: 0 }}>Pay by Manual Transfer</h3>
+                <button onClick={() => setShowManual(false)} style={{ background: 'none', border: 'none', color: C.stone, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}>← Other methods</button>
+              </div>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, margin: '0 0 18px', lineHeight: 1.6 }}>
+                Transfer the platform fee to one of the accounts below, then submit your proof. We&apos;ll verify and activate your event.
+              </p>
+
+              {activeMethods.length === 0 ? (
+                <div style={{ background: C.softBg, border: `1px dashed ${C.border}`, borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, margin: 0 }}>
+                    No payment accounts are published yet. You can still generate a reference code and our team will share transfer details with you.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 18 }}>
+                  {activeMethods.map((m, i) => {
+                    const sel = (chosenMethod || activeMethods[0]?.label) === m.label;
+                    return (
+                      <div key={m.id || i}
+                        onClick={() => setChosenMethod(m.label)}
+                        style={{
+                          border: sel ? `2px solid ${C.gold}` : `1.5px solid ${C.border}`,
+                          background: sel ? 'rgba(184,148,79,0.05)' : C.white,
+                          borderRadius: 14, padding: 16, cursor: 'pointer', transition: 'all 0.2s',
+                        }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: m.details || m.instructions ? 10 : 0 }}>
+                          <span style={{ fontSize: 18 }}>{METHOD_ICON[m.type] || METHOD_ICON.other}</span>
+                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700, color: C.charcoal, flex: 1 }}>{m.label}</span>
+                          <div style={{
+                            width: 20, height: 20, borderRadius: '50%',
+                            border: sel ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
+                            background: sel ? C.gold : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {sel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>}
+                          </div>
+                        </div>
+                        {m.details && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.softBg, borderRadius: 8, padding: '8px 12px', marginBottom: m.instructions ? 8 : 0 }}>
+                            <code style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 13, color: C.charcoal, fontWeight: 600, flex: 1, wordBreak: 'break-all' }}>{m.details}</code>
+                            <CopyBtn value={m.details} />
+                          </div>
+                        )}
+                        {m.instructions && (
+                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0, lineHeight: 1.5 }}>ℹ️ {m.instructions}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700, color: C.charcoal, marginBottom: 6 }}>
+                Proof of transfer <span style={{ color: C.stone, fontWeight: 500 }}>(transaction ID / sender number — optional but speeds up approval)</span>
+              </label>
+              <input
+                value={payerRef}
+                onChange={(e) => setPayerRef(e.target.value)}
+                placeholder="e.g. Txn #889217734 from 0100-123-4567"
+                style={{
+                  width: '100%', boxSizing: 'border-box', height: 46, padding: '0 14px',
+                  border: `1.5px solid ${C.border}`, borderRadius: 12, fontSize: 14,
+                  fontFamily: 'var(--font-sans)', color: C.charcoal, outline: 'none', marginBottom: 18,
+                }}
+              />
+
+              <button
+                onClick={submitManual}
+                disabled={processing || !selectedTierName}
+                style={{
+                  width: '100%', height: 52,
+                  background: (processing || !selectedTierName) ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
+                  color: C.white, border: 'none', borderRadius: 14,
+                  fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
+                  cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
+                  boxShadow: (processing || !selectedTierName) ? 'none' : '0 4px 18px rgba(184,148,79,0.3)',
+                }}
+              >
+                {processing ? 'Submitting…' : "I've Transferred — Get Reference Code"}
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {error && (

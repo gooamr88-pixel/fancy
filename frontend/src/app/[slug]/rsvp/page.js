@@ -4,6 +4,7 @@ import React, { useEffect, useState, Suspense, use } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { translations } from '../../utils/translations';
+import SeatingMiniMap from './SeatingMiniMap';
 
 /* ═══ Brand Inline Style Helpers ═══ */
 const S = {
@@ -49,6 +50,10 @@ function RSVPFormContent({ slug }) {
   const [tableLookupDone, setTableLookupDone] = useState(false);
   const [showTableLookup, setShowTableLookup] = useState(false);
 
+  /* Personal seating map (table + own party, never other guests) */
+  const [seatingView, setSeatingView] = useState(null); // { myTableName, party, tables }
+  const [seatingLoading, setSeatingLoading] = useState(false);
+
   const guestIdParam = searchParams ? searchParams.get('g') : null;
 
   useEffect(() => { setSearchPerformed(false); setSearchResults([]); setRsvpId(null); }, [guestName]);
@@ -80,6 +85,7 @@ function RSVPFormContent({ slug }) {
     if (!tableQuery.trim()) return;
     setTableLookingUp(true);
     setTableLookupDone(false);
+    setSeatingView(null);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
       const res = await fetch(`${apiUrl}/public/events/${slug}/seating/search?query=${encodeURIComponent(tableQuery.trim())}`);
@@ -91,6 +97,24 @@ function RSVPFormContent({ slug }) {
     } finally {
       setTableLookingUp(false);
       setTableLookupDone(true);
+    }
+  };
+
+  const fetchSeatingMap = async (gid) => {
+    if (!gid) return;
+    setSeatingLoading(true);
+    setSeatingView(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      const res = await fetch(`${apiUrl}/public/events/${slug}/seating/guest/${gid}`);
+      const data = await res.json();
+      if (data.success) {
+        setSeatingView({ myTableName: data.myTableName, myTableId: data.myTableId, party: data.party || [], tables: data.tables || [] });
+      }
+    } catch (err) {
+      console.error('Seating map fetch failed:', err);
+    } finally {
+      setSeatingLoading(false);
     }
   };
 
@@ -380,21 +404,41 @@ function RSVPFormContent({ slug }) {
                         {tableLookingUp ? '...' : (isRTL ? 'بحث' : 'Find')}
                       </button>
                     </div>
-                    {tableLookupDone && (
+                    {seatingView ? (
+                      <SeatingResultPanel view={seatingView} loading={seatingLoading} isRTL={isRTL} onBack={() => setSeatingView(null)} />
+                    ) : seatingLoading ? (
+                      <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                        <div style={{ width: '28px', height: '28px', border: '3px solid #E8E2D6', borderTop: '3px solid #B8944F', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
+                        <p style={{ color: '#77736A', fontSize: '12px' }}>{isRTL ? 'جاري تحميل خريطة جلوسك...' : 'Loading your seating map...'}</p>
+                      </div>
+                    ) : tableLookupDone && (
                       tableResults.length > 0 ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {tableResults.map((r, i) => (
-                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', border: '1px solid #E8E2D6', borderRadius: '10px', background: '#FFFFFF' }}>
-                              <span style={{ fontWeight: 600, color: '#191B1E', fontSize: '14px' }}>{r.guestName}</span>
-                              <span style={{ fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '6px',
-                                background: r.tableName === 'Unassigned' ? '#F8F4EC' : 'rgba(184,148,79,0.12)',
-                                color: r.tableName === 'Unassigned' ? '#A09A91' : '#B8944F' }}>
-                                {r.tableName === 'Unassigned'
-                                  ? (isRTL ? 'لم تُخصّص بعد' : 'Not assigned yet')
-                                  : r.tableName}
-                              </span>
-                            </div>
-                          ))}
+                          {tableResults.map((r, i) => {
+                            const assigned = r.tableName && r.tableName !== 'Unassigned';
+                            const clickable = assigned && r.id;
+                            return (
+                              <button key={r.id || i} disabled={!clickable}
+                                onClick={() => clickable && fetchSeatingMap(r.id)}
+                                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', padding: '12px 14px', border: '1px solid #E8E2D6', borderRadius: '10px', background: '#FFFFFF', cursor: clickable ? 'pointer' : 'default', fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left', transition: 'border-color 0.2s' }}
+                                onMouseEnter={e => { if (clickable) e.currentTarget.style.borderColor = '#B8944F'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#E8E2D6'; }}>
+                                <span style={{ fontWeight: 600, color: '#191B1E', fontSize: '14px' }}>{r.guestName}</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '6px',
+                                    background: assigned ? 'rgba(184,148,79,0.12)' : '#F8F4EC',
+                                    color: assigned ? '#B8944F' : '#A09A91' }}>
+                                    {assigned ? r.tableName : (isRTL ? 'لم تُخصّص بعد' : 'Not assigned yet')}
+                                  </span>
+                                  {clickable && (
+                                    <span style={{ fontSize: '11px', color: '#B8944F', fontWeight: 700 }}>
+                                      {isRTL ? 'عرض الخريطة ←' : 'View map →'}
+                                    </span>
+                                  )}
+                                </span>
+                              </button>
+                            );
+                          })}
                         </div>
                       ) : (
                         <p style={{ fontSize: '13px', color: '#77736A' }}>
@@ -447,7 +491,7 @@ function RSVPFormContent({ slug }) {
               <div>
                 <label style={S.labelBase}>{t.party_size_label}</label>
                 <select value={partySize} onChange={e => setPartySize(parseInt(e.target.value))} style={{ ...S.inputBase, cursor: 'pointer' }}>
-                  {[1,2,3,4,5,6,7,8].map(num => (<option key={num} value={num}>{num} {num === 1 ? t.person : t.people}</option>))}
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (<option key={num} value={num}>{num} {num === 1 ? t.person : t.people}</option>))}
                 </select>
               </div>
 
@@ -573,6 +617,21 @@ function RSVPFormContent({ slug }) {
                       </strong>
                     </div>
                   )}
+
+                  {/* Personal seating map */}
+                  {rsvpId && (
+                    seatingView ? (
+                      <div style={{ marginTop: '8px' }}>
+                        <SeatingResultPanel view={seatingView} loading={seatingLoading} isRTL={isRTL} onBack={() => setSeatingView(null)} />
+                      </div>
+                    ) : (
+                      <button onClick={() => fetchSeatingMap(rsvpId)} disabled={seatingLoading}
+                        style={{ marginTop: '4px', padding: '10px 20px', background: '#FFFFFF', color: '#B8944F', border: '1px solid #B8944F', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                        {seatingLoading ? (isRTL ? 'جاري التحميل...' : 'Loading...') : (isRTL ? '🗺️ اعرض مكان جلوسي على الخريطة' : '🗺️ View where I sit on the map')}
+                      </button>
+                    )
+                  )}
+
                   <p style={{ fontSize: '12px', color: '#A09A91', fontStyle: 'italic', fontFamily: 'var(--font-sans)', marginTop: '12px' }}>{t.qr_notice}</p>
                 </>
               ) : (
@@ -593,6 +652,63 @@ function RSVPFormContent({ slug }) {
       </div>
 
       <style jsx>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+/* Shows the guest's table + a highlighted map + the companions THEY brought.
+   Deliberately never lists other parties seated at the same table. */
+function SeatingResultPanel({ view, loading, isRTL, onBack }) {
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: '16px 0' }}>
+        <div style={{ width: '28px', height: '28px', border: '3px solid #E8E2D6', borderTop: '3px solid #B8944F', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
+        <p style={{ color: '#77736A', fontSize: '12px' }}>{isRTL ? 'جاري التحميل...' : 'Loading...'}</p>
+      </div>
+    );
+  }
+  if (!view) return null;
+  const assigned = !!view.myTableName;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: isRTL ? 'right' : 'left' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <div>
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1.2px', color: '#77736A', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)' }}>
+            {isRTL ? 'طاولتك' : 'Your table'}
+          </span>
+          <strong style={{ fontSize: '18px', color: assigned ? '#B8944F' : '#A09A91', fontFamily: 'var(--font-serif)' }}>
+            {assigned ? view.myTableName : (isRTL ? 'لم تُخصّص بعد' : 'Not assigned yet')}
+          </strong>
+        </div>
+        {onBack && (
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#77736A', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)', textDecoration: 'underline' }}>
+            {isRTL ? 'رجوع' : 'Back'}
+          </button>
+        )}
+      </div>
+
+      <SeatingMiniMap tables={view.tables} myTableId={view.myTableId} youLabel={isRTL ? 'مكانك' : "You're here"} />
+
+      {view.party && view.party.length > 0 && (
+        <div style={{ background: '#FAFAF8', border: '1px solid #E8E2D6', borderRadius: '12px', padding: '14px' }}>
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '8px', fontFamily: 'var(--font-sans)' }}>
+            {isRTL ? 'مرافقوك على نفس الطاولة' : 'Your party at this table'}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {view.party.map((p, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+                <span style={{ color: '#191B1E', fontWeight: p.isPrimary ? 700 : 500, fontFamily: 'var(--font-sans)' }}>
+                  {p.name}{p.isPrimary ? (isRTL ? ' (أنت)' : ' (you)') : ''}
+                </span>
+                {p.meal && <span style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)' }}>{p.meal}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <p style={{ fontSize: '11px', color: '#A09A91', fontStyle: 'italic', fontFamily: 'var(--font-sans)' }}>
+        {isRTL ? 'الخريطة توضّح مكان طاولتك في القاعة فقط.' : 'The map shows where your table is in the venue.'}
+      </p>
     </div>
   );
 }

@@ -11,12 +11,16 @@ const C = {
   error: '#C45E5E', success: '#3B9B6D',
 };
 
+const CREDIT_PACKS = [50, 100, 250, 500];
+
 export default function Stage3_Distribution({
   slug, distributionMethods, onMethodToggle,
   smsTemplate, setSmsTemplate,
+  smsCredits, smsCreditsLoading, onRefreshCredits, onBuyCredits, buyingCredits, creditError,
   onSubmit, onBack, submitting, error,
 }) {
   const [copied, setCopied] = useState(false);
+  const [creditQty, setCreditQty] = useState(100);
   const eventUrl = `fancyrsvp.com/${slug || 'your-event'}`;
 
   const handleCopy = useCallback(async () => {
@@ -262,17 +266,84 @@ export default function Stage3_Distribution({
                             }}>{smsTemplate.length}/160</span>
                           </div>
 
-                          <div style={{
-                            background: 'rgba(184,148,79,0.04)',
-                            border: '1px solid rgba(184,148,79,0.12)',
-                            borderRadius: 10, padding: '10px 14px',
-                            display: 'flex', alignItems: 'center', gap: 8,
-                          }}>
-                            <span style={{ fontSize: 14 }}>💡</span>
-                            <span style={{
-                              fontSize: 11, color: C.gold,
-                              fontFamily: 'var(--font-sans)',
-                            }}>SMS credits required — configure in dashboard after event creation</span>
+                          {/* Live credit balance */}
+                          <div
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                              background: C.softBg, border: `1px solid ${C.border}`,
+                              borderRadius: 12, padding: 14,
+                            }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <span style={{ fontSize: 18 }}>📨</span>
+                                <div>
+                                  <span style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', display: 'block' }}>Available SMS credits</span>
+                                  <span style={{ fontSize: 20, fontWeight: 800, color: C.charcoal, fontFamily: 'var(--font-sans)' }}>
+                                    {smsCreditsLoading && smsCredits === null ? '…' : (smsCredits ?? 0)}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); onRefreshCredits && onRefreshCredits(); }}
+                                disabled={smsCreditsLoading}
+                                style={{
+                                  padding: '6px 12px', borderRadius: 8, background: C.white,
+                                  border: `1px solid ${C.border}`, color: C.stone, fontSize: 11,
+                                  fontWeight: 700, cursor: smsCreditsLoading ? 'wait' : 'pointer',
+                                  fontFamily: 'var(--font-sans)',
+                                }}>
+                                {smsCreditsLoading ? 'Refreshing…' : '↻ Refresh'}
+                              </button>
+                            </div>
+
+                            {/* Pack selector */}
+                            <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
+                              {CREDIT_PACKS.map(p => {
+                                const sel = creditQty === p;
+                                return (
+                                  <button key={p}
+                                    onClick={(e) => { e.stopPropagation(); setCreditQty(p); }}
+                                    style={{
+                                      padding: '7px 14px', borderRadius: 8,
+                                      border: sel ? `2px solid ${C.gold}` : `1.5px solid ${C.border}`,
+                                      background: sel ? 'rgba(184,148,79,0.06)' : C.white,
+                                      color: sel ? C.gold : C.charcoal, fontSize: 12, fontWeight: 700,
+                                      cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                                    }}>
+                                    {p}
+                                  </button>
+                                );
+                              })}
+                              <input
+                                type="number" min={50} max={50000} value={creditQty}
+                                onClick={e => e.stopPropagation()}
+                                onChange={(e) => setCreditQty(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                                style={{
+                                  width: 90, padding: '7px 10px', borderRadius: 8,
+                                  border: `1.5px solid ${C.border}`, fontSize: 12, color: C.charcoal,
+                                  fontFamily: 'var(--font-sans)', outline: 'none',
+                                }}
+                              />
+                            </div>
+
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onBuyCredits && onBuyCredits(creditQty); }}
+                              disabled={buyingCredits || creditQty < 50}
+                              style={{
+                                marginTop: 12, width: '100%', height: 44,
+                                background: (buyingCredits || creditQty < 50) ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
+                                color: C.white, border: 'none', borderRadius: 10,
+                                fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+                                cursor: (buyingCredits || creditQty < 50) ? 'not-allowed' : 'pointer',
+                              }}>
+                              {buyingCredits ? 'Opening checkout…' : `Buy ${creditQty >= 50 ? creditQty : ''} Credits`}
+                            </button>
+                            <p style={{ fontSize: 10, color: C.stone, fontFamily: 'var(--font-sans)', margin: '8px 0 0', lineHeight: 1.5 }}>
+                              {creditQty < 50 ? 'Minimum purchase is 50 credits.' : "Checkout opens in a new tab — finish there, then come back here and your balance updates automatically."}
+                            </p>
+                            {creditError && (
+                              <p style={{ fontSize: 11, color: C.error, fontFamily: 'var(--font-sans)', margin: '8px 0 0', fontWeight: 600 }}>⚠️ {creditError}</p>
+                            )}
                           </div>
                         </div>
                       </motion.div>

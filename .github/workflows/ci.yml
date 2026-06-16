@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  frontend:
+    name: Frontend lint & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # Advisory only: the project carries pre-existing lint debt (unescaped
+      # entities, set-state-in-effect). Surface it without failing the pipeline;
+      # the build below is the real gate. Flip to blocking once the debt is paid.
+      - run: npm run lint
+        continue-on-error: true
+      - run: npm run build
+        env:
+          # Public build-time defaults; real values are injected at deploy time.
+          NEXT_PUBLIC_API_URL: http://localhost:5000/api/v1
