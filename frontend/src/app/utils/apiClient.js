@@ -49,8 +49,16 @@ export async function apiFetch(path, options = {}) {
     // Check Content-Type before parsing
     const contentType = response.headers.get('content-type') || '';
 
-    // Handle binary/blob responses (CSV export, file downloads)
-    if (contentType.includes('text/csv') || contentType.includes('application/octet-stream')) {
+    // Handle binary/blob responses (CSV export, Excel export, file downloads).
+    // Excel exports come back as the long spreadsheetml MIME type, so match the
+    // generic "spreadsheet"/"excel" substrings rather than enumerating each one.
+    if (
+      contentType.includes('text/csv') ||
+      contentType.includes('application/octet-stream') ||
+      contentType.includes('spreadsheetml') ||
+      contentType.includes('spreadsheet') ||
+      contentType.includes('excel')
+    ) {
       if (!response.ok) {
         throw new Error(`Request failed with status ${response.status}`);
       }

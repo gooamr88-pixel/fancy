@@ -1,11 +1,8 @@
 const { supabase } = require('../config/supabase');
 const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
 const { generateQRCodeDataURL } = require('../utils/qrHelper');
-<<<<<<< HEAD
 const { getPublicBaseUrl } = require('../utils/publicUrl');
-=======
 const { isAcceptedResponse, isDeclinedResponse } = require('../utils/responseHelpers');
->>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
 const logger = require('../utils/logger');
 
 /** Strict UUID matcher — used to validate invitation tokens before querying. */

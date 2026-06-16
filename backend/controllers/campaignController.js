@@ -89,16 +89,9 @@ const sendBulkSMSCampaign = async (req, res, next) => {
 
     // Processes a single guest; returns a result object for aggregation
     const processGuest = async (guest) => {
-<<<<<<< HEAD
       // Personalize template. The link carries the per-guest invitation token (rsvp_id)
       // so it unlocks private events and pre-fills this guest's RSVP form.
       const guestUrl = buildGuestEventUrl(event.slug, guest.id);
-=======
-      // Personalize template. The `?g=<rsvpId>` contract matches the public RSVP
-      // page reader ([slug]/rsvp/page.js) and the getGuestById resolver endpoint,
-      // so the link pre-fills the guest's identity instead of leaving them anonymous.
-      const guestUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/${event.slug}/rsvp?g=${guest.id}`;
->>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
       let personalizedBody = messageTemplate
         .replace(/{name}/g, guest.guest_name)
         .replace(/{url}/g, guestUrl);

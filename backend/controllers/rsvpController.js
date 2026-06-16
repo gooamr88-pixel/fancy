@@ -17,6 +17,11 @@ const submitPublicRSVP = async (req, res, next) => {
   const { slug } = req.params;
   const { rsvpId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, customAnswers } = req.body;
 
+  // Normalize email once so duplicate detection, ownership checks, and the stored
+  // value all agree (matches updateRSVP / addGuestManually and the partial unique
+  // index). Without this, "John@x.com" and "john@x.com" slip past the dup guard.
+  const normalizedEmail = email && email.trim() ? email.trim().toLowerCase() : null;
+
   if (!guestName || !response) {
     return res.status(400).json({
       success: false,
@@ -162,7 +167,7 @@ const submitPublicRSVP = async (req, res, next) => {
       //    for null-email records (see searchPublicGuests), so this is not the IDOR
       //    vector it would otherwise be, and it lets invited guests respond.
       if (existingRsvp.email) {
-        if (!email || existingRsvp.email.toLowerCase() !== email.toLowerCase()) {
+        if (!normalizedEmail || existingRsvp.email.toLowerCase() !== normalizedEmail) {
           return res.status(403).json({
             success: false,
             error: 'RSVP_OWNERSHIP_FAILED',
@@ -176,7 +181,7 @@ const submitPublicRSVP = async (req, res, next) => {
         .from('rsvps')
         .update({
           guest_name: guestName,
-          email,
+          email: normalizedEmail,
           phone,
           response,
           party_size: computedPartySize,
@@ -201,12 +206,12 @@ const submitPublicRSVP = async (req, res, next) => {
       }
     } else {
       // 3. Check for duplicate RSVP
-      if (email && email.trim()) {
+      if (normalizedEmail) {
         const { data: existingRsvp } = await supabase
           .from('rsvps')
           .select('id')
           .eq('event_id', event.id)
-          .eq('email', email.trim())
+          .eq('email', normalizedEmail)
           .neq('response', 'no')
           .limit(1);
 
@@ -225,7 +230,7 @@ const submitPublicRSVP = async (req, res, next) => {
         .insert({
           event_id: event.id,
           guest_name: guestName,
-          email,
+          email: normalizedEmail,
           phone,
           response,
           party_size: computedPartySize,
@@ -305,14 +310,14 @@ const submitPublicRSVP = async (req, res, next) => {
     supabase.removeChannel(rsvpChannel);
 
     // 7. Trigger confirmation or decline email asynchronously if email exists
-    if (email) {
+    if (normalizedEmail) {
       if (response === 'yes') {
         notificationService.sendConfirmationEmail(event.id, rsvp.id)
           .catch((err) => console.error('Confirmation email err:', err));
       } else if (response === 'no') {
         // Send decline thank-you email
         const declineHtml = getDeclineConfirmationTemplate(rsvp, event);
-        notificationService.sendEmailViaBrevo(email, `Thank You – ${escapeHtml(event.title)}`, declineHtml)
+        notificationService.sendEmailViaBrevo(normalizedEmail, `Thank You – ${escapeHtml(event.title)}`, declineHtml)
           .catch((err) => console.error('Decline email err:', err));
       }
     }
@@ -343,7 +348,7 @@ const submitPublicRSVP = async (req, res, next) => {
                 <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0; padding: 15px;">
                   <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${response === 'yes' ? '#10b981' : '#ef4444'};">${response === 'yes' ? 'Attending' : 'Declined'}</td></tr>
                   <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Party Size</td><td style="padding: 8px 15px; font-size: 15px;">${computedPartySize}</td></tr>
-                  ${email ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + escapeHtml(email) + '</td></tr>' : ''}
+                  ${normalizedEmail ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + escapeHtml(normalizedEmail) + '</td></tr>' : ''}
                 </table>
                 <p style="color: #94a3b8; font-size: 12px; text-align: center;">This is an automated notification from Fancy RSVP.</p>
               </div>

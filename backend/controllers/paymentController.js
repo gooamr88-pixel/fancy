@@ -4,64 +4,10 @@ const stripe = require('stripe')(STRIPE_SECRET_KEY);
 const { supabase } = require('../config/supabase');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
-<<<<<<< HEAD
 // Bulletproof resolver: splits FRONTEND_URL on commas, repairs typos, and returns
 // only the first valid https:// origin — never a raw, malformed env string.
 const { getPublicBaseUrl } = require('../utils/publicUrl');
-=======
 const { computeSmsChargeCents } = require('../utils/pricing');
-
-// FRONTEND_URL may be a comma-separated allowlist (see app.js CORS).
-const allowedReturnOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
-  .split(',')
-  .map(s => s.trim().replace(/\/$/, ''))
-  .filter(Boolean);
-
-/**
- * Resolves the frontend origin to send the user back to after Stripe Checkout.
- *
- * Returning to a DIFFERENT origin than the one the user started on logs them out:
- * `localStorage` (org_id) and the auth cookie are both per-origin, so they'd land
- * on the login page and on the wrong section. We therefore echo back the exact
- * origin the checkout request came from (validated against the FRONTEND_URL
- * allowlist), falling back to the first configured origin only if we can't match.
- */
-const resolveReturnBase = (req) => {
-  const fromOrigin = (req.headers.origin || '').trim().replace(/\/$/, '');
-  if (fromOrigin && allowedReturnOrigins.includes(fromOrigin)) return fromOrigin;
-
-  // Fall back to the Referer's origin (e.g. some browsers omit Origin on same-site).
-  if (req.headers.referer) {
-    try {
-      const u = new URL(req.headers.referer);
-      const refOrigin = `${u.protocol}//${u.host}`;
-      if (allowedReturnOrigins.includes(refOrigin)) return refOrigin;
-    } catch { /* malformed referer — ignore */ }
-  }
-
-  return allowedReturnOrigins[0] || 'http://localhost:3000';
-};
-
-/**
- * Best-effort write for columns introduced by migration 20260616300000
- * (manual_method, payer_reference, verified_by, verified_at, admin_note,
- * manual_payment_methods). If that migration hasn't been applied yet the column
- * won't exist and a normal update would throw — which previously broke the whole
- * payment flow. Here we swallow the error so the core flow always succeeds; apply
- * the migration to actually persist this metadata.
- */
-const setOptionalColumns = async (table, match, fields) => {
-  // Drop undefined/empty so we never send an empty update.
-  const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
-  if (Object.keys(clean).length === 0) return;
-  try {
-    const { error } = await supabase.from(table).update(clean).match(match);
-    if (error) console.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${error.message}`);
-  } catch (e) {
-    console.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${e.message}`);
-  }
-};
->>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
 
 /**
  * Creates a Stripe Checkout Session for event payment fees.
@@ -154,13 +100,8 @@ const createCheckoutSession = async (req, res, next) => {
         tier_name: tier.name,
         type: 'event_fee'
       },
-<<<<<<< HEAD
       success_url: `${getPublicBaseUrl()}/dashboard?payment=success&event=${eventId}`,
       cancel_url: `${getPublicBaseUrl()}/dashboard/create-event?payment=cancelled&event=${eventId}`
-=======
-      success_url: `${resolveReturnBase(req)}/dashboard?payment=success&event=${eventId}`,
-      cancel_url: `${resolveReturnBase(req)}/dashboard/create-event?payment=cancelled&event=${eventId}`
->>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
     });
 
     return res.status(200).json({
@@ -257,13 +198,8 @@ const purchaseSMSCredits = async (req, res, next) => {
         type: 'sms_credits',
         credit_count: creditCount.toString()
       },
-<<<<<<< HEAD
       success_url: `${getPublicBaseUrl()}/dashboard/campaigns?event=${eventId}&purchase=success`,
       cancel_url: `${getPublicBaseUrl()}/dashboard/campaigns?event=${eventId}&purchase=cancelled`
-=======
-      success_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=success&event=${eventId}`,
-      cancel_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=cancelled&event=${eventId}`
->>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
     });
 
     return res.status(200).json({
