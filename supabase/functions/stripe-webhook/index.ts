@@ -120,87 +120,21 @@ serve(async (req) => {
           throw new Error(`Invalid credit_count value: ${session.metadata.credit_count}`);
         }
 
-        // Idempotency check: see if payment intent already registered in ledger
-        if (session.payment_intent) {
-          const { data: existingLedger, error: queryError } = await supabase
-            .from('sms_credit_ledger')
-            .select('id')
-            .eq('stripe_payment_intent_id', session.payment_intent)
-            .limit(1);
-
-          if (queryError) throw queryError;
-
-          if (existingLedger && existingLedger.length > 0) {
-            console.log(`[Webhook] SMS credits already credited for payment intent: ${session.payment_intent}`);
-            return new Response(JSON.stringify({ received: true, message: 'Already processed' }), {
-              headers: responseHeaders,
-              status: 200
-            })
-          }
-        }
-
-        // Resolve (or create) the wallet WITHOUT yet crediting it.
-        const { data: wallet, error: walletError } = await supabase
-          .from('sms_credit_wallets')
-          .select('id')
-          .eq('event_id', event_id)
-          .maybeSingle();
-
-        if (walletError) throw walletError;
-
-        let walletId;
-        let walletAlreadyExisted = false;
-        if (wallet) {
-          walletId = wallet.id;
-          walletAlreadyExisted = true;
-        } else {
-          // Create the wallet with ZERO credits — the increment happens only after
-          // the ledger row is committed, so a retry can never double-credit.
-          const { data: newWallet, error: insertError } = await supabase
-            .from('sms_credit_wallets')
-            .insert({
-              event_id,
-              credits_purchased: 0,
-              credits_used: 0
-            })
-            .select()
-            .single();
-
-          if (insertError) throw insertError;
-          walletId = newWallet.id;
-        }
-
-        // 1. Insert the ledger row FIRST. The unique index on (stripe_payment_intent_id,
-        //    transaction_type='purchase') is the idempotency guard: if Stripe retries
-        //    after a partial failure, this insert fails with a duplicate-key error and
-        //    we bail out BEFORE incrementing the wallet a second time.
-        const { error: ledgerError } = await supabase
-          .from('sms_credit_ledger')
-          .insert({
-            wallet_id: walletId,
-            event_id,
-            transaction_type: 'purchase',
-            credits: creditCount,
-            stripe_payment_intent_id: session.payment_intent
-          });
-
-        if (ledgerError) {
-          if (ledgerError.code === '23505' || (ledgerError.message || '').includes('duplicate key')) {
-            console.log(`[Webhook] Duplicate SMS ledger insert caught for payment intent: ${session.payment_intent}`);
-            return new Response(JSON.stringify({ received: true, message: 'Already processed' }), {
-              headers: responseHeaders,
-              status: 200
-            })
-          }
-          throw ledgerError;
-        }
-
-        // 2. Now that the ledger row is committed, atomically credit the wallet.
-        const { error: rpcError } = await supabase.rpc('increment_sms_credits', {
+        // Single transactional, idempotent RPC — identical to the Express backend's
+        // handler (paymentController.stripeWebhook). It ensures the wallet, writes the
+        // idempotency ledger row keyed on the payment intent, and credits the wallet,
+        // all atomically. A duplicate delivery (Stripe retry, or delivery to BOTH the
+        // edge function and the backend endpoint) is caught inside the function via the
+        // partial unique index and never double-credits.
+        const { data: purchaseResult, error: purchaseError } = await supabase.rpc('record_sms_purchase', {
           p_event_id: event_id,
-          p_credit_amount: creditCount
+          p_credits: creditCount,
+          p_payment_intent: session.payment_intent
         });
-        if (rpcError) throw rpcError;
+        if (purchaseError) throw purchaseError;
+        if (purchaseResult && purchaseResult.success === false) {
+          throw new Error(`record_sms_purchase failed: ${purchaseResult.error}`);
+        }
       }
     } else if (event.type === 'charge.refunded') {
       const charge = event.data.object

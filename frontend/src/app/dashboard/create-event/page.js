@@ -294,7 +294,9 @@ export default function CreateEventWizard() {
         if (res.status === 404) {
           setSlugStatus('available');
           setSuggestedSlug('');
-        } else if (res.ok) {
+        } else if (res.ok || res.status === 402 || res.status === 403) {
+          // 200 (live), 402 (exists but unpaid), and 403 (exists but private) all mean
+          // the slug is already in use — only a 404 means it's free.
           setSlugStatus('taken');
           const year = new Date().getFullYear();
           setSuggestedSlug(`${slug}-${year}`);

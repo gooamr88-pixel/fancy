@@ -14,7 +14,12 @@ const { computeSmsChargeCents } = require('../utils/pricing');
  * POST /api/v1/payments/create-checkout
  */
 const createCheckoutSession = async (req, res, next) => {
-  const { eventId, tierName } = req.body;
+  // Authoritative eventId comes from the URL param that verifyEventOwner already
+  // checked ownership against — NOT from the request body. Trusting body.eventId
+  // would let an authorized owner of event A start a checkout that activates an
+  // arbitrary event B (parameter confusion / broken object-level authorization).
+  const { eventId } = req.params;
+  const { tierName } = req.body;
 
   if (!eventId || !tierName) {
     return res.status(400).json({
@@ -118,7 +123,9 @@ const createCheckoutSession = async (req, res, next) => {
  * POST /api/v1/payments/sms-credits
  */
 const purchaseSMSCredits = async (req, res, next) => {
-  const { eventId, creditCount } = req.body;
+  // eventId from the ownership-verified URL param, not the body (see createCheckoutSession).
+  const { eventId } = req.params;
+  const { creditCount } = req.body;
 
   if (!eventId || !creditCount || creditCount < 50 || creditCount > 50000) {
     return res.status(400).json({

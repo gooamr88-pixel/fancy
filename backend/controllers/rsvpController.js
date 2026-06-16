@@ -451,15 +451,20 @@ const searchPublicGuests = async (req, res, next) => {
   }
 
   try {
-    // 1. Resolve event from slug
+    // 1. Resolve event from slug. Only live (paid + active) events expose a guest
+    // list — never a draft/unpaid/refunded event, to avoid leaking the invitee
+    // roster of an event that isn't yet (or no longer) public.
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id')
+      .select('id, is_paid, status')
       .eq('slug', slug)
       .single();
 
     if (eventError || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+    if (!event.is_paid || event.status !== 'active') {
+      return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
 
     // 2. Search guests matching query prefix/substring.
@@ -503,6 +508,16 @@ const getRSVPs = async (req, res, next) => {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
+  // The seated/meal/custom-answer filters run against embedded relations that we
+  // can't paginate server-side here. When any is active we fetch a bounded superset
+  // and do the filtering + pagination in JS — otherwise the filter would only see
+  // the current page and return incomplete, inconsistently-counted results.
+  const hasPostFilter =
+    seated === 'true' || seated === 'false' ||
+    !!(meal && meal.trim()) ||
+    !!customFieldId;
+  const POST_FILTER_FETCH_CAP = 5000;
+
   try {
     // Build fallback chain: try full select + submitted_at, then full + created_at, then simple + created_at
     const fullSelect = '*, rsvp_guests(*), custom_answers(*), seating_assignments(id, table_id, tables(table_name))';
@@ -544,7 +559,7 @@ const getRSVPs = async (req, res, next) => {
           query = query.order(sortCol, { ascending: false });
       }
 
-      query = query.range(from, to);
+      query = hasPostFilter ? query.limit(POST_FILTER_FETCH_CAP) : query.range(from, to);
       const result = await query;
 
       if (!result.error) {
@@ -567,40 +582,47 @@ const getRSVPs = async (req, res, next) => {
 
     if (queryError) throw queryError;
 
-    // Post-filter for seated status
+    // Apply post-filters. When hasPostFilter is set, `rsvps` is the bounded
+    // superset (not a single page), so filtering here covers the whole dataset.
     let filtered = rsvps || [];
-    let effectiveTotal = totalCount;
+
     if (seated === 'true') {
       filtered = filtered.filter(r => r.seating_assignments && r.seating_assignments.length > 0);
-      effectiveTotal = null;
     } else if (seated === 'false') {
       filtered = filtered.filter(r => !r.seating_assignments || r.seating_assignments.length === 0);
-      effectiveTotal = null;
     }
 
-    // Post-filter for meal
     if (meal && meal.trim()) {
-      filtered = filtered.filter(r => 
+      filtered = filtered.filter(r =>
         r.rsvp_guests && r.rsvp_guests.some(g => g.meal_selection === meal.trim())
       );
-      effectiveTotal = null;
     }
 
-    // Post-filter for custom answers
     if (customFieldId) {
-      filtered = filtered.filter(r => 
-        r.custom_answers && r.custom_answers.some(ans => 
-          ans.field_id === customFieldId && 
+      filtered = filtered.filter(r =>
+        r.custom_answers && r.custom_answers.some(ans =>
+          ans.field_id === customFieldId &&
           (!customFieldValue || String(ans.answer_value).trim().toLowerCase() === String(customFieldValue).trim().toLowerCase())
         )
       );
-      effectiveTotal = null;
+    }
+
+    let pageItems, total;
+    if (hasPostFilter) {
+      // `filtered` is the full matching set → its length is the real total, and we
+      // paginate it in JS so the returned page and count are consistent.
+      total = filtered.length;
+      pageItems = filtered.slice(from, to + 1);
+    } else {
+      // No post-filter: the DB already applied range pagination and an exact count.
+      pageItems = filtered;
+      total = totalCount;
     }
 
     return res.json({
       success: true,
-      rsvps: filtered,
-      pagination: { page, limit, count: filtered.length, total: effectiveTotal ?? totalCount }
+      rsvps: pageItems,
+      pagination: { page, limit, count: pageItems.length, total }
     });
   } catch (err) {
     next(err);
@@ -693,7 +715,10 @@ const importGuestsCSV = async (req, res, next) => {
     const toInsertRow = (row) => ({
       event_id: eventId,
       guest_name: row.guest_name || 'Unnamed Guest',
-      email: row.email ? row.email.trim() : null,
+      // Lowercase on write so stored emails agree with the in-file dedup key, the
+      // RSVP duplicate-detection lookups, and the partial unique index (which is
+      // case-sensitive). Without this, "John@x.com" and "john@x.com" both slip in.
+      email: row.email ? row.email.trim().toLowerCase() : null,
       phone: row.phone || null,
       response: 'pending',
       party_size: parseInt(row.party_size) || 1,
@@ -1132,15 +1157,20 @@ const searchPublicSeating = async (req, res, next) => {
   }
 
   try {
-    // 1. Resolve event from slug
+    // 1. Resolve event from slug. Restrict the "find your table" lookup to live
+    // (paid + active) events so the guest/seating roster of a draft/unpaid/private
+    // event can't be enumerated by anyone who guesses the slug.
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id')
+      .select('id, is_paid, status')
       .eq('slug', slug)
       .single();
 
     if (eventError || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+    if (!event.is_paid || event.status !== 'active') {
+      return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
 
     // 2. Search guests matching query substring, join with seating_assignments and tables
@@ -1173,7 +1203,11 @@ const searchPublicSeating = async (req, res, next) => {
         const resolvedSeating = Array.isArray(seating) ? seating[0] : seating;
         const tableName = resolvedSeating?.tables?.table_name || 'Unassigned';
         return {
-          id: item.id, // needed so the guest can pull their personal seating map
+          // Deliberately NOT exposing the rsvp id here. This endpoint is unauthenticated
+          // and would otherwise let anyone enumerate EVERY attending guest's id (the
+          // per-guest capability token), which unlocks that guest's contact PII via the
+          // invitation-token paths. Guests still see their own table by name; the visual
+          // map (which needs the id) is reachable from their own post-RSVP confirmation.
           guestName: item.guest_name,
           partySize: item.party_size,
           tableName,

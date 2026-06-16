@@ -276,6 +276,39 @@ function RSVPFormContent({ slug }) {
   const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
   const isContinueDisabled = partySize > 1 && additionalGuests.some(g => !g.fullName || !g.fullName.trim());
 
+  // Meal options: prefer a configured meal field's options (so guest choices match
+  // what the organizer set up — and what the backend validates against). Fall back
+  // to the built-in defaults only when no meal field is configured.
+  const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
+  const mealField = (event.rsvp_form_fields || []).find(
+    f => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
+  );
+  const mealOptions = (mealField && Array.isArray(mealField.options) && mealField.options.length)
+    ? mealField.options.map(o => ({ value: o, label: o }))
+    : [
+        { value: 'Prime Beef Filet', label: t.meal_beef },
+        { value: 'Atlantic Salmon', label: t.meal_salmon },
+        { value: 'Mushroom Risotto (V)', label: t.meal_risotto },
+        { value: 'Kids Meal', label: t.meal_kids },
+      ];
+  // Step-4 custom questions exclude the meal field (it's asked in step 3) to avoid
+  // asking the same thing twice.
+  const customQuestionFields = (event.rsvp_form_fields || []).filter(f => !mealField || f.id !== mealField.id);
+
+  const setAnswer = (fieldId, value) => {
+    setCustomAnswers(prev => ({ ...prev, [fieldId]: value }));
+    setValidationErrors(prev => { const n = { ...prev }; delete n[`field_${fieldId}`]; return n; });
+  };
+  const toggleMultiAnswer = (fieldId, opt) => {
+    setCustomAnswers(prev => {
+      const cur = (prev[fieldId] || '').split(',').map(s => s.trim()).filter(Boolean);
+      const idx = cur.indexOf(opt);
+      if (idx >= 0) cur.splice(idx, 1); else cur.push(opt);
+      return { ...prev, [fieldId]: cur.join(', ') };
+    });
+    setValidationErrors(prev => { const n = { ...prev }; delete n[`field_${fieldId}`]; return n; });
+  };
+
   const handleSubmit = async () => {
     // Client-side validation
     const errors = {};
@@ -283,7 +316,10 @@ function RSVPFormContent({ slug }) {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format';
     if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
     if (attending === 'yes') {
-      const requiredFields = event.rsvp_form_fields?.filter(f => f.is_required) || [];
+      // Validate only the custom questions actually shown in step 4 (the meal field
+      // is asked in step 3 and validated server-side), so a required meal field
+      // can't falsely block submission via the empty-customAnswers path.
+      const requiredFields = customQuestionFields.filter(f => f.is_required);
       requiredFields.forEach(field => {
         if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
           errors[`field_${field.id}`] = `${field.field_label} is required`;
@@ -525,10 +561,7 @@ function RSVPFormContent({ slug }) {
                 <label style={{ ...S.labelBase, fontWeight: 700 }}>{t.meal_label.replace('{name}', guestName)}</label>
                 <select value={primaryMeal} onChange={e => setPrimaryMeal(e.target.value)} style={{ ...S.inputBase }}>
                   <option value="">{t.meal_select_placeholder}</option>
-                  <option value="Prime Beef Filet">{t.meal_beef}</option>
-                  <option value="Atlantic Salmon">{t.meal_salmon}</option>
-                  <option value="Mushroom Risotto (V)">{t.meal_risotto}</option>
-                  <option value="Kids Meal">{t.meal_kids}</option>
+                  {mealOptions.map(m => (<option key={m.value} value={m.value}>{m.label}</option>))}
                 </select>
               </div>
 
@@ -544,10 +577,7 @@ function RSVPFormContent({ slug }) {
                     <label style={{ ...S.labelBase, fontSize: '11px' }}>{t.guest_meal_label}</label>
                     <select value={g.mealSelection} onChange={e => { const copy = [...additionalGuests]; copy[index].mealSelection = e.target.value; setAdditionalGuests(copy); }} style={{ ...S.inputBase, cursor: 'pointer' }}>
                       <option value="">{t.meal_select_placeholder}</option>
-                      <option value="Prime Beef Filet">{t.meal_beef}</option>
-                      <option value="Atlantic Salmon">{t.meal_salmon}</option>
-                      <option value="Mushroom Risotto (V)">{t.meal_risotto}</option>
-                      <option value="Kids Meal">{t.meal_kids}</option>
+                      {mealOptions.map(m => (<option key={m.value} value={m.value}>{m.label}</option>))}
                     </select>
                   </div>
                 </div>
@@ -578,23 +608,72 @@ function RSVPFormContent({ slug }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E' }}>{t.additional_details}</h3>
 
-              {event.rsvp_form_fields?.length > 0 ? (
-                event.rsvp_form_fields.map(field => {
+              {customQuestionFields.length > 0 ? (
+                customQuestionFields.map(field => {
                   const label = isRTL && field.field_label_ar ? field.field_label_ar : field.field_label;
-                  const opts = isRTL && field.options_ar ? field.options_ar : field.options;
+                  const opts = (isRTL && Array.isArray(field.options_ar) ? field.options_ar : field.options) || [];
+                  const val = customAnswers[field.id] || '';
+                  const hasErr = !!validationErrors[`field_${field.id}`];
+                  const inputStyle = { ...S.inputBase, ...(hasErr ? { borderColor: '#C45E5E' } : {}) };
+                  const onFocus = e => e.target.style.borderColor = '#B8944F';
+                  const onBlur = e => e.target.style.borderColor = hasErr ? '#C45E5E' : '#E8E2D6';
+                  const type = field.field_type;
+                  // Map our field types to native input types for the simple inputs.
+                  const nativeType = { number: 'number', email: 'email', phone: 'tel', url: 'url', date: 'date' }[type];
                   return (
                     <div key={field.id}>
                       <label style={S.labelBase}>{label} {field.is_required && <span style={{ color: '#C45E5E' }}>*</span>}</label>
-                      {validationErrors[`field_${field.id}`] && <span style={{ fontSize: '11px', color: '#C45E5E', display: 'block', marginBottom: '4px' }}>{validationErrors[`field_${field.id}`]}</span>}
-                      {field.field_type === 'text' && (
-                        <input type="text" value={customAnswers[field.id] || ''} onChange={e => { setCustomAnswers({ ...customAnswers, [field.id]: e.target.value }); setValidationErrors(prev => { const n = {...prev}; delete n[`field_${field.id}`]; return n; }); }}
-                          style={{ ...S.inputBase, ...(validationErrors[`field_${field.id}`] ? { borderColor: '#C45E5E' } : {}) }} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = validationErrors[`field_${field.id}`] ? '#C45E5E' : '#E8E2D6'} />
+                      {hasErr && <span style={{ fontSize: '11px', color: '#C45E5E', display: 'block', marginBottom: '4px' }}>{validationErrors[`field_${field.id}`]}</span>}
+
+                      {(type === 'text' || nativeType) && (
+                        <input type={nativeType || 'text'} value={val} onChange={e => setAnswer(field.id, e.target.value)}
+                          style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
                       )}
-                      {field.field_type === 'select' && (
-                        <select value={customAnswers[field.id] || ''} onChange={e => setCustomAnswers({ ...customAnswers, [field.id]: e.target.value })} style={{ ...S.inputBase, cursor: 'pointer' }}>
+
+                      {type === 'textarea' && (
+                        <textarea value={val} onChange={e => setAnswer(field.id, e.target.value)} rows={3}
+                          style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }} onFocus={onFocus} onBlur={onBlur} />
+                      )}
+
+                      {type === 'select' && (
+                        <select value={val} onChange={e => setAnswer(field.id, e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
                           <option value="">{t.meal_select_placeholder}</option>
-                          {opts?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
+                          {opts.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
                         </select>
+                      )}
+
+                      {type === 'radio' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {opts.map((opt, i) => (
+                            <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer' }}>
+                              <input type="radio" name={`field_${field.id}`} value={opt} checked={val === opt}
+                                onChange={() => setAnswer(field.id, opt)} style={{ accentColor: '#B8944F' }} />
+                              {opt}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+
+                      {type === 'multiselect' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {opts.map((opt, i) => {
+                            const selected = val.split(',').map(s => s.trim()).filter(Boolean).includes(opt);
+                            return (
+                              <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={selected} onChange={() => toggleMultiAnswer(field.id, opt)} style={{ accentColor: '#B8944F' }} />
+                                {opt}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {type === 'checkbox' && (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={val === 'Yes' || val === 'true'}
+                            onChange={e => setAnswer(field.id, e.target.checked ? 'Yes' : '')} style={{ accentColor: '#B8944F' }} />
+                          {isRTL ? 'نعم' : 'Yes'}
+                        </label>
                       )}
                     </div>
                   );

@@ -107,13 +107,16 @@ app.use('/api/v1/public/events', publicLimiter);
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
+    // Strip the query string before logging: public search endpoints carry guest
+    // names (e.g. ?query=John%20Doe) which would otherwise land guest PII in logs.
+    const path = (req.originalUrl || '').split('?')[0];
     logger.info({
       method: req.method,
-      url: req.originalUrl,
+      url: path,
       status: res.statusCode,
       duration: Date.now() - start,
       ip: req.ip,
-    }, `${req.method} ${req.originalUrl} ${res.statusCode}`);
+    }, `${req.method} ${path} ${res.statusCode}`);
   });
   next();
 });
