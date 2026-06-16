@@ -62,13 +62,14 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
               <span>The Marriage Celebration</span>
             </div>
             
-            <div className="flex flex-col items-center my-auto text-center">
-              <span className="font-script text-4.2xl leading-none mb-1" style={{ color: accentColor }}>Aria & Julian</span>
-              <span className="text-[8px] tracking-[2px] font-sans font-light my-1 uppercase text-stone-500">REQUEST THE HONOR OF YOUR PRESENCE</span>
-              <span className="text-[9px] font-bold" style={{ color: lightAccentColor }}>SATURDAY, OCTOBER 24, 2026</span>
-              <span className="text-[8px] tracking-wide text-center mt-1.5 max-w-[90%] leading-relaxed font-sans text-stone-500">
+            <div className="flex flex-col items-center my-auto text-center gap-2">
+              <span className="text-[7.5px] tracking-[2.5px] font-sans font-light uppercase text-stone-500">Request the honor of your presence</span>
+              <span className="font-script text-3xl leading-tight px-1" style={{ color: accentColor }}>Aria &amp; Julian</span>
+              <div className="w-8 h-px" style={{ backgroundColor: `${accentColor}55` }} />
+              <span className="text-[9px] font-bold tracking-[1px]" style={{ color: lightAccentColor }}>SATURDAY, OCTOBER 24, 2026</span>
+              <span className="text-[8px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%]">
                 At 4 o&apos;clock in the afternoon<br/>
-                <strong className="text-stone-850 font-bold">The Grand Ballroom</strong>, Plaza Hotel
+                <strong className="text-stone-800 font-semibold">The Grand Ballroom</strong>, Plaza Hotel
               </span>
             </div>
             
@@ -82,85 +83,83 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           </div>
         );
       
-      case "geo": // Modern - Urban Edge (Summit Pro)
+      case "geo": // Modern - Urban Edge (Conference Pass)
         return (
-          <div 
-            className="w-full h-full p-4 flex flex-col justify-between border rounded bg-[#FAFBFD] text-[#111] font-sans select-none relative overflow-hidden"
-            style={{ borderColor: 'rgba(59,130,246,0.15)', boxShadow: '0 8px 30px rgba(59,130,246,0.03)' }}
+          <div
+            className="w-full h-full p-4 flex flex-col justify-between bg-white text-[#0F172A] font-sans select-none relative overflow-hidden rounded border border-slate-200"
+            style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.6)' }}
           >
-            {/* Tech background lines */}
-            <div className="absolute -top-12 -right-12 w-28 h-28 rounded-full border border-blue-500/10" />
-            <div className="absolute -bottom-16 -left-16 w-36 h-36 border border-blue-500/5 rotate-45" />
-            
-            {/* Header info */}
-            <div className="flex justify-between items-start border-b border-gray-150 pb-2">
-              <div className="flex flex-col">
-                <span className="text-[6px] uppercase tracking-wider text-gray-400">ANNUAL EVENT</span>
-                <span className="text-[9px] font-black tracking-[1.5px] uppercase" style={{ color: accentColor }}>SUMMIT PRO 2026</span>
-              </div>
-              <span className="text-[7.5px] font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">NYC</span>
+            {/* Top accent bar + faint geometry */}
+            <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: accentColor }} />
+            <div className="absolute -top-12 -right-12 w-28 h-28 rounded-full" style={{ border: `1px solid ${accentColor}1A` }} />
+
+            {/* Header */}
+            <div className="flex items-center justify-between pt-2.5">
+              <span className="text-[7px] font-bold tracking-[2px] uppercase text-slate-400">Annual Conference</span>
+              <span className="text-[7px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: accentColor }}>NYC &apos;26</span>
             </div>
-            
-            {/* Body schedule */}
-            <div className="my-auto flex flex-col gap-1.5">
-              <span className="text-[8px] tracking-[2px] uppercase font-bold text-gray-400">SHAPING THE FUTURE</span>
-              <h4 className="text-xl font-bold tracking-tight leading-tight text-gray-900">
+
+            {/* Title */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[8px] tracking-[3px] uppercase font-bold" style={{ color: accentColor }}>Shaping the future</span>
+              <h4 className="text-lg font-extrabold leading-[1.1] tracking-tight text-slate-900">
                 Technology &amp;<br/>Innovation Summit
               </h4>
-              
-              {/* Agenda mockup */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, background: 'rgba(59,130,246,0.03)', padding: 6, borderRadius: 6, border: '1px solid rgba(59,130,246,0.06)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 7, color: '#444' }}>
-                  <span>09:00 AM — Keynote</span>
-                  <span className="font-semibold" style={{ color: accentColor }}>A.I. Panel</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 7, color: '#444' }}>
-                  <span>02:30 PM — Workshop</span>
-                  <span className="font-semibold" style={{ color: accentColor }}>DevOps</span>
-                </div>
-              </div>
+              <span className="text-[8.5px] font-semibold text-slate-500">Saturday · October 24, 2026</span>
             </div>
-            
-            {/* Attendee details */}
-            <div style={{ borderTop: '1px solid #ECEFF1', paddingTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: 6, textTransform: 'uppercase', color: '#888' }}>Attendee Pass:</span>
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#111' }}>{guestName || "Sarah & John"}</span>
+
+            {/* Agenda */}
+            <div className="flex flex-col gap-1.5 rounded-lg p-2.5" style={{ background: `${accentColor}0A`, border: `1px solid ${accentColor}1F` }}>
+              {[['09:00', 'Opening Keynote'], ['11:30', 'AI & Cloud Panel'], ['14:30', 'Hands-on Workshops']].map(([time, label]) => (
+                <div key={time} className="flex items-center justify-between text-[7.5px]">
+                  <span className="font-mono text-slate-400">{time}</span>
+                  <span className="font-semibold text-slate-700">{label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Attendee footer */}
+            <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
+              <div className="flex flex-col">
+                <span className="text-[6px] uppercase tracking-[1.5px] text-slate-400">Attendee Pass</span>
+                <span className="text-[10px] font-bold text-slate-900">{guestName || "Sarah & John"}</span>
               </div>
-              <div style={{ fontSize: 10, fontFamily: 'monospace', opacity: 0.5 }}>#SUM-2026</div>
+              <span className="text-[8px] font-mono text-slate-300">#SUM-2026</span>
             </div>
           </div>
         );
 
-      case "organic": // Rustic - Woodland Romance (Custom Canvas)
+      case "organic": // Rustic - Woodland Romance (Botanical)
         return (
-          <div 
-            className="w-full h-full p-4 flex flex-col items-center justify-between border-2 rounded bg-[#FAF6EE] select-none relative overflow-hidden"
-            style={{ borderColor: `${accentColor}50`, color: accentColor, boxShadow: 'inset 0 0 10px rgba(139,115,85,0.06)' }}
+          <div
+            className="w-full h-full p-4 flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
+            style={{ background: 'linear-gradient(170deg,#F8F4EB 0%,#F2ECDD 100%)', border: `1.5px solid ${accentColor}40`, color: accentColor }}
           >
-            {/* SVG leaf ornament */}
-            <div className="absolute -top-4 -left-4 w-12 h-12 opacity-25 pointer-events-none rotate-45">
-              <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke={accentColor} strokeWidth="1.5">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-              </svg>
-            </div>
-            
-            <div className="text-[8.5px] uppercase tracking-[2px] font-sans font-bold text-center opacity-70">CUSTOM CELEBRATION</div>
-            
+            {/* Botanical sprig — top */}
+            <svg className="absolute -top-1 left-1/2 -translate-x-1/2 w-16 h-9 opacity-40 pointer-events-none" viewBox="0 0 120 50" fill="none" stroke={accentColor} strokeWidth="1.2">
+              <path d="M60 50 V14" />
+              <path d="M60 30 C50 26 44 18 44 10 C54 12 60 20 60 28" />
+              <path d="M60 30 C70 26 76 18 76 10 C66 12 60 20 60 28" />
+              <path d="M60 20 C53 18 49 12 49 6 C56 8 60 14 60 19" />
+              <path d="M60 20 C67 18 71 12 71 6 C64 8 60 14 60 19" />
+            </svg>
+
+            <div className="text-[7.5px] uppercase tracking-[3px] font-sans font-semibold text-stone-500 mt-5">Together with their families</div>
+
             <div className="flex flex-col items-center text-center my-auto">
-              <span className="font-script text-3.5xl leading-none my-1" style={{ color: accentColor }}>Woodland Romance</span>
-              <span className="text-[8px] font-sans font-medium tracking-[1.5px] my-1 uppercase text-stone-600">YOU ARE CORDIALLY INVITED</span>
-              <span className="text-[9.5px] mt-1 font-bold uppercase" style={{ color: lightAccentColor }}>OCTOBER 24, 2026</span>
-              <span className="text-[8.5px] italic text-stone-500">At the Pine Valley Cabin, NY</span>
+              <span className="text-[7.5px] tracking-[2px] uppercase font-sans text-stone-400">We invite you to the wedding of</span>
+              <span className="font-script text-3xl leading-tight my-1.5" style={{ color: accentColor }}>Mia &amp; Noah</span>
+              <div className="w-8 h-px my-1" style={{ backgroundColor: `${accentColor}55` }} />
+              <span className="text-[8.5px] font-bold tracking-[1px] text-stone-600">OCTOBER 24, 2026 · 4 PM</span>
+              <span className="text-[8px] italic text-stone-500 mt-0.5">Pine Valley Cabin · Catskills, NY</span>
             </div>
-            
-            {/* Dynamic Guest Name */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-              <span style={{ fontSize: 7, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontFamily: 'var(--font-sans)', tracking: '0.1em' }}>Invite Prepared For:</span>
-              <span className="font-sans text-[11px] font-bold" style={{ color: accentColor }}>{guestName || "Sarah & John"}</span>
+
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[7px] uppercase tracking-[1.5px] font-sans text-stone-400">We&apos;d love for you to join</span>
+              <span className="font-script text-lg" style={{ color: accentColor }}>{guestName || "Sarah & John"}</span>
             </div>
-            
-            <div className="text-[8px] font-sans italic opacity-75">Celebrate with us in the wild</div>
+
+            <div className="text-[7.5px] uppercase tracking-[2px] font-sans text-stone-400">Celebrate under the pines</div>
           </div>
         );
 
@@ -176,63 +175,65 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
             <div className="absolute bottom-2 left-2 w-5 h-5 border-b border-l" style={{ borderColor: lightAccentColor, opacity: 0.8 }} />
             <div className="absolute bottom-2 right-2 w-5 h-5 border-b border-r" style={{ borderColor: lightAccentColor, opacity: 0.8 }} />
             
-            <div className="text-[8px] uppercase tracking-[3px] font-sans font-bold mt-1 text-center" style={{ color: lightAccentColor }}>
-              CELEBRATE THE ENGAGEMENT OF
+            <div className="text-[7.5px] uppercase tracking-[4px] font-sans font-semibold mt-1 text-center" style={{ color: lightAccentColor }}>
+              The Engagement Of
             </div>
-            
+
             <div className="flex flex-col items-center text-center my-auto">
-              <span className="font-serif font-light text-2.5xl tracking-wide my-1 text-transparent bg-clip-text"
-                style={{ backgroundImage: `linear-gradient(to right, #FAF9F6, ${lightAccentColor}, #FAF9F6)` }}>
-                Sarah & Tom
+              <span className="font-serif font-light text-2xl tracking-wide text-transparent bg-clip-text"
+                style={{ backgroundImage: `linear-gradient(100deg, #FBF6E9, ${lightAccentColor}, #FBF6E9)` }}>
+                Sophia &amp; Thomas
               </span>
-              <span className="text-[8px] tracking-widest font-sans uppercase my-1" style={{ color: lightAccentColor }}>OCTOBER 24, 2026</span>
-              <span className="text-[8.5px] font-sans font-light text-stone-300 max-w-[85%] leading-relaxed mt-2">
-                Join us for champagne, dinner,<br/>
-                and cocktails under the stars<br/>
-                <strong className="text-white font-semibold">The Penthouse Pavilion</strong>
+              <div className="flex items-center gap-1.5 my-2.5">
+                <span className="w-5 h-px" style={{ background: `${lightAccentColor}80` }} />
+                <span className="text-[6px]" style={{ color: lightAccentColor }}>◆</span>
+                <span className="w-5 h-px" style={{ background: `${lightAccentColor}80` }} />
+              </div>
+              <span className="text-[8px] tracking-[2px] font-sans uppercase" style={{ color: lightAccentColor }}>October 24, 2026</span>
+              <span className="text-[8px] font-sans font-light text-slate-300 max-w-[88%] leading-relaxed mt-2">
+                An evening of champagne &amp; celebration<br/>
+                <strong className="text-white font-medium">The Penthouse Pavilion</strong>
               </span>
             </div>
-            
+
             {/* Guest Personalization */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, zIndex: 10 }}>
-              <span style={{ fontSize: 7, textTransform: 'uppercase', tracking: '0.1em', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-sans)' }}>Reserved For:</span>
-              <span className="font-sans text-[11px] font-bold tracking-wide" style={{ color: lightAccentColor }}>{guestName || "Sarah & John"}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, zIndex: 10 }}>
+              <span style={{ fontSize: 7, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-sans)' }}>Reserved For</span>
+              <span className="font-serif italic text-[13px] tracking-wide" style={{ color: lightAccentColor }}>{guestName || "Sarah & John"}</span>
             </div>
-            
-            <div className="text-[8px] uppercase tracking-[2px] font-bold opacity-60" style={{ color: lightAccentColor }}>Formal Attire</div>
+
+            <div className="text-[7.5px] uppercase tracking-[3px] font-sans font-bold opacity-70" style={{ color: lightAccentColor }}>Black Tie</div>
           </div>
         );
 
-      case "minimal": // Minimal - Pure & Simple (Black Tie Gala)
+      case "minimal": // Minimal - Pure & Simple (Editorial Gala)
         return (
-          <div 
-            className="w-full h-full p-4 flex flex-col justify-between border rounded bg-[#FAF9F5] text-[#1A1A1A] font-sans select-none relative"
-            style={{ borderColor: '#DFD3C3', padding: 20 }}
+          <div
+            className="w-full h-full flex flex-col justify-between bg-[#FBFAF7] text-[#1A1A1A] font-sans select-none relative rounded border"
+            style={{ borderColor: '#ECE6DC', padding: 22 }}
           >
-            {/* Minimal line details */}
-            <div className="absolute top-4 left-4 right-4 h-[0.5px] bg-[#E5D8C6]" />
-            <div className="absolute bottom-4 left-4 right-4 h-[0.5px] bg-[#E5D8C6]" />
-            
-            <div className="flex justify-between items-start mt-2">
-              <span className="text-[8px] font-bold tracking-[3px] text-[#A69B8F] uppercase">EXHIBIT // L. VANCE</span>
-              <span className="text-[7.5px] text-[#A69B8F] font-mono">№ 402</span>
+            {/* Header rule */}
+            <div className="flex justify-between items-center">
+              <span className="text-[7.5px] font-bold tracking-[3px] text-stone-400 uppercase">The Annual Gala</span>
+              <span className="text-[7px] text-stone-400 font-mono">№ 024</span>
             </div>
-            
+
             <div className="my-auto flex flex-col text-left">
-              <span className="text-[9px] tracking-[4px] uppercase text-stone-400 font-light mb-1">RETROSPECTIVE SHOW</span>
-              <span className="font-serif text-3xl font-light tracking-tight text-[#111] leading-tight">
-                Leon<br/>Vance
+              <span className="text-[8px] tracking-[5px] uppercase text-stone-400 font-light">An Evening Of</span>
+              <span className="font-serif text-3xl font-light tracking-tight text-[#111] leading-[1.05] mt-2">
+                Art &amp;<br/>Philanthropy
               </span>
-              <span className="text-[8.5px] text-[#A69B8F] font-light mt-2 uppercase tracking-[2px]">Plaza Gallery, New York</span>
-              <span className="text-[8.5px] text-[#A69B8F] font-light uppercase tracking-[2px]">OCTOBER 24 - NOVEMBER 10</span>
+              <div className="w-10 h-px bg-stone-300 my-3.5" />
+              <span className="text-[8px] text-stone-500 font-light uppercase tracking-[2px]">The Metropolitan · New York</span>
+              <span className="text-[8px] text-stone-500 font-light uppercase tracking-[2px] mt-0.5">October 24 · 7:00 PM</span>
             </div>
-            
-            <div className="flex justify-between items-end mb-2">
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: 6, textTransform: 'uppercase', color: '#A69B8F', tracking: '0.1em' }}>Invited Guest:</span>
-                <span className="font-serif text-[11px] italic font-semibold text-[#111]">{guestName || "Sarah & John"}</span>
+
+            <div className="flex justify-between items-end">
+              <div className="flex flex-col">
+                <span className="text-[6px] uppercase tracking-[1.5px] text-stone-400">Admit</span>
+                <span className="font-serif text-[12px] italic text-[#111]">{guestName || "Sarah & John"}</span>
               </div>
-              <span className="text-[8px] font-bold tracking-[1px] uppercase border border-[#A69B8F]/30 px-2 py-0.5" style={{ color: lightAccentColor }}>GALA PASS</span>
+              <span className="text-[7.5px] font-bold tracking-[2px] uppercase px-2 py-0.5 border" style={{ color: lightAccentColor, borderColor: `${lightAccentColor}55` }}>GALA</span>
             </div>
           </div>
         );
@@ -258,23 +259,27 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
               </svg>
             </div>
             
-            <div className="text-[8.5px] uppercase tracking-[2.5px] font-sans font-bold text-center opacity-85">SWEETEST CELEBRATION</div>
-            
+            <div className="text-[7.5px] uppercase tracking-[3px] font-sans font-semibold text-center text-stone-500">You&apos;re invited to a</div>
+
             <div className="flex flex-col items-center text-center my-auto">
-              <span className="text-[9px] tracking-[1.5px] uppercase font-sans font-light text-stone-500">LUCY&apos;S</span>
-              <span className="font-script text-4xl leading-none my-1" style={{ color: accentColor }}>Garden Party</span>
-              <span className="text-[9px] font-sans font-medium tracking-[1.5px] uppercase text-stone-600">IN HONOR OF HER 30TH BIRTHDAY</span>
-              <span className="text-[9.5px] font-bold mt-2" style={{ color: lightAccentColor }}>SATURDAY, OCTOBER 24, 2026</span>
-              <span className="text-[8.5px] italic text-stone-500">At the Rose Terrace, Plaza Hotel</span>
+              <span className="font-script text-4xl leading-none" style={{ color: accentColor }}>Garden Party</span>
+              <span className="text-[8px] tracking-[2px] uppercase font-sans text-stone-500 mt-1.5">In celebration of Lucy&apos;s 30th</span>
+              <div className="flex items-center gap-1.5 my-2">
+                <span className="w-5 h-px" style={{ background: `${accentColor}55` }} />
+                <span className="text-[7px]" style={{ color: accentColor }}>❀</span>
+                <span className="w-5 h-px" style={{ background: `${accentColor}55` }} />
+              </div>
+              <span className="text-[9px] font-bold tracking-[1px] text-stone-600">SATURDAY · OCTOBER 24, 2026</span>
+              <span className="text-[8px] italic text-stone-500 mt-0.5">The Rose Terrace · Plaza Hotel</span>
             </div>
-            
+
             {/* Guest Invitation */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-              <span style={{ fontSize: 7, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', fontFamily: 'var(--font-sans)' }}>Invitation for:</span>
+              <span style={{ fontSize: 7, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(0,0,0,0.38)', fontFamily: 'var(--font-sans)' }}>Reserved for</span>
               <span className="font-script text-lg" style={{ color: accentColor }}>{guestName || "Sarah & John"}</span>
             </div>
-            
-            <div className="text-[8px] font-sans font-bold opacity-75" style={{ color: lightAccentColor }}>Kindly RSVP by September 15</div>
+
+            <div className="text-[7.5px] font-sans font-bold uppercase tracking-[2px]" style={{ color: lightAccentColor }}>Kindly reply by Sept 15</div>
           </div>
         );
         
@@ -291,7 +296,7 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
   return (
     <motion.div 
       className="relative w-full max-w-[270px] flex items-center justify-center mx-auto mt-2 z-10 select-none"
-      animate={{ height: isCardOut ? 460 : 360 }}
+      animate={{ height: isCardOut ? 478 : 360 }}
       transition={{ type: "spring", stiffness: 85, damping: 18, delay: 0.1 }}
     >
       
@@ -310,16 +315,18 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
         }}
       >
         
-        {/* Layer 1: Envelope Back */}
-        <motion.div 
+        {/* Layer 1: Envelope Back — fades away once the card is out so no empty pocket lingers */}
+        <motion.div
           className="absolute inset-0 bg-[#F4EFE6] rounded-b-2xl border border-amber-900/10 shadow-lg"
-          style={{ 
+          style={{
             zIndex: 10,
             transformStyle: "preserve-3d"
           }}
+          animate={{ opacity: isCardOut ? 0 : 1 }}
+          transition={{ duration: 0.45, delay: isCardOut ? 0.45 : 0 }}
         >
           {/* Inner back lining color coordinate - visible inside envelope behind the card */}
-          <div 
+          <div
             className="absolute inset-2 top-0 bg-gradient-to-b from-[#DFD3C3] via-[#FAF9F6] to-[#FAF9F6] rounded-b-xl"
             style={{ transform: "translateZ(1px)" }}
           />
@@ -334,8 +341,8 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           }}
           initial={{ top: "10px", height: 185, y: 0, scale: 0.95 }}
           animate={{
-            height: isCardOut ? 350 : 185,
-            y: isCardOut ? -210 : 0,
+            height: isCardOut ? 366 : 185,
+            y: isCardOut ? -214 : 0,
             scale: isCardOut ? 1.05 : 0.95,
             rotate: isCardOut ? [0, -8, -2, 0] : 0
           }}
@@ -349,10 +356,12 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           {renderCardContent()}
         </motion.div>
  
-        {/* Layer 3: Envelope Front Flaps (Bottom and Sides) */}
-        <motion.div 
+        {/* Layer 3: Envelope Front Flaps (Bottom and Sides) — fade with the back */}
+        <motion.div
           className="absolute inset-0 pointer-events-none"
           style={{ zIndex: 30 }}
+          animate={{ opacity: isCardOut ? 0 : 1 }}
+          transition={{ duration: 0.45, delay: isCardOut ? 0.45 : 0 }}
         >
           <svg className="w-full h-full filter drop-shadow-md" viewBox="0 0 100 70" preserveAspectRatio="none">
             <defs>
@@ -373,13 +382,15 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
           className="absolute top-0 left-0 w-full h-[85px] transform-style-3d"
           style={{ transformOrigin: "top", originY: 0 }}
           initial={{ rotateX: 0, zIndex: 31 }}
-          animate={{ 
+          animate={{
             rotateX: isOpen ? 180 : 0,
-            zIndex: isOpen ? 5 : 31
+            zIndex: isOpen ? 5 : 31,
+            opacity: isCardOut ? 0 : 1
           }}
           transition={{
             rotateX: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
-            zIndex: { delay: isOpen ? 0.35 : 0 }
+            zIndex: { delay: isOpen ? 0.35 : 0 },
+            opacity: { duration: 0.45, delay: isCardOut ? 0.45 : 0 }
           }}
         >
           {/* Flap Outer (faces us when closed) */}

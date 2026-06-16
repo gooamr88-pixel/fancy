@@ -1,17 +1,6 @@
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
-
-// Normalize response checking — matches frontend responseHelpers.js
-function isAcceptedResponse(response) {
-  if (!response) return false;
-  const r = response.toLowerCase().trim();
-  return ['yes', 'accepted', 'attending'].includes(r);
-}
-function isDeclinedResponse(response) {
-  if (!response) return false;
-  const r = response.toLowerCase().trim();
-  return ['no', 'declined', 'not attending'].includes(r);
-}
+const { isAcceptedResponse, isDeclinedResponse } = require('../utils/responseHelpers');
 
 /**
  * Fetches aggregated dashboard data for the authenticated organizer.

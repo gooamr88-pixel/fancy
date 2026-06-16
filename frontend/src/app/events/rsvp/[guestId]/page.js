@@ -21,7 +21,7 @@ export default function GuestRSVPResolverPage({ params }) {
         }
         const data = await res.json();
         if (data.success && data.slug) {
-          router.replace(`/${data.slug}?g=${guestId}`);
+          router.replace(`/${data.slug}/rsvp?g=${guestId}`);
         } else {
           throw new Error('Could not find event associated with this invitation.');
         }

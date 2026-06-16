@@ -75,7 +75,10 @@ export default function CampaignsPage() {
         router.push('/login');
         return;
       }
-      const savedEventId = localStorage.getItem('active_event_id') || 'demo-event';
+      // Prefer the event returned from a Stripe credits purchase (?event=…) so the
+      // wallet/history shown matches the event the user just topped up.
+      const returnedId = new URLSearchParams(window.location.search).get('event');
+      const savedEventId = returnedId || localStorage.getItem('active_event_id') || 'demo-event';
       setEventId(savedEventId);
       setAuthChecked(true);
     }

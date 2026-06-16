@@ -169,9 +169,15 @@ const getDeclineConfirmationTemplate = (rsvp, event) => {
     day: 'numeric'
   });
 
+<<<<<<< HEAD
   // Per-guest link carrying the invitation token so a declined guest can re-open the
   // event (even if private) and land on their pre-filled RSVP to change their response.
   const eventPageUrl = buildGuestEventUrl(event.slug, rsvp.id);
+=======
+  // Public event route is /<slug> (not /e/<slug>); FRONTEND_URL may be a comma-separated allowlist → take the first origin.
+  const frontendBase = (process.env.FRONTEND_URL || 'https://fancyrsvp.com').split(',')[0].trim().replace(/\/$/, '');
+  const eventPageUrl = `${frontendBase}/${event.slug || ''}`;
+>>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
 
   return `
     <!DOCTYPE html>

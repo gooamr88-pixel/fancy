@@ -152,6 +152,7 @@ export default function CreateEventWizard() {
   /* ─── Draft event + payment state ─── */
   const [eventId, setEventId] = useState(null);
   const [pricingTiers, setPricingTiers] = useState([]);
+  const [manualMethods, setManualMethods] = useState([]);
   const [selectedTierName, setSelectedTierName] = useState('');
   const [manualRef, setManualRef] = useState('');
   const [payProcessing, setPayProcessing] = useState(false);
@@ -207,6 +208,12 @@ export default function CreateEventWizard() {
   });
   const [smsTemplate, setSmsTemplate] = useState('');
 
+  /* ─── SMS credit wallet (distribution step) ─── */
+  const [smsCredits, setSmsCredits] = useState(null);
+  const [smsCreditsLoading, setSmsCreditsLoading] = useState(false);
+  const [buyingCredits, setBuyingCredits] = useState(false);
+  const [creditError, setCreditError] = useState('');
+
   /* ─── Slug availability debounce ref ─── */
   const slugTimerRef = useRef(null);
 
@@ -235,6 +242,7 @@ export default function CreateEventWizard() {
         if (!cancelled && data.success && data.config?.pricing_tiers) {
           setPricingTiers(data.config.pricing_tiers);
           if (data.config.pricing_tiers[0]) setSelectedTierName(data.config.pricing_tiers[0].name);
+          setManualMethods((data.config.manual_payment_methods || []).filter(m => m && m.is_active !== false));
         }
       } catch { /* non-fatal — payment step shows a skip option */ }
     })();
@@ -576,7 +584,7 @@ export default function CreateEventWizard() {
     }
   }, [apiUrl, eventId, selectedTierName]);
 
-  const handlePayManual = useCallback(async () => {
+  const handlePayManual = useCallback(async (methodLabel = '', payerReference = '') => {
     if (!eventId || !selectedTierName) return;
     setPayProcessing(true);
     setPayError('');
@@ -585,7 +593,7 @@ export default function CreateEventWizard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ tierName: selectedTierName }),
+        body: JSON.stringify({ tierName: selectedTierName, methodLabel, payerReference }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || 'Could not record manual payment.');
@@ -596,6 +604,61 @@ export default function CreateEventWizard() {
       setPayProcessing(false);
     }
   }, [apiUrl, eventId, selectedTierName]);
+
+  /* ═══ SMS credit balance + top-up (distribution step) ═══ */
+  const fetchSmsCredits = useCallback(async () => {
+    if (!eventId) return;
+    setSmsCreditsLoading(true);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/history`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.success) setSmsCredits(data.wallet?.credits_remaining ?? 0);
+    } catch { /* leave previous value */ }
+    finally { setSmsCreditsLoading(false); }
+  }, [apiUrl, eventId]);
+
+  // Refresh the balance whenever the user returns to this tab (e.g. after finishing
+  // the credit purchase in the Stripe tab we opened) so the count stays live without
+  // leaving the wizard. Initial load happens on navigation (goToDistribution).
+  useEffect(() => {
+    if (step !== LAST_STEP || !eventId) return;
+    const onFocus = () => fetchSmsCredits();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [step, eventId, fetchSmsCredits]);
+
+  // Advance from the tables step into distribution and prime the credit balance.
+  const goToDistribution = useCallback(() => {
+    goNext();
+    fetchSmsCredits();
+  }, [goNext, fetchSmsCredits]);
+
+  const handleBuyCredits = useCallback(async (creditCount) => {
+    if (!eventId || buyingCredits) return;
+    setCreditError('');
+    setBuyingCredits(true);
+    // Open the tab synchronously (before any await) so popup blockers don't kill it.
+    // Keeping checkout in a separate tab preserves the wizard so the user returns
+    // straight to where they left off.
+    const checkoutTab = window.open('', '_blank');
+    try {
+      const res = await fetch(`${apiUrl}/payments/events/${eventId}/sms-credits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ eventId, creditCount }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.checkoutUrl) throw new Error(data.message || 'Could not start credit purchase.');
+      if (checkoutTab) checkoutTab.location.href = data.checkoutUrl;
+      else window.open(data.checkoutUrl, '_blank');
+    } catch (err) {
+      if (checkoutTab) checkoutTab.close();
+      setCreditError(err.message || 'Credit purchase could not be started.');
+    } finally {
+      setBuyingCredits(false);
+    }
+  }, [apiUrl, eventId, buyingCredits]);
 
   /* ═══ FINAL SUBMISSION ═══ */
   const handleSubmit = useCallback(async () => {
@@ -754,6 +817,7 @@ export default function CreateEventWizard() {
           >
             <StagePayment
               tiers={pricingTiers}
+              manualMethods={manualMethods}
               selectedTierName={selectedTierName}
               onSelectTier={setSelectedTierName}
               onPayStripe={handlePayStripe}
@@ -780,7 +844,7 @@ export default function CreateEventWizard() {
             <StageTables
               apiUrl={apiUrl}
               eventId={eventId}
-              onContinue={goNext}
+              onContinue={goToDistribution}
               onBack={goBack}
             />
           </motion.div>
@@ -801,6 +865,12 @@ export default function CreateEventWizard() {
               onMethodToggle={handleMethodToggle}
               smsTemplate={smsTemplate}
               setSmsTemplate={setSmsTemplate}
+              smsCredits={smsCredits}
+              smsCreditsLoading={smsCreditsLoading}
+              onRefreshCredits={fetchSmsCredits}
+              onBuyCredits={handleBuyCredits}
+              buyingCredits={buyingCredits}
+              creditError={creditError}
               onSubmit={handleSubmit}
               onBack={goBack}
               submitting={submitting}

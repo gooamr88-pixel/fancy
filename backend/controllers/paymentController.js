@@ -4,9 +4,64 @@ const stripe = require('stripe')(STRIPE_SECRET_KEY);
 const { supabase } = require('../config/supabase');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
+<<<<<<< HEAD
 // Bulletproof resolver: splits FRONTEND_URL on commas, repairs typos, and returns
 // only the first valid https:// origin — never a raw, malformed env string.
 const { getPublicBaseUrl } = require('../utils/publicUrl');
+=======
+const { computeSmsChargeCents } = require('../utils/pricing');
+
+// FRONTEND_URL may be a comma-separated allowlist (see app.js CORS).
+const allowedReturnOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+  .split(',')
+  .map(s => s.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+/**
+ * Resolves the frontend origin to send the user back to after Stripe Checkout.
+ *
+ * Returning to a DIFFERENT origin than the one the user started on logs them out:
+ * `localStorage` (org_id) and the auth cookie are both per-origin, so they'd land
+ * on the login page and on the wrong section. We therefore echo back the exact
+ * origin the checkout request came from (validated against the FRONTEND_URL
+ * allowlist), falling back to the first configured origin only if we can't match.
+ */
+const resolveReturnBase = (req) => {
+  const fromOrigin = (req.headers.origin || '').trim().replace(/\/$/, '');
+  if (fromOrigin && allowedReturnOrigins.includes(fromOrigin)) return fromOrigin;
+
+  // Fall back to the Referer's origin (e.g. some browsers omit Origin on same-site).
+  if (req.headers.referer) {
+    try {
+      const u = new URL(req.headers.referer);
+      const refOrigin = `${u.protocol}//${u.host}`;
+      if (allowedReturnOrigins.includes(refOrigin)) return refOrigin;
+    } catch { /* malformed referer — ignore */ }
+  }
+
+  return allowedReturnOrigins[0] || 'http://localhost:3000';
+};
+
+/**
+ * Best-effort write for columns introduced by migration 20260616300000
+ * (manual_method, payer_reference, verified_by, verified_at, admin_note,
+ * manual_payment_methods). If that migration hasn't been applied yet the column
+ * won't exist and a normal update would throw — which previously broke the whole
+ * payment flow. Here we swallow the error so the core flow always succeeds; apply
+ * the migration to actually persist this metadata.
+ */
+const setOptionalColumns = async (table, match, fields) => {
+  // Drop undefined/empty so we never send an empty update.
+  const clean = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+  if (Object.keys(clean).length === 0) return;
+  try {
+    const { error } = await supabase.from(table).update(clean).match(match);
+    if (error) console.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${error.message}`);
+  } catch (e) {
+    console.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${e.message}`);
+  }
+};
+>>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
 
 /**
  * Creates a Stripe Checkout Session for event payment fees.
@@ -99,8 +154,13 @@ const createCheckoutSession = async (req, res, next) => {
         tier_name: tier.name,
         type: 'event_fee'
       },
+<<<<<<< HEAD
       success_url: `${getPublicBaseUrl()}/dashboard?payment=success&event=${eventId}`,
       cancel_url: `${getPublicBaseUrl()}/dashboard/create-event?payment=cancelled&event=${eventId}`
+=======
+      success_url: `${resolveReturnBase(req)}/dashboard?payment=success&event=${eventId}`,
+      cancel_url: `${resolveReturnBase(req)}/dashboard/create-event?payment=cancelled&event=${eventId}`
+>>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
     });
 
     return res.status(200).json({
@@ -131,7 +191,7 @@ const purchaseSMSCredits = async (req, res, next) => {
     // 1. Fetch SMS rates
     const { data: config } = await supabase
       .from('super_admin_config')
-      .select('sms_rate_cents_per_credit')
+      .select('sms_rate_cents_per_credit, sms_markup_percentage')
       .single();
 
     if (!config) {
@@ -142,13 +202,12 @@ const purchaseSMSCredits = async (req, res, next) => {
       });
     }
 
-    const unitPrice = config.sms_rate_cents_per_credit;
-    let totalCents = unitPrice * creditCount;
-
-    // Apply volume discount (12.5% discount for 500+ credits)
-    if (creditCount >= 500) {
-      totalCents = Math.round(totalCents * 0.875);
-    }
+    // Base carrier cost → admin markup → volume discount, rounded once at the end.
+    const totalCents = computeSmsChargeCents({
+      unitPriceCents: config.sms_rate_cents_per_credit,
+      creditCount,
+      markupPct: config.sms_markup_percentage,
+    });
 
     // 2. Fetch customer details
     const { data: eventData } = await supabase
@@ -179,24 +238,32 @@ const purchaseSMSCredits = async (req, res, next) => {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
+      // Charge the computed total as a single line item. Splitting it into a
+      // per-unit price × quantity would re-round per credit and silently discard
+      // the markup/volume-discount cents (e.g. an intended 2188¢ collapses to 2000¢).
       line_items: [{
         price_data: {
           currency: 'usd',
-          unit_amount: Math.round(totalCents / creditCount),
+          unit_amount: totalCents,
           product_data: {
             name: `Fancy RSVP - SMS Credits (${creditCount} Pack)`,
             description: `Pre-paid SMS credits for event invitations`
           }
         },
-        quantity: creditCount
+        quantity: 1
       }],
       metadata: {
         event_id: eventId,
         type: 'sms_credits',
         credit_count: creditCount.toString()
       },
+<<<<<<< HEAD
       success_url: `${getPublicBaseUrl()}/dashboard/campaigns?event=${eventId}&purchase=success`,
       cancel_url: `${getPublicBaseUrl()}/dashboard/campaigns?event=${eventId}&purchase=cancelled`
+=======
+      success_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=success&event=${eventId}`,
+      cancel_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=cancelled&event=${eventId}`
+>>>>>>> a7831309379500d099c90f8cdde056a56d9a894d
     });
 
     return res.status(200).json({
@@ -288,78 +355,31 @@ const stripeWebhook = async (req, res, next) => {
       } else if (type === 'sms_credits') {
         const creditCount = parseInt(session.metadata.credit_count);
 
-        // Fetch wallet to see if it exists
-        const { data: wallets } = await supabase
-          .from('sms_credit_wallets')
-          .select('id, credits_purchased')
-          .eq('event_id', event_id);
+        // Single transactional RPC: ensures the wallet, writes the idempotency
+        // ledger row, and credits the wallet — all atomically. A duplicate
+        // delivery is caught inside the function (already_processed) and never
+        // double-credits; a mid-way failure rolls back fully for a clean retry.
+        const { data: purchaseResult, error: purchaseError } = await supabase
+          .rpc('record_sms_purchase', {
+            p_event_id: event_id,
+            p_credits: creditCount,
+            p_payment_intent: session.payment_intent
+          });
 
-        let wallet = wallets && wallets[0];
-        let walletId;
-
-        if (!wallet) {
-          // Try inserting a new wallet
-          const { data: newWallet, error: insertError } = await supabase
-            .from('sms_credit_wallets')
-            .insert({
-              event_id,
-              credits_purchased: 0,
-              credits_used: 0
-            })
-            .select()
-            .single();
-
-          if (insertError) {
-            // Handle race condition on duplicate wallet creation
-            if (insertError.code === '23505' || insertError.message.includes('duplicate key')) {
-              const { data: refetchedWallets } = await supabase
-                .from('sms_credit_wallets')
-                .select('id, credits_purchased')
-                .eq('event_id', event_id);
-              wallet = refetchedWallets && refetchedWallets[0];
-              if (!wallet) throw new Error('Failed to resolve wallet after unique constraint collision');
-              walletId = wallet.id;
-            } else {
-              throw insertError;
-            }
-          } else {
-            walletId = newWallet.id;
-            wallet = newWallet;
-          }
-        } else {
-          walletId = wallet.id;
+        if (purchaseError) throw purchaseError;
+        if (purchaseResult && purchaseResult.success === false) {
+          throw new Error(`record_sms_purchase failed: ${purchaseResult.error}`);
         }
 
-        // Atomically insert the ledger entry first to guarantee idempotency
-        const { error: ledgerError } = await supabase.from('sms_credit_ledger').insert({
-          wallet_id: walletId,
-          event_id,
-          transaction_type: 'purchase',
-          credits: creditCount,
-          stripe_payment_intent_id: session.payment_intent
-        });
-
-        if (ledgerError) {
-          if (ledgerError.code === '23505' || ledgerError.message.includes('duplicate key')) {
-            console.log(`[Webhook] Duplicate SMS ledger insert caught for payment intent: ${session.payment_intent}`);
-            return res.json({ received: true });
-          }
-          throw ledgerError;
+        // Audit log only on the first (newly credited) delivery
+        if (!purchaseResult?.already_processed) {
+          await supabase.from('activity_logs').insert({
+            event_id,
+            action: 'sms_credits_purchased',
+            entity_type: 'sms_wallet',
+            metadata: { credit_count: creditCount }
+          });
         }
-
-        // Atomically increment wallet credits via database RPC (prevents race conditions)
-        const { error: walletUpdateError } = await supabase
-          .rpc('increment_sms_credits', { p_event_id: event_id, p_credit_amount: creditCount });
-
-        if (walletUpdateError) throw walletUpdateError;
-
-        // Audit log
-        await supabase.from('activity_logs').insert({
-          event_id,
-          action: 'sms_credits_purchased',
-          entity_type: 'sms_wallet',
-          metadata: { credit_count: creditCount }
-        });
       }
     } else if (stripeEvent.type === 'charge.refunded') {
       // Mirror the edge-function refund logic so refunds are handled no matter which
@@ -498,6 +518,8 @@ const manualCashApproval = async (req, res, next) => {
         .update({
           status: 'completed',
           approved_by: req.user.id,
+          verified_by: req.user.id,
+          verified_at: new Date().toISOString(),
           completed_at: new Date().toISOString(),
           amount_cents: amountCents
         })
@@ -583,13 +605,29 @@ const manualCashApproval = async (req, res, next) => {
  * PATCH /api/v1/admin/pricing
  */
 const updatePricingConfig = async (req, res, next) => {
-  const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct } = req.body;
+  const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct, manualPaymentMethods } = req.body;
 
   const updates = {};
   if (pricingTiers) updates.pricing_tiers = pricingTiers;
   if (smsRateCentsPerCredit !== undefined) updates.sms_rate_cents_per_credit = smsRateCentsPerCredit;
   if (smsMarkupPercentage !== undefined) updates.sms_markup_percentage = smsMarkupPercentage;
   if (platformCommissionPct !== undefined) updates.platform_commission_pct = platformCommissionPct;
+  if (manualPaymentMethods !== undefined) {
+    if (!Array.isArray(manualPaymentMethods)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'manualPaymentMethods must be an array.' });
+    }
+    // Normalize each method to the documented shape and drop empties.
+    updates.manual_payment_methods = manualPaymentMethods
+      .filter(m => m && (m.label || '').trim())
+      .map((m, i) => ({
+        id: m.id || `method_${i}_${Date.now()}`,
+        label: String(m.label).trim(),
+        type: m.type || 'other',
+        details: (m.details || '').trim(),
+        instructions: (m.instructions || '').trim(),
+        is_active: m.is_active !== false,
+      }));
+  }
   updates.updated_at = new Date().toISOString();
   updates.updated_by = req.user.id;
 
@@ -641,7 +679,7 @@ const getPricingConfig = async (req, res, next) => {
  */
 const initiateManualPayment = async (req, res, next) => {
   const { eventId } = req.params;
-  const { tierName } = req.body;
+  const { tierName, methodLabel, payerReference } = req.body;
 
   if (!tierName) {
     return res.status(400).json({
@@ -662,6 +700,13 @@ const initiateManualPayment = async (req, res, next) => {
       .limit(1);
 
     if (existingPending && existingPending.length > 0) {
+      // Keep the payer's declared method / proof reference fresh if they re-submit.
+      if (methodLabel !== undefined || payerReference !== undefined) {
+        const patch = {};
+        if (methodLabel !== undefined) patch.manual_method = (methodLabel || '').toString().slice(0, 200);
+        if (payerReference !== undefined) patch.payer_reference = (payerReference || '').toString().slice(0, 300);
+        await supabase.from('event_payments').update(patch).eq('id', existingPending[0].id);
+      }
       return res.status(200).json({
         success: true,
         message: 'Existing pending cash payment found.',
@@ -709,7 +754,9 @@ const initiateManualPayment = async (req, res, next) => {
         amount_cents: tier.price_cents,
         status: 'pending',
         payment_method: 'cash_manual',
-        currency: 'usd'
+        currency: 'usd',
+        manual_method: methodLabel ? methodLabel.toString().slice(0, 200) : null,
+        payer_reference: payerReference ? payerReference.toString().slice(0, 300) : null
       })
       .select()
       .single();

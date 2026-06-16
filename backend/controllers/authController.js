@@ -122,12 +122,15 @@ const register = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters with uppercase, lowercase, and a number' });
   }
 
+  // Normalize email so lookups match login/Google flows (all lowercase, trimmed)
+  const normalizedEmail = email.toLowerCase().trim();
+
   try {
     // Check if user already exists
     const { data: existingUser } = await supabase
       .from('organizations')
       .select('id, email_verified')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .limit(1);
 
     if (existingUser && existingUser.length > 0) {
@@ -163,7 +166,7 @@ const register = async (req, res, next) => {
           otp_attempts: 0,
           email_verified: false,
         })
-        .eq('email', email);
+        .eq('email', normalizedEmail);
       if (updateError) throw updateError;
     } else {
       // Create new organization in unverified state
@@ -172,7 +175,7 @@ const register = async (req, res, next) => {
         .insert({
           owner_user_id: userId,
           name: orgName,
-          email: email,
+          email: normalizedEmail,
           password_hash: passwordHash,
           registration_otp: otpHash,
           registration_otp_expires_at: otpExpiresAt,
@@ -209,15 +212,15 @@ const register = async (req, res, next) => {
       </div>
     `;
 
-    await sendEmailViaBrevo(email, 'Verify Your Email — Fancy RSVP', emailHtml);
+    await sendEmailViaBrevo(normalizedEmail, 'Verify Your Email — Fancy RSVP', emailHtml);
 
-    logger.info({ email }, 'Registration OTP dispatched');
+    logger.info({ email: normalizedEmail }, 'Registration OTP dispatched');
 
     return res.status(201).json({
       success: true,
       message: 'Registration initiated. Please check your email for the verification code.',
       requiresVerification: true,
-      email,
+      email: normalizedEmail,
     });
   } catch (err) {
     next(err);
@@ -241,12 +244,14 @@ const verifyRegistration = async (req, res, next) => {
     });
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+
   try {
     // 1. Fetch unverified organization
     const { data: orgs, error: fetchError } = await supabase
       .from('organizations')
       .select('id, owner_user_id, name, email, registration_otp, registration_otp_expires_at, otp_attempts, email_verified')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .limit(1);
 
     if (fetchError) throw fetchError;
@@ -275,7 +280,7 @@ const verifyRegistration = async (req, res, next) => {
     const expiresAt = org.registration_otp_expires_at;
 
     if (!storedOtp || !expiresAt || new Date() > new Date(expiresAt)) {
-      await supabase.from('organizations').update({ otp_attempts: otpAttempts + 1 }).eq('email', email);
+      await supabase.from('organizations').update({ otp_attempts: otpAttempts + 1 }).eq('email', normalizedEmail);
       return res.status(400).json({ success: false, error: 'OTP_EXPIRED', message: 'The verification code has expired. Please register again.' });
     }
 
@@ -284,7 +289,7 @@ const verifyRegistration = async (req, res, next) => {
       crypto.timingSafeEqual(Buffer.from(storedOtp, 'utf8'), Buffer.from(submittedHash, 'utf8'));
 
     if (!otpMatch) {
-      await supabase.from('organizations').update({ otp_attempts: otpAttempts + 1 }).eq('email', email);
+      await supabase.from('organizations').update({ otp_attempts: otpAttempts + 1 }).eq('email', normalizedEmail);
       return res.status(400).json({ success: false, error: 'INVALID_OTP', message: 'Invalid verification code.' });
     }
 
@@ -297,20 +302,20 @@ const verifyRegistration = async (req, res, next) => {
         registration_otp_expires_at: null,
         otp_attempts: 0,
       })
-      .eq('email', email);
+      .eq('email', normalizedEmail);
 
     if (updateError) throw updateError;
 
     // 5. Issue auth cookie
     const userId = org.owner_user_id;
-    issueAuthCookie(res, { id: userId, email, role: 'organizer' });
+    issueAuthCookie(res, { id: userId, email: normalizedEmail, role: 'organizer' });
 
-    logger.info({ email }, 'Registration verified, account activated');
+    logger.info({ email: normalizedEmail }, 'Registration verified, account activated');
 
     return res.status(200).json({
       success: true,
       message: 'Email verified. Welcome to Fancy RSVP!',
-      user: { id: userId, email, name: org.name, role: 'organizer' },
+      user: { id: userId, email: normalizedEmail, name: org.name, role: 'organizer' },
       organization: { id: org.id, owner_user_id: userId, name: org.name, email: org.email },
     });
   } catch (err) {
@@ -459,12 +464,14 @@ const forgotPassword = async (req, res, next) => {
     });
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+
   try {
     // 1. Resolve organization by email
     const { data: orgs, error: fetchError } = await supabase
       .from('organizations')
       .select('id, name')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .limit(1);
 
     if (fetchError) throw fetchError;
@@ -495,7 +502,7 @@ const forgotPassword = async (req, res, next) => {
         reset_otp_expires_at: expiresAt,
         otp_attempts: 0
       })
-      .eq('email', email);
+      .eq('email', normalizedEmail);
 
     if (updateError) throw updateError;
 
@@ -519,12 +526,12 @@ const forgotPassword = async (req, res, next) => {
       </div>
     `;
 
-    const emailSent = await sendEmailViaBrevo(email, 'Password Reset Verification Code - Fancy RSVP', emailHtml);
+    const emailSent = await sendEmailViaBrevo(normalizedEmail, 'Password Reset Verification Code - Fancy RSVP', emailHtml);
     if (!emailSent) {
       throw new Error('Failed to dispatch password recovery email.');
     }
 
-    logger.info({ email }, 'Password reset OTP dispatched');
+    logger.info({ email: normalizedEmail }, 'Password reset OTP dispatched');
 
     return res.status(200).json({
       success: true,
@@ -564,12 +571,14 @@ const resetPassword = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'WEAK_PASSWORD', message: 'Password must be at least 8 characters with uppercase, lowercase, and a number' });
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+
   try {
     // 1. Fetch organization by email
     const { data: orgs, error: fetchError } = await supabase
       .from('organizations')
       .select('id, email, reset_otp, reset_otp_expires_at, otp_attempts, password_hash')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .limit(1);
 
     if (fetchError) throw fetchError;
@@ -602,7 +611,7 @@ const resetPassword = async (req, res, next) => {
       await supabase
         .from('organizations')
         .update({ otp_attempts: otpAttempts + 1 })
-        .eq('email', email);
+        .eq('email', normalizedEmail);
 
       return res.status(400).json({
         success: false,
@@ -621,7 +630,7 @@ const resetPassword = async (req, res, next) => {
       await supabase
         .from('organizations')
         .update({ otp_attempts: otpAttempts + 1 })
-        .eq('email', email);
+        .eq('email', normalizedEmail);
 
       return res.status(400).json({
         success: false,
@@ -641,7 +650,7 @@ const resetPassword = async (req, res, next) => {
         reset_otp_expires_at: null,
         otp_attempts: 0
       })
-      .eq('email', email);
+      .eq('email', normalizedEmail);
 
     if (updateError) throw updateError;
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../utils/apiClient';
@@ -136,7 +136,17 @@ export default function DashboardPage() {
       try {
         const res = await fetch(`${apiUrl}/events`, { credentials: 'include' });
         const data = await res.json();
-        if (data.success && data.events.length > 0) { setEvents(data.events); setEventId(data.events[0].id); }
+        if (data.success && data.events.length > 0) {
+          setEvents(data.events);
+          // Prefer the event passed back from a Stripe return (?event=…) or the last
+          // active event, so the user lands on the section they were working in —
+          // not always the first event.
+          const params = new URLSearchParams(window.location.search);
+          const returnedId = params.get('event');
+          const storedId = localStorage.getItem('active_event_id');
+          const preferred = [returnedId, storedId].find(id => id && data.events.some(e => e.id === id));
+          setEventId(preferred || data.events[0].id);
+        }
         else { setEventId(''); setLoading(false); }
       } catch (err) { setEventId(''); setLoading(false); }
     };
@@ -169,6 +179,9 @@ export default function DashboardPage() {
           return {
             id: r.id, guest_name: r.guest_name, party_size: r.party_size, response: r.response,
             email: r.email || '-', phone: r.phone || '-', tableId: assignedTableId, meal: guestMeals,
+            // Full per-companion details so the organizer sees everyone in the party.
+            guests: r.rsvp_guests || [],
+            notes: r.notes || '',
             timestamp: r.created_at || null
           };
         });
@@ -237,9 +250,21 @@ export default function DashboardPage() {
     } catch (err) { alert(err.message); }
   }, [apiUrl, eventId, rsvps, loadDashboardData]);
 
+  // Debounced authoritative reload — reconciles optimistic realtime updates with backend truth.
+  const reconcileTimer = useRef(null);
+  const scheduleReconcile = useCallback(() => {
+    if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
+    reconcileTimer.current = setTimeout(() => { loadDashboardData(); }, 1500);
+  }, [loadDashboardData]);
+
+  useEffect(() => () => { if (reconcileTimer.current) clearTimeout(reconcileTimer.current); }, []);
+
   const handleRealtimeRsvp = useCallback((payload) => {
     if (payload.eventType === 'INSERT') {
       const r = payload.new;
+      // Mock-demo rows (no Supabase configured) have no backend counterpart — keep them
+      // purely optimistic. Real rows get reconciled against authoritative stats shortly after.
+      const isMock = typeof r.id === 'string' && r.id.startsWith('mock-');
       const isYes = r.response === 'yes' || r.response === 'accepted' || r.response === 'attending';
       const isNo = r.response === 'no' || r.response === 'declined' || r.response === 'not attending';
       const formatted = {
@@ -272,8 +297,11 @@ export default function DashboardPage() {
           mealSummary: newMealSummary,
         };
       });
+      // Reconcile real inserts with authoritative backend stats (also refreshes
+      // seating/meal aggregates the optimistic math can't compute).
+      if (!isMock) scheduleReconcile();
     } else { loadDashboardData(); }
-  }, [loadDashboardData]);
+  }, [loadDashboardData, scheduleReconcile]);
 
   useRealtimeRSVPs(eventId, handleRealtimeRsvp);
 

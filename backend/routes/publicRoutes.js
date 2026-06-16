@@ -2,13 +2,19 @@ const express = require('express');
 const { body, param, query } = require('express-validator');
 const validate = require('../middleware/validate');
 const { getPublicEventBySlug } = require('../controllers/eventController');
-const { submitPublicRSVP, searchPublicGuests, searchPublicSeating } = require('../controllers/rsvpController');
+const { submitPublicRSVP, searchPublicGuests, searchPublicSeating, getGuestById, getGuestSeatingMap } = require('../controllers/rsvpController');
 const checkinController = require('../controllers/checkinController');
 
 const router = express.Router();
 
 // Public landing page configuration fetch
 router.get('/events/:slug', getPublicEventBySlug);
+
+// Personalized invitation resolver (guest-specific link)
+router.get('/rsvp/guest/:guestId', [
+  param('guestId').isUUID().withMessage('Valid guest ID is required'),
+  validate
+], getGuestById);
 
 // Public guest RSVP name validation search
 router.get('/events/:slug/rsvp/search', [
@@ -21,6 +27,12 @@ router.get('/events/:slug/seating/search', [
   query('query').optional().trim().isLength({ max: 200 }).withMessage('Search query too long'),
   validate
 ], searchPublicSeating);
+
+// Personal seating map for one guest (their table + own party, never other guests)
+router.get('/events/:slug/seating/guest/:guestId', [
+  param('guestId').isUUID().withMessage('Valid guest ID is required'),
+  validate
+], getGuestSeatingMap);
 
 // Public guest RSVP form submit
 router.post('/events/:slug/rsvp', [

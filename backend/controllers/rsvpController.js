@@ -384,6 +384,56 @@ const submitPublicRSVP = async (req, res, next) => {
 };
 
 /**
+ * Resolves a single guest invitation by its RSVP id (public endpoint).
+ * Powers the personalized invitation link (`/events/rsvp/:guestId`) and the
+ * token-prefill branch of the public RSVP page (`/:slug?g=:guestId`).
+ * GET /api/v1/public/rsvp/guest/:guestId
+ */
+const getGuestById = async (req, res, next) => {
+  const { guestId } = req.params;
+
+  try {
+    const { data: rsvp, error } = await supabase
+      .from('rsvps')
+      .select(`
+        id, guest_name, email, phone, party_size, notes, response,
+        events!inner(slug, is_paid, status),
+        seating_assignments(tables(table_name))
+      `)
+      .eq('id', guestId)
+      .single();
+
+    if (error || !rsvp) {
+      return res.status(404).json({ success: false, error: 'GUEST_NOT_FOUND' });
+    }
+
+    // Only expose invitations for live (paid + active) event pages.
+    if (!rsvp.events.is_paid || rsvp.events.status !== 'active') {
+      return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
+    }
+
+    const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || null;
+
+    return res.json({
+      success: true,
+      slug: rsvp.events.slug,
+      guest: {
+        id: rsvp.id,
+        guest_name: rsvp.guest_name,
+        email: rsvp.email,
+        phone: rsvp.phone,
+        party_size: rsvp.party_size,
+        notes: rsvp.notes,
+        response: rsvp.response,
+        table_name: tableName
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Searches pre-registered guest invitations by name (public endpoint).
  * GET /api/v1/public/events/:slug/rsvp/search
  */
@@ -621,28 +671,78 @@ const importGuestsCSV = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'FILE_TOO_LARGE', message: 'Import limited to 500 rows per batch. Please split your file.' });
     }
 
-    const insertRows = parsedRows.map(row => ({
+    // Dedup within the file by email (case-insensitive). Rows without an email are
+    // always kept — the partial unique index only collides on non-null emails.
+    const seenEmails = new Set();
+    let skippedInFile = 0;
+    const dedupedRows = [];
+    for (const row of parsedRows) {
+      const emailKey = (row.email || '').trim().toLowerCase();
+      if (emailKey) {
+        if (seenEmails.has(emailKey)) { skippedInFile++; continue; }
+        seenEmails.add(emailKey);
+      }
+      dedupedRows.push(row);
+    }
+
+    const toInsertRow = (row) => ({
       event_id: eventId,
       guest_name: row.guest_name || 'Unnamed Guest',
-      email: row.email || null,
+      email: row.email ? row.email.trim() : null,
       phone: row.phone || null,
       response: 'pending',
       party_size: parseInt(row.party_size) || 1,
       notes: row.notes || null
-    }));
+    });
 
-    const { data: inserted, error } = await supabase
-      .from('rsvps')
-      .insert(insertRows)
-      .select('id, guest_name');
+    // Insert in chunks. Any chunk-level error (a duplicate-key 23505 against an
+    // already-imported/already-RSVP'd email, or any other constraint violation)
+    // aborts the whole chunk, so we retry that chunk row-by-row: good rows still
+    // import, duplicates are skipped, and only genuinely bad rows are collected
+    // as errors. This keeps a single malformed row from failing the whole batch.
+    const CHUNK = 100;
+    const imported = [];
+    let skippedExisting = 0;
+    const errors = [];
 
-    if (error) throw error;
+    for (let i = 0; i < dedupedRows.length; i += CHUNK) {
+      const chunk = dedupedRows.slice(i, i + CHUNK).map(toInsertRow);
+      const { data, error } = await supabase
+        .from('rsvps')
+        .insert(chunk)
+        .select('id, guest_name');
+
+      if (!error) {
+        imported.push(...data);
+        continue;
+      }
+
+      // Chunk failed — retry each row individually to isolate the offenders.
+      for (const single of chunk) {
+        const { data: one, error: oneErr } = await supabase
+          .from('rsvps')
+          .insert(single)
+          .select('id, guest_name')
+          .single();
+        if (!oneErr) imported.push(one);
+        else if (oneErr.code === '23505') skippedExisting++;
+        else errors.push({ guest_name: single.guest_name, error: oneErr.message });
+      }
+    }
+
+    const skippedCount = skippedInFile + skippedExisting;
 
     return res.status(201).json({
       success: true,
-      message: `Successfully imported ${inserted.length} guest records in pending state.`,
-      importedCount: inserted.length,
-      guests: inserted
+      message: `Imported ${imported.length} guest record(s) in pending state`
+        + (skippedCount ? `; skipped ${skippedCount} duplicate(s)` : '')
+        + (errors.length ? `; ${errors.length} failed` : '')
+        + '.',
+      importedCount: imported.length,
+      skippedCount,
+      errorCount: errors.length,
+      errors,
+      guests: imported
     });
   } catch (err) {
     next(err);
@@ -830,7 +930,9 @@ const updateRSVP = async (req, res, next) => {
     // Build update payload
     const updates = {};
     if (guestName !== undefined) updates.guest_name = guestName.trim();
-    if (email !== undefined) updates.email = email;
+    // Normalize email on write so it matches the duplicate-detection lookups
+    // (which compare trimmed/lowercased) and the partial unique index.
+    if (email !== undefined) updates.email = email ? email.trim().toLowerCase() : null;
     if (phone !== undefined) updates.phone = phone;
     if (response !== undefined) {
       if (!['yes', 'no', 'pending'].includes(response)) {
@@ -840,8 +942,8 @@ const updateRSVP = async (req, res, next) => {
     }
     if (partySize !== undefined) {
       const size = parseInt(partySize);
-      if (isNaN(size) || size < 1 || size > 50) {
-        return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'partySize must be between 1 and 50.' });
+      if (isNaN(size) || size < 1 || size > 20) {
+        return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'partySize must be between 1 and 20.' });
       }
       updates.party_size = size;
     }
@@ -925,6 +1027,14 @@ const addGuestManually = async (req, res, next) => {
   const guestResponse = response && ['yes', 'no', 'pending'].includes(response) ? response : 'pending';
   const computedPartySize = parseInt(partySize) || 1;
 
+  if (computedPartySize < 1 || computedPartySize > 20) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: 'partySize must be between 1 and 20.'
+    });
+  }
+
   try {
     // 1. Verify event exists
     const { data: event, error: eventError } = await supabase
@@ -943,7 +1053,7 @@ const addGuestManually = async (req, res, next) => {
       .insert({
         event_id: eventId,
         guest_name: guestName.trim(),
-        email: email || null,
+        email: email ? email.trim().toLowerCase() : null,
         phone: phone || null,
         response: guestResponse,
         party_size: computedPartySize,
@@ -1058,11 +1168,94 @@ const searchPublicSeating = async (req, res, next) => {
         const resolvedSeating = Array.isArray(seating) ? seating[0] : seating;
         const tableName = resolvedSeating?.tables?.table_name || 'Unassigned';
         return {
+          id: item.id, // needed so the guest can pull their personal seating map
           guestName: item.guest_name,
           partySize: item.party_size,
-          tableName
+          tableName,
+          hasTable: !!resolvedSeating?.table_id
         };
       })
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Returns a single guest's personal seating view: the full venue LAYOUT (table
+ * geometry only) plus which table is theirs and the names of their OWN party.
+ * Deliberately never exposes who else is seated at any table — a guest sees the
+ * room and their spot, and the companions they brought, but not other parties.
+ * GET /api/v1/public/events/:slug/seating/guest/:guestId
+ */
+const getGuestSeatingMap = async (req, res, next) => {
+  const { slug, guestId } = req.params;
+
+  try {
+    // 1. Resolve event and ensure it is live (paid + active).
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, is_paid, status')
+      .eq('slug', slug)
+      .single();
+
+    if (eventError || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+    if (!event.is_paid || event.status !== 'active') {
+      return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
+    }
+
+    // 2. Resolve the guest's RSVP (must belong to this event) + their own party.
+    const { data: rsvp, error: rsvpError } = await supabase
+      .from('rsvps')
+      .select(`
+        id, guest_name, party_size, response,
+        seating_assignments(table_id, tables(table_name)),
+        rsvp_guests(full_name, is_primary, meal_selection)
+      `)
+      .eq('id', guestId)
+      .eq('event_id', event.id)
+      .single();
+
+    if (rsvpError || !rsvp) {
+      return res.status(404).json({ success: false, error: 'GUEST_NOT_FOUND' });
+    }
+
+    const assignment = Array.isArray(rsvp.seating_assignments)
+      ? rsvp.seating_assignments[0]
+      : rsvp.seating_assignments;
+    const myTableId = assignment?.table_id || null;
+    const myTableName = assignment?.tables?.table_name || null;
+
+    // 3. Venue layout — geometry only, no occupant identities.
+    const { data: tables, error: tablesError } = await supabase
+      .from('tables')
+      .select('id, table_name, element_type, shape, position_x, position_y, width, height, rotation, color, max_capacity')
+      .eq('event_id', event.id)
+      .order('sort_order', { ascending: true });
+
+    if (tablesError) throw tablesError;
+
+    // 4. The guest's own companions (the people THEY brought) — never other parties.
+    const party = (rsvp.rsvp_guests || [])
+      .slice()
+      .sort((a, b) => (b.is_primary ? 1 : 0) - (a.is_primary ? 1 : 0))
+      .map(g => ({ name: g.full_name, meal: g.meal_selection || null, isPrimary: !!g.is_primary }))
+      .filter(g => g.name);
+
+    return res.json({
+      success: true,
+      guest: {
+        id: rsvp.id,
+        guest_name: rsvp.guest_name,
+        party_size: rsvp.party_size,
+        response: rsvp.response,
+      },
+      myTableId,
+      myTableName,
+      party,
+      tables: tables || [],
     });
   } catch (err) {
     next(err);
@@ -1076,8 +1269,12 @@ module.exports = {
   exportGuestsCSV,
   exportGuestsExcel,
   searchPublicGuests,
+  getGuestById,
   deleteRSVP,
   updateRSVP,
   addGuestManually,
-  searchPublicSeating
+  searchPublicSeating,
+  getGuestSeatingMap,
+  // Exported for unit testing of the ILIKE-injection escaping.
+  escapeLikePattern
 };

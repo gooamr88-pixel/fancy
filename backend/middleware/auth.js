@@ -6,10 +6,14 @@ if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is requ
 
 /** Cookie configuration — single source of truth for all auth endpoints. */
 const COOKIE_NAME = 'fancy_session';
+// 'lax' (not 'strict') so the session survives top-level navigations back from
+// external providers like Stripe Checkout. 'strict' withholds the cookie on the
+// return navigation, which logs the user out after paying. 'lax' still blocks the
+// cookie on cross-site POST/embedded requests, preserving CSRF protection.
 const getCookieOptions = (maxAge) => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+  sameSite: 'lax',
   path: '/',
   maxAge, // milliseconds
 });
@@ -31,7 +35,7 @@ const clearAuthCookie = (res) => {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    sameSite: 'lax',
     path: '/',
   });
 };
