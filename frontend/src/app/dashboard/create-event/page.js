@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { supabase } from '../../utils/supabaseClient';
+import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -33,74 +34,60 @@ const C = {
 /* ═══════════════════════════════════════════════════════
    CURATED TEMPLATE DEFINITIONS
    ═══════════════════════════════════════════════════════ */
+/* Three premium, curated templates. The retired categories (corporate,
+   birthday, gala) are intentionally absent from the picker — their render
+   patterns still live in the guest renderer so existing events keep working. */
 const TEMPLATES = [
   {
-    key: 'wedding', label: 'Royale Wedding', icon: '💍',
-    desc: 'Timeless elegance for your once-in-a-lifetime celebration. Gold foil accents with classic serif typography.',
-    presets: [
-      { name: 'Royale Gold', primary: '#B8944F', secondary: '#D7BE80', accent: '#B8944F', background: '#FFFDF7' },
-      { name: 'Emerald Ivy', primary: '#1B6B3A', secondary: '#A3D5A5', accent: '#1B6B3A', background: '#F5FAF7' },
-      { name: 'Burgundy Velvet', primary: '#800020', secondary: '#F2C9D0', accent: '#800020', background: '#FFF8F9' },
-    ],
-    specs: ['3D Envelope Animation', 'Luxury Serif Typography', 'Gold Foil Accents', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'engagement', label: 'Eternal Love', icon: '💎',
-    desc: 'Celebrate the moment with sophisticated gradients and shimmering diamond accents.',
+    key: 'engagement', label: 'Eternal Love', icon: '💎', tier: 'Engagement',
+    tagline: 'Romantic · Luxury',
+    desc: 'An elegant, romantic invitation with soft gradients, shimmering accents and gentle motion — built to make the moment feel unforgettable.',
     presets: [
       { name: 'Blush Gold', primary: '#D4A574', secondary: '#F5E6D3', accent: '#D4A574', background: '#FFFCF8' },
       { name: 'Champagne Sparkle', primary: '#C5A059', secondary: '#FDF0CD', accent: '#C5A059', background: '#FFFDF5' },
       { name: 'Sage Garden', primary: '#6B8E6B', secondary: '#D5E8D5', accent: '#6B8E6B', background: '#F8FAF8' },
     ],
-    specs: ['Gradient Card Design', 'Corner Bracket Ornaments', 'Proposal Story Section', 'Interactive RSVP'],
+    specs: ['Animated Rings & Particles', 'Soft Gradient Card', 'Premium Typography', 'Interactive RSVP'],
     fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
   },
   {
-    key: 'corporate', label: 'Summit Pro', icon: '🏢',
-    desc: 'Professional and commanding. Dark geometric patterns for corporate events and conferences.',
+    key: 'wedding', label: 'Royale Wedding', icon: '💍', tier: 'Wedding',
+    tagline: 'Cinematic · Gold',
+    desc: 'A high-end, cinematic wedding invitation with glassmorphism, elegant gold accents and a dynamic reveal — comparable to premium invitation platforms.',
     presets: [
-      { name: 'Tech Sapphire', primary: '#3B82F6', secondary: '#93C5FD', accent: '#3B82F6', background: '#F0F4FF' },
-      { name: 'Executive Forest', primary: '#166534', secondary: '#86EFAC', accent: '#166534', background: '#F0FDF4' },
-      { name: 'Corporate Platinum', primary: '#64748B', secondary: '#CBD5E1', accent: '#64748B', background: '#F8FAFC' },
+      { name: 'Royale Gold', primary: '#B8944F', secondary: '#D7BE80', accent: '#B8944F', background: '#FFFDF7' },
+      { name: 'Emerald Ivy', primary: '#1B6B3A', secondary: '#A3D5A5', accent: '#1B6B3A', background: '#F5FAF7' },
+      { name: 'Burgundy Velvet', primary: '#800020', secondary: '#F2C9D0', accent: '#800020', background: '#FFF8F9' },
     ],
-    specs: ['Geometric Dark Layout', 'Agenda Integration', 'Speaker Showcase', 'Professional RSVP'],
-    fields: ['Company Name', 'Agenda', 'Speakers', 'Sponsors'],
+    specs: ['Cinematic Envelope Reveal', 'Modern Glassmorphism', 'Gold Accents', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   {
-    key: 'birthday', label: 'Milestone Party', icon: '🎂',
-    desc: 'Vibrant and playful designs with soft floral patterns and celebration energy.',
-    presets: [
-      { name: 'Sunset Vibe', primary: '#E88FAC', secondary: '#FECDD3', accent: '#E88FAC', background: '#FFF5F6' },
-      { name: 'Ocean Retro', primary: '#0EA5E9', secondary: '#BAE6FD', accent: '#0EA5E9', background: '#F0F9FF' },
-      { name: 'Electric Fuchsia', primary: '#D946EF', secondary: '#F0ABFC', accent: '#D946EF', background: '#FDF4FF' },
-    ],
-    specs: ['Floral Card Pattern', 'Age Milestone Display', 'Theme Customization', 'Party RSVP'],
-    fields: ['Celebrant Name', 'Age Milestone', 'Party Theme'],
-  },
-  {
-    key: 'gala', label: 'Black Tie Gala', icon: '🥂',
-    desc: 'Ultra-minimal luxury with maximum negative space. For the most refined occasions.',
-    presets: [
-      { name: 'Luxury Ivory', primary: '#C5A059', secondary: '#FDF0CD', accent: '#C5A059', background: '#FFFFF8' },
-      { name: 'Obsidian Velvet', primary: '#8B7355', secondary: '#D4C5A9', accent: '#8B7355', background: '#FAF8F5' },
-      { name: 'Imperial Royal', primary: '#7C3AED', secondary: '#C4B5FD', accent: '#7C3AED', background: '#FAF5FF' },
-    ],
-    specs: ['Minimal Luxury Design', 'Evening Program', 'VIP Honoree Section', 'Formal RSVP'],
-    fields: ['Honoree', 'Evening Program', 'Sponsors'],
-  },
-  {
-    key: 'custom', label: 'Custom Canvas', icon: '✨',
-    desc: 'Start with a clean slate. Organic textures and rustic warmth for any occasion.',
+    key: 'custom', label: 'Custom Canvas', icon: '✨', tier: 'Build your own',
+    tagline: 'Fully editable',
+    desc: 'Start from a clean slate and design your own page — colors, typography, background, cover image, CTA and sections, all updating live as you build.',
     presets: [
       { name: 'Clean Linen', primary: '#8B7355', secondary: '#D4C5A9', accent: '#8B7355', background: '#FAF8F5' },
       { name: 'Warm Cream', primary: '#A0845C', secondary: '#E8D5B7', accent: '#A0845C', background: '#FFFCF5' },
       { name: 'Obsidian Slate', primary: '#475569', secondary: '#94A3B8', accent: '#475569', background: '#F8FAFC' },
     ],
-    specs: ['Organic Textures', 'Fully Customizable', 'Rustic Card Pattern', 'Flexible RSVP'],
+    specs: ['Editable Colors & Fonts', 'Custom Cover Image', 'Editable CTA', 'Toggle Sections'],
     fields: ['Custom Questionnaire'],
   },
 ];
+
+/* Defaults for the guided Custom builder (Template #3). */
+const DEFAULT_CUSTOM_CONFIG = {
+  headingFont: 'serif',          // serif | sans | script
+  primary: '#8B7355',
+  secondary: '#D4C5A9',
+  accent: '#8B7355',
+  background: '#FAF8F5',
+  headline: 'You’re Invited',
+  ctaLabel: 'RSVP Now',
+  coverImageUrl: '',
+  sections: { details: true, gallery: true, messageHost: true },
+};
 
 const STEPS = [
   { key: 'templates', label: 'Templates', icon: '🎨' },
@@ -157,13 +144,19 @@ export default function CreateEventWizard() {
   const [manualRef, setManualRef] = useState('');
   const [payProcessing, setPayProcessing] = useState(false);
   const [payError, setPayError] = useState('');
+  /* Post-Stripe redirect handling (card flow) */
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false); // verified paid
+  const [paymentNotice, setPaymentNotice] = useState('');          // banner text
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   /* ─── Template & Preset State ─── */
-  const [templateType, setTemplateType] = useState('wedding');
+  const [templateType, setTemplateType] = useState('engagement');
   const [selectedPresets, setSelectedPresets] = useState({
-    wedding: 0, engagement: 0, corporate: 0,
-    birthday: 0, gala: 0, custom: 0,
+    engagement: 0, wedding: 0, custom: 0,
   });
+
+  /* ─── Guided Custom builder config (Template #3) ─── */
+  const [customConfig, setCustomConfig] = useState(DEFAULT_CUSTOM_CONFIG);
 
   /* ─── Core Event Details ─── */
   const [title, setTitle] = useState('');
@@ -188,6 +181,7 @@ export default function CreateEventWizard() {
   const [privacyMode, setPrivacyMode] = useState('private');
   const [accessPassword, setAccessPassword] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [coverImageUploading, setCoverImageUploading] = useState(false);
   const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('');
   const [musicUploading, setMusicUploading] = useState(false);
   const [galleryUrls, setGalleryUrls] = useState([]);
@@ -232,6 +226,72 @@ export default function CreateEventWizard() {
     }
   }, []);
 
+  /* ═══ Resume after returning from Stripe Checkout (card flow) ═══
+     The card flow leaves this SPA entirely, so before redirecting we stash a
+     small resume payload in sessionStorage. On return Stripe appends
+     ?payment=success|cancelled&session_id=…; we rehydrate, jump back to the
+     payment step, synchronously verify the session (so success no longer depends
+     on the async webhook), then clean the URL. */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    if (payment !== 'success' && payment !== 'cancelled') return;
+
+    let resume = {};
+    try { resume = JSON.parse(sessionStorage.getItem('ce_resume') || '{}'); } catch { resume = {}; }
+    sessionStorage.removeItem('ce_resume');
+
+    const resumedEventId = params.get('event') || resume.eventId || null;
+    if (resumedEventId) setEventId(resumedEventId);
+    if (resume.selectedTierName) setSelectedTierName(resume.selectedTierName);
+    if (resume.slug) setSlug(resume.slug);
+
+    // Land back on the Payment step where the user left off.
+    setDirection(1);
+    setStep(2);
+
+    // Strip the payment params so a refresh doesn't re-run this.
+    const clean = `${window.location.pathname}`;
+    window.history.replaceState({}, '', clean);
+
+    if (payment === 'cancelled') {
+      setPaymentNotice('Payment was cancelled. You can try again or choose another method.');
+      return;
+    }
+
+    const sessionId = params.get('session_id');
+    if (!sessionId) {
+      // No session to verify — fall back to a soft success notice; the webhook
+      // remains the backstop that flips the event to paid.
+      setPaymentNotice('Returned from checkout. If your payment went through, it will be confirmed shortly.');
+      return;
+    }
+
+    setVerifyingPayment(true);
+    setPayProcessing(true);
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/payments/verify?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.paid) {
+          setPaymentConfirmed(true);
+          setPaymentNotice('Payment received — your event is now under review. It goes live to guests once approved; you can keep setting it up in the meantime.');
+        } else if (data.success && !data.paid) {
+          setPaymentNotice('Payment is still processing. It will be confirmed automatically once it clears.');
+        } else {
+          setPaymentNotice(data.message || 'We could not confirm the payment yet. It will be confirmed automatically shortly.');
+        }
+      } catch {
+        setPaymentNotice('We could not reach the server to confirm payment. It will be confirmed automatically shortly.');
+      } finally {
+        setVerifyingPayment(false);
+        setPayProcessing(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiUrl]);
+
   /* ═══ Fetch platform pricing tiers (for the payment step) ═══ */
   useEffect(() => {
     let cancelled = false;
@@ -241,7 +301,8 @@ export default function CreateEventWizard() {
         const data = await res.json();
         if (!cancelled && data.success && data.config?.pricing_tiers) {
           setPricingTiers(data.config.pricing_tiers);
-          if (data.config.pricing_tiers[0]) setSelectedTierName(data.config.pricing_tiers[0].name);
+          // Don't clobber a tier already restored from a post-Stripe resume.
+          if (data.config.pricing_tiers[0]) setSelectedTierName(prev => prev || data.config.pricing_tiers[0].name);
           setManualMethods((data.config.manual_payment_methods || []).filter(m => m && m.is_active !== false));
         }
       } catch { /* non-fatal — payment step shows a skip option */ }
@@ -249,8 +310,19 @@ export default function CreateEventWizard() {
     return () => { cancelled = true; };
   }, [apiUrl]);
 
-  /* ═══ Sync preset colors → customColors ═══ */
+  /* ═══ Sync colors → customColors ═══
+     Custom template follows the live builder config; the others follow the
+     selected preset swatch. */
   useEffect(() => {
+    if (templateType === 'custom') {
+      setCustomColors({
+        primary: customConfig.primary,
+        secondary: customConfig.secondary,
+        accent: customConfig.accent || customConfig.primary,
+        background: customConfig.background,
+      });
+      return;
+    }
     const tpl = TEMPLATES.find(t => t.key === templateType);
     if (tpl) {
       const presetIdx = selectedPresets[templateType] || 0;
@@ -264,7 +336,7 @@ export default function CreateEventWizard() {
         });
       }
     }
-  }, [templateType, selectedPresets]);
+  }, [templateType, selectedPresets, customConfig]);
 
   /* ═══ Auto-generate slug from title ═══ */
   useEffect(() => {
@@ -324,6 +396,15 @@ export default function CreateEventWizard() {
     setSelectedPresets(prev => ({ ...prev, [tplKey]: presetIdx }));
   }, []);
 
+  /* ═══ Guided Custom builder updates ═══ */
+  const handleCustomConfigChange = useCallback((patch) => {
+    setCustomConfig(prev => ({
+      ...prev,
+      ...patch,
+      sections: patch.sections ? { ...prev.sections, ...patch.sections } : prev.sections,
+    }));
+  }, []);
+
   /* ═══ Place selection handler ═══ */
   const handlePlaceSelect = useCallback((place) => {
     setLocationAddress(place.address);
@@ -337,6 +418,35 @@ export default function CreateEventWizard() {
   const handleMethodToggle = useCallback((method) => {
     if (method === 'link') return; // link is always on
     setDistributionMethods(prev => ({ ...prev, [method]: !prev[method] }));
+  }, []);
+
+  /* ═══ Cover image upload (Supabase storage, base64 fallback) ═══ */
+  const handleCoverImageUpload = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      return;
+    }
+    setCoverImageUploading(true);
+    try {
+      if (!supabase) throw new Error('Storage client not configured.');
+      const ext = file.name.split('.').pop();
+      const filePath = `covers/wizard-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
+      setCoverImageUrl(publicUrl);
+    } catch (err) {
+      console.error('Cover image upload failed, falling back to inline encoding:', err);
+      const reader = new FileReader();
+      reader.onload = (ev) => { setCoverImageUrl(ev.target.result); setCoverImageUploading(false); };
+      reader.readAsDataURL(file);
+      return;
+    }
+    setCoverImageUploading(false);
   }, []);
 
   /* ═══ Background music upload (Supabase storage, base64 fallback) ═══ */
@@ -434,6 +544,14 @@ export default function CreateEventWizard() {
     }
   }, [step]);
 
+  /* ═══ Template data, with the Custom builder design folded in ═══ */
+  const buildTemplateData = useCallback(() => {
+    const merged = templateType === 'custom'
+      ? { ...templateData, customDesign: customConfig }
+      : templateData;
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }, [templateType, templateData, customConfig]);
+
   /* ═══ Build the create (camelCase) payload from current state ═══ */
   const buildCreatePayload = useCallback(() => ({
     slug,
@@ -454,14 +572,14 @@ export default function CreateEventWizard() {
     coverImageUrl: coverImageUrl || undefined,
     galleryUrls: galleryUrls.length > 0 ? galleryUrls : undefined,
     customColors,
-    templateData: Object.keys(templateData).length > 0 ? templateData : undefined,
+    templateData: buildTemplateData(),
     eventType: templateType,
     backgroundMusicUrl: backgroundMusicUrl || '',
   }), [
     slug, templateType, title, description, eventDate, eventEndDate,
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword, coverImageUrl,
-    galleryUrls, customColors, templateData, backgroundMusicUrl,
+    galleryUrls, customColors, buildTemplateData, backgroundMusicUrl,
   ]);
 
   /* ═══ Create the draft event (first time) or update it (on revisits) ═══ */
@@ -514,7 +632,7 @@ export default function CreateEventWizard() {
         gallery_urls: galleryUrls,
         background_music_url: backgroundMusicUrl || null,
         custom_colors: customColors,
-        template_data: templateData,
+        template_data: buildTemplateData() || {},
         event_type: templateType,
       }),
     });
@@ -533,7 +651,7 @@ export default function CreateEventWizard() {
     eventId, apiUrl, buildCreatePayload, slug, templateType, title, description,
     eventDate, eventEndDate, locationName, locationAddress, locationLat, locationLng,
     locationPlaceId, dressCode, rsvpDeadline, privacyMode, accessPassword,
-    coverImageUrl, galleryUrls, customColors, templateData, backgroundMusicUrl,
+    coverImageUrl, galleryUrls, customColors, buildTemplateData, backgroundMusicUrl,
   ]);
 
   /* ═══ Advance from Configure → create/update draft, then go to Payment ═══ */
@@ -577,12 +695,18 @@ export default function CreateEventWizard() {
       });
       const data = await res.json();
       if (!res.ok || !data.checkoutUrl) throw new Error(data.message || 'Could not start checkout.');
+      // The card flow leaves the SPA — stash just enough to resume the wizard on
+      // return (the full event draft already lives server-side from the Configure
+      // step). See the resume effect above.
+      try {
+        sessionStorage.setItem('ce_resume', JSON.stringify({ eventId, selectedTierName, slug }));
+      } catch { /* sessionStorage unavailable — resume still works via ?event= */ }
       window.location.href = data.checkoutUrl; // redirect to Stripe
     } catch (err) {
       setPayError(err.message || 'Payment could not be started.');
       setPayProcessing(false);
     }
-  }, [apiUrl, eventId, selectedTierName]);
+  }, [apiUrl, eventId, selectedTierName, slug]);
 
   const handlePayManual = useCallback(async (methodLabel = '', payerReference = '') => {
     if (!eventId || !selectedTierName) return;
@@ -637,23 +761,10 @@ export default function CreateEventWizard() {
     if (!eventId || buyingCredits) return;
     setCreditError('');
     setBuyingCredits(true);
-    // Open the tab synchronously (before any await) so popup blockers don't kill it.
-    // Keeping checkout in a separate tab preserves the wizard so the user returns
-    // straight to where they left off.
-    const checkoutTab = window.open('', '_blank');
     try {
-      const res = await fetch(`${apiUrl}/payments/events/${eventId}/sms-credits`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ eventId, creditCount }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.checkoutUrl) throw new Error(data.message || 'Could not start credit purchase.');
-      if (checkoutTab) checkoutTab.location.href = data.checkoutUrl;
-      else window.open(data.checkoutUrl, '_blank');
+      // Shared with the campaigns page so both top-up entry points behave the same.
+      await startSmsCreditPurchase({ apiUrl, eventId, creditCount });
     } catch (err) {
-      if (checkoutTab) checkoutTab.close();
       setCreditError(err.message || 'Credit purchase could not be started.');
     } finally {
       setBuyingCredits(false);
@@ -763,6 +874,8 @@ export default function CreateEventWizard() {
               selectedPresets={selectedPresets}
               onPresetSelect={handlePresetSelect}
               activePresetColors={activePresetColors}
+              customConfig={customConfig}
+              onCustomConfigChange={handleCustomConfigChange}
               onNext={goNext}
             />
           </motion.div>
@@ -796,6 +909,7 @@ export default function CreateEventWizard() {
               privacyMode={privacyMode} setPrivacyMode={setPrivacyMode}
               accessPassword={accessPassword} setAccessPassword={setAccessPassword}
               coverImageUrl={coverImageUrl} setCoverImageUrl={setCoverImageUrl}
+              onCoverImageUpload={handleCoverImageUpload} coverImageUploading={coverImageUploading}
               backgroundMusicUrl={backgroundMusicUrl} setBackgroundMusicUrl={setBackgroundMusicUrl}
               onMusicUpload={handleMusicUpload} musicUploading={musicUploading}
               galleryUrls={galleryUrls} onGalleryUpload={handleGalleryUpload}
@@ -825,6 +939,9 @@ export default function CreateEventWizard() {
               manualRef={manualRef}
               processing={payProcessing}
               error={payError}
+              paymentConfirmed={paymentConfirmed}
+              paymentNotice={paymentNotice}
+              verifying={verifyingPayment}
               onContinue={goNext}
               onBack={goBack}
               onSkip={goNext}

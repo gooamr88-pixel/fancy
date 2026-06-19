@@ -14,6 +14,8 @@ export default function LoginPage() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleBtnRef = useRef(null);
   const googleInitRef = useRef(false);
+  const pollIntervalRef = useRef(null);
+  const pollTimeoutRef = useRef(null);
 
   const router = useRouter();
 
@@ -108,18 +110,29 @@ export default function LoginPage() {
         s.id = 'gsi-script';
         s.src = 'https://accounts.google.com/gsi/client';
         s.async = true;
-        s.onload = () => setTimeout(initGoogle, 100);
+        s.onload = () => {
+          pollTimeoutRef.current = setTimeout(initGoogle, 100);
+        };
         document.head.appendChild(s);
       } else {
-        const check = setInterval(() => {
-          if (window.google?.accounts?.id) { clearInterval(check); initGoogle(); }
+        pollIntervalRef.current = setInterval(() => {
+          if (window.google?.accounts?.id) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            initGoogle();
+          }
         }, 200);
-        const timeout = setTimeout(() => clearInterval(check), 10000);
-        return () => { clearInterval(check); clearTimeout(timeout); };
+        pollTimeoutRef.current = setTimeout(() => {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+        }, 10000);
       }
     }
     return () => {
-      // Cleanup: no pending intervals to clear if Google loaded synchronously or via script onload
+      if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+      if (pollTimeoutRef.current) { clearTimeout(pollTimeoutRef.current); pollTimeoutRef.current = null; }
     };
   }, [router]);
 

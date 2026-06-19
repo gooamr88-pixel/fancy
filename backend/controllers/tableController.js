@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 
 // Seatable table shapes vs non-seating venue zones (must match the DB shape CHECK).
 const TABLE_SHAPES = ['round', 'oval', 'square', 'rectangle', 'rectangular', 'banquet', 'head'];
@@ -184,7 +185,7 @@ const updateTablePositions = async (req, res, next) => {
     const errors = responses.filter(r => r.error).map(r => r.error);
 
     if (errors.length > 0) {
-      console.error('Bulk update positions error details:', errors);
+      logger.error({ errors }, 'Bulk update positions error details');
       return res.status(500).json({
         success: false,
         error: 'BULK_UPDATE_FAILED',

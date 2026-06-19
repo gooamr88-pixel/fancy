@@ -13,3 +13,9 @@ export function isDeclined(response) {
   const normalized = response.toLowerCase().trim();
   return ['no', 'declined', 'not attending'].includes(normalized);
 }
+
+export function isMaybe(response) {
+  if (!response) return false;
+  const normalized = response.toLowerCase().trim();
+  return ['maybe', 'tentative'].includes(normalized);
+}

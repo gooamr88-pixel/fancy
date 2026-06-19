@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const notificationService = require('../utils/notificationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
 const { escapeHtml, getDeclineConfirmationTemplate } = require('../utils/emailTemplates');
+const { verifyRsvpToken, mapIntentToResponse } = require('../utils/rsvpToken');
 
 /** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
 function escapeLikePattern(str) {
@@ -15,7 +16,7 @@ function escapeLikePattern(str) {
  */
 const submitPublicRSVP = async (req, res, next) => {
   const { slug } = req.params;
-  const { rsvpId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, customAnswers } = req.body;
+  const { rsvpId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, customAnswers, decline_reason, maybe_confirm_by } = req.body;
 
   if (!guestName || !response) {
     return res.status(400).json({
@@ -29,7 +30,7 @@ const submitPublicRSVP = async (req, res, next) => {
     // 1. Resolve event from slug
     const { data: event, error: eventError } = await supabase
       .from('events')
-      .select('id, org_id, rsvp_deadline, title, is_paid, slug, notification_preferences')
+      .select('id, org_id, rsvp_deadline, title, is_paid, status, slug, notification_preferences')
       .eq('slug', slug)
       .single();
 
@@ -37,12 +38,23 @@ const submitPublicRSVP = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
 
+    const isDemo = event.slug === 'demo';
+
     // Block RSVPs if the event is unpaid and not a demo
-    if (!event.is_paid && event.slug !== 'demo') {
+    if (!event.is_paid && !isDemo) {
       return res.status(402).json({
         success: false,
         error: 'PAYMENT_REQUIRED',
         message: 'This event page is inactive because payment has not been completed.'
+      });
+    }
+
+    // Paid but still under review — guests can't RSVP until it's approved.
+    if (!isDemo && event.status === 'pending_review') {
+      return res.status(403).json({
+        success: false,
+        error: 'EVENT_UNDER_REVIEW',
+        message: 'This event is awaiting review and is not accepting RSVPs yet.'
       });
     }
 
@@ -174,6 +186,10 @@ const submitPublicRSVP = async (req, res, next) => {
           response,
           party_size: computedPartySize,
           notes,
+          decline_reason: response === 'no' ? (decline_reason || null) : null,
+          maybe_confirm_by: response === 'maybe' ? (maybe_confirm_by || null) : null,
+          response_source: 'web_form',
+          rsvp_at: new Date(),
           updated_at: new Date()
         })
         .eq('id', rsvpId)
@@ -222,7 +238,11 @@ const submitPublicRSVP = async (req, res, next) => {
           phone,
           response,
           party_size: computedPartySize,
-          notes
+          notes,
+          decline_reason: response === 'no' ? (decline_reason || null) : null,
+          maybe_confirm_by: response === 'maybe' ? (maybe_confirm_by || null) : null,
+          response_source: 'web_form',
+          rsvp_at: new Date(),
         })
         .select()
         .single();
@@ -285,28 +305,31 @@ const submitPublicRSVP = async (req, res, next) => {
 
     // 6. Broadcast RSVP update via real-time channel
     const rsvpChannel = supabase.channel(`event-${event.id}`);
-    await rsvpChannel.send({
-      type: 'broadcast',
-      event: 'rsvp_submitted',
-      payload: {
-        rsvpId: rsvp.id,
-        guestName: rsvp.guest_name,
-        response: rsvp.response,
-        partySize: computedPartySize
-      }
-    });
-    supabase.removeChannel(rsvpChannel);
+    try {
+      await rsvpChannel.send({
+        type: 'broadcast',
+        event: 'rsvp_submitted',
+        payload: {
+          rsvpId: rsvp.id,
+          guestName: rsvp.guest_name,
+          response: rsvp.response,
+          partySize: computedPartySize
+        }
+      });
+    } finally {
+      supabase.removeChannel(rsvpChannel);
+    }
 
     // 7. Trigger confirmation or decline email asynchronously if email exists
     if (email) {
       if (response === 'yes') {
         notificationService.sendConfirmationEmail(event.id, rsvp.id)
-          .catch((err) => console.error('Confirmation email err:', err));
+          .catch((err) => logger.error({ err }, 'Confirmation email error'));
       } else if (response === 'no') {
         // Send decline thank-you email
         const declineHtml = getDeclineConfirmationTemplate(rsvp, event);
         notificationService.sendEmailViaBrevo(email, `Thank You – ${escapeHtml(event.title)}`, declineHtml)
-          .catch((err) => console.error('Decline email err:', err));
+          .catch((err) => logger.error({ err }, 'Decline email error'));
       }
     }
 
@@ -342,7 +365,7 @@ const submitPublicRSVP = async (req, res, next) => {
               </div>
             `;
             sendEmailViaBrevo(org.email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`, orgEmailHtml)
-              .catch(err => console.error('Failed to notify organizer via email:', err.message));
+              .catch(err => logger.error({ err }, 'Failed to notify organizer via email'));
           }
 
           if (isWhatsappPref && org.phone) {
@@ -355,7 +378,7 @@ const submitPublicRSVP = async (req, res, next) => {
                 body: messageText,
                 from: 'whatsapp:+14155238886',
                 to: `whatsapp:${org.phone}`
-              }).catch(err => console.error('Failed to notify organizer via WhatsApp:', err.message));
+              }).catch(err => logger.error({ err }, 'Failed to notify organizer via WhatsApp'));
             } else {
               logger.info(`[MOCK WHATSAPP NOTIFICATION] To: ${org.phone} | Content: ${messageText}`);
             }
@@ -363,7 +386,7 @@ const submitPublicRSVP = async (req, res, next) => {
         }
       }
     } catch (orgNotifyErr) {
-      console.error('Organizer notification error:', orgNotifyErr.message);
+      logger.error({ err: orgNotifyErr }, 'Organizer notification error');
     }
 
     return res.status(201).json({
@@ -506,7 +529,7 @@ const getRSVPs = async (req, res, next) => {
         .eq('event_id', eventId);
 
       // Apply filters
-      if (response && ['yes', 'no', 'pending'].includes(response)) {
+      if (response && ['yes', 'no', 'maybe', 'pending'].includes(response)) {
         query = query.eq('response', response);
       }
       if (search && search.trim()) {
@@ -924,8 +947,8 @@ const updateRSVP = async (req, res, next) => {
     if (email !== undefined) updates.email = email ? email.trim().toLowerCase() : null;
     if (phone !== undefined) updates.phone = phone;
     if (response !== undefined) {
-      if (!['yes', 'no', 'pending'].includes(response)) {
-        return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'response must be yes, no, or pending.' });
+      if (!['yes', 'no', 'maybe', 'pending'].includes(response)) {
+        return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'response must be yes, no, maybe, or pending.' });
       }
       updates.response = response;
     }
@@ -951,8 +974,9 @@ const updateRSVP = async (req, res, next) => {
     if (error) throw error;
     if (!rsvp) return res.status(404).json({ success: false, error: 'RSVP_NOT_FOUND' });
 
-    // If response changed to 'no', remove seating assignments
-    if (updates.response === 'no') {
+    // Only attending ('yes') guests are seatable. If the response moved to
+    // anything else (no / maybe / pending), drop any existing seat assignment.
+    if (updates.response !== undefined && updates.response !== 'yes') {
       await supabase.from('seating_assignments').delete().eq('rsvp_id', rsvpId).eq('event_id', eventId);
     }
 
@@ -984,12 +1008,15 @@ const updateRSVP = async (req, res, next) => {
 
     // Broadcast update
     const updateChannel = supabase.channel(`event-${eventId}`);
-    await updateChannel.send({
-      type: 'broadcast',
-      event: 'rsvp_updated',
-      payload: { rsvpId, guestName: rsvp.guest_name, response: rsvp.response }
-    });
-    supabase.removeChannel(updateChannel);
+    try {
+      await updateChannel.send({
+        type: 'broadcast',
+        event: 'rsvp_updated',
+        payload: { rsvpId, guestName: rsvp.guest_name, response: rsvp.response }
+      });
+    } finally {
+      supabase.removeChannel(updateChannel);
+    }
 
     return res.json({ success: true, message: 'RSVP updated successfully.', rsvp });
   } catch (err) {
@@ -1013,7 +1040,7 @@ const addGuestManually = async (req, res, next) => {
     });
   }
 
-  const guestResponse = response && ['yes', 'no', 'pending'].includes(response) ? response : 'pending';
+  const guestResponse = response && ['yes', 'no', 'maybe', 'pending'].includes(response) ? response : 'pending';
   const computedPartySize = parseInt(partySize) || 1;
 
   if (computedPartySize < 1 || computedPartySize > 20) {
@@ -1077,21 +1104,24 @@ const addGuestManually = async (req, res, next) => {
         }
       })
       .then(() => {})
-      .catch(err => console.error('Activity log insert error:', err.message));
+      .catch(err => logger.error({ err }, 'Activity log insert error'));
 
     // 4. Broadcast RSVP update via real-time channel
     const rsvpChannel = supabase.channel(`event-${eventId}`);
-    await rsvpChannel.send({
-      type: 'broadcast',
-      event: 'rsvp_submitted',
-      payload: {
-        rsvpId: rsvp.id,
-        guestName: rsvp.guest_name,
-        response: rsvp.response,
-        partySize: computedPartySize
-      }
-    });
-    supabase.removeChannel(rsvpChannel);
+    try {
+      await rsvpChannel.send({
+        type: 'broadcast',
+        event: 'rsvp_submitted',
+        payload: {
+          rsvpId: rsvp.id,
+          guestName: rsvp.guest_name,
+          response: rsvp.response,
+          partySize: computedPartySize
+        }
+      });
+    } finally {
+      supabase.removeChannel(rsvpChannel);
+    }
 
     return res.status(201).json({
       success: true,
@@ -1251,10 +1281,350 @@ const getGuestSeatingMap = async (req, res, next) => {
   }
 };
 
+/**
+ * Bulk-sends email invitations (with Accept/Decline/Maybe buttons) to guests.
+ * By default targets every guest who has an email and has NOT been invited yet;
+ * pass { resend: true } to re-send to everyone with an email, or { rsvpIds: [] }
+ * to target specific guests.
+ * POST /api/v1/events/:eventId/rsvps/send-invitations
+ */
+const sendEmailInvitations = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { resend = false, rsvpIds } = req.body || {};
+
+  try {
+    // Confirm the event is live before doing any work — invitation links only
+    // resolve for paid + active events.
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, is_paid, status')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
+    }
+    if (!event.is_paid || event.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        error: 'EVENT_NOT_LIVE',
+        message: 'Invitations can only be sent once the event page is paid and active.'
+      });
+    }
+
+    // Build the recipient set.
+    let query = supabase
+      .from('rsvps')
+      .select('id, email, invitation_sent')
+      .eq('event_id', eventId)
+      .not('email', 'is', null);
+
+    if (Array.isArray(rsvpIds) && rsvpIds.length > 0) {
+      query = query.in('id', rsvpIds);
+    } else if (!resend) {
+      query = query.eq('invitation_sent', false);
+    }
+
+    const { data: guests, error: guestError } = await query.limit(2000);
+    if (guestError) throw guestError;
+
+    if (!guests || guests.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No guests with an email address were eligible for an invitation.',
+        sentCount: 0, skippedCount: 0, failedCount: 0
+      });
+    }
+
+    let sentCount = 0, skippedCount = 0, failedCount = 0;
+    const failures = [];
+
+    // Send in small concurrent batches to stay friendly to the email provider.
+    const BATCH = 10;
+    for (let i = 0; i < guests.length; i += BATCH) {
+      const batch = guests.slice(i, i + BATCH);
+      const results = await Promise.allSettled(
+        batch.map(g => notificationService.sendInvitationEmail(eventId, g.id))
+      );
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled' && r.value && r.value.sent) {
+          sentCount++;
+        } else if (r.status === 'fulfilled' && r.value && r.value.reason === 'NO_EMAIL') {
+          skippedCount++;
+        } else {
+          failedCount++;
+          failures.push({ rsvpId: batch[idx].id, reason: r.status === 'fulfilled' ? r.value.reason : String(r.reason) });
+        }
+      });
+    }
+
+    await supabase.from('activity_logs').insert({
+      event_id: eventId,
+      action: 'invitation_campaign_sent',
+      entity_type: 'campaign',
+      metadata: { total: guests.length, sent: sentCount, skipped: skippedCount, failed: failedCount }
+    }).then(() => {}).catch(() => {});
+
+    return res.json({
+      success: true,
+      message: `Invitations sent: ${sentCount}` + (skippedCount ? `, skipped ${skippedCount}` : '') + (failedCount ? `, failed ${failedCount}` : '') + '.',
+      sentCount, skippedCount, failedCount,
+      failures
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Resolves a signed invitation token into the guest + event context that powers
+ * the public RSVP confirmation page. Read-only: does NOT record a response, so
+ * email link pre-fetching by security scanners is harmless.
+ * GET /api/v1/public/rsvp/invite?token=...
+ */
+const getRsvpInvite = async (req, res, next) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'TOKEN_REQUIRED' });
+  }
+
+  let payload;
+  try {
+    payload = verifyRsvpToken(token);
+  } catch {
+    return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'This invitation link is invalid or has expired.' });
+  }
+
+  try {
+    const { data: rsvp, error } = await supabase
+      .from('rsvps')
+      .select('id, guest_name, email, party_size, response, events!inner(id, title, event_date, slug, location_name, location_address, is_paid, status, rsvp_deadline)')
+      .eq('id', payload.rsvpId)
+      .eq('event_id', payload.eventId)
+      .single();
+
+    if (error || !rsvp) {
+      return res.status(404).json({ success: false, error: 'GUEST_NOT_FOUND' });
+    }
+
+    const event = rsvp.events;
+    if (!event.is_paid || event.status !== 'active') {
+      return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
+    }
+
+    const deadlinePassed = !!event.rsvp_deadline && new Date() > new Date(event.rsvp_deadline);
+
+    return res.json({
+      success: true,
+      intendedResponse: payload.response ? mapIntentToResponse(payload.response) : null,
+      deadlinePassed,
+      guest: {
+        id: rsvp.id,
+        guest_name: rsvp.guest_name,
+        party_size: rsvp.party_size,
+        response: rsvp.response,
+      },
+      event: {
+        title: event.title,
+        event_date: event.event_date,
+        slug: event.slug,
+        location: event.location_name || event.location_address || null,
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Records a guest's RSVP response from a signed invitation token (the one-click
+ * email flow, confirmed on the landing page). The response comes from the token
+ * or an explicit `response` in the body (used by the "Maybe → change my mind"
+ * controls on the landing page).
+ * POST /api/v1/public/rsvp/respond
+ */
+const respondViaToken = async (req, res, next) => {
+  const { token, response: bodyResponse, partySize } = req.body || {};
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'TOKEN_REQUIRED' });
+  }
+
+  let payload;
+  try {
+    payload = verifyRsvpToken(token);
+  } catch {
+    return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'This invitation link is invalid or has expired.' });
+  }
+
+  // Body response (explicit choice on the page) wins over the token's embedded
+  // response (the button that was clicked).
+  const mapped = mapIntentToResponse(bodyResponse || payload.response);
+  if (!mapped) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'A valid response (accepted, declined, or maybe) is required.' });
+  }
+
+  try {
+    const { data: rsvp, error: rsvpFetchError } = await supabase
+      .from('rsvps')
+      .select('id, guest_name, email, party_size, events!inner(id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences)')
+      .eq('id', payload.rsvpId)
+      .eq('event_id', payload.eventId)
+      .single();
+
+    if (rsvpFetchError || !rsvp) {
+      return res.status(404).json({ success: false, error: 'GUEST_NOT_FOUND' });
+    }
+
+    const event = rsvp.events;
+    if (!event.is_paid || event.status !== 'active') {
+      return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
+    }
+    if (event.rsvp_deadline && new Date() > new Date(event.rsvp_deadline)) {
+      return res.status(400).json({ success: false, error: 'DEADLINE_PASSED', message: 'The RSVP deadline for this event has passed.' });
+    }
+
+    // Party size only applies when attending; otherwise normalize to 1.
+    let computedPartySize = rsvp.party_size || 1;
+    if (mapped === 'yes') {
+      const size = parseInt(partySize);
+      if (!isNaN(size) && size >= 1 && size <= 20) computedPartySize = size;
+    } else {
+      computedPartySize = 1;
+    }
+
+    const { data: updated, error: updateError } = await supabase
+      .from('rsvps')
+      .update({
+        response: mapped,
+        party_size: computedPartySize,
+        rsvp_at: new Date(),
+        response_source: 'email',
+        updated_at: new Date(),
+      })
+      .eq('id', rsvp.id)
+      .eq('event_id', event.id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    if (mapped === 'yes') {
+      // Ensure a primary guest row exists so meal/seating views render.
+      const { data: existingPrimary } = await supabase
+        .from('rsvp_guests')
+        .select('id')
+        .eq('rsvp_id', rsvp.id)
+        .eq('is_primary', true)
+        .maybeSingle();
+      if (!existingPrimary) {
+        await supabase.from('rsvp_guests').insert({
+          rsvp_id: rsvp.id, full_name: rsvp.guest_name, is_primary: true, meal_selection: null
+        });
+      }
+    } else {
+      // No longer attending — release any seat and clear stale companion rows.
+      await supabase.from('seating_assignments').delete().eq('rsvp_id', rsvp.id).eq('event_id', event.id);
+    }
+
+    // Real-time dashboard update.
+    try {
+      const ch = supabase.channel(`event-${event.id}`);
+      try {
+        await ch.send({
+          type: 'broadcast',
+          event: 'rsvp_updated',
+          payload: { rsvpId: rsvp.id, guestName: rsvp.guest_name, response: mapped, partySize: computedPartySize }
+        });
+      } finally {
+        supabase.removeChannel(ch);
+      }
+    } catch (bErr) {
+      logger.warn(`RSVP broadcast failed: ${bErr.message}`);
+    }
+
+    await supabase.from('activity_logs').insert({
+      event_id: event.id,
+      action: 'rsvp_submitted',
+      entity_type: 'rsvp',
+      entity_id: rsvp.id,
+      metadata: { guest_name: rsvp.guest_name, response: mapped, party_size: computedPartySize, source: 'email' }
+    }).then(() => {}).catch(() => {});
+
+    // Confirmation / decline acknowledgement email (best-effort).
+    if (rsvp.email) {
+      if (mapped === 'yes') {
+        notificationService.sendConfirmationEmail(event.id, rsvp.id).catch(err => logger.error({ err }, 'Confirmation email error'));
+      } else if (mapped === 'no') {
+        const declineHtml = getDeclineConfirmationTemplate(updated, event);
+        notificationService.sendEmailViaBrevo(rsvp.email, `Thank You – ${escapeHtml(event.title)}`, declineHtml)
+          .catch(err => logger.error({ err }, 'Decline email error'));
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Your response has been recorded.',
+      response: mapped,
+      guestName: rsvp.guest_name,
+      eventSlug: event.slug,
+      rsvpId: rsvp.id,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Returns aggregated RSVP statistics for the organizer dashboard cards:
+ * total guests/parties, invitations sent, and accepted/declined/maybe/pending.
+ * GET /api/v1/events/:eventId/rsvps/stats
+ */
+const getRsvpStats = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
+
+  try {
+    const { data: rsvps, error } = await supabase
+      .from('rsvps')
+      .select('response, party_size, invitation_sent')
+      .eq('event_id', eventId);
+
+    if (error) throw error;
+
+    const stats = {
+      totalParties: rsvps.length,
+      totalGuests: 0,
+      invitationsSent: 0,
+      acceptedParties: 0, acceptedGuests: 0,
+      declinedParties: 0,
+      maybeParties: 0,
+      pendingParties: 0,
+    };
+
+    rsvps.forEach(r => {
+      const size = r.party_size || 1;
+      stats.totalGuests += size;
+      if (r.invitation_sent) stats.invitationsSent++;
+      if (isAcceptedResponse(r.response)) { stats.acceptedParties++; stats.acceptedGuests += size; }
+      else if (isDeclinedResponse(r.response)) { stats.declinedParties++; }
+      else if (isMaybeResponse(r.response)) { stats.maybeParties++; }
+      else { stats.pendingParties++; }
+    });
+
+    return res.json({ success: true, stats });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   submitPublicRSVP,
   getRSVPs,
   importGuestsCSV,
+  sendEmailInvitations,
+  getRsvpInvite,
+  respondViaToken,
+  getRsvpStats,
   exportGuestsCSV,
   exportGuestsExcel,
   searchPublicGuests,

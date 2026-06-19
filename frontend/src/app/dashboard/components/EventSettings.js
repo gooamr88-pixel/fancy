@@ -52,6 +52,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
   const [error, setError] = useState('');
   const [statusLoading, setStatusLoading] = useState('');
   const [musicUploading, setMusicUploading] = useState(false);
+  const [coverUploading, setCoverUploading] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const handleMusicUpload = async (e) => {
@@ -113,6 +114,51 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
       return;
     }
     setMusicUploading(false);
+  };
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('File size exceeds 8MB. Please use a smaller file or paste an external URL.');
+      return;
+    }
+    setCoverUploading(true);
+    try {
+      if (!supabase) throw new Error('Supabase client is not initialized.');
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${eventId}-${Date.now()}.${fileExt}`;
+      const filePath = `covers/${fileName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage
+        .from('event-assets')
+        .getPublicUrl(filePath);
+      setForm(prev => ({ ...prev, cover_image_url: publicUrl }));
+      setSuccess(false);
+    } catch (err) {
+      console.error('Cover image upload failed, falling back to base64:', err);
+      if (file.size > 3.5 * 1024 * 1024) {
+        alert("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
+        setCoverUploading(false);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setForm(prev => ({ ...prev, cover_image_url: event.target.result }));
+        setSuccess(false);
+        setCoverUploading(false);
+      };
+      reader.onerror = () => {
+        alert('Failed to read the image file. Please try again or paste an external URL.');
+        setCoverUploading(false);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+    setCoverUploading(false);
   };
 
   useEffect(() => {
@@ -442,21 +488,84 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Cover Image URL</label>
+          <label style={labelStyle}>Cover Image</label>
           <input value={form.cover_image_url} onChange={handleChange('cover_image_url')} type="url"
             placeholder="https://example.com/image.jpg" style={inputStyle}
             onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
             onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
           />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
+            <span style={{ flex: 1, borderTop: `1px dashed ${COLORS.border}` }} />
+            <span style={{ fontSize: '11px', color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.05em' }}>or upload file</span>
+            <span style={{ flex: 1, borderTop: `1px dashed ${COLORS.border}` }} />
+          </div>
+
+          <div
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.background = 'rgba(184,148,79,0.04)'; }}
+            onDragLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.softBg; }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.borderColor = COLORS.border;
+              e.currentTarget.style.background = COLORS.softBg;
+              const file = e.dataTransfer.files?.[0];
+              if (file && file.type.startsWith('image/')) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                const input = e.currentTarget.querySelector('input[type="file"]');
+                if (input) { input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true })); }
+              }
+            }}
+            style={{
+              marginTop: '8px', padding: '16px', borderRadius: '12px',
+              border: `2px dashed ${COLORS.border}`, background: COLORS.softBg,
+              textAlign: 'center', transition: 'all 0.2s', cursor: 'pointer',
+            }}
+          >
+            <input
+              type="file" accept="image/*" onChange={handleCoverUpload}
+              disabled={coverUploading}
+              style={{ display: 'none' }} id="cover-file-upload"
+            />
+            <label htmlFor="cover-file-upload" style={{
+              cursor: coverUploading ? 'wait' : 'pointer', display: 'flex',
+              flexDirection: 'column', alignItems: 'center', gap: '8px',
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={COLORS.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="3"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="m21 15-5-5L5 21"/>
+              </svg>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
+                {coverUploading ? 'Uploading…' : 'Drop image here or click to browse'}
+              </span>
+              <span style={{ fontSize: '10px', color: '#A09A91' }}>JPG, PNG, WebP • Max 8MB</span>
+            </label>
+          </div>
+
           {form.cover_image_url && (
             <div style={{
-              marginTop: '8px', borderRadius: '8px', overflow: 'hidden', border: `1px solid ${COLORS.border}`,
-              height: '120px', background: COLORS.softBg,
+              marginTop: '10px', borderRadius: '12px', overflow: 'hidden',
+              border: `1px solid ${COLORS.border}`, height: '140px',
+              background: COLORS.softBg, position: 'relative',
             }}>
               <img src={form.cover_image_url} alt="Cover preview"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 50%)',
+              }} />
+              <button type="button"
+                onClick={() => { setForm(prev => ({ ...prev, cover_image_url: '' })); setSuccess(false); }}
+                style={{
+                  position: 'absolute', top: 8, right: 8, width: 28, height: 28,
+                  borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
+                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >×</button>
             </div>
           )}
         </div>

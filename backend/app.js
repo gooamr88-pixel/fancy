@@ -50,7 +50,7 @@ app.use(express.json({
     }
   }
 }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Permissive Rate Limiter for organizer dashboards (preventing blockages on updates)
 const apiLimiter = rateLimit({
@@ -139,6 +139,7 @@ const campaignRoutes = require('./routes/campaignRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const fieldRoutes = require('./routes/fieldRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 // Mount public routes
 app.use('/api/v1/public', publicRoutes);
@@ -153,6 +154,7 @@ app.use('/api/v1/events/:eventId/rsvps', requireAuth, verifyEventOwner, rsvpRout
 app.use('/api/v1/events/:eventId/tables', requireAuth, verifyEventOwner, tableRoutes);
 app.use('/api/v1/events/:eventId/campaigns', requireAuth, verifyEventOwner, campaignRoutes);
 app.use('/api/v1/events/:eventId/fields', requireAuth, verifyEventOwner, fieldRoutes);
+app.use('/api/v1/events/:eventId/analytics', requireAuth, verifyEventOwner, analyticsRoutes);
 app.use('/api/v1/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/v1/events', requireAuth, eventRoutes);
 

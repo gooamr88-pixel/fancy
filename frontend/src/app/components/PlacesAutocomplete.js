@@ -77,7 +77,8 @@ export default function PlacesAutocomplete({ value, onChange, onPlaceSelect, pla
         autocompleteRef.current = null;
       }
     };
-  }, [mapsReady, onChange, onPlaceSelect]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapsReady]);
 
   const handleInputChange = useCallback((e) => {
     if (onChange) onChange(e.target.value);

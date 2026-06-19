@@ -4,8 +4,9 @@ const { OAuth2Client } = require('google-auth-library');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { escapeHtml } = require('../utils/emailTemplates');
-const { setAuthCookie, clearAuthCookie } = require('../middleware/auth');
+const { setAuthCookie, clearAuthCookie, COOKIE_NAME } = require('../middleware/auth');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
+const { newJti, recordSession, revokeByJti, recordLogin } = require('../services/sessionService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -88,12 +89,15 @@ const verifyPassword = async (password, storedHash, orgEmail) => {
 };
 
 /**
- * Generates a signed JWT and attaches it as an httpOnly cookie.
- * Also returns the user/org data in the JSON body (WITHOUT the token).
+ * Generates a signed JWT (with a unique `jti`), attaches it as an httpOnly
+ * cookie, and records a server-side session so it can later be revoked
+ * (Master Plan §4/§19). Best-effort session write never blocks the auth flow.
  */
-const issueAuthCookie = (res, payload) => {
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+const issueAuthCookie = async (req, res, payload) => {
+  const jti = newJti();
+  const token = jwt.sign({ ...payload, jti }, JWT_SECRET, { expiresIn: '24h' });
   setAuthCookie(res, token);
+  await recordSession(req, { userId: payload.id, jti });
   return token;
 };
 
@@ -304,7 +308,7 @@ const verifyRegistration = async (req, res, next) => {
 
     // 5. Issue auth cookie
     const userId = org.owner_user_id;
-    issueAuthCookie(res, { id: userId, email: normalizedEmail, role: 'organizer' });
+    await issueAuthCookie(req, res, { id: userId, email: normalizedEmail, role: 'organizer' });
 
     logger.info({ email: normalizedEmail }, 'Registration verified, account activated');
 
@@ -390,6 +394,7 @@ const login = async (req, res, next) => {
           .update(updateData)
           .eq('email', normalizedEmail);
       }
+      await recordLogin(req, { userId: org?.owner_user_id, email: normalizedEmail, success: false, failureReason: 'invalid_credentials' });
       return res.status(401).json({
         success: false,
         error: 'INVALID_CREDENTIALS',
@@ -416,13 +421,14 @@ const login = async (req, res, next) => {
 
     const role = roleData?.role || 'organizer';
 
-    // Issue httpOnly auth cookie
-    issueAuthCookie(res, { id: userId, email, role });
+    // Issue httpOnly auth cookie + server-side session
+    await issueAuthCookie(req, res, { id: userId, email: normalizedEmail, role });
+    await recordLogin(req, { userId, email: normalizedEmail, success: true });
 
     return res.status(200).json({
       success: true,
       message: 'Login successful.',
-      user: { id: userId, email, name: org.name, role },
+      user: { id: userId, email: normalizedEmail, name: org.name, role },
       organization: {
         id: org.id,
         owner_user_id: org.owner_user_id,
@@ -440,7 +446,18 @@ const login = async (req, res, next) => {
  * Logs the user out by clearing the httpOnly auth cookie.
  * POST /api/v1/auth/logout
  */
-const logout = (req, res) => {
+const logout = async (req, res) => {
+  // Revoke the server-side session for this token's jti so it can't be replayed.
+  try {
+    const token = req.cookies?.[COOKIE_NAME] ||
+      (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.split(' ')[1] : null);
+    if (token) {
+      const decoded = jwt.decode(token);
+      if (decoded?.jti) await revokeByJti(decoded.jti);
+    }
+  } catch {
+    // Non-fatal: clearing the cookie below still logs the user out.
+  }
   clearAuthCookie(res);
   return res.status(200).json({ success: true, message: 'Logged out successfully.' });
 };
@@ -761,7 +778,7 @@ const changePassword = async (req, res, next) => {
     if (updateError) throw updateError;
 
     // Re-issue auth cookie with fresh token after password change
-    issueAuthCookie(res, { id: req.user.id, email: org.email, role: req.user.role });
+    await issueAuthCookie(req, res, { id: req.user.id, email: org.email, role: req.user.role });
 
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (err) {
@@ -805,7 +822,7 @@ const googleLogin = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'EMAIL_NOT_VERIFIED', message: 'Your Google email is not verified.' });
     }
 
-    const email = googleData.email;
+    const email = googleData.email.toLowerCase().trim();
     if (!email) {
       return res.status(400).json({ success: false, error: 'NO_EMAIL', message: 'Could not retrieve email from Google.' });
     }
@@ -847,7 +864,8 @@ const googleLogin = async (req, res, next) => {
     const role = roleData?.role || 'organizer';
 
     // Issue auth cookie
-    issueAuthCookie(res, { id: userId, email, role });
+    await issueAuthCookie(req, res, { id: userId, email: email, role });
+    await recordLogin(req, { userId, email, success: true });
 
     logger.info({ email }, 'Google login successful');
 
@@ -959,7 +977,7 @@ const googleRegister = async (req, res, next) => {
     if (roleError) throw roleError;
 
     // Issue auth cookie
-    issueAuthCookie(res, { id: userId, email: email.toLowerCase(), role: 'organizer' });
+    await issueAuthCookie(req, res, { id: userId, email: email.toLowerCase(), role: 'organizer' });
 
     // Re-fetch the org to get the DB-generated id
     const { data: newOrg } = await supabase
@@ -992,5 +1010,7 @@ module.exports = {
   updateProfile,
   changePassword,
   googleLogin,
-  googleRegister
+  googleRegister,
+  // Exposed for admin tooling (Master Plan §5 — admin-initiated password reset).
+  hashPassword,
 };

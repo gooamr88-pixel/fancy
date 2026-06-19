@@ -1,7 +1,7 @@
 const { supabase } = require('../config/supabase');
 const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
 const { generateQRCodeDataURL } = require('../utils/qrHelper');
-const { isAcceptedResponse, isDeclinedResponse } = require('../utils/responseHelpers');
+const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
 const logger = require('../utils/logger');
 
 /** Resolve the public-facing base URL (first origin if FRONTEND_URL is comma-separated). */
@@ -241,6 +241,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         background_music_url,
         template_data,
         is_paid,
+        status,
         rsvp_form_fields(*)
       `)
       .eq('slug', slug)
@@ -250,11 +251,22 @@ const getPublicEventBySlug = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
     }
 
-    if (!event.is_paid && event.slug !== 'demo') {
+    const isDemo = event.slug === 'demo';
+
+    if (!event.is_paid && !isDemo) {
       return res.status(402).json({
         success: false,
         error: 'PAYMENT_REQUIRED',
         message: 'This event page is currently offline pending payment activation.'
+      });
+    }
+
+    // Paid but not yet approved — held until a Super Admin promotes it to 'active'.
+    if (!isDemo && event.status === 'pending_review') {
+      return res.status(403).json({
+        success: false,
+        error: 'EVENT_UNDER_REVIEW',
+        message: 'This event is awaiting review and will be live shortly.'
       });
     }
 
@@ -401,7 +413,7 @@ const updateEvent = async (req, res, next) => {
 
     const { data: event, error } = await supabase
       .from('events')
-      .update({ ...filteredUpdates, updated_at: new Date() })
+      .update({ ...filteredUpdates, updated_at: new Date().toISOString() })
       .eq('id', eventId)
       .select()
       .single();
@@ -429,17 +441,20 @@ const getEventStats = async (req, res, next) => {
     // 1. Fetch RSVPs aggregations
     const { data: rsvps, error: rsvpError } = await supabase
       .from('rsvps')
-      .select('response, party_size')
+      .select('response, party_size, invitation_sent')
       .eq('event_id', eventId);
 
     if (rsvpError) throw rsvpError;
 
     let stats = {
       invitedParties: rsvps.length,
+      invitationsSent: 0,
       attendingParties: 0,
       attendingGuests: 0,
       declinedParties: 0,
       declinedGuests: 0,
+      maybeParties: 0,
+      maybeGuests: 0,
       pendingParties: 0,
       pendingGuests: 0,
       totalExpectedGuests: 0,
@@ -449,12 +464,16 @@ const getEventStats = async (req, res, next) => {
 
     rsvps.forEach(rsvp => {
       const size = rsvp.party_size || 1;
+      if (rsvp.invitation_sent) stats.invitationsSent++;
       if (isAcceptedResponse(rsvp.response)) {
         stats.attendingParties++;
         stats.attendingGuests += size;
       } else if (isDeclinedResponse(rsvp.response)) {
         stats.declinedParties++;
         stats.declinedGuests += size;
+      } else if (isMaybeResponse(rsvp.response)) {
+        stats.maybeParties++;
+        stats.maybeGuests += size;
       } else {
         stats.pendingParties++;
         stats.pendingGuests += size;
@@ -586,9 +605,9 @@ const getAdminEvents = async (req, res, next) => {
   const to = from + limit - 1;
 
   try {
-    const { data: events, error } = await supabase
+    const { data: events, error, count: totalCount } = await supabase
       .from('events')
-      .select('*, organizations(name, email), event_payments(*)')
+      .select('*, organizations(name, email), event_payments(*)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -598,7 +617,7 @@ const getAdminEvents = async (req, res, next) => {
     return res.json({
       success: true,
       events: items,
-      pagination: { page, limit, count: items.length }
+      pagination: { page, limit, count: items.length, total: totalCount }
     });
   } catch (err) {
     next(err);

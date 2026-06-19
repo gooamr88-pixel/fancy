@@ -14,6 +14,7 @@ const C = {
 
 const STATUS_CFG = {
   active: { bg: 'rgba(74,124,89,0.07)', color: '#3A8B55', border: 'rgba(74,124,89,0.18)', label: 'Active', dot: '#4A7C59', pulse: true },
+  pending_review: { bg: 'rgba(184,148,79,0.08)', color: '#9A7B2E', border: 'rgba(184,148,79,0.22)', label: 'Under Review', dot: '#B8944F', pulse: true },
   live: { bg: 'rgba(74,124,89,0.07)', color: '#3A8B55', border: 'rgba(74,124,89,0.18)', label: 'Live', dot: '#4A7C59', pulse: true },
   paused: { bg: 'rgba(210,160,60,0.07)', color: '#B08A1A', border: 'rgba(210,160,60,0.18)', label: 'Paused', dot: '#D2A03C', pulse: false },
   draft: { bg: 'rgba(210,160,60,0.07)', color: '#B08A1A', border: 'rgba(210,160,60,0.18)', label: 'Draft', dot: '#D2A03C', pulse: false },

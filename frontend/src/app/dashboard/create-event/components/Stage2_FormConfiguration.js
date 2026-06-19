@@ -114,7 +114,7 @@ export default function Stage2_FormConfiguration({
   rsvpDeadline, setRsvpDeadline,
   privacyMode, setPrivacyMode,
   accessPassword, setAccessPassword,
-  coverImageUrl, setCoverImageUrl,
+  coverImageUrl, setCoverImageUrl, onCoverImageUpload, coverImageUploading,
   backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
   galleryUrls = [], onGalleryUpload, galleryUploading, onAddGalleryUrl, onRemoveGalleryUrl,
   customFields, onFieldsChange,
@@ -427,28 +427,87 @@ export default function Stage2_FormConfiguration({
             )}
           </AnimatePresence>
 
-          <Field label="Cover Image URL">
-            <input type="url" value={coverImageUrl}
-              onChange={e => setCoverImageUrl(e.target.value)}
-              placeholder="https://example.com/image.jpg"
-              style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-          </Field>
-          {coverImageUrl && (
-            <div style={{
-              borderRadius: 12, overflow: 'hidden',
-              border: `1px solid ${C.border}`, height: 140,
-              background: C.softBg, marginTop: -8, marginBottom: 16,
-              position: 'relative',
-            }}>
-              <img src={coverImageUrl} alt="Cover preview"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={e => { e.target.style.display = 'none'; }} />
-              <div style={{
-                position: 'absolute', inset: 0,
-                background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 50%)',
-              }} />
+          <Field label="Cover Image">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="url" value={coverImageUrl}
+                onChange={e => setCoverImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                style={{ ...iStyle, flex: 1 }} onFocus={onFocus} onBlur={onBlur} />
+              <label style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, cursor: coverImageUploading ? 'wait' : 'pointer',
+                padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, color: C.gold,
+                fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+                opacity: coverImageUploading ? 0.6 : 1,
+              }}>
+                {coverImageUploading ? 'Uploading…' : '⬆ Upload'}
+                <input type="file" accept="image/*" onChange={onCoverImageUpload} disabled={coverImageUploading} style={{ display: 'none' }} />
+              </label>
             </div>
-          )}
+            {/* Drag-and-drop zone */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = 'rgba(184,148,79,0.04)'; }}
+              onDragLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.softBg; }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.style.borderColor = C.border;
+                e.currentTarget.style.background = C.softBg;
+                const file = e.dataTransfer.files?.[0];
+                if (file && file.type.startsWith('image/')) {
+                  const dt = new DataTransfer(); dt.items.add(file);
+                  const inp = document.createElement('input'); inp.type = 'file';
+                  inp.files = dt.files;
+                  onCoverImageUpload?.({ target: inp });
+                }
+              }}
+              style={{
+                marginTop: 10, padding: '18px 16px', borderRadius: 12,
+                border: `2px dashed ${C.border}`, background: C.softBg,
+                textAlign: 'center', transition: 'all 0.25s', cursor: 'pointer',
+              }}
+              onClick={() => {
+                const fi = document.createElement('input');
+                fi.type = 'file'; fi.accept = 'image/*';
+                fi.onchange = (ev) => onCoverImageUpload?.(ev);
+                fi.click();
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={C.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <path d="m21 15-5-5L5 21"/>
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+                  {coverImageUploading ? 'Uploading…' : 'Drop image here or click to browse'}
+                </span>
+                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>JPG, PNG, WebP • Max 8MB</span>
+              </div>
+            </div>
+            {/* Preview */}
+            {coverImageUrl && (
+              <div style={{
+                borderRadius: 12, overflow: 'hidden',
+                border: `1px solid ${C.border}`, height: 140,
+                background: C.softBg, marginTop: 10,
+                position: 'relative',
+              }}>
+                <img src={coverImageUrl} alt="Cover preview"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={e => { e.target.style.display = 'none'; }} />
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 50%)',
+                }} />
+                <button type="button" onClick={() => setCoverImageUrl('')}
+                  style={{
+                    position: 'absolute', top: 6, right: 6, width: 26, height: 26,
+                    borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)',
+                    color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>×</button>
+              </div>
+            )}
+          </Field>
 
           <Field label="Background Music (optional)">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -466,12 +525,51 @@ export default function Stage2_FormConfiguration({
                 <input type="file" accept="audio/*" onChange={onMusicUpload} disabled={musicUploading} style={{ display: 'none' }} />
               </label>
             </div>
+            {/* Drag-and-drop zone for music */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = 'rgba(184,148,79,0.04)'; }}
+              onDragLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.softBg; }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.style.borderColor = C.border;
+                e.currentTarget.style.background = C.softBg;
+                const file = e.dataTransfer.files?.[0];
+                if (file && file.type.startsWith('audio/')) {
+                  const dt = new DataTransfer(); dt.items.add(file);
+                  const inp = document.createElement('input'); inp.type = 'file';
+                  inp.files = dt.files;
+                  onMusicUpload?.({ target: inp });
+                }
+              }}
+              style={{
+                marginTop: 10, padding: '14px 16px', borderRadius: 12,
+                border: `2px dashed ${C.border}`, background: C.softBg,
+                textAlign: 'center', transition: 'all 0.25s', cursor: 'pointer',
+              }}
+              onClick={() => {
+                const fi = document.createElement('input');
+                fi.type = 'file'; fi.accept = 'audio/*';
+                fi.onchange = (ev) => onMusicUpload?.(ev);
+                fi.click();
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+                  {musicUploading ? 'Uploading…' : 'Drop audio file here or click to browse'}
+                </span>
+              </div>
+              <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)', marginTop: 4, display: 'block' }}>MP3, OGG, WAV • Max 8MB</span>
+            </div>
             {backgroundMusicUrl && (
-              <audio controls src={backgroundMusicUrl} style={{ width: '100%', marginTop: 10 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                <audio controls src={backgroundMusicUrl} style={{ flex: 1, height: 36 }} />
+                <button type="button" onClick={() => setBackgroundMusicUrl('')}
+                  style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
+              </div>
             )}
-            <p style={{ fontSize: 11, color: C.stone, marginTop: 6, fontFamily: 'var(--font-sans)' }}>
-              Plays softly on your invitation page. Paste a link or upload a file (max 8MB).
-            </p>
           </Field>
 
           <Field label="Photo Gallery (optional)">
@@ -495,10 +593,58 @@ export default function Stage2_FormConfiguration({
                 <input type="file" accept="image/*" multiple onChange={onGalleryUpload} disabled={galleryUploading} style={{ display: 'none' }} />
               </label>
             </div>
+            {/* Drag-and-drop zone for gallery */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.background = 'rgba(184,148,79,0.04)'; }}
+              onDragLeave={(e) => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.softBg; }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.currentTarget.style.borderColor = C.border;
+                e.currentTarget.style.background = C.softBg;
+                const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+                if (files.length > 0) {
+                  const dt = new DataTransfer();
+                  files.forEach(f => dt.items.add(f));
+                  const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true;
+                  inp.files = dt.files;
+                  onGalleryUpload?.({ target: inp });
+                }
+              }}
+              style={{
+                marginTop: 10, padding: '18px 16px', borderRadius: 12,
+                border: `2px dashed ${C.border}`, background: C.softBg,
+                textAlign: 'center', transition: 'all 0.25s', cursor: 'pointer',
+              }}
+              onClick={() => {
+                const fi = document.createElement('input');
+                fi.type = 'file'; fi.accept = 'image/*'; fi.multiple = true;
+                fi.onchange = (ev) => onGalleryUpload?.(ev);
+                fi.click();
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <path d="m21 15-5-5L5 21"/>
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+                  {galleryUploading ? 'Uploading…' : 'Drop images here or click to browse'}
+                </span>
+                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>Multiple images • JPG, PNG, WebP • Max 8MB each</span>
+              </div>
+            </div>
             {galleryUrls.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
                 {galleryUrls.map((url, i) => (
-                  <div key={i} style={{ position: 'relative', width: 84, height: 84, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}`, background: C.softBg }}>
+                  <div key={i} style={{
+                    position: 'relative', width: 84, height: 84, borderRadius: 10,
+                    overflow: 'hidden', border: `1px solid ${C.border}`, background: C.softBg,
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
+                  >
                     <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={e => { e.target.style.display = 'none'; }} />
                     <button type="button" onClick={() => onRemoveGalleryUrl?.(i)} title="Remove"

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react';
 import TemplateCard from './TemplateCard';
 import PhoneSimulator from './PhoneSimulator';
+import CustomBuilder from './CustomBuilder';
 
 /* ═══ Media-query hook (SSR-safe, no setState-in-effect) ═══ */
 const MOBILE_QUERY = '(max-width: 768px)';
@@ -171,8 +172,10 @@ function MobilePresetRow({ template, activePresetIndex, onPresetSelect }) {
 
 export default function Stage1_TemplatesSimulator({
   templates, templateType, onTemplateSelect,
-  selectedPresets, onPresetSelect, activePresetColors, onNext,
+  selectedPresets, onPresetSelect, activePresetColors,
+  customConfig, onCustomConfigChange, onNext,
 }) {
+  const isCustom = templateType === 'custom';
   const activeTemplate = templates.find(t => t.key === templateType) || templates[0];
   const presetIdx = selectedPresets[templateType] || 0;
   const carouselRef = useRef(null);
@@ -189,20 +192,30 @@ export default function Stage1_TemplatesSimulator({
   /* Dynamic guest name state for simulator preview */
   const [guestName, setGuestName] = useState('Sarah & John');
 
-  /* Build props for PhoneSimulator */
+  /* Build props for PhoneSimulator. The Custom template renders the editable
+     `custom` pattern driven entirely by the live builder config; the others
+     map to a curated preview pattern + the selected preset swatch. */
   const previewMap = TEMPLATE_PREVIEW_MAP[templateType] || TEMPLATE_PREVIEW_MAP.wedding;
-  const simulatorTemplate = {
-    name: previewMap.name,
-    pattern: previewMap.pattern,
-    accent: previewMap.accent,
-  };
-  const simulatorTheme = {
-    id: (activePresetColors?.name || 'default').toLowerCase().replace(/\s+/g, '-'),
-    primary: activePresetColors?.primary || '#B8944F',
-    secondary: activePresetColors?.secondary || '#D7BE80',
-    accent: activePresetColors?.accent || activePresetColors?.primary || '#B8944F',
-    liningGradId: getLiningGradId(templateType, presetIdx),
-  };
+  const simulatorTemplate = isCustom
+    ? { name: 'Custom', pattern: 'custom', accent: customConfig?.accent || '#8B7355' }
+    : { name: previewMap.name, pattern: previewMap.pattern, accent: previewMap.accent };
+  const simulatorTheme = isCustom
+    ? {
+        id: 'custom',
+        primary: customConfig?.primary || '#8B7355',
+        secondary: customConfig?.secondary || '#D4C5A9',
+        accent: customConfig?.accent || customConfig?.primary || '#8B7355',
+        liningGradId: 'goldGrad',
+      }
+    : {
+        id: (activePresetColors?.name || 'default').toLowerCase().replace(/\s+/g, '-'),
+        primary: activePresetColors?.primary || '#B8944F',
+        secondary: activePresetColors?.secondary || '#D7BE80',
+        accent: activePresetColors?.accent || activePresetColors?.primary || '#B8944F',
+        liningGradId: getLiningGradId(templateType, presetIdx),
+      };
+  /* config only applies to the Custom template (CTA label, sections, fonts…) */
+  const simulatorConfig = isCustom ? customConfig : undefined;
 
   return (
     <div style={{
@@ -270,21 +283,24 @@ export default function Stage1_TemplatesSimulator({
             {/* Phone preview — immersive hero */}
             <div className="s1-mobile-preview">
               <PhoneSimulator
-                key={`${templateType}-${presetIdx}`}
+                key={templateType}
                 template={simulatorTemplate}
                 theme={simulatorTheme}
                 guestName={guestName}
                 onGuestNameChange={setGuestName}
+                config={simulatorConfig}
                 isMobile={true}
               />
             </div>
 
-            {/* Preset color dots */}
-            <MobilePresetRow
-              template={activeTemplate}
-              activePresetIndex={presetIdx}
-              onPresetSelect={onPresetSelect}
-            />
+            {/* Preset color dots (curated templates only) */}
+            {!isCustom && (
+              <MobilePresetRow
+                template={activeTemplate}
+                activePresetIndex={presetIdx}
+                onPresetSelect={onPresetSelect}
+              />
+            )}
 
             {/* Horizontal template carousel */}
             <div
@@ -312,23 +328,22 @@ export default function Stage1_TemplatesSimulator({
               ))}
             </div>
 
-            {/* Specs pills */}
-            <div style={{
-              display: 'flex', flexWrap: 'wrap', gap: 6,
-              padding: '4px 20px 0',
-              justifyContent: 'center',
-            }}>
-              {activeTemplate.specs.map((spec, i) => (
-                <span key={i} style={{
-                  fontFamily: 'var(--font-sans)', fontSize: 10,
-                  color: '#77736A',
-                  background: 'rgba(184,148,79,0.04)',
-                  border: '1px solid rgba(184,148,79,0.12)',
-                  borderRadius: 6, padding: '4px 9px',
-                  fontWeight: 500,
-                }}>✦ {spec}</span>
-              ))}
-            </div>
+            {/* Custom builder OR specs pills */}
+            {isCustom ? (
+              <div style={{ padding: '4px 16px 0' }}>
+                <CustomBuilder config={customConfig} onChange={onCustomConfigChange} />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '4px 20px 0', justifyContent: 'center' }}>
+                {activeTemplate.specs.map((spec, i) => (
+                  <span key={i} style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 10, color: '#77736A',
+                    background: 'rgba(184,148,79,0.04)', border: '1px solid rgba(184,148,79,0.12)',
+                    borderRadius: 6, padding: '4px 9px', fontWeight: 500,
+                  }}>✦ {spec}</span>
+                ))}
+              </div>
+            )}
 
             {/* CTA */}
             <div style={{ padding: '0 20px' }}>
@@ -361,11 +376,11 @@ export default function Stage1_TemplatesSimulator({
           display: 'grid', gridTemplateColumns: '1.2fr 0.8fr',
           gap: 48, alignItems: 'start',
         }}>
-          {/* ─── LEFT: Template Gallery ─── */}
+          {/* ─── LEFT: Template Gallery (large stacked cards) ─── */}
           <div>
             <div className="s1-grid" style={{
-              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: 16,
+              display: 'grid', gridTemplateColumns: '1fr',
+              gap: 14,
             }}>
               {templates.map((tpl, i) => (
                 <TemplateCard
@@ -380,45 +395,37 @@ export default function Stage1_TemplatesSimulator({
               ))}
             </div>
 
-            {/* Specs */}
-            <div style={{
-              display: 'flex', flexWrap: 'wrap', gap: 8,
-              marginTop: 24, padding: '0 4px',
-            }}>
-              {activeTemplate.specs.map((spec, i) => (
-                <span key={i} style={{
-                  fontFamily: 'var(--font-sans)', fontSize: 11,
-                  color: '#77736A',
-                  background: 'rgba(184,148,79,0.04)',
-                  border: '1px solid rgba(184,148,79,0.12)',
-                  borderRadius: 6, padding: '5px 10px',
-                  fontWeight: 500,
-                }}>✦ {spec}</span>
-              ))}
-            </div>
-
-            {/* Default Form Fields */}
-            <div style={{
-              display: 'flex', flexWrap: 'wrap', gap: 6,
-              marginTop: 12, padding: '0 4px',
-            }}>
-              <span style={{
-                fontFamily: 'var(--font-sans)', fontSize: 10,
-                color: '#77736A', textTransform: 'uppercase',
-                letterSpacing: '0.06em', fontWeight: 600,
-                marginRight: 4, alignSelf: 'center',
-              }}>Includes:</span>
-              {activeTemplate.fields.map((f, i) => (
-                <span key={i} style={{
-                  fontFamily: 'var(--font-sans)', fontSize: 10,
-                  color: '#191B1E',
-                  background: 'rgba(25,27,30,0.04)',
-                  border: '1px solid rgba(25,27,30,0.08)',
-                  borderRadius: 4, padding: '3px 8px',
-                  fontWeight: 600,
-                }}>{f}</span>
-              ))}
-            </div>
+            {/* Custom builder OR specs/fields for curated templates */}
+            {isCustom ? (
+              <div style={{ marginTop: 18 }}>
+                <CustomBuilder config={customConfig} onChange={onCustomConfigChange} />
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 20, padding: '0 4px' }}>
+                  {activeTemplate.specs.map((spec, i) => (
+                    <span key={i} style={{
+                      fontFamily: 'var(--font-sans)', fontSize: 11, color: '#77736A',
+                      background: 'rgba(184,148,79,0.04)', border: '1px solid rgba(184,148,79,0.12)',
+                      borderRadius: 6, padding: '5px 10px', fontWeight: 500,
+                    }}>✦ {spec}</span>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12, padding: '0 4px' }}>
+                  <span style={{
+                    fontFamily: 'var(--font-sans)', fontSize: 10, color: '#77736A', textTransform: 'uppercase',
+                    letterSpacing: '0.06em', fontWeight: 600, marginRight: 4, alignSelf: 'center',
+                  }}>Includes:</span>
+                  {activeTemplate.fields.map((f, i) => (
+                    <span key={i} style={{
+                      fontFamily: 'var(--font-sans)', fontSize: 10, color: '#191B1E',
+                      background: 'rgba(25,27,30,0.04)', border: '1px solid rgba(25,27,30,0.08)',
+                      borderRadius: 4, padding: '3px 8px', fontWeight: 600,
+                    }}>{f}</span>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* CTA Button */}
             <button
@@ -453,11 +460,12 @@ export default function Stage1_TemplatesSimulator({
           {/* ─── RIGHT: Phone Simulator ─── */}
           <div className="s1-phone">
             <PhoneSimulator
-              key={`${templateType}-${presetIdx}`}
+              key={templateType}
               template={simulatorTemplate}
               theme={simulatorTheme}
               guestName={guestName}
               onGuestNameChange={setGuestName}
+              config={simulatorConfig}
             />
           </div>
         </div>

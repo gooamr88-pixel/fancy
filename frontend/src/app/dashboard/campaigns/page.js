@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../utils/apiClient';
+import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8', error: '#C45E5E', success: '#3B9B6D' };
 
@@ -29,6 +30,9 @@ export default function CampaignsPage() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [eventId, setEventId] = useState('');
+  const [purchaseNotice, setPurchaseNotice] = useState('');
+  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const purchaseHandledRef = useRef(false);
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -42,24 +46,10 @@ export default function CampaignsPage() {
     }
     setBuyingCredits(true);
     try {
-      const res = await fetch(`${apiUrl}/payments/events/${eventId}/sms-credits`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          eventId,
-          creditCount: parseInt(smsCreditsToBuy)
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to initiate purchase.');
-      if (data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-      } else {
-        throw new Error('No checkout URL returned from the server.');
-      }
+      // Shared with the wizard: opens checkout in a new tab and preserves this page
+      // (and the composer draft). The return is handled by the purchase effect below.
+      await startSmsCreditPurchase({ apiUrl, eventId, creditCount: parseInt(smsCreditsToBuy) });
+      setShowSMSModal(false);
     } catch (err) {
       alert(err.message);
     } finally {
@@ -138,6 +128,59 @@ export default function CampaignsPage() {
     if (!eventId) return;
     loadCampaignData();
   }, [loadCampaignData, eventId]);
+
+  // Keep the wallet live when the user returns from the checkout tab we opened
+  // (the purchase completes in that tab; this is the opener). Mirrors the wizard.
+  useEffect(() => {
+    if (!eventId) return;
+    const onFocus = () => loadCampaignData();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [eventId, loadCampaignData]);
+
+  // Handle return from a Stripe SMS-credit purchase: synchronously verify the
+  // session (so the balance updates even if the webhook is delayed), show a
+  // confirmation, then refresh the wallet. Runs once.
+  useEffect(() => {
+    if (!eventId || purchaseHandledRef.current || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const purchase = params.get('purchase');
+    if (purchase !== 'success' && purchase !== 'cancelled') return;
+    purchaseHandledRef.current = true;
+
+    const sessionId = params.get('session_id');
+    // Strip purchase/session params (keep ?event= so the wallet stays scoped).
+    const url = new URL(window.location.href);
+    url.searchParams.delete('purchase');
+    url.searchParams.delete('session_id');
+    window.history.replaceState({}, '', url.pathname + url.search);
+
+    if (purchase === 'cancelled') {
+      setPurchaseNotice('Credit purchase was cancelled — no charge was made.');
+      return;
+    }
+
+    (async () => {
+      try {
+        if (sessionId) {
+          const res = await fetch(`${apiUrl}/payments/verify?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'include' });
+          const data = await res.json();
+          if (data.success && data.paid) {
+            setPurchaseSuccess(true);
+            setPurchaseNotice(`Payment received — ${data.creditCount ? `${data.creditCount} ` : ''}SMS credits added to your wallet.`);
+          } else {
+            setPurchaseNotice('Payment is processing. Your credits will appear here shortly.');
+          }
+        } else {
+          setPurchaseNotice('Returned from checkout. Your credits will appear once the payment clears.');
+        }
+      } catch {
+        setPurchaseNotice('Could not confirm the purchase yet. Your credits will appear shortly.');
+      } finally {
+        loadCampaignData();
+      }
+    })();
+  }, [eventId, apiUrl, loadCampaignData]);
 
   // Handle campaign dispatch API call
   const handleLaunchCampaign = (e) => {
@@ -218,7 +261,24 @@ export default function CampaignsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: C.ivory, color: C.charcoal, padding: 32, fontFamily: 'var(--font-sans)' }}>
-      
+
+      {/* ─── Stripe purchase return banner ─── */}
+      {purchaseNotice && (
+        <div style={{
+          maxWidth: 1200, margin: '0 auto 20px',
+          background: purchaseSuccess ? 'rgba(59,155,109,0.08)' : 'rgba(184,148,79,0.08)',
+          border: `1px solid ${purchaseSuccess ? 'rgba(59,155,109,0.3)' : 'rgba(184,148,79,0.3)'}`,
+          borderRadius: 12, padding: '14px 18px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: purchaseSuccess ? C.success : C.charcoal }}>
+            {purchaseSuccess ? '✓ ' : ''}{purchaseNotice}
+          </span>
+          <button onClick={() => setPurchaseNotice('')} aria-label="Dismiss"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.stone, fontSize: 18, fontWeight: 700, lineHeight: 1 }}>×</button>
+        </div>
+      )}
+
       {/* ─── Header ─── */}
       <div style={{ maxWidth: 1200, margin: '0 auto', borderBottom: `1px solid ${C.border}`, paddingBottom: 24, marginBottom: 32, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div>

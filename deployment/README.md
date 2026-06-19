@@ -52,6 +52,15 @@ sudo apt install certbot python3-certbot-nginx -y
    - `20260611200000_audit_fixes.sql`
    - `20260611300000_registration_otp.sql`
    - `20260612_add_template_data.sql`
+   - `20260614000000_update_unassign_seat.sql`
+   - `20260615000000_prd_updates.sql`
+   - `20260615100000_notification_preferences.sql`
+   - `20260615200000_event_qr_persistence.sql`
+   - `20260615300000_seating_force_override.sql`
+   - `20260616000000_seating_elements_scale.sql`
+   - `20260616100000_atomic_sms_purchase.sql`
+   - `20260616200000_party_size_bound.sql`
+   - `20260616300000_manual_payment_methods.sql`
 
 ---
 

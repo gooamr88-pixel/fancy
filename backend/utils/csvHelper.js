@@ -55,7 +55,7 @@ const parseCSV = (csvContent) => {
 
     // Parse each data line with proper quote handling
     const values = parseCSVLine(line);
-    if (values.length < headers.length) continue;
+    while (values.length < headers.length) values.push('');
 
     const rowObj = {};
     headers.forEach((header, index) => {

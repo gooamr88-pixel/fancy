@@ -1,7 +1,11 @@
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
+const { parsePagination, applyPagination, buildListResponse, escapeOrSearchTerm } = require('../middleware/pagination');
+const { logAdminAction } = require('../middleware/adminAudit');
+const { refundEventPayment } = require('../services/stripeRefundService');
 
 const VALID_ROLES = ['organizer', 'super_admin'];
-const VALID_EVENT_STATUSES = ['draft', 'active', 'paused', 'completed'];
+const VALID_EVENT_STATUSES = ['draft', 'pending_review', 'active', 'paused', 'completed'];
 
 /**
  * Lists platform users (organizers) with their current role so a Super Admin can
@@ -9,26 +13,32 @@ const VALID_EVENT_STATUSES = ['draft', 'active', 'paused', 'completed'];
  * GET /api/v1/admin/users
  */
 const listPlatformUsers = async (req, res, next) => {
+  const p = parsePagination(req, { sortable: ['created_at', 'name', 'email'], defaultSort: 'created_at' });
   try {
-    const { data: orgs, error: orgError } = await supabase
+    // Paginate organizations first; scope the aggregate queries to this page only
+    // (Master Plan B2/B3 — no more unbounded full-table scans).
+    let orgQuery = supabase
       .from('organizations')
-      .select('id, owner_user_id, name, email, phone, created_at')
-      .order('created_at', { ascending: false });
+      .select('id, owner_user_id, name, email, phone, created_at, status', { count: 'exact' });
+    if (p.q) {
+      const term = escapeOrSearchTerm(p.q);
+      orgQuery = orgQuery.or(`name.ilike.${term},email.ilike.${term}`);
+    }
 
+    const { data: orgs, error: orgError, count } = await applyPagination(orgQuery, p);
     if (orgError) throw orgError;
 
-    const { data: roles, error: roleError } = await supabase
-      .from('user_roles')
-      .select('user_id, role');
+    const orgIds = (orgs || []).map(o => o.id);
+    const ownerIds = (orgs || []).map(o => o.owner_user_id);
 
-    if (roleError) throw roleError;
-
-    // Per-org event counts (single query, aggregated in JS to avoid N+1).
-    const { data: events, error: eventsError } = await supabase
-      .from('events')
-      .select('org_id, is_paid');
-
-    if (eventsError) throw eventsError;
+    const [{ data: roles }, { data: events }] = await Promise.all([
+      ownerIds.length
+        ? supabase.from('user_roles').select('user_id, role').in('user_id', ownerIds)
+        : Promise.resolve({ data: [] }),
+      orgIds.length
+        ? supabase.from('events').select('org_id, is_paid').in('org_id', orgIds)
+        : Promise.resolve({ data: [] }),
+    ]);
 
     const eventCountByOrg = new Map();
     (events || []).forEach(e => {
@@ -49,13 +59,14 @@ const listPlatformUsers = async (req, res, next) => {
         email: o.email,
         phone: o.phone,
         createdAt: o.created_at,
+        status: o.status || 'active',
         eventCount: counts.total,
         paidEventCount: counts.paid,
         role: roleByUser.get(o.owner_user_id) || 'organizer',
       };
     });
 
-    return res.json({ success: true, users });
+    return res.json({ ...buildListResponse(users, p, count), users });
   } catch (err) {
     next(err);
   }
@@ -104,121 +115,43 @@ const setUserRole = async (req, res, next) => {
  */
 const getPlatformOverview = async (req, res, next) => {
   try {
-    const [
-      eventsRes,
-      orgsCountRes,
-      rsvpsRes,
-      checkInsCountRes,
-      paymentsRes,
-      walletsRes,
-      activityRes,
-    ] = await Promise.all([
-      supabase.from('events').select('id, status, is_paid, created_at, event_date'),
-      supabase.from('organizations').select('id', { count: 'exact', head: true }),
-      supabase.from('rsvps').select('response, party_size'),
-      supabase.from('check_ins').select('id', { count: 'exact', head: true }),
-      supabase.from('event_payments').select('amount_cents, status, payment_method, created_at, completed_at'),
-      supabase.from('sms_credit_wallets').select('credits_purchased, credits_used'),
-      supabase
-        .from('activity_logs')
-        .select('id, action, entity_type, created_at, event_id, events(title)')
-        .order('created_at', { ascending: false })
-        .limit(12),
-    ]);
+    // Single set-based aggregation in Postgres (Master Plan B2 fix) — no more
+    // pulling every row into Node.
+    const { data, error } = await supabase.rpc('get_executive_overview');
+    if (error) throw error;
 
-    if (eventsRes.error) throw eventsRes.error;
+    const ov = data || {};
 
-    const events = eventsRes.data || [];
-    const eventsByStatus = { draft: 0, active: 0, paused: 0, completed: 0 };
-    let paidEvents = 0;
-    events.forEach(e => {
-      if (eventsByStatus[e.status] !== undefined) eventsByStatus[e.status] += 1;
-      if (e.is_paid) paidEvents += 1;
-    });
-
-    const rsvps = rsvpsRes.data || [];
-    let attendingParties = 0;
-    let attendingGuests = 0;
-    let declined = 0;
-    let pendingRsvps = 0;
-    rsvps.forEach(r => {
-      if (r.response === 'yes') { attendingParties += 1; attendingGuests += (r.party_size || 1); }
-      else if (r.response === 'no') declined += 1;
-      else pendingRsvps += 1;
-    });
-
-    const payments = paymentsRes.data || [];
-    let grossRevenueCents = 0;
-    let pendingRevenueCents = 0;
-    let refundedCents = 0;
-    payments.forEach(p => {
-      if (p.status === 'completed') grossRevenueCents += (p.amount_cents || 0);
-      else if (p.status === 'pending') pendingRevenueCents += (p.amount_cents || 0);
-      else if (p.status === 'refunded') refundedCents += (p.amount_cents || 0);
-    });
-
-    // Revenue trend: last 6 months of completed payments, keyed by YYYY-MM.
-    const revenueByMonth = {};
-    payments.forEach(p => {
-      if (p.status !== 'completed') return;
-      const d = new Date(p.completed_at || p.created_at);
-      if (Number.isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      revenueByMonth[key] = (revenueByMonth[key] || 0) + (p.amount_cents || 0);
-    });
-    const revenueTrend = [];
+    // Build the 6-month trend array (with localized labels) from the byMonth map
+    // the RPC returns. This is O(6) — no table scan.
+    const byMonth = (ov.revenue && ov.revenue.byMonth) || {};
+    const trend = [];
     const now = new Date();
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      revenueTrend.push({
+      trend.push({
         month: key,
         label: d.toLocaleString(undefined, { month: 'short' }),
-        cents: revenueByMonth[key] || 0,
+        cents: byMonth[key] || 0,
       });
     }
-
-    const wallets = walletsRes.data || [];
-    let smsPurchased = 0;
-    let smsUsed = 0;
-    wallets.forEach(w => { smsPurchased += (w.credits_purchased || 0); smsUsed += (w.credits_used || 0); });
 
     return res.json({
       success: true,
       overview: {
-        events: {
-          total: events.length,
-          paid: paidEvents,
-          unpaid: events.length - paidEvents,
-          byStatus: eventsByStatus,
-        },
-        organizations: orgsCountRes.count || 0,
-        rsvps: {
-          total: rsvps.length,
-          attendingParties,
-          attendingGuests,
-          declined,
-          pending: pendingRsvps,
-        },
-        checkIns: checkInsCountRes.count || 0,
+        events: ov.events || { total: 0, paid: 0, unpaid: 0, byStatus: {} },
+        organizations: ov.organizations || 0,
+        rsvps: ov.rsvps || { total: 0, attendingParties: 0, attendingGuests: 0, declined: 0, pending: 0 },
+        checkIns: ov.checkIns || 0,
         revenue: {
-          grossCents: grossRevenueCents,
-          pendingCents: pendingRevenueCents,
-          refundedCents,
-          trend: revenueTrend,
+          grossCents: ov.revenue?.grossCents || 0,
+          pendingCents: ov.revenue?.pendingCents || 0,
+          refundedCents: ov.revenue?.refundedCents || 0,
+          trend,
         },
-        sms: {
-          purchased: smsPurchased,
-          used: smsUsed,
-          remaining: smsPurchased - smsUsed,
-        },
-        recentActivity: (activityRes.data || []).map(a => ({
-          id: a.id,
-          action: a.action,
-          entityType: a.entity_type,
-          createdAt: a.created_at,
-          eventTitle: a.events?.title || null,
-        })),
+        sms: ov.sms || { purchased: 0, used: 0, remaining: 0 },
+        recentActivity: ov.recentActivity || [],
       },
     });
   } catch (err) {
@@ -231,20 +164,36 @@ const getPlatformOverview = async (req, res, next) => {
  * GET /api/v1/admin/organizations
  */
 const listOrganizations = async (req, res, next) => {
+  const p = parsePagination(req, { sortable: ['created_at', 'name', 'email'], defaultSort: 'created_at' });
   try {
-    const [orgsRes, eventsRes, paymentsRes] = await Promise.all([
-      supabase
-        .from('organizations')
-        .select('id, owner_user_id, name, email, phone, stripe_customer_id, created_at')
-        .order('created_at', { ascending: false }),
-      supabase.from('events').select('id, org_id, is_paid, status'),
-      supabase.from('event_payments').select('event_id, amount_cents, status'),
-    ]);
+    let orgQuery = supabase
+      .from('organizations')
+      .select('id, owner_user_id, name, email, phone, stripe_customer_id, created_at, status', { count: 'exact' });
+    if (p.q) {
+      const term = escapeOrSearchTerm(p.q);
+      orgQuery = orgQuery.or(`name.ilike.${term},email.ilike.${term}`);
+    }
 
+    const orgsRes = await applyPagination(orgQuery, p);
     if (orgsRes.error) throw orgsRes.error;
+
+    const pageOrgIds = (orgsRes.data || []).map(o => o.id);
+
+    // Scope event + payment aggregation to the organizations on this page only.
+    const [eventsRes, eventIdsForPayments] = await Promise.all([
+      pageOrgIds.length
+        ? supabase.from('events').select('id, org_id, is_paid, status').in('org_id', pageOrgIds)
+        : Promise.resolve({ data: [] }),
+      Promise.resolve(null),
+    ]);
     if (eventsRes.error) throw eventsRes.error;
 
     const events = eventsRes.data || [];
+    const eventIds = events.map(e => e.id);
+    const paymentsRes = eventIds.length
+      ? await supabase.from('event_payments').select('event_id, amount_cents, status').in('event_id', eventIds)
+      : { data: [] };
+
     const payments = paymentsRes.data || [];
 
     // Map event -> org so payment revenue can be attributed back to the org.
@@ -276,6 +225,7 @@ const listOrganizations = async (req, res, next) => {
         phone: o.phone,
         hasStripeCustomer: !!o.stripe_customer_id,
         createdAt: o.created_at,
+        status: o.status || 'active',
         eventCount: s.total,
         paidEventCount: s.paid,
         activeEventCount: s.active,
@@ -283,7 +233,7 @@ const listOrganizations = async (req, res, next) => {
       };
     });
 
-    return res.json({ success: true, organizations });
+    return res.json({ ...buildListResponse(organizations, p, orgsRes.count), organizations });
   } catch (err) {
     next(err);
   }
@@ -295,12 +245,11 @@ const listOrganizations = async (req, res, next) => {
  */
 const listAllPayments = async (req, res, next) => {
   const { status, method } = req.query;
+  const p = parsePagination(req, { sortable: ['created_at', 'completed_at', 'amount_cents'], defaultSort: 'created_at' });
   try {
     let query = supabase
       .from('event_payments')
-      .select('*, events(title, slug, organizations(name, email))')
-      .order('created_at', { ascending: false })
-      .limit(500);
+      .select('*, events(title, slug, organizations(name, email))', { count: 'exact' });
 
     if (status && ['pending', 'completed', 'failed', 'refunded'].includes(status)) {
       query = query.eq('status', status);
@@ -309,25 +258,30 @@ const listAllPayments = async (req, res, next) => {
       query = query.eq('payment_method', method);
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await applyPagination(query, p);
     if (error) throw error;
 
-    return res.json({ success: true, payments: data || [] });
+    // Envelope { data, pagination } + legacy `payments` alias for the existing UI.
+    return res.json({ ...buildListResponse(data, p, count), payments: data || [] });
   } catch (err) {
     next(err);
   }
 };
 
 /**
- * Marks a completed payment as refunded (book-keeping only — does not call Stripe).
- * POST /api/v1/admin/payments/:paymentId/refund
+ * Issues a REAL refund (Master Plan §9 / fixes B1). For card payments this calls
+ * Stripe to actually return the money; for offline payments it performs the
+ * book-keeping refund. Supports partial refunds via body.amountCents.
+ * POST /api/v1/admin/payments/:paymentId/refund  body: { reason?, amountCents? }
  */
 const refundPayment = async (req, res, next) => {
   const { paymentId } = req.params;
+  const { reason } = req.body || {};
+  const amountCents = req.body?.amountCents !== undefined ? parseInt(req.body.amountCents, 10) : undefined;
   try {
     const { data: payment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, event_id, status, amount_cents')
+      .select('id, event_id, status, amount_cents, payment_method, stripe_payment_intent_id')
       .eq('id', paymentId)
       .single();
 
@@ -338,12 +292,20 @@ const refundPayment = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'NOT_REFUNDABLE', message: 'Only completed payments can be refunded.' });
     }
 
-    const { error: updateError } = await supabase
-      .from('event_payments')
-      .update({ status: 'refunded' })
-      .eq('id', paymentId);
-
-    if (updateError) throw updateError;
+    let result;
+    try {
+      result = await refundEventPayment(payment, { actorId: req.user.id, reason, amountCents });
+    } catch (refundErr) {
+      if (refundErr.code === 'NOT_REFUNDABLE') {
+        return res.status(400).json({ success: false, error: 'NOT_REFUNDABLE', message: refundErr.message });
+      }
+      // Stripe API failures surface as a clear 502 rather than a generic 500.
+      if (refundErr.type && String(refundErr.type).startsWith('Stripe')) {
+        logger.error({ err: refundErr, paymentId }, 'Stripe refund failed');
+        return res.status(502).json({ success: false, error: 'STRIPE_REFUND_FAILED', message: refundErr.message || 'The refund could not be processed by Stripe.' });
+      }
+      throw refundErr;
+    }
 
     await supabase.from('activity_logs').insert({
       event_id: payment.event_id,
@@ -351,10 +313,41 @@ const refundPayment = async (req, res, next) => {
       action: 'event_payment_refunded',
       entity_type: 'event_payment',
       entity_id: paymentId,
-      metadata: { amount_cents: payment.amount_cents },
+      metadata: { amount_cents: result.amountCents, stripe_refund_id: result.stripeRefundId, offline: result.offline, reason: reason || null },
+    });
+    await logAdminAction(req, {
+      action: 'payment.refund',
+      entityType: 'event_payment',
+      entityId: paymentId,
+      after: { amount_cents: result.amountCents, stripe_refund_id: result.stripeRefundId, offline: result.offline },
+      metadata: { reason: reason || null },
     });
 
-    return res.json({ success: true, message: 'Payment marked as refunded.' });
+    return res.json({
+      success: true,
+      message: result.offline
+        ? 'Offline payment marked as refunded.'
+        : `Refunded ${(result.amountCents / 100).toFixed(2)} via Stripe.`,
+      refund: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Lists Stripe disputes / chargebacks recorded from webhooks (Master Plan §9).
+ * GET /api/v1/admin/payments/disputes
+ */
+const listDisputes = async (req, res, next) => {
+  const p = parsePagination(req, { sortable: ['created_at', 'amount_cents'], defaultSort: 'created_at' });
+  try {
+    const query = supabase
+      .from('payment_disputes')
+      .select('*, event_payments(event_id, events(title, slug))', { count: 'exact' });
+    const { data, error, count } = await applyPagination(query, p);
+    if (error) throw error;
+    return res.json({ ...buildListResponse(data, p, count), disputes: data || [] });
   } catch (err) {
     next(err);
   }
@@ -506,16 +499,16 @@ const grantSmsCredits = async (req, res, next) => {
  * GET /api/v1/admin/sms-wallets
  */
 const listSmsWallets = async (req, res, next) => {
+  const p = parsePagination(req, { sortable: ['updated_at', 'credits_remaining', 'credits_purchased'], defaultSort: 'updated_at' });
   try {
-    const { data, error } = await supabase
+    const query = supabase
       .from('sms_credit_wallets')
-      .select('event_id, credits_purchased, credits_used, credits_remaining, updated_at, events(title, slug, organizations(name, email))')
-      .order('updated_at', { ascending: false })
-      .limit(500);
+      .select('event_id, credits_purchased, credits_used, credits_remaining, updated_at, events(title, slug, organizations(name, email))', { count: 'exact' });
 
+    const { data, error, count } = await applyPagination(query, p);
     if (error) throw error;
 
-    return res.json({ success: true, wallets: data || [] });
+    return res.json({ ...buildListResponse(data, p, count), wallets: data || [] });
   } catch (err) {
     next(err);
   }
@@ -526,14 +519,13 @@ const listSmsWallets = async (req, res, next) => {
  * GET /api/v1/admin/activity?limit=
  */
 const getGlobalActivity = async (req, res, next) => {
-  const limit = Math.min(parseInt(req.query.limit, 10) || 100, 300);
+  const p = parsePagination(req, { sortable: ['created_at'], defaultSort: 'created_at' });
   try {
-    const { data, error } = await supabase
+    const query = supabase
       .from('activity_logs')
-      .select('id, action, entity_type, entity_id, metadata, created_at, actor_id, event_id, events(title)')
-      .order('created_at', { ascending: false })
-      .limit(limit);
+      .select('id, action, entity_type, entity_id, metadata, created_at, actor_id, event_id, events(title)', { count: 'exact' });
 
+    const { data, error, count } = await applyPagination(query, p);
     if (error) throw error;
 
     // Resolve actor_id -> organizer name/email for readable audit rows.
@@ -557,7 +549,7 @@ const getGlobalActivity = async (req, res, next) => {
       actor: a.actor_id ? (actorMap.get(a.actor_id)?.name || actorMap.get(a.actor_id)?.email || 'System') : 'System',
     }));
 
-    return res.json({ success: true, logs });
+    return res.json({ ...buildListResponse(logs, p, count), logs });
   } catch (err) {
     next(err);
   }
@@ -569,6 +561,7 @@ module.exports = {
   getPlatformOverview,
   listOrganizations,
   listAllPayments,
+  listDisputes,
   refundPayment,
   declineManualPayment,
   updateEventAdmin,

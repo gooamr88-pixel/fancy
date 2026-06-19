@@ -15,4 +15,10 @@ function isDeclinedResponse(response) {
   return ['no', 'declined', 'not attending'].includes(r);
 }
 
-module.exports = { isAcceptedResponse, isDeclinedResponse };
+function isMaybeResponse(response) {
+  if (!response) return false;
+  const r = String(response).toLowerCase().trim();
+  return ['maybe', 'tentative'].includes(r);
+}
+
+module.exports = { isAcceptedResponse, isDeclinedResponse, isMaybeResponse };

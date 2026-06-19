@@ -15,6 +15,10 @@ const sendBulkSMSCampaign = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'messageTemplate string is required.' });
   }
 
+  if (messageTemplate.length > 1600) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Message template exceeds maximum length of 1600 characters' });
+  }
+
   try {
     // Fetch event slug
     const { data: event, error: eventError } = await supabase

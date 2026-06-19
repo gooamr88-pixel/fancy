@@ -61,7 +61,7 @@ const sidebarNav = [
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
   )},
   { key: 'settings', label: 'Settings', icon: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
   )},
 ];
 
@@ -163,22 +163,26 @@ export default function DashboardPage() {
     if (!eventId) return;
     try {
 
-      const statsRes = await fetch(`${apiUrl}/events/${eventId}/stats`, { credentials: 'include' });
-      const statsData = await statsRes.json();
-      const tablesRes = await fetch(`${apiUrl}/events/${eventId}/tables`, { credentials: 'include' });
-      const tablesData = await tablesRes.json();
-      const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { credentials: 'include' });
-      const rsvpsData = await rsvpsRes.json();
+      const [statsResult, tablesResult, rsvpsResult] = await Promise.allSettled([
+        fetch(`${apiUrl}/events/${eventId}/stats`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`${apiUrl}/events/${eventId}/tables`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`${apiUrl}/events/${eventId}/rsvps`, { credentials: 'include' }).then(r => r.json()),
+      ]);
 
-      if (statsData.success) setStats(statsData.stats);
-      if (tablesData.success) setTables(tablesData.tables);
-      if (rsvpsData.success) {
+      const statsData = statsResult.status === 'fulfilled' ? statsResult.value : null;
+      const tablesData = tablesResult.status === 'fulfilled' ? tablesResult.value : null;
+      const rsvpsData = rsvpsResult.status === 'fulfilled' ? rsvpsResult.value : null;
+
+      if (statsData?.success) setStats(statsData.stats);
+      if (tablesData?.success) setTables(tablesData.tables);
+      if (rsvpsData?.success) {
         const formattedGuests = rsvpsData.rsvps.map(r => {
           const assignedTableId = r.seating_assignments && r.seating_assignments.length > 0 ? r.seating_assignments[0].table_id : '';
           const guestMeals = r.rsvp_guests?.map(rg => rg.meal_selection).filter(Boolean).join(', ') || '-';
           return {
             id: r.id, guest_name: r.guest_name, party_size: r.party_size, response: r.response,
             email: r.email || '-', phone: r.phone || '-', tableId: assignedTableId, meal: guestMeals,
+            invitation_sent: !!r.invitation_sent,
             // Full per-companion details so the organizer sees everyone in the party.
             guests: r.rsvp_guests || [],
             notes: r.notes || '',
@@ -248,6 +252,29 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error(data.message || 'Seat assignment failed');
       loadDashboardData();
     } catch (err) { alert(err.message); }
+  }, [apiUrl, eventId, rsvps, loadDashboardData]);
+
+  const handleSendInvitations = useCallback(async () => {
+    if (!eventId) return;
+    const uninvited = rsvps.filter(g => g.email && g.email !== '-' && !g.invitation_sent).length;
+    const confirmMsg = uninvited > 0
+      ? `Send an email invitation (Accept / Decline / Maybe) to ${uninvited} guest${uninvited === 1 ? '' : 's'} who haven't been invited yet?`
+      : 'All guests with an email have already been invited. Re-send invitations to everyone?';
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/send-invitations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ resend: uninvited === 0 })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send invitations.');
+      alert(data.message);
+      loadDashboardData();
+    } catch (err) {
+      alert(err.message);
+    }
   }, [apiUrl, eventId, rsvps, loadDashboardData]);
 
   // Debounced authoritative reload — reconciles optimistic realtime updates with backend truth.
@@ -841,6 +868,7 @@ export default function DashboardPage() {
               onRefresh={loadDashboardData}
               onOpenAddGuest={() => setShowAddGuestModal(true)}
               onOpenImport={() => setShowImportModal(true)}
+              onSendInvitations={handleSendInvitations}
             />
           ) : activeTab === 'seating' ? (
             /* ═══ SEATING TAB ═══ */

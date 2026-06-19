@@ -26,7 +26,7 @@
   /* Tier 2 — Body & Buttons: Clean premium Sans-Serif */
   --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, sans-serif;
   /* Tier 3 — Logo / Brand Moments: High-end Luxury Script */
-  --font-script: var(--font-script, 'Great Vibes'), cursive;
+  --font-script: 'Great Vibes', cursive;
 }
 
 @theme inline {
@@ -308,4 +308,76 @@ h3 {
 .envelope-flap.is-closed {
   transform: rotateX(0deg);
   z-index: 25;
+}
+
+/* ═══ Premium Guest Experience Additions ═══ */
+
+@keyframes flipIn {
+  from { transform: rotateX(-90deg); opacity: 0; }
+  to { transform: rotateX(0deg); opacity: 1; }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(184, 148, 79, 0); }
+  50% { box-shadow: 0 0 30px rgba(184, 148, 79, 0.3); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scaleSpring {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Glassmorphism Utility */
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-dark {
+  background: rgba(25, 27, 30, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Skeleton Loading */
+.skeleton {
+  background: linear-gradient(90deg, #F0ECE3 25%, #F8F4EC 50%, #F0ECE3 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* Floating CTA */
+.floating-cta {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Enhanced Mobile Responsive */
+@media (max-width: 768px) {
+  .guest-hero { height: 55vh !important; }
+  .guest-grid-2col { grid-template-columns: 1fr !important; }
+  .guest-title-lg { font-size: 32px !important; }
+  .guest-countdown-digit { width: 56px !important; height: 64px !important; }
+  .guest-countdown-digit span { font-size: 28px !important; }
+  .attendance-cards-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 480px) {
+  .guest-hero { height: 45vh !important; }
+  .guest-title-lg { font-size: 26px !important; }
+  .guest-countdown-digit { width: 48px !important; height: 56px !important; }
 }

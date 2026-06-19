@@ -4,11 +4,13 @@ module.exports = {
       name: 'fancy-rsvp-backend',
       script: 'server.js',
       cwd: './backend',
+      // WARNING: Cluster mode requires sticky sessions for WebSocket connections.
+      // If WebSocket issues occur, switch to fork mode (instances: 1)
       instances: 2,
       exec_mode: 'cluster',
       autorestart: true,
       watch: false,
-      max_memory_restart: '1000M',
+      max_memory_restart: '500M',
       env: {
         NODE_ENV: 'production',
         PORT: 5000

@@ -135,7 +135,7 @@ const generateExcelExport = async (rsvps, tables, checkIns) => {
     checkinSheet.addRow({
       guest_name: guestName,
       checked_in_at: new Date(c.checked_in_at).toLocaleString(),
-      method: c.method === 'qr_scan' ? 'QR Code Scan' : 'Manual Search',
+      method: c.method === 'qr_scan' ? 'QR Code Scan' : c.method === 'self_service' ? 'Self-Service Kiosk' : 'Manual Search',
       party_count: c.party_count_arrived || 1,
       checked_in_by: c.checked_in_by || 'Staff'
     });

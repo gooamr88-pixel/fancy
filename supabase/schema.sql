@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS events (
     custom_colors JSONB DEFAULT '{}',
     custom_fonts JSONB DEFAULT '{}',
     template_data JSONB DEFAULT '{}',
-    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'paused', 'completed')),
+    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'pending_review', 'active', 'paused', 'completed')),
     is_paid BOOLEAN DEFAULT FALSE,
     manual_override BOOLEAN DEFAULT FALSE,
     event_type TEXT DEFAULT 'wedding',
@@ -144,18 +144,25 @@ CREATE TABLE IF NOT EXISTS rsvps (
     guest_name TEXT NOT NULL,
     email TEXT,
     phone TEXT,
-    response TEXT NOT NULL CHECK (response IN ('yes', 'no', 'pending')),
+    -- 'maybe' added by 20260618100000_rsvp_email_invitations (email Accept/Decline/Maybe).
+    response TEXT NOT NULL CHECK (response IN ('yes', 'no', 'maybe', 'pending')),
     -- Upper bound added by 20260616200000_party_size_bound (seating math trusts SUM).
     party_size INTEGER DEFAULT 1 CHECK (party_size BETWEEN 1 AND 20),
     notes TEXT,
     confirmation_email_sent BOOLEAN DEFAULT FALSE,
     qr_email_sent BOOLEAN DEFAULT FALSE,
+    -- Invitation + response provenance, added by 20260618100000_rsvp_email_invitations.
+    invitation_sent BOOLEAN DEFAULT FALSE,
+    invitation_sent_at TIMESTAMPTZ,
+    rsvp_at TIMESTAMPTZ,
+    response_source TEXT,   -- 'web' | 'email' | 'sms' | 'manual' | 'import'
     submitted_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
 CREATE INDEX IF NOT EXISTS idx_rsvps_event_response ON rsvps(event_id, response);
+CREATE INDEX IF NOT EXISTS idx_rsvps_event_invitation ON rsvps(event_id, invitation_sent);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_event_email_unique
   ON rsvps(event_id, email)
   WHERE response != 'no';

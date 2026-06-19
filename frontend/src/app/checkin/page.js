@@ -36,7 +36,7 @@ export default function CheckInPage() {
 
   useEffect(() => { if (typeof window !== 'undefined') { const orgId = localStorage.getItem('org_id'); const savedEventId = localStorage.getItem('active_event_id'); if (!orgId) { router.push('/login'); return; } if (savedEventId) setEventId(savedEventId); setAuthReady(true); setAuthChecked(true); } }, [router]);
 
-  useEffect(() => { if (!authReady) return; const fetchEvents = async () => { try { const res = await fetch(`${API_URL}/events`, { credentials: 'include' }); const data = await res.json(); if (data.success && data.events.length > 0) { setEvents(data.events); if (!eventId) setEventId(data.events[0].id); } else { if (!eventId) setEventId('demo-event'); } } catch (err) { if (!eventId) setEventId('demo-event'); } }; fetchEvents(); }, [eventId, authReady]);
+  useEffect(() => { if (!authReady) return; const fetchEvents = async () => { try { const res = await fetch(`${API_URL}/events`, { credentials: 'include' }); const data = await res.json(); if (data.success && data.events.length > 0) { setEvents(data.events); if (!eventId) setEventId(data.events[0].id); } else { if (!eventId) setEventId('demo-event'); } } catch (err) { if (!eventId) setEventId('demo-event'); } }; fetchEvents(); }, [authReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCheckInSummary = useCallback(async () => {
     if (!eventId || !authReady) return;
@@ -47,7 +47,7 @@ export default function CheckInPage() {
 
   useEffect(() => { if (eventId) fetchCheckInSummary(); }, [fetchCheckInSummary, eventId]);
 
-  useEffect(() => { if (!eventId || !authReady) return; if (!searchQuery.trim()) { setSearchResults([]); return; } const delaySearch = setTimeout(async () => { try { const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${searchQuery}`, { credentials: 'include' }); const data = await res.json(); if (data.success) setSearchResults(data.results); } catch (err) { /* search failed silently */ } }, 300); return () => clearTimeout(delaySearch); }, [searchQuery, eventId, authReady]);
+  useEffect(() => { if (!eventId || !authReady) return; if (!searchQuery.trim()) { setSearchResults([]); return; } const delaySearch = setTimeout(async () => { try { const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${encodeURIComponent(searchQuery)}`, { credentials: 'include' }); const data = await res.json(); if (data.success) setSearchResults(data.results); } catch (err) { /* search failed silently */ } }, 300); return () => clearTimeout(delaySearch); }, [searchQuery, eventId, authReady]);
 
   const handleManualCheckIn = async (rsvpId) => {
     if (!authReady) return;
@@ -179,7 +179,7 @@ export default function CheckInPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `1px solid ${C.border}`, paddingBottom: '16px' }}>
                 <div>
                   <h4 style={{ fontSize: '20px', fontWeight: 700, color: C.charcoal }}>{selectedGuest.guestName}</h4>
-                  <span style={{ fontSize: '11px', color: C.stone }}>{selectedGuest.response.toUpperCase()} RESPONSE</span>
+                  <span style={{ fontSize: '11px', color: C.stone }}>{(selectedGuest.response || '').toUpperCase()} RESPONSE</span>
                 </div>
                 <span style={{ padding: '4px 14px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, background: selectedGuest.isCheckedIn ? 'rgba(184,148,79,0.1)' : C.ivory, color: selectedGuest.isCheckedIn ? C.gold : C.stone, border: `1px solid ${selectedGuest.isCheckedIn ? 'rgba(184,148,79,0.2)' : C.border}` }}>
                   {selectedGuest.isCheckedIn ? '✅ Checked-In' : '⏳ Pending Arrival'}

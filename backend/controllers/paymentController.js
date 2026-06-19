@@ -1,10 +1,13 @@
+const crypto = require('crypto');
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 if (!STRIPE_SECRET_KEY) throw new Error('FATAL: STRIPE_SECRET_KEY environment variable is required');
 const stripe = require('stripe')(STRIPE_SECRET_KEY);
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
 const { computeSmsChargeCents } = require('../utils/pricing');
+const { fulfillCheckoutSession, handleChargeRefunded, handleDisputeEvent } = require('../services/paymentFulfillment');
 
 // FRONTEND_URL may be a comma-separated allowlist (see app.js CORS).
 const allowedReturnOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
@@ -51,9 +54,9 @@ const setOptionalColumns = async (table, match, fields) => {
   if (Object.keys(clean).length === 0) return;
   try {
     const { error } = await supabase.from(table).update(clean).match(match);
-    if (error) console.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${error.message}`);
+    if (error) logger.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${error.message}`);
   } catch (e) {
-    console.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${e.message}`);
+    logger.warn(`[optional-columns] '${table}' update skipped (run migration 20260616300000): ${e.message}`);
   }
 };
 
@@ -62,7 +65,11 @@ const setOptionalColumns = async (table, match, fields) => {
  * POST /api/v1/payments/create-checkout
  */
 const createCheckoutSession = async (req, res, next) => {
-  const { eventId, tierName } = req.body;
+  // SECURITY: the event is authorized by verifyEventOwner on the PATH param, so
+  // the operation MUST key off the same identifier. Trusting req.body.eventId
+  // (which ownership was never checked against) is an IDOR.
+  const eventId = req.params.eventId;
+  const { tierName } = req.body;
 
   if (!eventId || !tierName) {
     return res.status(400).json({
@@ -148,7 +155,10 @@ const createCheckoutSession = async (req, res, next) => {
         tier_name: tier.name,
         type: 'event_fee'
       },
-      success_url: `${resolveReturnBase(req)}/dashboard?payment=success&event=${eventId}`,
+      // Return the user to the WIZARD (not the dashboard) at the payment step, and
+      // carry session_id so the frontend can synchronously verify + show success
+      // even if the async webhook hasn't landed yet.
+      success_url: `${resolveReturnBase(req)}/dashboard/create-event?payment=success&event=${eventId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${resolveReturnBase(req)}/dashboard/create-event?payment=cancelled&event=${eventId}`
     });
 
@@ -166,7 +176,10 @@ const createCheckoutSession = async (req, res, next) => {
  * POST /api/v1/payments/sms-credits
  */
 const purchaseSMSCredits = async (req, res, next) => {
-  const { eventId, creditCount } = req.body;
+  // SECURITY: authorize and operate on the same (path) identifier — see note in
+  // createCheckoutSession. req.body.eventId is ignored.
+  const eventId = req.params.eventId;
+  const { creditCount } = req.body;
 
   if (!eventId || !creditCount || creditCount < 50 || creditCount > 50000) {
     return res.status(400).json({
@@ -246,7 +259,7 @@ const purchaseSMSCredits = async (req, res, next) => {
         type: 'sms_credits',
         credit_count: creditCount.toString()
       },
-      success_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=success&event=${eventId}`,
+      success_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=success&event=${eventId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${resolveReturnBase(req)}/dashboard/campaigns?purchase=cancelled&event=${eventId}`
     });
 
@@ -269,7 +282,7 @@ const stripeWebhook = async (req, res, next) => {
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    console.error('CRITICAL: STRIPE_WEBHOOK_SECRET is not configured!');
+    logger.error('CRITICAL: STRIPE_WEBHOOK_SECRET is not configured!');
     return res.status(500).json({ success: false, error: 'Webhook secret is not configured.' });
   }
 
@@ -280,94 +293,83 @@ const stripeWebhook = async (req, res, next) => {
       webhookSecret
     );
   } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
+    logger.error('Webhook signature verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   try {
+    // All write logic lives in the shared, idempotent fulfillment service so the
+    // webhook and the synchronous /verify endpoint can never diverge.
     if (stripeEvent.type === 'checkout.session.completed') {
-      const session = stripeEvent.data.object;
-      const { event_id, type } = session.metadata;
+      await fulfillCheckoutSession(stripeEvent.data.object);
+    } else if (stripeEvent.type === 'charge.refunded') {
+      await handleChargeRefunded(stripeEvent.data.object);
+    } else if (stripeEvent.type === 'charge.dispute.created' || stripeEvent.type === 'charge.dispute.updated' || stripeEvent.type === 'charge.dispute.closed') {
+      await handleDisputeEvent(stripeEvent.data.object);
+    }
+  } catch (processingErr) {
+    // Log the error but ALWAYS return 200 to Stripe — never let processing
+    // errors cause 500s which trigger Stripe's retry storm.
+    logger.error({ err: processingErr, eventType: stripeEvent.type }, 'Stripe webhook processing error');
+  }
 
-      if (type === 'event_fee') {
-        // Idempotency check: see if payment was already recorded
-        const { data: existingPayment } = await supabase
-          .from('event_payments')
-          .select('id')
-          .eq('stripe_checkout_session_id', session.id)
-          .limit(1);
+  return res.json({ received: true });
+};
 
-        if (existingPayment && existingPayment.length > 0) {
-          console.log(`[Webhook] Event fee checkout session already processed: ${session.id}`);
-          return res.json({ received: true });
-        }
+/**
+ * Synchronously confirms a Checkout Session on the browser redirect and applies
+ * the same idempotent fulfillment as the webhook. This makes the success UX
+ * independent of webhook timing/delivery: whichever path runs first wins, the
+ * other becomes a safe no-op.
+ * GET /api/v1/payments/verify?session_id=cs_...
+ */
+const verifyCheckoutSession = async (req, res, next) => {
+  const sessionId = req.query.session_id;
+  if (!sessionId || !/^cs_[A-Za-z0-9_]+$/.test(sessionId)) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'A valid session_id is required.' });
+  }
 
-        // Activate event
-        await supabase
-          .from('events')
-          .update({ is_paid: true, status: 'active', updated_at: new Date() })
-          .eq('id', event_id);
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-        // Record payment
-        const { error: insertError } = await supabase.from('event_payments').insert({
-          event_id,
-          stripe_checkout_session_id: session.id,
-          stripe_payment_intent_id: session.payment_intent,
-          amount_cents: session.amount_total,
-          currency: session.currency,
-          status: 'completed',
-          payment_method: 'stripe',
-          completed_at: new Date()
-        });
-
-        if (insertError) {
-          if (insertError.code === '23505' || insertError.message.includes('duplicate key')) {
-            console.log(`[Webhook] Duplicate checkout session insert caught: ${session.id}`);
-            return res.json({ received: true });
-          }
-          throw insertError;
-        }
-
-        // Audit log
-        await supabase.from('activity_logs').insert({
-          event_id,
-          action: 'event_payment_completed',
-          entity_type: 'event_payment',
-          metadata: { amount_cents: session.amount_total }
-        });
-
-      } else if (type === 'sms_credits') {
-        const creditCount = parseInt(session.metadata.credit_count);
-
-        // Single transactional RPC: ensures the wallet, writes the idempotency
-        // ledger row, and credits the wallet — all atomically. A duplicate
-        // delivery is caught inside the function (already_processed) and never
-        // double-credits; a mid-way failure rolls back fully for a clean retry.
-        const { data: purchaseResult, error: purchaseError } = await supabase
-          .rpc('record_sms_purchase', {
-            p_event_id: event_id,
-            p_credits: creditCount,
-            p_payment_intent: session.payment_intent
-          });
-
-        if (purchaseError) throw purchaseError;
-        if (purchaseResult && purchaseResult.success === false) {
-          throw new Error(`record_sms_purchase failed: ${purchaseResult.error}`);
-        }
-
-        // Audit log only on the first (newly credited) delivery
-        if (!purchaseResult?.already_processed) {
-          await supabase.from('activity_logs').insert({
-            event_id,
-            action: 'sms_credits_purchased',
-            entity_type: 'sms_wallet',
-            metadata: { credit_count: creditCount }
-          });
-        }
+    // Defense-in-depth: a valid session_id is effectively a bearer token (it lives
+    // in the user's own redirect URL), but we still confirm the authenticated
+    // caller owns the event this session belongs to — so a leaked/guessed id can't
+    // be used to probe another org's payment, or trigger fulfillment on their event.
+    const sessionEventId = session.metadata?.event_id;
+    if (sessionEventId && !req.user?.isSuperAdmin) {
+      const { data: ownerRow } = await supabase
+        .from('events')
+        .select('organizations(owner_user_id)')
+        .eq('id', sessionEventId)
+        .single();
+      const ownerId = ownerRow?.organizations?.owner_user_id;
+      if (ownerId !== req.user?.id) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'You do not have permission to verify this payment.' });
       }
     }
 
-    return res.json({ received: true });
+    if (session.payment_status !== 'paid') {
+      return res.status(200).json({
+        success: true,
+        paid: false,
+        status: session.payment_status,
+        type: session.metadata?.type || null,
+        eventId: session.metadata?.event_id || null,
+      });
+    }
+
+    const result = await fulfillCheckoutSession(session);
+
+    return res.status(200).json({
+      success: true,
+      paid: true,
+      type: result.type,
+      eventId: result.eventId,
+      alreadyProcessed: result.alreadyProcessed,
+      amountCents: session.amount_total,
+      creditCount: session.metadata?.credit_count ? parseInt(session.metadata.credit_count, 10) : undefined,
+    });
   } catch (err) {
     next(err);
   }
@@ -632,7 +634,7 @@ const initiateManualPayment = async (req, res, next) => {
     const refChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let refCode = 'CASH-';
     for (let i = 0; i < 6; i++) {
-      refCode += refChars.charAt(Math.floor(Math.random() * refChars.length));
+      refCode += refChars.charAt(crypto.randomInt(refChars.length));
     }
 
     // 4. Insert pending cash payment
@@ -707,6 +709,7 @@ module.exports = {
   createCheckoutSession,
   purchaseSMSCredits,
   stripeWebhook,
+  verifyCheckoutSession,
   manualCashApproval,
   updatePricingConfig,
   getPricingConfig,

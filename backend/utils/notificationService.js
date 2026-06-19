@@ -1,6 +1,12 @@
 const { supabase } = require('../config/supabase');
+const logger = require('./logger');
 const { generateTicketToken, generateQRCodeDataURL } = require('./qrHelper');
-const { getRSVPConfirmationTemplate, getQRTicketTemplate } = require('./emailTemplates');
+const { generateRsvpToken } = require('./rsvpToken');
+const { getRSVPConfirmationTemplate, getQRTicketTemplate, getInvitationTemplate } = require('./emailTemplates');
+
+/** Resolves the public frontend origin (FRONTEND_URL may be a comma-separated allowlist). */
+const getFrontendBase = () =>
+  (process.env.FRONTEND_URL || 'https://fancyrsvp.com').split(',')[0].trim().replace(/\/$/, '');
 
 /**
  * Sends a transactional email using Brevo's HTTP SMTP API.
@@ -11,7 +17,7 @@ const sendEmailViaBrevo = async (to, subject, htmlContent) => {
   const fromName = process.env.BREVO_FROM_NAME || 'Fancy RSVP';
 
   if (!apiKey) {
-    console.log(`[MOCK BREVO EMAIL] To: ${to} | Subject: ${subject}`);
+    logger.info(`[MOCK BREVO EMAIL] To: ${to} | Subject: ${subject}`);
     return true;
   }
 
@@ -38,7 +44,7 @@ const sendEmailViaBrevo = async (to, subject, htmlContent) => {
 
     return true;
   } catch (err) {
-    console.error('Brevo email delivery failure:', err);
+    logger.error({ err }, 'Brevo email delivery failure');
     return false;
   }
 };
@@ -65,7 +71,7 @@ const sendConfirmationEmail = async (eventId, rsvpId) => {
   }
 
   if (!rsvp.email) {
-    console.log(`[Notification Service] Guest ${rsvp.guest_name} has no email configured. Skipping confirmation email.`);
+    logger.info(`[Notification Service] Guest ${rsvp.guest_name} has no email configured. Skipping confirmation email.`);
     return false;
   }
 
@@ -91,7 +97,7 @@ const sendQRTicketEmail = async (eventId, rsvpId) => {
   // 1. Fetch assignment details
   const { data: assignment, error: assignError } = await supabase
     .from('seating_assignments')
-    .select('*, tables(table_name), rsvps(*), events(title, event_date)')
+    .select('*, tables(table_name), rsvps(*), events(id, title, event_date)')
     .eq('rsvp_id', rsvpId)
     .eq('event_id', eventId)
     .single();
@@ -117,7 +123,7 @@ const sendQRTicketEmail = async (eventId, rsvpId) => {
   const emailHtml = getQRTicketTemplate(assignment.rsvps, assignment.events, assignment.tables.table_name, qrDataURL);
 
   if (!assignment.rsvps.email) {
-    console.log(`[Notification Service] Guest ${assignment.rsvps.guest_name} has no email configured. Skipping QR Ticket email.`);
+    logger.info(`[Notification Service] Guest ${assignment.rsvps.guest_name} has no email configured. Skipping QR Ticket email.`);
     return false;
   }
 
@@ -141,8 +147,77 @@ const sendQRTicketEmail = async (eventId, rsvpId) => {
   return success;
 };
 
+/**
+ * Sends the guest invitation email with one-click Accept / Decline / Maybe
+ * buttons. Each button is a signed, per-guest link to the frontend RSVP
+ * confirmation page. Marks the RSVP as invited on success.
+ * Internal service method that does not depend on req/res.
+ *
+ * Returns { sent: boolean, reason?: string } so the bulk caller can aggregate.
+ */
+const sendInvitationEmail = async (eventId, rsvpId) => {
+  if (!rsvpId) throw new Error('rsvpId is required.');
+
+  const { data: rsvp, error: rsvpError } = await supabase
+    .from('rsvps')
+    .select('id, guest_name, email, events(id, title, event_date, slug, location_name, location_address, is_paid, status)')
+    .eq('id', rsvpId)
+    .eq('event_id', eventId)
+    .single();
+
+  if (rsvpError || !rsvp) throw new Error('RSVP_NOT_FOUND');
+
+  const event = rsvp.events;
+  if (!event) throw new Error('EVENT_NOT_FOUND');
+
+  // Invitations are only useful once the event page is live — the RSVP links
+  // resolve against status = 'active'. Refuse early so the organizer gets a
+  // clear reason instead of guests landing on a dead link.
+  if (!event.is_paid || event.status !== 'active') {
+    return { sent: false, reason: 'EVENT_NOT_LIVE' };
+  }
+
+  if (!rsvp.email) {
+    return { sent: false, reason: 'NO_EMAIL' };
+  }
+
+  const base = getFrontendBase();
+  const link = (response) => {
+    const token = generateRsvpToken({ rsvpId: rsvp.id, eventId: event.id, response });
+    return `${base}/rsvp?token=${encodeURIComponent(token)}`;
+  };
+
+  const links = {
+    accept: link('accepted'),
+    decline: link('declined'),
+    maybe: link('maybe'),
+    manage: link(undefined),
+  };
+
+  const html = getInvitationTemplate(rsvp, event, links);
+  const success = await sendEmailViaBrevo(rsvp.email, `You're Invited: ${event.title}`, html);
+
+  if (!success) return { sent: false, reason: 'DELIVERY_FAILED' };
+
+  await supabase
+    .from('rsvps')
+    .update({ invitation_sent: true, invitation_sent_at: new Date() })
+    .eq('id', rsvp.id);
+
+  await supabase.from('activity_logs').insert({
+    event_id: event.id,
+    action: 'invitation_email_sent',
+    entity_type: 'rsvp',
+    entity_id: rsvp.id,
+    metadata: { guest_name: rsvp.guest_name, email: rsvp.email }
+  }).then(() => {}).catch(() => {});
+
+  return { sent: true };
+};
+
 module.exports = {
   sendEmailViaBrevo,
   sendConfirmationEmail,
-  sendQRTicketEmail
+  sendQRTicketEmail,
+  sendInvitationEmail
 };

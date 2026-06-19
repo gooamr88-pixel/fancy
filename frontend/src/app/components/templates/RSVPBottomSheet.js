@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function RSVPBottomSheet({ isOpen, onClose, onSubmit, template }) {
-  const [attending, setAttending] = useState(true);
+export default function RSVPBottomSheet({ isOpen, onClose, onSubmit, template, initialAttending = true }) {
+  const [attending, setAttending] = useState(initialAttending);
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [message, setMessage] = useState("");
@@ -16,14 +16,8 @@ export default function RSVPBottomSheet({ isOpen, onClose, onSubmit, template })
   const decliningChips = ["Sad to miss it!", "Warmest wishes!", "Cheers to you both!"];
   const currentChips = attending ? attendingChips : decliningChips;
 
-  // Reset local state when opened
-  useEffect(() => {
-    if (isOpen) {
-      setIsSubmitting(false);
-      setIsSuccess(false);
-      // keep existing entries or reset to default
-    }
-  }, [isOpen]);
+  // No reset effect needed: MobilePreview remounts this sheet via `key={step}`
+  // each time it opens, so useState initializers above give a fresh form.
 
   const handleSubmit = (e) => {
     e.preventDefault();

@@ -21,6 +21,7 @@ export function useAuth() {
 
   // Cross-tab sync
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const handleStorage = (e) => {
       if (e.key === 'org_id') {
         const id = e.newValue;

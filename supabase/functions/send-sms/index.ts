@@ -74,9 +74,11 @@ serve(async (req) => {
     }
 
     // 3. Atomically verify and deduct credit using RPC
+    const idempotencyKey = `${eventId}:${to}:${Date.now()}`;
     const { data: deductResult, error: rpcError } = await supabase.rpc('deduct_sms_credit_atomic', {
       p_event_id: eventId,
-      p_phone: to
+      p_phone: to,
+      p_idempotency_key: idempotencyKey
     })
 
     if (rpcError || !deductResult) {

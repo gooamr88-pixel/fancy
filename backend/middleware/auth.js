@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
+const { getAccessContext } = require('../services/rbacService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -59,8 +60,35 @@ const extractToken = (req) => {
 };
 
 /**
+ * Validates a token's server-side session by its `jti` claim.
+ * Tokens issued before the sessions migration carry no `jti`; those are treated
+ * as legacy-valid until their natural 24h expiry so deploys don't force logouts.
+ * @returns {Promise<boolean>} true if the session is valid (or legacy)
+ */
+const isSessionValid = async (decoded) => {
+  if (!decoded.jti) return true; // legacy token — no server-side session row
+  try {
+    const { data, error } = await supabase
+      .from('sessions')
+      .select('revoked_at, expires_at')
+      .eq('jti', decoded.jti)
+      .maybeSingle();
+    if (error) return true; // fail-open on lookup error to avoid mass lockout; logged upstream
+    if (!data) return false; // jti present but no session → revoked/forged
+    if (data.revoked_at) return false;
+    if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) return false;
+    return true;
+  } catch {
+    return true;
+  }
+};
+
+/**
  * Middleware to enforce authentication.
- * Reads JWT from httpOnly cookie or Authorization header.
+ * Reads JWT from httpOnly cookie or Authorization header, validates any
+ * server-side session, then resolves a single cached RBAC access context
+ * (organizer + admin + permissions) — replacing the previous two uncached
+ * lookups (Master Plan B4 fix).
  */
 const requireAuth = async (req, res, next) => {
   const token = extractToken(req);
@@ -74,21 +102,31 @@ const requireAuth = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+    const userId = decoded.id || decoded.sub;
+
+    if (!(await isSessionValid(decoded))) {
+      return res.status(401).json({ success: false, error: 'SESSION_REVOKED', message: 'This session is no longer valid.' });
+    }
+
+    const access = await getAccessContext(userId);
+
+    // The account must still exist as an organizer or an admin.
+    if (!access.isOrganizer && !access.isAdmin) {
+      return res.status(401).json({ success: false, error: 'User no longer exists' });
+    }
+    // Banned organizers are denied platform access entirely.
+    if (access.isOrganizer && access.orgStatus === 'banned') {
+      return res.status(403).json({ success: false, error: 'ACCOUNT_BANNED', message: 'This account has been banned.' });
+    }
 
     req.user = {
-      id: decoded.id || decoded.sub,
+      id: userId,
       email: decoded.email,
-      role: decoded.role
+      role: decoded.role,
+      jti: decoded.jti || null,
+      access,
+      isSuperAdmin: access.isSuperAdmin, // backward-compat mirror for existing controllers
     };
-
-    // Check if the user is a super admin
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', req.user.id)
-      .single();
-
-    req.user.isSuperAdmin = (roleData?.role === 'super_admin');
 
     next();
   } catch (err) {
@@ -111,19 +149,16 @@ const optionalAuth = async (req, res, next) => {
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
     if (decoded) {
+      const userId = decoded.id || decoded.sub;
+      const access = await getAccessContext(userId);
       req.user = {
-        id: decoded.id || decoded.sub,
+        id: userId,
         email: decoded.email,
-        role: decoded.role
+        role: decoded.role,
+        jti: decoded.jti || null,
+        access,
+        isSuperAdmin: access.isSuperAdmin,
       };
-
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', req.user.id)
-        .single();
-
-      req.user.isSuperAdmin = (roleData?.role === 'super_admin');
     }
   } catch (e) {
     // Ignore errors for optional auth
@@ -135,7 +170,7 @@ const optionalAuth = async (req, res, next) => {
  * Middleware to restrict access to super administrators only.
  */
 const requireSuperAdmin = (req, res, next) => {
-  if (!req.user || !req.user.isSuperAdmin) {
+  if (!req.user || !req.user.access?.isSuperAdmin) {
     return res.status(403).json({
       success: false,
       error: 'FORBIDDEN',

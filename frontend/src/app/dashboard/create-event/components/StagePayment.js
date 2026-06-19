@@ -35,6 +35,7 @@ export default function StagePayment({
   tiers, manualMethods = [], selectedTierName, onSelectTier,
   onPayStripe, onPayManual, manualRef,
   processing, error, onContinue, onBack, onSkip,
+  paymentConfirmed = false, paymentNotice = '', verifying = false,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
   const [showManual, setShowManual] = useState(false);
@@ -68,6 +69,41 @@ export default function StagePayment({
           Choose a license tier and complete the one-time platform fee. Your event stays a private draft until paid.
         </p>
       </div>
+
+      {/* Post-Stripe return: verifying / success / notice banner */}
+      {verifying && (
+        <div style={{
+          background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.25)',
+          borderRadius: 12, padding: '14px 18px', marginBottom: 20,
+          fontFamily: 'var(--font-sans)', fontSize: 14, color: C.charcoal, fontWeight: 600,
+        }}>
+          ⏳ Confirming your payment…
+        </div>
+      )}
+
+      {!verifying && paymentConfirmed && (
+        <div style={{
+          background: 'rgba(59,155,109,0.07)', border: '1px solid rgba(59,155,109,0.3)',
+          borderRadius: 12, padding: '18px 20px', marginBottom: 20,
+        }}>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 15, color: C.success, margin: '0 0 4px', fontWeight: 800 }}>
+            ✓ Payment received
+          </p>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, margin: 0, lineHeight: 1.6 }}>
+            {paymentNotice || 'Your event is now under review. It goes live to guests once approved; you can keep setting it up in the meantime.'}
+          </p>
+        </div>
+      )}
+
+      {!verifying && !paymentConfirmed && paymentNotice && (
+        <div style={{
+          background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.25)',
+          borderRadius: 12, padding: '14px 18px', marginBottom: 20,
+          fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal, fontWeight: 600, lineHeight: 1.6,
+        }}>
+          {paymentNotice}
+        </div>
+      )}
 
       {/* Tier cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
@@ -131,7 +167,7 @@ export default function StagePayment({
       )}
 
       {/* Payment method selection */}
-      {!manualRef && (
+      {!manualRef && !paymentConfirmed && (
         <>
           {!showManual ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
@@ -286,17 +322,22 @@ export default function StagePayment({
             }}>
               Skip &amp; pay later
             </button>
-            <button onClick={onContinue} disabled={processing || !manualRef} style={{
+            {(() => {
+            const canContinue = !processing && (manualRef || paymentConfirmed);
+            return (
+            <button onClick={onContinue} disabled={!canContinue} style={{
               height: 52, padding: '0 32px',
-              background: (processing || !manualRef) ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
+              background: !canContinue ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
               color: C.white, border: 'none', borderRadius: 14,
               fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
-              cursor: (processing || !manualRef) ? 'not-allowed' : 'pointer',
+              cursor: !canContinue ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 8,
             }}>
               Continue
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6" /></svg>
             </button>
+            );
+            })()}
           </div>
         </div>
       </div>

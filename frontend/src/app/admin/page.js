@@ -36,6 +36,7 @@ const dateTime = (d) => d ? new Date(d).toLocaleString(undefined, { month: 'shor
 
 const STATUS_COLORS = {
   active: { bg: 'rgba(16,185,129,0.1)', fg: D.emerald, br: 'rgba(16,185,129,0.2)' },
+  pending_review: { bg: 'rgba(245,158,11,0.12)', fg: D.amber, br: 'rgba(245,158,11,0.25)' },
   draft: { bg: 'rgba(255,255,255,0.04)', fg: D.text300, br: D.cardBorder },
   paused: { bg: 'rgba(245,158,11,0.1)', fg: D.amber, br: 'rgba(245,158,11,0.2)' },
   completed: { bg: 'rgba(56,189,248,0.1)', fg: D.sky, br: 'rgba(56,189,248,0.2)' },
@@ -103,6 +104,7 @@ export default function AdminPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const [authChecked, setAuthChecked] = useState(false);
+  const [adminVerified, setAdminVerified] = useState(false);
   const [bootError, setBootError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -169,7 +171,7 @@ export default function AdminPage() {
         }
         try {
           const data = await res.json();
-          if (data.success) { setOverview(data.overview); setLoadedTabs(p => ({ ...p, overview: true })); }
+          if (data.success) { setOverview(data.overview); setLoadedTabs(p => ({ ...p, overview: true })); setAdminVerified(true); }
         } catch { /* ignore */ }
         setAuthChecked(true);
       })
@@ -342,7 +344,7 @@ export default function AdminPage() {
   };
 
   // ── Loading / boot states ──
-  if (!authChecked) {
+  if (!authChecked || !adminVerified) {
     return (
       <div style={{ minHeight: '100vh', background: D.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
@@ -453,7 +455,7 @@ export default function AdminPage() {
                     <Td>
                       <select value={event.status || 'draft'} disabled={busy} onChange={e => handleStatusChange(event.id, e.target.value)}
                         style={{ ...inputStyle, width: 'auto', padding: '6px 8px', fontSize: '12px', cursor: 'pointer' }}>
-                        {['draft', 'active', 'paused', 'completed'].map(s => <option key={s} value={s}>{s}</option>)}
+                        {['draft', 'pending_review', 'active', 'paused', 'completed'].map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </Td>
                     <Td>
@@ -465,6 +467,9 @@ export default function AdminPage() {
                     </Td>
                     <Td align="right">
                       <div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {event.status === 'pending_review' && (
+                          <button disabled={busy} style={btn('primary')} onClick={() => handleStatusChange(event.id, 'active')}>Approve &amp; go live</button>
+                        )}
                         {!event.is_paid && (
                           <button disabled={busy} style={btn('primary')} onClick={() => setApproval({ event, amountCents: pending ? pending.amount_cents : 7900 })}>Approve Cash</button>
                         )}

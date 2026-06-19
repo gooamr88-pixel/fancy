@@ -97,18 +97,21 @@ const scanCheckIn = async (req, res, next) => {
 
     // Broadcast checkin event via Realtime
     const scanChannel = supabase.channel(`event-${eventId}`);
-    await scanChannel.send({
-      type: 'broadcast',
-      event: 'checkin_update',
-      payload: {
-        rsvpId: guest_id,
-        guestName: rsvp?.guest_name,
-        partySize: party_size,
-        tableName: table_name,
-        method: 'qr_scan'
-      }
-    });
-    supabase.removeChannel(scanChannel);
+    try {
+      await scanChannel.send({
+        type: 'broadcast',
+        event: 'checkin_update',
+        payload: {
+          rsvpId: guest_id,
+          guestName: rsvp?.guest_name,
+          partySize: party_size,
+          tableName: table_name,
+          method: 'qr_scan'
+        }
+      });
+    } finally {
+      supabase.removeChannel(scanChannel);
+    }
 
     return res.status(200).json({
       success: true,
@@ -186,18 +189,21 @@ const manualCheckIn = async (req, res, next) => {
 
     // Broadcast checkin event via Realtime
     const manualChannel = supabase.channel(`event-${eventId}`);
-    await manualChannel.send({
-      type: 'broadcast',
-      event: 'checkin_update',
-      payload: {
-        rsvpId,
-        guestName: guestData.guest_name,
-        partySize: guestData.party_size,
-        tableName,
-        method: 'manual_search'
-      }
-    });
-    supabase.removeChannel(manualChannel);
+    try {
+      await manualChannel.send({
+        type: 'broadcast',
+        event: 'checkin_update',
+        payload: {
+          rsvpId,
+          guestName: guestData.guest_name,
+          partySize: guestData.party_size,
+          tableName,
+          method: 'manual_search'
+        }
+      });
+    } finally {
+      supabase.removeChannel(manualChannel);
+    }
 
     return res.status(200).json({
       success: true,
@@ -363,26 +369,7 @@ const selfCheckIn = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'NAME_MISMATCH', message: 'Guest name does not match the RSVP record.' });
     }
 
-    // 3. Check if already checked in
-    const { data: existingCheckIn } = await supabase
-      .from('check_ins')
-      .select('id, checked_in_at')
-      .eq('event_id', event.id)
-      .eq('rsvp_id', rsvpId)
-      .single();
-
-    if (existingCheckIn) {
-      const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
-      return res.status(409).json({
-        success: false,
-        error: 'ALREADY_CHECKED_IN',
-        message: `You are already checked in.`,
-        checkedInAt: existingCheckIn.checked_in_at,
-        tableName
-      });
-    }
-
-    // 4. Perform check-in
+    // 3. Perform check-in (insert directly, handle duplicate via DB UNIQUE constraint)
     const { data: checkInData, error: checkInError } = await supabase
       .from('check_ins')
       .insert({
@@ -396,6 +383,24 @@ const selfCheckIn = async (req, res, next) => {
       .single();
 
     if (checkInError) {
+      // Handle duplicate check-in (UNIQUE constraint violation)
+      if (checkInError.code === '23505') {
+        const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
+        const { data: existingCheckIn } = await supabase
+          .from('check_ins')
+          .select('id, checked_in_at')
+          .eq('event_id', event.id)
+          .eq('rsvp_id', rsvpId)
+          .single();
+
+        return res.status(409).json({
+          success: false,
+          error: 'ALREADY_CHECKED_IN',
+          message: `You are already checked in.`,
+          checkedInAt: existingCheckIn?.checked_in_at,
+          tableName
+        });
+      }
       return res.status(500).json({ success: false, error: 'CHECKIN_FAILED' });
     }
 
@@ -403,18 +408,21 @@ const selfCheckIn = async (req, res, next) => {
 
     // Broadcast checkin event via Realtime
     const selfChannel = supabase.channel(`event-${event.id}`);
-    await selfChannel.send({
-      type: 'broadcast',
-      event: 'checkin_update',
-      payload: {
-        rsvpId,
-        guestName: rsvp.guest_name,
-        partySize: rsvp.party_size,
-        tableName,
-        method: 'self_service'
-      }
-    });
-    supabase.removeChannel(selfChannel);
+    try {
+      await selfChannel.send({
+        type: 'broadcast',
+        event: 'checkin_update',
+        payload: {
+          rsvpId,
+          guestName: rsvp.guest_name,
+          partySize: rsvp.party_size,
+          tableName,
+          method: 'self_service'
+        }
+      });
+    } finally {
+      supabase.removeChannel(selfChannel);
+    }
 
     return res.status(200).json({
       success: true,

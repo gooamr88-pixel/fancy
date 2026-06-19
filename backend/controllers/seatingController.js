@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 const notificationService = require('../utils/notificationService');
 
 /**
@@ -29,7 +30,7 @@ const assignSeat = async (req, res, next) => {
     });
 
     if (error) {
-      console.error('Database RPC error:', error);
+      logger.error({ err: error }, 'Database RPC error in assignSeat');
       return res.status(500).json({
         success: false,
         error: 'DATABASE_ERROR',
@@ -47,22 +48,25 @@ const assignSeat = async (req, res, next) => {
 
     // Broadcast the update using Supabase Realtime channel
     const channel = supabase.channel(`event-${eventId}`);
-    await channel.send({
-        type: 'broadcast',
-        event: 'seating_update',
-        payload: {
-          rsvpId,
-          tableId,
-          seatsRemaining: data.seats_remaining
-        }
-      });
-    supabase.removeChannel(channel);
+    try {
+      await channel.send({
+          type: 'broadcast',
+          event: 'seating_update',
+          payload: {
+            rsvpId,
+            tableId,
+            seatsRemaining: data.seats_remaining
+          }
+        });
+    } finally {
+      supabase.removeChannel(channel);
+    }
 
     // Auto-fire QR ticket email on successful seating assignment
     try {
       await notificationService.sendQRTicketEmail(eventId, rsvpId);
     } catch (emailErr) {
-      console.error(`Failed to auto-send QR ticket email for RSVP ${rsvpId}:`, emailErr.message);
+      logger.error({ err: emailErr, rsvpId }, 'Failed to auto-send QR ticket email');
     }
 
     return res.status(200).json({
@@ -102,7 +106,7 @@ const reassignSeat = async (req, res, next) => {
     });
 
     if (error) {
-      console.error('Database RPC error:', error);
+      logger.error({ err: error }, 'Database RPC error in reassignSeat');
       return res.status(500).json({
         success: false,
         error: 'DATABASE_ERROR',
@@ -120,23 +124,26 @@ const reassignSeat = async (req, res, next) => {
 
     // Broadcast the update using Supabase Realtime channel
     const channel = supabase.channel(`event-${eventId}`);
-    await channel.send({
-        type: 'broadcast',
-        event: 'seating_update',
-        payload: {
-          rsvpId,
-          fromTable: data.from_table,
-          toTable: data.to_table,
-          seatsRemainingNewTable: data.seats_remaining_new_table
-        }
-      });
-    supabase.removeChannel(channel);
+    try {
+      await channel.send({
+          type: 'broadcast',
+          event: 'seating_update',
+          payload: {
+            rsvpId,
+            fromTable: data.from_table,
+            toTable: data.to_table,
+            seatsRemainingNewTable: data.seats_remaining_new_table
+          }
+        });
+    } finally {
+      supabase.removeChannel(channel);
+    }
 
     // Auto-fire updated QR ticket email on successful reassignment
     try {
       await notificationService.sendQRTicketEmail(eventId, rsvpId);
     } catch (emailErr) {
-      console.error(`Failed to auto-send updated QR ticket email for RSVP ${rsvpId}:`, emailErr.message);
+      logger.error({ err: emailErr, rsvpId }, 'Failed to auto-send updated QR ticket email');
     }
 
     return res.status(200).json({
@@ -174,7 +181,7 @@ const unassignSeat = async (req, res, next) => {
     });
 
     if (error) {
-      console.error('Database RPC error:', error);
+      logger.error({ err: error }, 'Database RPC error in unassignSeat');
       return res.status(500).json({
         success: false,
         error: 'DATABASE_ERROR',
@@ -192,16 +199,19 @@ const unassignSeat = async (req, res, next) => {
 
     // Broadcast the update using Supabase Realtime channel
     const channel = supabase.channel(`event-${eventId}`);
-    await channel.send({
-        type: 'broadcast',
-        event: 'seating_update',
-        payload: {
-          rsvpId,
-          tableId: '',
-          seatsRemaining: data.seats_remaining
-        }
-      });
-    supabase.removeChannel(channel);
+    try {
+      await channel.send({
+          type: 'broadcast',
+          event: 'seating_update',
+          payload: {
+            rsvpId,
+            tableId: '',
+            seatsRemaining: data.seats_remaining
+          }
+        });
+    } finally {
+      supabase.removeChannel(channel);
+    }
 
     // Auto-fire updated ticket email (no seating details / unseated notice if needed, or skip)
     // For now we don't need to auto-fire a ticket since they are unseated, but they can be notified.
@@ -295,15 +305,18 @@ const saveSeatingBatch = async (req, res, next) => {
 
     // 3. Broadcast seating_update event to Supabase Realtime channel
     const channel = supabase.channel(`event-${eventId}`);
-    await channel.send({
-      type: 'broadcast',
-      event: 'seating_update',
-      payload: {
-        batch: true,
-        results
-      }
-    });
-    supabase.removeChannel(channel);
+    try {
+      await channel.send({
+        type: 'broadcast',
+        event: 'seating_update',
+        payload: {
+          batch: true,
+          results
+        }
+      });
+    } finally {
+      supabase.removeChannel(channel);
+    }
 
     // Check if there was any failure in the batch
     const failures = results.filter(r => !r.success);

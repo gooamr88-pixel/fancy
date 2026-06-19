@@ -1,5 +1,6 @@
 const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 const notificationService = require('../utils/notificationService');
 
 /**
@@ -64,6 +65,16 @@ const sendSMSInvitation = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'rsvpId, phoneNumber, and messageTemplate are required.' });
   }
 
+  // Reject malformed numbers up front (E.164) so we never run the
+  // deduct → send → refund round-trip just to have Twilio reject the number.
+  if (!/^\+[1-9]\d{1,14}$/.test(String(phoneNumber).trim())) {
+    return res.status(400).json({
+      success: false,
+      error: 'INVALID_PHONE_NUMBER',
+      message: 'phoneNumber must be in E.164 format (e.g. +15551234567).'
+    });
+  }
+
   // 1. Prepare message body (Append platform branding)
   let brandedBody = messageTemplate;
   const branding = " — Fancy RSVP";
@@ -92,7 +103,7 @@ const sendSMSInvitation = async (req, res, next) => {
 
     if (!twilio) {
       // Mock mode: update ledger to denote simulated send success
-      console.log(`[MOCK SMS] To: ${phoneNumber} | Content: ${brandedBody}`);
+      logger.info(`[MOCK SMS] To: ${phoneNumber} | Content: ${brandedBody}`);
       
       const mockSid = `mock-sid-${Date.now()}-${rsvpId}`;
       await supabase
@@ -128,7 +139,7 @@ const sendSMSInvitation = async (req, res, next) => {
       });
     } catch (sendErr) {
       // 5. Refund credits on transmission failure
-      console.error(`SMS send transmission failure, initiating refund: ${sendErr.message}`);
+      logger.error({ err: sendErr }, 'SMS send transmission failure, initiating refund');
       await supabase.rpc('refund_sms_credit_atomic', {
         p_wallet_id: wallet_id,
         p_event_id: eventId,
@@ -138,7 +149,7 @@ const sendSMSInvitation = async (req, res, next) => {
       return res.status(500).json({
         success: false,
         error: 'SMS_TRANSMISSION_FAILED',
-        message: `Failed to deliver SMS: ${sendErr.message}`
+        message: 'Failed to deliver SMS. Please try again later.'
       });
     }
   } catch (err) {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, memo } from 'react';
-import { isAccepted, isDeclined } from '../../utils/responseHelpers';
+import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -37,7 +37,8 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
   const [expanded, setExpanded] = useState(false);
   const yes = isAccepted(guest.response);
   const no = isDeclined(guest.response);
-  const accentColor = yes ? COLORS.gold : no ? '#C45E5E' : COLORS.stone;
+  const maybe = isMaybe(guest.response);
+  const accentColor = yes ? COLORS.gold : no ? '#C45E5E' : maybe ? '#6366F1' : COLORS.stone;
 
   const initials = guest.guest_name
     ? guest.guest_name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -60,7 +61,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
       {/* Avatar */}
       <div style={{
         width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
-        background: yes ? 'rgba(184,148,79,0.12)' : no ? 'rgba(196,94,94,0.1)' : 'rgba(119,115,106,0.1)',
+        background: yes ? 'rgba(184,148,79,0.12)' : no ? 'rgba(196,94,94,0.1)' : maybe ? 'rgba(99,102,241,0.1)' : 'rgba(119,115,106,0.1)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontWeight: 800, fontSize: '14px', color: accentColor, fontFamily: 'var(--font-sans)',
       }}>{initials}</div>
@@ -74,7 +75,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
           </span>
           <span style={{
             padding: '2px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, flexShrink: 0,
-            background: yes ? 'rgba(184,148,79,0.1)' : no ? 'rgba(196,94,94,0.08)' : 'rgba(119,115,106,0.1)',
+            background: yes ? 'rgba(184,148,79,0.1)' : no ? 'rgba(196,94,94,0.08)' : maybe ? 'rgba(99,102,241,0.1)' : 'rgba(119,115,106,0.1)',
             color: accentColor, fontFamily: 'var(--font-sans)', textTransform: 'uppercase',
           }}>
             {(guest.response || 'pending').toUpperCase()}
@@ -201,16 +202,25 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
 });
 
 /* ── Main Component ── */
-export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport }) {
+export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onSendInvitations }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [inviting, setInviting] = useState(false);
 
   const counts = useMemo(() => {
     const total = rsvps.reduce((sum, r) => sum + (r.party_size || 1), 0);
     const acceptedRsvps = rsvps.filter(r => isAccepted(r.response));
     const seated = acceptedRsvps.filter(r => r.tableId).reduce((sum, r) => sum + (r.party_size || 1), 0);
-    const unseated = acceptedRsvps.filter(r => !r.tableId).reduce((sum, r) => sum + (r.party_size || 1), 0);
-    return { total, accepted: acceptedRsvps.length, seated, unseated };
+    return {
+      total,
+      parties: rsvps.length,
+      invited: rsvps.filter(r => r.invitation_sent).length,
+      accepted: acceptedRsvps.length,
+      declined: rsvps.filter(r => isDeclined(r.response)).length,
+      maybe: rsvps.filter(r => isMaybe(r.response)).length,
+      pending: rsvps.filter(r => !isAccepted(r.response) && !isDeclined(r.response) && !isMaybe(r.response)).length,
+      seated,
+    };
   }, [rsvps]);
 
   const filtered = useMemo(() => {
@@ -225,13 +235,21 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
       switch (filter) {
         case 'attending': return isAccepted(r.response);
         case 'declined': return isDeclined(r.response);
-        case 'pending': return !isAccepted(r.response) && !isDeclined(r.response);
+        case 'maybe': return isMaybe(r.response);
+        case 'pending': return !isAccepted(r.response) && !isDeclined(r.response) && !isMaybe(r.response);
         case 'seated': return isAccepted(r.response) && !!r.tableId;
         case 'unseated': return isAccepted(r.response) && !r.tableId;
         default: return true;
       }
     });
   }, [rsvps, search, filter]);
+
+  const handleInvite = useCallback(async () => {
+    if (!onSendInvitations || inviting) return;
+    setInviting(true);
+    try { await onSendInvitations(); }
+    finally { setInviting(false); }
+  }, [onSendInvitations, inviting]);
 
   if (!eventId) {
     return (
@@ -282,17 +300,34 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import CSV
           </button>
+          {onSendInvitations && (
+            <button onClick={handleInvite} disabled={inviting} title="Email an Accept / Decline / Maybe invitation to guests who haven't been invited yet" style={{
+              padding: '9px 18px', background: COLORS.charcoal, color: COLORS.white, border: 'none',
+              borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+              cursor: inviting ? 'default' : 'pointer', opacity: inviting ? 0.7 : 1,
+              transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              {inviting ? 'Sending…' : 'Send Invitations'}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Stats Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>
         <StatMini accent={COLORS.gold} value={counts.total} label="Total Guests"
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>} />
-        <StatMini accent="#22C55E" value={counts.seated} label="Seated Guests"
+        <StatMini accent="#0EA5E9" value={counts.invited} label="Invitations Sent"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>} />
+        <StatMini accent="#22C55E" value={counts.accepted} label="Accepted"
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7"/></svg>} />
-        <StatMini accent="#F59E0B" value={counts.unseated} label="Need Seating"
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>} />
+        <StatMini accent="#C45E5E" value={counts.declined} label="Declined"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>} />
+        <StatMini accent="#6366F1" value={counts.maybe} label="Maybe"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>} />
+        <StatMini accent="#77736A" value={counts.pending} label="Pending"
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>} />
       </div>
 
       {/* Search + Filter */}
@@ -309,8 +344,9 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
         </div>
         <select value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
           <option value="all">All Guests</option>
-          <option value="attending">Attending</option>
+          <option value="attending">Accepted</option>
           <option value="declined">Declined</option>
+          <option value="maybe">Maybe</option>
           <option value="pending">Pending</option>
           <option value="seated">Seated</option>
           <option value="unseated">Unseated</option>

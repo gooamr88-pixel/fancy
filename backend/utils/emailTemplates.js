@@ -223,6 +223,99 @@ const getDeclineConfirmationTemplate = (rsvp, event) => {
 };
 
 /**
+ * Generates the guest INVITATION email with one-click Accept / Decline / Maybe
+ * buttons. Each `links.{accept,decline,maybe}` is a signed, per-guest URL to the
+ * frontend RSVP confirmation page (see backend/utils/rsvpToken.js). The buttons
+ * lead to a confirmation page rather than recording on click, so email security
+ * scanners that pre-fetch links cannot register a false response.
+ */
+const getInvitationTemplate = (rsvp, event, links) => {
+  const hasDate = !!event.event_date;
+  const formattedDate = hasDate
+    ? new Date(event.event_date).toLocaleDateString(undefined, {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      })
+    : null;
+
+  const locationLine = event.location_name || event.location_address || null;
+
+  const detailRow = (label, value) => value
+    ? `<tr>
+         <td style="padding: 6px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; width: 90px; vertical-align: top;">${label}</td>
+         <td style="padding: 6px 0; font-size: 15px; color: #0f172a;">${escapeHtml(value)}</td>
+       </tr>`
+    : '';
+
+  // A button factory keeps the three CTAs visually consistent.
+  const button = (href, bg, color, label) => `
+    <td align="center" style="padding: 0 6px;">
+      <a href="${href}" target="_blank" rel="noopener" style="display: inline-block; background-color: ${bg}; color: ${color}; font-size: 14px; font-weight: 700; text-decoration: none; padding: 13px 22px; border-radius: 8px; letter-spacing: 0.04em; border: 1px solid ${bg === '#ffffff' ? '#e2e8f0' : bg};">${label}</a>
+    </td>`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>You're Invited – ${escapeHtml(event.title)}</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 0;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+          <!-- Header Banner -->
+          <tr>
+            <td align="center" style="background-color: #0f172a; padding: 40px 20px;">
+              <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.25em; color: #fbbf24; font-weight: bold; display: block; margin-bottom: 8px;">YOU'RE INVITED</span>
+              <h1 style="color: #ffffff; font-size: 26px; font-weight: 300; margin: 0; letter-spacing: 0.05em;">${escapeHtml(event.title)}</h1>
+            </td>
+          </tr>
+          <!-- Body Content -->
+          <tr>
+            <td style="padding: 36px 30px 12px;">
+              <p style="font-size: 16px; color: #334155; margin-top: 0; line-height: 1.6;">Dear <strong>${escapeHtml(rsvp.guest_name)}</strong>,</p>
+              <p style="font-size: 15px; color: #475569; line-height: 1.6;">You are warmly invited to join us. Kindly let us know whether you'll be able to attend by selecting one of the options below.</p>
+
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 10px; margin: 22px 0; padding: 16px 20px;">
+                ${detailRow('Event', event.title)}
+                ${detailRow('Date', formattedDate)}
+                ${detailRow('Where', locationLine)}
+              </table>
+            </td>
+          </tr>
+          <!-- RSVP Buttons -->
+          <tr>
+            <td style="padding: 4px 24px 8px;">
+              <p style="font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; text-align: center; margin: 0 0 14px;">Will you attend?</p>
+              <table border="0" cellpadding="0" cellspacing="0" align="center" style="margin: 0 auto;">
+                <tr>
+                  ${button(links.accept, '#10b981', '#ffffff', '✓ Accept')}
+                  ${button(links.maybe, '#ffffff', '#0f172a', 'Maybe')}
+                  ${button(links.decline, '#ef4444', '#ffffff', '✕ Decline')}
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 18px 30px 36px;">
+              <p style="font-size: 13px; color: #94a3b8; line-height: 1.6; text-align: center; margin: 0;">
+                You can change your response at any time before the RSVP deadline using the same buttons. If the buttons don't work, copy and paste this link into your browser:<br/>
+                <a href="${links.accept}" style="color: #64748b; word-break: break-all;">${links.manage || links.accept}</a>
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="background-color: #f8fafc; border-top: 1px solid #f1f5f9; padding: 25px 20px; font-size: 12px; color: #94a3b8;">
+              Sent via Fancy RSVP on behalf of the event organizer.
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+};
+
+/**
  * Generates an email body confirming offline/cash payment approval.
  */
 const getCashPaymentApprovedTemplate = (orgName, eventTitle, refNumber, amountCents) => {
@@ -289,5 +382,6 @@ module.exports = {
   getRSVPConfirmationTemplate,
   getQRTicketTemplate,
   getDeclineConfirmationTemplate,
+  getInvitationTemplate,
   getCashPaymentApprovedTemplate
 };

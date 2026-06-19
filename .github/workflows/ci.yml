@@ -17,10 +17,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22  # NOTE: deployment README targets Node 20 LTS — keep in sync
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=high || true
       - run: npm test
 
   frontend:
@@ -33,10 +34,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22  # NOTE: deployment README targets Node 20 LTS — keep in sync
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=high || true
       # Advisory only: the project carries pre-existing lint debt (unescaped
       # entities, set-state-in-effect). Surface it without failing the pipeline;
       # the build below is the real gate. Flip to blocking once the debt is paid.

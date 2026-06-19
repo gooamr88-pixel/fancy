@@ -235,9 +235,12 @@ export default function SeatingMapPage() {
   const [view, setView] = useState({ scale: 0.4, tx: 60, ty: 40 });
   const [containerSize, setContainerSize] = useState({ w: 900, h: 560 });
   const [dragPos, setDragPos] = useState(null);          // { id, x, y } during element move
+  const dragPosRef = useRef(null);                       // mirrors dragPos for pointerup closure
   const [dragOverId, setDragOverId] = useState(null);
   const [panning, setPanning] = useState(false);
   const interaction = useRef(null);                      // { mode, id, ... }
+  const movedIdsRef = useRef(new Set());                 // mirrors movedIds for loadLayout merge
+  const dirtyGeometryRef = useRef({});                   // id -> { width, height, rotation } unsaved
 
   const selected = useMemo(() => elements.find(e => e.id === selectedId) || null, [elements, selectedId]);
 
@@ -251,7 +254,11 @@ export default function SeatingMapPage() {
     setAuthChecked(true);
   }, [router]);
 
-  /* ── load elements + summary ── */
+  /* ── keep refs in sync ── */
+  useEffect(() => { dragPosRef.current = dragPos; }, [dragPos]);
+  useEffect(() => { movedIdsRef.current = movedIds; }, [movedIds]);
+
+  /* ── load elements + summary (merges with local dirty state) ── */
   const loadLayout = useCallback(async () => {
     if (!eventId) return;
     try {
@@ -260,7 +267,32 @@ export default function SeatingMapPage() {
         fetch(`${API_URL}/events/${eventId}/seating/summary`, { credentials: 'include' }),
       ]);
       const tData = await tRes.json();
-      if (tData.success) setElements(tData.tables || []);
+      if (tData.success) {
+        const serverElements = tData.tables || [];
+        setElements(prev => {
+          const dirty = movedIdsRef.current;
+          const geo = dirtyGeometryRef.current;
+          // If nothing is dirty locally, fast-path replace
+          if (dirty.size === 0 && Object.keys(geo).length === 0) return serverElements;
+          // Build overlay of local unsaved changes keyed by id
+          const localOverrides = {};
+          prev.forEach(el => {
+            const overrides = {};
+            if (dirty.has(el.id)) {
+              overrides.position_x = el.position_x;
+              overrides.position_y = el.position_y;
+            }
+            if (geo[el.id]) {
+              Object.assign(overrides, geo[el.id]);
+            }
+            if (Object.keys(overrides).length > 0) localOverrides[el.id] = overrides;
+          });
+          // Merge: server data + local dirty overrides
+          return serverElements.map(el =>
+            localOverrides[el.id] ? { ...el, ...localOverrides[el.id] } : el
+          );
+        });
+      }
       const sData = await sRes.json().catch(() => ({}));
       if (sData.success) setSummary(sData.summary);
       setError(null);
@@ -326,8 +358,7 @@ export default function SeatingMapPage() {
     } else {
       setInspectName(''); setInspectCapacity('');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  }, [selected]);
 
   /* ── fetch selected table's seated guests ── */
   useEffect(() => {
@@ -430,7 +461,9 @@ export default function SeatingMapPage() {
       } else if (it.mode === 'move') {
         const dx = (e.clientX - it.startX) / view.scale / WORLD_W * 100;
         const dy = (e.clientY - it.startY) / view.scale / WORLD_H * 100;
-        setDragPos({ id: it.id, x: clamp(it.origX + dx, 0, 97), y: clamp(it.origY + dy, 0, 97) });
+        const newPos = { id: it.id, x: clamp(it.origX + dx, 0, 97), y: clamp(it.origY + dy, 0, 97) };
+        dragPosRef.current = newPos;
+        setDragPos(newPos);
       } else if (it.mode === 'resize') {
         const dw = (e.clientX - it.startX) / view.scale;
         const dh = (e.clientY - it.startY) / view.scale;
@@ -447,21 +480,28 @@ export default function SeatingMapPage() {
       interaction.current = null;
       setPanning(false);
       if (!it) return;
-      if (it.mode === 'move' && dragPos && dragPos.id === it.id) {
-        setElements(prev => prev.map(el => el.id === it.id ? { ...el, position_x: dragPos.x, position_y: dragPos.y } : el));
+      // Read latest dragPos from ref (not stale closure value)
+      const currentDragPos = dragPosRef.current;
+      if (it.mode === 'move' && currentDragPos && currentDragPos.id === it.id) {
+        setElements(prev => prev.map(el => el.id === it.id ? { ...el, position_x: currentDragPos.x, position_y: currentDragPos.y } : el));
+        dragPosRef.current = null;
         setDragPos(null);
         setMovedIds(prev => new Set(prev).add(it.id));
       } else if (it.mode === 'resize' && it.newW != null) {
+        // Track dirty geometry so loadLayout() preserves it
+        dirtyGeometryRef.current = { ...dirtyGeometryRef.current, [it.id]: { ...(dirtyGeometryRef.current[it.id] || {}), width: it.newW, height: it.newH } };
         persistGeometry(it.id, { width: Math.round(it.newW), height: Math.round(it.newH) });
       } else if (it.mode === 'rotate' && it.newRot != null) {
+        // Track dirty geometry so loadLayout() preserves it
+        dirtyGeometryRef.current = { ...dirtyGeometryRef.current, [it.id]: { ...(dirtyGeometryRef.current[it.id] || {}), rotation: it.newRot } };
         persistGeometry(it.id, { rotation: it.newRot });
       }
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.scale, dragPos]);
+    // view.scale is needed for coordinate conversion; dragPos intentionally read from ref
+  }, [view.scale, persistGeometry]);
 
   /* ── zoom on wheel (anchored to cursor) ── */
   const onWheel = useCallback((e) => {
@@ -512,12 +552,25 @@ export default function SeatingMapPage() {
     setPending(prev => ({ ...prev, [g.id]: { from: from || (selected ? selected.id : ''), to: '', size: g.party_size } }));
   };
 
-  /* ── save pending seating ── */
+  /* ── save pending seating (auto-saves dirty layout first) ── */
   const saveSeating = async (force = false) => {
     const entries = Object.entries(pending);
     if (entries.length === 0) return;
     setSaving(true);
     try {
+      // Persist any unsaved layout positions first so loadLayout() won't lose them
+      if (movedIds.size > 0) {
+        const moved = elements.filter(el => movedIds.has(el.id)).map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+        const CHUNK = 500;
+        for (let i = 0; i < moved.length; i += CHUNK) {
+          const slice = moved.slice(i, i + CHUNK);
+          await fetch(`${API_URL}/events/${eventId}/tables/positions`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+            body: JSON.stringify({ tablePositions: slice }),
+          });
+        }
+        setMovedIds(new Set());
+      }
       const assignments = entries.map(([rsvpId, info]) => ({ rsvpId, tableId: info.to || null }));
       const res = await fetch(`${API_URL}/events/${eventId}/seating/save-batch`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
@@ -530,16 +583,19 @@ export default function SeatingMapPage() {
         throw new Error(data.message || 'Failed to save seating.');
       }
       setPending({});
+      // Clear dirty geometry since we just persisted layout
+      dirtyGeometryRef.current = {};
       await Promise.all([loadLayout(), fetchGuests(1, true)]);
       setTableGuests([]);
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
 
-  /* ── save layout (only the moved elements, chunked for scale) ── */
+  /* ── save layout (only the moved/resized/rotated elements, chunked for scale) ── */
   const saveLayout = async () => {
     setSaving(true);
     try {
+      // 1. Save position changes
       const moved = elements.filter(el => movedIds.has(el.id)).map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
       const CHUNK = 500;
       for (let i = 0; i < moved.length; i += CHUNK) {
@@ -550,7 +606,13 @@ export default function SeatingMapPage() {
         });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || 'Failed to save layout.'); }
       }
+      // 2. Save any dirty resize/rotate geometry that hasn't been persisted yet
+      const geo = dirtyGeometryRef.current;
+      for (const [id, body] of Object.entries(geo)) {
+        await persistGeometry(id, body);
+      }
       setMovedIds(new Set());
+      dirtyGeometryRef.current = {};
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
