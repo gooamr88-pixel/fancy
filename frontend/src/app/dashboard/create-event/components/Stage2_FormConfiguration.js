@@ -172,7 +172,7 @@ export default function Stage2_FormConfiguration({
                 color: C.stone, fontFamily: 'var(--font-sans)',
                 whiteSpace: 'nowrap',
               }}>fancyrsvp.com/</span>
-              <input type="text" value={slug}
+              <input type="text" value={slug} data-testid="event-slug"
                 onChange={e => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 placeholder="my-event"
                 style={{ ...iStyle, borderRadius: '0 8px 8px 0', flex: 1 }}
@@ -689,7 +689,7 @@ export default function Stage2_FormConfiguration({
             Back
           </button>
 
-          <button onClick={onNext}
+          <button onClick={onNext} data-testid="wizard-next"
             disabled={!title || !slug || !eventDate}
             style={{
               height: 48, padding: '0 32px',

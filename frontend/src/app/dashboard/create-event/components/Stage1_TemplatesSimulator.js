@@ -349,6 +349,7 @@ export default function Stage1_TemplatesSimulator({
             <div style={{ padding: '0 20px' }}>
               <button
                 onClick={onNext}
+                data-testid="wizard-next"
                 style={{
                   marginTop: 16, width: '100%', height: 54,
                   background: 'linear-gradient(135deg, #B8944F, #a6833f)',
@@ -430,6 +431,7 @@ export default function Stage1_TemplatesSimulator({
             {/* CTA Button */}
             <button
               onClick={onNext}
+              data-testid="wizard-next"
               style={{
                 marginTop: 32, width: '100%', height: 52,
                 background: 'linear-gradient(135deg, #B8944F, #a6833f)',

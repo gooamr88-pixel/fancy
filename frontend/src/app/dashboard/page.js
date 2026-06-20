@@ -403,7 +403,7 @@ export default function DashboardPage() {
           {sidebarNav.map(item => {
             const isActive = activeTab === item.key;
             return (
-              <button key={item.key} onClick={() => {
+              <button key={item.key} data-testid={`tab-${item.key}`} onClick={() => {
                 if (item.key === 'campaigns') {
                   router.push('/dashboard/campaigns');
                 } else {

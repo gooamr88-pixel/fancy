@@ -597,6 +597,7 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
       {/* ── Top Row (Clickable) ── */}
       <div className="evt2-top"
         role="button" tabIndex={0}
+        data-testid={`event-card-${event.slug}`}
         onClick={() => onSelect(event.id)}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(event.id); }}
       >

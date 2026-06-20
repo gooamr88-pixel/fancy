@@ -591,6 +591,7 @@ function RSVPFormContent({ slug }) {
                       />
                       {!searchPerformed && (
                         <PremiumButton
+                          testId="rsvp-search"
                           disabled={!guestName.trim() || searching}
                           onClick={handleSearchName}
                           loading={searching}
@@ -690,7 +691,7 @@ function RSVPFormContent({ slug }) {
                               ? `لم نجد اسماً مطابقاً لـ "${guestName}" في قائمة المدعوين. لا تقلق، يمكنك الاستمرار والتسجيل كضيف جديد.`
                               : `We couldn't find an invitation matching "${guestName}". No worries, you can still RSVP as a new guest.`}
                           </div>
-                          <PremiumButton fullWidth onClick={() => { setRsvpId(null); goToStep(2); }} style={{ marginTop: '12px' }}>
+                          <PremiumButton testId="rsvp-continue-new" fullWidth onClick={() => { setRsvpId(null); goToStep(2); }} style={{ marginTop: '12px' }}>
                             {isRTL ? 'المتابعة كضيف جديد' : 'Continue as a New Guest'}
                           </PremiumButton>
                         </FadeInUp>
@@ -941,7 +942,7 @@ function RSVPFormContent({ slug }) {
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
                     <button onClick={() => goToStep(2)} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>
-                    <PremiumButton disabled={isContinueDisabled} onClick={() => goToStep(4)}>
+                    <PremiumButton testId="rsvp-next" disabled={isContinueDisabled} onClick={() => goToStep(4)}>
                       {t.continue}
                     </PremiumButton>
                   </div>
@@ -1239,6 +1240,7 @@ function RSVPFormContent({ slug }) {
                     }} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>
                     <GlowPulse color="#B8944F" intensity={submitting ? 0 : 0.2}>
                       <PremiumButton
+                        testId="rsvp-submit"
                         disabled={submitting}
                         loading={submitting}
                         onClick={handleSubmit}

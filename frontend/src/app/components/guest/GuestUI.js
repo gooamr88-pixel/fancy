@@ -40,7 +40,7 @@ export function GlassmorphismCard({
 // ─── PremiumButton ───
 export function PremiumButton({
   children, onClick, disabled = false, variant = 'gold', size = 'md', fullWidth = false,
-  style = {}, icon, loading = false,
+  style = {}, icon, loading = false, testId,
 }) {
   const variants = {
     gold: {
@@ -74,6 +74,7 @@ export function PremiumButton({
 
   return (
     <motion.button
+      data-testid={testId}
       onClick={onClick}
       disabled={disabled || loading}
       whileHover={disabled ? {} : {
@@ -142,6 +143,7 @@ export function AttendanceCard({ type, selected, onClick, isRTL = false }) {
 
   return (
     <motion.button
+      data-testid={`attendance-${type}`}
       onClick={() => onClick(type)}
       whileHover={{ scale: 1.02, y: -4 }}
       whileTap={{ scale: 0.98 }}
