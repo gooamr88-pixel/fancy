@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../config/supabase');
 const { getAccessContext } = require('../services/rbacService');
+const logger = require('../utils/logger');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -66,20 +67,33 @@ const extractToken = (req) => {
  * @returns {Promise<boolean>} true if the session is valid (or legacy)
  */
 const isSessionValid = async (decoded) => {
-  if (!decoded.jti) return true; // legacy token — no server-side session row
+  // Legacy tokens (issued before the sessions migration) carry no `jti`. Accept
+  // them until their natural 24h expiry so a deploy doesn't force a mass logout.
+  // TODO(security): remove this allowance after the legacy-token cutoff so EVERY
+  // session is server-side revocable.
+  if (!decoded.jti) return true;
   try {
     const { data, error } = await supabase
       .from('sessions')
       .select('revoked_at, expires_at')
       .eq('jti', decoded.jti)
       .maybeSingle();
-    if (error) return true; // fail-open on lookup error to avoid mass lockout; logged upstream
-    if (!data) return false; // jti present but no session → revoked/forged
-    if (data.revoked_at) return false;
+    // SECURITY (M1): FAIL CLOSED. A token that asserts a `jti` must map to a live,
+    // non-revoked session. If we can't positively confirm that — lookup error,
+    // missing row, revoked, or expired — deny. Previously this fail-OPENED on a
+    // lookup error, so a revoked/forged session slipped through on a transient DB
+    // hiccup.
+    if (error) {
+      logger.error({ err: error, jti: decoded.jti }, 'session validation lookup failed — denying (fail-closed)');
+      return false;
+    }
+    if (!data) return false;            // jti present but no session → revoked/forged
+    if (data.revoked_at) return false;  // explicitly revoked (logout / suspension)
     if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) return false;
     return true;
-  } catch {
-    return true;
+  } catch (e) {
+    logger.error({ err: e, jti: decoded.jti }, 'session validation threw — denying (fail-closed)');
+    return false;
   }
 };
 

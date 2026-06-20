@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import EventPageClient from './EventPageClient';
+import { safeJsonLdHtml } from '../utils/jsonLdSafe.mjs';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -87,7 +88,7 @@ export default async function EventPage({ params }) {
       {jsonLd && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLdHtml(jsonLd) }}
         />
       )}
       <Suspense fallback={

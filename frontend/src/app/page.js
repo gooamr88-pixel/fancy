@@ -10,6 +10,7 @@ import FAQSection from "./components/landing/FAQSection";
 import CTASection from "./components/landing/CTASection";
 import FooterSection from "./components/landing/FooterSection";
 import ScrollReveal from "./components/landing/ScrollReveal";
+import { safeJsonLdHtml } from "./utils/jsonLdSafe.mjs";
 
 export const metadata = {
   title: 'Fancy RSVP — Elegant RSVPs. Effortless Planning.',
@@ -46,7 +47,7 @@ export default function Home() {
     <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdHtml(jsonLd) }}
       />
       <Navbar />
       <main>

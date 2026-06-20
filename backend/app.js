@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const cookieParser = require('cookie-parser');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
 const { requireAuth, verifyEventOwner, requireSuperAdmin } = require('./middleware/auth');
@@ -20,6 +21,8 @@ const app = express();
 app.use(helmet({
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
   crossOriginEmbedderPolicy: false,
+  // Explicit HSTS (L2): force HTTPS for a year, including subdomains, preload-eligible.
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
 }));
 
 
@@ -38,6 +41,10 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+// Gzip responses (large JSON: event lists, RSVP lists, exports). The threshold
+// avoids spending CPU compressing tiny payloads.
+app.use(compression({ threshold: 1024 }));
+
 // Parse cookies (httpOnly auth cookie)
 app.use(cookieParser());
 
@@ -52,53 +59,75 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Permissive Rate Limiter for organizer dashboards (preventing blockages on updates)
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // Limit each IP to 1000 requests per window
-  message: {
-    success: false,
-    error: 'TOO_MANY_REQUESTS',
-    message: 'Too many requests. Please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api', apiLimiter);
+// ─── RATE LIMITING ───
+// DISABLE_RATE_LIMIT=true turns limiting off entirely — ONLY for load testing
+// against a throwaway environment. Never set this in production.
+const RATE_LIMIT_DISABLED = process.env.DISABLE_RATE_LIMIT === 'true';
 
-// Strict rate limiter for authentication endpoints (brute-force protection)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // 15 attempts per 15 minutes per IP
-  message: {
-    success: false,
-    error: 'TOO_MANY_AUTH_REQUESTS',
-    message: 'Too many authentication attempts. Please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/v1/auth/login', authLimiter);
-app.use('/api/v1/auth/register', authLimiter);
-app.use('/api/v1/auth/forgot-password', authLimiter);
-app.use('/api/v1/auth/reset-password', authLimiter);
-app.use('/api/v1/auth/verify-registration', authLimiter);
-app.use('/api/v1/auth/google-login', authLimiter);
-app.use('/api/v1/auth/google-register', authLimiter);
+// Optional shared Redis store so limits are GLOBAL across pm2 cluster workers /
+// horizontally-scaled instances. The default MemoryStore is per-process, which
+// means with `instances: N` the effective limit is N× and inconsistent. Activates
+// only when REDIS_URL is set AND the optional deps (ioredis, rate-limit-redis)
+// are installed; otherwise it transparently falls back to the in-memory store.
+let redisClient = null;
+if (!RATE_LIMIT_DISABLED && process.env.REDIS_URL) {
+  try {
+    const IORedis = require('ioredis');
+    redisClient = new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: 2 });
+    redisClient.on('error', (e) => logger.error({ err: e.message }, 'Redis (rate-limit) error'));
+    logger.info('Rate limiting backed by Redis (shared across instances)');
+  } catch (e) {
+    logger.warn(`REDIS_URL set but ioredis unavailable — falling back to in-memory rate limiter. (${e.message})`);
+  }
+}
+const storeFor = (prefix) => {
+  if (!redisClient) return undefined; // undefined => express-rate-limit's default MemoryStore
+  const { RedisStore } = require('rate-limit-redis');
+  return new RedisStore({ sendCommand: (...args) => redisClient.call(...args), prefix: `rl:${prefix}:` });
+};
 
-// Rate limiter for public RSVP submissions
-const publicLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 30, // 30 RSVP submissions per 15 minutes per IP
-  message: {
-    success: false,
-    error: 'TOO_MANY_REQUESTS',
-    message: 'Too many submissions. Please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/v1/public/events', publicLimiter);
+if (RATE_LIMIT_DISABLED) {
+  logger.warn('⚠️  Rate limiting is DISABLED (DISABLE_RATE_LIMIT=true). Do NOT run production like this.');
+} else {
+  // Permissive limiter for organizer dashboards (preventing blockages on updates)
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 1000, // Limit each IP to 1000 requests per window
+    message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many requests. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: storeFor('api'),
+  });
+  app.use('/api', apiLimiter);
+
+  // Strict limiter for authentication endpoints (brute-force protection)
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 15, // 15 attempts per 15 minutes per IP
+    message: { success: false, error: 'TOO_MANY_AUTH_REQUESTS', message: 'Too many authentication attempts. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: storeFor('auth'),
+  });
+  app.use('/api/v1/auth/login', authLimiter);
+  app.use('/api/v1/auth/register', authLimiter);
+  app.use('/api/v1/auth/forgot-password', authLimiter);
+  app.use('/api/v1/auth/reset-password', authLimiter);
+  app.use('/api/v1/auth/verify-registration', authLimiter);
+  app.use('/api/v1/auth/google-login', authLimiter);
+  app.use('/api/v1/auth/google-register', authLimiter);
+
+  // Limiter for public RSVP submissions
+  const publicLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30, // 30 RSVP submissions per 15 minutes per IP
+    message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many submissions. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: storeFor('public'),
+  });
+  app.use('/api/v1/public/events', publicLimiter);
+}
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -114,6 +143,11 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// CSRF defense-in-depth (M2): reject state-changing requests whose browser
+// Origin/Referer isn't on the allowlist. Runs after body parsing, before routes.
+const { csrfOriginGuard } = require('./middleware/csrf');
+app.use(csrfOriginGuard);
 
 // UUID format validation middleware for :eventId param
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -257,16 +291,16 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   logger.error({ err, stack: err.stack, url: req.originalUrl, method: req.method }, 'Unhandled error');
   
-  // In production, include a sanitized error code so logs can be cross-referenced
-  const errorCode = err.code || err.name || 'UNKNOWN';
+  // L1: never leak internal error identifiers (err.code / err.name / stack) to
+  // clients in production — they aid fingerprinting. The full error is already
+  // logged above for cross-referencing. Detail is exposed only in development.
   res.status(500).json({
     success: false,
     error: 'INTERNAL_SERVER_ERROR',
-    code: errorCode,
     message: process.env.NODE_ENV === 'development'
       ? err.message
       : 'An unexpected error occurred on the server.',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    ...(process.env.NODE_ENV === 'development' && { code: err.code || err.name || 'UNKNOWN', stack: err.stack })
   });
 });
 
