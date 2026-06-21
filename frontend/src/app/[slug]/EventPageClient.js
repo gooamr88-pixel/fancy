@@ -90,6 +90,16 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // mismatch); the decision is made client-side once the event has loaded.
   const [showReveal, setShowReveal] = useState(false);
 
+  // Auth / access states. Declared here — BEFORE the effects below that read them —
+  // so their dependency arrays don't reference these bindings while they're still in
+  // the temporal dead zone. A forward reference compiles fine in `next dev` but
+  // crashes the minified production build ("Cannot access '…' before initialization").
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [underReview, setUnderReview] = useState(false);
+  const fetchEventWithPasswordRef = useRef(null);
+
   useEffect(() => {
     setShowFloatingCTA(!heroInView && !rsvpCardInView);
   }, [heroInView, rsvpCardInView]);
@@ -117,13 +127,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       if (event?.id) window.localStorage.setItem(`fancy_envelope_seen_${event.id}`, '1');
     } catch { /* non-fatal */ }
   }, [event]);
-
-  // Auth states
-  const [passwordRequired, setPasswordRequired] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
-  const [underReview, setUnderReview] = useState(false);
-  const fetchEventWithPasswordRef = useRef(null);
 
   /* ─── Seating Search ─── */
   const handleSeatingSearch = async (e) => {
