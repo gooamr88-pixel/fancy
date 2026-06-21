@@ -174,7 +174,7 @@ export default function CustomBuilder({ config, onChange }) {
               if (!file) return;
               if (file.size > 8 * 1024 * 1024) { alert('File exceeds 8MB.'); return; }
               try {
-                const { supabase } = await import('../../../../utils/supabaseClient');
+                const { supabase } = await import('../../../utils/supabaseClient');
                 if (!supabase) throw new Error('Storage not configured');
                 const ext = file.name.split('.').pop();
                 const filePath = `covers/custom-${Date.now()}.${ext}`;
