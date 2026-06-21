@@ -1,0 +1,53 @@
+name: Backend Tests
+
+# Run the backend unit suite on every push and pull request so no regression
+# reaches main unnoticed. The suite is fully offline (Supabase/Stripe/Twilio/Brevo
+# are mocked via require-cache injection), so no secrets are required.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/test.yml'
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: backend-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: node --test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22.x']
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          # Cache the npm download cache keyed on the backend lockfile so installs
+          # are near-instant on unchanged dependencies.
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies (clean, lockfile-exact)
+        run: npm ci
+
+      - name: Run test suite
+        run: npm test

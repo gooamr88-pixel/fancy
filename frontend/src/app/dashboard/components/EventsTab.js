@@ -347,9 +347,26 @@ function EventPaymentPanel({ eventId, event }) {
   };
 
   if (loading) {
+    // Skeleton mirrors the pricing-tier list shape so the panel doesn't jump when
+    // tiers arrive. Reuses the file's existing `evtShimmer` keyframe.
+    const skel = (w, h, r = 8) => ({
+      width: w, height: h, borderRadius: r,
+      background: 'linear-gradient(90deg, #F0ECE3 25%, #F8F5EF 37%, #F0ECE3 63%)',
+      backgroundSize: '200% 100%', animation: 'evtShimmer 1.4s ease-in-out infinite',
+    });
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
-        <div style={{ width: '24px', height: '24px', border: '2px solid rgba(184,148,79,0.2)', borderTopColor: C.gold, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      <div aria-busy="true" aria-label="Loading pricing" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '4px 0' }}>
+        <div style={{ ...skel('150px', 14), marginBottom: '4px' }} />
+        {[0, 1].map(i => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', border: '1px solid #F0ECE3', borderRadius: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={skel('120px', 13)} />
+              <div style={skel('80px', 11)} />
+            </div>
+            <div style={skel('64px', 24, 12)} />
+          </div>
+        ))}
+        <div style={{ ...skel('100%', 44, 22), marginTop: '4px' }} />
       </div>
     );
   }

@@ -4,16 +4,22 @@ module.exports = {
       name: 'fancy-rsvp-backend',
       script: 'server.js',
       cwd: './backend',
-      // WARNING: Cluster mode requires sticky sessions for WebSocket connections.
-      // If WebSocket issues occur, switch to fork mode (instances: 1)
-      instances: 2,
+      // One worker per CPU core for real horizontal capacity. Cluster mode is safe
+      // here: this API does not serve inbound WebSockets (Supabase Realtime is an
+      // OUTBOUND client connection), so no sticky-session requirement.
+      instances: 'max',
       exec_mode: 'cluster',
       autorestart: true,
       watch: false,
-      max_memory_restart: '500M',
+      // Raised from 500M: under load (large RSVP lists, exceljs exports, 5MB JSON
+      // bodies) a worker could cross 500M and restart mid-request, dropping traffic.
+      max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
-        PORT: 5000
+        PORT: 5000,
+        // Size the libuv threadpool to the box so concurrent PBKDF2 password
+        // hashes (login/register/reset) don't queue behind the default of 4.
+        UV_THREADPOOL_SIZE: 16
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       error_file: '../logs/backend-error.log',

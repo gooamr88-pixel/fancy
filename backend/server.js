@@ -1,3 +1,11 @@
+// Size the libuv threadpool BEFORE anything triggers it (PBKDF2 password hashing
+// runs on this pool; the default of 4 makes concurrent logins queue). Authoritative
+// value comes from the environment (pm2 ecosystem sets 16); this is the fallback
+// for a direct `node server.js`. Must run before the first crypto/fs/dns call.
+if (!process.env.UV_THREADPOOL_SIZE) {
+  process.env.UV_THREADPOOL_SIZE = '16';
+}
+
 require('dotenv').config({ override: true });
 const app = require('./app');
 const logger = require('./utils/logger');

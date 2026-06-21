@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { broadcast } = require('../utils/realtime');
 
 // Seatable table shapes vs non-seating venue zones (must match the DB shape CHECK).
 const TABLE_SHAPES = ['round', 'oval', 'square', 'rectangle', 'rectangular', 'banquet', 'head'];
@@ -193,14 +194,8 @@ const updateTablePositions = async (req, res, next) => {
       });
     }
 
-    // Broadcast positions update via real-time channel
-    const layoutChannel = supabase.channel(`event-${eventId}`);
-    await layoutChannel.send({
-      type: 'broadcast',
-      event: 'table_layout_updated',
-      payload: { tablePositions }
-    });
-    supabase.removeChannel(layoutChannel);
+    // Broadcast positions update (fire-and-forget REST broadcast — no per-request socket).
+    broadcast(eventId, 'table_layout_updated', { tablePositions });
 
     return res.json({
       success: true,

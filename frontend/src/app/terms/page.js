@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import InvitationShowcase from "../components/templates/InvitationShowcase";
 
 /* ═══════════════════════════════════════════════════════════
    Terms of Service — Fancy RSVP
@@ -325,6 +326,15 @@ export default function TermsOfService() {
                     onClick={() => scrollToSection(section.id)}
                   />
                 ))}
+              </div>
+
+              {/* Premium embedded visual — decorative aside beneath the TOC */}
+              <div style={{ marginTop: "20px" }}>
+                <InvitationShowcase
+                  pattern="serif"
+                  theme={{ primary: "#B8944F", secondary: "#D7BE80" }}
+                  caption="Every invitation, designed to feel unforgettable."
+                />
               </div>
             </aside>
 

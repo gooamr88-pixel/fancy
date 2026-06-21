@@ -1,10 +1,48 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import RSVPBottomSheet from "./RSVPBottomSheet";
 import InvitationCard from "./InvitationCard";
+
+/* ═══════════════════════════════════════════════════════════════
+   FitScaler — proportionally shrinks a fixed-size design to fit its
+   container's width, so the self-framed phone never overflows a
+   narrow viewport (or a content column on an embedding page).
+
+   The phone is built from fixed-px utilities, so we can't fluidly
+   reflow it — we scale it. The outer box is the *scaled* footprint
+   (so there's no layout gap), and the inner box keeps its true
+   pixel size and is transform-scaled to match. At ≥ baseWidth the
+   scale is 1, so wide layouts (e.g. /templates desktop) are pixel-
+   identical to before. setState lives only in the ResizeObserver
+   callback, so this never triggers a synchronous-setState warning.
+   ═══════════════════════════════════════════════════════════════ */
+function FitScaler({ baseWidth, baseHeight, children }) {
+  const ref = useRef(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const compute = () => setScale(Math.min(1, el.clientWidth / baseWidth));
+    const ro = new ResizeObserver(compute);
+    ro.observe(el); // fires once immediately, then on every resize
+    return () => ro.disconnect();
+  }, [baseWidth]);
+
+  return (
+    <div
+      ref={ref}
+      style={{ width: "100%", maxWidth: baseWidth, height: baseHeight * scale, margin: "0 auto" }}
+    >
+      <div style={{ width: baseWidth, height: baseHeight, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 /* ═══════════════════════════════════════════════════════════════
    MobilePreview — the guest-experience simulator.
@@ -245,14 +283,18 @@ export default function MobilePreview({
     return <div className="w-full h-full relative overflow-hidden flex flex-col select-none bg-white">{screen}</div>;
   }
 
-  /* ─── Self-framed: standalone phone (used by /templates desktop) ─── */
+  /* ─── Self-framed: standalone phone (used by /templates desktop and as an
+        embedded visual). Wrapped in FitScaler so it shrinks gracefully on
+        narrow viewports / content columns instead of overflowing. ─── */
   return (
-    <div className="w-[315px] h-[630px] bg-stone-950 p-[8px] rounded-[44px] relative shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5),_inset_0_0_2px_2px_rgba(255,255,255,0.15)] ring-1 ring-white/10 select-none flex flex-col">
-      <div className="absolute inset-[8px] pointer-events-none z-50 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-60 mix-blend-overlay rounded-[36px] overflow-hidden" style={{ transform: "skewY(-30deg) scale(2.2)", transformOrigin: "center" }} />
-      <div className="flex-1 flex flex-col bg-white overflow-hidden relative rounded-[36px] border border-black/10">
-        {screen}
+    <FitScaler baseWidth={315} baseHeight={630}>
+      <div className="w-[315px] h-[630px] bg-stone-950 p-[8px] rounded-[44px] relative shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5),_inset_0_0_2px_2px_rgba(255,255,255,0.15)] ring-1 ring-white/10 select-none flex flex-col">
+        <div className="absolute inset-[8px] pointer-events-none z-50 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-60 mix-blend-overlay rounded-[36px] overflow-hidden" style={{ transform: "skewY(-30deg) scale(2.2)", transformOrigin: "center" }} />
+        <div className="flex-1 flex flex-col bg-white overflow-hidden relative rounded-[36px] border border-black/10">
+          {screen}
+        </div>
+        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-24 h-1 bg-stone-700 rounded-full z-50 pointer-events-none opacity-80" />
       </div>
-      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 w-24 h-1 bg-stone-700 rounded-full z-50 pointer-events-none opacity-80" />
-    </div>
+    </FitScaler>
   );
 }

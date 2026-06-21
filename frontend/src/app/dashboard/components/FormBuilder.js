@@ -81,10 +81,26 @@ export default function FormBuilder({ eventId }) {
   };
 
   if (loading && fields.length === 0) {
+    // Skeleton that mirrors the real form-builder layout (header + field rows),
+    // so the panel's shape is stable as content streams in — no spinner→content jump.
+    const skel = (w, h = 14, r = 6) => ({
+      width: w, height: h, borderRadius: r,
+      background: 'linear-gradient(90deg, #F0ECE3 25%, #F8F5EF 37%, #F0ECE3 63%)',
+      backgroundSize: '200% 100%', animation: 'fbSkelShimmer 1.4s ease-in-out infinite',
+    });
     return (
-      <div style={{ padding: '48px 0', textAlign: 'center' }}>
-        <div style={{ width: '32px', height: '32px', border: '3px solid #E8E2D6', borderTop: '3px solid #B8944F', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
-        <p style={{ fontSize: '12px', color: '#77736A', fontFamily: 'var(--font-sans)' }}>Loading form configuration...</p>
+      <div aria-busy="true" aria-label="Loading form configuration" style={{ background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={skel('190px', 20)} />
+          <div style={skel('128px', 34, 20)} />
+        </div>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', border: '1px solid #F0ECE3', borderRadius: '10px' }}>
+            <div style={skel(`${150 - i * 18}px`, 12)} />
+            <div style={skel('100%', 40, 8)} />
+          </div>
+        ))}
+        <style>{`@keyframes fbSkelShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`}</style>
       </div>
     );
   }

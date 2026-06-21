@@ -8,6 +8,7 @@ const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
 const { computeSmsChargeCents } = require('../utils/pricing');
 const { fulfillCheckoutSession, handleChargeRefunded, handleDisputeEvent } = require('../services/paymentFulfillment');
+const { getPlatformConfig, invalidate: invalidateConfigCache } = require('../utils/configCache');
 
 // FRONTEND_URL may be a comma-separated allowlist (see app.js CORS).
 const allowedReturnOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
@@ -80,13 +81,11 @@ const createCheckoutSession = async (req, res, next) => {
   }
 
   try {
-    // 1. Fetch pricing tiers from super_admin_config
-    const { data: adminConfig, error: configError } = await supabase
-      .from('super_admin_config')
-      .select('pricing_tiers')
-      .single();
-
-    if (configError || !adminConfig) {
+    // 1. Fetch pricing tiers from super_admin_config (cached singleton)
+    let adminConfig;
+    try {
+      adminConfig = await getPlatformConfig();
+    } catch {
       return res.status(500).json({
         success: false,
         error: 'CONFIG_ERROR',
@@ -190,13 +189,11 @@ const purchaseSMSCredits = async (req, res, next) => {
   }
 
   try {
-    // 1. Fetch SMS rates
-    const { data: config } = await supabase
-      .from('super_admin_config')
-      .select('sms_rate_cents_per_credit, sms_markup_percentage')
-      .single();
-
-    if (!config) {
+    // 1. Fetch SMS rates (cached singleton)
+    let config;
+    try {
+      config = await getPlatformConfig();
+    } catch {
       return res.status(500).json({
         success: false,
         error: 'CONFIG_ERROR',
@@ -337,7 +334,15 @@ const verifyCheckoutSession = async (req, res, next) => {
     // caller owns the event this session belongs to — so a leaked/guessed id can't
     // be used to probe another org's payment, or trigger fulfillment on their event.
     const sessionEventId = session.metadata?.event_id;
-    if (sessionEventId && !req.user?.isSuperAdmin) {
+    if (!req.user?.isSuperAdmin) {
+      // A non-admin must own a concrete event tied to this session. A session with
+      // no event_id metadata can't be ownership-checked at all — so rather than
+      // silently SKIPPING the guard (which would let any logged-in organizer
+      // fulfill/probe an event-less session), we reject outright. Only a super
+      // admin may verify a session whose event can't be resolved.
+      if (!sessionEventId) {
+        return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'You do not have permission to verify this payment.' });
+      }
       const { data: ownerRow } = await supabase
         .from('events')
         .select('organizations(owner_user_id)')
@@ -532,6 +537,9 @@ const updatePricingConfig = async (req, res, next) => {
 
     if (error) throw error;
 
+    // Pricing changed — drop the cached config so reads reflect it immediately.
+    invalidateConfigCache();
+
     return res.status(200).json({
       success: true,
       message: 'Platform configuration updated successfully.',
@@ -607,13 +615,11 @@ const initiateManualPayment = async (req, res, next) => {
       });
     }
 
-    // 2. Fetch pricing tiers from super_admin_config
-    const { data: adminConfig, error: configError } = await supabase
-      .from('super_admin_config')
-      .select('pricing_tiers')
-      .single();
-
-    if (configError || !adminConfig) {
+    // 2. Fetch pricing tiers from super_admin_config (cached singleton)
+    let adminConfig;
+    try {
+      adminConfig = await getPlatformConfig();
+    } catch {
       return res.status(500).json({
         success: false,
         error: 'CONFIG_ERROR',

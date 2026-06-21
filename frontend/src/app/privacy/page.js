@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import InvitationShowcase from "../components/templates/InvitationShowcase";
 
 /* ═══════════════════════════════════════════════════════════
    Privacy Policy — Fancy RSVP
@@ -325,6 +326,16 @@ export default function PrivacyPolicy() {
                     onClick={() => scrollToSection(section.id)}
                   />
                 ))}
+              </div>
+
+              {/* Premium embedded visual — decorative aside beneath the TOC */}
+              <div style={{ marginTop: "20px" }}>
+                <InvitationShowcase
+                  pattern="luxury"
+                  theme={{ primary: "#B8944F", secondary: "#D7BE80" }}
+                  eyebrow="Privacy by design"
+                  caption="Your guests' data, protected as carefully as your celebration."
+                />
               </div>
             </aside>
 

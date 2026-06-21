@@ -1,6 +1,7 @@
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const notificationService = require('../utils/notificationService');
+const { broadcast } = require('../utils/realtime');
 
 /**
  * Assigns a guest party to a table atomically.
@@ -46,21 +47,8 @@ const assignSeat = async (req, res, next) => {
       });
     }
 
-    // Broadcast the update using Supabase Realtime channel
-    const channel = supabase.channel(`event-${eventId}`);
-    try {
-      await channel.send({
-          type: 'broadcast',
-          event: 'seating_update',
-          payload: {
-            rsvpId,
-            tableId,
-            seatsRemaining: data.seats_remaining
-          }
-        });
-    } finally {
-      supabase.removeChannel(channel);
-    }
+    // Broadcast the update (fire-and-forget REST broadcast — no per-request socket).
+    broadcast(eventId, 'seating_update', { rsvpId, tableId, seatsRemaining: data.seats_remaining });
 
     // Auto-fire QR ticket email on successful seating assignment
     try {
@@ -122,22 +110,13 @@ const reassignSeat = async (req, res, next) => {
       });
     }
 
-    // Broadcast the update using Supabase Realtime channel
-    const channel = supabase.channel(`event-${eventId}`);
-    try {
-      await channel.send({
-          type: 'broadcast',
-          event: 'seating_update',
-          payload: {
-            rsvpId,
-            fromTable: data.from_table,
-            toTable: data.to_table,
-            seatsRemainingNewTable: data.seats_remaining_new_table
-          }
-        });
-    } finally {
-      supabase.removeChannel(channel);
-    }
+    // Broadcast the update (fire-and-forget REST broadcast — no per-request socket).
+    broadcast(eventId, 'seating_update', {
+      rsvpId,
+      fromTable: data.from_table,
+      toTable: data.to_table,
+      seatsRemainingNewTable: data.seats_remaining_new_table,
+    });
 
     // Auto-fire updated QR ticket email on successful reassignment
     try {
@@ -197,21 +176,8 @@ const unassignSeat = async (req, res, next) => {
       });
     }
 
-    // Broadcast the update using Supabase Realtime channel
-    const channel = supabase.channel(`event-${eventId}`);
-    try {
-      await channel.send({
-          type: 'broadcast',
-          event: 'seating_update',
-          payload: {
-            rsvpId,
-            tableId: '',
-            seatsRemaining: data.seats_remaining
-          }
-        });
-    } finally {
-      supabase.removeChannel(channel);
-    }
+    // Broadcast the update (fire-and-forget REST broadcast — no per-request socket).
+    broadcast(eventId, 'seating_update', { rsvpId, tableId: '', seatsRemaining: data.seats_remaining });
 
     // Auto-fire updated ticket email (no seating details / unseated notice if needed, or skip)
     // For now we don't need to auto-fire a ticket since they are unseated, but they can be notified.
@@ -303,20 +269,8 @@ const saveSeatingBatch = async (req, res, next) => {
       }
     }
 
-    // 3. Broadcast seating_update event to Supabase Realtime channel
-    const channel = supabase.channel(`event-${eventId}`);
-    try {
-      await channel.send({
-        type: 'broadcast',
-        event: 'seating_update',
-        payload: {
-          batch: true,
-          results
-        }
-      });
-    } finally {
-      supabase.removeChannel(channel);
-    }
+    // 3. Broadcast (fire-and-forget REST broadcast — no per-request socket).
+    broadcast(eventId, 'seating_update', { batch: true, results });
 
     // Check if there was any failure in the batch
     const failures = results.filter(r => !r.success);

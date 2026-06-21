@@ -1,0 +1,59 @@
+name: Integration (Postgres concurrency)
+
+# Spins up the local Supabase stack (which applies supabase/migrations) and runs
+# the real-database concurrency suite. Heavier than the unit job, so it's separate
+# and only runs on PRs touching backend code or the DB schema.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/integration.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/integration.yml'
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Postgres concurrency suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install the Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase (applies all migrations)
+        run: supabase start
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run the concurrency integration suite
+        working-directory: backend
+        env:
+          INTEGRATION_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: npm run test:integration
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop

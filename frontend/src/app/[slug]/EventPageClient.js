@@ -28,6 +28,7 @@ import {
   inputFocus,
   inputBlur,
 } from '../components/guest/GuestUI';
+import GuestEnvelopeReveal from '../components/templates/GuestEnvelopeReveal';
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
@@ -84,9 +85,38 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Dress code expand
   const [dressCodeExpanded, setDressCodeExpanded] = useState(false);
 
+  // One-time premium envelope reveal (the first time a guest opens this link).
+  // Defaults to false so SSR/first paint render the page normally (no hydration
+  // mismatch); the decision is made client-side once the event has loaded.
+  const [showReveal, setShowReveal] = useState(false);
+
   useEffect(() => {
     setShowFloatingCTA(!heroInView && !rsvpCardInView);
   }, [heroInView, rsvpCardInView]);
+
+  // Decide whether to play the envelope reveal. Only on the fully-loaded public
+  // event page — never over the loading/password/private/review/error states.
+  useEffect(() => {
+    if (!event || loading || error || passwordRequired || isPrivate || underReview) return;
+    if (typeof window === 'undefined') return;
+    try {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const seen = window.localStorage.getItem(`fancy_envelope_seen_${event.id}`);
+      // Canonical SSR-safe "decide after mount" read: localStorage/matchMedia can't
+      // be known during SSR, so the flip to true must happen post-mount in an effect.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (!reduceMotion && !seen) setShowReveal(true);
+    } catch {
+      /* localStorage/matchMedia unavailable → simply skip the reveal */
+    }
+  }, [event, loading, error, passwordRequired, isPrivate, underReview]);
+
+  const handleRevealComplete = useCallback(() => {
+    setShowReveal(false);
+    try {
+      if (event?.id) window.localStorage.setItem(`fancy_envelope_seen_${event.id}`, '1');
+    } catch { /* non-fatal */ }
+  }, [event]);
 
   // Auth states
   const [passwordRequired, setPasswordRequired] = useState(false);
@@ -393,6 +423,13 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
   return (
     <PageTransition>
+      {/* One-time premium envelope reveal — fixed overlay above the page; the
+          page tree below is rendered untouched underneath it. */}
+      <AnimatePresence>
+        {showReveal && (
+          <GuestEnvelopeReveal key="guest-reveal" event={event} onComplete={handleRevealComplete} />
+        )}
+      </AnimatePresence>
       <div dir={isRTL ? 'rtl' : 'ltr'} style={{
         minHeight: '100vh', position: 'relative',
         backgroundColor: customColors.background || '#F8F4EC', color: '#191B1E',

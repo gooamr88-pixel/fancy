@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { verifyTicketToken } = require('../utils/qrHelper');
+const { broadcast } = require('../utils/realtime');
 
 /** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
 function escapeLikePattern(str) {
@@ -95,23 +96,14 @@ const scanCheckIn = async (req, res, next) => {
       metadata: { guest_name: rsvp?.guest_name, party_size, method: 'qr_scan' }
     });
 
-    // Broadcast checkin event via Realtime
-    const scanChannel = supabase.channel(`event-${eventId}`);
-    try {
-      await scanChannel.send({
-        type: 'broadcast',
-        event: 'checkin_update',
-        payload: {
-          rsvpId: guest_id,
-          guestName: rsvp?.guest_name,
-          partySize: party_size,
-          tableName: table_name,
-          method: 'qr_scan'
-        }
-      });
-    } finally {
-      supabase.removeChannel(scanChannel);
-    }
+    // Broadcast checkin event (fire-and-forget REST broadcast — no per-request socket).
+    broadcast(eventId, 'checkin_update', {
+      rsvpId: guest_id,
+      guestName: rsvp?.guest_name,
+      partySize: party_size,
+      tableName: table_name,
+      method: 'qr_scan',
+    });
 
     return res.status(200).json({
       success: true,
@@ -187,23 +179,14 @@ const manualCheckIn = async (req, res, next) => {
       metadata: { guest_name: guestData.guest_name, party_size: guestData.party_size, method: 'manual_search' }
     });
 
-    // Broadcast checkin event via Realtime
-    const manualChannel = supabase.channel(`event-${eventId}`);
-    try {
-      await manualChannel.send({
-        type: 'broadcast',
-        event: 'checkin_update',
-        payload: {
-          rsvpId,
-          guestName: guestData.guest_name,
-          partySize: guestData.party_size,
-          tableName,
-          method: 'manual_search'
-        }
-      });
-    } finally {
-      supabase.removeChannel(manualChannel);
-    }
+    // Broadcast checkin event (fire-and-forget REST broadcast — no per-request socket).
+    broadcast(eventId, 'checkin_update', {
+      rsvpId,
+      guestName: guestData.guest_name,
+      partySize: guestData.party_size,
+      tableName,
+      method: 'manual_search',
+    });
 
     return res.status(200).json({
       success: true,
@@ -406,23 +389,14 @@ const selfCheckIn = async (req, res, next) => {
 
     const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
 
-    // Broadcast checkin event via Realtime
-    const selfChannel = supabase.channel(`event-${event.id}`);
-    try {
-      await selfChannel.send({
-        type: 'broadcast',
-        event: 'checkin_update',
-        payload: {
-          rsvpId,
-          guestName: rsvp.guest_name,
-          partySize: rsvp.party_size,
-          tableName,
-          method: 'self_service'
-        }
-      });
-    } finally {
-      supabase.removeChannel(selfChannel);
-    }
+    // Broadcast checkin event (fire-and-forget REST broadcast — no per-request socket).
+    broadcast(event.id, 'checkin_update', {
+      rsvpId,
+      guestName: rsvp.guest_name,
+      partySize: rsvp.party_size,
+      tableName,
+      method: 'self_service',
+    });
 
     return res.status(200).json({
       success: true,

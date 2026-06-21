@@ -438,10 +438,11 @@ const getEventStats = async (req, res, next) => {
   const { eventId } = req.params;
 
   try {
-    // 1. Fetch RSVPs aggregations
+    // 1. ONE rsvps read powers both the response stats and the meal breakdown
+    //    (previously two separate full-table scans of rsvps).
     const { data: rsvps, error: rsvpError } = await supabase
       .from('rsvps')
-      .select('response, party_size, invitation_sent')
+      .select('id, response, party_size, invitation_sent')
       .eq('event_id', eventId);
 
     if (rsvpError) throw rsvpError;
@@ -462,12 +463,14 @@ const getEventStats = async (req, res, next) => {
       seatingAssignedGuests: 0
     };
 
+    const attendingRsvpIds = [];
     rsvps.forEach(rsvp => {
       const size = rsvp.party_size || 1;
       if (rsvp.invitation_sent) stats.invitationsSent++;
       if (isAcceptedResponse(rsvp.response)) {
         stats.attendingParties++;
         stats.attendingGuests += size;
+        attendingRsvpIds.push(rsvp.id);
       } else if (isDeclinedResponse(rsvp.response)) {
         stats.declinedParties++;
         stats.declinedGuests += size;
@@ -482,53 +485,27 @@ const getEventStats = async (req, res, next) => {
 
     stats.totalExpectedGuests = stats.attendingGuests;
 
-    // 2. Fetch meals count summary (normalize response check to match aggregation above)
-    const { data: attendingRsvps } = await supabase
-      .from('rsvps')
-      .select('id, response')
-      .eq('event_id', eventId);
+    // 2. Meal breakdown, check-in count and seating progress are independent —
+    //    fetch them concurrently instead of three sequential round-trips.
+    const [mealsRes, checkinRes, seatingRes] = await Promise.all([
+      attendingRsvpIds.length > 0
+        ? supabase.from('rsvp_guests').select('meal_selection').in('rsvp_id', attendingRsvpIds)
+        : Promise.resolve({ data: [] }),
+      supabase.from('check_ins').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
+      supabase.from('seating_assignments').select('rsvps(party_size)').eq('event_id', eventId),
+    ]);
 
-    const attendingRsvpIds = (attendingRsvps || [])
-      .filter(r => isAcceptedResponse(r.response))
-      .map(r => r.id);
-    let meals = [];
-    if (attendingRsvpIds.length > 0) {
-      const { data: fetchedMeals } = await supabase
-        .from('rsvp_guests')
-        .select('meal_selection')
-        .in('rsvp_id', attendingRsvpIds);
-      meals = fetchedMeals || [];
-    }
-    
     const mealSummary = {};
-    if (meals) {
-      meals.forEach(m => {
-        const meal = m.meal_selection || 'No Selection';
-        mealSummary[meal] = (mealSummary[meal] || 0) + 1;
-      });
-    }
+    (mealsRes.data || []).forEach(m => {
+      const meal = m.meal_selection || 'No Selection';
+      mealSummary[meal] = (mealSummary[meal] || 0) + 1;
+    });
 
-    // 3. Fetch check-in arrival stats
-    const { count: checkedInCount } = await supabase
-      .from('check_ins')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_id', eventId);
-    
-    stats.checkedInGuests = checkedInCount || 0;
+    stats.checkedInGuests = checkinRes.count || 0;
 
-    // 4. Seating progress
-    const { data: seatingAssignments } = await supabase
-      .from('seating_assignments')
-      .select('rsvps(party_size)')
-      .eq('event_id', eventId);
-    
-    if (seatingAssignments) {
-      seatingAssignments.forEach(sa => {
-        if (sa.rsvps) {
-          stats.seatingAssignedGuests += sa.rsvps.party_size;
-        }
-      });
-    }
+    (seatingRes.data || []).forEach(sa => {
+      if (sa.rsvps) stats.seatingAssignedGuests += sa.rsvps.party_size;
+    });
 
     return res.json({
       success: true,
