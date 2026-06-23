@@ -137,6 +137,12 @@ const submitPublicRSVP = async (req, res, next) => {
       const isEmailPref = !prefs || prefs.email !== false;
       const isWhatsappPref = !!prefs?.whatsapp;
 
+      // Human label + accent colour for the response. 'maybe' is its own state —
+      // previously anything that wasn't 'yes' was rendered as "Declined" (red),
+      // mislabelling tentative guests in the organizer's email and WhatsApp pings.
+      const respLabel = result.response === 'yes' ? 'Attending' : result.response === 'maybe' ? 'Maybe' : 'Declined';
+      const respColor = result.response === 'yes' ? '#10b981' : result.response === 'maybe' ? '#f59e0b' : '#ef4444';
+
       if (isEmailPref && result.org_email) {
         const { sendEmailViaBrevo } = require('../utils/notificationService');
         const orgEmailHtml = `
@@ -148,7 +154,7 @@ const submitPublicRSVP = async (req, res, next) => {
             <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
             <p style="color: #334155; font-size: 15px; line-height: 1.6;"><strong>${escapeHtml(guestName)}</strong> has ${result.response === 'yes' ? 'accepted' : result.response === 'no' ? 'declined' : 'submitted an RSVP for'} your event invitation.</p>
             <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0; padding: 15px;">
-              <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${result.response === 'yes' ? '#10b981' : '#ef4444'};">${result.response === 'yes' ? 'Attending' : 'Declined'}</td></tr>
+              <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${respColor};">${respLabel}</td></tr>
               <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Party Size</td><td style="padding: 8px 15px; font-size: 15px;">${computedPartySize}</td></tr>
               ${email ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + escapeHtml(email) + '</td></tr>' : ''}
             </table>
@@ -162,7 +168,7 @@ const submitPublicRSVP = async (req, res, next) => {
       if (isWhatsappPref && result.org_phone) {
         const { getTwilioClient } = require('../utils/twilioClient');
         const twilio = getTwilioClient();
-        const messageText = `New RSVP Received for ${result.event_title}: ${guestName} has replied ${result.response === 'yes' ? 'Attending (Party of ' + computedPartySize + ')' : 'Declined'}. — Fancy RSVP`;
+        const messageText = `New RSVP Received for ${result.event_title}: ${guestName} has replied ${result.response === 'yes' ? 'Attending (Party of ' + computedPartySize + ')' : respLabel}. — Fancy RSVP`;
 
         if (twilio) {
           twilio.messages.create({
@@ -315,6 +321,77 @@ const getRSVPs = async (req, res, next) => {
   const to = from + limit - 1;
 
   try {
+    // ── Resolve cross-table filters to a set of allowed rsvp ids BEFORE paging ──
+    // The seated / meal / custom-answer filters live on RELATED tables. Filtering
+    // them in JS after the page was fetched (the previous approach) produced short
+    // or empty pages and a misleading `total`, because pagination ran on the
+    // UNfiltered set. Instead we resolve each filter to the set of matching rsvp
+    // ids and constrain the main query, which stays paged and exactly counted — so
+    // both the page contents and the total are correct.
+    // (Scale note: this constrains via `.in(...)`/`.not.in(...)`, sized to the
+    // event's matching guests — fine for normal events; a dedicated RPC would be
+    // the move if a single event ever has many thousands of matching guests.)
+    const idSets = [];           // rsvp.id must be IN the intersection of these sets
+    let excludeSeatedIds = null; // seated=false: rsvp.id must NOT be in this set
+
+    if (seated === 'true' || seated === 'false') {
+      const { data: seatRows, error: seatErr } = await supabase
+        .from('seating_assignments')
+        .select('rsvp_id')
+        .eq('event_id', eventId);
+      if (seatErr) throw seatErr;
+      const seatedIds = new Set((seatRows || []).map(r => r.rsvp_id));
+      if (seated === 'true') idSets.push(seatedIds);
+      else excludeSeatedIds = seatedIds;
+    }
+
+    if (meal && meal.trim()) {
+      const { data: mealRows, error: mealErr } = await supabase
+        .from('rsvp_guests')
+        .select('rsvp_id, rsvps!inner(event_id)')
+        .eq('rsvps.event_id', eventId)
+        .eq('meal_selection', meal.trim());
+      if (mealErr) throw mealErr;
+      idSets.push(new Set((mealRows || []).map(r => r.rsvp_id)));
+    }
+
+    if (customFieldId) {
+      const { data: caRows, error: caErr } = await supabase
+        .from('custom_answers')
+        .select('rsvp_id, answer_value, rsvps!inner(event_id)')
+        .eq('rsvps.event_id', eventId)
+        .eq('field_id', customFieldId);
+      if (caErr) throw caErr;
+      let matching = caRows || [];
+      if (customFieldValue) {
+        const want = String(customFieldValue).trim().toLowerCase();
+        matching = matching.filter(a => String(a.answer_value).trim().toLowerCase() === want);
+      }
+      idSets.push(new Set(matching.map(r => r.rsvp_id)));
+    }
+
+    // Intersect the positive constraints, then subtract the seated-exclusion set.
+    let allowedIds = null;
+    if (idSets.length > 0) {
+      allowedIds = idSets.reduce((acc, s) => (acc === null ? s : new Set([...acc].filter(x => s.has(x)))), null);
+    }
+    if (excludeSeatedIds && allowedIds) {
+      allowedIds = new Set([...allowedIds].filter(x => !excludeSeatedIds.has(x)));
+    }
+
+    // A positive filter that matched nothing → empty page (total 0), no further reads.
+    if (allowedIds && allowedIds.size === 0) {
+      return res.json({ success: true, rsvps: [], pagination: { page, limit, count: 0, total: 0 } });
+    }
+
+    const applyIdConstraints = (query) => {
+      if (allowedIds) return query.in('id', [...allowedIds]);
+      if (excludeSeatedIds && excludeSeatedIds.size > 0) {
+        return query.not('id', 'in', `(${[...excludeSeatedIds].join(',')})`);
+      }
+      return query;
+    };
+
     // Build fallback chain: try full select + submitted_at, then full + created_at, then simple + created_at
     const fullSelect = '*, rsvp_guests(*), custom_answers(*), seating_assignments(id, table_id, tables(table_name))';
     const simpleSelect = '*, rsvp_guests(*), custom_answers(*)';
@@ -339,6 +416,7 @@ const getRSVPs = async (req, res, next) => {
       if (search && search.trim()) {
         query = query.ilike('guest_name', `%${escapeLikePattern(search.trim())}%`);
       }
+      query = applyIdConstraints(query);
 
       // Apply sorting
       switch (sort) {
@@ -378,40 +456,11 @@ const getRSVPs = async (req, res, next) => {
 
     if (queryError) throw queryError;
 
-    // Post-filter for seated status
-    let filtered = rsvps || [];
-    let effectiveTotal = totalCount;
-    if (seated === 'true') {
-      filtered = filtered.filter(r => r.seating_assignments && r.seating_assignments.length > 0);
-      effectiveTotal = null;
-    } else if (seated === 'false') {
-      filtered = filtered.filter(r => !r.seating_assignments || r.seating_assignments.length === 0);
-      effectiveTotal = null;
-    }
-
-    // Post-filter for meal
-    if (meal && meal.trim()) {
-      filtered = filtered.filter(r => 
-        r.rsvp_guests && r.rsvp_guests.some(g => g.meal_selection === meal.trim())
-      );
-      effectiveTotal = null;
-    }
-
-    // Post-filter for custom answers
-    if (customFieldId) {
-      filtered = filtered.filter(r => 
-        r.custom_answers && r.custom_answers.some(ans => 
-          ans.field_id === customFieldId && 
-          (!customFieldValue || String(ans.answer_value).trim().toLowerCase() === String(customFieldValue).trim().toLowerCase())
-        )
-      );
-      effectiveTotal = null;
-    }
-
+    const list = rsvps || [];
     return res.json({
       success: true,
-      rsvps: filtered,
-      pagination: { page, limit, count: filtered.length, total: effectiveTotal ?? totalCount }
+      rsvps: list,
+      pagination: { page, limit, count: list.length, total: totalCount }
     });
   } catch (err) {
     next(err);
@@ -784,29 +833,49 @@ const updateRSVP = async (req, res, next) => {
       await supabase.from('seating_assignments').delete().eq('rsvp_id', rsvpId).eq('event_id', eventId);
     }
 
-    // If additional guests or meal are provided, rebuild rsvp_guests
-    if (additionalGuests !== undefined || primaryGuestMeal !== undefined) {
-      await supabase.from('rsvp_guests').delete().eq('rsvp_id', rsvpId);
+    // Keep rsvp_guests in lockstep with party_size for ATTENDING guests. Previously
+    // we only rebuilt when explicit guest detail was sent, so bumping party_size on
+    // its own (or sending an additionalGuests array of the wrong length) left the
+    // per-guest rows out of sync with the headcount — inflating/deflating meal
+    // tallies, exports and the seating panel. We now reconcile to exactly one
+    // primary + (party_size − 1) additional rows whenever the headcount changes or
+    // guest detail is supplied, PRESERVING existing names/meals we weren't asked to
+    // change and padding/trimming the rest.
+    // NB: `rsvp` is the POST-update row, so we can't diff old vs new party_size
+    // here — we reconcile whenever party_size was *supplied* in this request (a
+    // no-op rebuild if it didn't actually change) or any guest detail was sent.
+    const effectiveResponse = updates.response !== undefined ? updates.response : rsvp.response;
+    const guestDetailProvided = additionalGuests !== undefined || primaryGuestMeal !== undefined;
+    const partySizeProvided = updates.party_size !== undefined;
+
+    if (effectiveResponse === 'yes' && (guestDetailProvided || partySizeProvided)) {
+      const effectivePartySize = updates.party_size !== undefined ? updates.party_size : (rsvp.party_size || 1);
+      const existing = rsvp.rsvp_guests || [];
+      const existingPrimary = existing.find(g => g.is_primary);
+      const existingAdditional = existing.filter(g => !g.is_primary);
+      const provided = additionalGuests !== undefined && Array.isArray(additionalGuests) ? additionalGuests : null;
 
       const guestRows = [{
         rsvp_id: rsvpId,
         full_name: rsvp.guest_name,
         is_primary: true,
-        meal_selection: primaryGuestMeal || null
+        // Use the new primary meal if sent, else keep what was already on file.
+        meal_selection: primaryGuestMeal !== undefined ? (primaryGuestMeal || null) : (existingPrimary?.meal_selection || null),
       }];
 
-      if (additionalGuests && Array.isArray(additionalGuests)) {
-        additionalGuests.forEach(g => {
-          guestRows.push({
-            rsvp_id: rsvpId,
-            full_name: g.fullName,
-            is_primary: false,
-            meal_selection: g.mealSelection || null,
-            dietary_notes: g.dietaryNotes || null
-          });
+      for (let i = 0; i < Math.max(0, effectivePartySize - 1); i++) {
+        const fromBody = provided ? provided[i] : null;
+        const prev = existingAdditional[i];
+        guestRows.push({
+          rsvp_id: rsvpId,
+          full_name: (fromBody?.fullName && fromBody.fullName.trim()) || prev?.full_name || `Guest ${i + 2}`,
+          is_primary: false,
+          meal_selection: fromBody ? (fromBody.mealSelection || null) : (prev?.meal_selection || null),
+          dietary_notes: fromBody ? (fromBody.dietaryNotes || null) : (prev?.dietary_notes || null),
         });
       }
 
+      await supabase.from('rsvp_guests').delete().eq('rsvp_id', rsvpId);
       await supabase.from('rsvp_guests').insert(guestRows);
     }
 

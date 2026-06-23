@@ -178,13 +178,17 @@ const purchaseSMSCredits = async (req, res, next) => {
   // SECURITY: authorize and operate on the same (path) identifier — see note in
   // createCheckoutSession. req.body.eventId is ignored.
   const eventId = req.params.eventId;
-  const { creditCount } = req.body;
+  // Coerce + integer-check up front. A non-numeric body value (e.g. "abc") used to
+  // slip past `creditCount < 50 || creditCount > 50000` (NaN comparisons are false),
+  // then flowed into computeSmsChargeCents → NaN → Stripe 500. Validate it's a whole
+  // number in range BEFORE any pricing/Stripe work.
+  const creditCount = Number(req.body.creditCount);
 
-  if (!eventId || !creditCount || creditCount < 50 || creditCount > 50000) {
+  if (!eventId || !Number.isInteger(creditCount) || creditCount < 50 || creditCount > 50000) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'eventId and creditCount (minimum 50, maximum 50000) are required.'
+      message: 'eventId and creditCount (a whole number, minimum 50, maximum 50000) are required.'
     });
   }
 
@@ -385,13 +389,18 @@ const verifyCheckoutSession = async (req, res, next) => {
  * POST /api/v1/admin/manual-approve
  */
 const manualCashApproval = async (req, res, next) => {
-  const { eventId, amountCents } = req.body;
+  const { eventId } = req.body;
+  // amountCents is persisted and charged against — guard it instead of only
+  // checking it's defined. Must be a whole, non-negative number of cents within a
+  // sane ceiling ($1,000,000) so a malformed/fat-fingered value can't be stored.
+  const amountCents = Number(req.body.amountCents);
+  const MAX_CENTS = 100_000_000;
 
-  if (!eventId || amountCents === undefined) {
+  if (!eventId || !Number.isInteger(amountCents) || amountCents < 0 || amountCents > MAX_CENTS) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'eventId and amountCents are required.'
+      message: 'eventId and a whole, non-negative amountCents (in cents, up to 100000000) are required.'
     });
   }
 

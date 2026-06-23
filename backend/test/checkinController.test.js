@@ -71,9 +71,18 @@ test('self check-in on an inactive event is blocked (403)', async () => {
     if (table === 'events') return { data: { id: 'evt-1', is_paid: true, status: 'paused' } };
     return {};
   });
-  const { res } = await invoke(selfCheckIn, mockReq({ params: { slug: 'wedding' }, body: { rsvpId: 'r1' } }));
+  const { res } = await invoke(selfCheckIn, mockReq({ params: { slug: 'wedding' }, body: { rsvpId: 'r1', guestName: 'Alice' } }));
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.error, 'EVENT_INACTIVE');
+});
+
+test('self check-in without a guestName is rejected (400) — an rsvpId alone is not enough', async () => {
+  mock.setResolver(() => ({}));
+  const { res } = await invoke(selfCheckIn, mockReq({ params: { slug: 'wedding' }, body: { rsvpId: 'r1' } }));
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'VALIDATION_ERROR');
+  // Rejected on input shape before any event/RSVP lookup.
+  assert.equal(mock.calls.length, 0);
 });
 
 test('self check-in with a name that does not match the RSVP is rejected (400)', async () => {

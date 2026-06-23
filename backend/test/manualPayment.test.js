@@ -43,6 +43,15 @@ test('manualCashApproval requires eventId and amountCents (400)', async () => {
   assert.equal(res.body.error, 'VALIDATION_ERROR');
 });
 
+test('manualCashApproval rejects a negative / non-integer / non-numeric amountCents (400)', async () => {
+  mock.setResolver(() => ({}));
+  for (const amountCents of [-100, 12.5, 'abc']) {
+    const { res } = await invoke(manualCashApproval, mockReq({ body: { eventId: 'evt-1', amountCents }, user: admin }));
+    assert.equal(res.statusCode, 400, `amountCents=${amountCents} should be rejected`);
+    assert.equal(res.body.error, 'VALIDATION_ERROR');
+  }
+});
+
 test('manualCashApproval completes an existing pending cash payment and activates the event', async () => {
   let eventUpdate = null;
   mock.setResolver(({ table, op, payload, filters }) => {

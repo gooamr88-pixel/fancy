@@ -315,8 +315,12 @@ const selfCheckIn = async (req, res, next) => {
   const { slug } = req.params;
   const { rsvpId, guestName } = req.body;
 
-  if (!rsvpId) {
-    return res.status(400).json({ success: false, error: 'rsvpId is required.' });
+  // SECURITY: the rsvpId is an enumerable capability that travels in invitation /
+  // SMS links, so it must NOT be sufficient on its own to check a guest in (that
+  // let anyone holding a link mark a no-show as arrived). Require the matching name
+  // as a lightweight second factor — the name check below is now mandatory.
+  if (!rsvpId || !guestName || !guestName.trim()) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'rsvpId and guestName are required.' });
   }
 
   try {
@@ -347,8 +351,9 @@ const selfCheckIn = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'RSVP_NOT_FOUND', message: 'Guest not found for this event.' });
     }
 
-    // Optional: verify guest name matches for extra security
-    if (guestName && rsvp.guest_name.toLowerCase() !== guestName.toLowerCase()) {
+    // Mandatory name match (see note above): the provided name must match the RSVP
+    // record (case-insensitive, trimmed) before we record a self check-in.
+    if (rsvp.guest_name.trim().toLowerCase() !== guestName.trim().toLowerCase()) {
       return res.status(400).json({ success: false, error: 'NAME_MISMATCH', message: 'Guest name does not match the RSVP record.' });
     }
 

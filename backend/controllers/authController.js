@@ -6,7 +6,7 @@ const logger = require('../utils/logger');
 const { escapeHtml } = require('../utils/emailTemplates');
 const { setAuthCookie, clearAuthCookie, COOKIE_NAME } = require('../middleware/auth');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
-const { newJti, recordSession, revokeByJti, recordLogin } = require('../services/sessionService');
+const { newJti, recordSession, revokeByJti, revokeAllForUser, recordLogin } = require('../services/sessionService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -589,7 +589,7 @@ const resetPassword = async (req, res, next) => {
     // 1. Fetch organization by email
     const { data: orgs, error: fetchError } = await supabase
       .from('organizations')
-      .select('id, email, reset_otp, reset_otp_expires_at, otp_attempts, password_hash')
+      .select('id, owner_user_id, email, reset_otp, reset_otp_expires_at, otp_attempts, password_hash')
       .eq('email', normalizedEmail)
       .limit(1);
 
@@ -665,6 +665,16 @@ const resetPassword = async (req, res, next) => {
       .eq('email', normalizedEmail);
 
     if (updateError) throw updateError;
+
+    // SECURITY: a password reset must invalidate EVERY existing session for this
+    // account. Otherwise an attacker holding a live session (often the very reason
+    // the user is resetting) keeps access until the 24h JWT expiry. Best-effort —
+    // the reset itself has already committed, so session bookkeeping must not 500.
+    try {
+      await revokeAllForUser(org.owner_user_id);
+    } catch (revokeErr) {
+      logger.warn({ err: revokeErr, email: normalizedEmail }, 'resetPassword: failed to revoke existing sessions');
+    }
 
     // Clear any existing auth cookie (force re-login with new password)
     clearAuthCookie(res);
@@ -776,6 +786,16 @@ const changePassword = async (req, res, next) => {
       .eq('id', org.id);
 
     if (updateError) throw updateError;
+
+    // SECURITY: revoke all existing sessions on password change (e.g. a stolen
+    // session on another device), THEN mint a fresh session below so this device
+    // stays logged in. Order matters: issueAuthCookie records a NEW jti after the
+    // revoke, so the new session survives. Best-effort — the change already committed.
+    try {
+      await revokeAllForUser(req.user.id);
+    } catch (revokeErr) {
+      logger.warn({ err: revokeErr, userId: req.user.id }, 'changePassword: failed to revoke existing sessions');
+    }
 
     // Re-issue auth cookie with fresh token after password change
     await issueAuthCookie(req, res, { id: req.user.id, email: org.email, role: req.user.role });

@@ -162,6 +162,17 @@ test('purchaseSMSCredits enforces the 50–50000 credit bounds', async () => {
   }
 });
 
+test('purchaseSMSCredits rejects a non-numeric / non-integer creditCount (400, no NaN→Stripe 500)', async () => {
+  mock.setResolver(() => ({}));
+  for (const creditCount of ['abc', 100.5, null]) {
+    const { res } = await invoke(purchaseSMSCredits, mockReq({ params: { eventId: 'evt-1' }, body: { creditCount }, user: { id: 'owner-1' } }));
+    assert.equal(res.statusCode, 400, `creditCount=${creditCount} should be rejected`);
+    assert.equal(res.body.error, 'VALIDATION_ERROR');
+  }
+  // No Stripe checkout session is ever created for an invalid amount.
+  assert.equal(createCalls.length, 0);
+});
+
 test('purchaseSMSCredits requires an existing Stripe customer (first event must be paid)', async () => {
   mock.setResolver(({ table }) => {
     if (table === 'super_admin_config') return { data: { sms_rate_cents_per_credit: 8, sms_markup_percentage: 40 } };

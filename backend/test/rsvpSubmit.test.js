@@ -132,6 +132,21 @@ test('the organizer is emailed when preferences allow and an org email is presen
   assert.ok(emailCalls.some(a => a[0] === 'org@x.com'), 'organizer notified by email');
 });
 
+test('a "maybe" RSVP labels the organizer email "Maybe" (amber), never "Declined"', async () => {
+  rpcResult({
+    success: true, rsvp_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
+    response: 'maybe', party_size: 1, guest_email: null, notification_preferences: { email: true }, org_email: 'org@x.com',
+  });
+  const { res } = await invoke(submitPublicRSVP, req({ guestName: 'Alice', response: 'maybe' }));
+  assert.equal(res.statusCode, 201);
+  const orgEmail = emailCalls.find(a => a[0] === 'org@x.com');
+  assert.ok(orgEmail, 'organizer emailed');
+  const html = orgEmail[2];
+  assert.match(html, /Maybe/);
+  assert.doesNotMatch(html, /Declined/);
+  assert.match(html, /#f59e0b/); // amber accent, not the red decline colour
+});
+
 test('a DB-level RPC error is forwarded to the Express error handler', async () => {
   mock.setResolver((s) => (s.op === 'rpc' ? { error: { message: 'connection reset' } } : {}));
   const { nextErr } = await invoke(submitPublicRSVP, req({ guestName: 'A', response: 'yes', partySize: 1 }));
