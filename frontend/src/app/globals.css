@@ -27,6 +27,9 @@
   --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, sans-serif;
   /* Tier 3 — Logo / Brand Moments: High-end Luxury Script */
   --font-script: 'Great Vibes', cursive;
+  /* Tier 4 — Arabic: ornate calligraphic display (seal & titles) + naskh fallback */
+  --font-arabic-display: var(--font-aref), 'Aref Ruqaa', 'Amiri', serif;
+  --font-arabic: 'Amiri', 'Noto Naskh Arabic', 'Aref Ruqaa', serif;
 }
 
 @theme inline {

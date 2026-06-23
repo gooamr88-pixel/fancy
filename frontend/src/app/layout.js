@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Playfair_Display, Lato, Great_Vibes } from 'next/font/google';
+import { Playfair_Display, Lato, Great_Vibes, Aref_Ruqaa } from 'next/font/google';
 
 /* ═══ Google Fonts — Luxury Typography Stack ═══ */
 
@@ -28,6 +28,14 @@ const greatVibes = Great_Vibes({
   display: 'swap',
 });
 
+/* ARABIC CALLIGRAPHY: ornate display script for the invitation seal & titles */
+const arefRuqaa = Aref_Ruqaa({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '700'],
+  variable: '--font-aref',
+  display: 'swap',
+});
+
 export const metadata = {
   title: "Fancy RSVP — Elegant RSVPs. Effortless Planning.",
   description: "The all-in-one RSVP and guest management platform for weddings and special events. Create beautiful digital invitations with real-time tracking.",
@@ -37,7 +45,7 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${playfair.variable} ${lato.variable} ${greatVibes.variable}`}
+      className={`${playfair.variable} ${lato.variable} ${greatVibes.variable} ${arefRuqaa.variable}`}
     >
       <body>{children}</body>
     </html>

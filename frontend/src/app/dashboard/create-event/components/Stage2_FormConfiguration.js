@@ -99,6 +99,39 @@ function Field({ label: lbl, required, hint, children, style: wrapStyle }) {
   );
 }
 
+/* ═══ Image upload + preview for invitation seal / background ═══ */
+function SealUpload({ url, onUpload, onClear, busy, previewFit = 'contain', previewBg = C.softBg }) {
+  return (
+    <>
+      <label style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, cursor: busy ? 'wait' : 'pointer',
+        padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, color: C.gold,
+        fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+        opacity: busy ? 0.6 : 1,
+      }}>
+        {busy ? 'Uploading…' : '⬆ Upload image'}
+        <input type="file" accept="image/*" onChange={onUpload} disabled={busy} style={{ display: 'none' }} />
+      </label>
+      <span style={{ fontSize: 10, color: '#A09A91', marginLeft: 10, fontFamily: 'var(--font-sans)' }}>PNG, JPG, WebP • Max 8MB</span>
+      {url && (
+        <div style={{
+          borderRadius: 12, overflow: 'hidden', border: `1px solid ${C.border}`,
+          height: 140, background: previewBg, marginTop: 10, position: 'relative',
+        }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: previewFit }}
+            onError={(e) => { e.target.style.display = 'none'; }} />
+          <button type="button" onClick={onClear} aria-label="Remove image" style={{
+            position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
+            border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer',
+            fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>×</button>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function Stage2_FormConfiguration({
   templateType, templates,
   title, setTitle, slug, setSlug,
@@ -110,6 +143,8 @@ export default function Stage2_FormConfiguration({
   locationAddress, setLocationAddress,
   onPlaceSelect,
   templateData, setTemplateData,
+  onSealImageUpload, sealUploading,
+  onInvitationBgUpload, invitationBgUploading,
   dressCode, setDressCode,
   rsvpDeadline, setRsvpDeadline,
   privacyMode, setPrivacyMode,
@@ -350,6 +385,27 @@ export default function Stage2_FormConfiguration({
             )}
           </Section>
         )}
+
+        {/* ═══ Premium Invitation Seal & Stationery ═══ */}
+        <Section title="Invitation Seal & Stationery" icon="✨">
+          <p style={{ fontSize: 12.5, color: C.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+            These power the cinematic envelope your guests unseal when they open the link.
+            Leave everything blank to use the elegant auto-generated bronze seal and arabesque stationery.
+          </p>
+
+          <Field label="Seal Name / Monogram" hint="Engraved at the centre of the seal — e.g. حسن, or initials like A&J. Defaults to your event name.">
+            <input type="text" value={td('seal_text')} onChange={e => setTd('seal_text')(e.target.value)}
+              placeholder="Auto from event name" style={iStyle} onFocus={onFocus} onBlur={onBlur} maxLength={24} />
+          </Field>
+
+          <Field label="Custom Seal Artwork (optional)" hint="A transparent PNG of your exact seal. When set, it replaces the generated medallion pixel-for-pixel and glows gold on open.">
+            <SealUpload url={td('seal_image_url')} onUpload={onSealImageUpload} onClear={() => setTd('seal_image_url')('')} busy={sealUploading} previewFit="contain" />
+          </Field>
+
+          <Field label="Invitation Background (optional)" hint="Ornate stationery shown behind the seal during the reveal.">
+            <SealUpload url={td('invitation_bg_url')} onUpload={onInvitationBgUpload} onClear={() => setTd('invitation_bg_url')('')} busy={invitationBgUploading} previewFit="cover" />
+          </Field>
+        </Section>
 
         {/* ═══ Section C: Settings ═══ */}
         <Section title="Event Settings" icon="⚙️">

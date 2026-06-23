@@ -186,6 +186,8 @@ export default function CreateEventWizard() {
   const [musicUploading, setMusicUploading] = useState(false);
   const [galleryUrls, setGalleryUrls] = useState([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
+  const [sealUploading, setSealUploading] = useState(false);
+  const [invitationBgUploading, setInvitationBgUploading] = useState(false);
 
   /* ─── Custom Colors (derived from preset) ─── */
   const [customColors, setCustomColors] = useState({
@@ -448,6 +450,43 @@ export default function CreateEventWizard() {
     }
     setCoverImageUploading(false);
   }, []);
+
+  /* ═══ Invitation seal + background uploads → stored in template_data so the
+       guest's cinematic envelope reveal renders the organizer's exact art ═══ */
+  const uploadInvitationAsset = useCallback(async (file, folder, tdKey, setBusy) => {
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      alert('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      return;
+    }
+    setBusy(true);
+    try {
+      if (!supabase) throw new Error('Storage client not configured.');
+      const ext = file.name.split('.').pop();
+      const filePath = `${folder}/wizard-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
+      setTemplateData((d) => ({ ...d, [tdKey]: publicUrl }));
+    } catch (err) {
+      console.error('Invitation asset upload failed, falling back to inline encoding:', err);
+      const reader = new FileReader();
+      reader.onload = (ev) => { setTemplateData((d) => ({ ...d, [tdKey]: ev.target.result })); setBusy(false); };
+      reader.readAsDataURL(file);
+      return;
+    }
+    setBusy(false);
+  }, []);
+
+  const handleSealImageUpload = useCallback((e) => {
+    uploadInvitationAsset(e.target.files?.[0], 'seals', 'seal_image_url', setSealUploading);
+  }, [uploadInvitationAsset]);
+
+  const handleInvitationBgUpload = useCallback((e) => {
+    uploadInvitationAsset(e.target.files?.[0], 'invitation-bg', 'invitation_bg_url', setInvitationBgUploading);
+  }, [uploadInvitationAsset]);
 
   /* ═══ Background music upload (Supabase storage, base64 fallback) ═══ */
   const handleMusicUpload = useCallback(async (e) => {
@@ -904,6 +943,8 @@ export default function CreateEventWizard() {
               locationAddress={locationAddress} setLocationAddress={setLocationAddress}
               onPlaceSelect={handlePlaceSelect}
               templateData={templateData} setTemplateData={setTemplateData}
+              onSealImageUpload={handleSealImageUpload} sealUploading={sealUploading}
+              onInvitationBgUpload={handleInvitationBgUpload} invitationBgUploading={invitationBgUploading}
               dressCode={dressCode} setDressCode={setDressCode}
               rsvpDeadline={rsvpDeadline} setRsvpDeadline={setRsvpDeadline}
               privacyMode={privacyMode} setPrivacyMode={setPrivacyMode}

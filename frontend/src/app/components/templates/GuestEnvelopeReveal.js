@@ -39,6 +39,8 @@ const GUILLOCHE_TICKS = Array.from({ length: 48 }, (_, i) => i * 7.5);
 
 const PETAL_PATH = "M110 30 C 129 53 127 75 110 89 C 93 75 91 53 110 30 Z";
 const PETAL_VEIN = "M110 41 C 119 55 119 70 110 83 C 101 70 101 55 110 41 Z";
+// Smaller secondary petal, offset between the primaries to densify the mandala.
+const PETAL_PATH_SM = "M110 50 C 121 64 120 78 110 88 C 100 78 99 64 110 50 Z";
 
 /* Two complete metal "skins" for the medallion, cross-faded on activation so the
    bronze→gold morph stays perfectly registered (identical geometry underneath). */
@@ -66,32 +68,46 @@ const isArabic = (s) => typeof s === "string" && /[؀-ۿ]/.test(s);
 
 function deriveIdentity(event, lang) {
   const td = event?.template_data || {};
-  const a = (td.groom_name || td.partner1Name || "").trim();
-  const b = (td.bride_name || td.partner2Name || "").trim();
+  const a = (td.groom_name || td.partner1Name || td.partner1 || td.celebrant || td.honoree || td.company || "").trim();
+  const b = (td.bride_name || td.partner2Name || td.partner2 || "").trim();
 
   let full;
   if (a && b) full = `${a} & ${b}`;
   else if (a) full = a;
   else full = (lang === "ar" && event?.title_ar) ? event.title_ar : (event?.title || "");
 
-  // Monogram: couple initials → otherwise first letters of the first two words.
-  let mono;
-  if (a && b) mono = `${a[0]}${b[0]}`;
-  else if (a) mono = a.slice(0, 2);
-  else {
-    const words = (event?.title || "").trim().split(/\s+/).filter(Boolean);
-    mono = words.slice(0, 2).map((w) => w[0]).join("");
+  // Seal centrepiece — organizer override (`template_data.seal_text`) wins, so an
+  // Arabic event can show its exact calligraphic name (e.g. حسن). Otherwise we
+  // derive it from real event data: an Arabic name renders as a calligraphic
+  // word, a Latin event as a refined monogram.
+  let sealText = (td.seal_text || "").trim();
+  if (!sealText) {
+    const arabicSource = [a, b, event?.title_ar, event?.title].find((s) => isArabic(s));
+    if (arabicSource) {
+      sealText = arabicSource.trim().split(/\s+/).filter(Boolean)[0] || arabicSource.trim();
+    } else if (a && b) {
+      sealText = `${a[0]}${b[0]}`.toUpperCase();
+    } else if (a) {
+      sealText = a.slice(0, 2).toUpperCase();
+    } else {
+      const words = (event?.title || "").trim().split(/\s+/).filter(Boolean);
+      sealText = words.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+    }
   }
-  mono = (mono || "").toUpperCase().slice(0, 3) || "✦";
+  sealText = sealText || "✦";
 
-  return { full: full || "You're Invited", mono, monoArabic: isArabic(mono) || isArabic(full) };
+  return { full: full || "You're Invited", sealText, sealArabic: isArabic(sealText) };
 }
 
 /* ─── The medallion artwork — one metal skin (bronze or gold) ─── */
 /* `uid` keeps every instance's gradient ids unique (no cross-SVG collisions). */
-function MedallionSkin({ skin, uid, mono, monoArabic }) {
+function MedallionSkin({ skin, uid, text, arabic }) {
   const m = METAL[skin];
   const s = `${skin}-${uid}`;
+  const len = (text || "").length;
+  const sealFontSize = arabic
+    ? (len <= 3 ? 52 : len <= 5 ? 42 : 32)
+    : (len <= 2 ? 42 : len <= 3 ? 34 : 26);
   return (
     <g>
       <defs>
@@ -150,8 +166,12 @@ function MedallionSkin({ skin, uid, mono, monoArabic }) {
           <path d={PETAL_VEIN} fill="none" stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.6" />
         </g>
       ))}
+      {/* Secondary petal layer, interleaved between the primaries */}
       {ACCENT_DOTS.map((deg) => (
-        <circle key={`dot-${deg}`} cx={C} cy="48" r="2.1" fill={m.orn[0]} transform={`rotate(${deg} ${C} ${C})`} />
+        <path key={`pet2-${deg}`} d={PETAL_PATH_SM} fill={`url(#orn-${s})`} fillOpacity="0.9" stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.5" transform={`rotate(${deg} ${C} ${C})`} />
+      ))}
+      {ACCENT_DOTS.map((deg) => (
+        <circle key={`dot-${deg}`} cx={C} cy="44" r="1.9" fill={m.orn[0]} transform={`rotate(${deg} ${C} ${C})`} />
       ))}
 
       {/* Centre cartouche + monogram */}
@@ -160,13 +180,13 @@ function MedallionSkin({ skin, uid, mono, monoArabic }) {
       <text
         x={C} y={C} textAnchor="middle" dominantBaseline="central" fill={m.mono}
         style={{
-          fontFamily: monoArabic ? "var(--font-serif)" : "var(--font-script), var(--font-serif)",
-          fontSize: monoArabic ? 30 : 40,
-          fontWeight: 500,
-          letterSpacing: monoArabic ? 0 : 1,
+          fontFamily: arabic ? "var(--font-arabic-display), 'Aref Ruqaa', serif" : "var(--font-script), var(--font-serif)",
+          fontSize: sealFontSize,
+          fontWeight: arabic ? 700 : 500,
+          letterSpacing: arabic ? 0 : 1,
         }}
       >
-        {mono}
+        {text}
       </text>
     </g>
   );
@@ -245,6 +265,14 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
   const hasArabic = !!(event?.title_ar || isArabic(event?.title));
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
 
+  /* DB-driven invitation artwork (stored per-event in template_data). When the
+     organizer has uploaded their exact seal / background, we render that art
+     pixel-for-pixel; otherwise we fall back to the rich generated vector. */
+  const td = event?.template_data || {};
+  const sealImg = td.seal_image_url || null;
+  const sealGoldImg = td.seal_image_gold_url || sealImg;
+  const bgImg = td.invitation_bg_url || null;
+
   const copy = {
     en: {
       eyebrow: "You are invited",
@@ -276,15 +304,19 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
      same paper texture paints the backdrop AND every envelope flap. */
   const patternUrl = useMemo(() => {
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='46' height='46' viewBox='0 0 46 46'>`
-      + `<g fill='none' stroke='%23b8944f' stroke-opacity='0.16' stroke-width='1'>`
-      + `<rect x='11' y='11' width='24' height='24'/>`
-      + `<rect x='11' y='11' width='24' height='24' transform='rotate(45 23 23)'/>`
-      + `<circle cx='23' cy='23' r='4.5'/>`
-      + `<path d='M23 0 V7 M23 39 V46 M0 23 H7 M39 23 H46'/>`
+      + `<g fill='none' stroke='%23b8944f' stroke-opacity='0.18' stroke-width='0.9'>`
+      + `<rect x='9' y='9' width='28' height='28'/>`
+      + `<rect x='9' y='9' width='28' height='28' transform='rotate(45 23 23)'/>`
+      + `<rect x='15' y='15' width='16' height='16'/>`
+      + `<rect x='15' y='15' width='16' height='16' transform='rotate(45 23 23)'/>`
+      + `<circle cx='23' cy='23' r='3'/>`
+      + `<circle cx='0' cy='0' r='3'/><circle cx='46' cy='0' r='3'/><circle cx='0' cy='46' r='3'/><circle cx='46' cy='46' r='3'/>`
+      + `<path d='M23 0 V9 M23 37 V46 M0 23 H9 M37 23 H46'/>`
+      + `<path d='M9 9 L0 0 M37 9 L46 0 M9 37 L0 46 M37 37 L46 46'/>`
       + `</g>`
-      + `<g fill='none' stroke='%23ffffff' stroke-opacity='0.5' stroke-width='0.7'>`
-      + `<rect x='11.6' y='11.6' width='24' height='24'/>`
-      + `<rect x='11.6' y='11.6' width='24' height='24' transform='rotate(45 23.6 23.6)'/>`
+      + `<g fill='none' stroke='%23ffffff' stroke-opacity='0.45' stroke-width='0.6'>`
+      + `<rect x='9.6' y='9.6' width='28' height='28'/>`
+      + `<rect x='9.6' y='9.6' width='28' height='28' transform='rotate(45 23.6 23.6)'/>`
       + `</g></svg>`;
     return `url("data:image/svg+xml,${svg}")`;
   }, []);
@@ -353,7 +385,7 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
         </button>
         <div style={{ textAlign: "center", padding: "24px", maxWidth: 460 }}>
           <svg width="150" height="150" viewBox="0 0 220 220" role="img" aria-label="Invitation seal">
-            <MedallionSkin skin="bronze" uid="rm" mono={identity.mono} monoArabic={identity.monoArabic} />
+            <MedallionSkin skin="bronze" uid="rm" text={identity.sealText} arabic={identity.sealArabic} />
           </svg>
           <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.32em", textTransform: "uppercase", color: theme.primary, fontWeight: 700, margin: "20px 0 10px" }}>
             {copy.eyebrow}
@@ -388,8 +420,13 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
     >
       <style dangerouslySetInnerHTML={{ __html: REVEAL_CSS }} />
 
-      {/* Embossed arabesque stationery wash + warm vignette */}
-      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: lit ? 0.12 : 0.55, transition: "opacity 0.8s ease" }} />
+      {/* Embossed arabesque stationery wash + warm vignette. Uses the organizer's
+          uploaded background when present, else the generated arabesque tile. */}
+      {bgImg ? (
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url(${bgImg})`, backgroundSize: "cover", backgroundPosition: "center", opacity: lit ? 0.18 : 1, transition: "opacity 0.8s ease" }} />
+      ) : (
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: lit ? 0.12 : 0.55, transition: "opacity 0.8s ease" }} />
+      )}
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(70% 60% at 50% 38%, rgba(255,255,255,0.35), transparent 70%), radial-gradient(120% 120% at 50% 100%, rgba(120,90,45,0.16), transparent 60%)", pointerEvents: "none" }} />
 
       {/* Top-right language chip — mirrors the live event page composition */}
@@ -524,21 +561,42 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
             style={{ position: "absolute", inset: "-26%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,221,130,0.7) 0%, rgba(255,200,90,0.32) 45%, transparent 72%)", pointerEvents: "none", filter: "blur(3px)" }}
           />
 
-          {/* The medallion: bronze base with a gold skin cross-faded on top */}
+          {/* The medallion: bronze base with a gold skin cross-faded on top.
+              Renders the organizer's uploaded artwork when set, else the vector. */}
           <div className={stage === 2 ? "ger-breathe" : ""} style={{ position: "relative", width: "100%", height: "100%" }}>
-            <svg viewBox="0 0 220 220" width="100%" height="100%" style={{ display: "block", position: "relative", zIndex: 1 }} role="img" aria-label="Invitation wax seal">
-              <MedallionSkin skin="bronze" uid="main" mono={identity.mono} monoArabic={identity.monoArabic} />
-            </svg>
-            <motion.svg
-              viewBox="0 0 220 220" width="100%" height="100%"
-              initial={false}
-              animate={{ opacity: stage >= 3 ? 1 : 0 }}
-              transition={{ duration: 0.85, ease: "easeInOut" }}
-              style={{ display: "block", position: "absolute", inset: 0, zIndex: 2 }}
-              aria-hidden
-            >
-              <MedallionSkin skin="gold" uid="main" mono={identity.mono} monoArabic={identity.monoArabic} />
-            </motion.svg>
+            {sealImg ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={sealImg} alt="Invitation seal" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", zIndex: 1 }} />
+                <motion.img
+                  src={sealGoldImg} alt="" aria-hidden
+                  initial={false}
+                  animate={{ opacity: stage >= 3 ? 1 : 0 }}
+                  transition={{ duration: 0.85, ease: "easeInOut" }}
+                  style={{
+                    position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", zIndex: 2,
+                    // If no dedicated gold asset, warm the bronze one into gold.
+                    filter: sealGoldImg === sealImg ? "brightness(1.32) saturate(1.45) drop-shadow(0 0 14px rgba(255,200,90,0.55))" : "drop-shadow(0 0 14px rgba(255,200,90,0.55))",
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 220 220" width="100%" height="100%" style={{ display: "block", position: "relative", zIndex: 1 }} role="img" aria-label="Invitation wax seal">
+                  <MedallionSkin skin="bronze" uid="main" text={identity.sealText} arabic={identity.sealArabic} />
+                </svg>
+                <motion.svg
+                  viewBox="0 0 220 220" width="100%" height="100%"
+                  initial={false}
+                  animate={{ opacity: stage >= 3 ? 1 : 0 }}
+                  transition={{ duration: 0.85, ease: "easeInOut" }}
+                  style={{ display: "block", position: "absolute", inset: 0, zIndex: 2 }}
+                  aria-hidden
+                >
+                  <MedallionSkin skin="gold" uid="main" text={identity.sealText} arabic={identity.sealArabic} />
+                </motion.svg>
+              </>
+            )}
 
             {/* Light-reflection sweep across the metal */}
             <div aria-hidden style={{ position: "absolute", inset: 0, borderRadius: "50%", overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
@@ -600,9 +658,14 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
               transition={{ delay: 0.15, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
               style={{ position: "relative", marginBottom: 22 }}
             >
-              <svg width="92" height="92" viewBox="0 0 220 220" aria-hidden style={{ filter: "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }}>
-                <MedallionSkin skin="gold" uid="lock" mono={identity.mono} monoArabic={identity.monoArabic} />
-              </svg>
+              {sealGoldImg ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={sealGoldImg} alt="" aria-hidden width={92} height={92} style={{ width: 92, height: 92, objectFit: "contain", filter: sealGoldImg === sealImg ? "brightness(1.32) saturate(1.45) drop-shadow(0 8px 18px rgba(150,110,40,0.3))" : "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }} />
+              ) : (
+                <svg width="92" height="92" viewBox="0 0 220 220" aria-hidden style={{ filter: "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }}>
+                  <MedallionSkin skin="gold" uid="lock" text={identity.sealText} arabic={identity.sealArabic} />
+                </svg>
+              )}
             </motion.div>
 
             <motion.span
