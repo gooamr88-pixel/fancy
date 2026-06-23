@@ -15,9 +15,21 @@ import { useAuth } from "../../hooks/useAuth";
    
    - White background, very subtle bottom border
    - Logo on left: envelope icon + "Fancy" in script + "RSVP" in serif
-   - Nav links centered-right: Features, Pricing, About, Log In
+   - Nav links centered-right: Home, Features, Templates, Pricing, About, Contact, Log In
    - CTA button "Get Started" in Champagne Gold with rounded corners
    ═══════════════════════════════════════════════════════════ */
+
+/* Primary navigation links — shared by desktop nav + mobile menu.
+   "Home" links back to the landing page; the rest are the key
+   marketing pages that live under /src/app. */
+const NAV_LINKS = [
+  { label: "Home", href: "/" },
+  { label: "Features", href: "/features" },
+  { label: "Templates", href: "/templates" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "About", href: "/about" },
+  { label: "Contact", href: "/contact" },
+];
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -186,15 +198,11 @@ export default function Navbar() {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "36px",
+              gap: "28px",
             }}
             className="desktop-nav"
           >
-            {[
-              { label: "Features", href: "/features" },
-              { label: "Pricing", href: "/pricing" },
-              { label: "About", href: "/about" },
-            ].map((item) => (
+            {NAV_LINKS.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -208,10 +216,11 @@ export default function Navbar() {
                   padding: "4px 0",
                   transition: "color 0.25s ease",
                   letterSpacing: "0.2px",
+                  whiteSpace: "nowrap",
                 }}
                 onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
                 onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
-                id={`nav-link-${item.href.slice(1)}`}
+                id={`nav-link-${item.href === "/" ? "home" : item.href.slice(1)}`}
               >
                 {item.label}
               </Link>
@@ -354,11 +363,7 @@ export default function Navbar() {
             animation: "fadeIn 0.25s ease",
           }}
         >
-          {[
-            { label: "Features", href: "/features" },
-            { label: "Pricing", href: "/pricing" },
-            { label: "About", href: "/about" },
-          ].map((item) => (
+          {NAV_LINKS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
