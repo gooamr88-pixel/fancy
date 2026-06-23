@@ -32,17 +32,11 @@ router.post('/login', [
 // Logout (clears auth cookie): POST /api/v1/auth/logout
 router.post('/logout', authController.logout);
 
-// Google OAuth login (checks if email exists): POST /api/v1/auth/google-login
-router.post('/google-login', [
+// Google OAuth (unified — logs in existing users, creates new ones): POST /api/v1/auth/google
+router.post('/google', [
   body('credential').notEmpty().withMessage('Google credential is required'),
   validate
-], authController.googleLogin);
-
-// Google OAuth register (creates new account): POST /api/v1/auth/google-register
-router.post('/google-register', [
-  body('credential').notEmpty().withMessage('Google credential is required'),
-  validate
-], authController.googleRegister);
+], authController.googleAuth);
 
 // Forgot password link trigger: POST /api/v1/auth/forgot-password
 router.post('/forgot-password', [

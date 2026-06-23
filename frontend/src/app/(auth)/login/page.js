@@ -4,12 +4,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../utils/apiClient';
+import { getAuthErrorMessage } from '../../utils/authErrors';
+import Toast from '../../components/Toast';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleBtnRef = useRef(null);
@@ -20,12 +22,12 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) {
-      setError('Please fill in all fields.');
+      setToast({ message: 'Please enter both your email and password.', kind: 'error' });
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    setToast(null);
 
     try {
       const data = await apiFetch('/auth/login', {
@@ -38,14 +40,10 @@ export default function LoginPage() {
         localStorage.setItem('user_role', data.user.role);
         router.push('/dashboard');
       } else {
-        setError(data.message || 'Login failed. Please try again.');
+        setToast({ message: data.message || 'Login failed. Please try again.', kind: 'error' });
       }
     } catch (err) {
-      const msg = err.message || '';
-      if (msg.includes('Session expired')) setError('Session expired. Please log in again.');
-      else if (msg.includes('status 5') || msg.includes('unexpected')) setError('An unexpected error occurred. Please try again.');
-      else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Network error. Please check your connection.');
-      else setError(msg);
+      setToast({ message: getAuthErrorMessage(err, 'Login failed. Please try again.'), kind: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -63,9 +61,9 @@ export default function LoginPage() {
         client_id: clientId,
         callback: async (response) => {
           setGoogleLoading(true);
-          setError(null);
+          setToast(null);
           try {
-            const data = await apiFetch('/auth/google-login', {
+            const data = await apiFetch('/auth/google', {
               method: 'POST',
               body: JSON.stringify({ credential: response.credential })
             });
@@ -75,14 +73,11 @@ export default function LoginPage() {
               setGoogleLoading(false);
               router.push('/dashboard');
             } else {
-              setError(data.message || 'Google login failed.');
+              setToast({ message: data.message || 'Google sign-in failed. Please try again.', kind: 'error' });
               setGoogleLoading(false);
             }
           } catch (err) {
-            const msg = err.message || '';
-            if (msg.includes('status 5') || msg.includes('unexpected')) setError('An unexpected error occurred. Please try again.');
-            else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Connection error. Please try again.');
-            else setError(msg);
+            setToast({ message: getAuthErrorMessage(err, 'Google sign-in failed. Please try again.'), kind: 'error' });
             setGoogleLoading(false);
           }
         },
@@ -125,6 +120,8 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
       {/* Left Panel — Image */}
       <div className="auth-image-panel">
         <div className="auth-image-overlay" />
@@ -159,15 +156,6 @@ export default function LoginPage() {
 
           <h1 className="auth-heading">Welcome Back</h1>
           <p className="auth-subtext">Sign in to your organizer dashboard</p>
-
-          {error && (
-            <div className="auth-error" role="alert">
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span>{error}</span>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="auth-field">
@@ -361,21 +349,6 @@ export default function LoginPage() {
           color: #77736A;
           margin: 0 0 32px;
         }
-
-        /* ── Error ── */
-        .auth-error {
-          padding: 14px 16px;
-          background: #FFF1F2;
-          border: 1px solid #FECDD3;
-          border-radius: 10px;
-          color: #9F1239;
-          font-size: 13px;
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          margin-bottom: 24px;
-        }
-        .auth-error svg { flex-shrink: 0; margin-top: 1px; }
 
         /* ── Form ── */
         .auth-form { display: flex; flex-direction: column; gap: 20px; }

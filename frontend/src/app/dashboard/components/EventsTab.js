@@ -278,7 +278,7 @@ function MiniStat({ label, value, color, delay, icon }) {
 }
 
 /* ═══ Event Payment / Activation Panel ═══ */
-function EventPaymentPanel({ eventId, event }) {
+function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
   const [pricingTiers, setPricingTiers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTier, setSelectedTier] = useState(null);
@@ -287,6 +287,7 @@ function EventPaymentPanel({ eventId, event }) {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
+  const isUpgrade = !!upgradeFromTier;
   const initialPendingPayment = event.event_payments?.find(
     p => p.payment_method === 'cash_manual' && p.status === 'pending'
   );
@@ -299,8 +300,14 @@ function EventPaymentPanel({ eventId, event }) {
       try {
         const res = await apiFetch('/payments/pricing-config');
         if (res.success && res.config?.pricing_tiers) {
-          setPricingTiers(res.config.pricing_tiers);
-          setSelectedTier(res.config.pricing_tiers[0]);
+          const all = res.config.pricing_tiers;
+          setPricingTiers(all);
+          // Default selection: first billable (and, in upgrade mode, strictly
+          // higher-priced) tier — full price is charged for the new license.
+          const billable = all.filter(t => t && t.is_custom !== true);
+          const curPrice = upgradeFromTier ? (all.find(t => t.name === upgradeFromTier)?.price_cents ?? null) : null;
+          const disp = (upgradeFromTier && curPrice != null) ? billable.filter(t => t.price_cents > curPrice) : billable;
+          setSelectedTier(disp[0] || null);
         }
       } catch (e) {
         console.error('Failed to load pricing config', e);
@@ -309,7 +316,14 @@ function EventPaymentPanel({ eventId, event }) {
       }
     };
     loadPricing();
-  }, [initialPendingPayment]);
+  }, [initialPendingPayment, upgradeFromTier]);
+
+  // Tiers shown: billable only; in upgrade mode, only strictly higher-priced.
+  const billableTiers = pricingTiers.filter(t => t && t.is_custom !== true);
+  const currentPrice = upgradeFromTier ? (pricingTiers.find(t => t.name === upgradeFromTier)?.price_cents ?? null) : null;
+  const displayTiers = (isUpgrade && currentPrice != null)
+    ? billableTiers.filter(t => t.price_cents > currentPrice)
+    : billableTiers;
 
   const handlePayment = async () => {
     if (!selectedTier) return;
@@ -371,12 +385,21 @@ function EventPaymentPanel({ eventId, event }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', animation: 'evtStatPop 0.5s ease both' }}>
       <div style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: '12px' }}>
-        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: C.charcoal, margin: 0 }}>Activate Event Page</h4>
-        <p style={{ fontSize: '12px', color: C.stone, margin: '4px 0 0', fontFamily: 'var(--font-sans)' }}>This event is currently offline. Choose a license tier to bring it online.</p>
+        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: C.charcoal, margin: 0 }}>{isUpgrade ? 'Upgrade Your Plan' : 'Activate Event Page'}</h4>
+        <p style={{ fontSize: '12px', color: C.stone, margin: '4px 0 0', fontFamily: 'var(--font-sans)' }}>
+          {isUpgrade
+            ? 'Choose a higher tier below. Upgrading is a one-time charge for the new license.'
+            : 'This event is currently offline. Choose a license tier to bring it online.'}
+        </p>
       </div>
 
+      {displayTiers.length === 0 ? (
+        <p style={{ fontSize: '12px', color: C.stone, fontStyle: 'italic', fontFamily: 'var(--font-sans)' }}>
+          You&apos;re already on the highest available plan.
+        </p>
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-        {pricingTiers.map(tier => {
+        {displayTiers.map(tier => {
           const isSelected = selectedTier && selectedTier.name === tier.name;
           return (
             <div key={tier.name} onClick={() => setSelectedTier(tier)}
@@ -394,6 +417,7 @@ function EventPaymentPanel({ eventId, event }) {
           );
         })}
       </div>
+      )}
 
       <div>
         <span style={{ fontSize: '11px', color: C.stone, fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Payment Method</span>
@@ -423,8 +447,59 @@ function EventPaymentPanel({ eventId, event }) {
         }}
         onMouseEnter={e => { if (!processing) e.currentTarget.style.background = C.goldHover; }}
         onMouseLeave={e => { if (!processing) e.currentTarget.style.background = C.gold; }}>
-        {processing ? 'Processing activation...' : (paymentMethod === 'stripe' ? 'Pay & Activate Online' : 'Initiate Offline Transfer')}
+        {processing
+          ? 'Processing...'
+          : isUpgrade
+            ? (paymentMethod === 'stripe' ? 'Pay & Upgrade Online' : 'Initiate Upgrade Transfer')
+            : (paymentMethod === 'stripe' ? 'Pay & Activate Online' : 'Initiate Offline Transfer')}
       </button>
+    </div>
+  );
+}
+
+/* ═══ Current Plan + Upgrade (paid events) ═══ */
+function CurrentPlanBlock({ eventId, event }) {
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const planName = event.tier_name || 'Active Plan';
+  const maxGuests = event.tier_max_guests;
+
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #FFFDF7 0%, #FFFFFF 100%)',
+      border: `1.5px solid ${C.gold}`, borderRadius: 14, padding: '18px 20px', marginBottom: 20,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-sans)' }}>Current Plan</span>
+          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.charcoal, margin: '2px 0 2px' }}>{planName}</h4>
+          <span style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+            {maxGuests > 0 ? `Up to ${maxGuests} guests` : 'Unlimited guests'}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 100,
+            background: 'rgba(74,124,89,0.10)', border: '1px solid rgba(74,124,89,0.25)',
+            fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: '#3A8B55', textTransform: 'uppercase', letterSpacing: '0.05em',
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4A7C59' }} /> Active
+          </span>
+          <button onClick={() => setShowUpgrade(s => !s)} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: 'none',
+            background: showUpgrade ? C.white : 'linear-gradient(135deg, #B8944F, #D7BE80)',
+            color: showUpgrade ? C.stone : C.white, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700,
+            cursor: 'pointer', boxShadow: showUpgrade ? 'none' : '0 3px 12px rgba(184,148,79,0.28)',
+            ...(showUpgrade ? { border: `1px solid ${C.border}` } : {}),
+          }}>
+            {showUpgrade ? 'Close' : (<><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>Upgrade Plan</>)}
+          </button>
+        </div>
+      </div>
+      {showUpgrade && (
+        <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${C.border}` }}>
+          <EventPaymentPanel eventId={eventId} event={event} upgradeFromTier={event.tier_name || null} />
+        </div>
+      )}
     </div>
   );
 }
@@ -485,6 +560,9 @@ function ExpandedPanel({ eventId, event, onClose }) {
 
   return (
     <div className="evt2-expand-panel" style={{ padding: '20px 24px', background: '#FDFCFA' }}>
+      {/* Current Plan + Upgrade */}
+      <CurrentPlanBlock eventId={eventId} event={event} />
+
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {/* Donut */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, animation: 'evtStatPop 0.5s ease both' }}>
@@ -673,6 +751,12 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>
                   {event.location_name || event.location_address}
                 </span>
+              </div>
+            )}
+            {isPaid && event.tier_name && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.gold, fontFamily: 'var(--font-sans)', fontWeight: 600 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg>
+                <span>{event.tier_name}</span>
               </div>
             )}
           </div>

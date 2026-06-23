@@ -31,7 +31,7 @@ function RSVPFormContent({ slug }) {
   const [phone, setPhone] = useState('');
   const [partySize, setPartySize] = useState(1);
   const [additionalGuests, setAdditionalGuests] = useState([]);
-  const [primaryMeal, setPrimaryMeal] = useState('');
+
   const [customAnswers, setCustomAnswers] = useState({});
   const [notes, setNotes] = useState('');
   
@@ -279,24 +279,13 @@ function RSVPFormContent({ slug }) {
   // The seating chart (table search + personal map) is hidden until 24h before the event.
   const seatingRevealed = isSeatingRevealed(event.event_date);
 
-  // Meal options: prefer a configured meal field's options (so guest choices match
-  // what the organizer set up — and what the backend validates against). Fall back
-  // to the built-in defaults only when no meal field is configured.
+  // All custom form fields (including meal) are shown in step 4 as custom questions.
+  // Meal is no longer hardcoded in step 3 — it only appears if the organizer configured it.
   const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
   const mealField = (event.rsvp_form_fields || []).find(
     f => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
   );
-  const mealOptions = (mealField && Array.isArray(mealField.options) && mealField.options.length)
-    ? mealField.options.map(o => ({ value: o, label: o }))
-    : [
-        { value: 'Prime Beef Filet', label: t.meal_beef },
-        { value: 'Atlantic Salmon', label: t.meal_salmon },
-        { value: 'Mushroom Risotto (V)', label: t.meal_risotto },
-        { value: 'Kids Meal', label: t.meal_kids },
-      ];
-  // Step-4 custom questions exclude the meal field (it's asked in step 3) to avoid
-  // asking the same thing twice.
-  const customQuestionFields = (event.rsvp_form_fields || []).filter(f => !mealField || f.id !== mealField.id);
+  const customQuestionFields = event.rsvp_form_fields || [];
 
   const setAnswer = (fieldId, value) => {
     setCustomAnswers(prev => ({ ...prev, [fieldId]: value }));
@@ -319,9 +308,7 @@ function RSVPFormContent({ slug }) {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format';
     if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
     if (attending === 'yes') {
-      // Validate only the custom questions actually shown in step 4 (the meal field
-      // is asked in step 3 and validated server-side), so a required meal field
-      // can't falsely block submission via the empty-customAnswers path.
+      // Validate all custom questions shown in step 4 (including meal if configured).
       const requiredFields = customQuestionFields.filter(f => f.is_required);
       requiredFields.forEach(field => {
         if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
@@ -337,9 +324,11 @@ function RSVPFormContent({ slug }) {
     setSubmitting(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      // Extract meal selection from customAnswers if a meal field is configured.
+      const mealFromCustom = mealField && customAnswers[mealField.id] ? customAnswers[mealField.id] : null;
       const payload = {
         rsvpId, guestName, email, phone, response: attending,
-        partySize: attending === 'yes' ? partySize : 1, notes, primaryGuestMeal: primaryMeal,
+        partySize: attending === 'yes' ? partySize : 1, notes, primaryGuestMeal: mealFromCustom,
         additionalGuests: attending === 'yes' ? additionalGuests : [],
         customAnswers: Object.keys(customAnswers).map(fieldId => ({ fieldId, value: customAnswers[fieldId] }))
       };
@@ -565,14 +554,6 @@ function RSVPFormContent({ slug }) {
                 </select>
               </div>
 
-              <div style={{ background: '#F8F4EC', padding: '16px', borderRadius: '10px' }}>
-                <label style={{ ...S.labelBase, fontWeight: 700 }}>{t.meal_label.replace('{name}', guestName)}</label>
-                <select value={primaryMeal} onChange={e => setPrimaryMeal(e.target.value)} style={{ ...S.inputBase }}>
-                  <option value="">{t.meal_select_placeholder}</option>
-                  {mealOptions.map(m => (<option key={m.value} value={m.value}>{m.label}</option>))}
-                </select>
-              </div>
-
               {additionalGuests.map((g, index) => (
                 <div key={g.id} style={{ padding: '16px', border: '1px solid #E8E2D6', borderRadius: '10px', background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <h4 style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#A09A91', fontWeight: 700 }}>{t.guest_label.replace('{index}', index + 2)}</h4>
@@ -580,13 +561,6 @@ function RSVPFormContent({ slug }) {
                     <label style={{ ...S.labelBase, fontSize: '11px' }}>{t.guest_name_label}</label>
                     <input type="text" value={g.fullName} onChange={e => { const copy = [...additionalGuests]; copy[index].fullName = e.target.value; setAdditionalGuests(copy); }}
                       placeholder={t.name_placeholder} style={S.inputBase} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
-                  </div>
-                  <div>
-                    <label style={{ ...S.labelBase, fontSize: '11px' }}>{t.guest_meal_label}</label>
-                    <select value={g.mealSelection} onChange={e => { const copy = [...additionalGuests]; copy[index].mealSelection = e.target.value; setAdditionalGuests(copy); }} style={{ ...S.inputBase, cursor: 'pointer' }}>
-                      <option value="">{t.meal_select_placeholder}</option>
-                      {mealOptions.map(m => (<option key={m.value} value={m.value}>{m.label}</option>))}
-                    </select>
                   </div>
                 </div>
               ))}

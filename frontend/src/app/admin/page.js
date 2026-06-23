@@ -318,10 +318,25 @@ export default function AdminPage() {
     finally { setSavingConfig(false); }
   };
 
+  // Numeric fields are coerced to int; booleans pass through; everything else
+  // (name, price_label, cta_label) is kept as a string.
+  const NUMERIC_TIER_FIELDS = ['price_cents', 'max_guests'];
   const handleTierChange = (index, field, value) => {
-    setPricingTiers(prev => prev.map((t, i) => i === index ? { ...t, [field]: field === 'name' ? value : (parseInt(value, 10) || 0) } : t));
+    setPricingTiers(prev => prev.map((t, i) => {
+      if (i !== index) return t;
+      const coerced = NUMERIC_TIER_FIELDS.includes(field) ? (parseInt(value, 10) || 0) : value;
+      return { ...t, [field]: coerced };
+    }));
   };
-  const addTier = () => setPricingTiers(prev => [...prev, { name: 'New Tier', price_cents: 0, max_guests: 0 }]);
+  // Features are edited as one bullet per line in a textarea.
+  const handleTierFeatures = (index, text) => {
+    const features = text.split('\n').map(s => s.trim()).filter(Boolean);
+    setPricingTiers(prev => prev.map((t, i) => i === index ? { ...t, features } : t));
+  };
+  const addTier = () => setPricingTiers(prev => [...prev, {
+    name: 'New Tier', price_cents: 0, max_guests: 0,
+    features: [], recommended: false, is_custom: false, price_label: '', cta_label: '', description: '',
+  }]);
   const removeTier = (index) => setPricingTiers(prev => prev.filter((_, i) => i !== index));
 
   // Manual payment method editor
@@ -627,12 +642,41 @@ export default function AdminPage() {
                     <label style={{ fontSize: '11px', color: D.text400, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>License Tiers</label>
                     <button type="button" onClick={addTier} style={btn('ghost')}>+ Add Tier</button>
                   </div>
+                  <p style={{ fontSize: '11px', color: D.text500, marginBottom: '16px', lineHeight: 1.6 }}>These tiers are the single source of truth: they power the public landing-page plans, the plan cards shown during event creation, and the platform fee actually charged at checkout. Edit once here.</p>
                   {pricingTiers.length ? pricingTiers.map((tier, idx) => (
-                    <div key={idx} style={{ background: D.bg, padding: '16px', border: `1px solid ${D.cardBorder}`, borderRadius: '12px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '12px', marginBottom: '12px', alignItems: 'end' }} className="admin-tier-row">
-                      <Field small label="Tier Name"><input value={tier.name} onChange={e => handleTierChange(idx, 'name', e.target.value)} style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px' }} /></Field>
-                      <Field small label="Price (cents)"><input type="number" value={tier.price_cents} onChange={e => handleTierChange(idx, 'price_cents', e.target.value)} style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px' }} /></Field>
-                      <Field small label="Max Guests"><input type="number" value={tier.max_guests} onChange={e => handleTierChange(idx, 'max_guests', e.target.value)} style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px' }} /></Field>
-                      <button type="button" onClick={() => removeTier(idx)} style={{ ...btn('danger'), padding: '8px 10px' }}>✕</button>
+                    <div key={idx} style={{ background: D.bg, padding: '16px', border: `1px solid ${tier.recommended ? 'rgba(245,158,11,0.35)' : D.cardBorder}`, borderRadius: '12px', marginBottom: '12px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '12px', alignItems: 'end' }} className="admin-tier-row">
+                        <Field small label="Tier Name"><input value={tier.name} onChange={e => handleTierChange(idx, 'name', e.target.value)} style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px' }} /></Field>
+                        <Field small label={tier.is_custom ? 'Price (cents — unused)' : 'Price (cents)'}><input type="number" value={tier.price_cents} disabled={tier.is_custom} onChange={e => handleTierChange(idx, 'price_cents', e.target.value)} style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px', opacity: tier.is_custom ? 0.5 : 1 }} /></Field>
+                        <Field small label="Max Guests (0 = unlimited)"><input type="number" value={tier.max_guests} onChange={e => handleTierChange(idx, 'max_guests', e.target.value)} style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px' }} /></Field>
+                        <button type="button" onClick={() => removeTier(idx)} style={{ ...btn('danger'), padding: '8px 10px' }}>✕</button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }} className="admin-tier-row">
+                        <Field small label="Display Price Label (optional, e.g. Custom)"><input value={tier.price_label || ''} onChange={e => handleTierChange(idx, 'price_label', e.target.value)} placeholder={tier.is_custom ? 'Custom' : 'auto from price'} style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px' }} /></Field>
+                        <Field small label="Button Label (optional)"><input value={tier.cta_label || ''} onChange={e => handleTierChange(idx, 'cta_label', e.target.value)} placeholder={tier.is_custom ? 'Contact Sales' : 'Get Started'} style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px' }} /></Field>
+                      </div>
+                      <div style={{ marginTop: '12px' }}>
+                        <Field small label="Card Description (optional — shown on the pricing page)"><input value={tier.description || ''} onChange={e => handleTierChange(idx, 'description', e.target.value)} placeholder="Perfect for small gatherings and personal events." style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px' }} /></Field>
+                      </div>
+                      <div style={{ display: 'flex', gap: '20px', marginTop: '12px', flexWrap: 'wrap' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: D.text300, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={tier.recommended === true} onChange={e => handleTierChange(idx, 'recommended', e.target.checked)} /> ⭐ Most Popular
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: D.text300, cursor: 'pointer' }}>
+                          <input type="checkbox" checked={tier.is_custom === true} onChange={e => handleTierChange(idx, 'is_custom', e.target.checked)} /> Contact Sales (custom price)
+                        </label>
+                      </div>
+                      <div style={{ marginTop: '12px' }}>
+                        <Field small label="Features (one per line — shown on landing & event-creation cards)">
+                          <textarea
+                            value={(tier.features || []).join('\n')}
+                            onChange={e => handleTierFeatures(idx, e.target.value)}
+                            rows={4}
+                            placeholder={'Unlimited events\nUp to 500 guests\nSeating charts\nQR check-in'}
+                            style={{ ...inputStyle, background: D.card, fontSize: '12px', padding: '8px 10px', resize: 'vertical', lineHeight: 1.5 }}
+                          />
+                        </Field>
+                      </div>
                     </div>
                   )) : <p style={{ fontSize: '12px', color: D.text500, fontStyle: 'italic' }}>No tiers defined.</p>}
                 </div>

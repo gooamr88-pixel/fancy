@@ -3,6 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
+import { getAuthErrorMessage } from '../../utils/authErrors';
+import Toast from '../../components/Toast';
 
 const EyeIcon = ({ show }) => show ? (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#77736A" strokeWidth="1.5"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" strokeLinecap="round" strokeLinejoin="round"/><line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round"/></svg>
@@ -33,7 +35,7 @@ export default function ForgotPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resending, setResending] = useState(false);
@@ -46,21 +48,21 @@ export default function ForgotPasswordPage() {
 
   const handleRequestOtp = async (e) => {
     e.preventDefault();
-    if (!email) return;
-    setSubmitting(true); setError(null);
+    if (!email) {
+      setToast({ message: 'Please enter your email address.', kind: 'error' });
+      return;
+    }
+    setSubmitting(true); setToast(null);
     try {
       const data = await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
       if (data.success) {
         setStep(2);
         startResendCooldown();
       } else {
-        setError(data.message || 'Failed to send reset code. Please try again.');
+        setToast({ message: data.message || 'Failed to send reset code. Please try again.', kind: 'error' });
       }
     } catch (err) {
-      const msg = err.message || '';
-      if (msg.includes('status 5')) setError('Server error. Please try again later.');
-      else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Network error. Check your connection.');
-      else setError(msg);
+      setToast({ message: getAuthErrorMessage(err, 'Failed to send reset code. Please try again.'), kind: 'error' });
     } finally { setSubmitting(false); }
   };
 
@@ -78,18 +80,18 @@ export default function ForgotPasswordPage() {
   const handleResendOtp = async () => {
     if (resendCooldown > 0 || resending) return;
     setResending(true);
-    setError(null);
+    setToast(null);
     try {
       const data = await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
       if (data.success) {
         setOtp('');
         startResendCooldown();
-        setError(null);
+        setToast({ message: 'A new verification code has been sent to your email.', kind: 'success' });
       } else {
-        setError(data.message || 'Failed to resend code.');
+        setToast({ message: data.message || 'Failed to resend code. Please try again.', kind: 'error' });
       }
     } catch (err) {
-      setError('Failed to resend code. Please try again.');
+      setToast({ message: getAuthErrorMessage(err, 'Failed to resend code. Please try again.'), kind: 'error' });
     } finally {
       setResending(false);
     }
@@ -98,39 +100,53 @@ export default function ForgotPasswordPage() {
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (!otp || !newPassword || !confirmPassword) {
-      setError('Please fill in all fields.');
+      setToast({ message: 'Please fill in the code and both password fields.', kind: 'error' });
       return;
     }
-    if (newPassword !== confirmPassword) { setError('Passwords do not match.'); return; }
+    if (newPassword !== confirmPassword) {
+      setToast({ message: 'The passwords you entered do not match.', kind: 'error' });
+      return;
+    }
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setToast({ message: 'Your new password must be at least 8 characters long.', kind: 'error' });
       return;
     }
-    setSubmitting(true); setError(null);
+    setSubmitting(true); setToast(null);
     try {
       const data = await apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, otp, newPassword, confirmPassword }) });
       if (data.success) {
         setStep(3);
       } else {
-        // Make error messages user-friendly
-        const msg = data.message || 'Password reset failed.';
-        if (msg.includes('invalid or has expired')) setError('Invalid or expired code. Please request a new one.');
-        else if (msg.includes('Too many attempts')) setError('Too many attempts. Please request a new code.');
-        else setError(msg);
+        setToast({ message: resetErrorMessage(data.message), kind: 'error' });
       }
     } catch (err) {
       const msg = err.message || '';
-      if (msg.includes('invalid or has expired')) setError('Invalid or expired code. Please request a new one.');
-      else if (msg.includes('status 5')) setError('Server error. Please try again later.');
-      else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Network error. Check your connection.');
-      else setError(msg);
+      // Preserve the actionable rewrites for the OTP-specific cases, then fall
+      // back to the shared mapper for network/server/timeout handling.
+      if (msg.includes('invalid or has expired')) {
+        setToast({ message: 'That code is invalid or has expired. Please request a new one.', kind: 'error' });
+      } else if (msg.includes('Too many attempts')) {
+        setToast({ message: 'Too many attempts. Please request a new code.', kind: 'error' });
+      } else {
+        setToast({ message: getAuthErrorMessage(err, 'Password reset failed. Please try again.'), kind: 'error' });
+      }
     } finally { setSubmitting(false); }
+  };
+
+  // Maps the reset-password API's `message` into clearer, actionable wording.
+  const resetErrorMessage = (message) => {
+    const msg = message || 'Password reset failed. Please try again.';
+    if (msg.includes('invalid or has expired')) return 'That code is invalid or has expired. Please request a new one.';
+    if (msg.includes('Too many attempts')) return 'Too many attempts. Please request a new code.';
+    return msg;
   };
 
 
 
   return (
     <div className="auth-page">
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
       {/* Left Panel */}
       <div className="auth-image-panel">
         <div className="auth-image-overlay" />
@@ -161,8 +177,6 @@ export default function ForgotPasswordPage() {
 
               <h1 className="auth-heading">Reset Password</h1>
               <p className="auth-subtext">Enter your email to receive a verification code</p>
-
-              {error && <div className="auth-error" role="alert"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg><span>{error}</span></div>}
 
               <form onSubmit={handleRequestOtp} className="auth-form">
                 <div className="auth-field">
@@ -199,8 +213,6 @@ export default function ForgotPasswordPage() {
               <div className="info-banner">
                 <p>Code sent to <strong style={{ color: '#191B1E' }}>{email}</strong></p>
               </div>
-
-              {error && <div className="auth-error" role="alert"><svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg><span>{error}</span></div>}
 
               <form onSubmit={handleResetPassword} className="auth-form">
                 <div className="auth-field">
@@ -240,7 +252,7 @@ export default function ForgotPasswordPage() {
               </form>
 
               <div className="auth-footer-row">
-                <button type="button" className="auth-back-btn" onClick={() => { setStep(1); setError(null); }}>← Back</button>
+                <button type="button" className="auth-back-btn" onClick={() => { setStep(1); setToast(null); }}>← Back</button>
                 <button
                   type="button"
                   className="auth-resend-btn"
@@ -349,10 +361,6 @@ export default function ForgotPasswordPage() {
           margin-bottom: 24px;
         }
         .info-banner p { font-size: 13px; color: #77736A; margin: 0; line-height: 1.6; }
-
-        /* ── Error ── */
-        .auth-error { padding: 14px 16px; background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 10px; color: #9F1239; font-size: 13px; display: flex; align-items: flex-start; gap: 10px; margin-bottom: 24px; }
-        .auth-error svg { flex-shrink: 0; margin-top: 1px; }
 
         /* ── Form ── */
         .auth-form { display: flex; flex-direction: column; gap: 20px; }

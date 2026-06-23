@@ -52,6 +52,14 @@ const createCheckoutSession = async (req, res, next) => {
         message: `Pricing tier '${tierName}' not found.`
       });
     }
+    // Contact-Sales tiers have no fixed price and cannot be paid online.
+    if (tier.is_custom === true) {
+      return res.status(400).json({
+        success: false,
+        error: 'CUSTOM_TIER',
+        message: `The '${tier.name}' plan is custom-priced — please contact sales to activate it.`
+      });
+    }
 
     // 2. Fetch or create stripe customer ID for organization
     const { data: eventData, error: eventError } = await supabase
@@ -103,6 +111,7 @@ const createCheckoutSession = async (req, res, next) => {
       metadata: {
         event_id: eventId,
         tier_name: tier.name,
+        tier_max_guests: String(tier.max_guests ?? ''),
         type: 'event_fee'
       },
       success_url: `${getPublicBaseUrl()}/dashboard?payment=success&event=${eventId}`,
@@ -246,7 +255,11 @@ const stripeWebhook = async (req, res, next) => {
   try {
     if (stripeEvent.type === 'checkout.session.completed') {
       const session = stripeEvent.data.object;
-      const { event_id, type } = session.metadata;
+      const { event_id, type, tier_name } = session.metadata;
+      // Snapshot the tier guest cap from metadata (set at checkout creation).
+      const tierMaxGuests = session.metadata.tier_max_guests
+        ? parseInt(session.metadata.tier_max_guests, 10)
+        : null;
 
       if (type === 'event_fee') {
         // Idempotency check: see if payment was already recorded
@@ -261,10 +274,16 @@ const stripeWebhook = async (req, res, next) => {
           return res.json({ received: true });
         }
 
-        // Activate event
+        // Activate event + persist the purchased tier ("current plan").
         await supabase
           .from('events')
-          .update({ is_paid: true, status: 'active', updated_at: new Date() })
+          .update({
+            is_paid: true,
+            status: 'active',
+            tier_name: tier_name || null,
+            tier_max_guests: Number.isFinite(tierMaxGuests) ? tierMaxGuests : null,
+            updated_at: new Date(),
+          })
           .eq('id', event_id);
 
         // Record payment
@@ -276,6 +295,8 @@ const stripeWebhook = async (req, res, next) => {
           currency: session.currency,
           status: 'completed',
           payment_method: 'stripe',
+          tier_name: tier_name || null,
+          tier_max_guests: Number.isFinite(tierMaxGuests) ? tierMaxGuests : null,
           completed_at: new Date()
         });
 
@@ -445,7 +466,7 @@ const manualCashApproval = async (req, res, next) => {
     // 1. Check if there is an existing pending cash_manual payment record
     const { data: pendingPayment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, amount_cents, stripe_checkout_session_id')
+      .select('id, amount_cents, stripe_checkout_session_id, tier_name, tier_max_guests')
       .eq('event_id', eventId)
       .eq('payment_method', 'cash_manual')
       .eq('status', 'pending')
@@ -474,12 +495,14 @@ const manualCashApproval = async (req, res, next) => {
       paymentId = updatedPayment.id;
       refNumber = updatedPayment.reference_number || updatedPayment.stripe_checkout_session_id;
 
-      // Activate the event
+      // Activate the event + persist the purchased tier ("current plan").
       const { error: eventUpdateErr } = await supabase
         .from('events')
         .update({
           is_paid: true,
           status: 'active',
+          tier_name: pendingPayment[0].tier_name || null,
+          tier_max_guests: pendingPayment[0].tier_max_guests ?? null,
           updated_at: new Date().toISOString()
         })
         .eq('id', eventId);
@@ -680,6 +703,14 @@ const initiateManualPayment = async (req, res, next) => {
         message: `Pricing tier '${tierName}' not found.`
       });
     }
+    // Contact-Sales tiers have no fixed price and cannot be paid offline either.
+    if (tier.is_custom === true) {
+      return res.status(400).json({
+        success: false,
+        error: 'CUSTOM_TIER',
+        message: `The '${tier.name}' plan is custom-priced — please contact sales to activate it.`
+      });
+    }
 
     // 3. Generate a random reference number
     const refChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -698,6 +729,8 @@ const initiateManualPayment = async (req, res, next) => {
         status: 'pending',
         payment_method: 'cash_manual',
         currency: 'usd',
+        tier_name: tier.name,
+        tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
         manual_method: methodLabel ? methodLabel.toString().slice(0, 200) : null,
         payer_reference: payerReference ? payerReference.toString().slice(0, 300) : null
       })
@@ -756,6 +789,50 @@ const getPendingPayments = async (req, res, next) => {
   }
 };
 
+/**
+ * Public, unauthenticated pricing for the marketing/landing page.
+ *
+ * Single source of truth: the same `super_admin_config.pricing_tiers` that the
+ * event-creation payment step reads and that checkout actually charges against.
+ * This endpoint exposes ONLY the customer-safe presentation fields — it never
+ * leaks manual payment account details, SMS carrier rates, or commission.
+ * GET /api/v1/payments/public-pricing
+ */
+const getPublicPricing = async (req, res, next) => {
+  try {
+    const { data: config, error } = await supabase
+      .from('super_admin_config')
+      .select('pricing_tiers')
+      .eq('id', '00000000-0000-0000-0000-000000000000')
+      .single();
+
+    if (error) throw error;
+
+    const tiers = Array.isArray(config?.pricing_tiers) ? config.pricing_tiers : [];
+
+    // Sanitize to public-safe fields only.
+    const publicTiers = tiers.map((t) => ({
+      name: String(t.name || ''),
+      price_cents: Number(t.price_cents) || 0,
+      max_guests: Number(t.max_guests) || 0,
+      features: Array.isArray(t.features) ? t.features.filter(f => (f || '').toString().trim()).map(f => f.toString().trim()) : [],
+      recommended: t.recommended === true,
+      is_custom: t.is_custom === true,
+      price_label: (t.price_label || '').toString().trim(),
+      cta_label: (t.cta_label || '').toString().trim(),
+      description: (t.description || '').toString().trim(),
+    }));
+
+    // Cache at the edge/CDN for a minute — pricing changes are infrequent and
+    // this endpoint is hit by every anonymous landing-page visitor.
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
+
+    return res.json({ success: true, tiers: publicTiers });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   purchaseSMSCredits,
@@ -763,6 +840,7 @@ module.exports = {
   manualCashApproval,
   updatePricingConfig,
   getPricingConfig,
+  getPublicPricing,
   initiateManualPayment,
   getPendingPayments
 };

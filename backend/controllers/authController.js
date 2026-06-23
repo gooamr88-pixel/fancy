@@ -775,11 +775,18 @@ const changePassword = async (req, res, next) => {
 };
 
 /**
- * Authenticates via Google OAuth token.
- * Verifies the Google ID token, checks if the email exists in the DB.
- * POST /api/v1/auth/google-login
+ * Authenticates via Google OAuth — works for ALL users, new and existing.
+ *
+ * Single "Continue with Google" entry point used by both the sign-in and
+ * sign-up pages:
+ *   - If the email already has an account → logs them in.
+ *   - If the email is new → creates the account (no password, email auto-verified
+ *     since Google already verified it) and logs them in.
+ *   - If an unverified email/password registration exists → activates it and logs in.
+ *
+ * POST /api/v1/auth/google
  */
-const googleLogin = async (req, res, next) => {
+const googleAuth = async (req, res, next) => {
   const { credential } = req.body;
 
   if (!credential) {
@@ -790,7 +797,7 @@ const googleLogin = async (req, res, next) => {
     // Verify Google token using google-auth-library (cryptographic verification)
     const expectedClientId = process.env.GOOGLE_CLIENT_ID;
     if (!expectedClientId) {
-      return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Google OAuth is not configured on the server.' });
+      return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Google Sign-In is not configured on the server.' });
     }
 
     let googleData;
@@ -810,176 +817,78 @@ const googleLogin = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'EMAIL_NOT_VERIFIED', message: 'Your Google email is not verified.' });
     }
 
-    const email = googleData.email;
+    const email = googleData.email ? googleData.email.toLowerCase().trim() : '';
     if (!email) {
-      return res.status(400).json({ success: false, error: 'NO_EMAIL', message: 'Could not retrieve email from Google.' });
+      return res.status(400).json({ success: false, error: 'NO_EMAIL', message: 'Could not retrieve your email from Google.' });
     }
+    const name = googleData.name || googleData.given_name || 'User';
 
-    // Check if email exists in database
+    // Look up an existing account by email
     const { data: orgs } = await supabase
       .from('organizations')
       .select('id, owner_user_id, name, email, phone, email_verified')
-      .eq('email', email.toLowerCase())
+      .eq('email', email)
       .limit(1);
 
-    const org = orgs && orgs[0];
+    let org = orgs && orgs[0];
+    const isNewAccount = !org;
 
-    if (!org) {
-      return res.status(404).json({
-        success: false,
-        error: 'USER_NOT_FOUND',
-        message: 'This email is not registered. Please sign up first.'
-      });
-    }
-
-    if (!org.email_verified) {
-      // Auto-verify since Google already verified the email
-      await supabase
+    if (org) {
+      // Existing account → ensure it's verified (Google already verified the email)
+      if (!org.email_verified) {
+        await supabase
+          .from('organizations')
+          .update({ email_verified: true })
+          .eq('email', email);
+      }
+    } else {
+      // New account → create it with no password, email pre-verified
+      const newUserId = crypto.randomUUID();
+      const { error: orgError } = await supabase
         .from('organizations')
-        .update({ email_verified: true })
-        .eq('email', email.toLowerCase());
+        .insert({
+          owner_user_id: newUserId,
+          name,
+          email,
+          password_hash: null,
+          email_verified: true,
+        });
+      if (orgError) throw orgError;
+
+      // Re-fetch to pick up the DB-generated id
+      const { data: created } = await supabase
+        .from('organizations')
+        .select('id, owner_user_id, name, email, phone')
+        .eq('email', email)
+        .single();
+      org = created || { owner_user_id: newUserId, name, email };
     }
 
     const userId = org.owner_user_id;
 
-    // Resolve user role
+    // Ensure the role profile exists (covers both new and legacy accounts)
+    await supabase
+      .from('user_roles')
+      .upsert({ user_id: userId, role: 'organizer' }, { onConflict: 'user_id' });
+
+    // Resolve the role
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
       .single();
-
     const role = roleData?.role || 'organizer';
 
     // Issue auth cookie
     issueAuthCookie(res, { id: userId, email, role });
 
-    logger.info({ email }, 'Google login successful');
+    logger.info({ email, isNewAccount }, 'Google authentication successful');
 
-    return res.status(200).json({
+    return res.status(isNewAccount ? 201 : 200).json({
       success: true,
-      message: 'Login successful.',
-      user: { id: userId, email, name: org.name, role },
-      organization: { id: org.id, owner_user_id: userId, name: org.name, email: org.email, phone: org.phone }
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/**
- * Registers a new account via Google OAuth.
- * Verifies Google token, creates account with no password (google_auth flag).
- * POST /api/v1/auth/google-register
- */
-const googleRegister = async (req, res, next) => {
-  const { credential } = req.body;
-
-  if (!credential) {
-    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Google credential is required.' });
-  }
-
-  try {
-    // Verify Google token using google-auth-library (cryptographic verification)
-    const expectedClientId = process.env.GOOGLE_CLIENT_ID;
-    if (!expectedClientId) {
-      return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Google OAuth is not configured on the server.' });
-    }
-
-    let googleData;
-    try {
-      const oAuth2Client = new OAuth2Client(expectedClientId);
-      const ticket = await oAuth2Client.verifyIdToken({
-        idToken: credential,
-        audience: expectedClientId,
-      });
-      googleData = ticket.getPayload();
-    } catch (tokenErr) {
-      logger.warn({ error: tokenErr.message }, 'Google token verification failed');
-      return res.status(401).json({ success: false, error: 'INVALID_TOKEN', message: 'Invalid or expired Google token.' });
-    }
-
-    if (!googleData.email_verified) {
-      return res.status(400).json({ success: false, error: 'EMAIL_NOT_VERIFIED', message: 'Your Google email is not verified.' });
-    }
-
-    const email = googleData.email;
-    const name = googleData.name || googleData.given_name || 'User';
-
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'NO_EMAIL', message: 'Could not retrieve email from Google.' });
-    }
-
-    // Check if email already exists
-    const { data: existingUser } = await supabase
-      .from('organizations')
-      .select('id, email_verified')
-      .eq('email', email.toLowerCase())
-      .limit(1);
-
-    if (existingUser && existingUser.length > 0 && existingUser[0].email_verified) {
-      return res.status(409).json({
-        success: false,
-        error: 'USER_EXISTS',
-        message: 'An account with this email already exists. Please log in instead.'
-      });
-    }
-
-    const userId = crypto.randomUUID();
-
-    if (existingUser && existingUser.length > 0) {
-      // Update existing unverified record
-      const { error: updateError } = await supabase
-        .from('organizations')
-        .update({
-          owner_user_id: userId,
-          name: name,
-          password_hash: null,
-          email_verified: true,
-          registration_otp: null,
-          registration_otp_expires_at: null,
-          otp_attempts: 0,
-        })
-        .eq('email', email.toLowerCase());
-      if (updateError) throw updateError;
-    } else {
-      // Create new organization
-      const { error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          owner_user_id: userId,
-          name: name,
-          email: email.toLowerCase(),
-          password_hash: null,
-          email_verified: true,
-        });
-
-      if (orgError) throw orgError;
-    }
-
-    // Create user role
-    const { error: roleError } = await supabase
-      .from('user_roles')
-      .upsert({ user_id: userId, role: 'organizer' }, { onConflict: 'user_id' });
-    if (roleError) throw roleError;
-
-    // Issue auth cookie
-    issueAuthCookie(res, { id: userId, email: email.toLowerCase(), role: 'organizer' });
-
-    // Re-fetch the org to get the DB-generated id
-    const { data: newOrg } = await supabase
-      .from('organizations')
-      .select('id, owner_user_id, name, email')
-      .eq('email', email.toLowerCase())
-      .single();
-
-    logger.info({ email }, 'Google registration successful');
-
-    return res.status(201).json({
-      success: true,
-      message: 'Account created successfully via Google.',
-      user: { id: userId, email: email.toLowerCase(), name, role: 'organizer' },
-      organization: newOrg || { owner_user_id: userId, name, email: email.toLowerCase() }
+      message: isNewAccount ? 'Account created successfully via Google.' : 'Login successful.',
+      user: { id: userId, email, name: org.name || name, role },
+      organization: { id: org.id, owner_user_id: userId, name: org.name || name, email: org.email || email, phone: org.phone }
     });
   } catch (err) {
     next(err);
@@ -996,6 +905,5 @@ module.exports = {
   getProfile,
   updateProfile,
   changePassword,
-  googleLogin,
-  googleRegister
+  googleAuth
 };

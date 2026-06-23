@@ -44,16 +44,15 @@ app.use(cors(corsOptions));
 // Parse cookies (httpOnly auth cookie)
 app.use(cookieParser());
 
-// Capture raw body for Stripe Webhooks verification
 app.use(express.json({
-  limit: '5mb',
+  limit: '50mb',
   verify: (req, res, buf) => {
     if (req.originalUrl && req.originalUrl.startsWith('/api/v1/payments/webhook')) {
       req.rawBody = buf;
     }
   }
 }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Permissive Rate Limiter for organizer dashboards (preventing blockages on updates)
 const apiLimiter = rateLimit({
@@ -86,8 +85,7 @@ app.use('/api/v1/auth/register', authLimiter);
 app.use('/api/v1/auth/forgot-password', authLimiter);
 app.use('/api/v1/auth/reset-password', authLimiter);
 app.use('/api/v1/auth/verify-registration', authLimiter);
-app.use('/api/v1/auth/google-login', authLimiter);
-app.use('/api/v1/auth/google-register', authLimiter);
+app.use('/api/v1/auth/google', authLimiter);
 
 // Rate limiter for public RSVP submissions
 const publicLimiter = rateLimit({
