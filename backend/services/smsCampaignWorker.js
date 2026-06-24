@@ -174,4 +174,4 @@ function start() {
 }
 function stop() { if (timer) { clearInterval(timer); timer = null; } }
 
-module.exports = { start, stop, runOnce, kick, processCampaign };
+module.exports = { start, stop, runOnce, kick, processCampaign, refreshCampaignProgress };

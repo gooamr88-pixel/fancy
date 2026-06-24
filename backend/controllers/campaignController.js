@@ -290,8 +290,77 @@ const getCampaignHistory = async (req, res, next) => {
   }
 };
 
+/**
+ * Validate Twilio's X-Twilio-Signature without the Twilio SDK.
+ * Algorithm: HMAC-SHA1( authToken, url + each POST param appended as key+value in
+ * lexical key order ), base64-encoded, compared in constant time.
+ */
+function validateTwilioSignature(authToken, signature, url, params) {
+  if (!authToken || !signature) return false;
+  let data = String(url);
+  for (const k of Object.keys(params || {}).sort()) {
+    data += k + (params[k] == null ? '' : params[k]);
+  }
+  const expected = crypto.createHmac('sha1', authToken).update(Buffer.from(data, 'utf-8')).digest('base64');
+  const a = Buffer.from(expected);
+  const b = Buffer.from(String(signature));
+  if (a.length !== b.length) return false;
+  try { return crypto.timingSafeEqual(a, b); } catch { return false; }
+}
+
+/**
+ * Twilio delivery-status webhook → reconcile + auto-refund undelivered/failed SMS.
+ * Public + signature-verified. Idempotent: the refund deletes the consumption row,
+ * so repeated callbacks for the same SID are no-ops.
+ *
+ * POST /api/v1/public/sms/status   (Twilio statusCallback target)
+ */
+const handleSmsStatusCallback = async (req, res) => {
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  // No Twilio configured (mock/dev) → nothing real to reconcile.
+  if (!authToken) return res.status(200).send('ok');
+
+  const signature = req.headers['x-twilio-signature'];
+  const url = process.env.SMS_STATUS_CALLBACK_URL || `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  if (!validateTwilioSignature(authToken, signature, url, req.body || {})) {
+    logger.warn('Rejected SMS status callback: invalid Twilio signature');
+    return res.status(403).send('invalid signature');
+  }
+
+  const sid = req.body.MessageSid || req.body.SmsSid;
+  const status = String(req.body.MessageStatus || req.body.SmsStatus || '').toLowerCase();
+  const errorCode = req.body.ErrorCode != null && req.body.ErrorCode !== '' ? String(req.body.ErrorCode) : null;
+  if (!sid || !status) return res.status(200).send('ok');
+
+  try {
+    const { data, error } = await supabase.rpc('reconcile_sms_delivery', {
+      p_sms_sid: sid, p_status: status, p_error_code: errorCode,
+    });
+    if (error) {
+      const undef = error.code === '42883' || error.code === 'PGRST202' ||
+        /Could not find the function|does not exist/i.test(error.message || '');
+      if (undef) {
+        logger.warn('reconcile_sms_delivery missing — apply 20260628000000_sms_delivery_reconcile.sql');
+        return res.status(200).send('ok'); // don't trigger Twilio retry loops
+      }
+      throw error;
+    }
+    if (data && data.refunded) {
+      logger.info({ sid, status, credits: data.credits, campaignId: data.campaign_id }, 'SMS delivery failed → credits refunded');
+      if (data.campaign_id) {
+        try { await require('../services/smsCampaignWorker').refreshCampaignProgress(data.campaign_id); } catch (e) { /* best-effort */ }
+      }
+    }
+    return res.status(200).send('ok');
+  } catch (err) {
+    logger.error({ err, sid, status }, 'SMS status reconciliation failed');
+    return res.status(500).send('error'); // 5xx → Twilio retries later
+  }
+};
+
 module.exports = {
   sendBulkSMSCampaign,
   getCampaignStatus,
   getCampaignHistory,
+  handleSmsStatusCallback,
 };

@@ -176,7 +176,12 @@ async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, 
   }
 
   try {
-    const msg = await twilio.messages.create({ body, from: fromNumber, to: norm });
+    const createParams = { body, from: fromNumber, to: norm };
+    // Ask Twilio to POST delivery receipts so undelivered/failed messages can be
+    // reconciled and auto-refunded (see reconcile_sms_delivery / the status webhook).
+    const callbackUrl = process.env.SMS_STATUS_CALLBACK_URL;
+    if (callbackUrl) createParams.statusCallback = callbackUrl;
+    const msg = await twilio.messages.create(createParams);
     await supabase.from('sms_credit_ledger').update({ sms_sid: msg.sid }).eq('id', deduct.ledgerId);
     return { kind: 'sent', credits: deduct.credits, ledgerId: deduct.ledgerId, sid: msg.sid };
   } catch (smsErr) {

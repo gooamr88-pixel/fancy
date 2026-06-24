@@ -5,8 +5,13 @@ const { getPublicEventBySlug } = require('../controllers/eventController');
 const { submitPublicRSVP, searchPublicGuests, searchPublicSeating, getGuestById, getGuestSeatingMap, getRsvpInvite, respondViaToken } = require('../controllers/rsvpController');
 const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
+const { handleSmsStatusCallback } = require('../controllers/campaignController');
 
 const router = express.Router();
+
+// Twilio SMS delivery-status webhook (signature-verified inside the handler).
+// Public + unauthenticated by design; reconciles + auto-refunds failed deliveries.
+router.post('/sms/status', handleSmsStatusCallback);
 
 // Public landing page configuration fetch
 router.get('/events/:slug', getPublicEventBySlug);
