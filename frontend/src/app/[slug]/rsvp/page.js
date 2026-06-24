@@ -35,6 +35,7 @@ import {
 } from '../../components/guest/GuestUI';
 
 import GuestPassCard from '../../components/guest/GuestPassGenerator';
+import DigitalEnvelope from '../../components/guest/DigitalEnvelope';
 
 /* ═══ Brand Inline Style Helpers ═══ */
 const S = {
@@ -118,6 +119,10 @@ function RSVPFormContent({ slug }) {
   // already RSVP'd (via token or a remembered local id), so the form never
   // flashes before locking.
   const [statusResolved, setStatusResolved] = useState(false);
+
+  /* Digital wax-seal envelope gate: the premium landing experience shown over
+     the form / already-registered card until the guest taps it open. */
+  const [envelopeOpened, setEnvelopeOpened] = useState(false);
 
   /* Maybe flow state */
   const [maybeFollowUp, setMaybeFollowUp] = useState(null);
@@ -489,6 +494,21 @@ function RSVPFormContent({ slug }) {
   // The seating chart (table search + personal map) is hidden until 24h before the event.
   const seatingRevealed = isSeatingRevealed(event.event_date);
 
+  /* The digital wax-seal landing gate. Rendered as a fixed overlay on top of
+     whichever view applies (form / already-registered); its whiteout fade
+     cross-dissolves into the content already mounted behind it. */
+  const envelopeOverlay = !envelopeOpened ? (
+    <DigitalEnvelope
+      guestName={existingGuest?.guest_name || guestName}
+      eventTitle={localizedTitle}
+      isRTL={isRTL}
+      themeColor={themeColor}
+      sealImageUrl={event.seal_image_url || null}
+      patternUrl={event.envelope_pattern_url || null}
+      onOpen={() => setEnvelopeOpened(true)}
+    />
+  ) : null;
+
   /* ════════════════════════════════════════════════════════════════
       ALREADY REGISTERED — strict state-aware gate.
       When the guest has already answered we hide the entire submission
@@ -689,6 +709,8 @@ function RSVPFormContent({ slug }) {
             </FadeInUp>
           </div>
         </motion.div>
+
+        {envelopeOverlay}
 
         <style jsx>{`
           @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -1880,6 +1902,8 @@ function RSVPFormContent({ slug }) {
           </AnimatePresence>
         </div>
       </motion.div>
+
+      {envelopeOverlay}
 
       {/* Global keyframes */}
       <style jsx>{`
