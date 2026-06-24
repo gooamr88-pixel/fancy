@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
-import EventQRCode from './EventQRCode';
+import EventSharePanel from './EventSharePanel';
 
 /* ═══ Design Tokens ═══ */
 const C = {
@@ -335,7 +335,8 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
       if (paymentMethod === 'stripe') {
         const res = await apiFetch(`/payments/events/${eventId}/create-checkout`, {
           method: 'POST',
-          body: JSON.stringify({ eventId, tierName: selectedTier.name })
+          // Return to the Events section (not the creation wizard) — this event already exists.
+          body: JSON.stringify({ eventId, tierName: selectedTier.name, returnPath: '/dashboard' })
         });
         if (res.checkoutUrl) {
           window.location.href = res.checkoutUrl;
@@ -642,8 +643,11 @@ function ExpandedPanel({ eventId, event, onClose }) {
       )}
 
       {/* Share & QR Code Section */}
-      <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'center' }}>
-        <EventQRCode slug={event.slug} qrCodeUrl={event.qr_code_url} />
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+          🔗 Share &amp; QR Code
+        </div>
+        <EventSharePanel event={event} compact />
       </div>
     </div>
   );
@@ -865,6 +869,9 @@ function EmptyState() {
 export default function EventsTab({ events = [], activeEventId, onSelectEvent, onRefresh }) {
   const [refreshSpin, setRefreshSpin] = useState(false);
 
+  // Unfinished drafts live in their own Drafts tab — keep this list to real events only.
+  const visibleEvents = events.filter(e => !(e && e.status === 'draft' && !e.is_paid));
+
   useEffect(() => {
     if (typeof document === 'undefined') return;
     if (!document.getElementById(STYLES_ID)) {
@@ -886,7 +893,7 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #F0ECE3', paddingBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.charcoal, margin: 0 }}>Your Events</h2>
-          {events.length > 0 && (
+          {visibleEvents.length > 0 && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               minWidth: 26, height: 26, padding: '0 8px', borderRadius: 20,
@@ -894,7 +901,7 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
               color: C.gold, fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)',
               border: '1px solid rgba(184,148,79,0.18)',
             }}>
-              {events.length}
+              {visibleEvents.length}
             </span>
           )}
         </div>
@@ -915,9 +922,9 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
       </div>
 
       {/* Event List */}
-      {events.length === 0 ? <EmptyState /> : (
+      {visibleEvents.length === 0 ? <EmptyState /> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {events.map((evt, i) => (
+          {visibleEvents.map((evt, i) => (
             <EventCard key={evt.id} event={evt} index={i} isActive={evt.id === activeEventId} onSelect={onSelectEvent} />
           ))}
         </div>

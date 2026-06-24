@@ -109,6 +109,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const [passwordInput, setPasswordInput] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
   const [underReview, setUnderReview] = useState(false);
+  // Paid gate not yet satisfied (event still a draft / awaiting payment). Distinct
+  // from "not found" so the organizer sees an accurate message, not a 404 screen.
+  const [notLive, setNotLive] = useState(false);
   const fetchEventWithPasswordRef = useRef(null);
 
   useEffect(() => {
@@ -118,7 +121,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Decide whether to play the envelope reveal. Only on the fully-loaded public
   // event page — never over the loading/password/private/review/error states.
   useEffect(() => {
-    if (!event || loading || error || passwordRequired || isPrivate || underReview) return;
+    if (!event || loading || error || passwordRequired || isPrivate || underReview || notLive) return;
     if (typeof window === 'undefined') return;
     try {
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -130,7 +133,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     } catch {
       /* localStorage/matchMedia unavailable → simply skip the reveal */
     }
-  }, [event, loading, error, passwordRequired, isPrivate, underReview]);
+  }, [event, loading, error, passwordRequired, isPrivate, underReview, notLive]);
 
   const handleRevealComplete = useCallback(() => {
     setShowReveal(false);
@@ -212,7 +215,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (res.status === 402) throw new Error('PAYMENT_REQUIRED');
+        if (res.status === 402) { setNotLive(true); setLoading(false); return; }
         if (res.status === 401 && data.requiresPassword) { setPasswordRequired(true); setLoading(false); return; }
         if (res.status === 403 && data.error === 'EVENT_UNDER_REVIEW') { setUnderReview(true); setLoading(false); return; }
         if (res.status === 403 && data.error === 'EVENT_PRIVATE') { setIsPrivate(true); setLoading(false); return; }
@@ -223,6 +226,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       setGuestRsvp(data.guestRsvp || null);
       setPasswordRequired(false);
       setIsPrivate(false);
+      setNotLive(false);
     } catch (err) { setError(err.message); } finally { setLoading(false); }
   }, [slug, invitationRsvpId]);
 
@@ -399,6 +403,26 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 </PremiumButton>
               </form>
               {error && <p style={{ color: '#C45E5E', fontSize: '13px', marginTop: '12px' }}>Incorrect password. Please try again.</p>}
+            </GlassmorphismCard>
+          </ScaleIn>
+        </div>
+      </PageTransition>
+    );
+  }
+
+  // ─── NOT LIVE YET (paid gate not satisfied) ───
+  if (notLive) {
+    return (
+      <PageTransition>
+        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+          <ScaleIn>
+            <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
+              <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.15 }} style={{ fontSize: '48px', display: 'block' }}>⏳</motion.span>
+              <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#191B1E', marginTop: '12px' }}>Not Live Yet</h1>
+              <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>
+                This event isn’t active yet. If you’re the host, please complete the platform fee — your event goes live once payment is confirmed.
+              </p>
+              <Link href="/" style={{ display: 'inline-block', marginTop: '24px', padding: '12px 28px', background: '#B8944F', color: '#FFFFFF', borderRadius: '12px', textDecoration: 'none', fontWeight: 700, fontSize: '14px' }}>Go to Homepage</Link>
             </GlassmorphismCard>
           </ScaleIn>
         </div>

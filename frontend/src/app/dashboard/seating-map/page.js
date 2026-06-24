@@ -1,4 +1,5 @@
 'use client';
+import { toast } from '../../utils/toast';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
@@ -533,7 +534,7 @@ export default function SeatingMapPage() {
     e.preventDefault();
     setDragOverId(null);
     const el = elements.find(x => x.id === tableId);
-    if (!el || isZone(el)) { alert('Guests can only be seated at tables, not venue zones.'); return; }
+    if (!el || isZone(el)) { toast.error('Guests can only be seated at tables, not venue zones.'); return; }
     let payload;
     try { payload = JSON.parse(e.dataTransfer.getData('application/json')); } catch { return; }
     const { rsvpId, partySize, from } = payload;
@@ -586,7 +587,7 @@ export default function SeatingMapPage() {
       dirtyGeometryRef.current = {};
       await Promise.all([loadLayout(), fetchGuests(1, true)]);
       setTableGuests([]);
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
 
@@ -612,7 +613,7 @@ export default function SeatingMapPage() {
       }
       setMovedIds(new Set());
       dirtyGeometryRef.current = {};
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
 
@@ -636,7 +637,7 @@ export default function SeatingMapPage() {
       if (!res.ok) throw new Error(data.message || 'Failed to add element');
       setShowAdd(false);
       loadLayout();
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   /* ── inspector save / delete ── */
@@ -645,7 +646,7 @@ export default function SeatingMapPage() {
     const body = { tableName: inspectName };
     if (!isZone(selected)) {
       const cap = parseInt(inspectCapacity);
-      if (isNaN(cap) || cap < 1) { alert('Capacity must be a positive number.'); return; }
+      if (isNaN(cap) || cap < 1) { toast.error('Capacity must be a positive number.'); return; }
       body.maxCapacity = cap;
     }
     try {
@@ -655,12 +656,12 @@ export default function SeatingMapPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to update');
       loadLayout();
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   const deleteElement = async () => {
     if (!selected) return;
-    if (!isZone(selected) && (occByTable[selected.id] || 0) > 0) { alert('Unassign guests before deleting this table.'); return; }
+    if (!isZone(selected) && (occByTable[selected.id] || 0) > 0) { toast.error('Unassign guests before deleting this table.'); return; }
     if (!window.confirm(`Delete ${selected.table_name}?`)) return;
     try {
       const res = await fetch(`${API_URL}/events/${eventId}/tables/${selected.id}`, { method: 'DELETE', credentials: 'include' });
@@ -668,7 +669,7 @@ export default function SeatingMapPage() {
       if (!res.ok) throw new Error(data.message || 'Failed to delete');
       setSelectedId(null);
       loadLayout();
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   const duplicateElement = async () => {
@@ -695,7 +696,7 @@ export default function SeatingMapPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to duplicate element');
       loadLayout();
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   };
 
   const btn = { padding: '8px 16px', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'all 0.2s' };
@@ -908,11 +909,11 @@ function AddElementModal({ onClose, onAdd, btn }) {
   const zones = Object.entries(SHAPES).filter(([, m]) => m.cat === 'zone');
 
   const submit = () => {
-    if (!name.trim()) { alert('Please enter a label.'); return; }
+    if (!name.trim()) { toast.error('Please enter a label.'); return; }
     const payload = { shape, name: name.trim() };
     if (meta.cat === 'table') {
       const cap = parseInt(capacity);
-      if (isNaN(cap) || cap < 1) { alert('Enter a valid capacity.'); return; }
+      if (isNaN(cap) || cap < 1) { toast.error('Enter a valid capacity.'); return; }
       payload.capacity = cap;
     }
     if (meta.cat === 'zone') {

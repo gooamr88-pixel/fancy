@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Playfair_Display, Lato, Great_Vibes, Aref_Ruqaa } from 'next/font/google';
+import ToastHost from './components/ToastHost';
 
 /* ═══ Google Fonts — Luxury Typography Stack ═══ */
 
@@ -47,7 +48,10 @@ export default function RootLayout({ children }) {
       lang="en"
       className={`${playfair.variable} ${lato.variable} ${greatVibes.variable} ${arefRuqaa.variable}`}
     >
-      <body>{children}</body>
+      <body>
+        {children}
+        <ToastHost />
+      </body>
     </html>
   );
 }

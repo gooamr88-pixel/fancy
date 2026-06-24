@@ -24,21 +24,29 @@ export async function apiFetch(path, options = {}) {
     });
     clearTimeout(timeoutId);
   
-    // Handle 401 - session expired
+    // Handle 401. On a PROTECTED page this means the auth cookie is missing/expired
+    // → bounce to login. On an AUTH page (login/register/forgot-password) a 401 is an
+    // authentication FAILURE (wrong credentials, etc.), NOT an expired session — so we
+    // surface the server's specific message instead of a misleading "session expired".
     if (response.status === 401) {
-      if (typeof window !== 'undefined') {
-        const currentPath = window.location.pathname;
-        if (currentPath !== '/login' && currentPath !== '/register' && currentPath !== '/forgot-password') {
-          // Clear local metadata (non-sensitive display data)
-          localStorage.removeItem('org_id');
-          localStorage.removeItem('user_role');
-          localStorage.removeItem('active_event_id');
-          // Redirect to login — the server already invalidated the cookie
-          window.location.href = '/login';
-          return; // Don't throw — we're redirecting
-        }
+      const authPaths = ['/login', '/register', '/forgot-password'];
+      const onAuthPage = typeof window !== 'undefined' && authPaths.includes(window.location.pathname);
+
+      if (typeof window !== 'undefined' && !onAuthPage) {
+        // Clear local metadata (non-sensitive display data)
+        localStorage.removeItem('org_id');
+        localStorage.removeItem('user_role');
+        localStorage.removeItem('active_event_id');
+        // Redirect to login — the server already invalidated the cookie
+        window.location.href = '/login';
+        return; // Don't throw — we're redirecting
       }
-      throw new Error('Session expired. Please log in again.');
+
+      // Auth page (or SSR): pass through the API's real error message so the form can
+      // show "Invalid email or password.", "Please verify your email.", etc.
+      let data = null;
+      try { data = await response.json(); } catch { /* missing/non-JSON body */ }
+      throw new Error((data && data.message) || 'Invalid email or password.');
     }
 
     // Handle 204 No Content

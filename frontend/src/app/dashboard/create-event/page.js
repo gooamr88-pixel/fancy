@@ -1,4 +1,5 @@
 'use client';
+import { toast } from '../../utils/toast';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -133,8 +134,10 @@ export default function CreateEventWizard() {
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [submitting, setSubmitting] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
+  const draftHydratedRef = useRef(false);
 
   /* ─── Draft event + payment state ─── */
   const [eventId, setEventId] = useState(null);
@@ -217,6 +220,10 @@ export default function CreateEventWizard() {
 
   /* ─── Slug availability debounce ref ─── */
   const slugTimerRef = useRef(null);
+  // The event title and the event URL are independent. We seed the URL from the
+  // title for convenience, but the moment the organizer edits the URL themselves
+  // this flips true and the title stops overwriting their chosen slug.
+  const slugManuallyEditedRef = useRef(false);
 
   /* ═══ Mount animation trigger ═══ */
   useEffect(() => {
@@ -232,6 +239,54 @@ export default function CreateEventWizard() {
       }
     }
   }, []);
+
+  /* ═══ Resume an existing DRAFT (Dashboard → Drafts → Continue setup) ═══
+     ?draft=<eventId> hydrates every event field from the saved draft and drops the
+     organizer back on the Configure step to keep editing. */
+  useEffect(() => {
+    if (typeof window === 'undefined' || draftHydratedRef.current) return;
+    const draftId = new URLSearchParams(window.location.search).get('draft');
+    if (!draftId) return;
+    draftHydratedRef.current = true;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/events/${draftId}`, { credentials: 'include' });
+        const data = await res.json();
+        const ev = data?.event;
+        if (!ev) return;
+        const dt = (v) => (v ? String(v).slice(0, 16) : ''); // ISO → datetime-local
+        setEventId(ev.id);
+        if (ev.template_type) setTemplateType(ev.template_type);
+        setTitle(ev.title || '');
+        if (ev.slug) { slugManuallyEditedRef.current = true; setSlug(ev.slug); }
+        setDescription(ev.description || '');
+        setEventDate(dt(ev.event_date));
+        setEventEndDate(dt(ev.event_end_date));
+        setLocationName(ev.location_name || '');
+        setLocationAddress(ev.location_address || '');
+        setLocationLat(ev.location_lat ?? null);
+        setLocationLng(ev.location_lng ?? null);
+        setLocationPlaceId(ev.location_place_id || '');
+        setDressCode(ev.dress_code || '');
+        setRsvpDeadline(dt(ev.rsvp_deadline));
+        setPrivacyMode(ev.privacy_mode || 'private');
+        setAccessPassword(ev.access_password || '');
+        setCoverImageUrl(ev.cover_image_url || '');
+        setGalleryUrls(Array.isArray(ev.gallery_urls) ? ev.gallery_urls : []);
+        setBackgroundMusicUrl(ev.background_music_url || '');
+        if (ev.custom_colors) setCustomColors(ev.custom_colors);
+        if (ev.template_data) {
+          setTemplateData(ev.template_data);
+          if (ev.template_data.customDesign) setCustomConfig(ev.template_data.customDesign);
+        }
+        // Continue on the Configure step; clean the URL so a refresh won't re-hydrate.
+        setDirection(1);
+        setStep(1);
+        window.history.replaceState({}, '', '/dashboard/create-event');
+      } catch { /* non-fatal — organizer can start fresh */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiUrl]);
 
   /* ═══ Resume after returning from Stripe Checkout (card flow) ═══
      The card flow leaves this SPA entirely, so before redirecting we stash a
@@ -252,7 +307,7 @@ export default function CreateEventWizard() {
     const resumedEventId = params.get('event') || resume.eventId || null;
     if (resumedEventId) setEventId(resumedEventId);
     if (resume.selectedTierName) setSelectedTierName(resume.selectedTierName);
-    if (resume.slug) setSlug(resume.slug);
+    if (resume.slug) { slugManuallyEditedRef.current = true; setSlug(resume.slug); }
 
     // Land back on the Payment step where the user left off.
     setDirection(1);
@@ -365,8 +420,12 @@ export default function CreateEventWizard() {
     }
   }, [templateType, selectedPresets, customConfig]);
 
-  /* ═══ Auto-generate slug from title ═══ */
+  /* ═══ Seed the URL from the title — ONLY until the organizer edits the URL ═══
+     The title and the event URL are separate fields. We auto-fill a sensible slug
+     from the title for convenience, but once the organizer hand-edits the URL
+     (slugManuallyEditedRef) we never overwrite their choice again. */
   useEffect(() => {
+    if (slugManuallyEditedRef.current) return;
     if (title) {
       const generated = title
         .toLowerCase()
@@ -378,6 +437,12 @@ export default function CreateEventWizard() {
       setSlug(generated);
     }
   }, [title]);
+
+  /* The organizer edited the URL directly → decouple it from the title from now on. */
+  const handleSlugChange = useCallback((value) => {
+    slugManuallyEditedRef.current = true;
+    setSlug(value);
+  }, []);
 
   /* ═══ Slug availability checker (debounced) ═══ */
   useEffect(() => {
@@ -454,7 +519,7 @@ export default function CreateEventWizard() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      alert('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File exceeds 8MB. Please use a smaller file or paste an external URL.');
       return;
     }
     setCoverImageUploading(true);
@@ -483,7 +548,7 @@ export default function CreateEventWizard() {
   const uploadInvitationAsset = useCallback(async (file, folder, tdKey, setBusy) => {
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      alert('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File exceeds 8MB. Please use a smaller file or paste an external URL.');
       return;
     }
     setBusy(true);
@@ -520,7 +585,7 @@ export default function CreateEventWizard() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      alert('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File exceeds 8MB. Please use a smaller file or paste an external URL.');
       return;
     }
     setMusicUploading(true);
@@ -551,7 +616,7 @@ export default function CreateEventWizard() {
     setGalleryUploading(true);
     for (const file of files) {
       if (file.size > 8 * 1024 * 1024) {
-        alert(`"${file.name}" exceeds 8MB and was skipped.`);
+        toast.error(`"${file.name}" exceeds 8MB and was skipped.`);
         continue;
       }
       try {
@@ -752,6 +817,33 @@ export default function CreateEventWizard() {
       setSubmitting(false);
     }
   }, [submitting, title, slug, eventDate, slugStatus, ensureDraftEvent, goNext]);
+
+  /* ═══ Save the event as a draft and exit to the dashboard Drafts section ═══
+     Persists everything entered so far (creates the draft if needed, else PATCHes)
+     so the organizer can leave and resume later from Dashboard → Drafts. */
+  const handleSaveDraft = useCallback(async () => {
+    if (savingDraft || submitting) return;
+    if (!title || !slug || !eventDate) {
+      setError('Add a title, URL and date before saving a draft.');
+      return;
+    }
+    if (slugStatus === 'taken') {
+      setError('Please choose an available event URL.');
+      return;
+    }
+    setSavingDraft(true);
+    setError('');
+    try {
+      await ensureDraftEvent();
+      if (typeof window !== 'undefined') {
+        window.location.href = '/dashboard?tab=drafts&saved=draft';
+      }
+    } catch (err) {
+      if (err.code === 'SLUG_TAKEN') setError('This event URL is already taken. Please choose a different slug.');
+      else setError(err.message || 'Could not save your draft. Please try again.');
+      setSavingDraft(false);
+    }
+  }, [savingDraft, submitting, title, slug, eventDate, slugStatus, ensureDraftEvent]);
 
   /* ═══ Payment handlers ═══ */
   const handlePayStripe = useCallback(async () => {
@@ -966,7 +1058,7 @@ export default function CreateEventWizard() {
               templateType={templateType}
               templates={TEMPLATES}
               title={title} setTitle={setTitle}
-              slug={slug} setSlug={setSlug}
+              slug={slug} setSlug={handleSlugChange}
               slugStatus={slugStatus}
               suggestedSlug={suggestedSlug}
               description={description} setDescription={setDescription}
@@ -990,6 +1082,7 @@ export default function CreateEventWizard() {
               galleryUploading={galleryUploading} onAddGalleryUrl={addGalleryUrl} onRemoveGalleryUrl={removeGalleryUrl}
               customFields={customFields} onFieldsChange={setCustomFields}
               onNext={handleConfigureNext} onBack={goBack}
+              onSaveDraft={handleSaveDraft} savingDraft={savingDraft}
             />
           </motion.div>
         )}

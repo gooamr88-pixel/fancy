@@ -3,10 +3,50 @@ const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
 const { generateQRCodeDataURL } = require('../utils/qrHelper');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
+const { getPlatformConfig } = require('../utils/configCache');
 const logger = require('../utils/logger');
 
 /** Strict UUID matcher — used to validate invitation tokens before querying. */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Back-fills the purchased tier ("current plan") onto a paid event that predates
+ * tier snapshotting. The plan is resolved in priority order:
+ *   1) already on the event           → nothing to do
+ *   2) snapshotted on a completed payment (newer payments store it)
+ *   3) inferred by matching the completed payment amount to a pricing tier
+ * When resolved, the event object is augmented AND the value is persisted (fire-and-
+ * forget, idempotent) so every surface — events list, wizard, public page — agrees.
+ * Requires event_payments to be embedded on the event (the list/detail queries do).
+ */
+async function withResolvedTier(event) {
+  if (!event || !event.is_paid || event.tier_name) return event;
+  const payments = Array.isArray(event.event_payments) ? event.event_payments : [];
+  const completed = payments.find(p => p && p.status === 'completed') || payments[0];
+  if (!completed) return event;
+
+  let tierName = completed.tier_name || null;
+  let tierMaxGuests = completed.tier_max_guests ?? null;
+
+  if (!tierName && completed.amount_cents != null) {
+    try {
+      const cfg = await getPlatformConfig();
+      const match = (cfg.pricing_tiers || []).find(t => Number(t.price_cents) === Number(completed.amount_cents));
+      if (match) {
+        tierName = match.name;
+        tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
+      }
+    } catch { /* config unavailable — leave the plan unresolved this time */ }
+  }
+
+  if (!tierName) return event;
+
+  // Self-heal: persist so future reads don't re-derive. Never block/fault the read.
+  supabase.from('events').update({ tier_name: tierName, tier_max_guests: tierMaxGuests }).eq('id', event.id)
+    .then(() => {}, () => {});
+
+  return { ...event, tier_name: tierName, tier_max_guests: tierMaxGuests };
+}
 
 /**
  * Creates a new event in draft state.
@@ -201,7 +241,7 @@ const getEvent = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
 
-    return res.json({ success: true, event });
+    return res.json({ success: true, event: await withResolvedTier(event) });
   } catch (err) {
     next(err);
   }
@@ -434,6 +474,15 @@ const updateEvent = async (req, res, next) => {
       }
     }
 
+    // Snapshot the date/venue before the write so we can tell if they materially
+    // changed (and therefore whether attending guests should be notified).
+    let priorWhen = null, priorWhere = null;
+    if (filteredUpdates.event_date !== undefined || filteredUpdates.location_name !== undefined || filteredUpdates.location_address !== undefined) {
+      const { data: before } = await supabase
+        .from('events').select('event_date, location_name, location_address').eq('id', eventId).single();
+      if (before) { priorWhen = before.event_date; priorWhere = before.location_name || before.location_address || null; }
+    }
+
     const { data: event, error } = await supabase
       .from('events')
       .update({ ...filteredUpdates, updated_at: new Date().toISOString() })
@@ -442,6 +491,17 @@ const updateEvent = async (req, res, next) => {
       .single();
 
     if (error) throw error;
+
+    // Notify confirmed/maybe guests if a LIVE event's date or venue actually moved
+    // (best-effort, non-blocking; itself gated by EMAIL_AUTOMATION_ENABLED).
+    if (event && event.status === 'active') {
+      const newWhere = event.location_name || event.location_address || null;
+      const dateChanged = priorWhen !== null && String(priorWhen) !== String(event.event_date);
+      const venueChanged = (filteredUpdates.location_name !== undefined || filteredUpdates.location_address !== undefined) && priorWhere !== newWhere;
+      if (dateChanged || venueChanged) {
+        require('../services/emailScheduler').notifyGuestsOfEventChange(eventId).catch(() => {});
+      }
+    }
 
     return res.json({
       success: true,
@@ -583,7 +643,9 @@ const getEvents = async (req, res, next) => {
 
     if (error) throw error;
 
-    const items = events || [];
+    // Resolve the "current plan" for paid events that predate tier snapshotting so
+    // the Events section shows the right plan/guest cap instead of a blank/unlimited.
+    const items = await Promise.all((events || []).map(withResolvedTier));
     return res.json({
       success: true,
       events: items,

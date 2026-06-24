@@ -3,6 +3,8 @@ const logger = require('../utils/logger');
 const { parsePagination, applyPagination, buildListResponse, escapeOrSearchTerm } = require('../middleware/pagination');
 const { logAdminAction } = require('../middleware/adminAudit');
 const { refundEventPayment } = require('../services/stripeRefundService');
+const { sendEmailViaBrevo } = require('../utils/notificationService');
+const { getEventLiveTemplate, getPublicBaseUrl } = require('../utils/emailTemplates');
 
 const VALID_ROLES = ['organizer', 'super_admin'];
 const VALID_EVENT_STATUSES = ['draft', 'pending_review', 'active', 'paused', 'completed'];
@@ -429,6 +431,13 @@ const updateEventAdmin = async (req, res, next) => {
   updates.updated_at = new Date().toISOString();
 
   try {
+    // Snapshot prior state + organizer contact so we can notify on the first go-live.
+    const { data: prior } = await supabase
+      .from('events')
+      .select('status, slug, title, organizations(name, email)')
+      .eq('id', eventId)
+      .single();
+
     const { data, error } = await supabase
       .from('events')
       .update(updates)
@@ -449,6 +458,24 @@ const updateEventAdmin = async (req, res, next) => {
       entity_id: eventId,
       metadata: updates,
     });
+
+    // Notify the organizer the first time their event is promoted to live.
+    if (updates.status === 'active' && prior && prior.status !== 'active') {
+      const orgEmail = prior.organizations?.email;
+      if (orgEmail) {
+        try {
+          const title = prior.title || data.title || 'Your event';
+          const html = getEventLiveTemplate({
+            orgName: prior.organizations.name || 'Organizer',
+            eventTitle: title,
+            eventUrl: `${getPublicBaseUrl()}/${prior.slug || ''}`,
+          });
+          await sendEmailViaBrevo(orgEmail, `Your Event is Live: ${title}`, html);
+        } catch (e) {
+          logger.warn({ err: e, eventId }, 'Event-live email failed (non-fatal)');
+        }
+      }
+    }
 
     return res.json({ success: true, message: 'Event updated.', event: data });
   } catch (err) {

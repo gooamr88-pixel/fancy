@@ -1,4 +1,5 @@
 'use client';
+import { toast } from '../../utils/toast';
 
 import React, { useState, useEffect } from 'react';
 import PlacesAutocomplete from '../../components/PlacesAutocomplete';
@@ -60,7 +61,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     if (!file) return;
 
     if (file.size > 8 * 1024 * 1024) {
-      alert("File size exceeds 8MB. Please use a smaller file or paste an external URL.");
+      toast.error("File size exceeds 8MB. Please use a smaller file or paste an external URL.");
       return;
     }
 
@@ -96,7 +97,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
       // base64 inflates the payload by ~33%; the API server rejects bodies over 5MB.
       // Keep the embedded data URL safely under that limit, otherwise require an external URL.
       if (file.size > 3.5 * 1024 * 1024) {
-        alert("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
+        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
         setMusicUploading(false);
         return;
       }
@@ -107,7 +108,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         setMusicUploading(false);
       };
       reader.onerror = () => {
-        alert("Failed to read the audio file. Please try again or paste an external URL.");
+        toast.error("Failed to read the audio file. Please try again or paste an external URL.");
         setMusicUploading(false);
       };
       reader.readAsDataURL(file);
@@ -120,7 +121,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      alert('File size exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File size exceeds 8MB. Please use a smaller file or paste an external URL.');
       return;
     }
     setCoverUploading(true);
@@ -141,7 +142,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     } catch (err) {
       console.error('Cover image upload failed, falling back to base64:', err);
       if (file.size > 3.5 * 1024 * 1024) {
-        alert("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
+        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
         setCoverUploading(false);
         return;
       }
@@ -152,7 +153,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         setCoverUploading(false);
       };
       reader.onerror = () => {
-        alert('Failed to read the image file. Please try again or paste an external URL.');
+        toast.error('Failed to read the image file. Please try again or paste an external URL.');
         setCoverUploading(false);
       };
       reader.readAsDataURL(file);

@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
-const { escapeHtml } = require('../utils/emailTemplates');
+const { escapeHtml, getEmailVerificationTemplate, getPasswordResetTemplate, getOrganizerWelcomeTemplate, getPasswordChangedTemplate } = require('../utils/emailTemplates');
 const { setAuthCookie, clearAuthCookie, COOKIE_NAME } = require('../middleware/auth');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { newJti, recordSession, revokeByJti, revokeAllForUser, recordLogin } = require('../services/sessionService');
@@ -196,25 +196,8 @@ const register = async (req, res, next) => {
       .upsert({ user_id: userId, role: 'organizer' }, { onConflict: 'user_id' });
     if (roleError) throw roleError;
 
-    // Dispatch verification email via Brevo
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <span style="font-size: 12px; font-weight: bold; color: #B8944F; text-transform: uppercase; letter-spacing: 0.15em;">Email Verification</span>
-          <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">Fancy RSVP</h2>
-        </div>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
-        <p style="color: #334155; font-size: 15px; line-height: 1.6;">Hello ${escapeHtml(name)},</p>
-        <p style="color: #334155; font-size: 15px; line-height: 1.6;">Thank you for creating your Fancy RSVP account. Please enter the following verification code to activate your account:</p>
-        <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #10b981; margin: 25px 0; font-family: monospace;">
-          ${otp}
-        </div>
-        <p style="color: #ef4444; font-size: 14px; font-weight: bold;">This code expires in 15 minutes.</p>
-        <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 25px;">If you did not create an account, you can safely ignore this email.</p>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-top: 30px; margin-bottom: 15px;" />
-        <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">This is an automated notification from Fancy RSVP.</p>
-      </div>
-    `;
+    // Dispatch verification email via Brevo (premium centralized template)
+    const emailHtml = getEmailVerificationTemplate(name, otp);
 
     await sendEmailViaBrevo(normalizedEmail, 'Verify Your Email — Fancy RSVP', emailHtml);
 
@@ -315,6 +298,11 @@ const verifyRegistration = async (req, res, next) => {
     await issueAuthCookie(req, res, { id: userId, email: normalizedEmail, role: 'organizer' });
 
     logger.info({ email: normalizedEmail }, 'Registration verified, account activated');
+
+    // Onboarding welcome (best-effort, non-blocking).
+    sendEmailViaBrevo(normalizedEmail, 'Welcome to Fancy RSVP', getOrganizerWelcomeTemplate(org.name))
+      .catch(() => {});
+    supabase.from('organizations').update({ welcome_sent_at: new Date().toISOString() }).eq('id', org.id).then(() => {}, () => {});
 
     return res.status(200).json({
       success: true,
@@ -523,25 +511,8 @@ const forgotPassword = async (req, res, next) => {
 
     if (updateError) throw updateError;
 
-    // 4. Send email containing OTP
-    const emailHtml = `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-        <div style="text-align: center; margin-bottom: 20px;">
-          <span style="font-size: 12px; font-weight: bold; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.15em;">Password Recovery</span>
-          <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">Fancy RSVP</h2>
-        </div>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
-        <p style="color: #334155; font-size: 15px; line-height: 1.6;">Hello ${escapeHtml(org.name || 'Organizer')},</p>
-        <p style="color: #334155; font-size: 15px; line-height: 1.6;">You requested a password reset for your event organizer account. Use the following One-Time Password (OTP) to complete your verification. This code is valid for 15 minutes:</p>
-        <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #10b981; margin: 25px 0; font-family: monospace;">
-          ${otp}
-        </div>
-        <p style="color: #ef4444; font-size: 14px; font-weight: bold;">Do not share this code with anyone.</p>
-        <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-top: 25px;">If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-top: 30px; margin-bottom: 15px;" />
-        <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">This is an automated security system notification from Fancy RSVP.</p>
-      </div>
-    `;
+    // 4. Send email containing OTP (premium centralized template)
+    const emailHtml = getPasswordResetTemplate(org.name, otp);
 
     const emailSent = await sendEmailViaBrevo(normalizedEmail, 'Password Reset Verification Code - Fancy RSVP', emailHtml);
     if (!emailSent) {
@@ -684,6 +655,10 @@ const resetPassword = async (req, res, next) => {
     // Clear any existing auth cookie (force re-login with new password)
     clearAuthCookie(res);
 
+    // Security confirmation (best-effort, non-blocking).
+    sendEmailViaBrevo(normalizedEmail, 'Your Password Was Changed — Fancy RSVP', getPasswordChangedTemplate(org.name))
+      .catch(() => {});
+
     return res.status(200).json({
       success: true,
       message: 'Your password has been successfully reset.'
@@ -805,6 +780,10 @@ const changePassword = async (req, res, next) => {
     // Re-issue auth cookie with fresh token after password change
     await issueAuthCookie(req, res, { id: req.user.id, email: org.email, role: req.user.role });
 
+    // Security confirmation (best-effort, non-blocking).
+    sendEmailViaBrevo(org.email, 'Your Password Was Changed — Fancy RSVP', getPasswordChangedTemplate(org.name))
+      .catch(() => {});
+
     res.json({ success: true, message: 'Password changed successfully' });
   } catch (err) {
     next(err);
@@ -921,6 +900,13 @@ const googleAuth = async (req, res, next) => {
     await recordLogin(req, { userId, email, success: true });
 
     logger.info({ email, isNewAccount }, 'Google authentication successful');
+
+    // Onboarding welcome for brand-new Google accounts (best-effort, non-blocking).
+    if (isNewAccount) {
+      sendEmailViaBrevo(email, 'Welcome to Fancy RSVP', getOrganizerWelcomeTemplate(org.name || name))
+        .catch(() => {});
+      supabase.from('organizations').update({ welcome_sent_at: new Date().toISOString() }).eq('owner_user_id', userId).then(() => {}, () => {});
+    }
 
     return res.status(isNewAccount ? 201 : 200).json({
       success: true,

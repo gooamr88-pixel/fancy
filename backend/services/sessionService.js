@@ -2,6 +2,49 @@ const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { captureRequestMeta } = require('../middleware/adminAudit');
+const { sendEmailViaBrevo } = require('../utils/notificationService');
+const { getNewSignInTemplate } = require('../utils/emailTemplates');
+
+/**
+ * Best-effort security alert: emails the organizer when their account is accessed
+ * from a NEW device. The device is fingerprinted on the user-agent (not the IP, so
+ * mobile-network IP churn doesn't spam alerts), and we never alert on the user's
+ * very first device — only genuinely additional ones. Fully non-blocking.
+ */
+async function maybeAlertNewDevice(req, userId) {
+  try {
+    const { ip, userAgent, browser, os } = captureRequestMeta(req);
+    const fingerprint = crypto.createHash('sha256').update(String(userAgent || 'unknown')).digest('hex');
+    const deviceLabel = `${browser || 'Unknown browser'} on ${os || 'unknown OS'}`;
+
+    const { count: priorCount } = await supabase
+      .from('devices').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+
+    const { data: inserted, error: insErr } = await supabase
+      .from('devices')
+      .insert({ user_id: userId, fingerprint, label: deviceLabel })
+      .select('id')
+      .single();
+
+    if (insErr) {
+      // Already a known device → just refresh last_seen, no alert.
+      await supabase.from('devices').update({ last_seen: new Date().toISOString() })
+        .eq('user_id', userId).eq('fingerprint', fingerprint);
+      return;
+    }
+    if (!inserted || (priorCount || 0) === 0) return; // first-ever device is expected
+
+    const { data: org } = await supabase
+      .from('organizations').select('name, email').eq('owner_user_id', userId).single();
+    if (!org || !org.email) return;
+
+    const when = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+    const html = getNewSignInTemplate(org.name, { device: deviceLabel, ip, when });
+    sendEmailViaBrevo(org.email, 'New Sign-in to Your Fancy RSVP Account', html).catch(() => {});
+  } catch (err) {
+    logger.warn({ err, userId }, 'sessionService: new-device alert skipped');
+  }
+}
 
 /**
  * Server-side session lifecycle (Master Plan §4 / §19 / Foundation F2).
@@ -38,6 +81,8 @@ async function recordSession(req, { userId, jti, deviceLabel }) {
   } catch (err) {
     logger.warn({ err, userId }, 'sessionService: failed to record session');
   }
+  // Fire-and-forget new-device security alert (never blocks the auth flow).
+  maybeAlertNewDevice(req, userId).catch(() => {});
 }
 
 /** Revokes a single session by jti (used on logout). */

@@ -1,4 +1,5 @@
 'use client';
+import { toast } from '../../utils/toast';
 import React, { useState, useMemo, useCallback } from 'react';
 import { isAccepted, isDeclined } from '../../utils/responseHelpers';
 import EditGuestModal from './EditGuestModal';
@@ -264,9 +265,9 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
       if (!res.ok || data.success === false) {
         throw new Error(data.message || 'Failed to send email.');
       }
-      alert(type === 'qr' ? 'QR ticket email sent.' : 'Confirmation email sent.');
+      toast.success(type === 'qr' ? 'QR ticket email sent.' : 'Confirmation email sent.');
     } catch (err) {
-      alert(err.message || 'Failed to send email.');
+      toast.error(err.message || 'Failed to send email.');
     } finally {
       setResending(null);
     }

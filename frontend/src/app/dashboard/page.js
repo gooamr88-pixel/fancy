@@ -1,4 +1,5 @@
 'use client';
+import { toast } from '../utils/toast';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
@@ -16,6 +17,8 @@ import ImportGuestsModal from './components/ImportGuestsModal';
 import EventSettings from './components/EventSettings';
 import ErrorBoundary from '../components/ErrorBoundary';
 import EventsTab from './components/EventsTab';
+import DraftsTab from './components/DraftsTab';
+import ShareTab from './components/ShareTab';
 import RSVPsTab from './components/RSVPsTab';
 import GuestsTab from './components/GuestsTab';
 import OrganizerOverview from './components/OrganizerOverview';
@@ -44,6 +47,12 @@ const sidebarNav = [
   )},
   { key: 'events', label: 'Events', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  )},
+  { key: 'drafts', label: 'Drafts', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+  )},
+  { key: 'share', label: 'Share & QR', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
   )},
   { key: 'rsvps', label: 'RSVPs', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
@@ -130,6 +139,21 @@ export default function DashboardPage() {
     }
   }, [router]);
 
+  /* ═══ Deep-link to a tab (e.g. ?tab=drafts after "Save as Draft") + toast ═══ */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const saved = params.get('saved');
+    if (tab) setActiveTab(tab);
+    if (saved === 'draft') toast.success('Draft saved — finish it any time from Drafts.');
+    if (tab || saved) {
+      params.delete('tab'); params.delete('saved');
+      const qs = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    }
+  }, []);
+
   useEffect(() => {
     if (!authChecked) return;
     const fetchEvents = async () => {
@@ -156,6 +180,31 @@ export default function DashboardPage() {
   useEffect(() => {
     if (eventId && typeof window !== 'undefined') localStorage.setItem('active_event_id', eventId);
   }, [eventId]);
+
+  /* ═══ Return from Stripe Checkout when paying for an EXISTING event from the
+     Events section. Land on the Events tab (never the creation wizard), keep the
+     paid event selected, synchronously confirm the session, and clean the URL. ═══ */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    if (payment !== 'success' && payment !== 'cancelled') return;
+
+    setActiveTab('events');
+    const returnedId = params.get('event');
+    if (returnedId) localStorage.setItem('active_event_id', returnedId); // fetchEvents selects it
+
+    const sessionId = params.get('session_id');
+    // Strip the payment params so a refresh doesn't replay this handler.
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (payment === 'success' && sessionId) {
+      // Confirm the payment synchronously (the webhook remains the backstop).
+      fetch(`${apiUrl}/payments/verify?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'include' })
+        .catch(() => { /* non-fatal — the webhook will reconcile the event status */ });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiUrl]);
 
   const handleLogout = logout;
 
@@ -212,7 +261,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error('Failed to create table');
       const data = await res.json();
       if (data.success) { setNewTableName(''); setNewTableCapacity(10); loadDashboardData(); }
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   }, [apiUrl, eventId, newTableName, newTableCapacity, loadDashboardData]);
 
   const handleUpdateTable = useCallback(async (tableId, updates) => {
@@ -230,7 +279,7 @@ export default function DashboardPage() {
         loadDashboardData();
       }
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }, [apiUrl, eventId, loadDashboardData]);
 
@@ -251,7 +300,7 @@ export default function DashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Seat assignment failed');
       loadDashboardData();
-    } catch (err) { alert(err.message); }
+    } catch (err) { toast.error(err.message); }
   }, [apiUrl, eventId, rsvps, loadDashboardData]);
 
   const handleSendInvitations = useCallback(async () => {
@@ -270,10 +319,10 @@ export default function DashboardPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send invitations.');
-      alert(data.message);
+      toast.success(data.message);
       loadDashboardData();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     }
   }, [apiUrl, eventId, rsvps, loadDashboardData]);
 
@@ -354,6 +403,9 @@ export default function DashboardPage() {
   }
 
   const activeEvent = events.find(e => e.id === eventId);
+  // Drafts live exclusively in the Drafts tab; everything else counts as a real event.
+  const draftCount = events.filter(e => e && e.status === 'draft' && !e.is_paid).length;
+  const liveCount = events.length - draftCount;
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: COLORS.white, fontFamily: 'var(--font-sans)' }}>
@@ -423,7 +475,16 @@ export default function DashboardPage() {
                 onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; } }}
               >
                 <span style={{ display: 'flex', width: '18px', height: '18px' }}>{item.icon}</span>
-                {item.label}
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {item.key === 'drafts' && draftCount > 0 && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    minWidth: '18px', height: '18px', padding: '0 6px', borderRadius: '9px',
+                    background: isActive ? COLORS.gold : 'rgba(184, 148, 79, 0.14)',
+                    color: isActive ? COLORS.white : COLORS.gold,
+                    fontSize: '10px', fontWeight: 700, fontFamily: 'var(--font-sans)', lineHeight: 1,
+                  }}>{draftCount}</span>
+                )}
               </button>
             );
           })}
@@ -465,8 +526,8 @@ export default function DashboardPage() {
           justifyContent: 'space-between',
           transition: 'all 0.3s ease',
         }}>
-          {(activeTab === 'overview' || activeTab === 'events') ? (
-            /* ── Overview / Events: clean header, no event-specific controls ── */
+          {(activeTab === 'overview' || activeTab === 'events' || activeTab === 'drafts') ? (
+            /* ── Overview / Events / Drafts: clean header, no event-specific controls ── */
             <>
               <div>
                 <h1 style={{
@@ -477,7 +538,7 @@ export default function DashboardPage() {
                   margin: 0,
                   letterSpacing: '-0.01em'
                 }}>
-                  {activeTab === 'overview' ? 'Dashboard Overview' : 'Your Events'}
+                  {activeTab === 'overview' ? 'Dashboard Overview' : activeTab === 'drafts' ? 'Drafts' : 'Your Events'}
                 </h1>
                 <p style={{
                   fontFamily: 'var(--font-sans)',
@@ -488,7 +549,9 @@ export default function DashboardPage() {
                 }}>
                   {activeTab === 'overview'
                     ? 'Aggregated insights across all your events'
-                    : `You have ${events.length} event${events.length !== 1 ? 's' : ''}`}
+                    : activeTab === 'drafts'
+                      ? `${draftCount} draft${draftCount !== 1 ? 's' : ''} waiting to be finished`
+                      : `You have ${liveCount} event${liveCount !== 1 ? 's' : ''}`}
                 </p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -813,7 +876,7 @@ export default function DashboardPage() {
                       const a = document.createElement('a');
                       a.href = url; a.download = 'guest-list.csv'; a.click();
                       URL.revokeObjectURL(url);
-                    } catch (err) { alert(err.message); }
+                    } catch (err) { toast.error(err.message); }
                   }}
                   id="btn-export-excel"
                   style={{
@@ -857,6 +920,14 @@ export default function DashboardPage() {
               onSelectEvent={(id, tab) => { setEventId(id); setActiveTab(tab || 'overview'); }}
               onRefresh={loadDashboardData}
             />
+          ) : activeTab === 'drafts' ? (
+            <DraftsTab
+              events={events}
+              apiUrl={apiUrl}
+              onRefresh={(deletedId) => { if (deletedId) setEvents(prev => prev.filter(e => e.id !== deletedId)); }}
+            />
+          ) : activeTab === 'share' ? (
+            <ShareTab event={activeEvent} />
           ) : activeTab === 'rsvps' ? (
             <RSVPsTab rsvps={rsvps} eventId={eventId} onRefresh={loadDashboardData} />
           ) : activeTab === 'guests' ? (
@@ -997,7 +1068,7 @@ export default function DashboardPage() {
                         link.click();
                         window.URL.revokeObjectURL(url);
                       } catch (err) {
-                        alert('Failed to download QR code. Please try again.');
+                        toast.error('Failed to download QR code. Please try again.');
                       }
                     }}
                     style={{ flex: 1, padding: '10px', background: COLORS.gold, color: COLORS.white, fontSize: 12, fontWeight: 700, border: 'none', borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
@@ -1018,7 +1089,7 @@ export default function DashboardPage() {
                         link.click();
                         window.URL.revokeObjectURL(url);
                       } catch (err) {
-                        alert('Failed to download QR code. Please try again.');
+                        toast.error('Failed to download QR code. Please try again.');
                       }
                     }}
                     style={{ flex: 1, padding: '10px', background: 'transparent', border: `1px solid ${COLORS.border}`, color: COLORS.gold, fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}

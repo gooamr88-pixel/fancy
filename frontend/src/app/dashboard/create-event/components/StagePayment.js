@@ -49,6 +49,9 @@ export default function StagePayment({
   const activeMethods = (manualMethods || []).filter(m => m && m.is_active !== false);
   // "Contact Sales" tiers have no fixed price, so they can't be paid online here.
   const billableTiers = (tiers || []).filter(t => t && t.is_custom !== true);
+  // The plan the organizer is about to pay for (shown in the manual-transfer panel
+  // so card and manual flows both make the chosen plan + price explicit).
+  const selectedTier = (tiers || []).find(t => t.name === selectedTierName) || null;
 
   // Resolve the current plan from the live tier list (falls back to the snapshot
   // saved on the event if the tier was later renamed/removed by an admin).
@@ -326,9 +329,23 @@ export default function StagePayment({
                 <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: 0 }}>Pay by Manual Transfer</h3>
                 <button onClick={() => setShowManual(false)} style={{ background: 'none', border: 'none', color: C.stone, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}>← Other methods</button>
               </div>
-              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, margin: '0 0 18px', lineHeight: 1.6 }}>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, margin: '0 0 14px', lineHeight: 1.6 }}>
                 Transfer the platform fee to one of the accounts below, then submit your proof. We&apos;ll verify and activate your event.
               </p>
+
+              {selectedTier && (
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                  background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)',
+                  borderRadius: 12, padding: '12px 16px', marginBottom: 18,
+                }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal, fontWeight: 600 }}>
+                    Activating <strong>{selectedTier.name}</strong>
+                    {selectedTier.max_guests > 0 ? ` · up to ${selectedTier.max_guests} guests` : ' · unlimited guests'}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.gold }}>{fmt(selectedTier.price_cents)}</span>
+                </div>
+              )}
 
               {activeMethods.length === 0 ? (
                 <div style={{ background: C.softBg, border: `1px dashed ${C.border}`, borderRadius: 12, padding: '16px 18px', marginBottom: 18 }}>

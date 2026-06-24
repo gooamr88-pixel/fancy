@@ -72,6 +72,13 @@ const createCheckoutSession = async (req, res, next) => {
   const eventId = req.params.eventId;
   const { tierName } = req.body;
 
+  // Where to send the browser back to after Checkout. Restricted to in-app dashboard
+  // paths so a caller can't turn it into an open redirect. Defaults to the creation
+  // wizard (the original flow); the Events section passes '/dashboard' so paying for
+  // an already-created event returns there instead of the wizard.
+  const rawReturn = (req.body.returnPath || '').toString();
+  const returnPath = /^\/dashboard(?:\/[A-Za-z0-9_-]+)*$/.test(rawReturn) ? rawReturn : '/dashboard/create-event';
+
   if (!eventId || !tierName) {
     return res.status(400).json({
       success: false,
@@ -157,8 +164,8 @@ const createCheckoutSession = async (req, res, next) => {
       // Return the user to the WIZARD (not the dashboard) at the payment step, and
       // carry session_id so the frontend can synchronously verify + show success
       // even if the async webhook hasn't landed yet.
-      success_url: `${resolveReturnBase(req)}/dashboard/create-event?payment=success&event=${eventId}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${resolveReturnBase(req)}/dashboard/create-event?payment=cancelled&event=${eventId}`
+      success_url: `${resolveReturnBase(req)}${returnPath}?payment=success&event=${eventId}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${resolveReturnBase(req)}${returnPath}?payment=cancelled&event=${eventId}`
     });
 
     return res.status(200).json({
@@ -408,7 +415,7 @@ const manualCashApproval = async (req, res, next) => {
     // 1. Check if there is an existing pending cash_manual payment record
     const { data: pendingPayment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, amount_cents, stripe_checkout_session_id')
+      .select('id, amount_cents, stripe_checkout_session_id, reference_number, tier_name, tier_max_guests')
       .eq('event_id', eventId)
       .eq('payment_method', 'cash_manual')
       .eq('status', 'pending')
@@ -437,12 +444,15 @@ const manualCashApproval = async (req, res, next) => {
       paymentId = updatedPayment.id;
       refNumber = updatedPayment.reference_number || updatedPayment.stripe_checkout_session_id;
 
-      // Activate the event
+      // Activate the event + persist the purchased tier ("current plan") snapshotted
+      // on the pending payment, so the dashboard/wizard show the right plan.
       const { error: eventUpdateErr } = await supabase
         .from('events')
         .update({
           is_paid: true,
           status: 'active',
+          tier_name: pendingPayment[0].tier_name || null,
+          tier_max_guests: pendingPayment[0].tier_max_guests ?? null,
           updated_at: new Date().toISOString()
         })
         .eq('id', eventId);
@@ -599,32 +609,8 @@ const initiateManualPayment = async (req, res, next) => {
   }
 
   try {
-    // 1. Check if there is already a pending cash payment for this event
-    const { data: existingPending } = await supabase
-      .from('event_payments')
-      .select('id, reference_number, amount_cents')
-      .eq('event_id', eventId)
-      .eq('payment_method', 'cash_manual')
-      .eq('status', 'pending')
-      .limit(1);
-
-    if (existingPending && existingPending.length > 0) {
-      // Keep the payer's declared method / proof reference fresh if they re-submit.
-      if (methodLabel !== undefined || payerReference !== undefined) {
-        const patch = {};
-        if (methodLabel !== undefined) patch.manual_method = (methodLabel || '').toString().slice(0, 200);
-        if (payerReference !== undefined) patch.payer_reference = (payerReference || '').toString().slice(0, 300);
-        await supabase.from('event_payments').update(patch).eq('id', existingPending[0].id);
-      }
-      return res.status(200).json({
-        success: true,
-        message: 'Existing pending cash payment found.',
-        referenceNumber: existingPending[0].reference_number,
-        payment: existingPending[0]
-      });
-    }
-
-    // 2. Fetch pricing tiers from super_admin_config (cached singleton)
+    // 1. Resolve the selected tier FIRST. The manual record must reflect the plan the
+    //    organizer actually picked — even when they change it after a first attempt.
     let adminConfig;
     try {
       adminConfig = await getPlatformConfig();
@@ -644,6 +630,48 @@ const initiateManualPayment = async (req, res, next) => {
         message: `Pricing tier '${tierName}' not found.`
       });
     }
+    // Contact-Sales tiers have no fixed price and can't be paid offline either.
+    if (tier.is_custom === true) {
+      return res.status(400).json({
+        success: false,
+        error: 'CUSTOM_TIER',
+        message: `The '${tier.name}' plan is custom-priced — please contact sales to activate it.`
+      });
+    }
+    const tierMaxGuests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
+
+    // 2. If a pending cash payment already exists, REFRESH it to the currently
+    //    selected plan (price + tier) instead of blindly returning the stale one —
+    //    otherwise switching plans before approval would silently have no effect.
+    const { data: existingPending } = await supabase
+      .from('event_payments')
+      .select('id, reference_number')
+      .eq('event_id', eventId)
+      .eq('payment_method', 'cash_manual')
+      .eq('status', 'pending')
+      .limit(1);
+
+    if (existingPending && existingPending.length > 0) {
+      const patch = {
+        amount_cents: tier.price_cents,
+        tier_name: tier.name,
+        tier_max_guests: tierMaxGuests,
+      };
+      if (methodLabel !== undefined) patch.manual_method = (methodLabel || '').toString().slice(0, 200);
+      if (payerReference !== undefined) patch.payer_reference = (payerReference || '').toString().slice(0, 300);
+      const { data: updated } = await supabase
+        .from('event_payments')
+        .update(patch)
+        .eq('id', existingPending[0].id)
+        .select()
+        .single();
+      return res.status(200).json({
+        success: true,
+        message: 'Pending cash payment updated to the selected plan.',
+        referenceNumber: existingPending[0].reference_number,
+        payment: updated || existingPending[0]
+      });
+    }
 
     // 3. Generate a random reference number
     const refChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -652,7 +680,8 @@ const initiateManualPayment = async (req, res, next) => {
       refCode += refChars.charAt(crypto.randomInt(refChars.length));
     }
 
-    // 4. Insert pending cash payment
+    // 4. Insert pending cash payment. Snapshot the tier so that when a Super Admin
+    // later approves it, the event's "current plan" reflects what was actually paid.
     const { data, error } = await supabase
       .from('event_payments')
       .insert({
@@ -662,6 +691,8 @@ const initiateManualPayment = async (req, res, next) => {
         status: 'pending',
         payment_method: 'cash_manual',
         currency: 'usd',
+        tier_name: tier.name,
+        tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
         manual_method: methodLabel ? methodLabel.toString().slice(0, 200) : null,
         payer_reference: payerReference ? payerReference.toString().slice(0, 300) : null
       })

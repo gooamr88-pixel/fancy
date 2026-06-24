@@ -17,11 +17,29 @@ const server = app.listen(PORT, () => {
   logger.info(`🚀 Fancy RSVP Backend running on port ${PORT}`);
   logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`=========================================`);
+
+  // Lifecycle email automation (reminders, reports, post-event). No-ops unless
+  // EMAIL_AUTOMATION_ENABLED=true; single-leader + idempotent (see emailScheduler).
+  try {
+    require('./services/emailScheduler').start();
+  } catch (err) {
+    logger.warn({ err }, 'Email scheduler failed to start (non-fatal)');
+  }
+
+  // Async SMS campaign worker (drains large queued campaigns). On by default;
+  // single-leader + idempotent (see smsCampaignWorker). Disable with SMS_WORKER_ENABLED=false.
+  try {
+    require('./services/smsCampaignWorker').start();
+  } catch (err) {
+    logger.warn({ err }, 'SMS campaign worker failed to start (non-fatal)');
+  }
 });
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM signal received: closing HTTP server');
+  try { require('./services/emailScheduler').stop(); } catch { /* ignore */ }
+  try { require('./services/smsCampaignWorker').stop(); } catch { /* ignore */ }
   server.close(() => {
     logger.info('HTTP server closed');
   });

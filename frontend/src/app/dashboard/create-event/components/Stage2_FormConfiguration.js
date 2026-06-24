@@ -153,7 +153,7 @@ export default function Stage2_FormConfiguration({
   backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
   galleryUrls = [], onGalleryUpload, galleryUploading, onAddGalleryUrl, onRemoveGalleryUrl,
   customFields, onFieldsChange,
-  onNext, onBack,
+  onNext, onBack, onSaveDraft, savingDraft,
 }) {
   const tpl = templates.find(t => t.key === templateType) || templates[0];
   const td = (key) => templateData[key] || '';
@@ -745,7 +745,27 @@ export default function Stage2_FormConfiguration({
             Back
           </button>
 
-          <button onClick={onNext} data-testid="wizard-next"
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {onSaveDraft && (
+              <button onClick={onSaveDraft} type="button"
+                disabled={!title || !slug || !eventDate || savingDraft}
+                title="Save your progress and finish later from Dashboard → Drafts"
+                style={{
+                  height: 48, padding: '0 22px',
+                  background: C.white, border: `1.5px solid ${C.gold}`,
+                  borderRadius: 12, fontFamily: 'var(--font-sans)',
+                  fontSize: 14, fontWeight: 700, color: C.gold,
+                  cursor: (!title || !slug || !eventDate || savingDraft) ? 'not-allowed' : 'pointer',
+                  opacity: (!title || !slug || !eventDate || savingDraft) ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                {savingDraft ? 'Saving…' : 'Save as Draft'}
+              </button>
+            )}
+
+            <button onClick={onNext} data-testid="wizard-next"
             disabled={!title || !slug || !eventDate}
             style={{
               height: 48, padding: '0 32px',
@@ -761,6 +781,7 @@ export default function Stage2_FormConfiguration({
             Continue to Distribution
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
           </button>
+          </div>
         </div>
       </div>
 

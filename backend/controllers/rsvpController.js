@@ -2,7 +2,7 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const notificationService = require('../utils/notificationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
-const { escapeHtml, getDeclineConfirmationTemplate } = require('../utils/emailTemplates');
+const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate } = require('../utils/emailTemplates');
 const { verifyRsvpToken, mapIntentToResponse } = require('../utils/rsvpToken');
 const { broadcast } = require('../utils/realtime');
 
@@ -200,22 +200,13 @@ const submitPublicRSVP = async (req, res, next) => {
 
       if (isEmailPref && result.org_email) {
         const { sendEmailViaBrevo } = require('../utils/notificationService');
-        const orgEmailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-            <div style="text-align: center; margin-bottom: 20px;">
-              <span style="font-size: 12px; font-weight: bold; color: #10b981; text-transform: uppercase; letter-spacing: 0.15em;">NEW RSVP RECEIVED</span>
-              <h2 style="color: #0b0f19; margin: 5px 0 0 0; font-family: Georgia, serif; font-weight: normal;">${escapeHtml(result.event_title)}</h2>
-            </div>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 25px;" />
-            <p style="color: #334155; font-size: 15px; line-height: 1.6;"><strong>${escapeHtml(guestName)}</strong> has ${result.response === 'yes' ? 'accepted' : result.response === 'no' ? 'declined' : 'submitted an RSVP for'} your event invitation.</p>
-            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f1f5f9; border-radius: 8px; margin: 20px 0; padding: 15px;">
-              <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Response</td><td style="padding: 8px 15px; font-size: 15px; font-weight: 600; color: ${respColor};">${respLabel}</td></tr>
-              <tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Party Size</td><td style="padding: 8px 15px; font-size: 15px;">${computedPartySize}</td></tr>
-              ${email ? '<tr><td style="padding: 8px 15px; color: #64748b; font-size: 13px;">Email</td><td style="padding: 8px 15px; font-size: 15px;">' + escapeHtml(email) + '</td></tr>' : ''}
-            </table>
-            <p style="color: #94a3b8; font-size: 12px; text-align: center;">This is an automated notification from Fancy RSVP.</p>
-          </div>
-        `;
+        const orgEmailHtml = getNewRsvpOrganizerTemplate({
+          eventTitle: result.event_title,
+          guestName,
+          response: result.response,
+          partySize: computedPartySize,
+          email,
+        });
         sendEmailViaBrevo(result.org_email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`, orgEmailHtml)
           .catch(err => logger.error({ err }, 'Failed to notify organizer via email'));
       }

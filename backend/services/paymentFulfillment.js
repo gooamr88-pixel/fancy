@@ -1,4 +1,6 @@
 const { supabase } = require('../config/supabase');
+const { sendEmailViaBrevo } = require('../utils/notificationService');
+const { getStripePaymentReceiptTemplate } = require('../utils/emailTemplates');
 
 /**
  * Single source of truth for fulfilling a completed Stripe Checkout Session.
@@ -33,6 +35,13 @@ const fulfillCheckoutSession = async (session) => {
       return { ok: true, type, alreadyProcessed: true, eventId: event_id };
     }
 
+    // Snapshot the purchased tier ("current plan") from the checkout metadata
+    // (set in createCheckoutSession). tier_max_guests arrives as a string.
+    const tierName = session.metadata.tier_name || null;
+    const rawCap = session.metadata.tier_max_guests;
+    const parsedCap = rawCap !== undefined && rawCap !== '' ? parseInt(rawCap, 10) : NaN;
+    const tierMaxGuests = Number.isFinite(parsedCap) ? parsedCap : null;
+
     // Mark paid and hold for review. A self-serve card payment does NOT make the
     // event publicly live on its own — a Super Admin promotes it to 'active'
     // (see migration 20260618000000). Guest-facing controllers require 'active'.
@@ -41,6 +50,19 @@ const fulfillCheckoutSession = async (session) => {
       .update({ is_paid: true, status: 'pending_review', updated_at: new Date().toISOString() })
       .eq('id', event_id);
     if (eventError) throw eventError;
+
+    // Persist the tier separately and best-effort: the tier_name/tier_max_guests
+    // columns ship in migration 20260624000000. If it hasn't been applied yet we
+    // must NOT fail (and make Stripe retry) the already-committed activation — so
+    // this write is isolated and its error is only logged. Apply the migration to
+    // make the "Current Plan" panel light up.
+    if (tierName || tierMaxGuests !== null) {
+      const { error: tierErr } = await supabase
+        .from('events')
+        .update({ tier_name: tierName, tier_max_guests: tierMaxGuests })
+        .eq('id', event_id);
+      if (tierErr) console.warn(`[fulfill] tier persistence skipped for event ${event_id} (run migration 20260624000000): ${tierErr.message}`);
+    }
 
     // Record the payment.
     const { error: insertError } = await supabase.from('event_payments').insert({
@@ -74,6 +96,29 @@ const fulfillCheckoutSession = async (session) => {
       });
     } catch (e) {
       console.warn(`[fulfill] activity_log skipped for event ${event_id}: ${e.message}`);
+    }
+
+    // Email the organizer a card-payment receipt (best-effort — never block/fault
+    // the already-committed fulfillment). The event is now under review.
+    try {
+      const { data: ev } = await supabase
+        .from('events')
+        .select('title, organizations(name, email)')
+        .eq('id', event_id)
+        .single();
+      const orgEmail = ev?.organizations?.email;
+      if (orgEmail) {
+        const html = getStripePaymentReceiptTemplate({
+          orgName: ev.organizations.name || 'Organizer',
+          eventTitle: ev.title || 'Your event',
+          amountCents: session.amount_total,
+          tierName: tierName || null,
+          referenceNumber: session.payment_intent || session.id,
+        });
+        await sendEmailViaBrevo(orgEmail, `Payment Received — ${ev.title || 'Your Event'}`, html);
+      }
+    } catch (e) {
+      console.warn(`[fulfill] receipt email skipped for event ${event_id}: ${e.message}`);
     }
 
     return { ok: true, type, alreadyProcessed: false, eventId: event_id };

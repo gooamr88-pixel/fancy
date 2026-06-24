@@ -1,4 +1,5 @@
 'use client';
+import { toast } from '../../../utils/toast';
 
 import React from 'react';
 
@@ -172,7 +173,7 @@ export default function CustomBuilder({ config, onChange }) {
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
-              if (file.size > 8 * 1024 * 1024) { alert('File exceeds 8MB.'); return; }
+              if (file.size > 8 * 1024 * 1024) { toast.error('File exceeds 8MB.'); return; }
               try {
                 const { supabase } = await import('../../../utils/supabaseClient');
                 if (!supabase) throw new Error('Storage not configured');

@@ -1,4 +1,5 @@
 'use client';
+import { toast } from '../../utils/toast';
 
 import React, { useState, useEffect, useCallback } from 'react';
 
@@ -21,6 +22,7 @@ export default function FormBuilder({ eventId }) {
   const [type, setType] = useState('text');
   const [optionsString, setOptionsString] = useState('');
   const [isRequired, setIsRequired] = useState(false);
+  const [editingId, setEditingId] = useState(null); // null = add mode; a field id = editing that field
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -40,32 +42,66 @@ export default function FormBuilder({ eventId }) {
 
   useEffect(() => { loadFields(); }, [loadFields]);
 
+  const TYPES_WITH_OPTIONS = ['select', 'radio'];
+
+  // Auto-derive the field key from the label — but only while ADDING. The key is
+  // immutable once a field exists (changing it would orphan saved guest answers).
   const handleLabelChange = (val) => {
     setLabel(val);
+    if (editingId) return;
     const slug = val.toLowerCase().trim().replace(/[^a-z0-9\s-]/g, '').replace(/[\s-]+/g, '_');
     setKey(slug);
   };
 
-  const handleAddField = async (e) => {
+  const resetForm = () => {
+    setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false);
+    setEditingId(null); setShowAddForm(false);
+  };
+
+  const startAdd = () => {
+    setEditingId(null);
+    setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false);
+    setShowAddForm(true);
+  };
+
+  // Open the form pre-filled with an existing field so the organizer can edit it.
+  const startEdit = (f) => {
+    setEditingId(f.id);
+    setLabel(f.field_label || '');
+    setKey(f.field_key || '');
+    setType(f.field_type || 'text');
+    setOptionsString(Array.isArray(f.options) ? f.options.join(', ') : '');
+    setIsRequired(!!f.is_required);
+    setShowAddForm(true);
+  };
+
+  const handleSubmitField = async (e) => {
     e.preventDefault();
-    if (!label.trim() || !key.trim() || !eventId) { alert('Label and Field Key are required.'); return; }
+    if (!label.trim() || !key.trim() || !eventId) { toast.error('Label and Field Key are required.'); return; }
     let options = [];
-    if (type === 'select') {
+    if (TYPES_WITH_OPTIONS.includes(type)) {
       options = optionsString.split(',').map(o => o.trim()).filter(Boolean);
-      if (options.length === 0) { alert('Please specify at least one choice for multiple choice fields.'); return; }
+      if (options.length === 0) { toast.error('Please specify at least one choice for this field type.'); return; }
     }
+    const isEdit = !!editingId;
     try {
       setLoading(true);
-      const res = await fetch(`${apiUrl}/events/${eventId}/fields`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length })
-      });
-      if (!res.ok) throw new Error('Failed to create field');
+      const res = await fetch(
+        isEdit ? `${apiUrl}/events/${eventId}/fields/${editingId}` : `${apiUrl}/events/${eventId}/fields`,
+        {
+          method: isEdit ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          // The field key is immutable — only sent when creating.
+          body: JSON.stringify(isEdit
+            ? { fieldLabel: label, fieldType: type, options, isRequired }
+            : { fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length }),
+        }
+      );
+      if (!res.ok) throw new Error(isEdit ? 'Failed to update field' : 'Failed to create field');
       const data = await res.json();
-      if (data.success) { setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false); setShowAddForm(false); loadFields(); }
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
+      if (data.success) { resetForm(); loadFields(); toast.success(isEdit ? 'Question updated.' : 'Question added.'); }
+    } catch (err) { toast.error(err.message); } finally { setLoading(false); }
   };
 
   const handleDeleteField = async (fieldId, fieldLabel) => {
@@ -77,7 +113,7 @@ export default function FormBuilder({ eventId }) {
       if (!res.ok) throw new Error('Failed to delete field');
       const data = await res.json();
       if (data.success) loadFields();
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
+    } catch (err) { toast.error(err.message); } finally { setLoading(false); }
   };
 
   if (loading && fields.length === 0) {
@@ -115,7 +151,7 @@ export default function FormBuilder({ eventId }) {
           <p style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Configure additional questions guest party heads reply to when completing RSVPs.</p>
         </div>
         {!showAddForm && (
-          <button onClick={() => setShowAddForm(true)} style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+          <button onClick={startAdd} style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => e.target.style.background = '#a6833f'} onMouseLeave={e => e.target.style.background = '#B8944F'}>
             + Add Custom Question
           </button>
@@ -128,8 +164,8 @@ export default function FormBuilder({ eventId }) {
 
       {/* Add Field Form */}
       {showAddForm && (
-        <form onSubmit={handleAddField} style={{ background: '#F8F4EC', padding: '24px', border: '1px solid #E8E2D6', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>New Custom Question</h4>
+        <form onSubmit={handleSubmitField} style={{ background: '#F8F4EC', padding: '24px', border: '1px solid #E8E2D6', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>{editingId ? 'Edit Custom Question' : 'New Custom Question'}</h4>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
@@ -138,9 +174,10 @@ export default function FormBuilder({ eventId }) {
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
             </div>
             <div>
-              <label style={labelStyle}>Field Key (Unique identifier in DB)</label>
-              <input type="text" value={key} onChange={e => setKey(e.target.value)} placeholder="e.g. dietary_restrictions"
-                style={{ ...inputStyle, fontFamily: 'monospace' }} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
+              <label style={labelStyle}>Field Key {editingId ? '(cannot change)' : '(Unique identifier in DB)'}</label>
+              <input type="text" value={key} onChange={e => setKey(e.target.value)} placeholder="e.g. dietary_restrictions" disabled={!!editingId}
+                style={{ ...inputStyle, fontFamily: 'monospace', ...(editingId ? { background: '#F0ECE3', color: '#A09A91', cursor: 'not-allowed' } : {}) }}
+                onFocus={e => { if (!editingId) e.target.style.borderColor = '#B8944F'; }} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
             </div>
           </div>
 
@@ -151,7 +188,13 @@ export default function FormBuilder({ eventId }) {
                 <option value="text">Single Line Text</option>
                 <option value="textarea">Paragraph Description</option>
                 <option value="select">Multiple Choice (Dropdown)</option>
+                <option value="radio">Single Choice (Radio)</option>
                 <option value="checkbox">Toggle Agreement (Checkbox)</option>
+                <option value="number">Number</option>
+                <option value="email">Email</option>
+                <option value="phone">Phone</option>
+                <option value="url">Website / URL</option>
+                <option value="date">Date</option>
               </select>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', paddingTop: '20px' }}>
@@ -162,9 +205,9 @@ export default function FormBuilder({ eventId }) {
             </div>
           </div>
 
-          {type === 'select' && (
+          {TYPES_WITH_OPTIONS.includes(type) && (
             <div>
-              <label style={labelStyle}>Dropdown Options (Comma-separated)</label>
+              <label style={labelStyle}>Choice Options (Comma-separated)</label>
               <input type="text" value={optionsString} onChange={e => setOptionsString(e.target.value)} placeholder="e.g. Prime Beef, Atlantic Salmon, Mushroom Risotto"
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
               <span style={{ fontSize: '10px', color: '#A09A91', display: 'block', marginTop: '4px' }}>Define selections. Separate choices with commas.</span>
@@ -172,8 +215,8 @@ export default function FormBuilder({ eventId }) {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid #E8E2D6' }}>
-            <button type="button" onClick={() => setShowAddForm(false)} style={{ padding: '8px 16px', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#77736A', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-            <button type="submit" style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Save Question</button>
+            <button type="button" onClick={resetForm} style={{ padding: '8px 16px', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', color: '#77736A', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+            <button type="submit" style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>{editingId ? 'Update Question' : 'Save Question'}</button>
           </div>
         </form>
       )}
@@ -198,11 +241,18 @@ export default function FormBuilder({ eventId }) {
                   {f.options && f.options.length > 0 && (<><span>•</span><span>options: [{f.options.join(', ')}]</span></>)}
                 </div>
               </div>
-              <button onClick={() => handleDeleteField(f.id, f.field_label)} title="Delete field"
-                style={{ padding: '6px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '8px', cursor: 'pointer', color: '#C45E5E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,94,94,0.06)'}>
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button onClick={() => startEdit(f)} title="Edit field"
+                  style={{ padding: '6px', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', borderRadius: '8px', cursor: 'pointer', color: '#B8944F', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,148,79,0.16)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,148,79,0.08)'}>
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                </button>
+                <button onClick={() => handleDeleteField(f.id, f.field_label)} title="Delete field"
+                  style={{ padding: '6px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', borderRadius: '8px', cursor: 'pointer', color: '#C45E5E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,94,94,0.06)'}>
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
             </div>
           ))
         ) : (

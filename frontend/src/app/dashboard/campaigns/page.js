@@ -1,10 +1,12 @@
 'use client';
+import { toast } from '../../utils/toast';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../utils/apiClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
+import { computeSmsSegments, renderTemplate } from '../../utils/smsSegments';
 
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8', error: '#C45E5E', success: '#3B9B6D' };
 
@@ -18,7 +20,9 @@ export default function CampaignsPage() {
   const [ledger, setLedger] = useState([]);
 
   const [messageTemplate, setMessageTemplate] = useState('Hello {name}, you are cordially invited to Sophia & Julian\'s Wedding Gala on Oct 24th. Kindly RSVP at: {url}');
-  const [recipientCount, setRecipientCount] = useState(0);
+  const [rsvps, setRsvps] = useState([]);
+  const [audiences, setAudiences] = useState(['pending']);
+  const [activeCampaign, setActiveCampaign] = useState(null);
   const [sending, setSending] = useState(false);
   const [campaignReport, setCampaignReport] = useState(null);
 
@@ -33,15 +37,65 @@ export default function CampaignsPage() {
   const [purchaseNotice, setPurchaseNotice] = useState('');
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
   const purchaseHandledRef = useRef(false);
+  // Stable per-launch token → server dedups by (token, guest), so a retry after a
+  // timeout never double-charges or double-sends. Reset only after a clean success.
+  const clientTokenRef = useRef(null);
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  // ─── Derived audience counts + segment-aware cost (mirrors server billing) ───
+  const audienceCounts = useMemo(() => {
+    const hasPhone = (r) => r.phone && String(r.phone).trim() && r.phone !== '-';
+    const attending = (r) => ['yes', 'accepted', 'attending'].includes(r.response);
+    const declined = (r) => ['no', 'declined'].includes(r.response);
+    return {
+      pending: rsvps.filter(r => hasPhone(r) && r.response === 'pending').length,
+      attending: rsvps.filter(r => hasPhone(r) && attending(r)).length,
+      maybe: rsvps.filter(r => hasPhone(r) && r.response === 'maybe').length,
+      declined: rsvps.filter(r => hasPhone(r) && declined(r)).length,
+      all: rsvps.filter(r => hasPhone(r)).length,
+    };
+  }, [rsvps]);
+
+  // Segments are mutually exclusive by response, so a multi-select union is just a sum.
+  const recipientCount = useMemo(() => {
+    if (audiences.includes('all')) return audienceCounts.all;
+    return audiences.reduce((sum, a) => sum + (audienceCounts[a] || 0), 0);
+  }, [audiences, audienceCounts]);
+
+  const audienceLabel = useMemo(() => (
+    audiences.includes('all') ? 'all guests' : audiences.join(' + ')
+  ), [audiences]);
+
+  const toggleAudience = (key) => {
+    setAudiences(prev => {
+      if (key === 'all') return ['all'];
+      let next = prev.filter(a => a !== 'all');
+      next = next.includes(key) ? next.filter(a => a !== key) : [...next, key];
+      return next.length === 0 ? ['pending'] : next;
+    });
+  };
+
+  const segmentInfo = useMemo(() => {
+    // Estimate with representative values; the server measures each guest exactly.
+    const sampleUrl = 'https://fancyrsvp.com/your-event?rsvp_id=00000000-0000-0000-0000-000000000000';
+    let body = renderTemplate(messageTemplate, {
+      name: 'Alexander', url: sampleUrl, rsvp_link: sampleUrl,
+      table_number: '12', table: '12', event: 'Your Event', event_name: 'Your Event',
+    });
+    const branding = ' - Fancy RSVP'; // GSM-7-safe, matches the server suffix exactly
+    if (!body.endsWith(branding)) body += branding;
+    return computeSmsSegments(body);
+  }, [messageTemplate]);
+  const segmentsPerMsg = segmentInfo.segments;
+  const estimatedCredits = recipientCount * segmentsPerMsg;
 
   const handleLogout = logout;
 
   const handleBuySMSCredits = async (e) => {
     e.preventDefault();
     if (smsCreditsToBuy < 50) {
-      alert('Minimum credit purchase count is 50.');
+      toast.error('Minimum credit purchase count is 50.');
       return;
     }
     setBuyingCredits(true);
@@ -51,7 +105,7 @@ export default function CampaignsPage() {
       await startSmsCreditPurchase({ apiUrl, eventId, creditCount: parseInt(smsCreditsToBuy) });
       setShowSMSModal(false);
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setBuyingCredits(false);
     }
@@ -99,13 +153,11 @@ export default function CampaignsPage() {
         setLedger(formattedLedger);
       }
 
-      // 2. Fetch RSVPs to calculate pending counts
+      // 2. Fetch RSVPs so we can size every audience segment (phone + response).
       const rsvpsRes = await fetch(`${apiUrl}/events/${eventId}/rsvps`, { credentials: 'include' });
       const rsvpsData = await rsvpsRes.json();
       if (rsvpsData.success) {
-        // Calculate number of guests who are response === 'pending' and have a phone number
-        const pendingWithPhone = rsvpsData.rsvps.filter(r => r.response === 'pending' && r.phone);
-        setRecipientCount(pendingWithPhone.length);
+        setRsvps((rsvpsData.rsvps || []).map(r => ({ id: r.id, response: r.response, phone: r.phone || '' })));
       }
 
       // 3. Fetch pricing configuration for dynamic SMS rates
@@ -182,13 +234,53 @@ export default function CampaignsPage() {
     })();
   }, [eventId, apiUrl, loadCampaignData]);
 
+  // Poll an in-flight async campaign until it reaches a terminal state.
+  useEffect(() => {
+    if (!activeCampaign?.id || !eventId) return;
+    const terminal = ['completed', 'partial', 'failed', 'cancelled'];
+    if (terminal.includes(activeCampaign.status)) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/status/${activeCampaign.id}`, { credentials: 'include' });
+        const data = await res.json();
+        if (cancelled || !data.success || !data.campaign) return;
+        setActiveCampaign(data.campaign);
+        if (terminal.includes(data.campaign.status)) {
+          clearInterval(timer);
+          if ((data.campaign.failedCount || 0) > 0) {
+            toast.error(`Campaign finished — ${data.campaign.sentCount} sent, ${data.campaign.failedCount} failed (refunded).`);
+          } else {
+            toast.success(`Campaign complete — ${data.campaign.sentCount} sent · ${data.campaign.creditsUsed} credits used.`);
+          }
+          clientTokenRef.current = null; // fresh token for the next campaign
+          loadCampaignData();
+        }
+      } catch { /* transient — keep polling */ }
+    }, 2500);
+    return () => { cancelled = true; clearInterval(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCampaign?.id, eventId, apiUrl]);
+
+  const campaignInFlight = activeCampaign && !['completed', 'partial', 'failed', 'cancelled'].includes(activeCampaign.status);
+
   // Handle campaign dispatch API call
   const handleLaunchCampaign = (e) => {
     e.preventDefault();
     if (!eventId) return;
-    if (recipientCount > creditsRemaining) {
-      alert(`Insufficient credits. You need ${recipientCount} credits, but only have ${creditsRemaining} remaining.`);
+    if (recipientCount === 0) {
+      toast.error('No guests with a phone number in this audience.');
       return;
+    }
+    if (estimatedCredits > creditsRemaining) {
+      toast.error(`Insufficient credits. This send needs about ${estimatedCredits} credits (${recipientCount} × ${segmentsPerMsg} segment${segmentsPerMsg !== 1 ? 's' : ''}), but you have ${creditsRemaining}.`);
+      return;
+    }
+    // Mint a launch token now; reused on retry so a timeout can't double-charge.
+    if (!clientTokenRef.current) {
+      clientTokenRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `tok-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     }
     setShowConfirmSendModal(true);
   };
@@ -198,11 +290,9 @@ export default function CampaignsPage() {
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/send-sms`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ messageTemplate })
+        body: JSON.stringify({ messageTemplate, audiences, clientToken: clientTokenRef.current })
       });
 
       const data = await res.json();
@@ -210,19 +300,37 @@ export default function CampaignsPage() {
         throw new Error(data.message || 'Failed to send campaign');
       }
 
-      if (data.success) {
+      if (data.success && data.async) {
+        // Large send → queued to the background worker. Show the live progress panel.
+        setCampaignReport(null);
+        setActiveCampaign({
+          id: data.campaignId, status: data.status || 'queued',
+          totalRecipients: data.recipientCount, sentCount: 0, failedCount: 0,
+          skippedCount: 0, creditsUsed: 0, progress: 0,
+        });
+        toast.success(`Queued ${data.recipientCount} message${data.recipientCount !== 1 ? 's' : ''} — delivering in the background.`);
+        // Token is reset by the poller once the campaign reaches a terminal state.
+      } else if (data.success) {
         setCampaignReport({
           success: true,
           sent: data.sentCount,
           failed: data.failedCount,
+          skipped: data.skippedCount,
+          credits: data.creditsUsed,
           message: data.message
         });
-        
-        // Reload layout
+        if (data.failedCount > 0) {
+          toast.error(`${data.failedCount} message${data.failedCount !== 1 ? 's' : ''} couldn't be delivered — ${data.sentCount} sent. Failed sends were not charged.`);
+        } else {
+          toast.success(`${data.sentCount} message${data.sentCount !== 1 ? 's' : ''} sent · ${data.creditsUsed} credit${data.creditsUsed !== 1 ? 's' : ''} used.`);
+        }
+        // Clean success → next distinct campaign gets a fresh idempotency token.
+        clientTokenRef.current = null;
         await loadCampaignData();
       }
     } catch (err) {
-      alert(err.message);
+      // Keep the token so the user can safely retry the SAME launch without re-charging.
+      toast.error(err.message);
     } finally {
       setSending(false);
     }
@@ -360,50 +468,99 @@ export default function CampaignsPage() {
                     onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
                   />
                   <span style={{ fontSize: 10, color: C.stone, display: 'block', lineHeight: 1.7, marginTop: 2 }}>
-                    Supported dynamic tags: <code style={{ background: C.softBg, padding: '2px 4px', borderRadius: 3, color: C.gold, fontFamily: 'monospace', fontSize: 10 }}>{`{name}`}</code> for guest name, <code style={{ background: C.softBg, padding: '2px 4px', borderRadius: 3, color: C.gold, fontFamily: 'monospace', fontSize: 10 }}>{`{url}`}</code> for direct unique guest RSVP invitation links.
+                    Tags (also accept <code style={{ fontFamily: 'monospace' }}>{`{{double}}`}</code>):{' '}
+                    {['name', 'rsvp_link', 'table_number', 'event'].map((t, i) => (
+                      <React.Fragment key={t}>
+                        {i > 0 ? ' ' : ''}
+                        <code style={{ background: C.softBg, padding: '2px 4px', borderRadius: 3, color: C.gold, fontFamily: 'monospace', fontSize: 10 }}>{`{${t}}`}</code>
+                      </React.Fragment>
+                    ))}
+                    . <code style={{ fontFamily: 'monospace' }}>{`{url}`}</code> = each guest&apos;s unique RSVP link.
                   </span>
+                </div>
+
+                {/* Audience segment selector (multi-select) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ fontSize: 11, color: C.stone, fontWeight: 600, display: 'block' }}>Audience <span style={{ fontWeight: 400 }}>· select one or more</span></label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {[
+                      { key: 'pending', label: 'Pending' },
+                      { key: 'attending', label: 'Attending' },
+                      { key: 'maybe', label: 'Maybe' },
+                      { key: 'declined', label: 'Declined' },
+                      { key: 'all', label: 'All guests' },
+                    ].map(a => {
+                      const active = audiences.includes(a.key);
+                      const count = audienceCounts[a.key] ?? 0;
+                      return (
+                        <button type="button" key={a.key} onClick={() => toggleAudience(a.key)}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 20,
+                            cursor: 'pointer', border: `1px solid ${active ? C.gold : C.border}`,
+                            background: active ? 'rgba(184,148,79,0.08)' : C.white, color: active ? C.gold : C.stone,
+                            fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
+                          }}>
+                          {active && <span style={{ fontSize: 11, lineHeight: 1 }}>✓</span>}
+                          {a.label}
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 10, background: active ? C.gold : C.softBg, color: active ? C.white : C.stone }}>{count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span style={{ fontSize: 10, color: C.stone }}>Combine segments freely (e.g. Pending + Maybe). Only guests with a phone number count; each gets their own unique RSVP link.</span>
                 </div>
 
                 {recipientCount > 0 ? (
                   <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                       <span style={{ color: C.stone, fontWeight: 600 }}>Recipients:</span>
-                      <span style={{ fontWeight: 700, color: C.charcoal }}>{recipientCount} pending guests</span>
+                      <span style={{ fontWeight: 700, color: C.charcoal }}>{recipientCount} · {audienceLabel}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                      <span style={{ color: C.stone, fontWeight: 600 }}>Cost Per SMS:</span>
+                      <span style={{ color: C.stone, fontWeight: 600 }}>Message size:</span>
+                      <span style={{ fontWeight: 700, color: segmentsPerMsg > 1 ? C.error : C.charcoal }}>
+                        {segmentInfo.length} chars · {segmentInfo.encoding} · {segmentsPerMsg} SMS{segmentsPerMsg !== 1 ? ' segments' : ' segment'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span style={{ color: C.stone, fontWeight: 600 }}>Cost Per SMS Segment:</span>
                       <span style={{ fontWeight: 700, color: C.charcoal }}>${(smsRate / 100).toFixed(2)} ({smsRate}¢)</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10, fontWeight: 700 }}>
                       <span style={{ color: C.stone }}>Credits Required:</span>
-                      <span style={{ color: C.gold }}>{recipientCount} Credits</span>
+                      <span style={{ color: C.gold }}>~{estimatedCredits} Credits</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
                       <span style={{ color: C.stone }}>Estimated Cost:</span>
-                      <span style={{ color: C.gold }}>${((recipientCount * smsRate) / 100).toFixed(2)} USD</span>
+                      <span style={{ color: C.gold }}>${((estimatedCredits * smsRate) / 100).toFixed(2)} USD</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
                       <span style={{ color: C.stone }}>Wallet Balance:</span>
-                      <span style={{ fontWeight: 700, color: creditsRemaining >= recipientCount ? C.success : C.error }}>
+                      <span style={{ fontWeight: 700, color: creditsRemaining >= estimatedCredits ? C.success : C.error }}>
                         {creditsRemaining} Credits available
                       </span>
                     </div>
+                    {segmentsPerMsg > 1 && (
+                      <span style={{ fontSize: 10, color: C.stone, lineHeight: 1.6 }}>
+                        This message spans {segmentsPerMsg} segments, so each guest costs {segmentsPerMsg} credits. Shorten it (or switch off special characters) to drop to a single segment.
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, textAlign: 'center' }}>
-                    <p style={{ fontSize: 12, color: C.stone }}>All pending guest lists have already been notified. No pending SMS targets left.</p>
+                    <p style={{ fontSize: 12, color: C.stone }}>No guests with a phone number in the <strong>{audienceLabel}</strong> segment.</p>
                   </div>
                 )}
 
                 {recipientCount > 0 && (
                   <button
                     type="submit"
-                    disabled={sending}
-                    style={{ width: '100%', padding: '12px 0', background: C.gold, fontWeight: 700, borderRadius: 8, fontSize: 12, border: 'none', cursor: 'pointer', transition: 'all 0.2s', color: C.white, opacity: sending ? 0.5 : 1, boxShadow: '0 2px 8px rgba(184,148,79,0.25)', fontFamily: 'var(--font-sans)' }}
-                    onMouseEnter={e => { if (!sending) e.currentTarget.style.background = C.goldHover; }}
+                    disabled={sending || campaignInFlight}
+                    style={{ width: '100%', padding: '12px 0', background: C.gold, fontWeight: 700, borderRadius: 8, fontSize: 12, border: 'none', cursor: (sending || campaignInFlight) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', color: C.white, opacity: (sending || campaignInFlight) ? 0.5 : 1, boxShadow: '0 2px 8px rgba(184,148,79,0.25)', fontFamily: 'var(--font-sans)' }}
+                    onMouseEnter={e => { if (!sending && !campaignInFlight) e.currentTarget.style.background = C.goldHover; }}
                     onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
                   >
-                    {sending ? 'Dispatching campaign...' : `Launch SMS Campaign to ${recipientCount} Guests`}
+                    {campaignInFlight ? 'Campaign in progress…' : sending ? 'Dispatching campaign...' : `Review & Launch · ${recipientCount} · ${audienceLabel}`}
                   </button>
                 )}
               </form>
@@ -439,10 +596,10 @@ export default function CampaignsPage() {
                       {/* Incoming text message bubble */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start', textAlign: 'left', maxWidth: '85%', alignSelf: 'flex-start' }}>
                         <div style={{ background: '#e9e9eb', padding: 10, borderRadius: 16, borderBottomLeftRadius: 4, fontSize: 8.5, lineHeight: 1.7, color: '#3a3a3c', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.04)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                          {messageTemplate
-                            .replaceAll('{name}', 'Alexander')
-                            .replaceAll('{url}', 'fancyrsvp.com/s/e5x2')
-                          }
+                          {renderTemplate(messageTemplate, {
+                            name: 'Alexander', url: 'fancyrsvp.com/s/e5x2', rsvp_link: 'fancyrsvp.com/s/e5x2',
+                            table_number: '12', table: '12', event: 'Your Event', event_name: 'Your Event',
+                          })}
                         </div>
                         <span style={{ fontSize: 5.5, color: C.stone, paddingLeft: 4, fontWeight: 600 }}>Today 10:24 AM</span>
                       </div>
@@ -468,9 +625,52 @@ export default function CampaignsPage() {
 
             </div>
 
+            {activeCampaign && (() => {
+              const terminal = ['completed', 'partial', 'failed', 'cancelled'];
+              const done = terminal.includes(activeCampaign.status);
+              const total = activeCampaign.totalRecipients || 0;
+              const processed = (activeCampaign.sentCount || 0) + (activeCampaign.failedCount || 0) + (activeCampaign.skippedCount || 0);
+              const pct = activeCampaign.progress != null ? activeCampaign.progress : (total ? Math.round((processed / total) * 100) : 0);
+              const statusColor = activeCampaign.status === 'failed' ? C.error : (activeCampaign.status === 'partial' ? C.gold : (done ? C.success : C.gold));
+              const statusLabel = { queued: 'Queued', processing: 'Sending…', completed: 'Completed', partial: 'Completed with errors', failed: 'Failed', cancelled: 'Cancelled' }[activeCampaign.status] || activeCampaign.status;
+              return (
+                <div style={{ padding: 18, borderRadius: 12, fontSize: 13, marginTop: 24, background: C.white, border: `1px solid ${C.border}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {!done && <span style={{ width: 14, height: 14, border: `2px solid ${C.border}`, borderTopColor: C.gold, borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />}
+                      <strong style={{ color: statusColor }}>{statusLabel}</strong>
+                      <span style={{ color: C.stone, fontSize: 12 }}>· {processed}/{total} processed</span>
+                    </div>
+                    {done && (
+                      <button onClick={() => setActiveCampaign(null)} aria-label="Dismiss"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.stone, fontSize: 18, fontWeight: 700, lineHeight: 1 }}>×</button>
+                    )}
+                  </div>
+                  <div style={{ height: 8, borderRadius: 4, background: C.softBg, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${C.gold}, ${C.champagne})`, borderRadius: 4, transition: 'width 0.5s ease' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 12, color: C.stone }}>Sent: <strong style={{ color: C.success }}>{activeCampaign.sentCount || 0}</strong></span>
+                    <span style={{ fontSize: 12, color: C.stone }}>Failed: <strong style={{ color: (activeCampaign.failedCount || 0) > 0 ? C.error : C.charcoal }}>{activeCampaign.failedCount || 0}</strong></span>
+                    {(activeCampaign.skippedCount || 0) > 0 && <span style={{ fontSize: 12, color: C.stone }}>Skipped: <strong style={{ color: C.charcoal }}>{activeCampaign.skippedCount}</strong></span>}
+                    <span style={{ fontSize: 12, color: C.stone, marginLeft: 'auto' }}>Credits used: <strong style={{ color: C.gold }}>{activeCampaign.creditsUsed || 0}</strong></span>
+                  </div>
+                  {activeCampaign.lastError && <p style={{ fontSize: 11, color: C.error, marginTop: 8 }}>{activeCampaign.lastError}</p>}
+                </div>
+              );
+            })()}
+
             {campaignReport && (
-              <div style={{ padding: 16, background: 'rgba(59,155,109,0.08)', border: `1px solid rgba(59,155,109,0.2)`, color: C.success, borderRadius: 12, fontSize: 13, marginTop: 24 }}>
-                <strong>🟢 Campaign Dispatched:</strong> {campaignReport.message}
+              <div style={{
+                padding: 16, borderRadius: 12, fontSize: 13, marginTop: 24,
+                background: campaignReport.failed > 0 ? 'rgba(184,148,79,0.08)' : 'rgba(59,155,109,0.08)',
+                border: `1px solid ${campaignReport.failed > 0 ? 'rgba(184,148,79,0.25)' : 'rgba(59,155,109,0.2)'}`,
+                color: campaignReport.failed > 0 ? C.charcoal : C.success,
+              }}>
+                <strong>{campaignReport.failed > 0 ? '⚠ Campaign Finished' : '🟢 Campaign Dispatched'}:</strong>{' '}
+                {campaignReport.sent} sent{campaignReport.failed > 0 ? `, ${campaignReport.failed} failed (refunded)` : ''}
+                {campaignReport.skipped > 0 ? `, ${campaignReport.skipped} already sent` : ''}
+                {' '}· <strong>{campaignReport.credits}</strong> credit{campaignReport.credits !== 1 ? 's' : ''} used.
               </div>
             )}
           </div>
@@ -516,24 +716,26 @@ export default function CampaignsPage() {
           <div style={{ background: C.white, border: `1px solid ${C.border}`, width: '100%', maxWidth: 400, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <h3 style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-serif)' }}>Confirm Campaign Launch</h3>
             <p style={{ fontSize: 13, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
-              You are about to launch an SMS campaign to <strong>{recipientCount}</strong> recipients.
+              You&apos;re about to text <strong>{recipientCount}</strong> guests ({audienceLabel})
+              {' '}— {segmentsPerMsg} SMS segment{segmentsPerMsg !== 1 ? 's' : ''} each.
+              {recipientCount > 50 && <span style={{ display: 'block', marginTop: 6, color: C.gold, fontWeight: 600 }}>Large list — this runs in the background and you can watch live progress.</span>}
             </p>
             <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: C.stone }}>Credits to use:</span>
-                <strong style={{ color: C.charcoal }}>{recipientCount} Credits</strong>
+                <span style={{ color: C.stone }}>Est. credits to use:</span>
+                <strong style={{ color: C.charcoal }}>~{estimatedCredits} Credits</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: C.stone }}>Remaining balance:</span>
                 <strong style={{ color: C.gold }}>{creditsRemaining} Credits</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${C.border}`, paddingTop: 8, marginTop: 4 }}>
-                <span style={{ color: C.stone }}>Balance after send:</span>
-                <strong style={{ color: C.charcoal }}>{creditsRemaining - recipientCount} Credits</strong>
+                <span style={{ color: C.stone }}>Est. balance after:</span>
+                <strong style={{ color: C.charcoal }}>{creditsRemaining - estimatedCredits} Credits</strong>
               </div>
             </div>
             <p style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)', fontStyle: 'italic' }}>
-              This action cannot be undone. Credits will be deducted from your wallet.
+              Credits are charged per delivered segment — failed sends are automatically refunded. Final usage may vary slightly with each guest&apos;s name length.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8 }}>
               <button
