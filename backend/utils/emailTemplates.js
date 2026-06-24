@@ -11,6 +11,19 @@ const escapeHtml = (str) => {
     .replace(/'/g, '&#039;');
 };
 
+// Shared bulletproof resolver (splits commas, repairs typos, first valid https origin).
+const { getPublicBaseUrl } = require('./publicUrl');
+
+/**
+ * Builds a guest's personal event link. When an rsvpId is supplied it is appended as
+ * the per-guest invitation token (`?rsvp_id=...`), which unlocks private events and
+ * pre-fills that guest's RSVP form. Route is `/{slug}` (no `/e/` prefix).
+ */
+const buildGuestEventUrl = (slug, rsvpId) => {
+  const base = `${getPublicBaseUrl()}/${slug || ''}`;
+  return rsvpId ? `${base}?rsvp_id=${encodeURIComponent(rsvpId)}` : base;
+};
+
 /**
  * Generates an inline-styled premium HTML email body for RSVP Confirmation.
  */
@@ -156,9 +169,9 @@ const getDeclineConfirmationTemplate = (rsvp, event) => {
     day: 'numeric'
   });
 
-  // Public event route is /<slug> (not /e/<slug>); FRONTEND_URL may be a comma-separated allowlist → take the first origin.
-  const frontendBase = (process.env.FRONTEND_URL || 'https://fancyrsvp.com').split(',')[0].trim().replace(/\/$/, '');
-  const eventPageUrl = `${frontendBase}/${event.slug || ''}`;
+  // Per-guest link carrying the invitation token so a declined guest can re-open the
+  // event (even if private) and land on their pre-filled RSVP to change their response.
+  const eventPageUrl = buildGuestEventUrl(event.slug, rsvp.id);
 
   return `
     <!DOCTYPE html>
@@ -379,6 +392,8 @@ const getCashPaymentApprovedTemplate = (orgName, eventTitle, refNumber, amountCe
 
 module.exports = {
   escapeHtml,
+  getPublicBaseUrl,
+  buildGuestEventUrl,
   getRSVPConfirmationTemplate,
   getQRTicketTemplate,
   getDeclineConfirmationTemplate,

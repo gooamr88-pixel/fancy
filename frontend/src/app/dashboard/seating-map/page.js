@@ -111,8 +111,7 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected
     >
       {zone ? (
         <>
-          <span style={{ fontSize: Math.min(34, h / 3), lineHeight: 1, pointerEvents: 'none' }}>{meta.icon || '⭐'}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: C.charcoal, marginTop: 4, maxWidth: '92%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{el.table_name}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, maxWidth: '92%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pointerEvents: 'none', textAlign: 'center' }}>{el.table_name}</span>
         </>
       ) : (
         <>
@@ -618,7 +617,7 @@ export default function SeatingMapPage() {
   };
 
   /* ── add element ── */
-  const addElement = async ({ shape, name, capacity }) => {
+  const addElement = async ({ shape, name, capacity, color, width, height }) => {
     const meta = SHAPES[shape];
     const body = {
       tableName: name,
@@ -628,7 +627,7 @@ export default function SeatingMapPage() {
       y: clamp((-view.ty / view.scale) / WORLD_H * 100 + 8, 2, 90),
     };
     if (meta.cat === 'table') body.maxCapacity = capacity;
-    else { body.width = meta.w; body.height = meta.h; body.color = meta.color; }
+    else { body.width = width || meta.w; body.height = height || meta.h; body.color = color || meta.color; }
     try {
       const res = await fetch(`${API_URL}/events/${eventId}/tables`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body),
@@ -668,6 +667,33 @@ export default function SeatingMapPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to delete');
       setSelectedId(null);
+      loadLayout();
+    } catch (err) { alert(err.message); }
+  };
+
+  const duplicateElement = async () => {
+    if (!selected) return;
+    const meta = shapeMeta(selected.shape);
+    const body = {
+      tableName: `${selected.table_name} (Copy)`,
+      shape: selected.shape,
+      elementType: selected.element_type || meta.cat,
+      x: clamp((Number(selected.position_x) || 0) + 3, 2, 90),
+      y: clamp((Number(selected.position_y) || 0) + 3, 2, 90),
+      rotation: Number(selected.rotation) || 0,
+    };
+    if (meta.cat === 'table' || selected.max_capacity) body.maxCapacity = selected.max_capacity || meta.defaultCap || 8;
+    if (isZone(selected)) {
+      body.width = elWidth(selected);
+      body.height = elHeight(selected);
+      body.color = selected.color || meta.color;
+    }
+    try {
+      const res = await fetch(`${API_URL}/events/${eventId}/tables`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to duplicate element');
       loadLayout();
     } catch (err) { alert(err.message); }
   };
@@ -822,6 +848,7 @@ export default function SeatingMapPage() {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={saveInspector} style={{ ...btn, flex: 1, background: C.gold, color: C.white, padding: '7px 10px', fontSize: 11 }}>Save</button>
+                <button onClick={duplicateElement} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', fontSize: 11 }}>Duplicate</button>
                 <button onClick={deleteElement} style={{ ...btn, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)', color: C.danger, padding: '7px 10px', fontSize: 11 }}>Delete</button>
               </div>
 
@@ -864,10 +891,16 @@ function AddElementModal({ onClose, onAdd, btn }) {
   const meta = SHAPES[shape];
   const [name, setName] = useState('');
   const [capacity, setCapacity] = useState(String(SHAPES.round.defaultCap));
+  const [customColor, setCustomColor] = useState('');
+  const [customWidth, setCustomWidth] = useState('');
+  const [customHeight, setCustomHeight] = useState('');
 
   const pick = (s) => {
     setShape(s);
     setCapacity(String(SHAPES[s].defaultCap || 8));
+    setCustomColor(SHAPES[s].color || '');
+    setCustomWidth(String(SHAPES[s].w));
+    setCustomHeight(String(SHAPES[s].h));
     if (!name.trim()) setName(SHAPES[s].label);
   };
 
@@ -876,17 +909,25 @@ function AddElementModal({ onClose, onAdd, btn }) {
 
   const submit = () => {
     if (!name.trim()) { alert('Please enter a label.'); return; }
+    const payload = { shape, name: name.trim() };
     if (meta.cat === 'table') {
       const cap = parseInt(capacity);
       if (isNaN(cap) || cap < 1) { alert('Enter a valid capacity.'); return; }
-      onAdd({ shape, name: name.trim(), capacity: cap });
-    } else {
-      onAdd({ shape, name: name.trim() });
+      payload.capacity = cap;
     }
+    if (meta.cat === 'zone') {
+      if (customColor) payload.color = customColor;
+      if (customWidth) payload.width = parseInt(customWidth) || meta.w;
+      if (customHeight) payload.height = parseInt(customHeight) || meta.h;
+    }
+    onAdd(payload);
   };
 
+  const inputStyle = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', fontFamily: 'var(--font-sans)', transition: 'border-color 0.2s' };
+  const labelStyle = { fontSize: 11, color: C.stone, fontWeight: 600, display: 'block', marginBottom: 4 };
+
   const Tile = ({ s, m }) => (
-    <button key={s} onClick={() => pick(s)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', borderRadius: 10, border: `1px solid ${shape === s ? C.gold : C.border}`, background: shape === s ? 'rgba(184,148,79,0.08)' : C.white, cursor: 'pointer' }}>
+    <button key={s} onClick={() => pick(s)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', borderRadius: 10, border: `1px solid ${shape === s ? C.gold : C.border}`, background: shape === s ? 'rgba(184,148,79,0.08)' : C.white, cursor: 'pointer', transition: 'all 0.15s' }}>
       <span style={{ fontSize: 20 }}>{m.icon || (m.round ? '⬤' : '▭')}</span>
       <span style={{ fontSize: 10, fontWeight: 600, color: C.charcoal, textAlign: 'center' }}>{m.label}</span>
     </button>
@@ -910,20 +951,47 @@ function AddElementModal({ onClose, onAdd, btn }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 11, color: C.stone, fontWeight: 600, display: 'block', marginBottom: 4 }}>{meta.cat === 'zone' ? 'Label' : 'Table Name'}</label>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder={meta.label} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none' }} />
-          </div>
-          {meta.cat === 'table' && (
-            <div style={{ width: 120 }}>
-              <label style={{ fontSize: 11, color: C.stone, fontWeight: 600, display: 'block', marginBottom: 4 }}>Capacity</label>
-              <input type="number" min="1" value={capacity} onChange={e => setCapacity(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none' }} />
+        {/* Details section */}
+        <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <span style={{ fontSize: 11, color: C.stone, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Details</span>
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>{meta.cat === 'zone' ? 'Label' : 'Table Name'}</label>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder={meta.label} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
             </div>
+            {meta.cat === 'table' && (
+              <div style={{ width: 120 }}>
+                <label style={labelStyle}>Capacity</label>
+                <input type="number" min="1" value={capacity} onChange={e => setCapacity(e.target.value)} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+              </div>
+            )}
+          </div>
+
+          {meta.cat === 'zone' && (
+            <>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Width (px)</label>
+                  <input type="number" min="60" value={customWidth || meta.w} onChange={e => setCustomWidth(e.target.value)} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Height (px)</label>
+                  <input type="number" min="50" value={customHeight || meta.h} onChange={e => setCustomHeight(e.target.value)} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+                </div>
+              </div>
+              <div>
+                <label style={labelStyle}>Color</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <input type="color" value={customColor || meta.color || C.gold} onChange={e => setCustomColor(e.target.value)} style={{ width: 40, height: 36, border: `1px solid ${C.border}`, borderRadius: 8, padding: 2, cursor: 'pointer', background: C.white }} />
+                  <input value={customColor || meta.color || ''} onChange={e => setCustomColor(e.target.value)} placeholder="#hex color" style={{ ...inputStyle, flex: 1 }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+                </div>
+              </div>
+            </>
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
           <button onClick={onClose} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.stone }}>Cancel</button>
           <button onClick={submit} style={{ ...btn, background: C.gold, color: C.white }}>Add to Canvas</button>
         </div>

@@ -1,12 +1,12 @@
 const { supabase } = require('../config/supabase');
 const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
 const { generateQRCodeDataURL } = require('../utils/qrHelper');
+const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
 const logger = require('../utils/logger');
 
-/** Resolve the public-facing base URL (first origin if FRONTEND_URL is comma-separated). */
-const getPublicBaseUrl = () =>
-  (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim().replace(/\/$/, '');
+/** Strict UUID matcher — used to validate invitation tokens before querying. */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Creates a new event in draft state.
@@ -270,13 +270,35 @@ const getPublicEventBySlug = async (req, res, next) => {
       });
     }
 
+    // ─── Invitation Token Bypass ───
+    // An optional rsvp_id query param acts as a per-guest invitation token. When it
+    // strictly resolves to an RSVP belonging to THIS event, we (a) unlock private
+    // events and (b) return that guest's own RSVP so the form can be pre-filled.
+    // It never widens access to other events (event_id is enforced) and is validated
+    // as a UUID before hitting the DB to avoid malformed-input errors.
+    const invitationRsvpId = req.query.rsvp_id;
+    let guestRsvp = null;
+    if (invitationRsvpId && UUID_REGEX.test(invitationRsvpId)) {
+      const { data: rsvpRecord } = await supabase
+        .from('rsvps')
+        .select('id, guest_name, email, phone, response, party_size, notes')
+        .eq('id', invitationRsvpId)
+        .eq('event_id', event.id)
+        .maybeSingle();
+      if (rsvpRecord) guestRsvp = rsvpRecord;
+    }
+
     // Privacy mode enforcement
     if (event.privacy_mode === 'private') {
-      return res.status(403).json({
-        success: false,
-        error: 'EVENT_PRIVATE',
-        message: 'This event is private. Access requires a direct invitation link.'
-      });
+      // A valid invitation token (rsvp_id linked to this event) bypasses the lock.
+      if (!guestRsvp) {
+        return res.status(403).json({
+          success: false,
+          error: 'EVENT_PRIVATE',
+          message: 'This event is private. Access requires a direct invitation link.'
+        });
+      }
+      // Token valid → fall through and serve the event.
     }
 
     if (event.privacy_mode === 'password') {
@@ -315,7 +337,8 @@ const getPublicEventBySlug = async (req, res, next) => {
     // Strip sensitive fields from public response
     const { access_password, is_paid, ...publicEvent } = event;
 
-    return res.json({ success: true, event: publicEvent });
+    // guestRsvp is included only when a valid invitation token resolved to this event.
+    return res.json({ success: true, event: publicEvent, guestRsvp });
   } catch (err) {
     next(err);
   }

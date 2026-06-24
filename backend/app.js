@@ -26,8 +26,11 @@ app.use(helmet({
 }));
 
 
-// Configure CORS with multi-origin support
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(s => s.trim());
+// Configure CORS with multi-origin support.
+// Use the shared resolver so malformed FRONTEND_URL entries (missing colon, trailing
+// slash) are repaired into valid origins instead of silently failing CORS.
+const { getAllowedOrigins } = require('./utils/publicUrl');
+const allowedOrigins = getAllowedOrigins();
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -48,16 +51,15 @@ app.use(compression({ threshold: 1024 }));
 // Parse cookies (httpOnly auth cookie)
 app.use(cookieParser());
 
-// Capture raw body for Stripe Webhooks verification
 app.use(express.json({
-  limit: '5mb',
+  limit: '50mb',
   verify: (req, res, buf) => {
     if (req.originalUrl && req.originalUrl.startsWith('/api/v1/payments/webhook')) {
       req.rawBody = buf;
     }
   }
 }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ─── RATE LIMITING ───
 // DISABLE_RATE_LIMIT=true turns limiting off entirely — ONLY for load testing
@@ -114,8 +116,7 @@ if (RATE_LIMIT_DISABLED) {
   app.use('/api/v1/auth/forgot-password', authLimiter);
   app.use('/api/v1/auth/reset-password', authLimiter);
   app.use('/api/v1/auth/verify-registration', authLimiter);
-  app.use('/api/v1/auth/google-login', authLimiter);
-  app.use('/api/v1/auth/google-register', authLimiter);
+  app.use('/api/v1/auth/google', authLimiter);
 
   // Limiter for public RSVP submissions
   const publicLimiter = rateLimit({
@@ -133,13 +134,16 @@ if (RATE_LIMIT_DISABLED) {
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
+    // Strip the query string before logging: public search endpoints carry guest
+    // names (e.g. ?query=John%20Doe) which would otherwise land guest PII in logs.
+    const path = (req.originalUrl || '').split('?')[0];
     logger.info({
       method: req.method,
-      url: req.originalUrl,
+      url: path,
       status: res.statusCode,
       duration: Date.now() - start,
       ip: req.ip,
-    }, `${req.method} ${req.originalUrl} ${res.statusCode}`);
+    }, `${req.method} ${path} ${res.statusCode}`);
   });
   next();
 });

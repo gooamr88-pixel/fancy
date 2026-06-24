@@ -323,6 +323,13 @@ const selfCheckIn = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'rsvpId and guestName are required.' });
   }
 
+  // Require a guest name and enforce that it matches the record below. The public
+  // guest search can surface rsvpIds, so rsvpId alone must not be sufficient to
+  // check a guest in — otherwise anyone could fraudulently check in arbitrary guests.
+  if (!guestName || !guestName.trim()) {
+    return res.status(400).json({ success: false, error: 'GUEST_NAME_REQUIRED', message: 'Guest name is required to confirm your check-in.' });
+  }
+
   try {
     // 1. Resolve event
     const { data: event, error: eventError } = await supabase

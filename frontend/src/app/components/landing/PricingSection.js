@@ -1,57 +1,64 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-const plans = [
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+// Shown only if the pricing API is unreachable, so the section never renders empty.
+const FALLBACK_PLANS = [
   {
-    name: 'Starter',
-    price: 'Free',
-    priceSuffix: '',
-    recommended: false,
-    features: [
-      '1 Event',
-      'Up to 50 guests',
-      'Basic RSVP form',
-      'Email notifications',
-    ],
-    buttonText: 'Get Started',
-    buttonVariant: 'outline',
+    name: 'Starter', price: 'Free', priceSuffix: '', recommended: false,
+    features: ['1 Event', 'Up to 50 guests', 'Basic RSVP form', 'Email notifications'],
+    buttonText: 'Get Started', buttonVariant: 'outline', href: '/register',
   },
   {
-    name: 'Premium',
-    price: '$29',
-    priceSuffix: '/event',
-    recommended: true,
-    features: [
-      'Unlimited events',
-      'Up to 500 guests',
-      'Custom themes & branding',
-      'Meal preferences',
-      'Seating charts',
-      'QR code check-in',
-      'Priority support',
-    ],
-    buttonText: 'Get Started',
-    buttonVariant: 'filled',
+    name: 'Premium', price: '$29', priceSuffix: '/event', recommended: true,
+    features: ['Unlimited events', 'Up to 500 guests', 'Custom themes & branding', 'Seating charts', 'QR code check-in', 'Priority support'],
+    buttonText: 'Get Started', buttonVariant: 'filled', href: '/register',
   },
   {
-    name: 'Enterprise',
-    price: 'Custom',
-    priceSuffix: '',
-    recommended: false,
-    features: [
-      'Unlimited everything',
-      'Dedicated account manager',
-      'Custom integrations',
-      'White-label branding',
-      'API access',
-      'SLA & support',
-    ],
-    buttonText: 'Contact Sales',
-    buttonVariant: 'outline',
+    name: 'Enterprise', price: 'Custom', priceSuffix: '', recommended: false,
+    features: ['Unlimited everything', 'Dedicated account manager', 'Custom integrations', 'White-label branding', 'API access', 'SLA & support'],
+    buttonText: 'Contact Sales', buttonVariant: 'outline', href: '/contact',
   },
 ];
+
+/**
+ * Normalizes an admin-configured pricing tier (from /payments/public-pricing)
+ * into the display shape this section renders. Keeps price/feature presentation
+ * in sync with what's shown at event creation and charged at checkout.
+ */
+function tierToPlan(tier) {
+  let price;
+  let priceSuffix = '';
+  if (tier.is_custom) {
+    price = tier.price_label || 'Custom';
+  } else if (!tier.price_cents) {
+    price = tier.price_label || 'Free';
+  } else {
+    const dollars = tier.price_cents / 100;
+    price = tier.price_label || `$${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}`;
+    priceSuffix = '/event';
+  }
+
+  // Surface the guest cap as a feature when the admin hasn't already listed one.
+  const features = Array.isArray(tier.features) ? [...tier.features] : [];
+  if (!tier.is_custom && tier.max_guests > 0 && !features.some(f => /guest/i.test(f))) {
+    features.unshift(`Up to ${tier.max_guests} guests`);
+  }
+
+  return {
+    name: tier.name,
+    price,
+    priceSuffix,
+    recommended: tier.recommended === true,
+    features,
+    buttonText: tier.cta_label || (tier.is_custom ? 'Contact Sales' : 'Get Started'),
+    buttonVariant: tier.recommended ? 'filled' : 'outline',
+    href: tier.is_custom ? '/contact' : '/register',
+  };
+}
 
 function PricingCard({ plan, isHovered, onMouseEnter, onMouseLeave }) {
   const [btnHovered, setBtnHovered] = useState(false);
@@ -213,7 +220,7 @@ function PricingCard({ plan, isHovered, onMouseEnter, onMouseLeave }) {
           ))}
         </div>
         <Link
-          href={plan.buttonText === 'Contact Sales' ? '/contact' : '/register'}
+          href={plan.href || (plan.buttonText === 'Contact Sales' ? '/contact' : '/register')}
           style={{ ...buttonStyle, textDecoration: 'none', textAlign: 'center', display: 'block' }}
           onMouseEnter={() => setBtnHovered(true)}
           onMouseLeave={() => setBtnHovered(false)}
@@ -227,6 +234,23 @@ function PricingCard({ plan, isHovered, onMouseEnter, onMouseLeave }) {
 
 export default function PricingSection() {
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [plans, setPlans] = useState(FALLBACK_PLANS);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/payments/public-pricing`);
+        const data = await res.json();
+        if (!cancelled && data?.success && Array.isArray(data.tiers) && data.tiers.length) {
+          setPlans(data.tiers.map(tierToPlan));
+        }
+      } catch {
+        // Keep the fallback plans on any network/parse error.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <section

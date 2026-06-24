@@ -158,6 +158,7 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
   const [deletingId, setDeletingId] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [exportSort, setExportSort] = useState('name'); // 'name' (A–Z) | 'table'
   const [resending, setResending] = useState(null); // `${rsvpId}:${type}` while a resend is in flight
   const [editingGuest, setEditingGuest] = useState(null);
 
@@ -206,13 +207,14 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
     if (exporting) return;
     setExporting(true);
     try {
-      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export`, { credentials: 'include' });
+      // Attending guest list, ordered by the user's chosen sort (name A–Z or by table).
+      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export?attending=true&sort=${exportSort}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `rsvps_${eventId}.csv`;
+      a.download = `attending-guests-by-${exportSort}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -222,20 +224,20 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
     } finally {
       setExporting(false);
     }
-  }, [eventId, exporting]);
+  }, [eventId, exporting, exportSort]);
 
   /* export Excel */
   const handleExportExcel = useCallback(async () => {
     if (exportingExcel) return;
     setExportingExcel(true);
     try {
-      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export-excel`, { credentials: 'include' });
+      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export-excel?attending=true&sort=${exportSort}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `rsvps_${eventId}.xlsx`;
+      a.download = `attending-guests-by-${exportSort}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -245,7 +247,7 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
     } finally {
       setExportingExcel(false);
     }
-  }, [eventId, exportingExcel]);
+  }, [eventId, exportingExcel, exportSort]);
 
   /* resend confirmation or QR-ticket email */
   const handleResend = useCallback(async (rsvpId, type) => {
@@ -383,8 +385,23 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
           </div>
         </div>
 
-        {/* Export */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Export attending guest list — choose ordering, then CSV or Excel */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={selectWrapStyle} title="Order of the exported attending guest list">
+            <select
+              value={exportSort}
+              onChange={e => setExportSort(e.target.value)}
+              style={{ ...inputStyle, paddingRight: 30, appearance: 'none', cursor: 'pointer', minWidth: 168 }}
+              onFocus={e => { e.target.style.borderColor = COLORS.gold; }}
+              onBlur={e => { e.target.style.borderColor = COLORS.border; }}
+            >
+              <option value="name">Export order: Name (A–Z)</option>
+              <option value="table">Export order: By Table</option>
+            </select>
+            <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', display: 'flex' }}>
+              <ChevronDown />
+            </div>
+          </div>
           <ExportButton exporting={exporting} onClick={handleExport} label="Export CSV" />
           <ExportButton exporting={exportingExcel} onClick={handleExportExcel} label="Export Excel" />
         </div>

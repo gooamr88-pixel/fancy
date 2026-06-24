@@ -148,6 +148,11 @@ export default function CreateEventWizard() {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false); // verified paid
   const [paymentNotice, setPaymentNotice] = useState('');          // banner text
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  // Current plan: populated when the event is already paid (shows the locked
+  // "Current Plan" panel + upgrade option instead of the tier picker).
+  const [eventIsPaid, setEventIsPaid] = useState(false);
+  const [currentTierName, setCurrentTierName] = useState('');
+  const [currentTierMaxGuests, setCurrentTierMaxGuests] = useState(null);
 
   /* ─── Template & Preset State ─── */
   const [templateType, setTemplateType] = useState('engagement');
@@ -303,8 +308,10 @@ export default function CreateEventWizard() {
         const data = await res.json();
         if (!cancelled && data.success && data.config?.pricing_tiers) {
           setPricingTiers(data.config.pricing_tiers);
-          // Don't clobber a tier already restored from a post-Stripe resume.
-          if (data.config.pricing_tiers[0]) setSelectedTierName(prev => prev || data.config.pricing_tiers[0].name);
+          // Default to the first billable tier (Contact-Sales tiers can't be paid
+          // online), without clobbering a tier already restored from a post-Stripe resume.
+          const firstBillable = data.config.pricing_tiers.find(t => t && t.is_custom !== true);
+          if (firstBillable) setSelectedTierName(prev => prev || firstBillable.name);
           setManualMethods((data.config.manual_payment_methods || []).filter(m => m && m.is_active !== false));
         }
       } catch { /* non-fatal — payment step shows a skip option */ }
@@ -312,9 +319,27 @@ export default function CreateEventWizard() {
     return () => { cancelled = true; };
   }, [apiUrl]);
 
-  /* ═══ Sync colors → customColors ═══
-     Custom template follows the live builder config; the others follow the
-     selected preset swatch. */
+  /* ═══ Load paid status + current plan when entering the Payment step ═══ */
+  useEffect(() => {
+    // Payment is wizard step index 2 (Templates, Configure, Payment, …).
+    if (step !== 2 || !eventId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/events/${eventId}`, { credentials: 'include' });
+        const data = await res.json();
+        const ev = data?.event;
+        if (!cancelled && ev) {
+          setEventIsPaid(!!ev.is_paid);
+          setCurrentTierName(ev.tier_name || '');
+          setCurrentTierMaxGuests(ev.tier_max_guests ?? null);
+        }
+      } catch { /* non-fatal — falls back to the tier picker */ }
+    })();
+    return () => { cancelled = true; };
+  }, [step, eventId, apiUrl]);
+
+  /* ═══ Sync preset colors → customColors ═══ */
   useEffect(() => {
     if (templateType === 'custom') {
       setCustomColors({
@@ -368,7 +393,9 @@ export default function CreateEventWizard() {
         if (res.status === 404) {
           setSlugStatus('available');
           setSuggestedSlug('');
-        } else if (res.ok) {
+        } else if (res.ok || res.status === 402 || res.status === 403) {
+          // 200 (live), 402 (exists but unpaid), and 403 (exists but private) all mean
+          // the slug is already in use — only a 404 means it's free.
           setSlugStatus('taken');
           const year = new Date().getFullYear();
           setSuggestedSlug(`${slug}-${year}`);
@@ -631,8 +658,11 @@ export default function CreateEventWizard() {
         credentials: 'include',
         body: JSON.stringify(buildCreatePayload()),
       });
-      const data = await res.json();
+      const data = res.status === 413 ? {} : await res.json();
       if (!res.ok) {
+        if (res.status === 413) {
+          throw new Error('Your media files are too large to save. Please use external URLs (paste a link) for large images or music instead of uploading files directly.');
+        }
         if (data.error === 'SLUG_TAKEN') {
           setSlugStatus('taken');
           setSuggestedSlug(data.suggestedSlug || `${slug}-${new Date().getFullYear()}`);
@@ -675,8 +705,11 @@ export default function CreateEventWizard() {
         event_type: templateType,
       }),
     });
-    const data = await res.json();
+    const data = res.status === 413 ? {} : await res.json();
     if (!res.ok) {
+      if (res.status === 413) {
+        throw new Error('Your media files are too large to save. Please use external URLs (paste a link) for large images or music instead of uploading files directly.');
+      }
       if (data.error === 'SLUG_TAKEN') {
         setSlugStatus('taken');
         const e = new Error('This event URL is already taken. Please choose a different slug.');
@@ -986,6 +1019,9 @@ export default function CreateEventWizard() {
               onContinue={goNext}
               onBack={goBack}
               onSkip={goNext}
+              isPaid={eventIsPaid}
+              currentTierName={currentTierName}
+              currentTierMaxGuests={currentTierMaxGuests}
             />
           </motion.div>
         )}

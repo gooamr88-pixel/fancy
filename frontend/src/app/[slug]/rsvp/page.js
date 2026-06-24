@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useEffect, useState, Suspense, use } from 'react';
+import React, { useEffect, useState, useRef, Suspense, use } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { translations } from '../../utils/translations';
 import { useGuestAnalytics, useRsvpFunnelTracking, useAbandonmentTracking } from '../../utils/useGuestAnalytics';
+import { isSeatingRevealed } from '../../utils/seating';
 import SeatingMiniMap from './SeatingMiniMap';
 
 /* Component Library Imports */
@@ -94,7 +95,7 @@ function RSVPFormContent({ slug }) {
   const [phone, setPhone] = useState('');
   const [partySize, setPartySize] = useState(1);
   const [additionalGuests, setAdditionalGuests] = useState([]);
-  const [primaryMeal, setPrimaryMeal] = useState('');
+
   const [customAnswers, setCustomAnswers] = useState({});
   const [notes, setNotes] = useState('');
 
@@ -125,6 +126,8 @@ function RSVPFormContent({ slug }) {
   const [seatingLoading, setSeatingLoading] = useState(false);
 
   const guestIdParam = searchParams ? searchParams.get('g') : null;
+  // Per-guest invitation token (unlocks private events + pre-fills this guest).
+  const invitationRsvpId = searchParams ? searchParams.get('rsvp_id') : null;
 
   /* ═══ Analytics ═══ */
   const { trackEvent } = useGuestAnalytics(slug);
@@ -133,7 +136,15 @@ function RSVPFormContent({ slug }) {
 
   useEffect(() => { trackEvent('rsvp_started'); }, [trackEvent]);
 
-  useEffect(() => { setSearchPerformed(false); setSearchResults([]); setRsvpId(null); }, [guestName]);
+  // When the form is pre-filled programmatically (from an invitation token), we must
+  // NOT let the name-change reset below wipe the resolved rsvpId — otherwise the
+  // submission would create a duplicate record instead of updating the invited guest.
+  const skipNameResetRef = useRef(false);
+
+  useEffect(() => {
+    if (skipNameResetRef.current) { skipNameResetRef.current = false; return; }
+    setSearchPerformed(false); setSearchResults([]); setRsvpId(null);
+  }, [guestName]);
 
   /* ═══ Navigators with direction tracking ═══ */
   const goToStep = (nextStep) => {
@@ -231,7 +242,9 @@ function RSVPFormContent({ slug }) {
           setLoading(false); return;
         }
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-        const res = await fetch(`${apiUrl}/public/events/${slug}`);
+        // Forward the invitation token so private events resolve (instead of 403).
+        const query = invitationRsvpId ? `?rsvp_id=${encodeURIComponent(invitationRsvpId)}` : '';
+        const res = await fetch(`${apiUrl}/public/events/${slug}${query}`);
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           if (res.status === 403 && body.error === 'EVENT_UNDER_REVIEW') throw new Error('EVENT_UNDER_REVIEW');
@@ -239,10 +252,24 @@ function RSVPFormContent({ slug }) {
         }
         const data = await res.json();
         setEvent(data.event);
+
+        // Pre-fill the form with the invited guest's existing RSVP record.
+        if (data.guestRsvp) {
+          const g = data.guestRsvp;
+          skipNameResetRef.current = true; // preserve rsvpId across the name-change effect
+          setRsvpId(g.id);
+          setGuestName(g.guest_name || '');
+          if (g.email) setEmail(g.email);
+          if (g.phone) setPhone(g.phone);
+          if (g.party_size) setPartySize(g.party_size);
+          if (g.notes) setNotes(g.notes);
+          if (g.response === 'yes' || g.response === 'no') setAttending(g.response);
+          setStep(2); // skip the name-search step — we already know who they are
+        }
       } catch (err) { setError(err.message); } finally { setLoading(false); }
     }
     fetchEvent();
-  }, [slug]);
+  }, [slug, invitationRsvpId]);
 
   /* ═══ Document title ═══ */
   useEffect(() => {
@@ -379,6 +406,30 @@ function RSVPFormContent({ slug }) {
   const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
   const isContinueDisabled = partySize > 1 && additionalGuests.some(g => !g.fullName || !g.fullName.trim());
   const coverImage = event.cover_image_url;
+  // The seating chart (table search + personal map) is hidden until 24h before the event.
+  const seatingRevealed = isSeatingRevealed(event.event_date);
+
+  // All custom form fields (including meal) are shown in step 4 as custom questions.
+  // Meal is no longer hardcoded in step 3 — it only appears if the organizer configured it.
+  const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
+  const mealField = (event.rsvp_form_fields || []).find(
+    f => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
+  );
+  const customQuestionFields = event.rsvp_form_fields || [];
+
+  const setAnswer = (fieldId, value) => {
+    setCustomAnswers(prev => ({ ...prev, [fieldId]: value }));
+    setValidationErrors(prev => { const n = { ...prev }; delete n[`field_${fieldId}`]; return n; });
+  };
+  const toggleMultiAnswer = (fieldId, opt) => {
+    setCustomAnswers(prev => {
+      const cur = (prev[fieldId] || '').split(',').map(s => s.trim()).filter(Boolean);
+      const idx = cur.indexOf(opt);
+      if (idx >= 0) cur.splice(idx, 1); else cur.push(opt);
+      return { ...prev, [fieldId]: cur.join(', ') };
+    });
+    setValidationErrors(prev => { const n = { ...prev }; delete n[`field_${fieldId}`]; return n; });
+  };
 
   /* ═══ Compute total steps and current progress ═══ */
   const computeTotalSteps = () => {
@@ -407,7 +458,8 @@ function RSVPFormContent({ slug }) {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format';
     if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
     if (attending === 'yes') {
-      const requiredFields = event.rsvp_form_fields?.filter(f => f.is_required) || [];
+      // Validate all custom questions shown in step 4 (including meal if configured).
+      const requiredFields = customQuestionFields.filter(f => f.is_required);
       requiredFields.forEach(field => {
         if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
           errors[`field_${field.id}`] = `${field.field_label} is required`;
@@ -432,6 +484,8 @@ function RSVPFormContent({ slug }) {
 
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      // Extract meal selection from customAnswers if a meal field is configured.
+      const mealFromCustom = mealField && customAnswers[mealField.id] ? customAnswers[mealField.id] : null;
       const payload = {
         rsvpId, guestName, email, phone, response: attending,
         partySize: attending === 'yes' ? partySize : 1,

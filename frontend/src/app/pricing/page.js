@@ -1,10 +1,49 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 
-const plans = [
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+
+/**
+ * Maps an admin-configured tier (from /payments/public-pricing) to this page's
+ * card shape, so the pricing page, the landing section, the event-creation step,
+ * and what's actually charged all stay in sync.
+ */
+function tierToPlan(tier) {
+  let price;
+  let period = "";
+  if (tier.is_custom) {
+    price = tier.price_label || "Custom";
+  } else if (!tier.price_cents) {
+    price = tier.price_label || "Free";
+  } else {
+    const dollars = tier.price_cents / 100;
+    price = tier.price_label || `$${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}`;
+    period = "/ event";
+  }
+
+  const features = Array.isArray(tier.features) ? [...tier.features] : [];
+  if (!tier.is_custom && tier.max_guests > 0 && !features.some((f) => /guest/i.test(f))) {
+    features.unshift(`Up to ${tier.max_guests} guests`);
+  }
+
+  return {
+    name: tier.name,
+    price,
+    period,
+    description: tier.description || "",
+    highlight: tier.recommended === true,
+    badge: tier.recommended ? "Most Popular" : undefined,
+    cta: tier.cta_label || (tier.is_custom ? "Contact Sales" : "Get Started"),
+    features,
+    href: tier.is_custom ? "/contact" : "/register",
+  };
+}
+
+// Shown only if the pricing API is unreachable, so the page never renders empty.
+const FALLBACK_PLANS = [
   {
     name: "Starter",
     price: "Free",
@@ -214,7 +253,7 @@ function PricingCard({ plan }) {
       </p>
 
       <Link
-        href={plan.name === "Enterprise" ? "/contact" : "/register"}
+        href={plan.href || (plan.name === "Enterprise" ? "/contact" : "/register")}
         className={plan.highlight ? "btn-gold" : "btn-outline"}
         style={{
           display: "block",
@@ -347,6 +386,23 @@ function FaqItem({ item, isOpen, onToggle }) {
 
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState(0);
+  const [plans, setPlans] = useState(FALLBACK_PLANS);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/payments/public-pricing`);
+        const data = await res.json();
+        if (!cancelled && data?.success && Array.isArray(data.tiers) && data.tiers.length) {
+          setPlans(data.tiers.map(tierToPlan));
+        }
+      } catch {
+        // Keep the fallback plans on any network/parse error.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <>

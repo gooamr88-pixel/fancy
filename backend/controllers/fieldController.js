@@ -41,7 +41,10 @@ const saveField = async (req, res, next) => {
     });
   }
 
-  const ALLOWED_FIELD_TYPES = ['text', 'select', 'checkbox', 'radio', 'textarea', 'date', 'number', 'email', 'phone', 'url'];
+  // Keep in lockstep with the rsvp_form_fields.field_type CHECK constraint
+  // (migration 20260617000000_field_type_expansion) so a value accepted here is
+  // never rejected by the database with a 23514 violation.
+  const ALLOWED_FIELD_TYPES = ['text', 'email', 'phone', 'url', 'select', 'multiselect', 'radio', 'textarea', 'number', 'checkbox', 'date'];
   if (!ALLOWED_FIELD_TYPES.includes(fieldType)) {
     return res.status(400).json({
       success: false,

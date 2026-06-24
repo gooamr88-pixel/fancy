@@ -58,6 +58,9 @@ export const translations = {
     find_table_no_results: 'No seating assignment found. Please make sure you RSVPed "Yes" or contact the host.',
     find_table_assigned: '{name}, your assigned table is: {tableName}.',
     find_table_party: 'Party Size: {partySize}',
+    seating_locked_title: 'Seating Chart Locked',
+    seating_locked_desc: 'The seating chart is revealed 24 hours before the event begins. Please check back closer to the date.',
+    seating_locked_reveal: 'Unlocks on {date}',
   },
   ar: {
     invitation: 'بطاقة دعوة',
@@ -118,5 +121,8 @@ export const translations = {
     find_table_no_results: 'لم يتم العثور على توزيع للمقاعد. يرجى التأكد من تسجيل الحضور بنعم أو التواصل مع المنظم.',
     find_table_assigned: '{name}، طاولتك المخصصة هي: {tableName}.',
     find_table_party: 'عدد الأفراد: {partySize}',
+    seating_locked_title: 'خريطة الجلوس مقفلة',
+    seating_locked_desc: 'تُكشف خريطة الجلوس قبل ٢٤ ساعة من بدء الفعالية. يُرجى المحاولة مرة أخرى مع اقتراب الموعد.',
+    seating_locked_reveal: 'ستُتاح بتاريخ {date}',
   }
 };

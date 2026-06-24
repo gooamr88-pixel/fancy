@@ -3,8 +3,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
+import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
+import { isSeatingRevealed, seatingRevealAt } from '../utils/seating';
 import {
   FadeInUp,
   StaggerChildren,
@@ -29,6 +31,7 @@ import {
   inputBlur,
 } from '../components/guest/GuestUI';
 import GuestEnvelopeReveal from '../components/templates/GuestEnvelopeReveal';
+import InvitationEnvelope from './InvitationEnvelope';
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
@@ -51,8 +54,16 @@ function getDirectionsUrl(lat, lng, address) {
    ═══════════════════════════════════════════════════════════════ */
 
 export default function EventPageClient({ initialEvent, slug: serverSlug }) {
+  const searchParams = useSearchParams();
+  // Per-guest invitation token. Unlocks private events and lets the RSVP form pre-fill.
+  const invitationRsvpId = searchParams?.get('rsvp_id') || null;
+  // Skip the envelope intro when the host links straight to details (?view=full).
+  const skipEnvelope = searchParams?.get('view') === 'full';
+
   const [slug, setSlug] = useState(serverSlug || '');
   const [event, setEvent] = useState(initialEvent || null);
+  const [guestRsvp, setGuestRsvp] = useState(null);
+  const [opened, setOpened] = useState(false);
   const [loading, setLoading] = useState(!initialEvent);
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState({});
@@ -195,7 +206,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
       const headers = {};
       if (password) headers['x-event-password'] = password;
-      const res = await fetch(`${apiUrl}/public/events/${slug}`, { headers });
+      // Forward the invitation token so the backend can unlock a private event.
+      const query = invitationRsvpId ? `?rsvp_id=${encodeURIComponent(invitationRsvpId)}` : '';
+      const res = await fetch(`${apiUrl}/public/events/${slug}${query}`, { headers });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -207,9 +220,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       }
       const data = await res.json();
       setEvent(data.event);
+      setGuestRsvp(data.guestRsvp || null);
       setPasswordRequired(false);
+      setIsPrivate(false);
     } catch (err) { setError(err.message); } finally { setLoading(false); }
-  }, [slug]);
+  }, [slug, invitationRsvpId]);
 
   useEffect(() => {
     fetchEventWithPasswordRef.current = (pw) => { setLoading(true); setError(null); fetchEvent(pw); };
@@ -423,6 +438,24 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
   const musicUrl = event.background_music_url || event.template_data?.bg_music_url;
   const eventPassed = event.event_date && new Date(event.event_date) < new Date();
+  // Guest seating is hidden until 24h before the event. The per-second countdown
+  // interval re-renders the page, so this flips on its own when the window opens.
+  const seatingRevealed = isSeatingRevealed(event.event_date);
+
+  // ─── Premium entry: the sealed envelope greets the guest before any details. ───
+  if (!opened && !skipEnvelope) {
+    return (
+      <InvitationEnvelope
+        event={event}
+        slug={slug}
+        guestRsvp={guestRsvp}
+        themeColor={themeColor}
+        secondaryColor={customColors.secondary || '#D7BE80'}
+        isRTL={isRTL}
+        onEnter={() => setOpened(true)}
+      />
+    );
+  }
 
   return (
     <PageTransition>

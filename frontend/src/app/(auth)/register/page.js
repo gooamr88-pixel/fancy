@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../utils/apiClient';
+import { getAuthErrorMessage } from '../../utils/authErrors';
+import Toast from '../../components/Toast';
 
 const EyeIcon = ({ show }) => show ? (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#77736A" strokeWidth="1.5"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" strokeLinecap="round" strokeLinejoin="round"/><line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round"/></svg>
@@ -17,7 +19,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState(null);
+  const [toast, setToast] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleBtnRef = useRef(null);
@@ -34,16 +36,16 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name || !orgName || !email || !password) {
-      setError('Please fill in all fields.');
+      setToast({ message: 'Please fill in all fields to create your account.', kind: 'error' });
       return;
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setToast({ message: 'Your password must be at least 8 characters long.', kind: 'error' });
       return;
     }
 
     setSubmitting(true);
-    setError(null);
+    setToast(null);
 
     try {
       const data = await apiFetch('/auth/register', {
@@ -59,13 +61,10 @@ export default function RegisterPage() {
         if (data.user?.role) localStorage.setItem('user_role', data.user.role);
         router.push('/dashboard');
       } else {
-        setError(data.message || 'Registration failed. Please try again.');
+        setToast({ message: data.message || 'Registration failed. Please try again.', kind: 'error' });
       }
     } catch (err) {
-      const msg = err.message || '';
-      if (msg.includes('status 5') || msg.includes('unexpected')) setError('An unexpected error occurred. Please try again.');
-      else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Network error. Please check your connection.');
-      else setError(msg);
+      setToast({ message: getAuthErrorMessage(err, 'Registration failed. Please try again.'), kind: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -83,9 +82,9 @@ export default function RegisterPage() {
         client_id: clientId,
         callback: async (response) => {
           setGoogleLoading(true);
-          setError(null);
+          setToast(null);
           try {
-            const data = await apiFetch('/auth/google-register', {
+            const data = await apiFetch('/auth/google', {
               method: 'POST',
               body: JSON.stringify({ credential: response.credential })
             });
@@ -95,14 +94,11 @@ export default function RegisterPage() {
               setGoogleLoading(false);
               router.push('/dashboard');
             } else {
-              setError(data.message || 'Google sign-up failed.');
+              setToast({ message: data.message || 'Google sign-up failed. Please try again.', kind: 'error' });
               setGoogleLoading(false);
             }
           } catch (err) {
-            const msg = err.message || '';
-            if (msg.includes('status 5') || msg.includes('unexpected')) setError('An unexpected error occurred. Please try again.');
-            else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Connection error. Please try again.');
-            else setError(msg);
+            setToast({ message: getAuthErrorMessage(err, 'Google sign-up failed. Please try again.'), kind: 'error' });
             setGoogleLoading(false);
           }
         },
@@ -112,7 +108,7 @@ export default function RegisterPage() {
         type: 'standard',
         theme: 'outline',
         size: 'large',
-        text: 'signup_with',
+        text: 'continue_with',
         shape: 'rectangular',
         locale: 'en',
         width: googleBtnRef.current.offsetWidth || 360,
@@ -185,7 +181,7 @@ export default function RegisterPage() {
     if (otp.length !== 6) return;
 
     setVerifying(true);
-    setError(null);
+    setToast(null);
 
     try {
       const data = await apiFetch('/auth/verify-registration', {
@@ -198,13 +194,10 @@ export default function RegisterPage() {
         localStorage.setItem('user_role', data.user.role);
         router.push('/dashboard');
       } else {
-        setError(data.message || 'Verification failed. Please try again.');
+        setToast({ message: data.message || 'Verification failed. Please try again.', kind: 'error' });
       }
     } catch (err) {
-      const msg = err.message || '';
-      if (msg.includes('status 5') || msg.includes('unexpected')) setError('Verification failed. Please try again.');
-      else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) setError('Network error. Please check your connection.');
-      else setError(msg);
+      setToast({ message: getAuthErrorMessage(err, 'Verification failed. Please try again.'), kind: 'error' });
       setOtpValues(['', '', '', '', '', '']);
       otpRefs.current[0]?.focus();
     } finally {
@@ -218,6 +211,8 @@ export default function RegisterPage() {
   if (otpStep) {
     return (
       <div className="auth-page">
+        <Toast toast={toast} onClose={() => setToast(null)} />
+
         <div className="auth-image-panel">
           <div className="auth-image-overlay" />
           <div className="auth-image-content">
@@ -241,15 +236,6 @@ export default function RegisterPage() {
 
             <h1 className="auth-heading">Verify Your Email</h1>
             <p className="auth-subtext">We sent a 6-digit code to <strong style={{ color: '#B8944F' }}>{email}</strong></p>
-
-            {error && (
-              <div className="auth-error" role="alert">
-                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <span>{error}</span>
-              </div>
-            )}
 
             <form onSubmit={handleVerifyOtp}>
               <div className="otp-row">
@@ -280,7 +266,7 @@ export default function RegisterPage() {
             <p className="otp-resend">
               Didn't receive the code?{' '}
               <button type="button" className="otp-retry-btn"
-                onClick={() => { setOtpValues(['', '', '', '', '', '']); setError(null); otpRefs.current[0]?.focus(); }}>
+                onClick={() => { setOtpValues(['', '', '', '', '', '']); setToast(null); otpRefs.current[0]?.focus(); }}>
                 Clear & Retry
               </button>
             </p>
@@ -331,6 +317,8 @@ export default function RegisterPage() {
   // ─── Registration Form ───
   return (
     <div className="auth-page">
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
       <div className="auth-image-panel">
         <div className="auth-image-overlay" />
         <div className="auth-image-content">
@@ -357,15 +345,6 @@ export default function RegisterPage() {
 
           <h1 className="auth-heading">Create Your Account</h1>
           <p className="auth-subtext">Start planning your perfect event today</p>
-
-          {error && (
-            <div className="auth-error" role="alert">
-              <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span>{error}</span>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="auth-field-grid">
@@ -493,8 +472,6 @@ const sharedStyles = `
   }
   .auth-heading { font-family: var(--font-serif); font-size: 28px; font-weight: 500; color: #191B1E; margin: 0 0 8px; letter-spacing: -0.01em; }
   .auth-subtext { font-size: 14px; font-weight: 400; color: #77736A; margin: 0 0 32px; }
-  .auth-error { padding: 14px 16px; background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 10px; color: #9F1239; font-size: 13px; display: flex; align-items: flex-start; gap: 10px; margin-bottom: 24px; }
-  .auth-error svg { flex-shrink: 0; margin-top: 1px; }
   .auth-form { display: flex; flex-direction: column; gap: 20px; }
   .auth-label { display: block; font-size: 11px; font-weight: 700; color: #77736A; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; font-family: var(--font-sans); }
   .auth-input {

@@ -720,6 +720,50 @@ const getPendingPayments = async (req, res, next) => {
   }
 };
 
+/**
+ * Public, unauthenticated pricing for the marketing/landing page.
+ *
+ * Single source of truth: the same `super_admin_config.pricing_tiers` that the
+ * event-creation payment step reads and that checkout actually charges against.
+ * This endpoint exposes ONLY the customer-safe presentation fields — it never
+ * leaks manual payment account details, SMS carrier rates, or commission.
+ * GET /api/v1/payments/public-pricing
+ */
+const getPublicPricing = async (req, res, next) => {
+  try {
+    const { data: config, error } = await supabase
+      .from('super_admin_config')
+      .select('pricing_tiers')
+      .eq('id', '00000000-0000-0000-0000-000000000000')
+      .single();
+
+    if (error) throw error;
+
+    const tiers = Array.isArray(config?.pricing_tiers) ? config.pricing_tiers : [];
+
+    // Sanitize to public-safe fields only.
+    const publicTiers = tiers.map((t) => ({
+      name: String(t.name || ''),
+      price_cents: Number(t.price_cents) || 0,
+      max_guests: Number(t.max_guests) || 0,
+      features: Array.isArray(t.features) ? t.features.filter(f => (f || '').toString().trim()).map(f => f.toString().trim()) : [],
+      recommended: t.recommended === true,
+      is_custom: t.is_custom === true,
+      price_label: (t.price_label || '').toString().trim(),
+      cta_label: (t.cta_label || '').toString().trim(),
+      description: (t.description || '').toString().trim(),
+    }));
+
+    // Cache at the edge/CDN for a minute — pricing changes are infrequent and
+    // this endpoint is hit by every anonymous landing-page visitor.
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
+
+    return res.json({ success: true, tiers: publicTiers });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   purchaseSMSCredits,
@@ -728,6 +772,7 @@ module.exports = {
   manualCashApproval,
   updatePricingConfig,
   getPricingConfig,
+  getPublicPricing,
   initiateManualPayment,
   getPendingPayments
 };
