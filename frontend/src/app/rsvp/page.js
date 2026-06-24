@@ -181,7 +181,7 @@ function GoldDivider() {
    ═══════════════════════════════════════════════════════════════ */
 export default function RsvpConfirmPage() {
   const [token, setToken] = useState(null);
-  const [status, setStatus] = useState('loading'); // loading | ready | error | done | closed
+  const [status, setStatus] = useState('loading'); // loading | ready | error | done | closed | already
   const [error, setError] = useState('');
   const [invite, setInvite] = useState(null);
   const [selected, setSelected] = useState('yes');
@@ -205,7 +205,13 @@ export default function RsvpConfirmPage() {
         setInvite(data);
         setSelected(data.intendedResponse || data.guest.response || 'yes');
         setPartySize(data.guest.party_size || 1);
-        if (data.deadlinePassed) setStatus('closed');
+        // Strict gate: a guest who has already answered (yes / no / maybe) is
+        // locked into a status card — no re-confirming, no changing the answer
+        // via the public link. Takes precedence over the deadline notice.
+        if (['yes', 'no', 'maybe'].includes(data.guest.response)) {
+          setFinalResponse(data.guest.response);
+          setStatus('already');
+        } else if (data.deadlinePassed) setStatus('closed');
         else setStatus('ready');
       } catch (err) {
         setStatus('error');
@@ -225,7 +231,16 @@ export default function RsvpConfirmPage() {
         body: JSON.stringify({ token, response: selected, partySize: selected === 'yes' ? partySize : 1 }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || 'Could not record your response. Please try again.');
+      if (!res.ok || !data.success) {
+        // Another tab/click already recorded a response — lock into the status
+        // card instead of surfacing an inline error.
+        if (res.status === 409 || data.error === 'ALREADY_RESPONDED') {
+          setFinalResponse(data.response || selected);
+          setStatus('already');
+          return;
+        }
+        throw new Error(data.message || 'Could not record your response. Please try again.');
+      }
       setFinalResponse(data.response);
       setStatus('done');
     } catch (err) {
@@ -341,7 +356,7 @@ export default function RsvpConfirmPage() {
               color: COLORS.stone, marginTop: '8px', fontSize: '13px',
               lineHeight: 1.6, opacity: 0.8,
             }}>
-              Changed your mind? You can return to this email link anytime before the deadline to update your response.
+              Need to change your response? Please contact the organizer directly.
             </p>
           </FadeInUp>
 
@@ -375,6 +390,84 @@ export default function RsvpConfirmPage() {
                       </PremiumButton>
                     </Link>
                   </GlowPulse>
+                </div>
+              )}
+            </div>
+          </FadeInUp>
+        </div>
+      </Shell>
+    );
+  }
+
+  /* ════════════════════════════════════════════
+     Already Registered State — strict state-aware lock
+     The guest has already answered; the confirm form is hidden entirely so
+     they cannot resubmit or change their response via the public link.
+     ════════════════════════════════════════════ */
+  if (status === 'already') {
+    const meta = RESPONSE_META[finalResponse] || RESPONSE_META.yes;
+    const isYes = finalResponse === 'yes';
+    const statusLabel = meta.label === 'Accept' ? 'Attending' : meta.label;
+
+    return (
+      <Shell>
+        <div style={{ textAlign: 'center' }}>
+          <AnimatedCheckmark color={meta.color} size={72} />
+
+          <FadeInUp delay={0.3}>
+            <h1 style={{
+              fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600,
+              color: COLORS.charcoal, margin: 0,
+            }}>
+              You're Already Registered
+            </h1>
+          </FadeInUp>
+
+          <GoldDivider />
+
+          <FadeInUp delay={0.45}>
+            <p style={{ color: COLORS.stone, fontSize: '14px', lineHeight: 1.8 }}>
+              {invite?.guest?.guest_name ? <>Thank you, <strong style={{ color: COLORS.gold, fontWeight: 700 }}>{invite.guest.guest_name}</strong>. </> : null}
+              We already have your response on file — you're marked as{' '}
+              <strong style={{ color: meta.color }}>{statusLabel}</strong>
+              {isYes && invite?.guest?.party_size > 1 ? ` with a party of ${invite.guest.party_size}.` : '.'}
+            </p>
+          </FadeInUp>
+
+          <FadeInUp delay={0.55}>
+            <p style={{
+              color: COLORS.stone, marginTop: '8px', fontSize: '13px',
+              lineHeight: 1.6, opacity: 0.8,
+            }}>
+              Need to change your response? Please contact the organizer directly.
+            </p>
+          </FadeInUp>
+
+          <FadeInUp delay={0.65}>
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              gap: '12px', marginTop: '28px',
+            }}>
+              {ev && (
+                <div style={{
+                  display: 'flex', gap: '12px', flexWrap: 'wrap',
+                  justifyContent: 'center', width: '100%',
+                }}>
+                  <CalendarButton event={ev} />
+                  <ShareButton
+                    title={ev.title || 'Event Invitation'}
+                    text={`You're invited to ${ev.title || 'an event'}!`}
+                  />
+                </div>
+              )}
+
+              {ev?.slug && (
+                <div style={{ marginTop: '8px', width: '100%' }}>
+                  <Link href={`/${ev.slug}`} style={{ textDecoration: 'none', display: 'block' }}>
+                    <PremiumButton variant="dark" fullWidth>
+                      View Event Details
+                    </PremiumButton>
+                  </Link>
                 </div>
               )}
             </div>

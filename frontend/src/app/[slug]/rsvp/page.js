@@ -107,6 +107,17 @@ function RSVPFormContent({ slug }) {
   const [searchPerformed, setSearchPerformed] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
   const [assignedTableName, setAssignedTableName] = useState(null);
+  const [primaryMeal, setPrimaryMeal] = useState('');
+
+  /* Strict, state-aware RSVP gate: once a guest has already answered
+     (yes / no / maybe) we hide the form entirely and show an
+     "already registered" card instead of letting them resubmit. */
+  const [alreadyResponded, setAlreadyResponded] = useState(false);
+  const [existingGuest, setExistingGuest] = useState(null);
+  // Gates the first paint until we've resolved whether this visitor has
+  // already RSVP'd (via token or a remembered local id), so the form never
+  // flashes before locking.
+  const [statusResolved, setStatusResolved] = useState(false);
 
   /* Maybe flow state */
   const [maybeFollowUp, setMaybeFollowUp] = useState(null);
@@ -128,6 +139,11 @@ function RSVPFormContent({ slug }) {
   const guestIdParam = searchParams ? searchParams.get('g') : null;
   // Per-guest invitation token (unlocks private events + pre-fills this guest).
   const invitationRsvpId = searchParams ? searchParams.get('rsvp_id') : null;
+
+  // Remembers, per event, the id of the RSVP this browser created so a plain
+  // reload/reopen (no token in the URL) can recognise a returning guest and
+  // show the "already registered" card instead of a blank form.
+  const storageKey = `fancy_rsvp_${slug}`;
 
   /* ═══ Analytics ═══ */
   const { trackEvent } = useGuestAnalytics(slug);
@@ -253,18 +269,32 @@ function RSVPFormContent({ slug }) {
         const data = await res.json();
         setEvent(data.event);
 
-        // Pre-fill the form with the invited guest's existing RSVP record.
+        // Either pre-fill the form for an un-answered invitation, OR — if this
+        // guest has already responded — lock into the "already registered" card.
         if (data.guestRsvp) {
           const g = data.guestRsvp;
-          skipNameResetRef.current = true; // preserve rsvpId across the name-change effect
-          setRsvpId(g.id);
-          setGuestName(g.guest_name || '');
-          if (g.email) setEmail(g.email);
-          if (g.phone) setPhone(g.phone);
-          if (g.party_size) setPartySize(g.party_size);
-          if (g.notes) setNotes(g.notes);
-          if (g.response === 'yes' || g.response === 'no') setAttending(g.response);
-          setStep(2); // skip the name-search step — we already know who they are
+          const responded = g.response === 'yes' || g.response === 'no' || g.response === 'maybe';
+          if (responded) {
+            // Lock synchronously so the form never flashes, then enrich with the
+            // (PII-free) status + table assignment.
+            skipNameResetRef.current = true;
+            setRsvpId(g.id);
+            setGuestName(g.guest_name || '');
+            if (g.party_size) setPartySize(g.party_size);
+            setAttending(g.response);
+            setExistingGuest({ ...g });
+            setAlreadyResponded(true);
+            fetchGuestStatus(g.id);
+          } else {
+            skipNameResetRef.current = true; // preserve rsvpId across the name-change effect
+            setRsvpId(g.id);
+            setGuestName(g.guest_name || '');
+            if (g.email) setEmail(g.email);
+            if (g.phone) setPhone(g.phone);
+            if (g.party_size) setPartySize(g.party_size);
+            if (g.notes) setNotes(g.notes);
+            setStep(2); // skip the name-search step — we already know who they are
+          }
         }
       } catch (err) { setError(err.message); } finally { setLoading(false); }
     }
@@ -286,36 +316,86 @@ function RSVPFormContent({ slug }) {
     }
   }, [event]);
 
-  /* ═══ Resolve guest from token ═══ */
-  useEffect(() => {
-    if (!guestIdParam || !event) return;
-    async function loadGuestFromToken() {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-        const res = await fetch(`${apiUrl}/public/rsvp/guest/${guestIdParam}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.guest) {
-            const g = data.guest;
-            setRsvpId(g.id);
-            setGuestName(g.guest_name);
-            if (g.email) setEmail(g.email);
-            if (g.phone) setPhone(g.phone);
-            if (g.party_size) setPartySize(g.party_size);
-            if (g.notes) setNotes(g.notes);
-            if (g.table_name) setAssignedTableName(g.table_name);
-            if (g.response === 'yes' || g.response === 'no' || g.response === 'maybe') {
-              setAttending(g.response);
-            }
-            setStep(2);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading guest from token:', err);
+  /* ═══ Resolve a guest's RSVP status by id ═══
+     Fetches the (PII-free) public guest record and either LOCKS into the
+     "already registered" card (if they've answered) or pre-fills the form at
+     step 2 (for an un-answered invitation). Returns the guest's response, or
+     null if nothing resolved. */
+  const fetchGuestStatus = async (id) => {
+    if (!id) return null;
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      const res = await fetch(`${apiUrl}/public/rsvp/guest/${id}`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (!data.success || !data.guest) return null;
+      const g = data.guest;
+
+      // Pre-fill the non-sensitive parts. skipNameResetRef stops the
+      // name-change effect from wiping the resolved rsvpId (which would force a
+      // duplicate INSERT instead of recognising this returning guest).
+      skipNameResetRef.current = true;
+      setRsvpId(g.id);
+      setGuestName(g.guest_name || '');
+      if (g.party_size) setPartySize(g.party_size);
+      if (g.table_name) setAssignedTableName(g.table_name);
+
+      const responded = g.response === 'yes' || g.response === 'no' || g.response === 'maybe';
+      if (responded) setAttending(g.response);
+      setExistingGuest({ ...g });
+
+      if (responded) {
+        setAlreadyResponded(true);   // hide the form → render the locked card
+      } else {
+        setStep(2);                  // un-answered invitation → let them respond
       }
+      return g.response;
+    } catch (err) {
+      console.error('Error resolving guest status:', err);
+      return null;
     }
-    loadGuestFromToken();
-  }, [guestIdParam, event]);
+  };
+
+  /* ═══ Lightweight table fetch (post-submit success screen) ═══
+     Unlike fetchGuestStatus this never locks the view — it only fills in the
+     table name (if seating has been revealed) for the celebratory pass card. */
+  const fetchAssignedTable = async (id) => {
+    if (!id) return;
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      const res = await fetch(`${apiUrl}/public/rsvp/guest/${id}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.success && data.guest?.table_name) setAssignedTableName(data.guest.table_name);
+    } catch (err) {
+      console.error('Table fetch failed:', err);
+    }
+  };
+
+  /* ═══ Resolve returning-guest status on load ═══
+     Identity priority: ?g= token, else a remembered local id for this event.
+     The ?rsvp_id invitation flow is resolved inside the event fetch above. */
+  useEffect(() => {
+    if (!slug) return;
+    if (slug === 'demo' || slug === 'demo-wedding') { setStatusResolved(true); return; }
+
+    let cancelled = false;
+    async function resolve() {
+      let id = guestIdParam;
+      if (!id && !invitationRsvpId && typeof window !== 'undefined') {
+        try {
+          const raw = window.localStorage.getItem(storageKey);
+          if (raw) id = JSON.parse(raw)?.id || null;
+        } catch { /* ignore malformed storage */ }
+      }
+      if (id) await fetchGuestStatus(id);
+      if (!cancelled) setStatusResolved(true);
+    }
+    resolve();
+    return () => { cancelled = true; };
+    // fetchGuestStatus is stable for our purposes (only closes over setters).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, guestIdParam, invitationRsvpId]);
 
   /* ═══ Dynamic Font Loader ═══ */
   useEffect(() => {
@@ -352,7 +432,7 @@ function RSVPFormContent({ slug }) {
   }, [partySize]);
 
   /* ═══ Loading State ═══ */
-  if (loading) {
+  if (loading || !statusResolved) {
     return (
       <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <motion.div
@@ -408,6 +488,214 @@ function RSVPFormContent({ slug }) {
   const coverImage = event.cover_image_url;
   // The seating chart (table search + personal map) is hidden until 24h before the event.
   const seatingRevealed = isSeatingRevealed(event.event_date);
+
+  /* ════════════════════════════════════════════════════════════════
+      ALREADY REGISTERED — strict state-aware gate.
+      When the guest has already answered we hide the entire submission
+      form (no resubmits, no duplicate parties) and show a status card.
+      ════════════════════════════════════════════════════════════════ */
+  if (alreadyResponded) {
+    const resp = existingGuest?.response || attending;
+    const displayName = existingGuest?.guest_name || guestName;
+    const statusMeta = {
+      yes:   { color: '#1E9E6A', soft: 'rgba(30,158,106,0.10)', icon: '🎉', label: isRTL ? 'حضورك مؤكد' : "You're Attending" },
+      maybe: { color: '#6366f1', soft: 'rgba(99,102,241,0.10)', icon: '📅', label: isRTL ? 'حضور مبدئي' : 'Tentatively Attending' },
+      no:    { color: '#B8944F', soft: 'rgba(184,148,79,0.10)', icon: '💌', label: isRTL ? 'تم الاعتذار' : "You've Declined" },
+    }[resp] || { color: '#B8944F', soft: 'rgba(184,148,79,0.10)', icon: '✓', label: isRTL ? 'تم التسجيل' : 'Registered' };
+    const canShowSeating = resp === 'yes' && seatingRevealed && rsvpId;
+
+    return (
+      <div dir={isRTL ? 'rtl' : 'ltr'} style={{
+        minHeight: '100vh', background: '#F8F4EC',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '24px', fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
+      }}>
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          style={{
+            maxWidth: '540px', width: '100%', background: '#FFFFFF',
+            border: '1px solid #E8E2D6', borderRadius: '20px', overflow: 'hidden',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.06)',
+          }}
+        >
+          {/* Header (matches the form's card chrome) */}
+          <div style={{
+            background: coverImage
+              ? `linear-gradient(180deg, rgba(25,27,30,0.3) 0%, rgba(25,27,30,0.85) 100%), url(${coverImage}) center/cover`
+              : 'linear-gradient(135deg, #191B1E 0%, #2a2d32 100%)',
+            color: '#FFFFFF', padding: '36px 32px', textAlign: 'center', position: 'relative',
+            minHeight: coverImage ? '160px' : 'auto',
+            display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+          }}>
+            <div style={{ position: 'absolute', top: '14px', ...(isRTL ? { left: '14px' } : { right: '14px' }), display: 'flex', gap: '6px', zIndex: 2 }}>
+              {[{ code: 'en', label: 'EN' }, { code: 'ar', label: 'عربي' }].map(l => (
+                <motion.button
+                  key={l.code}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setLang(l.code)}
+                  style={{
+                    fontSize: '10px', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer',
+                    border: lang === l.code ? '1px solid #B8944F' : '1px solid rgba(255,255,255,0.2)',
+                    background: lang === l.code ? '#B8944F' : 'rgba(255,255,255,0.08)',
+                    color: lang === l.code ? '#191B1E' : 'rgba(255,255,255,0.7)',
+                    fontWeight: lang === l.code ? 700 : 400, fontFamily: 'var(--font-sans)',
+                    backdropFilter: 'blur(8px)', transition: 'all 0.2s',
+                  }}
+                >{l.label}</motion.button>
+              ))}
+            </div>
+            <span style={{
+              fontSize: '10px', textTransform: 'uppercase', letterSpacing: '4px',
+              color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '10px',
+            }}>
+              {t.rsvp_portal}
+            </span>
+            <h1 style={{
+              fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)',
+              fontSize: '22px', fontWeight: 400, letterSpacing: '0.5px', lineHeight: 1.3,
+            }}>
+              {localizedTitle}
+            </h1>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '22px', textAlign: 'center' }}>
+            <FadeInUp y={16}>
+              <motion.span
+                animate={{ scale: [1, 1.12, 1] }}
+                transition={{ duration: 0.8, delay: 0.3 }}
+                style={{ fontSize: '52px', display: 'block' }}
+              >
+                {statusMeta.icon}
+              </motion.span>
+            </FadeInUp>
+
+            <FadeInUp delay={0.1} y={12}>
+              <div>
+                <h2 style={{
+                  fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)',
+                  fontSize: '26px', fontWeight: 600, color: '#191B1E', marginBottom: '8px',
+                }}>
+                  {isRTL ? 'أنت مسجّل بالفعل' : 'You are already registered'}
+                </h2>
+                <p style={{ color: '#77736A', fontSize: '14px', lineHeight: 1.7, maxWidth: '380px', margin: '0 auto' }}>
+                  {isRTL
+                    ? `شكراً ${displayName}، لقد استلمنا ردك مسبقاً. لا حاجة للتسجيل مرة أخرى.`
+                    : `Thanks ${displayName}, we already have your response on file. No need to register again.`}
+                </p>
+              </div>
+            </FadeInUp>
+
+            {/* Status badge */}
+            <FadeInUp delay={0.2} y={10}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '8px', margin: '0 auto',
+                padding: '8px 18px', borderRadius: '999px', background: statusMeta.soft,
+                border: `1px solid ${statusMeta.color}33`,
+                color: statusMeta.color, fontWeight: 700, fontSize: '13px',
+              }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusMeta.color }} />
+                {statusMeta.label}
+                {resp === 'yes' && existingGuest?.party_size > 1 && (
+                  <span style={{ color: '#77736A', fontWeight: 600 }}>
+                    · {isRTL ? `${existingGuest.party_size} أشخاص` : `Party of ${existingGuest.party_size}`}
+                  </span>
+                )}
+              </span>
+            </FadeInUp>
+
+            {/* Table assignment (attending only) */}
+            {resp === 'yes' && (
+              <FadeInUp delay={0.3} y={10}>
+                {assignedTableName ? (
+                  <div style={{
+                    background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)',
+                    borderRadius: '14px', padding: '18px 24px',
+                  }}>
+                    <span style={{
+                      fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1.5px',
+                      color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '4px',
+                    }}>
+                      {isRTL ? 'طاولتك' : 'Your Table'}
+                    </span>
+                    <strong style={{ fontSize: '22px', color: '#B8944F', fontFamily: 'var(--font-serif)' }}>
+                      {assignedTableName}
+                    </strong>
+                  </div>
+                ) : (
+                  <p style={{
+                    fontSize: '13px', color: '#A09A91', fontStyle: 'italic',
+                    background: '#FAFAF8', border: '1px solid #F0ECE3', borderRadius: '12px', padding: '14px 18px',
+                  }}>
+                    {isRTL
+                      ? 'سيتم الإعلان عن رقم طاولتك قبل الحدث بفترة قصيرة.'
+                      : 'Your table number will be revealed closer to the celebration.'}
+                  </p>
+                )}
+              </FadeInUp>
+            )}
+
+            {/* Personal seating map (attending + revealed) */}
+            {canShowSeating && (
+              <FadeInUp delay={0.4} y={12}>
+                {seatingView ? (
+                  <SeatingResultPanel view={seatingView} loading={seatingLoading} isRTL={isRTL} onBack={() => setSeatingView(null)} />
+                ) : (
+                  <PremiumButton
+                    variant="outline"
+                    onClick={() => fetchSeatingMap(rsvpId)}
+                    loading={seatingLoading}
+                    icon="🗺️"
+                  >
+                    {isRTL ? 'اعرض مكان جلوسي على الخريطة' : 'View where I sit on the map'}
+                  </PremiumButton>
+                )}
+              </FadeInUp>
+            )}
+
+            {/* Calendar + Share (attending / maybe) */}
+            {(resp === 'yes' || resp === 'maybe') && (
+              <FadeInUp delay={0.5} y={10}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <CalendarButton event={event} isRTL={isRTL} />
+                  <ShareButton
+                    title={localizedTitle}
+                    text={isRTL ? `دعوة لحضور ${localizedTitle}` : `You're invited to ${localizedTitle}`}
+                    url={typeof window !== 'undefined' ? window.location.origin + '/' + slug : ''}
+                    isRTL={isRTL}
+                  />
+                </div>
+              </FadeInUp>
+            )}
+
+            {/* Change-of-mind note (form is intentionally hidden) */}
+            <FadeInUp delay={0.6} y={6}>
+              <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
+                <p style={{ fontSize: '12px', color: '#A09A91', lineHeight: 1.6, marginBottom: '14px' }}>
+                  {isRTL
+                    ? 'هل تحتاج إلى تعديل ردك؟ يُرجى التواصل مع المضيف مباشرةً.'
+                    : 'Need to change your response? Please reach out to your host directly.'}
+                </p>
+                <Link href={`/${slug}`} style={{
+                  color: '#B8944F', fontSize: '14px', fontWeight: 600,
+                  textDecoration: 'none', fontFamily: 'var(--font-sans)',
+                }}>
+                  {t.return_btn}
+                </Link>
+              </div>
+            </FadeInUp>
+          </div>
+        </motion.div>
+
+        <style jsx>{`
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        `}</style>
+      </div>
+    );
+  }
 
   // All custom form fields (including meal) are shown in step 4 as custom questions.
   // Meal is no longer hardcoded in step 3 — it only appears if the organizer configured it.
@@ -503,7 +791,33 @@ function RSVPFormContent({ slug }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error('Failed to submit RSVP.');
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        // The server enforces the same strict rule as the UI: a record that has
+        // already answered is locked (409 DUPLICATE_RSVP). Rather than alerting,
+        // fall through to the "already registered" card.
+        if (res.status === 409 || data.error === 'DUPLICATE_RSVP') {
+          setExistingGuest({ guest_name: guestName, response: attending, party_size: partySize });
+          if (attending) setAttending(attending);
+          setAlreadyResponded(true);
+          return;
+        }
+        throw new Error(data.message || 'Failed to submit RSVP.');
+      }
+
+      // Capture the canonical rsvp id (new INSERTs return a fresh one) so the QR
+      // code, seating-map button and table lookup all work for first-time guests.
+      const resolvedId = data.rsvpId || rsvpId;
+      if (resolvedId) {
+        setRsvpId(resolvedId);
+        // Remember this guest on this device so a reload shows the registered
+        // state instead of a blank form.
+        try { window.localStorage.setItem(storageKey, JSON.stringify({ id: resolvedId })); } catch { /* storage unavailable */ }
+        // Pull in the table assignment if seating has been revealed.
+        if (attending === 'yes') fetchAssignedTable(resolvedId);
+      }
+
       setSubmitResult('SUCCESS'); goToStep(5);
     } catch (err) { alert(err.message); } finally { setSubmitting(false); }
   };

@@ -1464,7 +1464,7 @@ const respondViaToken = async (req, res, next) => {
   try {
     const { data: rsvp, error: rsvpFetchError } = await supabase
       .from('rsvps')
-      .select('id, guest_name, email, party_size, events!inner(id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences)')
+      .select('id, guest_name, email, party_size, response, events!inner(id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences)')
       .eq('id', payload.rsvpId)
       .eq('event_id', payload.eventId)
       .single();
@@ -1477,6 +1477,22 @@ const respondViaToken = async (req, res, next) => {
     if (!event.is_paid || event.status !== 'active') {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
+
+    // Strict, state-aware lock: once a guest has answered (yes / no / maybe) the
+    // record is closed to further public responses — they must contact the
+    // organizer to change it. Mirrors the submit_rsvp() RPC guard so every public
+    // entry point (web form + one-click email) enforces the same rule. First
+    // responses for un-answered ('pending' / NULL) invitations still go through.
+    if (['yes', 'no', 'maybe'].includes(rsvp.response)) {
+      return res.status(409).json({
+        success: false,
+        error: 'ALREADY_RESPONDED',
+        response: rsvp.response,
+        guestName: rsvp.guest_name,
+        message: 'You have already responded to this invitation.',
+      });
+    }
+
     if (event.rsvp_deadline && new Date() > new Date(event.rsvp_deadline)) {
       return res.status(400).json({ success: false, error: 'DEADLINE_PASSED', message: 'The RSVP deadline for this event has passed.' });
     }
