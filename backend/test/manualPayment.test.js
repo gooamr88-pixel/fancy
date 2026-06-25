@@ -135,6 +135,7 @@ test('initiateManualPayment requires a tierName (400)', async () => {
 test('initiateManualPayment returns the existing pending record instead of creating a duplicate', async () => {
   mock.setResolver(({ table, op }) => {
     if (table === 'event_payments' && op === 'select') return { data: [{ id: 'pay-existing', reference_number: 'CASH-OLD', amount_cents: 7900 }] };
+    if (table === 'super_admin_config') return { data: { pricing_tiers: [{ name: 'Essential', price_cents: 7900 }] } };
     return {};
   });
   const { res } = await invoke(initiateManualPayment, mockReq({

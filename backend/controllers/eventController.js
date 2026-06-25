@@ -21,23 +21,46 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * Requires event_payments to be embedded on the event (the list/detail queries do).
  */
 async function withResolvedTier(event) {
-  if (!event || !event.is_paid || event.tier_name) return event;
+  if (!event || !event.is_paid) return event;
+
+  let tierName = event.tier_name || null;
+  let tierMaxGuests = event.tier_max_guests;
+
+  // If both tier_name and tier_max_guests are already fully resolved, return immediately.
+  if (tierName && tierMaxGuests !== null && tierMaxGuests !== undefined) {
+    return event;
+  }
+
   const payments = Array.isArray(event.event_payments) ? event.event_payments : [];
   const completed = payments.find(p => p && p.status === 'completed') || payments[0];
-  if (!completed) return event;
 
-  let tierName = completed.tier_name || null;
-  let tierMaxGuests = completed.tier_max_guests ?? null;
+  // If we don't have a tierName, try resolving from the completed payment
+  if (!tierName && completed) {
+    tierName = completed.tier_name || null;
+    tierMaxGuests = completed.tier_max_guests ?? null;
+  }
 
-  if (!tierName && completed.amount_cents != null) {
-    try {
-      const cfg = await getPlatformConfig();
-      const match = (cfg.pricing_tiers || []).find(t => Number(t.price_cents) === Number(completed.amount_cents));
-      if (match) {
-        tierName = match.name;
-        tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
-      }
-    } catch { /* config unavailable — leave the plan unresolved this time */ }
+  // If still unresolved or guest limit is missing/null, lookup from the platform configuration
+  if (!tierName || tierMaxGuests === null || tierMaxGuests === undefined) {
+    if ((completed && completed.amount_cents != null) || tierName) {
+      try {
+        const cfg = await getPlatformConfig();
+        const tiers = cfg.pricing_tiers || [];
+
+        if (tierName) {
+          const match = tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase());
+          if (match) {
+            tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
+          }
+        } else if (completed && completed.amount_cents != null) {
+          const match = tiers.find(t => Number(t.price_cents) === Number(completed.amount_cents));
+          if (match) {
+            tierName = match.name;
+            tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
+          }
+        }
+      } catch { /* config unavailable — leave the plan unresolved this time */ }
+    }
   }
 
   if (!tierName) return event;
