@@ -33,9 +33,9 @@ export const NAV_GROUPS = [
   {
     heading: 'Revenue',
     items: [
-      { key: 'payments', label: 'Payments', href: '/admin/payments', perm: 'payments.view', icon: '💳', ready: false },
-      { key: 'credits', label: 'Credits', href: '/admin/credits', perm: 'credits.view', icon: '🪙', ready: false },
-      { key: 'subscriptions', label: 'Subscriptions', href: '/admin/subscriptions', perm: 'subscriptions.view', icon: '📦', ready: false },
+      { key: 'payments', label: 'Payments', href: '/admin/payments', perm: 'payments.view', icon: '💳', ready: true },
+      { key: 'credits', label: 'Credits', href: '/admin/credits', perm: 'credits.view', icon: '🪙', ready: true },
+      { key: 'subscriptions', label: 'Subscriptions', href: '/admin/subscriptions', perm: 'subscriptions.view', icon: '📦', ready: true },
       { key: 'finance', label: 'Financial Center', href: '/admin/finance', perm: 'finance.view', icon: '💹', ready: true },
       { key: 'marketing', label: 'Marketing', href: '/admin/marketing', perm: 'marketing.view', icon: '📣', ready: false },
     ],

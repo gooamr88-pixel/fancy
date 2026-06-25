@@ -6,14 +6,17 @@
  * Phase machine:  closed → opening → open
  *   • closed   : an elegant sealed envelope, "Tap to open" (no event details shown).
  *   • opening  : the flap lifts (rotateX) and the inner card slides up out of the pocket.
- *   • open     : the invitation card presents essential details + a streamlined RSVP
- *                form (attendance toggle, party-size counter, mobile number).
+ *   • open     : the invitation card presents essential details + a single CTA into the
+ *                unified RSVP form (/[slug]/rsvp). The actual RSVP — including the
+ *                "already responded" lock and duplicate prevention — is owned by the
+ *                <RsvpExperience> engine on that page, so there is exactly ONE form.
  *
  * All motion is transform/opacity only (GPU-composited) on a fixed full-screen stage,
  * so there is zero layout shift and it stays buttery smooth on mobile.
  */
 
 import React, { useState, useCallback } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const SPRING = { type: 'spring', stiffness: 90, damping: 18 };
@@ -32,6 +35,38 @@ const SPARKLES = Array.from({ length: 12 }, (_, i) => ({
   dur: `${6 + rand(i + 5) * 6}s`,
 }));
 
+/* Build a maps deep-link to the venue. Prefers exact coordinates, falls back to
+   the venue name/address. Uses Apple Maps on iOS, Google Maps elsewhere. */
+function buildDirectionsUrl(event) {
+  const hasCoords = event?.location_lat != null && event?.location_lng != null;
+  const dest = hasCoords
+    ? `${event.location_lat},${event.location_lng}`
+    : encodeURIComponent([event?.location_name, event?.location_address].filter(Boolean).join(', '));
+  if (!dest) return null;
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  return isIOS ? `https://maps.apple.com/?daddr=${dest}` : `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+}
+
+/* Build the embeddable map URL. Uses the Google Maps Embed API when a key is
+   configured (works from either coordinates or a free-text address), otherwise
+   falls back to a keyless OpenStreetMap embed, which needs coordinates. */
+function buildMapEmbedSrc(event) {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const hasCoords = event?.location_lat != null && event?.location_lng != null;
+  const query = hasCoords
+    ? `${event.location_lat},${event.location_lng}`
+    : [event?.location_name, event?.location_address].filter(Boolean).join(', ');
+  if (!query) return null;
+  if (apiKey) {
+    return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(query)}&zoom=15`;
+  }
+  if (hasCoords) {
+    const { location_lat: lat, location_lng: lng } = event;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.008},${lat - 0.006},${lng + 0.008},${lat + 0.006}&layer=mapnik&marker=${lat},${lng}`;
+  }
+  return null;
+}
+
 export default function InvitationEnvelope({
   event,
   slug,
@@ -43,20 +78,24 @@ export default function InvitationEnvelope({
 }) {
   const [phase, setPhase] = useState('closed');
 
-  // ─── RSVP form state (pre-filled from the invitation token when present) ───
-  const [attending, setAttending] = useState(
-    guestRsvp?.response === 'yes' ? 'yes' : guestRsvp?.response === 'no' ? 'no' : null
-  );
-  const [guestName, setGuestName] = useState(guestRsvp?.guest_name || '');
-  const [phone, setPhone] = useState(guestRsvp?.phone || '');
-  const [email, setEmail] = useState(guestRsvp?.email || '');
-  const [partySize, setPartySize] = useState(guestRsvp?.party_size || 1);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [formError, setFormError] = useState('');
+  // If this guest already answered (known only when opened via an invitation token),
+  // the CTA reflects it and the destination form's engine shows the locked/edit card.
+  const respondedStatus = guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response)
+    ? guestRsvp.response
+    : null;
+  const STATUS_LABEL = {
+    yes: isRTL ? 'حاضر' : 'Attending',
+    maybe: isRTL ? 'ربما' : 'Tentative',
+    no: isRTL ? 'معتذر' : 'Declined',
+  };
 
   const initial = (event?.title || 'F').trim().charAt(0).toUpperCase();
-  const isDemo = slug === 'demo' || slug === 'demo-wedding';
+
+  // ─── Venue location / map ───
+  const hasLocation = !!(event?.location_name || event?.location_address ||
+    (event?.location_lat != null && event?.location_lng != null));
+  const mapEmbedSrc = buildMapEmbedSrc(event);
+  const directionsUrl = buildDirectionsUrl(event);
 
   const eventDate = event?.event_date ? new Date(event.event_date) : null;
   const dateLabel = eventDate
@@ -73,54 +112,12 @@ export default function InvitationEnvelope({
     setTimeout(() => setPhase('open'), 1100);
   }, [phase]);
 
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    setFormError('');
-    if (!attending) { setFormError(isRTL ? 'يرجى اختيار الحضور أولاً' : 'Please choose whether you can attend.'); return; }
-    if (!guestName.trim()) { setFormError(isRTL ? 'يرجى إدخال اسمك' : 'Please enter your name.'); return; }
-
-    setSubmitting(true);
-    try {
-      if (isDemo) {
-        await new Promise(r => setTimeout(r, 900));
-        setSubmitted(true);
-        return;
-      }
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-      const size = attending === 'yes' ? Math.max(1, parseInt(partySize) || 1) : 1;
-      // Streamlined quick-RSVP: generate placeholder names for extra seats so the
-      // backend party validation passes; guests can refine details on the full form.
-      const additionalGuests = attending === 'yes' && size > 1
-        ? Array.from({ length: size - 1 }, (_, i) => ({ fullName: `${guestName.trim()} · Guest ${i + 2}` }))
-        : [];
-
-      const res = await fetch(`${apiUrl}/public/events/${slug}/rsvp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rsvpId: guestRsvp?.id || null,
-          guestName: guestName.trim(),
-          email: email.trim() || undefined,
-          phone: phone.trim() || undefined,
-          response: attending,
-          partySize: size,
-          additionalGuests,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        // Graceful fallback: if the event needs richer detail (meals etc.), route to the full form.
-        throw new Error(data.message || 'Something went wrong submitting your RSVP.');
-      }
-      setSubmitted(true);
-    } catch (err) {
-      setFormError(err.message || 'Could not submit your RSVP. Please try the full form.');
-    } finally {
-      setSubmitting(false);
-    }
-  }, [attending, guestName, email, phone, partySize, slug, guestRsvp, isDemo, isRTL]);
-
-  const fullFormHref = `/${slug}/rsvp${guestRsvp?.id ? `?rsvp_id=${encodeURIComponent(guestRsvp.id)}` : ''}`;
+  // Destination = the ONE unified RSVP form. Carry the invitation token (so the
+  // engine resolves the right guest) and the language.
+  const rsvpParams = new URLSearchParams();
+  if (guestRsvp?.id) rsvpParams.set('rsvp_id', guestRsvp.id);
+  if (isRTL) rsvpParams.set('lang', 'ar');
+  const fullFormHref = `/${slug}/rsvp${rsvpParams.toString() ? `?${rsvpParams.toString()}` : ''}`;
 
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} style={{
@@ -280,122 +277,114 @@ export default function InvitationEnvelope({
                 WebkitOverflowScrolling: 'touch',
               }}
             >
-              {!submitted ? (
-                <>
-                  {/* Crest + essential details */}
-                  <div style={{ fontFamily: 'var(--font-script)', fontSize: 30, color: themeColor, lineHeight: 1 }}>{isRTL ? 'يسعدنا دعوتكم' : "You're Invited"}</div>
-                  <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 25, fontWeight: 600, color: '#191B1E', margin: '10px 0 4px', lineHeight: 1.2 }}>
-                    {event?.title}
-                  </h1>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '14px 0 18px' }}>
-                    <span style={{ height: 1, width: 26, background: `${themeColor}55` }} />
-                    <span style={{ fontSize: 16, color: themeColor }}>✦</span>
-                    <span style={{ height: 1, width: 26, background: `${themeColor}55` }} />
-                  </div>
+              {/* Crest + essential details */}
+              <div style={{ fontFamily: 'var(--font-script)', fontSize: 30, color: themeColor, lineHeight: 1 }}>{isRTL ? 'يسعدنا دعوتكم' : "You're Invited"}</div>
+              <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 25, fontWeight: 600, color: '#191B1E', margin: '10px 0 4px', lineHeight: 1.2 }}>
+                {event?.title}
+              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '14px 0 18px' }}>
+                <span style={{ height: 1, width: 26, background: `${themeColor}55` }} />
+                <span style={{ fontSize: 16, color: themeColor }}>✦</span>
+                <span style={{ height: 1, width: 26, background: `${themeColor}55` }} />
+              </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-                    {dateLabel && (
-                      <DetailRow icon="📅" label={isRTL ? 'التاريخ' : 'When'} value={`${dateLabel}${timeLabel ? ` · ${timeLabel}` : ''}`} />
-                    )}
-                    {event?.location_name && (
-                      <DetailRow icon="📍" label={isRTL ? 'المكان' : 'Where'} value={[event.location_name, event.location_address].filter(Boolean).join(' · ')} />
-                    )}
-                    {event?.dress_code && (
-                      <DetailRow icon="🎩" label={isRTL ? 'الزي' : 'Dress code'} value={event.dress_code} />
-                    )}
-                  </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
+                {dateLabel && (
+                  <DetailRow icon="📅" label={isRTL ? 'التاريخ' : 'When'} value={`${dateLabel}${timeLabel ? ` · ${timeLabel}` : ''}`} />
+                )}
+                {event?.location_name && (
+                  <DetailRow icon="📍" label={isRTL ? 'المكان' : 'Where'} value={[event.location_name, event.location_address].filter(Boolean).join(' · ')} />
+                )}
+                {event?.dress_code && (
+                  <DetailRow icon="🎩" label={isRTL ? 'الزي' : 'Dress code'} value={event.dress_code} />
+                )}
+              </div>
 
-                  {/* ─── Streamlined RSVP form ─── */}
-                  <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, textAlign: isRTL ? 'right' : 'left' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#9A9486', textAlign: 'center' }}>
-                      {isRTL ? 'هل ستنضم إلينا؟' : 'Will you join us?'}
-                    </div>
-
-                    {/* Attendance toggle */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                      <TogglePill active={attending === 'yes'} accent={themeColor} onClick={() => setAttending('yes')}>
-                        {isRTL ? 'بكل سرور' : 'Joyfully Accept'}
-                      </TogglePill>
-                      <TogglePill active={attending === 'no'} accent="#191B1E" onClick={() => setAttending('no')}>
-                        {isRTL ? 'نعتذر' : 'Regretfully Decline'}
-                      </TogglePill>
-                    </div>
-
-                    <FloatingField label={isRTL ? 'الاسم' : 'Full name'} value={guestName} onChange={setGuestName} accent={themeColor} placeholder={isRTL ? 'اسمك الكريم' : 'Your name'} />
-
-                    {/* Party size counter (attending only) */}
-                    <AnimatePresence initial={false}>
-                      {attending === 'yes' && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.25 }} style={{ overflow: 'hidden' }}
+              {/* ─── Venue map ─── */}
+              {hasLocation && (mapEmbedSrc || directionsUrl) && (
+                <div style={{ marginBottom: 22 }}>
+                  {mapEmbedSrc ? (
+                    <div style={{
+                      position: 'relative', borderRadius: 14, overflow: 'hidden',
+                      border: `1px solid ${themeColor}26`,
+                      boxShadow: '0 10px 26px -14px rgba(25,27,30,0.32)',
+                    }}>
+                      <iframe
+                        title={isRTL ? 'خريطة موقع الحدث' : 'Event location map'}
+                        src={mapEmbedSrc}
+                        width="100%" height="168"
+                        style={{ border: 0, display: 'block', filter: 'saturate(1.02)' }}
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                      {directionsUrl && (
+                        <a
+                          href={directionsUrl} target="_blank" rel="noopener noreferrer"
+                          style={{
+                            position: 'absolute', bottom: 10, [isRTL ? 'left' : 'right']: 10,
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '8px 13px', borderRadius: 10, textDecoration: 'none',
+                            background: '#FFFFFF', border: `1px solid ${themeColor}33`,
+                            color: themeColor, fontSize: 11.5, fontWeight: 700,
+                            boxShadow: '0 4px 12px -4px rgba(25,27,30,0.35)',
+                            WebkitTapHighlightColor: 'transparent',
+                          }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', border: '1px solid #E8E2D6', borderRadius: 12, background: '#FFFDF8' }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#191B1E' }}>{isRTL ? 'عدد الأفراد' : 'Party size'}</span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                              <Stepper sign="−" accent={themeColor} onClick={() => setPartySize(s => Math.max(1, (parseInt(s) || 1) - 1))} disabled={partySize <= 1} />
-                              <span style={{ minWidth: 20, textAlign: 'center', fontWeight: 700, fontSize: 16, color: '#191B1E' }}>{partySize}</span>
-                              <Stepper sign="+" accent={themeColor} onClick={() => setPartySize(s => Math.min(20, (parseInt(s) || 1) + 1))} disabled={partySize >= 20} />
-                            </div>
-                          </div>
-                        </motion.div>
+                          🧭 {isRTL ? 'الاتجاهات' : 'Directions'}
+                        </a>
                       )}
-                    </AnimatePresence>
-
-                    <FloatingField label={isRTL ? 'رقم الجوال' : 'Mobile number'} value={phone} onChange={setPhone} accent={themeColor} type="tel" placeholder="+1 (555) 000-0000" />
-
-                    {formError && (
-                      <div style={{ fontSize: 12.5, color: '#C0392B', textAlign: 'center', lineHeight: 1.5 }}>
-                        {formError}{' '}
-                        <a href={fullFormHref} style={{ color: themeColor, fontWeight: 700 }}>{isRTL ? 'النموذج الكامل' : 'Use full form'}</a>
-                      </div>
-                    )}
-
-                    <button type="submit" disabled={submitting} style={{
-                      marginTop: 2, height: 52, borderRadius: 14, border: 'none', cursor: submitting ? 'default' : 'pointer',
-                      background: attending === 'no' ? '#191B1E' : `linear-gradient(135deg, ${themeColor}, ${secondaryColor})`,
-                      color: '#FFFFFF', fontSize: 15, fontWeight: 700, letterSpacing: '0.02em',
-                      boxShadow: `0 10px 24px ${themeColor}44`, opacity: submitting ? 0.7 : 1,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      transition: 'opacity 0.2s',
-                    }}>
-                      {submitting ? (isRTL ? 'جارٍ الإرسال…' : 'Sending…') : (isRTL ? 'إرسال الرد' : 'Send RSVP')}
-                    </button>
-
-                    <button type="button" onClick={onEnter} style={{
-                      background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5,
-                      color: '#9A9486', fontWeight: 600, padding: 4,
-                    }}>
-                      {isRTL ? 'استعراض الدعوة كاملة ←' : 'Explore the full invitation →'}
-                    </button>
-                  </form>
-                </>
-              ) : (
-                /* ─── Success state ─── */
-                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={SPRING} style={{ padding: '20px 4px' }}>
-                  <motion.div
-                    initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ ...SPRING, delay: 0.1 }}
-                    style={{ width: 72, height: 72, borderRadius: '50%', margin: '0 auto 18px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${themeColor}14`, border: `2px solid ${themeColor}` }}
-                  >
-                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={themeColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
-                  </motion.div>
-                  <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 23, fontWeight: 600, color: '#191B1E', marginBottom: 8 }}>
-                    {attending === 'no' ? (isRTL ? 'شكرًا لإبلاغنا' : 'Thank you for letting us know') : (isRTL ? 'تم تأكيد حضورك!' : "You're on the list!")}
-                  </h2>
-                  <p style={{ fontSize: 13.5, color: '#77736A', lineHeight: 1.6, maxWidth: 300, margin: '0 auto 22px' }}>
-                    {attending === 'no'
-                      ? (isRTL ? 'سنفتقد وجودك. يمكنك تغيير ردك في أي وقت.' : "We'll miss you — you can change your response anytime.")
-                      : (isRTL ? 'لقد سجّلنا ردك بكل سرور. نراك قريبًا!' : "We've saved your response. We can't wait to celebrate with you!")}
-                  </p>
-                  <button onClick={onEnter} style={{
-                    height: 50, width: '100%', borderRadius: 14, border: 'none', cursor: 'pointer',
-                    background: `linear-gradient(135deg, ${themeColor}, ${secondaryColor})`, color: '#FFFFFF',
-                    fontSize: 14.5, fontWeight: 700, boxShadow: `0 10px 24px ${themeColor}44`,
-                  }}>
-                    {isRTL ? 'استعراض الدعوة كاملة' : 'Explore the full invitation'}
-                  </button>
-                </motion.div>
+                    </div>
+                  ) : (
+                    <a
+                      href={directionsUrl} target="_blank" rel="noopener noreferrer"
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        padding: '13px 16px', borderRadius: 12, textDecoration: 'none',
+                        background: `${themeColor}10`, border: `1px solid ${themeColor}2E`,
+                        color: themeColor, fontSize: 13, fontWeight: 700,
+                        WebkitTapHighlightColor: 'transparent',
+                      }}
+                    >
+                      🧭 {isRTL ? 'احصل على الاتجاهات' : 'Get Directions'}
+                    </a>
+                  )}
+                </div>
               )}
+
+              {/* ─── RSVP — a single CTA into the one unified form (/[slug]/rsvp). ─── */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {respondedStatus && (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    padding: '8px 14px', borderRadius: 999, alignSelf: 'center',
+                    background: `${themeColor}12`, border: `1px solid ${themeColor}33`,
+                    color: themeColor, fontSize: 12.5, fontWeight: 700,
+                  }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: themeColor }} />
+                    {isRTL ? 'تم تسجيل ردّك بالفعل' : "You've already responded"} · {STATUS_LABEL[respondedStatus]}
+                  </div>
+                )}
+
+                <Link href={fullFormHref} style={{
+                  height: 52, borderRadius: 14, textDecoration: 'none',
+                  background: `linear-gradient(135deg, ${themeColor}, ${secondaryColor})`,
+                  color: '#FFFFFF', fontSize: 15, fontWeight: 700, letterSpacing: '0.02em',
+                  boxShadow: `0 10px 24px ${themeColor}44`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  WebkitTapHighlightColor: 'transparent',
+                }}>
+                  {respondedStatus
+                    ? (isRTL ? 'عرض / تعديل ردّك' : 'View / update your RSVP')
+                    : (isRTL ? 'تأكيد الحضور' : 'RSVP')}
+                </Link>
+
+                <button type="button" onClick={onEnter} style={{
+                  background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5,
+                  color: '#9A9486', fontWeight: 600, padding: 4,
+                }}>
+                  {isRTL ? 'استعراض الدعوة كاملة ←' : 'Explore the full invitation →'}
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -420,51 +409,6 @@ function DetailRow({ icon, label, value }) {
         <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#9A9486', fontWeight: 700 }}>{label}</div>
         <div style={{ fontSize: 13.5, color: '#191B1E', fontWeight: 500, lineHeight: 1.4 }}>{value}</div>
       </div>
-    </div>
-  );
-}
-
-function TogglePill({ active, accent, onClick, children }) {
-  return (
-    <button type="button" onClick={onClick} style={{
-      padding: '13px 8px', borderRadius: 12, cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
-      border: active ? `2px solid ${accent}` : '1.5px solid #E8E2D6',
-      background: active ? `${accent}10` : '#FFFFFF', color: active ? accent : '#77736A',
-      transition: 'all 0.2s', WebkitTapHighlightColor: 'transparent',
-    }}>
-      {children}
-    </button>
-  );
-}
-
-function Stepper({ sign, accent, onClick, disabled }) {
-  return (
-    <button type="button" onClick={onClick} disabled={disabled} aria-label={sign === '+' ? 'increase' : 'decrease'} style={{
-      width: 32, height: 32, borderRadius: '50%', border: `1.5px solid ${disabled ? '#E8E2D6' : accent}`,
-      background: '#FFFFFF', color: disabled ? '#CFC9BC' : accent, fontSize: 18, fontWeight: 700,
-      cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      lineHeight: 1, WebkitTapHighlightColor: 'transparent',
-    }}>
-      {sign}
-    </button>
-  );
-}
-
-function FloatingField({ label, value, onChange, accent, type = 'text', placeholder }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <div>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#77736A', marginBottom: 5, letterSpacing: '0.02em' }}>{label}</label>
-      <input
-        type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-        style={{
-          width: '100%', boxSizing: 'border-box', height: 46, padding: '0 14px', borderRadius: 12,
-          border: `1.5px solid ${focused ? accent : '#E8E2D6'}`, outline: 'none',
-          fontSize: 16 /* ≥16px avoids iOS focus-zoom */, color: '#191B1E', background: '#FFFDF8',
-          boxShadow: focused ? `0 0 0 3px ${accent}1a` : 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
-        }}
-      />
     </div>
   );
 }

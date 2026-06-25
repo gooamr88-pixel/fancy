@@ -9,9 +9,15 @@ const { supabase } = require('../../config/supabase');
 /** GET /api/v1/admin/finance/summary?from=YYYY-MM-DD&to=YYYY-MM-DD */
 const getFinancialSummary = async (req, res, next) => {
   try {
-    // Default window: last 30 days.
-    const to = req.query.to ? new Date(req.query.to) : new Date();
-    const from = req.query.from ? new Date(req.query.from) : new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+    // Default window: last 30 days. Ignore unparseable query dates rather than
+    // letting `new Date('garbage').toISOString()` throw a RangeError → 500.
+    const parseDate = (raw, fallback) => {
+      if (!raw) return fallback;
+      const d = new Date(raw);
+      return Number.isNaN(d.getTime()) ? fallback : d;
+    };
+    const to = parseDate(req.query.to, new Date());
+    const from = parseDate(req.query.from, new Date(Date.now() - 29 * 24 * 60 * 60 * 1000));
     const fromStr = from.toISOString().slice(0, 10);
     const toStr = to.toISOString().slice(0, 10);
 
@@ -42,8 +48,12 @@ const getFinancialSummary = async (req, res, next) => {
     const platformProfitCents = Math.round((totals.netCents * commissionPct) / 100);
 
     // Simple linear forecast: average daily net over the window, projected 30 days.
-    const days = Math.max(1, series.length);
-    const avgDailyNet = totals.netCents / days;
+    // mv_daily_revenue only has a row for days that HAD a payment, so the average
+    // must divide by the number of calendar days in the window — not series.length
+    // (which only counts revenue days and would inflate the daily average/forecast).
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const windowDays = Math.max(1, Math.round((to - from) / MS_PER_DAY) + 1);
+    const avgDailyNet = totals.netCents / windowDays;
     const forecastNext30Cents = Math.round(avgDailyNet * 30);
 
     return res.json({

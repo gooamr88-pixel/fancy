@@ -1,7 +1,28 @@
 const crypto = require('crypto');
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-if (!STRIPE_SECRET_KEY) throw new Error('FATAL: STRIPE_SECRET_KEY environment variable is required');
-const stripe = require('stripe')(STRIPE_SECRET_KEY);
+const { stripeEnabled, smsEnabled } = require('../config/features');
+
+/**
+ * Lazy, boot-safe Stripe client. We MUST NOT construct Stripe (or throw) at module
+ * load: before go-live there may be no key, and card payments are disabled via
+ * PAYMENTS_STRIPE_ENABLED — the app still runs fully on the manual-payment path.
+ * Returns null when no key is configured.
+ */
+let _stripe = null;
+function getStripe() {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  _stripe = require('stripe')(key);
+  return _stripe;
+}
+
+/** Standard 503 when card payments are off — the UI falls back to manual payment. */
+const stripeDisabledResponse = (res) => res.status(503).json({
+  success: false,
+  error: 'STRIPE_DISABLED',
+  message: 'Card payments are temporarily unavailable. Please use manual / bank transfer.',
+});
+
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
@@ -66,6 +87,10 @@ const setOptionalColumns = async (table, match, fields) => {
  * POST /api/v1/payments/create-checkout
  */
 const createCheckoutSession = async (req, res, next) => {
+  // Card payments off (pre-live / no live keys) → tell the client to use manual.
+  if (!stripeEnabled()) return stripeDisabledResponse(res);
+  const stripe = getStripe();
+
   // SECURITY: the event is authorized by verifyEventOwner on the PATH param, so
   // the operation MUST key off the same identifier. Trusting req.body.eventId
   // (which ownership was never checked against) is an IDOR.
@@ -183,6 +208,10 @@ const createCheckoutSession = async (req, res, next) => {
  * POST /api/v1/payments/sms-credits
  */
 const purchaseSMSCredits = async (req, res, next) => {
+  // Credit top-ups are bought via Stripe Checkout — gated with card payments.
+  if (!stripeEnabled()) return stripeDisabledResponse(res);
+  const stripe = getStripe();
+
   // SECURITY: authorize and operate on the same (path) identifier — see note in
   // createCheckoutSession. req.body.eventId is ignored.
   const eventId = req.params.eventId;
@@ -286,6 +315,11 @@ const purchaseSMSCredits = async (req, res, next) => {
  * POST /api/v1/payments/webhook
  */
 const stripeWebhook = async (req, res, next) => {
+  // Card payments off → no Stripe events are expected; acknowledge and ignore so a
+  // stray delivery can never error. Re-enabling is just a flag + key flip.
+  if (!stripeEnabled()) return res.json({ received: true, skipped: 'stripe_disabled' });
+  const stripe = getStripe();
+
   const sig = req.headers['stripe-signature'];
   let stripeEvent;
 
@@ -333,6 +367,9 @@ const stripeWebhook = async (req, res, next) => {
  * GET /api/v1/payments/verify?session_id=cs_...
  */
 const verifyCheckoutSession = async (req, res, next) => {
+  if (!stripeEnabled()) return stripeDisabledResponse(res);
+  const stripe = getStripe();
+
   const sessionId = req.query.session_id;
   if (!sessionId || !/^cs_[A-Za-z0-9_]+$/.test(sessionId)) {
     return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'A valid session_id is required.' });
@@ -586,7 +623,10 @@ const getPricingConfig = async (req, res, next) => {
 
     return res.json({
       success: true,
-      config
+      config,
+      // Tells the dashboard which paid integrations are live right now, so the
+      // payment step can render manual-first and hide card / SMS-purchase CTAs.
+      features: { stripeEnabled: stripeEnabled(), smsEnabled: smsEnabled() },
     });
   } catch (err) {
     next(err);
@@ -790,7 +830,11 @@ const getPublicPricing = async (req, res, next) => {
     // this endpoint is hit by every anonymous landing-page visitor.
     res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
 
-    return res.json({ success: true, tiers: publicTiers });
+    return res.json({
+      success: true,
+      tiers: publicTiers,
+      features: { stripeEnabled: stripeEnabled(), smsEnabled: smsEnabled() },
+    });
   } catch (err) {
     next(err);
   }

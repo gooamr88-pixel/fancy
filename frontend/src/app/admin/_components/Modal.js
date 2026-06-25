@@ -11,7 +11,7 @@ export default function Modal({ open, title, onClose, children, footer, width = 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 100 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.66)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 100 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -50,14 +50,25 @@ export function Button({ onClick, children, variant = 'default', disabled, type 
 
 export function StatusBadge({ status }) {
   const map = {
+    // Lifecycle / health
     active: { bg: T.successSoft, fg: T.success },
     suspended: { bg: T.warningSoft, fg: T.warning },
     banned: { bg: T.dangerSoft, fg: T.danger },
+    // Payments
+    completed: { bg: T.successSoft, fg: T.success },
+    paid: { bg: T.successSoft, fg: T.success },
+    pending: { bg: T.warningSoft, fg: T.warning },
+    failed: { bg: T.dangerSoft, fg: T.danger },
+    refunded: { bg: T.surfaceAlt, fg: T.text500 },
+    // Subscriptions
+    trialing: { bg: T.primarySoft, fg: T.primary },
+    past_due: { bg: T.warningSoft, fg: T.warning },
+    canceled: { bg: T.dangerSoft, fg: T.danger },
   };
   const c = map[status] || { bg: T.surfaceAlt, fg: T.text500 };
   return (
     <span style={{ background: c.bg, color: c.fg, padding: '3px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: 'capitalize' }}>
-      {status}
+      {(status || '—').toString().replace(/_/g, ' ')}
     </span>
   );
 }

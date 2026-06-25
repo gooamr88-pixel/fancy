@@ -32,6 +32,9 @@ export default function CampaignsPage() {
   const [smsCreditsToBuy, setSmsCreditsToBuy] = useState(100);
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [smsRate, setSmsRate] = useState(8);
+  // Whether SMS credit top-ups (Stripe Checkout) are live. Default OFF until the
+  // server reports it — keeps the buy entry hidden in pre-live / manual mode.
+  const [smsEnabled, setSmsEnabled] = useState(false);
 
   const [authChecked, setAuthChecked] = useState(false);
   const [eventId, setEventId] = useState('');
@@ -95,6 +98,10 @@ export default function CampaignsPage() {
 
   const handleBuySMSCredits = async (e) => {
     e.preventDefault();
+    if (!smsEnabled) {
+      toast.error('SMS credit top-ups are temporarily unavailable.');
+      return;
+    }
     if (smsCreditsToBuy < 50) {
       toast.error('Minimum credit purchase count is 50.');
       return;
@@ -167,6 +174,7 @@ export default function CampaignsPage() {
       if (configData.success && configData.config) {
         setSmsRate(configData.config.sms_rate_cents_per_credit || 8);
       }
+      if (configData.features) setSmsEnabled(!!configData.features.smsEnabled);
       
       setError(null);
     } catch (err) {
@@ -403,14 +411,17 @@ export default function CampaignsPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
-          <button 
-            onClick={() => setShowSMSModal(true)}
-            style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', color: C.gold, fontFamily: 'var(--font-sans)' }}
-            onMouseEnter={e => { e.currentTarget.style.background = C.softBg; e.currentTarget.style.borderColor = C.gold; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.border; }}
-          >
-            Buy SMS Credits
-          </button>
+          {/* Credit top-ups go through Stripe — hidden while card payments are off. */}
+          {smsEnabled && (
+            <button
+              onClick={() => setShowSMSModal(true)}
+              style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', color: C.gold, fontFamily: 'var(--font-sans)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = C.softBg; e.currentTarget.style.borderColor = C.gold; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.border; }}
+            >
+              Buy SMS Credits
+            </button>
+          )}
           <button
             onClick={() => setShowLogoutModal(true)}
             aria-label="Sign out"

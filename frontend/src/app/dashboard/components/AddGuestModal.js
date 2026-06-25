@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { normalizeToE164 } from '../../utils/phone';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -32,6 +33,15 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.guest_name.trim()) { setError('Guest name is required.'); return; }
+    // Phone is required so the guest can receive SMS invitations; normalize to
+    // E.164 (US default) before sending.
+    const normalizedPhone = normalizeToE164(formData.phone);
+    if (!normalizedPhone) {
+      setError(formData.phone.trim()
+        ? 'Enter a valid phone number (e.g. +1 555 123 4567).'
+        : 'A phone number is required so this guest can receive SMS invitations.');
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -42,7 +52,7 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
         body: JSON.stringify({
           guestName: formData.guest_name.trim(),
           email: formData.email.trim() || undefined,
-          phone: formData.phone.trim() || undefined,
+          phone: normalizedPhone,
           partySize: parseInt(formData.party_size, 10),
           response: formData.response,
           notes: formData.notes.trim() || undefined,
@@ -137,9 +147,9 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
                 />
               </div>
               <div>
-                <label style={labelStyle}>Phone</label>
+                <label style={labelStyle}>Phone *</label>
                 <input value={formData.phone} onChange={handleChange('phone')} type="tel"
-                  placeholder="+1 (555) 000-0000" style={inputStyle}
+                  placeholder="+1 (555) 000-0000" required style={inputStyle}
                   onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
                   onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
                 />

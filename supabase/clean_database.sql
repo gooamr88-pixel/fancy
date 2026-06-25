@@ -71,18 +71,36 @@ TRUNCATE TABLE super_admin_config CASCADE;
 SET session_replication_role = 'origin';
 
 -- ─── Recreate materialized view ───
--- (The view definition from 20260619130000_overview_finance.sql)
+-- (Mirrors the corrected definition from 20260703000000_finance_rollup_fix.sql:
+--  gross counts money actually collected — completed OR refunded — so a full
+--  refund nets to 0 instead of going negative; refunded_cents covers both the
+--  admin and webhook refund paths plus legacy rows.)
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_revenue AS
 SELECT
-  date_trunc('day', ep.created_at)::date AS day,
-  COALESCE(SUM(ep.amount_cents) FILTER (WHERE ep.status = 'completed'), 0) AS gross_cents,
-  COALESCE(SUM(ep.refund_amount_cents) FILTER (WHERE ep.refund_amount_cents > 0), 0) AS refunded_cents,
-  COALESCE(SUM(ep.amount_cents) FILTER (WHERE ep.status = 'completed'), 0)
-    - COALESCE(SUM(ep.refund_amount_cents) FILTER (WHERE ep.refund_amount_cents > 0), 0) AS net_cents,
-  COUNT(*) FILTER (WHERE ep.status = 'completed') AS payment_count
+  date_trunc('day', COALESCE(ep.completed_at, ep.created_at))::date AS day,
+  COALESCE(SUM(ep.amount_cents) FILTER (WHERE ep.status IN ('completed', 'refunded')), 0) AS gross_cents,
+  COALESCE(SUM(
+    CASE
+      WHEN ep.refunded_at IS NOT NULL THEN COALESCE(ep.refund_amount_cents, 0)
+      WHEN ep.status = 'refunded'     THEN COALESCE(ep.refund_amount_cents, ep.amount_cents)
+      ELSE 0
+    END
+  ), 0) AS refunded_cents,
+  COALESCE(SUM(ep.amount_cents) FILTER (WHERE ep.status IN ('completed', 'refunded')), 0)
+    - COALESCE(SUM(
+        CASE
+          WHEN ep.refunded_at IS NOT NULL THEN COALESCE(ep.refund_amount_cents, 0)
+          WHEN ep.status = 'refunded'     THEN COALESCE(ep.refund_amount_cents, ep.amount_cents)
+          ELSE 0
+        END
+      ), 0) AS net_cents,
+  COUNT(*) FILTER (WHERE ep.status IN ('completed', 'refunded')) AS payment_count
 FROM event_payments ep
-GROUP BY 1
-ORDER BY 1 DESC;
+GROUP BY 1;
+
+-- Unique index on the grouping key is required for REFRESH ... CONCURRENTLY
+-- (used by the revenue-rollup refresher).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_daily_revenue_day ON mv_daily_revenue(day);
 
 -- Refresh (will be empty but ensures the view is queryable)
 REFRESH MATERIALIZED VIEW mv_daily_revenue;

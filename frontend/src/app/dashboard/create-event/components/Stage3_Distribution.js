@@ -17,7 +17,7 @@ export default function Stage3_Distribution({
   slug, distributionMethods, onMethodToggle,
   smsTemplate, setSmsTemplate,
   smsCredits, smsCreditsLoading, onRefreshCredits, onBuyCredits, buyingCredits, creditError,
-  onSubmit, onBack, submitting, error,
+  onSubmit, onBack, submitting, error, smsEnabled = true,
 }) {
   const [copied, setCopied] = useState(false);
   const [creditQty, setCreditQty] = useState(100);
@@ -296,6 +296,8 @@ export default function Stage3_Distribution({
                               </button>
                             </div>
 
+                            {smsEnabled ? (
+                            <>
                             {/* Pack selector */}
                             <div style={{ display: 'flex', gap: 6, marginTop: 14, flexWrap: 'wrap' }}>
                               {CREDIT_PACKS.map(p => {
@@ -341,6 +343,12 @@ export default function Stage3_Distribution({
                             <p style={{ fontSize: 10, color: C.stone, fontFamily: 'var(--font-sans)', margin: '8px 0 0', lineHeight: 1.5 }}>
                               {creditQty < 50 ? 'Minimum purchase is 50 credits.' : "Checkout opens in a new tab — finish there, then come back here and your balance updates automatically."}
                             </p>
+                            </>
+                            ) : (
+                              <p style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', margin: '14px 0 0', lineHeight: 1.6 }}>
+                                SMS credit top-ups are temporarily unavailable. Your current balance still works, and an admin can grant credits if needed.
+                              </p>
+                            )}
                             {creditError && (
                               <p style={{ fontSize: 11, color: C.error, fontFamily: 'var(--font-sans)', margin: '8px 0 0', fontWeight: 600 }}>⚠️ {creditError}</p>
                             )}

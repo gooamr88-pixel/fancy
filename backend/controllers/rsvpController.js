@@ -5,6 +5,7 @@ const { parseCSV, generateCSV } = require('../utils/csvHelper');
 const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate } = require('../utils/emailTemplates');
 const { verifyRsvpToken, mapIntentToResponse } = require('../utils/rsvpToken');
 const { isEventLiveForGuests } = require('../utils/eventAccess');
+const { normalizeToE164 } = require('../utils/phone');
 const { broadcast } = require('../utils/realtime');
 
 /** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
@@ -103,6 +104,17 @@ const submitPublicRSVP = async (req, res, next) => {
   // index). Without this, "John@x.com" and "john@x.com" slip past the dup guard.
   const normalizedEmail = email && email.trim() ? email.trim().toLowerCase() : null;
 
+  // Normalize phone to E.164 (US default). Validate when provided so we never
+  // store an unsendable number; an empty phone stays null.
+  const normalizedPhone = phone && String(phone).trim() ? normalizeToE164(phone) : null;
+  if (phone && String(phone).trim() && !normalizedPhone) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).'
+    });
+  }
+
   if (!guestName || !response) {
     return res.status(400).json({
       success: false,
@@ -153,7 +165,7 @@ const submitPublicRSVP = async (req, res, next) => {
       p_rsvp_id: rsvpId || null,
       p_guest_name: guestName,
       p_email: email || null,
-      p_phone: phone || null,
+      p_phone: normalizedPhone,
       p_response: response,
       p_party_size: partySize || 1,
       p_notes: notes || null,
@@ -673,7 +685,9 @@ const importGuestsCSV = async (req, res, next) => {
       // RSVP duplicate-detection lookups, and the partial unique index (which is
       // case-sensitive). Without this, "John@x.com" and "john@x.com" both slip in.
       email: row.email ? row.email.trim().toLowerCase() : null,
-      phone: row.phone || null,
+      // Normalize to E.164 (US default) so imported numbers are SMS-ready. An
+      // unparseable value is stored as null rather than blocking the import.
+      phone: normalizeToE164(row.phone),
       response: 'pending',
       party_size: parseInt(row.party_size) || 1,
       notes: row.notes || null
@@ -936,7 +950,19 @@ const updateRSVP = async (req, res, next) => {
     // Normalize email on write so it matches the duplicate-detection lookups
     // (which compare trimmed/lowercased) and the partial unique index.
     if (email !== undefined) updates.email = email ? email.trim().toLowerCase() : null;
-    if (phone !== undefined) updates.phone = phone;
+    // Normalize phone to E.164 (US default) on write. Blank clears it; a non-blank
+    // value that can't be normalized is rejected so we never store an unsendable number.
+    if (phone !== undefined) {
+      if (phone && String(phone).trim()) {
+        const normalizedPhone = normalizeToE164(phone);
+        if (!normalizedPhone) {
+          return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
+        }
+        updates.phone = normalizedPhone;
+      } else {
+        updates.phone = null;
+      }
+    }
     if (response !== undefined) {
       if (!['yes', 'no', 'maybe', 'pending'].includes(response)) {
         return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'response must be yes, no, maybe, or pending.' });
@@ -1053,6 +1079,19 @@ const addGuestManually = async (req, res, next) => {
     });
   }
 
+  // Phone is required for organizer-added guests so they're reachable by SMS,
+  // and stored in E.164 (US default) so Twilio can deliver without further work.
+  const normalizedPhone = normalizeToE164(phone);
+  if (!normalizedPhone) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: phone && String(phone).trim()
+        ? 'Enter a valid phone number in international format (e.g. +1 555 123 4567).'
+        : 'A phone number is required so this guest can receive SMS invitations.'
+    });
+  }
+
   try {
     // 1. Verify event exists
     const { data: event, error: eventError } = await supabase
@@ -1072,7 +1111,7 @@ const addGuestManually = async (req, res, next) => {
         event_id: eventId,
         guest_name: guestName.trim(),
         email: email ? email.trim().toLowerCase() : null,
-        phone: phone || null,
+        phone: normalizedPhone,
         response: guestResponse,
         party_size: computedPartySize,
         notes: notes || null
@@ -1323,7 +1362,11 @@ const sendEmailInvitations = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         error: 'EVENT_NOT_LIVE',
-        message: 'Invitations can only be sent once the event page is paid and active.'
+        currentStatus: event.status,
+        isPaid: !!event.is_paid,
+        message: !event.is_paid
+          ? "This event hasn't been paid for yet. Invitations can only be sent once your event is paid and live."
+          : `Your event isn't live yet — it's currently "${event.status}". Invitations can only be sent once it becomes active.`
       });
     }
 

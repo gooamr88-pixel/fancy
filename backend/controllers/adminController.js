@@ -283,7 +283,7 @@ const refundPayment = async (req, res, next) => {
   try {
     const { data: payment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, event_id, status, amount_cents, payment_method, stripe_payment_intent_id')
+      .select('id, event_id, status, amount_cents, refund_amount_cents, payment_method, stripe_payment_intent_id')
       .eq('id', paymentId)
       .single();
 

@@ -173,25 +173,43 @@ const handleChargeRefunded = async (charge) => {
   // 1. Event fee refund → revert activation.
   const { data: payment } = await supabase
     .from('event_payments')
-    .select('id, event_id, status')
+    .select('id, event_id, status, amount_cents')
     .eq('stripe_payment_intent_id', paymentIntentId)
     .maybeSingle();
 
   if (payment) {
+    // Already fully refunded → no-op (idempotent with the admin refund path).
     if (payment.status === 'refunded') return { ok: true, alreadyProcessed: true };
+
+    // Stripe reports the CUMULATIVE refunded amount on the charge. Record it so
+    // the books match whether the refund originated here (Stripe dashboard) or
+    // via the admin endpoint — and so the daily-revenue rollup is accurate. Only
+    // a FULL refund reverts the event to unpaid/paused; partials leave it live.
+    const fullAmount = payment.amount_cents || 0;
+    const refundedCumulative = Number.isInteger(charge.amount_refunded) ? charge.amount_refunded : fullAmount;
+    const isFullRefund = fullAmount === 0 || charge.refunded === true || refundedCumulative >= fullAmount;
+
+    const update = {
+      refund_amount_cents: refundedCumulative,
+      refunded_at: new Date().toISOString(),
+    };
+    if (isFullRefund) update.status = 'refunded';
+
     const { error: updErr } = await supabase
       .from('event_payments')
-      .update({ status: 'refunded' })
+      .update(update)
       .eq('id', payment.id);
     if (updErr) throw updErr;
 
-    const { error: evtErr } = await supabase
-      .from('events')
-      .update({ is_paid: false, status: 'paused', updated_at: new Date().toISOString() })
-      .eq('id', payment.event_id);
-    if (evtErr) throw evtErr;
+    if (isFullRefund) {
+      const { error: evtErr } = await supabase
+        .from('events')
+        .update({ is_paid: false, status: 'paused', updated_at: new Date().toISOString() })
+        .eq('id', payment.event_id);
+      if (evtErr) throw evtErr;
+    }
 
-    return { ok: true, type: 'event_fee', eventId: payment.event_id };
+    return { ok: true, type: 'event_fee', eventId: payment.event_id, fullRefund: isFullRefund };
   }
 
   // 2. SMS credit refund → deduct via ledger.

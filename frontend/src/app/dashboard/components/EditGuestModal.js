@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
+import { normalizeToE164 } from '../../utils/phone';
 
 /** Normalize legacy response values to the canonical set the backend accepts. */
 function normalizeResponse(response) {
@@ -60,6 +61,12 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.guest_name.trim()) { setError('Guest name is required.'); return; }
+    // Normalize phone to E.164 (US default) when provided; blank clears it.
+    let normalizedPhone = '';
+    if (formData.phone.trim()) {
+      normalizedPhone = normalizeToE164(formData.phone);
+      if (!normalizedPhone) { setError('Enter a valid phone number (e.g. +1 555 123 4567), or leave it blank.'); return; }
+    }
     setLoading(true);
     setError('');
     try {
@@ -70,7 +77,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
         body: JSON.stringify({
           guestName: formData.guest_name.trim(),
           email: formData.email.trim(),
-          phone: formData.phone.trim(),
+          phone: normalizedPhone,
           partySize: parseInt(formData.party_size, 10),
           response: formData.response,
           notes: formData.notes.trim(),

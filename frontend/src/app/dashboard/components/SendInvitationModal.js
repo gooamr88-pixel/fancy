@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 
 const COLORS = {
@@ -220,45 +221,59 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
     setSending(true);
     setResult(null);
     try {
+      let res, data;
       if (channel === 'email') {
         // Use the existing email invitation endpoint
-        const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/send-invitations`, {
+        res = await fetch(`${apiUrl}/events/${eventId}/rsvps/send-invitations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ rsvpIds: Array.from(selectedIds) }),
         });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send email invitations.');
+        data = await res.json();
+        if (!res.ok || !data.success) {
+          const err = new Error(data.message || 'Failed to send email invitations.');
+          err.code = data.error;
+          throw err;
+        }
         setResult({
           success: true, channel: 'email',
           sent: data.sentCount, failed: data.failedCount, skipped: data.skippedCount,
           message: data.message,
         });
       } else {
-        // Use the SMS campaign endpoint with selected guest IDs
-        const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/send-sms`, {
+        // Send SMS to the selected guests via the campaign endpoint. The backend
+        // keys custom sends off `guestIds` (rsvp ids) and only targets guests that
+        // have a phone number.
+        res = await fetch(`${apiUrl}/events/${eventId}/campaigns/send-sms`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
             messageTemplate: 'Hello {name}, you are invited to our event! RSVP now: {url}',
-            audiences: ['all'],
-            rsvpIds: Array.from(selectedIds),
+            guestIds: Array.from(selectedIds),
           }),
         });
-        const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send SMS invitations.');
-        setResult({
-          success: true, channel: 'sms',
-          sent: data.sentCount, failed: data.failedCount, skipped: data.skippedCount,
-          credits: data.creditsUsed,
-          message: data.message,
-        });
+        data = await res.json();
+        if (!res.ok || !data.success) {
+          const err = new Error(data.message || 'Failed to send SMS invitations.');
+          err.code = data.error;
+          throw err;
+        }
+        // Large campaigns are queued to the async worker (HTTP 202, async:true) and
+        // have no immediate counts — surface a "queued" state instead of "0 sent".
+        setResult(data.async
+          ? { success: true, channel: 'sms', queued: true, message: data.message || 'SMS campaign queued — messages are sending in the background.' }
+          : {
+              success: true, channel: 'sms',
+              sent: data.sentCount, failed: data.failedCount, skipped: data.skippedCount,
+              credits: data.creditsUsed,
+              message: data.message,
+            });
       }
       if (onSuccess) onSuccess();
     } catch (err) {
-      setResult({ success: false, message: err.message });
+      setResult({ success: false, message: err.message, code: err.code });
     } finally {
       setSending(false);
     }
@@ -345,7 +360,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
               </>
             ) : (
               <>
-                <strong style={{ color: COLORS.indigo }}>💬 SMS Invitations</strong> — Sends a text message with a unique RSVP link to each guest's phone. Uses your SMS credit balance. <em>Redirects to SMS Campaign Manager.</em>
+                <strong style={{ color: COLORS.indigo }}>💬 SMS Invitations</strong> — Sends a text message with a unique RSVP link to each selected guest who has a phone number. Uses your SMS credit balance. <em>For advanced options, use the <Link href="/dashboard/campaigns" style={{ color: COLORS.indigo, fontWeight: 700 }}>Campaign Manager</Link>.</em>
               </>
             )}
           </div>
@@ -430,27 +445,42 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         </div>
 
         {/* ═══ Result Banner ═══ */}
-        {result && (
-          <div style={{
-            margin: '0 28px 12px', padding: '12px 16px', borderRadius: '10px',
-            background: result.success ? 'rgba(59,155,109,0.06)' : 'rgba(196,94,94,0.06)',
-            border: `1px solid ${result.success ? 'rgba(59,155,109,0.2)' : 'rgba(196,94,94,0.2)'}`,
-            fontSize: '12px', fontFamily: 'var(--font-sans)', lineHeight: 1.6,
-            color: result.success ? COLORS.success : COLORS.error,
-          }}>
-            {result.success ? (
-              <>
-                <strong>{result.channel === 'email' ? '✓ Emails Sent' : '✓ SMS Sent'}</strong>
-                {' — '}{result.sent} sent
-                {result.failed > 0 && `, ${result.failed} failed`}
-                {result.skipped > 0 && `, ${result.skipped} skipped`}
-                {result.credits && ` · ${result.credits} credits used`}
-              </>
-            ) : (
-              <><strong>Error:</strong> {result.message}</>
-            )}
-          </div>
-        )}
+        {result && (() => {
+          // EVENT_NOT_LIVE isn't a failure to fix here — it's a precondition (the
+          // event must be paid + active first). Show it as an amber "heads-up"
+          // instead of a red error so the organizer knows it's expected.
+          const isNotLive = !result.success && result.code === 'EVENT_NOT_LIVE';
+          const tone = result.success
+            ? { bg: 'rgba(59,155,109,0.06)', bd: 'rgba(59,155,109,0.2)', fg: COLORS.success }
+            : isNotLive
+              ? { bg: 'rgba(184,148,79,0.08)', bd: 'rgba(184,148,79,0.28)', fg: '#8a6d2f' }
+              : { bg: 'rgba(196,94,94,0.06)', bd: 'rgba(196,94,94,0.2)', fg: COLORS.error };
+          return (
+            <div style={{
+              margin: '0 28px 12px', padding: '12px 16px', borderRadius: '10px',
+              background: tone.bg, border: `1px solid ${tone.bd}`,
+              fontSize: '12px', fontFamily: 'var(--font-sans)', lineHeight: 1.6, color: tone.fg,
+            }}>
+              {result.success ? (
+                result.queued ? (
+                  <><strong>✓ SMS Queued</strong> — {result.message}</>
+                ) : (
+                  <>
+                    <strong>{result.channel === 'email' ? '✓ Emails Sent' : '✓ SMS Sent'}</strong>
+                    {' — '}{result.sent} sent
+                    {result.failed > 0 && `, ${result.failed} failed`}
+                    {result.skipped > 0 && `, ${result.skipped} skipped`}
+                    {result.credits ? ` · ${result.credits} credits used` : ''}
+                  </>
+                )
+              ) : isNotLive ? (
+                <><strong>⏳ Event not live yet</strong> — {result.message}</>
+              ) : (
+                <><strong>Error:</strong> {result.message}</>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ═══ Footer / Action ═══ */}
         <div style={{
@@ -471,57 +501,45 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
               onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
             >Cancel</button>
 
-            {channel === 'sms' ? (
-              <a
-                href="/dashboard/campaigns"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  padding: '10px 22px', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
-                  background: 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)',
-                  color: COLORS.white, border: 'none', textDecoration: 'none',
-                  fontFamily: 'var(--font-sans)', cursor: 'pointer',
-                  boxShadow: '0 4px 14px rgba(99,102,241,0.3)',
-                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                </svg>
-                Open SMS Campaign Manager
-              </a>
-            ) : (
-              <button
-                onClick={handleSend}
-                disabled={selectedIds.size === 0 || sending}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '10px 22px', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
-                  background: selectedIds.size === 0 ? COLORS.border : 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
-                  color: COLORS.white, border: 'none', cursor: selectedIds.size === 0 || sending ? 'default' : 'pointer',
-                  fontFamily: 'var(--font-sans)', opacity: sending ? 0.7 : 1,
-                  boxShadow: selectedIds.size > 0 ? '0 4px 14px rgba(184,148,79,0.3)' : 'none',
-                  transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-              >
-                {sending ? (
-                  <>
-                    <span style={{
-                      width: '14px', height: '14px', border: `2px solid rgba(255,255,255,0.3)`,
-                      borderTopColor: COLORS.white, borderRadius: '50%',
-                      display: 'inline-block', animation: 'spin 0.8s linear infinite',
-                    }} />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-                    </svg>
-                    Send {selectedIds.size > 0 ? `${selectedIds.size} Email${selectedIds.size !== 1 ? 's' : ''}` : 'Emails'}
-                  </>
-                )}
-              </button>
-            )}
+            <button
+              onClick={handleSend}
+              disabled={selectedIds.size === 0 || sending}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '6px',
+                padding: '10px 22px', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
+                background: selectedIds.size === 0
+                  ? COLORS.border
+                  : channel === 'sms'
+                    ? 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)'
+                    : 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+                color: COLORS.white, border: 'none', cursor: selectedIds.size === 0 || sending ? 'default' : 'pointer',
+                fontFamily: 'var(--font-sans)', opacity: sending ? 0.7 : 1,
+                boxShadow: selectedIds.size > 0
+                  ? (channel === 'sms' ? '0 4px 14px rgba(99,102,241,0.3)' : '0 4px 14px rgba(184,148,79,0.3)')
+                  : 'none',
+                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+              }}
+            >
+              {sending ? (
+                <>
+                  <span style={{
+                    width: '14px', height: '14px', border: `2px solid rgba(255,255,255,0.3)`,
+                    borderTopColor: COLORS.white, borderRadius: '50%',
+                    display: 'inline-block', animation: 'spin 0.8s linear infinite',
+                  }} />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                  </svg>
+                  {channel === 'sms'
+                    ? `Send ${selectedIds.size > 0 ? `${selectedIds.size} SMS` : 'SMS'}`
+                    : `Send ${selectedIds.size > 0 ? `${selectedIds.size} Email${selectedIds.size !== 1 ? 's' : ''}` : 'Emails'}`}
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>

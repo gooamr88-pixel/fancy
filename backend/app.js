@@ -7,8 +7,14 @@ const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
 const { requireAuth, verifyEventOwner, requireSuperAdmin } = require('./middleware/auth');
 
-// Startup environment validation — fail fast if critical secrets are missing
-const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'GOOGLE_CLIENT_ID'];
+// Startup environment validation — fail fast if critical secrets are missing.
+const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GOOGLE_CLIENT_ID'];
+// Stripe secrets are required only when card payments are turned ON. Pre-live /
+// manual-only mode boots with no Stripe keys. Keyed off the operator's INTENT
+// (the flag) so enabling card payments without keys fails loudly instead of
+// silently staying disabled.
+const stripeIntended = /^(1|true|yes|on)$/i.test(String(process.env.PAYMENTS_STRIPE_ENABLED || '').trim());
+if (stripeIntended) REQUIRED_ENV.push('STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET');
 const missing = REQUIRED_ENV.filter(key => !process.env[key]);
 if (missing.length > 0) {
   logger.error(`FATAL: Missing required environment variables: ${missing.join(', ')}`);

@@ -143,6 +143,9 @@ export default function CreateEventWizard() {
   const [eventId, setEventId] = useState(null);
   const [pricingTiers, setPricingTiers] = useState([]);
   const [manualMethods, setManualMethods] = useState([]);
+  // Which paid integrations are live right now (server-driven). Default OFF so the
+  // UI is manual-first until the backend reports card/SMS are enabled.
+  const [features, setFeatures] = useState({ stripeEnabled: false, smsEnabled: false });
   const [selectedTierName, setSelectedTierName] = useState('');
   const [manualRef, setManualRef] = useState('');
   const [payProcessing, setPayProcessing] = useState(false);
@@ -368,6 +371,7 @@ export default function CreateEventWizard() {
           const firstBillable = data.config.pricing_tiers.find(t => t && t.is_custom !== true);
           if (firstBillable) setSelectedTierName(prev => prev || firstBillable.name);
           setManualMethods((data.config.manual_payment_methods || []).filter(m => m && m.is_active !== false));
+          if (data.features) setFeatures(data.features);
         }
       } catch { /* non-fatal — payment step shows a skip option */ }
     })();
@@ -923,6 +927,12 @@ export default function CreateEventWizard() {
 
   const handleBuyCredits = useCallback(async (creditCount) => {
     if (!eventId || buyingCredits) return;
+    // SMS credit top-ups run through Stripe Checkout — unavailable while card
+    // payments are off. Bail with a clear message instead of a failed redirect.
+    if (!features.smsEnabled) {
+      setCreditError('SMS credit top-ups are temporarily unavailable.');
+      return;
+    }
     setCreditError('');
     setBuyingCredits(true);
     try {
@@ -933,7 +943,7 @@ export default function CreateEventWizard() {
     } finally {
       setBuyingCredits(false);
     }
-  }, [apiUrl, eventId, buyingCredits]);
+  }, [apiUrl, eventId, buyingCredits, features.smsEnabled]);
 
   /* ═══ FINAL SUBMISSION ═══ */
   const handleSubmit = useCallback(async () => {
@@ -1115,6 +1125,7 @@ export default function CreateEventWizard() {
               isPaid={eventIsPaid}
               currentTierName={currentTierName}
               currentTierMaxGuests={currentTierMaxGuests}
+              stripeEnabled={features.stripeEnabled}
             />
           </motion.div>
         )}
@@ -1158,6 +1169,7 @@ export default function CreateEventWizard() {
               onBuyCredits={handleBuyCredits}
               buyingCredits={buyingCredits}
               creditError={creditError}
+              smsEnabled={features.smsEnabled}
               onSubmit={handleSubmit}
               onBack={goBack}
               submitting={submitting}

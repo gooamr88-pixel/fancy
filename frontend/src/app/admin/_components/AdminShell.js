@@ -39,7 +39,7 @@ export default function AdminShell({ children }) {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: T.bg }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: T.bg, colorScheme: 'dark' }}>
       <Sidebar can={can} open={sidebarOpen} onNavigate={() => {}} />
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
@@ -94,7 +94,7 @@ export default function AdminShell({ children }) {
 
 function Centered({ children }) {
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div style={{ minHeight: '100vh', background: T.bg, colorScheme: 'dark', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       {children}
     </div>
   );

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { translations } from '../../utils/translations';
+import { normalizeToE164 } from '../../utils/phone';
 import { useGuestAnalytics, useRsvpFunnelTracking, useAbandonmentTracking } from '../../utils/useGuestAnalytics';
 import { isSeatingRevealed } from '../../utils/seating';
 import SeatingMiniMap from './SeatingMiniMap';
@@ -360,6 +361,9 @@ export default function FullRsvpForm({ event, guest, context, submit: doSubmit, 
     const errors = {};
     if (!guestName.trim()) errors.guestName = 'Name is required';
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format';
+    // Phone is required so the host can reach the guest by SMS; normalize to E.164.
+    const normalizedPhone = normalizeToE164(phone);
+    if (!normalizedPhone) errors.phone = phone.trim() ? (t.phone_invalid || 'Enter a valid phone number') : (t.phone_required || 'Phone number is required');
     if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
     if (attending === 'yes') {
       const requiredFields = customQuestionFields.filter(f => f.is_required);
@@ -378,7 +382,7 @@ export default function FullRsvpForm({ event, guest, context, submit: doSubmit, 
     if (attending === 'no' && declineReason) enrichedNotes = `[Decline reason: ${declineReason}] ${enrichedNotes}`.trim();
 
     const body = {
-      rsvpId, guestName, email, phone, response: attending,
+      rsvpId, guestName, email, phone: normalizedPhone, response: attending,
       partySize: attending === 'yes' ? partySize : 1,
       notes: enrichedNotes, primaryGuestMeal: primaryMeal,
       additionalGuests: attending === 'yes' ? additionalGuests : [],
@@ -876,13 +880,13 @@ export default function FullRsvpForm({ event, guest, context, submit: doSubmit, 
                           onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)}
                         />
                       </FormField>
-                      <FormField label={t.phone_label}>
+                      <FormField label={t.phone_label} error={validationErrors.phone}>
                         <input
                           type="tel" value={phone}
                           onChange={e => setPhone(e.target.value)}
-                          placeholder="(555) 000-0000"
+                          placeholder="+1 (555) 000-0000"
                           style={S.inputBase}
-                          onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                          onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.phone)}
                         />
                       </FormField>
                     </div>

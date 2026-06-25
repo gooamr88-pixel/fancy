@@ -33,6 +33,15 @@ const server = app.listen(PORT, () => {
   } catch (err) {
     logger.warn({ err }, 'SMS campaign worker failed to start (non-fatal)');
   }
+
+  // Daily revenue rollup refresher — keeps mv_daily_revenue (Financial Command
+  // Center §22) current. On by default; single-leader + idempotent (see
+  // revenueRollup). Disable with REVENUE_ROLLUP_ENABLED=false.
+  try {
+    require('./services/revenueRollup').start();
+  } catch (err) {
+    logger.warn({ err }, 'Revenue rollup refresher failed to start (non-fatal)');
+  }
 });
 
 // Handle graceful shutdown
@@ -40,6 +49,7 @@ process.on('SIGTERM', () => {
   logger.info('SIGTERM signal received: closing HTTP server');
   try { require('./services/emailScheduler').stop(); } catch { /* ignore */ }
   try { require('./services/smsCampaignWorker').stop(); } catch { /* ignore */ }
+  try { require('./services/revenueRollup').stop(); } catch { /* ignore */ }
   server.close(() => {
     logger.info('HTTP server closed');
   });

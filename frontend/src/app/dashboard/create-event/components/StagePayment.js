@@ -37,9 +37,13 @@ export default function StagePayment({
   processing, error, onContinue, onBack, onSkip,
   paymentConfirmed = false, paymentNotice = '', verifying = false,
   isPaid = false, currentTierName = '', currentTierMaxGuests = null,
+  stripeEnabled = true,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
-  const [showManual, setShowManual] = useState(false);
+  // When card payments are off (pre-live), the manual-transfer panel IS the flow —
+  // open it straight away and don't offer a card path. All card UI stays in the
+  // code, gated behind stripeEnabled, ready to switch back on with live keys.
+  const [showManual, setShowManual] = useState(!stripeEnabled);
   const [chosenMethod, setChosenMethod] = useState('');
   const [payerRef, setPayerRef] = useState('');
   // When already paid, the plans stay locked on the current plan until the user
@@ -292,7 +296,7 @@ export default function StagePayment({
       {/* Payment method selection */}
       {!manualRef && !paymentConfirmed && !showCurrentPlan && (
         <>
-          {!showManual ? (
+          {(!showManual && stripeEnabled) ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
               <button
                 onClick={onPayStripe}
@@ -327,7 +331,9 @@ export default function StagePayment({
             <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: 22, boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: 0 }}>Pay by Manual Transfer</h3>
-                <button onClick={() => setShowManual(false)} style={{ background: 'none', border: 'none', color: C.stone, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}>← Other methods</button>
+                {stripeEnabled && (
+                  <button onClick={() => setShowManual(false)} style={{ background: 'none', border: 'none', color: C.stone, fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}>← Other methods</button>
+                )}
               </div>
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, margin: '0 0 14px', lineHeight: 1.6 }}>
                 Transfer the platform fee to one of the accounts below, then submit your proof. We&apos;ll verify and activate your event.

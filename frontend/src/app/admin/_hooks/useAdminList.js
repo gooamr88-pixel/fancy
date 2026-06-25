@@ -27,6 +27,9 @@ export function useAdminList(path, params, pick = (r) => r?.data || []) {
   useEffect(() => {
     let ignore = false;
     (async () => {
+      // Surface the loading state on every refetch (page change, search, reload),
+      // not just the first one — otherwise the table silently swaps rows.
+      setLoading(true);
       try {
         const res = await adminApi.get(path, params);
         if (!ignore) {

@@ -20,16 +20,18 @@ export default function OverviewPage() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    let ignore = false;
     (async () => {
       try {
         const res = await adminApi.get('/overview');
-        setOv(res?.overview || null);
+        if (!ignore) setOv(res?.overview || null);
       } catch (err) {
-        setError(err.message || 'Failed to load overview');
+        if (!ignore) setError(err.message || 'Failed to load overview');
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     })();
+    return () => { ignore = true; };
   }, []);
 
   if (loading) return <p style={{ color: T.text500 }}>Loading overview…</p>;
