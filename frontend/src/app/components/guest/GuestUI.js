@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -44,7 +44,8 @@ export function PremiumButton({
 }) {
   const variants = {
     gold: {
-      bg: '#B8944F', hoverBg: '#a6833f', color: '#FFFFFF',
+      // DES-1: contrast-safe CTA gold (white text = 4.86:1, passes AA).
+      bg: '#8A6D34', hoverBg: '#765C2B', color: '#FFFFFF',
       shadow: '0 8px 25px rgba(184, 148, 79, 0.3)',
       glow: '0 0 30px rgba(184, 148, 79, 0.2)',
     },
@@ -58,7 +59,8 @@ export function PremiumButton({
       shadow: 'none', glow: 'none', border: '2px solid #191B1E', hoverColor: '#FFFFFF',
     },
     ghost: {
-      bg: 'transparent', hoverBg: 'rgba(184, 148, 79, 0.08)', color: '#B8944F',
+      // DES-1: gold text on a light surface must use the contrast-safe gold.
+      bg: 'transparent', hoverBg: 'rgba(184, 148, 79, 0.08)', color: '#8A6D34',
       shadow: 'none', glow: 'none',
     },
   };
@@ -88,6 +90,7 @@ export function PremiumButton({
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
         padding: s.padding, fontSize: s.fontSize,
+        minHeight: '44px', // MOB-2: minimum touch target
         background: v.bg, color: v.color,
         border: v.border || 'none', borderRadius: '12px',
         fontWeight: 700, fontFamily: 'var(--font-sans)',
@@ -144,6 +147,8 @@ export function AttendanceCard({ type, selected, onClick, isRTL = false }) {
   return (
     <motion.button
       data-testid={`attendance-${type}`}
+      aria-pressed={isSelected}
+      aria-label={config.label}
       onClick={() => onClick(type)}
       whileHover={{ scale: 1.02, y: -4 }}
       whileTap={{ scale: 0.98 }}
@@ -488,11 +493,13 @@ export function PartySizeStepper({ value, onChange, min = 1, max = 20, label, is
         border: '1px solid #E8E2D6',
       }}>
         <motion.button
+          type="button"
+          aria-label={isRTL ? 'إنقاص عدد الأفراد' : 'Decrease party size'}
           whileTap={{ scale: 0.85 }}
           onClick={() => onChange(Math.max(min, value - 1))}
           disabled={value <= min}
           style={{
-            width: '40px', height: '40px', borderRadius: '12px',
+            width: '44px', height: '44px', borderRadius: '12px',
             border: '1px solid #E8E2D6', background: '#FFFFFF',
             fontSize: '20px', cursor: value <= min ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -520,11 +527,13 @@ export function PartySizeStepper({ value, onChange, min = 1, max = 20, label, is
           </span>
         </div>
         <motion.button
+          type="button"
+          aria-label={isRTL ? 'زيادة عدد الأفراد' : 'Increase party size'}
           whileTap={{ scale: 0.85 }}
           onClick={() => onChange(Math.min(max, value + 1))}
           disabled={value >= max}
           style={{
-            width: '40px', height: '40px', borderRadius: '12px',
+            width: '44px', height: '44px', borderRadius: '12px',
             border: '1px solid #E8E2D6', background: '#FFFFFF',
             fontSize: '20px', cursor: value >= max ? 'not-allowed' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -538,22 +547,40 @@ export function PartySizeStepper({ value, onChange, min = 1, max = 20, label, is
 
 // ─── FormField: Premium animated form field ───
 export function FormField({
-  label, required, error, children, style = {},
+  label, required, error, children, style = {}, htmlFor,
 }) {
+  // A11Y-3: associate the <label> with its control and wire the error message to
+  // the input via aria-describedby + role="alert" so screen readers announce both
+  // the field name and validation errors. A stable id is generated when the caller
+  // doesn't supply one, and injected into a single child element.
+  const autoId = useId();
+  const fieldId = htmlFor || autoId;
+  const errorId = `${fieldId}-error`;
+
+  const control = React.isValidElement(children)
+    ? React.cloneElement(children, {
+        id: children.props.id || fieldId,
+        'aria-invalid': error ? true : undefined,
+        'aria-describedby': error ? errorId : children.props['aria-describedby'],
+      })
+    : children;
+
   return (
     <div style={{ ...style }}>
       {label && (
-        <label style={{
+        <label htmlFor={fieldId} style={{
           fontSize: '12px', fontWeight: 600, color: '#77736A',
           display: 'block', marginBottom: '6px', fontFamily: 'var(--font-sans)',
         }}>
-          {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
+          {label} {required && <span style={{ color: '#ef4444' }} aria-hidden="true">*</span>}
         </label>
       )}
-      {children}
+      {control}
       <AnimatePresence>
         {error && (
           <motion.span
+            id={errorId}
+            role="alert"
             initial={{ opacity: 0, y: -4, height: 0 }}
             animate={{ opacity: 1, y: 0, height: 'auto' }}
             exit={{ opacity: 0, y: -4, height: 0 }}

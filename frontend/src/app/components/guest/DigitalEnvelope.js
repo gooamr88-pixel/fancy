@@ -50,6 +50,9 @@ export default function DigitalEnvelope({
   /* Drop the carved-medallion PNG here (transparent centre). Falls back to a
      fully CSS-generated bronze disc when absent. */
   sealImageUrl = null,
+  /* Optional glowing/gold variant cross-faded in on tap (defaults to the base
+     seal so a single asset still works). */
+  sealImageGoldUrl = null,
   /* The embossed arabesque background tile. Falls back to CSS gradients. */
   patternUrl = null,
   onOpen,
@@ -63,7 +66,9 @@ export default function DigitalEnvelope({
       typeof window !== 'undefined' &&
       window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    return () => timers.current.forEach(clearTimeout);
+    // Capture the stable timers array so cleanup clears exactly what we scheduled.
+    const scheduled = timers.current;
+    return () => scheduled.forEach(clearTimeout);
   }, []);
 
   const ignite = useCallback(() => {
@@ -246,7 +251,24 @@ export default function DigitalEnvelope({
                         inset 0 -10px 22px ${hexA(C.bronzeShadow, 0.55)}`,
           }} />
 
-          {/* Dynamic engraved calligraphy — cast into the metal */}
+          {/* Gold/glowing seal variant — cross-faded in on tap (image seals only) */}
+          {sealImageUrl && sealImageGoldUrl && sealImageGoldUrl !== sealImageUrl && (
+            <motion.div
+              aria-hidden
+              initial={false}
+              animate={{ opacity: lit ? 1 : 0 }}
+              transition={{ duration: 0.5 }}
+              style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                backgroundImage: `url(${sealImageGoldUrl})`, backgroundSize: 'cover', backgroundPosition: 'center',
+                willChange: 'opacity', pointerEvents: 'none',
+              }}
+            />
+          )}
+
+          {/* Dynamic engraved calligraphy — always cast into the metal, including
+              over a custom seal (organizer seals ship with a transparent centre
+              so our CSS engraves the guest's own name into them). */}
           <div style={{
             position: 'absolute', inset: 0, display: 'flex',
             alignItems: 'center', justifyContent: 'center', padding: '24%',

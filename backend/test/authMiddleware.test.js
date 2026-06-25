@@ -14,9 +14,11 @@ const { requireAuth, requireSuperAdmin, verifyEventOwner } = require('../middlew
 const rbac = require('../services/rbacService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
-// Tokens are signed WITHOUT a jti so requireAuth treats them as legacy-valid and
-// skips the sessions lookup — keeping these tests focused on the access gate.
-const tokenFor = (payload) => jwt.sign(payload, JWT_SECRET, { algorithm: 'HS256' });
+// SEC-6: every session must be server-side revocable, so requireAuth now requires a
+// jti and a live session row. These access-gate tests sign with a jti and mock a
+// live session (a revoked/forged/no-jti token is covered by the M1 tests below).
+const tokenFor = (payload) => jwt.sign({ jti: 'sess-1', ...payload }, JWT_SECRET, { algorithm: 'HS256' });
+const LIVE_SESSION = { revoked_at: null, expires_at: null };
 
 t.beforeEach(() => { mock.reset(); rbac.invalidateAll(); });
 
@@ -39,6 +41,7 @@ test('requireAuth rejects a token signed with the wrong secret (401 INVALID_TOKE
 
 test('requireAuth accepts a valid organizer token and populates req.user', async () => {
   mock.setResolver(({ table }) => {
+    if (table === 'sessions') return { data: LIVE_SESSION };
     if (table === 'organizations') return { data: { id: 'org-1', status: 'active' } };
     if (table === 'admin_users') return { data: null };
     return {};
@@ -54,6 +57,7 @@ test('requireAuth accepts a valid organizer token and populates req.user', async
 
 test('requireAuth rejects a token whose user no longer exists (401)', async () => {
   mock.setResolver(({ table }) => {
+    if (table === 'sessions') return { data: LIVE_SESSION };
     if (table === 'organizations') return { data: null };
     if (table === 'admin_users') return { data: null };
     return {};
@@ -66,6 +70,7 @@ test('requireAuth rejects a token whose user no longer exists (401)', async () =
 
 test('requireAuth denies a banned organizer (403 ACCOUNT_BANNED)', async () => {
   mock.setResolver(({ table }) => {
+    if (table === 'sessions') return { data: LIVE_SESSION };
     if (table === 'organizations') return { data: { id: 'org-1', status: 'banned' } };
     if (table === 'admin_users') return { data: null };
     return {};
@@ -78,6 +83,7 @@ test('requireAuth denies a banned organizer (403 ACCOUNT_BANNED)', async () => {
 
 test('requireAuth reads a Bearer token from the Authorization header (mobile/API clients)', async () => {
   mock.setResolver(({ table }) => {
+    if (table === 'sessions') return { data: LIVE_SESSION };
     if (table === 'organizations') return { data: { id: 'org-1', status: 'active' } };
     if (table === 'admin_users') return { data: null };
     return {};

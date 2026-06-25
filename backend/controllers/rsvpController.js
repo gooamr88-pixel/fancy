@@ -4,6 +4,7 @@ const notificationService = require('../utils/notificationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
 const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate } = require('../utils/emailTemplates');
 const { verifyRsvpToken, mapIntentToResponse } = require('../utils/rsvpToken');
+const { isEventLiveForGuests } = require('../utils/eventAccess');
 const { broadcast } = require('../utils/realtime');
 
 /** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
@@ -16,14 +17,20 @@ const RSVP_ERROR_STATUS = {
   EVENT_NOT_FOUND: 404,
   PAYMENT_REQUIRED: 402,
   EVENT_UNDER_REVIEW: 403,
+  EVENT_CLOSED: 403,
   DEADLINE_PASSED: 400,
   RSVP_NOT_FOUND: 404,
   RSVP_OWNERSHIP_FAILED: 403,
   DUPLICATE_RSVP: 409,
+  GUEST_LIMIT_REACHED: 409,
   VALIDATION_ERROR: 400,
   MEAL_REQUIRED: 400,
   MEAL_INVALID: 400,
 };
+
+/** Hard upper bounds for guest-supplied arrays (defence-in-depth; the RPC also caps). */
+const MAX_ADDITIONAL_GUESTS = 100;
+const MAX_CUSTOM_ANSWERS = 200;
 
 /** Guest-facing seating becomes visible only within this window before event start. */
 const SEATING_REVEAL_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -102,6 +109,16 @@ const submitPublicRSVP = async (req, res, next) => {
       error: 'VALIDATION_ERROR',
       message: 'guestName and response are required.'
     });
+  }
+
+  // Reject grossly oversized arrays before they reach the DB (RF-1). The RPC hard
+  // caps child-row inserts too, but failing fast here keeps oversized payloads off
+  // the hot path and out of the transaction.
+  if (Array.isArray(additionalGuests) && additionalGuests.length > MAX_ADDITIONAL_GUESTS) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Too many additional guests submitted.' });
+  }
+  if (Array.isArray(customAnswers) && customAnswers.length > MAX_CUSTOM_ANSWERS) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Too many custom answers submitted.' });
   }
 
   // Cheap, DB-free shape checks for early 400s. Meal-option validation needs the
@@ -271,8 +288,8 @@ const getGuestById = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'GUEST_NOT_FOUND' });
     }
 
-    // Only expose invitations for live (paid + active) event pages.
-    if (!rsvp.events.is_paid || rsvp.events.status !== 'active') {
+    // Only expose invitations for live event pages (shared predicate — INV-1).
+    if (!isEventLiveForGuests(rsvp.events)) {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
 
@@ -328,7 +345,7 @@ const searchPublicGuests = async (req, res, next) => {
     if (eventError || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
-    if (!event.is_paid || event.status !== 'active') {
+    if (!isEventLiveForGuests({ ...event, slug })) {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
 
@@ -1134,7 +1151,7 @@ const searchPublicSeating = async (req, res, next) => {
     if (eventError || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
-    if (!event.is_paid || event.status !== 'active') {
+    if (!isEventLiveForGuests({ ...event, slug })) {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
     // Seating is hidden from guests until 24h before the event begins.
@@ -1210,7 +1227,7 @@ const getGuestSeatingMap = async (req, res, next) => {
     if (eventError || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
-    if (!event.is_paid || event.status !== 'active') {
+    if (!isEventLiveForGuests({ ...event, slug })) {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
     // The seating chart stays hidden from guests until 24h before the event begins,
@@ -1406,7 +1423,7 @@ const getRsvpInvite = async (req, res, next) => {
     }
 
     const event = rsvp.events;
-    if (!event.is_paid || event.status !== 'active') {
+    if (!isEventLiveForGuests(event)) {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
 
@@ -1474,7 +1491,7 @@ const respondViaToken = async (req, res, next) => {
     }
 
     const event = rsvp.events;
-    if (!event.is_paid || event.status !== 'active') {
+    if (!isEventLiveForGuests(event)) {
       return res.status(404).json({ success: false, error: 'EVENT_INACTIVE' });
     }
 

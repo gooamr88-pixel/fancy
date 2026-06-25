@@ -12,6 +12,12 @@
   --warm-ivory: #F8F4EC;
   --soft-champagne: #D7BE80;
   --muted-stone: #5E5A52;
+  /* DES-1: a contrast-safe gold for FOREGROUND use (button fills, gold text on a
+     light surface). White text on #8A6D34 = 4.86:1 → passes WCAG AA. The lighter
+     --champagne-gold / --soft-champagne remain for DECORATIVE fills, borders and
+     shimmer only, where contrast rules don't apply. */
+  --gold-cta: #8A6D34;
+  --gold-cta-hover: #765C2B;
 
   /* Functional Tokens */
   --background: #FFFFFF;
@@ -184,8 +190,10 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* MOB-2: min 44px touch target. */
+  min-height: 44px;
   padding: 14px 36px;
-  background: var(--champagne-gold);
+  background: var(--gold-cta);
   color: #FFFFFF;
   font-family: var(--font-sans);
   font-weight: 700;
@@ -199,7 +207,7 @@ h3 {
 }
 
 .btn-gold:hover {
-  background: #a6833f;
+  background: var(--gold-cta-hover);
   transform: translateY(-1px);
   box-shadow: 0 8px 25px rgba(184, 148, 79, 0.3);
 }
@@ -403,3 +411,36 @@ h3 {
 .text-stone-850   { color: #221f1d; }
 .border-stone-150 { border-color: #ededec; }
 .border-gray-150  { border-color: #eceef1; }
+
+/* ─── A11Y-1: Visible keyboard focus ───
+   Inline-styled motion.buttons across the guest flow defined no focus indicator,
+   so keyboard users couldn't see where they were (WCAG 2.4.7). A single global
+   focus-visible ring fixes it everywhere; the decorative gold is fine for a ring. */
+:focus-visible {
+  outline: 2px solid var(--champagne-gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Don't show the ring for pointer/touch interactions, only keyboard. */
+:focus:not(:focus-visible) { outline: none; }
+
+/* ─── MOB-1: Safe-area for sticky/floating actions ───
+   The floating "RSVP Now" CTA and sticky form footers must clear the iPhone home
+   indicator. */
+.floating-cta,
+.guest-sticky-footer {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+/* ─── A11Y-4 / MOB-3: Respect reduced-motion globally ───
+   Individual components honor prefers-reduced-motion in JS, but global CSS keyframe
+   animations and smooth-scroll did not. Neutralize them for users who ask. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -7,7 +7,7 @@
  */
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
-const { buildGuestEventUrl } = require('../utils/emailTemplates');
+const { buildGuestRsvpUrl } = require('../utils/emailTemplates');
 const { computeSmsSegments, renderTemplate } = require('../utils/smsSegments');
 
 // GSM-7-safe separator (an em-dash forces UCS-2 → 70-char segments → triple cost).
@@ -92,7 +92,9 @@ async function getTableMap(eventId) {
 
 /** Personalize + measure one message (segments are computed on the FINAL body). */
 function personalize(template, { slug, guestName, rsvpId, tableName, eventTitle }) {
-  const url = buildGuestEventUrl(slug, rsvpId);
+  // INV-3: SMS taps land directly on the RSVP form (`/{slug}/rsvp?g={rsvpId}`) — no
+  // landing-page detour and no resolver redirect.
+  const url = buildGuestRsvpUrl(slug, rsvpId);
   const values = {
     name: guestName || 'Guest',
     url, rsvp_link: url,

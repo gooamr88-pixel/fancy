@@ -1,6 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
+
+/** Normalize legacy response values to the canonical set the backend accepts. */
+function normalizeResponse(response) {
+  if (!response) return 'pending';
+  if (isAccepted(response)) return 'yes';
+  if (isDeclined(response)) return 'no';
+  if (isMaybe(response)) return 'maybe';
+  return 'pending';
+}
+
+/** Strip the '-' placeholder the dashboard uses for missing contact info. */
+function cleanContact(val) {
+  if (!val || val === '-') return '';
+  return val;
+}
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -25,10 +41,10 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
     if (isOpen && rsvp) {
       setFormData({
         guest_name: rsvp.guest_name || '',
-        email: rsvp.email || '',
-        phone: rsvp.phone || '',
+        email: cleanContact(rsvp.email),
+        phone: cleanContact(rsvp.phone),
         party_size: rsvp.party_size || 1,
-        response: rsvp.response || 'pending',
+        response: normalizeResponse(rsvp.response),
         notes: rsvp.notes || '',
       });
       setError('');
@@ -169,8 +185,9 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
                 <label style={labelStyle}>Response</label>
                 <select value={formData.response} onChange={handleChange('response')} style={{ ...inputStyle, cursor: 'pointer' }}>
                   <option value="pending">⏳ Pending</option>
-                  <option value="yes">✓ Yes</option>
-                  <option value="no">✗ No</option>
+                  <option value="yes">✓ Accepted</option>
+                  <option value="maybe">❓ Maybe</option>
+                  <option value="no">✗ Declined</option>
                 </select>
               </div>
             </div>

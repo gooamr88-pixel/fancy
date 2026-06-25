@@ -38,6 +38,19 @@ const buildGuestEventUrl = (slug, rsvpId) => {
   return rsvpId ? `${base}?rsvp_id=${encodeURIComponent(rsvpId)}` : base;
 };
 
+/**
+ * Builds a guest's DIRECT RSVP-form link: `/{slug}/rsvp?g={rsvpId}` (INV-3).
+ *
+ * Used for SMS so a tap lands straight on the form — no landing-page detour and no
+ * `/events/rsvp/{id}` resolver redirect (that resolver remains only as a fallback for
+ * any links already in the wild). The form treats `g` as the per-guest unlock token,
+ * so this opens private events too (see the public RSVP page's event fetch).
+ */
+const buildGuestRsvpUrl = (slug, rsvpId) => {
+  const base = `${getPublicBaseUrl()}/${slug || ''}/rsvp`;
+  return rsvpId ? `${base}?g=${encodeURIComponent(rsvpId)}` : base;
+};
+
 /* ═══ Brand tokens ═══ */
 const BRAND = {
   gold: '#B8944F',
@@ -344,7 +357,7 @@ const getDeclineConfirmationTemplate = (rsvp, event) => {
 };
 
 /** Entry pass: QR ticket + table assignment. */
-const getQRTicketTemplate = (rsvp, event, tableName, qrDataURL) => {
+const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl) => {
   const partySize = rsvp.party_size || 1;
   return emailShell({
     preheader: `Your entry pass & table for ${event.title}`,
@@ -360,7 +373,7 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrDataURL) => {
           <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">Party of ${partySize}</div>
           <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:22px auto 0;">
             <tr><td style="background-color:${BRAND.white}; border:1px solid ${BRAND.border}; border-radius:14px; padding:14px;">
-              <img src="${qrDataURL}" alt="Check-in QR code" width="200" height="200" style="display:block; width:200px; height:200px;" />
+              <img src="${qrImageUrl}" alt="Check-in QR code" width="200" height="200" style="display:block; width:200px; height:200px;" />
             </td></tr>
           </table>
         </td></tr>
@@ -685,6 +698,7 @@ module.exports = {
   escapeHtml,
   getPublicBaseUrl,
   buildGuestEventUrl,
+  buildGuestRsvpUrl,
   formatEventDate,
   // RSVP lifecycle
   getInvitationTemplate,

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, memo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
+import FeatureGate from './FeatureGate';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -202,10 +203,9 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
 });
 
 /* ── Main Component ── */
-export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onSendInvitations }) {
+export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onOpenSendInvitations, isPaid, onUpgrade }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
-  const [inviting, setInviting] = useState(false);
 
   const counts = useMemo(() => {
     const total = rsvps.reduce((sum, r) => sum + (r.party_size || 1), 0);
@@ -244,13 +244,6 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
     });
   }, [rsvps, search, filter]);
 
-  const handleInvite = useCallback(async () => {
-    if (!onSendInvitations || inviting) return;
-    setInviting(true);
-    try { await onSendInvitations(); }
-    finally { setInviting(false); }
-  }, [onSendInvitations, inviting]);
-
   if (!eventId) {
     return (
       <div style={{ textAlign: 'center', padding: '64px 24px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '16px' }}>
@@ -278,6 +271,7 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
           <p style={{ fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Manage your event's guest list, seating, and preferences</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          <FeatureGate isPaid={isPaid} feature="add_guest" onUpgrade={onUpgrade}>
           <button onClick={onOpenAddGuest} style={{
             padding: '9px 18px', background: COLORS.gold, color: COLORS.white, border: 'none',
             borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
@@ -289,6 +283,8 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Guest
           </button>
+          </FeatureGate>
+          <FeatureGate isPaid={isPaid} feature="import_guests" onUpgrade={onUpgrade}>
           <button onClick={onOpenImport} style={{
             padding: '9px 18px', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
             borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
@@ -300,15 +296,20 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import CSV
           </button>
-          {onSendInvitations && (
-            <button onClick={handleInvite} disabled={inviting} title="Email an Accept / Decline / Maybe invitation to guests who haven't been invited yet" style={{
-              padding: '9px 18px', background: COLORS.charcoal, color: COLORS.white, border: 'none',
+          </FeatureGate>
+          {onOpenSendInvitations && (
+            <button onClick={onOpenSendInvitations} title="Send invitations via Email or SMS" style={{
+              padding: '9px 18px', background: 'linear-gradient(135deg, #191B1E 0%, #2d2f34 100%)', color: COLORS.white, border: 'none',
               borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-              cursor: inviting ? 'default' : 'pointer', opacity: inviting ? 0.7 : 1,
-              transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
-            }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-              {inviting ? 'Sending…' : 'Send Invitations'}
+              cursor: 'pointer',
+              transition: 'all 0.25s cubic-bezier(0.4,0,0.2,1)', display: 'flex', alignItems: 'center', gap: '6px',
+              boxShadow: '0 2px 10px rgba(25,27,30,0.18)',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(25,27,30,0.25)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(25,27,30,0.18)'; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+              Send Invitations
             </button>
           )}
         </div>

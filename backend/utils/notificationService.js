@@ -1,6 +1,6 @@
 const { supabase } = require('../config/supabase');
 const logger = require('./logger');
-const { generateTicketToken, generateQRCodeDataURL } = require('./qrHelper');
+const { generateTicketToken } = require('./qrHelper');
 const { generateRsvpToken } = require('./rsvpToken');
 const { getRSVPConfirmationTemplate, getQRTicketTemplate, getInvitationTemplate } = require('./emailTemplates');
 
@@ -85,6 +85,14 @@ const sendConfirmationEmail = async (eventId, rsvpId) => {
   return success;
 };
 
+/** Resolves the public backend origin (for hosted QR images in emails). */
+const getBackendBase = () => {
+  // Prefer an explicit env var; fall back to a sensible prod/dev default.
+  if (process.env.BACKEND_URL) return process.env.BACKEND_URL.replace(/\/$/, '');
+  const port = process.env.PORT || 5000;
+  return `http://localhost:${port}`;
+};
+
 /**
  * Generates and sends QR code ticket.
  * Internal service method that does not depend on req/res.
@@ -116,11 +124,14 @@ const sendQRTicketEmail = async (eventId, rsvpId) => {
     event_date: assignment.events.event_date
   });
 
-  // 3. Convert token to QR base64 image
-  const qrDataURL = await generateQRCodeDataURL(token);
+  // 3. Build a hosted QR image URL instead of a data URI.
+  //    Email clients (Gmail, Outlook, Yahoo) block data:image/… URIs for security.
+  //    The public GET /api/v1/public/qr/:token.png endpoint generates the PNG on
+  //    the fly from the same signed JWT, so the image is always reachable.
+  const qrImageUrl = `${getBackendBase()}/api/v1/public/qr/${encodeURIComponent(token)}.png`;
 
   // 4. Send email containing QR
-  const emailHtml = getQRTicketTemplate(assignment.rsvps, assignment.events, assignment.tables.table_name, qrDataURL);
+  const emailHtml = getQRTicketTemplate(assignment.rsvps, assignment.events, assignment.tables.table_name, qrImageUrl);
 
   if (!assignment.rsvps.email) {
     logger.info(`[Notification Service] Guest ${assignment.rsvps.guest_name} has no email configured. Skipping QR Ticket email.`);

@@ -278,12 +278,30 @@ function MiniStat({ label, value, color, delay, icon }) {
   );
 }
 
+/* ═══ Payment method icons ═══ */
+const METHOD_ICON = { bank: '🏦', wallet: '📱', instapay: '⚡', cash: '💵', paypal: '🅿️', other: '💳' };
+
+function PayCopyBtn({ value }) {
+  const [copied, setCopied] = useState(false);
+  if (!value) return null;
+  return (
+    <button type="button"
+      onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }}
+      style={{ border: `1px solid ${C.border}`, background: C.white, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: copied ? C.green : C.gold, cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>
+      {copied ? '✓ Copied' : 'Copy'}
+    </button>
+  );
+}
+
 /* ═══ Event Payment / Activation Panel ═══ */
 function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
   const [pricingTiers, setPricingTiers] = useState([]);
+  const [manualMethods, setManualMethods] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTier, setSelectedTier] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('stripe');
+  const [showManual, setShowManual] = useState(false);
+  const [chosenMethod, setChosenMethod] = useState('');
+  const [payerRef, setPayerRef] = useState('');
   const [pendingRef, setPendingRef] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -295,7 +313,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
 
   useEffect(() => {
     if (initialPendingPayment) {
-      setPendingRef(initialPendingPayment.stripe_checkout_session_id);
+      setPendingRef(initialPendingPayment.reference_number || initialPendingPayment.stripe_checkout_session_id);
     }
     const loadPricing = async () => {
       try {
@@ -303,6 +321,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
         if (res.success && res.config?.pricing_tiers) {
           const all = res.config.pricing_tiers;
           setPricingTiers(all);
+          setManualMethods((res.config.manual_payment_methods || []).filter(m => m && m.is_active !== false));
           // Default selection: first billable (and, in upgrade mode, strictly
           // higher-priced) tier — full price is charged for the new license.
           const billable = all.filter(t => t && t.is_custom !== true);
@@ -326,33 +345,45 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
     ? billableTiers.filter(t => t.price_cents > currentPrice)
     : billableTiers;
 
-  const handlePayment = async () => {
+  const handleStripePayment = async () => {
     if (!selectedTier) return;
     setProcessing(true);
     setError('');
-
     try {
-      if (paymentMethod === 'stripe') {
-        const res = await apiFetch(`/payments/events/${eventId}/create-checkout`, {
-          method: 'POST',
-          // Return to the Events section (not the creation wizard) — this event already exists.
-          body: JSON.stringify({ eventId, tierName: selectedTier.name, returnPath: '/dashboard' })
-        });
-        if (res.checkoutUrl) {
-          window.location.href = res.checkoutUrl;
-        } else {
-          throw new Error('No checkout URL returned.');
-        }
+      const res = await apiFetch(`/payments/events/${eventId}/create-checkout`, {
+        method: 'POST',
+        body: JSON.stringify({ eventId, tierName: selectedTier.name, returnPath: '/dashboard' })
+      });
+      if (res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
       } else {
-        const res = await apiFetch(`/payments/events/${eventId}/manual-payment`, {
-          method: 'POST',
-          body: JSON.stringify({ tierName: selectedTier.name })
-        });
-        if (res.success && res.referenceNumber) {
-          setPendingRef(res.referenceNumber);
-        } else {
-          throw new Error(res.message || 'Manual payment initiation failed.');
-        }
+        throw new Error('No checkout URL returned.');
+      }
+    } catch (e) {
+      setError(e.message || 'An error occurred during payment processing.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleManualPayment = async () => {
+    if (!selectedTier) return;
+    setProcessing(true);
+    setError('');
+    try {
+      const methodLabel = chosenMethod || (manualMethods[0]?.label || 'Manual Transfer');
+      const res = await apiFetch(`/payments/events/${eventId}/manual-payment`, {
+        method: 'POST',
+        body: JSON.stringify({
+          tierName: selectedTier.name,
+          methodLabel,
+          payerReference: payerRef.trim() || undefined,
+        })
+      });
+      if (res.success && res.referenceNumber) {
+        setPendingRef(res.referenceNumber);
+      } else {
+        throw new Error(res.message || 'Manual payment initiation failed.');
       }
     } catch (e) {
       setError(e.message || 'An error occurred during payment processing.');
@@ -438,40 +469,137 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
       </div>
       )}
 
-      <div>
-        <span style={{ fontSize: '11px', color: C.stone, fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>Payment Method</span>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.charcoal, cursor: 'pointer' }}>
-            <input type="radio" name="pay_method" checked={paymentMethod === 'stripe'} onChange={() => setPaymentMethod('stripe')} style={{ accentColor: C.gold }} />
-            💳 Credit/Debit Card (Stripe)
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.charcoal, cursor: 'pointer' }}>
-            <input type="radio" name="pay_method" checked={paymentMethod === 'cash'} onChange={() => setPaymentMethod('cash')} style={{ accentColor: C.gold }} />
-            💵 Offline Cash Transfer
-          </label>
-        </div>
-      </div>
-
       {error && (
         <div style={{ fontSize: '12px', color: '#C45E5E', background: '#FEF2F2', padding: '10px 14px', borderRadius: '8px', border: '1px solid #FECACA' }}>
           {error}
         </div>
       )}
 
-      <button onClick={handlePayment} disabled={processing || !selectedTier}
-        style={{
-          padding: '12px 24px', background: C.gold, color: '#FFFFFF', border: 'none', borderRadius: '8px',
-          fontWeight: 700, fontSize: '12px', cursor: processing ? 'default' : 'pointer',
-          transition: 'all 0.2s', opacity: processing ? 0.7 : 1, width: '220px', alignSelf: 'flex-start',
-        }}
-        onMouseEnter={e => { if (!processing) e.currentTarget.style.background = C.goldHover; }}
-        onMouseLeave={e => { if (!processing) e.currentTarget.style.background = C.gold; }}>
-        {processing
-          ? 'Processing...'
-          : isUpgrade
-            ? (paymentMethod === 'stripe' ? 'Pay & Upgrade Online' : 'Initiate Upgrade Transfer')
-            : (paymentMethod === 'stripe' ? 'Pay & Activate Online' : 'Initiate Offline Transfer')}
-      </button>
+      {!showManual ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <button onClick={handleStripePayment} disabled={processing || !selectedTier}
+            style={{
+              flex: '1 1 180px', height: 48,
+              background: (processing || !selectedTier) ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
+              color: '#FFFFFF', border: 'none', borderRadius: 12,
+              fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+              cursor: (processing || !selectedTier) ? 'not-allowed' : 'pointer',
+              boxShadow: (processing || !selectedTier) ? 'none' : '0 4px 16px rgba(184,148,79,0.28)',
+              transition: 'all 0.2s',
+            }}>
+            {processing ? 'Processing...' : (isUpgrade ? '💳 Pay & Upgrade with Card' : '💳 Pay with Card')}
+          </button>
+          <button onClick={() => setShowManual(true)} disabled={processing || !selectedTier}
+            style={{
+              flex: '1 1 180px', height: 48,
+              background: C.white, color: C.charcoal,
+              border: `1.5px solid ${C.charcoal}`, borderRadius: 12,
+              fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+              cursor: (processing || !selectedTier) ? 'not-allowed' : 'pointer',
+              opacity: (processing || !selectedTier) ? 0.5 : 1,
+              transition: 'all 0.2s',
+            }}>
+            🏦 Manual / Bank Transfer
+          </button>
+        </div>
+      ) : (
+        <div style={{ background: C.white, border: `1.5px solid ${C.border}`, borderRadius: 14, padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 600, color: C.charcoal, margin: 0 }}>Pay by Manual Transfer</h4>
+            <button onClick={() => setShowManual(false)} style={{ background: 'none', border: 'none', color: C.stone, fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}>← Other methods</button>
+          </div>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: '0 0 14px', lineHeight: 1.6 }}>
+            Transfer the platform fee to one of the accounts below, then submit your proof. We&apos;ll verify and activate your event.
+          </p>
+
+          {selectedTier && (
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+              background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)',
+              borderRadius: 10, padding: '10px 14px', marginBottom: 16,
+            }}>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.charcoal, fontWeight: 600 }}>
+                {isUpgrade ? 'Upgrading to ' : 'Activating '}<strong>{selectedTier.name}</strong>
+                {selectedTier.max_guests > 0 ? ` · up to ${selectedTier.max_guests} guests` : ' · unlimited guests'}
+              </span>
+              <span style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 700, color: C.gold }}>${(selectedTier.price_cents / 100).toFixed(2)}</span>
+            </div>
+          )}
+
+          {manualMethods.length === 0 ? (
+            <div style={{ background: C.softBg, border: `1px dashed ${C.border}`, borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0 }}>
+                No payment accounts are published yet. You can still generate a reference code and our team will share transfer details with you.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+              {manualMethods.map((m, i) => {
+                const sel = (chosenMethod || manualMethods[0]?.label) === m.label;
+                return (
+                  <div key={m.id || i} onClick={() => setChosenMethod(m.label)}
+                    style={{
+                      border: sel ? `2px solid ${C.gold}` : `1.5px solid ${C.border}`,
+                      background: sel ? 'rgba(184,148,79,0.05)' : C.white,
+                      borderRadius: 12, padding: 14, cursor: 'pointer', transition: 'all 0.2s',
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: (m.details || m.instructions) ? 10 : 0 }}>
+                      <span style={{ fontSize: 18 }}>{METHOD_ICON[m.type] || METHOD_ICON.other}</span>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, color: C.charcoal, flex: 1 }}>{m.label}</span>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: '50%',
+                        border: sel ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
+                        background: sel ? C.gold : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {sel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                    </div>
+                    {m.details && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: C.softBg, borderRadius: 8, padding: '8px 12px', marginBottom: m.instructions ? 8 : 0 }}>
+                        <code style={{ fontFamily: 'monospace', fontSize: 12, color: C.charcoal, fontWeight: 600, flex: 1, wordBreak: 'break-all' }}>{m.details}</code>
+                        <PayCopyBtn value={m.details} />
+                      </div>
+                    )}
+                    {m.instructions && (
+                      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, margin: 0, lineHeight: 1.5 }}>ℹ️ {m.instructions}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>
+              Your Transfer Reference (optional)
+            </label>
+            <input type="text" value={payerRef} onChange={e => setPayerRef(e.target.value)}
+              placeholder="e.g. transaction ID, sender name"
+              style={{
+                width: '100%', padding: '10px 14px', border: `1.5px solid ${C.border}`, borderRadius: 10,
+                fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal,
+                outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box',
+              }}
+              onFocus={e => { e.target.style.borderColor = C.gold; }}
+              onBlur={e => { e.target.style.borderColor = C.border; }}
+            />
+          </div>
+
+          <button onClick={handleManualPayment} disabled={processing || !selectedTier}
+            style={{
+              width: '100%', height: 44,
+              background: (processing || !selectedTier) ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
+              color: '#FFFFFF', border: 'none', borderRadius: 10,
+              fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+              cursor: (processing || !selectedTier) ? 'not-allowed' : 'pointer',
+              boxShadow: (processing || !selectedTier) ? 'none' : '0 3px 14px rgba(184,148,79,0.25)',
+              transition: 'all 0.2s',
+            }}>
+            {processing ? 'Processing...' : (isUpgrade ? 'Submit Upgrade Transfer' : 'Submit Transfer Request')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -479,8 +607,39 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
 /* ═══ Current Plan + Upgrade (paid events) ═══ */
 function CurrentPlanBlock({ eventId, event }) {
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [hasUpgrades, setHasUpgrades] = useState(null);
   const planName = event.tier_name || 'Active Plan';
   const maxGuests = event.tier_max_guests;
+
+  // Check whether higher tiers exist so we can hide the "Upgrade" button at the ceiling.
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await apiFetch('/payments/pricing-config');
+        if (res.success && res.config?.pricing_tiers) {
+          const all = res.config.pricing_tiers;
+          const curTier = all.find(t => t.name === event.tier_name);
+          // Custom / enterprise tiers are the ceiling — no upgrades available.
+          if (curTier?.is_custom) { setHasUpgrades(false); return; }
+          const billable = all.filter(t => t && t.is_custom !== true);
+          const curPrice = curTier?.price_cents ?? null;
+          const higher = (curPrice != null) ? billable.filter(t => t.price_cents > curPrice) : [];
+          setHasUpgrades(higher.length > 0);
+        } else {
+          setHasUpgrades(false);
+        }
+      } catch {
+        setHasUpgrades(false);
+      }
+    };
+    if (event.tier_name) check();
+    else setHasUpgrades(true);
+  }, [event.tier_name]);
+
+  // Manual payment receipt data for approved cash payments.
+  const manualPayment = (event.event_payments || []).find(
+    p => p.payment_method === 'cash_manual' && p.status === 'completed'
+  );
 
   return (
     <div style={{
@@ -503,17 +662,52 @@ function CurrentPlanBlock({ eventId, event }) {
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4A7C59' }} /> Active
           </span>
-          <button onClick={() => setShowUpgrade(s => !s)} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: 'none',
-            background: showUpgrade ? C.white : 'linear-gradient(135deg, #B8944F, #D7BE80)',
-            color: showUpgrade ? C.stone : C.white, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700,
-            cursor: 'pointer', boxShadow: showUpgrade ? 'none' : '0 3px 12px rgba(184,148,79,0.28)',
-            ...(showUpgrade ? { border: `1px solid ${C.border}` } : {}),
-          }}>
-            {showUpgrade ? 'Close' : (<><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>Upgrade Plan</>)}
-          </button>
+          {hasUpgrades === true && (
+            <button onClick={() => setShowUpgrade(s => !s)} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 9, border: 'none',
+              background: showUpgrade ? C.white : 'linear-gradient(135deg, #B8944F, #D7BE80)',
+              color: showUpgrade ? C.stone : C.white, fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', boxShadow: showUpgrade ? 'none' : '0 3px 12px rgba(184,148,79,0.28)',
+              ...(showUpgrade ? { border: `1px solid ${C.border}` } : {}),
+            }}>
+              {showUpgrade ? 'Close' : (<><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>Upgrade Plan</>)}
+            </button>
+          )}
+          {hasUpgrades === false && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 100,
+              background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.18)',
+              fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em',
+            }}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg>
+              Max Plan
+            </span>
+          )}
         </div>
       </div>
+      {/* Manual payment receipt */}
+      {manualPayment && (
+        <div style={{ marginTop: 14, padding: '14px 16px', background: '#FAFAF8', border: `1px solid ${C.border}`, borderRadius: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: 'var(--font-sans)' }}>
+            💵 Manual Payment Receipt
+          </div>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 12, fontFamily: 'var(--font-sans)', color: C.charcoal }}>
+            {manualPayment.reference_number && (
+              <div><span style={{ color: C.stone }}>Ref: </span><strong>{manualPayment.reference_number}</strong></div>
+            )}
+            {manualPayment.amount_cents != null && (
+              <div><span style={{ color: C.stone }}>Amount: </span><strong>${(manualPayment.amount_cents / 100).toFixed(2)}</strong></div>
+            )}
+            {manualPayment.manual_method && (
+              <div><span style={{ color: C.stone }}>Method: </span>{manualPayment.manual_method}</div>
+            )}
+            {manualPayment.completed_at && (
+              <div><span style={{ color: C.stone }}>Approved: </span>{new Date(manualPayment.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {showUpgrade && (
         <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${C.border}` }}>
           <EventPaymentPanel eventId={eventId} event={event} upgradeFromTier={event.tier_name || null} />

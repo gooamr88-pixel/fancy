@@ -1,5 +1,6 @@
 const express = require('express');
 const rsvpController = require('../controllers/rsvpController');
+const { requirePaidEvent } = require('../middleware/featureGate');
 
 const router = express.Router({ mergeParams: true });
 
@@ -16,10 +17,10 @@ router.param('rsvpId', (req, res, next, value) => {
 router.get('/', rsvpController.getRSVPs);
 
 // Route to manually add a guest (organizer)
-router.post('/', rsvpController.addGuestManually);
+router.post('/', requirePaidEvent('add_guest'), rsvpController.addGuestManually);
 
 // Route to import guests via CSV upload
-router.post('/import', rsvpController.importGuestsCSV);
+router.post('/import', requirePaidEvent('import_guests'), rsvpController.importGuestsCSV);
 
 // Route to bulk-send email invitations (Accept/Decline/Maybe buttons)
 router.post('/send-invitations', rsvpController.sendEmailInvitations);

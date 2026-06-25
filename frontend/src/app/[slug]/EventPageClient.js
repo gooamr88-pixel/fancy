@@ -219,6 +219,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         if (res.status === 401 && data.requiresPassword) { setPasswordRequired(true); setLoading(false); return; }
         if (res.status === 403 && data.error === 'EVENT_UNDER_REVIEW') { setUnderReview(true); setLoading(false); return; }
         if (res.status === 403 && data.error === 'EVENT_PRIVATE') { setIsPrivate(true); setLoading(false); return; }
+        // INV-1: a paused/completed ("closed") event — distinct from not-found.
+        if (res.status === 403 && data.error === 'EVENT_CLOSED') { setError('EVENT_CLOSED'); setLoading(false); return; }
         throw new Error('EVENT_NOT_FOUND');
       }
       const data = await res.json();
@@ -336,6 +338,23 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>💳</motion.span>
               <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#B8944F', marginTop: '12px' }}>Event Unpaid</h1>
               <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>This Fancy RSVP event page is currently offline pending license activation.</p>
+            </GlassmorphismCard>
+          </ScaleIn>
+        </div>
+      </PageTransition>
+    );
+  }
+
+  // ─── EVENT CLOSED (paused / completed) ───
+  if (error === 'EVENT_CLOSED') {
+    return (
+      <PageTransition>
+        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+          <ScaleIn>
+            <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
+              <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>🕊️</motion.span>
+              <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#B8944F', marginTop: '12px' }}>This Event Has Closed</h1>
+              <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>RSVPs for this event are no longer being accepted. Please reach out to the host directly with any questions.</p>
             </GlassmorphismCard>
           </ScaleIn>
         </div>

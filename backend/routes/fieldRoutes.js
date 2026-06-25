@@ -1,5 +1,6 @@
 const express = require('express');
 const { getFields, saveField, updateField, deleteField } = require('../controllers/fieldController');
+const { requirePaidEvent } = require('../middleware/featureGate');
 
 const router = express.Router({ mergeParams: true });
 
@@ -12,8 +13,8 @@ router.param('fieldId', (req, res, next, value) => {
   next();
 });
 router.get('/', getFields);
-router.post('/', saveField);
-router.patch('/:fieldId', updateField);
-router.delete('/:fieldId', deleteField);
+router.post('/', requirePaidEvent('form_builder'), saveField);
+router.patch('/:fieldId', requirePaidEvent('form_builder'), updateField);
+router.delete('/:fieldId', requirePaidEvent('form_builder'), deleteField);
 
 module.exports = router;

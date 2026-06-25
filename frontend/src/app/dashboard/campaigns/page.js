@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../utils/apiClient';
+import LogoutModal from '../../components/LogoutModal';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { computeSmsSegments, renderTemplate } from '../../utils/smsSegments';
 
@@ -90,7 +91,7 @@ export default function CampaignsPage() {
   const segmentsPerMsg = segmentInfo.segments;
   const estimatedCredits = recipientCount * segmentsPerMsg;
 
-  const handleLogout = logout;
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleBuySMSCredits = async (e) => {
     e.preventDefault();
@@ -411,7 +412,7 @@ export default function CampaignsPage() {
             Buy SMS Credits
           </button>
           <button
-            onClick={handleLogout}
+            onClick={() => setShowLogoutModal(true)}
             aria-label="Sign out"
             title="Sign out"
             style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, color: C.stone, background: 'transparent', border: 'none', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
@@ -843,6 +844,7 @@ export default function CampaignsPage() {
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );
 }

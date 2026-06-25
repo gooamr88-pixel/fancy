@@ -201,6 +201,7 @@ export default function SeatingMapPage() {
   const [eventId, setEventId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [eventIsPaid, setEventIsPaid] = useState(null); // null = loading, true/false = known
 
   const [elements, setElements] = useState([]);          // tables + zones
   const [summary, setSummary] = useState({ attendingGuests: 0, seatedGuests: 0, unseatedGuests: 0 });
@@ -252,6 +253,14 @@ export default function SeatingMapPage() {
     if (!ev) { router.push('/dashboard'); return; }
     setEventId(ev);
     setAuthChecked(true);
+    // Check event payment status for feature gate
+    fetch(`${API_URL}/events/${ev}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.event) setEventIsPaid(!!data.event.is_paid || !!data.event.manual_override);
+        else setEventIsPaid(false);
+      })
+      .catch(() => setEventIsPaid(false));
   }, [router]);
 
   /* ── keep refs in sync ── */
@@ -722,6 +731,65 @@ export default function SeatingMapPage() {
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 600, color: C.danger, marginTop: 12 }}>Backend Connection Error</h2>
           <p style={{ color: C.stone, marginTop: 12, fontSize: 13 }}>{error}</p>
           <button onClick={() => { setLoading(true); loadLayout(); }} style={{ ...btn, marginTop: 24, background: C.gold, color: C.white }}>Retry</button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Payment gate: locked state for unpaid events ── */
+  if (!authChecked) return null;
+  if (eventIsPaid === false) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans)' }}>
+        <div style={{
+          maxWidth: 480, width: '100%', textAlign: 'center', background: C.white,
+          border: `1px solid ${C.border}`, padding: '64px 32px', borderRadius: '20px',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.06)', position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{ position: 'absolute', inset: 0, opacity: 0.05, pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', top: '15%', left: '10%', width: 70, height: 70, borderRadius: '50%', border: `2px solid ${C.gold}` }} />
+            <div style={{ position: 'absolute', top: '50%', left: '65%', width: 100, height: 50, borderRadius: '8px', border: `2px solid ${C.gold}` }} />
+            <div style={{ position: 'absolute', top: '70%', left: '25%', width: 55, height: 55, borderRadius: '50%', border: `2px solid ${C.gold}` }} />
+            <div style={{ position: 'absolute', top: '20%', left: '80%', width: 80, height: 80, borderRadius: '50%', border: `2px solid ${C.gold}` }} />
+          </div>
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%', margin: '0 auto 24px',
+            background: 'linear-gradient(135deg, rgba(215,190,128,0.15) 0%, rgba(184,148,79,0.15) 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: C.charcoal, margin: 0 }}>Seating Map</h2>
+          <p style={{ fontSize: '14px', color: C.stone, maxWidth: 340, margin: '12px auto 0', lineHeight: 1.7 }}>
+            Design your venue layout with our interactive drag-and-drop seating map. Complete your event payment to unlock this feature.
+          </p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            style={{
+              marginTop: 32, padding: '14px 36px',
+              background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+              color: C.white, border: 'none', borderRadius: '30px',
+              fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 15px rgba(184,148,79,0.25)',
+              transition: 'all 0.3s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(184,148,79,0.4)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(184,148,79,0.25)'; }}
+          >
+            Complete Payment & Activate →
+          </button>
+          <button
+            onClick={() => router.push('/dashboard')}
+            style={{
+              display: 'block', margin: '16px auto 0', background: 'none', border: 'none',
+              color: C.stone, fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+            }}
+          >
+            ← Back to Dashboard
+          </button>
         </div>
       </div>
     );

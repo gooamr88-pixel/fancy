@@ -4,6 +4,7 @@ const { generateQRCodeDataURL } = require('../utils/qrHelper');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
 const { getPlatformConfig } = require('../utils/configCache');
+const { hashEventPassword, verifyEventPassword } = require('../utils/eventPassword');
 const logger = require('../utils/logger');
 
 /** Strict UUID matcher — used to validate invitation tokens before querying. */
@@ -139,7 +140,8 @@ const createEvent = async (req, res, next) => {
       dress_code: dressCode || null,
       rsvp_deadline: rsvpDeadline || null,
       privacy_mode: privacyMode || 'private',
-      access_password: accessPassword || null,
+      // SEC-9: store a scrypt hash, never the plaintext door code.
+      access_password: accessPassword ? await hashEventPassword(accessPassword) : null,
       cover_image_url: coverImageUrl || null,
       gallery_urls: galleryUrls || [],
       custom_colors: customColors || {},
@@ -282,6 +284,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         template_data,
         is_paid,
         status,
+        allow_guest_edits,
         rsvp_form_fields(*)
       `)
       .eq('slug', slug)
@@ -307,6 +310,18 @@ const getPublicEventBySlug = async (req, res, next) => {
         success: false,
         error: 'EVENT_UNDER_REVIEW',
         message: 'This event is awaiting review and will be live shortly.'
+      });
+    }
+
+    // INV-1: any other non-active state (paused / completed / draft) is "closed".
+    // This makes the organizer's "Close Event" action actually stop guests — the
+    // landing page, RSVP form, resolver, and seating now all agree (see
+    // utils/eventAccess.isEventLiveForGuests).
+    if (!isDemo && event.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        error: 'EVENT_CLOSED',
+        message: 'This event is no longer available.'
       });
     }
 
@@ -355,13 +370,9 @@ const getPublicEventBySlug = async (req, res, next) => {
         });
       }
 
-      const crypto = require('crypto');
-      const providedBuf = Buffer.from(String(providedPassword || ''), 'utf8');
-      const storedBuf = Buffer.from(event.access_password, 'utf8');
-      const maxLen = Math.max(providedBuf.length, storedBuf.length, 1);
-      const paddedProvided = Buffer.alloc(maxLen); providedBuf.copy(paddedProvided);
-      const paddedStored = Buffer.alloc(maxLen); storedBuf.copy(paddedStored);
-      const isMatch = providedBuf.length === storedBuf.length && crypto.timingSafeEqual(paddedProvided, paddedStored);
+      // SEC-9: passwords are stored hashed (scrypt). verifyEventPassword does a
+      // constant-time compare and transparently handles any legacy plaintext value.
+      const isMatch = await verifyEventPassword(providedPassword, event.access_password);
 
       if (!isMatch) {
         // Don't expose whether event exists, just return password required
@@ -414,7 +425,8 @@ const updateEvent = async (req, res, next) => {
     'template_data',
     'event_type',
     'background_music_url',
-    'notification_preferences'
+    'notification_preferences',
+    'allow_guest_edits'
   ];
 
   // Status can only be set to 'paused' or 'completed' by organizer.
@@ -441,6 +453,14 @@ const updateEvent = async (req, res, next) => {
       }
       filteredUpdates[field] = val;
     }
+  }
+
+  // SEC-9: never persist a plaintext access password. Hash a supplied value; an
+  // empty value clears protection.
+  if (filteredUpdates.access_password !== undefined) {
+    filteredUpdates.access_password = filteredUpdates.access_password
+      ? await hashEventPassword(filteredUpdates.access_password)
+      : null;
   }
 
   // Handle URL Slug format validation if the slug is being updated

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import LogoutModal from '../LogoutModal';
 import Link from "next/link";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -35,6 +36,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isLoggedIn, loading, logout } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -247,7 +249,7 @@ export default function Navbar() {
             )}
             {!loading && isLoggedIn && (
               <button
-                onClick={logout}
+                onClick={() => setShowLogoutModal(true)}
                 style={{
                   background: "none",
                   border: "none",
@@ -398,7 +400,7 @@ export default function Navbar() {
           )}
           {!loading && isLoggedIn && (
             <button
-              onClick={() => { setMobileMenuOpen(false); logout(); }}
+              onClick={() => { setMobileMenuOpen(false); setShowLogoutModal(true); }}
               style={{
                 background: "none",
                 border: "none",
@@ -448,6 +450,7 @@ export default function Navbar() {
           }
         }
       `}</style>
+      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </>
   );
 }

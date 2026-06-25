@@ -6,6 +6,8 @@ const { submitPublicRSVP, searchPublicGuests, searchPublicSeating, getGuestById,
 const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
 const { handleSmsStatusCallback } = require('../controllers/campaignController');
+const { verifyTurnstile } = require('../middleware/captcha');
+const { generateQRCodeBuffer } = require('../utils/qrHelper');
 
 const router = express.Router();
 
@@ -57,14 +59,17 @@ router.get('/events/:slug/seating/guest/:guestId', [
 // Public guest RSVP form submit
 router.post('/events/:slug/rsvp', [
   body('guestName').trim().notEmpty().isLength({ max: 200 }).withMessage('Guest name is required (max 200 chars)'),
-  body('email').optional({ values: 'falsy' }).isEmail().normalizeEmail().withMessage('Invalid email format'),
+  // RF-6: normalize case/whitespace but PRESERVE gmail dots and +subaddressing so a
+  // guest who RSVPs as "jane+wedding@gmail.com" gets their confirmation there and the
+  // address they typed is the address we store.
+  body('email').optional({ values: 'falsy' }).isEmail().normalizeEmail({ gmail_remove_dots: false, gmail_remove_subaddress: false, outlookdotcom_remove_subaddress: false, icloud_remove_subaddress: false, yahoo_remove_subaddress: false }).withMessage('Invalid email format'),
   body('phone').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Phone number too long'),
   body('response').isIn(['yes', 'no', 'maybe', 'pending']).withMessage('Response must be yes, no, maybe, or pending'),
   body('partySize').optional().isInt({ min: 1, max: 20 }).withMessage('Party size must be between 1 and 20'),
   body('decline_reason').optional({ values: 'falsy' }).trim().isLength({ max: 100 }).withMessage('Decline reason too long'),
   body('maybe_confirm_by').optional({ values: 'falsy' }).trim().isIn(['24h', '3d', '1w', '']).withMessage('Invalid follow-up duration'),
   validate
-], submitPublicRSVP);
+], verifyTurnstile, submitPublicRSVP);
 
 // Public self-service check-in
 router.post('/events/:slug/self-checkin', [
@@ -80,5 +85,22 @@ router.post('/events/:slug/analytics', [
   body('rsvpId').optional().isUUID(),
   validate
 ], trackGuestEvent);
+
+// Serve QR code as a real PNG image (email-safe — no data URIs).
+// The :token param is the signed JWT ticket; the route generates the QR on the fly.
+// Aggressive cache headers (immutable, 30 days) because the same token always
+// produces the same image.
+router.get('/qr/:token.png', async (req, res) => {
+  try {
+    const buffer = await generateQRCodeBuffer(req.params.token);
+    res.set({
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=2592000, immutable',
+    });
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).send('QR generation error');
+  }
+});
 
 module.exports = router;

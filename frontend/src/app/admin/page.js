@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../utils/apiClient';
+import LogoutModal from '../components/LogoutModal';
 
 const D = {
   bg: '#0a0c10', bg2: '#0d0f14', card: '#111318', cardBorder: '#1e2028', borderLight: '#2d303a',
@@ -103,6 +104,7 @@ export default function AdminPage() {
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [adminVerified, setAdminVerified] = useState(false);
   const [bootError, setBootError] = useState(null);
@@ -421,7 +423,7 @@ export default function AdminPage() {
         </nav>
         <div style={{ borderTop: `1px solid ${D.cardBorder}`, paddingTop: '12px', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <Link href="/dashboard" style={{ padding: '9px 12px', fontSize: '12px', fontWeight: 600, color: D.text300, textDecoration: 'none', borderRadius: '8px' }}>← Organizer Dashboard</Link>
-          <button onClick={logout} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: D.text400, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}
+          <button onClick={() => setShowLogoutModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: D.text400, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}
             onMouseEnter={e => e.currentTarget.style.color = D.roseLight}
             onMouseLeave={e => e.currentTarget.style.color = D.text400}>Sign Out</button>
         </div>
@@ -899,6 +901,7 @@ function OverviewTab({ overview }) {
           .admin-overview-cols { grid-template-columns: 1fr !important; }
         }
       `}</style>
+      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );
 }

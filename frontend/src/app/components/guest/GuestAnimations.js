@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { motion, AnimatePresence, useInView, useScroll, useTransform } from 'framer-motion';
+import { motion, AnimatePresence, useInView, useScroll, useTransform, useReducedMotion } from 'framer-motion';
 
 /* ═══════════════════════════════════════════════════════════════
    FANCY RSVP — Premium Guest Animation Library
@@ -191,8 +191,10 @@ export function FloatingParticles({ count = 30, color = '#B8944F' }) {
   const canvasRef = useRef(null);
   const particlesRef = useRef([]);
   const animFrameRef = useRef(null);
+  const reduceMotion = useReducedMotion(); // A11Y-4
 
   useEffect(() => {
+    if (reduceMotion) return; // honor prefers-reduced-motion — no ambient drift
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -248,7 +250,9 @@ export function FloatingParticles({ count = 30, color = '#B8944F' }) {
       cancelAnimationFrame(animFrameRef.current);
       window.removeEventListener('resize', handleResize);
     };
-  }, [count, color]);
+  }, [count, color, reduceMotion]);
+
+  if (reduceMotion) return null; // A11Y-4: render nothing rather than a static canvas
 
   return (
     <canvas
@@ -265,14 +269,15 @@ export function FloatingParticles({ count = 30, color = '#B8944F' }) {
 export function ConfettiExplosion({ active = false, duration = 4000, particleCount = 120, colors }) {
   const canvasRef = useRef(null);
   const [show, setShow] = useState(active);
+  const reduceMotion = useReducedMotion(); // A11Y-4
   const confettiColors = colors || ['#B8944F', '#D7BE80', '#F8F4EC', '#E8C564', '#A67C2E', '#FFFFFF', '#FF6B6B', '#4ECDC4'];
 
   useEffect(() => {
-    if (active) setShow(true);
-  }, [active]);
+    if (active && !reduceMotion) setShow(true);
+  }, [active, reduceMotion]);
 
   useEffect(() => {
-    if (!show) return;
+    if (!show || reduceMotion) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');

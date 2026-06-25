@@ -159,6 +159,7 @@ const createCheckoutSession = async (req, res, next) => {
       metadata: {
         event_id: eventId,
         tier_name: tier.name,
+        tier_max_guests: tier.max_guests != null ? String(tier.max_guests) : '',
         type: 'event_fee'
       },
       // Return the user to the WIZARD (not the dashboard) at the payment step, and

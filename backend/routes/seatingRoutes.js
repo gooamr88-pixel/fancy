@@ -1,5 +1,6 @@
 const express = require('express');
 const { assignSeat, reassignSeat, unassignSeat, saveSeatingBatch, getSeatingGuests, getSeatingSummary } = require('../controllers/seatingController');
+const { requirePaidEvent } = require('../middleware/featureGate');
 
 const router = express.Router({ mergeParams: true });
 
@@ -10,15 +11,15 @@ router.get('/guests', getSeatingGuests);
 router.get('/summary', getSeatingSummary);
 
 // Route to assign a guest party to a table
-router.post('/assign', assignSeat);
+router.post('/assign', requirePaidEvent('seating_map'), assignSeat);
 
 // Route to reassign a guest party to a different table
-router.post('/reassign', reassignSeat);
+router.post('/reassign', requirePaidEvent('seating_map'), reassignSeat);
 
 // Route to unassign a guest from their table
-router.post('/unassign', unassignSeat);
+router.post('/unassign', requirePaidEvent('seating_map'), unassignSeat);
 
 // Route to batch save seating assignments
-router.post('/save-batch', saveSeatingBatch);
+router.post('/save-batch', requirePaidEvent('seating_map'), saveSeatingBatch);
 
 module.exports = router;

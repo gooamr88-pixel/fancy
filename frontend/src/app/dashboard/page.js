@@ -5,6 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../utils/apiClient';
+import LogoutModal from '../components/LogoutModal';
 import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
 import StatMetricsCard from './components/StatMetricsCard';
 import LiveActivityFeed from './components/LiveActivityFeed';
@@ -21,7 +22,9 @@ import DraftsTab from './components/DraftsTab';
 import ShareTab from './components/ShareTab';
 import RSVPsTab from './components/RSVPsTab';
 import GuestsTab from './components/GuestsTab';
+import FeatureGate from './components/FeatureGate';
 import OrganizerOverview from './components/OrganizerOverview';
+import SendInvitationModal from './components/SendInvitationModal';
 
 /* ═══════════════════════════════════════════════
    Brand Design Tokens
@@ -119,6 +122,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddGuestModal, setShowAddGuestModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showSendInvitationModal, setShowSendInvitationModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrModalTab, setQrModalTab] = useState('qr');
   const [copyTooltip, setCopyTooltip] = useState(false);
@@ -199,14 +203,29 @@ export default function DashboardPage() {
     window.history.replaceState({}, '', window.location.pathname);
 
     if (payment === 'success' && sessionId) {
-      // Confirm the payment synchronously (the webhook remains the backstop).
-      fetch(`${apiUrl}/payments/verify?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'include' })
-        .catch(() => { /* non-fatal — the webhook will reconcile the event status */ });
+      // Confirm the payment synchronously, THEN re-fetch events so the UI
+      // reflects the updated is_paid / tier state (the webhook remains the backstop).
+      (async () => {
+        try {
+          await fetch(`${apiUrl}/payments/verify?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'include' });
+        } catch { /* non-fatal — the webhook will reconcile the event status */ }
+        // Re-fetch events to pick up the updated is_paid and tier data.
+        try {
+          const res = await fetch(`${apiUrl}/events`, { credentials: 'include' });
+          const data = await res.json();
+          if (data.success && data.events?.length > 0) {
+            setEvents(data.events);
+            const preferred = returnedId && data.events.some(e => e.id === returnedId) ? returnedId : data.events[0].id;
+            setEventId(preferred);
+            toast.success('Payment confirmed successfully!');
+          }
+        } catch { /* main fetchEvents will cover on next mount */ }
+      })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiUrl]);
 
-  const handleLogout = logout;
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const loadDashboardData = useCallback(async () => {
     if (!eventId) return;
@@ -492,7 +511,7 @@ export default function DashboardPage() {
 
         {/* Bottom: Log Out */}
         <div style={{ padding: '16px 12px', borderTop: `1px solid ${COLORS.border}` }}>
-          <button onClick={handleLogout} aria-label="Log out" style={{
+          <button onClick={() => setShowLogoutModal(true)} aria-label="Log out" style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', width: '100%',
             background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer',
             fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 400, color: COLORS.stone,
@@ -711,6 +730,7 @@ export default function DashboardPage() {
                   </Link>
                 )}
 
+                <FeatureGate isPaid={!!activeEvent?.is_paid} feature="add_guest" onUpgrade={() => { setActiveTab('events'); }}>
                 <button
                   onClick={() => setShowAddGuestModal(true)}
                   id="btn-add-guest"
@@ -736,7 +756,9 @@ export default function DashboardPage() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   Add Guest
                 </button>
+                </FeatureGate>
 
+                <FeatureGate isPaid={!!activeEvent?.is_paid} feature="seating_map" onUpgrade={() => { setActiveTab('events'); }}>
                 <Link
                   href="/dashboard/seating-map"
                   id="btn-open-seating-map"
@@ -762,9 +784,11 @@ export default function DashboardPage() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>
                   Open Seating Map
                 </Link>
+                </FeatureGate>
 
                 <div style={{ width: '1px', height: '20px', background: COLORS.border, margin: '0 4px' }} />
 
+                <FeatureGate isPaid={!!activeEvent?.is_paid} feature="import_guests" onUpgrade={() => { setActiveTab('events'); }}>
                 <button
                   onClick={() => setShowImportModal(true)}
                   id="btn-import-csv"
@@ -789,6 +813,7 @@ export default function DashboardPage() {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   Import CSV
                 </button>
+                </FeatureGate>
 
                 <div style={{ position: 'relative' }}>
                   <button
@@ -939,10 +964,13 @@ export default function DashboardPage() {
               onRefresh={loadDashboardData}
               onOpenAddGuest={() => setShowAddGuestModal(true)}
               onOpenImport={() => setShowImportModal(true)}
-              onSendInvitations={handleSendInvitations}
+              onOpenSendInvitations={() => setShowSendInvitationModal(true)}
+              isPaid={!!activeEvent?.is_paid || !!activeEvent?.manual_override}
+              onUpgrade={() => setActiveTab('events')}
             />
           ) : activeTab === 'seating' ? (
             /* ═══ SEATING TAB ═══ */
+            activeEvent?.is_paid || activeEvent?.manual_override ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {eventId && (<>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
@@ -966,6 +994,50 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+            ) : (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              padding: '64px 24px', background: COLORS.white, border: `1px solid ${COLORS.border}`,
+              borderRadius: '16px', textAlign: 'center', position: 'relative', overflow: 'hidden',
+            }}>
+              {/* Decorative blurred background elements */}
+              <div style={{ position: 'absolute', inset: 0, opacity: 0.06, pointerEvents: 'none' }}>
+                <div style={{ position: 'absolute', top: '20%', left: '15%', width: 80, height: 80, borderRadius: '50%', border: `2px solid ${COLORS.gold}` }} />
+                <div style={{ position: 'absolute', top: '40%', left: '55%', width: 120, height: 60, borderRadius: '8px', border: `2px solid ${COLORS.gold}` }} />
+                <div style={{ position: 'absolute', top: '60%', left: '30%', width: 60, height: 60, borderRadius: '50%', border: `2px solid ${COLORS.gold}` }} />
+                <div style={{ position: 'absolute', top: '25%', left: '75%', width: 90, height: 90, borderRadius: '50%', border: `2px solid ${COLORS.gold}` }} />
+              </div>
+              <div style={{
+                width: 64, height: 64, borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(215,190,128,0.15) 0%, rgba(184,148,79,0.15) 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2"/>
+                  <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+              </div>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: COLORS.charcoal, margin: 0 }}>Seating Map</h3>
+              <p style={{ fontSize: '13px', color: COLORS.stone, maxWidth: 360, lineHeight: 1.7, marginTop: 8 }}>
+                Design your venue layout with an interactive drag-and-drop seating map. Complete your event payment to unlock this feature.
+              </p>
+              <button
+                onClick={() => setActiveTab('events')}
+                style={{
+                  marginTop: 24, padding: '12px 32px',
+                  background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+                  color: COLORS.white, border: 'none', borderRadius: '30px',
+                  fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+                  cursor: 'pointer', boxShadow: '0 4px 15px rgba(184,148,79,0.25)',
+                  transition: 'all 0.3s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(184,148,79,0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(184,148,79,0.25)'; }}
+              >
+                Complete Payment &amp; Activate →
+              </button>
+            </div>
+            )
           ) : (
             /* ═══ OVERVIEW TAB (default) ═══ */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -989,6 +1061,14 @@ export default function DashboardPage() {
         onClose={() => setShowImportModal(false)}
         eventId={eventId}
         onImportComplete={loadDashboardData}
+      />
+      <SendInvitationModal
+        isOpen={showSendInvitationModal}
+        onClose={() => setShowSendInvitationModal(false)}
+        rsvps={rsvps}
+        eventId={eventId}
+        apiUrl={apiUrl}
+        onSuccess={loadDashboardData}
       />
 
       {/* ═══ QR CODE MODAL ═══ */}
@@ -1290,6 +1370,7 @@ export default function DashboardPage() {
           main { margin-left: 0 !important; }
         }
       `}</style>
+      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );
 }

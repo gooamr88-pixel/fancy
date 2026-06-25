@@ -1,13 +1,18 @@
-import { Suspense } from 'react';
+import { Suspense, cache } from 'react';
 import EventPageClient from './EventPageClient';
 import { safeJsonLdHtml } from '../utils/jsonLdSafe.mjs';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-async function fetchEvent(slug) {
+// PERF-2: React.cache() dedupes this within a single render so generateMetadata()
+// and the page component share ONE backend call instead of two.
+// PERF-1: the public landing payload is guest-agnostic (the personalized guestRsvp
+// is fetched client-side in EventPageClient), so a short revalidate window puts the
+// most-shared URL behind a cache instead of hitting the backend+DB on every view.
+const fetchEvent = cache(async (slug) => {
   try {
     const res = await fetch(`${API_URL}/public/events/${slug}`, {
-      cache: 'no-store',
+      next: { revalidate: 60 },
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -15,7 +20,7 @@ async function fetchEvent(slug) {
   } catch {
     return null;
   }
-}
+});
 
 export async function generateMetadata({ params }) {
   const { slug } = await params;

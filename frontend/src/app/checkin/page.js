@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { logout } from '../utils/apiClient';
+import LogoutModal from '../components/LogoutModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -32,7 +33,7 @@ export default function CheckInPage() {
 
   useEffect(() => { if (showConfirmOverlay) { const timer = setTimeout(() => setShowConfirmOverlay(false), 3200); return () => clearTimeout(timer); } }, [showConfirmOverlay]);
 
-  const handleLogout = logout;
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => { if (typeof window !== 'undefined') { const orgId = localStorage.getItem('org_id'); const savedEventId = localStorage.getItem('active_event_id'); if (!orgId) { router.push('/login'); return; } if (savedEventId) setEventId(savedEventId); setAuthReady(true); setAuthChecked(true); } }, [router]);
 
@@ -134,7 +135,7 @@ export default function CheckInPage() {
             <span style={{ fontSize: '10px', color: C.stone, display: 'block', fontWeight: 600 }}>Total Checked-In</span>
             <span style={{ fontSize: '20px', fontWeight: 900, color: C.gold }}>{totalArrivals} Arrivals</span>
           </div>
-          <button onClick={handleLogout} aria-label="Sign out" style={{ padding: '8px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', color: C.stone, fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px' }}
+          <button onClick={() => setShowLogoutModal(true)} aria-label="Sign out" style={{ padding: '8px 14px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: '8px', cursor: 'pointer', color: C.stone, fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.color = '#C45E5E'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = C.stone; }}>
             Sign Out
@@ -329,6 +330,7 @@ export default function CheckInPage() {
           .checkin-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
+      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );
 }

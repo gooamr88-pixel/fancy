@@ -42,7 +42,8 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     font_body: 'Inter',
     event_type: 'wedding',
     notification_email: true,
-    notification_whatsapp: false
+    notification_whatsapp: false,
+    allow_guest_edits: false
   });
   const [templateData, setTemplateData] = useState({
     groom_name: '', bride_name: '', family_names: '', ceremony_time: '', reception_time: '',
@@ -185,7 +186,8 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         font_body: event.custom_fonts?.body || 'Inter',
         event_type: event.event_type || 'wedding',
         notification_email: event.notification_preferences?.email !== false,
-        notification_whatsapp: !!event.notification_preferences?.whatsapp
+        notification_whatsapp: !!event.notification_preferences?.whatsapp,
+        allow_guest_edits: !!event.allow_guest_edits
       });
       setTemplateData({
         groom_name: event.template_data?.groom_name || '',
@@ -718,6 +720,33 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
               style={{ width: '16px', height: '16px', accentColor: COLORS.gold, cursor: 'pointer' }}
             />
             Receive WhatsApp notification when a guest submits an RSVP
+          </label>
+        </div>
+      </div>
+
+      {/* ═══ GUEST RSVP OPTIONS ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Guest RSVP Options
+          </span>
+        </h3>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={form.allow_guest_edits}
+              onChange={(e) => { setForm(prev => ({ ...prev, allow_guest_edits: e.target.checked })); setSuccess(false); }}
+              style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: 'pointer' }}
+            />
+            <span>
+              Allow guests to change their response after submitting
+              <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
+                When on, a guest can reopen and update their RSVP from their invitation link until the RSVP deadline. When off, responses are locked and any change must go through you.
+              </span>
+            </span>
           </label>
         </div>
       </div>

@@ -51,6 +51,15 @@ app.use(compression({ threshold: 1024 }));
 // Parse cookies (httpOnly auth cookie)
 app.use(cookieParser());
 
+// SEC-2: the public, unauthenticated guest RSVP writes must NOT accept large
+// bodies (the 50mb global limit exists for authenticated CSV/image uploads). A
+// tight parser mounted on these paths first sets req._body, so the global parser
+// below short-circuits for them. An RSVP — even a party of 20 with custom answers
+// — is well under 64kb.
+const tightJson = express.json({ limit: '64kb' });
+app.use('/api/v1/public/events/:slug/rsvp', tightJson);
+app.use('/api/v1/public/rsvp', tightJson);
+
 app.use(express.json({
   limit: '50mb',
   verify: (req, res, buf) => {
@@ -128,6 +137,10 @@ if (RATE_LIMIT_DISABLED) {
     store: storeFor('public'),
   });
   app.use('/api/v1/public/events', publicLimiter);
+  // SEC-1: the token-based RSVP paths (one-click respond, guest/invite resolvers)
+  // live under /public/rsvp and were previously covered only by the general 1000/15m
+  // limiter. Apply the strict public limiter here too.
+  app.use('/api/v1/public/rsvp', publicLimiter);
 }
 
 // Request logging middleware

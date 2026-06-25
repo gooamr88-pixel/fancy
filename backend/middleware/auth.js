@@ -67,11 +67,11 @@ const extractToken = (req) => {
  * @returns {Promise<boolean>} true if the session is valid (or legacy)
  */
 const isSessionValid = async (decoded) => {
-  // Legacy tokens (issued before the sessions migration) carry no `jti`. Accept
-  // them until their natural 24h expiry so a deploy doesn't force a mass logout.
-  // TODO(security): remove this allowance after the legacy-token cutoff so EVERY
-  // session is server-side revocable.
-  if (!decoded.jti) return true;
+  // SEC-6: EVERY session must be server-side revocable. Tokens are always issued
+  // with a `jti` (see authController.issueAuthCookie), so a token lacking one is
+  // forged or predates the sessions system — deny it (fail-closed). The previous
+  // legacy allowance is removed now that there are no pre-migration tokens to honor.
+  if (!decoded.jti) return false;
   try {
     const { data, error } = await supabase
       .from('sessions')
