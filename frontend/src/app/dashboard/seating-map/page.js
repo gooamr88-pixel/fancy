@@ -5,6 +5,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../utils/apiClient';
+import LogoutModal from '../../components/LogoutModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', danger: '#C45E5E' };
@@ -202,6 +203,7 @@ export default function SeatingMapPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [eventIsPaid, setEventIsPaid] = useState(null); // null = loading, true/false = known
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [elements, setElements] = useState([]);          // tables + zones
   const [summary, setSummary] = useState({ attendingGuests: 0, seatedGuests: 0, unseatedGuests: 0 });
@@ -813,7 +815,7 @@ export default function SeatingMapPage() {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {pendingCount > 0 && <button onClick={() => saveSeating()} disabled={saving} style={{ ...btn, background: C.gold, color: C.white }}>{saving ? 'Saving…' : `Save Seating (${pendingCount})`}</button>}
           {layoutDirty && <button onClick={saveLayout} disabled={saving} style={{ ...btn, background: C.white, border: `1px solid ${C.gold}`, color: C.gold }}>Save Layout</button>}
-          <button onClick={logout} style={{ ...btn, background: 'transparent', border: `1px solid ${C.border}`, color: C.stone }}>Sign Out</button>
+          <button onClick={() => setShowLogoutModal(true)} style={{ ...btn, background: 'transparent', border: `1px solid ${C.border}`, color: C.stone }}>Sign Out</button>
         </div>
       </div>
 
@@ -948,6 +950,7 @@ export default function SeatingMapPage() {
       {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} />}
 
       <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );
 }
