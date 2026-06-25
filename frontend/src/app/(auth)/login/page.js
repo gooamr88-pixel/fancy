@@ -140,6 +140,18 @@ export default function LoginPage() {
         <div className="auth-image-overlay" />
         <div className="auth-image-content">
           <div className="auth-brand">
+            <svg
+              width="38"
+              height="32"
+              viewBox="0 0 38 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ flexShrink: 0 }}
+            >
+              <rect x="2" y="8" width="34" height="22" rx="2" stroke="#FFFFFF" strokeWidth="2" fill="none" />
+              <path d="M2 10L19 22L36 10" stroke="#FFFFFF" strokeWidth="2" fill="none" strokeLinejoin="round" />
+              <path d="M4 8L19 0L34 8" stroke="#FFFFFF" strokeWidth="2" fill="none" strokeLinejoin="round" />
+            </svg>
             <span className="auth-brand-fancy">Fancy</span>
             <span className="auth-brand-rsvp">RSVP</span>
           </div>
@@ -155,6 +167,18 @@ export default function LoginPage() {
 
           {/* Mobile Logo */}
           <div className="auth-mobile-logo">
+            <svg
+              width="30"
+              height="25"
+              viewBox="0 0 38 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ flexShrink: 0 }}
+            >
+              <rect x="2" y="8" width="34" height="22" rx="2" stroke="#B8944F" strokeWidth="2" fill="none" />
+              <path d="M2 10L19 22L36 10" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+              <path d="M4 8L19 0L34 8" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+            </svg>
             <span className="auth-brand-fancy">Fancy</span>
             <span className="auth-brand-rsvp">RSVP</span>
           </div>
@@ -263,7 +287,7 @@ export default function LoginPage() {
         }
         .auth-brand {
           display: flex;
-          align-items: baseline;
+          align-items: center;
           justify-content: center;
           gap: 8px;
           margin-bottom: 16px;
@@ -328,7 +352,7 @@ export default function LoginPage() {
         /* ── Mobile Logo (hidden on desktop) ── */
         .auth-mobile-logo {
           display: none;
-          align-items: baseline;
+          align-items: center;
           justify-content: center;
           gap: 6px;
           margin-bottom: 32px;

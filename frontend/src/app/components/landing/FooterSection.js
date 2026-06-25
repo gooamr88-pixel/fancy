@@ -125,10 +125,27 @@ export default function FooterSection() {
                 fontWeight: '600',
                 marginBottom: '16px',
                 lineHeight: '1',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
               }}
             >
-              <span style={{ color: '#B8944F', fontFamily: 'var(--font-script)', fontWeight: 400 }}>Fancy</span>
-              <span style={{ color: '#FFFFFF' }}> RSVP</span>
+              <svg
+                width="24"
+                height="20"
+                viewBox="0 0 38 32"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ flexShrink: 0 }}
+              >
+                <rect x="2" y="8" width="34" height="22" rx="2" stroke="#B8944F" strokeWidth="2" fill="none" />
+                <path d="M2 10L19 22L36 10" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+                <path d="M4 8L19 0L34 8" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+              </svg>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                <span style={{ color: '#B8944F', fontFamily: 'var(--font-script)', fontWeight: 400 }}>Fancy</span>
+                <span style={{ color: '#FFFFFF' }}> RSVP</span>
+              </div>
             </div>
             <p
               style={{

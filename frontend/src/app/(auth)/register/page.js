@@ -216,7 +216,22 @@ export default function RegisterPage() {
         <div className="auth-image-panel">
           <div className="auth-image-overlay" />
           <div className="auth-image-content">
-            <div className="auth-brand"><span className="auth-brand-fancy">Fancy</span><span className="auth-brand-rsvp">RSVP</span></div>
+            <div className="auth-brand">
+              <svg
+                width="38"
+                height="32"
+                viewBox="0 0 38 32"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ flexShrink: 0 }}
+              >
+                <rect x="2" y="8" width="34" height="22" rx="2" stroke="#FFFFFF" strokeWidth="2" fill="none" />
+                <path d="M2 10L19 22L36 10" stroke="#FFFFFF" strokeWidth="2" fill="none" strokeLinejoin="round" />
+                <path d="M4 8L19 0L34 8" stroke="#FFFFFF" strokeWidth="2" fill="none" strokeLinejoin="round" />
+              </svg>
+              <span className="auth-brand-fancy">Fancy</span>
+              <span className="auth-brand-rsvp">RSVP</span>
+            </div>
             <div className="auth-ornament">✦ ✦ ✦</div>
             <p className="auth-tagline">Almost There...</p>
             <div className="auth-shimmer" />
@@ -225,7 +240,22 @@ export default function RegisterPage() {
 
         <div className="auth-form-panel">
           <div className="auth-form-container otp-container">
-            <div className="auth-mobile-logo"><span className="auth-brand-fancy">Fancy</span><span className="auth-brand-rsvp">RSVP</span></div>
+            <div className="auth-mobile-logo">
+              <svg
+                width="30"
+                height="25"
+                viewBox="0 0 38 32"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ flexShrink: 0 }}
+              >
+                <rect x="2" y="8" width="34" height="22" rx="2" stroke="#B8944F" strokeWidth="2" fill="none" />
+                <path d="M2 10L19 22L36 10" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+                <path d="M4 8L19 0L34 8" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+              </svg>
+              <span className="auth-brand-fancy">Fancy</span>
+              <span className="auth-brand-rsvp">RSVP</span>
+            </div>
 
             {/* OTP Icon */}
             <div className="auth-icon-circle otp-icon">
@@ -322,7 +352,22 @@ export default function RegisterPage() {
       <div className="auth-image-panel">
         <div className="auth-image-overlay" />
         <div className="auth-image-content">
-          <div className="auth-brand"><span className="auth-brand-fancy">Fancy</span><span className="auth-brand-rsvp">RSVP</span></div>
+          <div className="auth-brand">
+            <svg
+              width="38"
+              height="32"
+              viewBox="0 0 38 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ flexShrink: 0 }}
+            >
+              <rect x="2" y="8" width="34" height="22" rx="2" stroke="#FFFFFF" strokeWidth="2" fill="none" />
+              <path d="M2 10L19 22L36 10" stroke="#FFFFFF" strokeWidth="2" fill="none" strokeLinejoin="round" />
+              <path d="M4 8L19 0L34 8" stroke="#FFFFFF" strokeWidth="2" fill="none" strokeLinejoin="round" />
+            </svg>
+            <span className="auth-brand-fancy">Fancy</span>
+            <span className="auth-brand-rsvp">RSVP</span>
+          </div>
           <div className="auth-ornament">✦ ✦ ✦</div>
           <p className="auth-tagline">Create Beautiful Events</p>
           <div className="auth-shimmer" />
@@ -331,7 +376,22 @@ export default function RegisterPage() {
 
       <div className="auth-form-panel">
         <div className="auth-form-container">
-          <div className="auth-mobile-logo"><span className="auth-brand-fancy">Fancy</span><span className="auth-brand-rsvp">RSVP</span></div>
+          <div className="auth-mobile-logo">
+            <svg
+              width="30"
+              height="25"
+              viewBox="0 0 38 32"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ flexShrink: 0 }}
+            >
+              <rect x="2" y="8" width="34" height="22" rx="2" stroke="#B8944F" strokeWidth="2" fill="none" />
+              <path d="M2 10L19 22L36 10" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+              <path d="M4 8L19 0L34 8" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
+            </svg>
+            <span className="auth-brand-fancy">Fancy</span>
+            <span className="auth-brand-rsvp">RSVP</span>
+          </div>
 
           {/* Icon */}
           <div className="auth-icon-circle">
@@ -449,7 +509,7 @@ const sharedStyles = `
     position: relative; z-index: 1; text-align: center;
     animation: authFadeIn 1s ease 0.2s both;
   }
-  .auth-brand { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin-bottom: 16px; }
+  .auth-brand { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 16px; }
   .auth-brand-fancy { font-family: var(--font-script); font-size: 48px; font-weight: 400; color: #FFFFFF; line-height: 1; }
   .auth-brand-rsvp { font-family: var(--font-serif); font-size: 32px; font-weight: 600; color: #FFFFFF; letter-spacing: 4px; text-transform: uppercase; line-height: 1; }
   .auth-ornament { color: #D7BE80; font-size: 10px; letter-spacing: 8px; margin-bottom: 20px; }
@@ -464,7 +524,7 @@ const sharedStyles = `
     width: 100%; max-width: 420px;
     animation: authFadeInUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
-  .auth-mobile-logo { display: none; align-items: baseline; justify-content: center; gap: 6px; margin-bottom: 32px; }
+  .auth-mobile-logo { display: none; align-items: center; justify-content: center; gap: 6px; margin-bottom: 32px; }
   .auth-icon-circle {
     width: 52px; height: 52px; border-radius: 50%;
     background: rgba(184,148,79,0.06); border: 1px solid rgba(184,148,79,0.1);
