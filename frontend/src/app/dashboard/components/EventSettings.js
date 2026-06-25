@@ -234,7 +234,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
       // Pack notification preferences
       body.notification_preferences = {
         email: body.notification_email,
-        whatsapp: body.notification_whatsapp
+        whatsapp: false // WhatsApp notifications not yet available
       };
       delete body.notification_email;
       delete body.notification_whatsapp;
@@ -724,14 +724,23 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
             Receive email notification when a guest submits an RSVP
           </label>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#A8A29E', cursor: 'not-allowed', userSelect: 'none', opacity: 0.6 }}>
             <input
               type="checkbox"
-              checked={form.notification_whatsapp}
-              onChange={(e) => { setForm(prev => ({ ...prev, notification_whatsapp: e.target.checked })); setSuccess(false); }}
-              style={{ width: '16px', height: '16px', accentColor: COLORS.gold, cursor: 'pointer' }}
+              checked={false}
+              disabled
+              style={{ width: '16px', height: '16px', cursor: 'not-allowed' }}
             />
-            Receive WhatsApp notification when a guest submits an RSVP
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Receive WhatsApp notification when a guest submits an RSVP
+              <span style={{
+                fontSize: '10px', fontWeight: 600, color: COLORS.gold, background: `${COLORS.gold}15`,
+                border: `1px solid ${COLORS.gold}30`, borderRadius: '4px', padding: '2px 6px',
+                letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap', opacity: 1
+              }}>
+                Coming Soon
+              </span>
+            </span>
           </label>
         </div>
       </div>

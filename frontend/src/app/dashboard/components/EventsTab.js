@@ -44,10 +44,10 @@ const CSS = `
 }
 @keyframes evtExpandIn {
   from { opacity:0; max-height:0; padding-top:0; padding-bottom:0; }
-  to   { opacity:1; max-height:600px; padding-top:20px; padding-bottom:20px; }
+  to   { opacity:1; max-height:2000px; padding-top:20px; padding-bottom:20px; }
 }
 @keyframes evtCollapseOut {
-  from { opacity:1; max-height:600px; padding-top:20px; padding-bottom:20px; }
+  from { opacity:1; max-height:2000px; padding-top:20px; padding-bottom:20px; }
   to   { opacity:0; max-height:0; padding-top:0; padding-bottom:0; }
 }
 @keyframes evtStatPop {
