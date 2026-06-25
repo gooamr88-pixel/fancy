@@ -429,16 +429,35 @@ const updateEvent = async (req, res, next) => {
     'allow_guest_edits'
   ];
 
-  // Status can only be set to 'paused' or 'completed' by organizer.
-  // 'active' status requires payment and is set by the webhook.
+  // Status transitions the organizer may request:
+  //   • → 'paused' / 'completed' : always allowed.
+  //   • → 'active'               : ONLY as a RESUME of an already-paid, currently-paused
+  //                                event. First activation still happens via the Stripe
+  //                                webhook, so an organizer can never self-activate an
+  //                                unpaid event — but they can lift a pause they applied.
   if (req.body.status && ['paused', 'completed'].includes(req.body.status)) {
     allowedFields.push('status');
   } else if (req.body.status === 'active') {
-    return res.status(403).json({
-      success: false,
-      error: 'STATUS_FORBIDDEN',
-      message: 'Event status cannot be set to active manually. It is activated upon payment.'
-    });
+    let isResume = false;
+    try {
+      const { data: ev } = await supabase
+        .from('events')
+        .select('status, is_paid')
+        .eq('id', eventId)
+        .single();
+      // Fail closed: only a paid event currently in 'paused' may return to 'active'.
+      isResume = !!(ev && ev.is_paid === true && ev.status === 'paused');
+    } catch {
+      isResume = false;
+    }
+    if (!isResume) {
+      return res.status(403).json({
+        success: false,
+        error: 'STATUS_FORBIDDEN',
+        message: 'Event status cannot be set to active manually. It is activated upon payment.'
+      });
+    }
+    allowedFields.push('status'); // legitimate paused → active resume
   }
 
   const filteredUpdates = {};

@@ -53,6 +53,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [statusLoading, setStatusLoading] = useState('');
+  const [confirmComplete, setConfirmComplete] = useState(false);
   const [musicUploading, setMusicUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
@@ -296,7 +297,18 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
   const rowStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' };
 
   const currentStatus = event?.status || 'active';
-  const statusColors = { active: '#22C55E', paused: '#F59E0B', completed: '#6B8EAE' };
+  const statusColors = {
+    active: '#22C55E', paused: '#F59E0B', completed: '#6B8EAE',
+    draft: '#9CA3AF', pending_review: '#B8944F',
+  };
+  const statusLabels = {
+    active: 'Active', paused: 'Paused', completed: 'Completed',
+    draft: 'Draft', pending_review: 'Pending Review',
+  };
+  // Status controls only make sense for a live event; draft/pending_review are
+  // pre-publish states handled by the payment + review flow.
+  const statusActionable = ['active', 'paused', 'completed'].includes(currentStatus);
+  const statusColor = statusColors[currentStatus] || statusColors.active;
 
   return (
     <div style={{ maxWidth: '720px' }}>
@@ -763,61 +775,109 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
-            borderRadius: '20px', background: `${statusColors[currentStatus] || statusColors.active}18`,
-            border: `1px solid ${statusColors[currentStatus] || statusColors.active}40`,
+            borderRadius: '20px', background: `${statusColor}18`,
+            border: `1px solid ${statusColor}40`,
           }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColor }} />
             <span style={{
-              width: '8px', height: '8px', borderRadius: '50%',
-              background: statusColors[currentStatus] || statusColors.active,
-            }} />
-            <span style={{
-              fontSize: '13px', fontWeight: 600, color: statusColors[currentStatus] || statusColors.active,
-              fontFamily: 'var(--font-sans)', textTransform: 'capitalize',
-            }}>{currentStatus}</span>
+              fontSize: '13px', fontWeight: 600, color: statusColor, fontFamily: 'var(--font-sans)',
+            }}>{statusLabels[currentStatus] || currentStatus}</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {currentStatus !== 'paused' && (
-            <button onClick={() => handleStatusChange('paused')} disabled={statusLoading === 'paused'}
-              style={{
-                padding: '8px 20px', borderRadius: '8px', border: `1px solid #F59E0B`,
-                background: COLORS.white, color: '#F59E0B', fontSize: '12px', fontWeight: 600,
-                fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#FFFBEB'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
-            >
-              {statusLoading === 'paused' ? 'Pausing…' : '⏸ Pause Event'}
-            </button>
-          )}
-          {currentStatus === 'paused' && (
-            <button onClick={() => handleStatusChange('active')} disabled={statusLoading === 'active'}
-              style={{
-                padding: '8px 20px', borderRadius: '8px', border: `1px solid #22C55E`,
-                background: COLORS.white, color: '#22C55E', fontSize: '12px', fontWeight: 600,
-                fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#F0FDF4'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
-            >
-              {statusLoading === 'active' ? 'Resuming…' : '▶ Resume Event'}
-            </button>
-          )}
-          {currentStatus !== 'completed' && (
-            <button onClick={() => handleStatusChange('completed')} disabled={statusLoading === 'completed'}
-              style={{
-                padding: '8px 20px', borderRadius: '8px', border: `1px solid #6B8EAE`,
-                background: COLORS.white, color: '#6B8EAE', fontSize: '12px', fontWeight: 600,
-                fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#EFF6FF'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
-            >
-              {statusLoading === 'completed' ? 'Completing…' : '✓ Complete Event'}
-            </button>
-          )}
-        </div>
+        {!statusActionable ? (
+          /* Draft / pending_review — status controls aren't applicable pre-publish. */
+          <p style={{ fontSize: '13px', color: COLORS.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+            {currentStatus === 'pending_review'
+              ? 'Your event is awaiting review and will go live once approved. Pause, resume and complete controls become available once it’s active.'
+              : 'Finish setup and complete payment to publish your event. Status controls become available once it’s live.'}
+          </p>
+        ) : (
+          <>
+            {/* Make the consequence explicit — pausing/completing takes the event offline. */}
+            <p style={{ fontSize: '12px', color: COLORS.stone, lineHeight: 1.6, marginBottom: '14px', fontFamily: 'var(--font-sans)' }}>
+              Pausing or completing your event takes it <strong>offline</strong> — guests can no longer view the invitation or RSVP until you resume it.
+            </p>
+
+            {confirmComplete ? (
+              /* Inline confirmation for the consequential Complete action. */
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
+                <p style={{ fontSize: '13px', color: COLORS.charcoal, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+                  Mark this event as <strong>completed</strong>? It will be taken offline and guests will no longer be able to RSVP. You can bring it back later by resuming it.
+                </p>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={async () => { await handleStatusChange('completed'); setConfirmComplete(false); }}
+                    disabled={!!statusLoading}
+                    style={{
+                      padding: '8px 20px', borderRadius: '8px', border: '1px solid #6B8EAE',
+                      background: '#6B8EAE', color: COLORS.white, fontSize: '12px', fontWeight: 600,
+                      fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                    }}
+                  >
+                    {statusLoading === 'completed' ? 'Completing…' : 'Yes, complete event'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmComplete(false)}
+                    disabled={!!statusLoading}
+                    style={{
+                      padding: '8px 20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+                      background: COLORS.white, color: COLORS.stone, fontSize: '12px', fontWeight: 600,
+                      fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {currentStatus !== 'paused' && (
+                  <button onClick={() => handleStatusChange('paused')} disabled={!!statusLoading}
+                    style={{
+                      padding: '8px 20px', borderRadius: '8px', border: '1px solid #F59E0B',
+                      background: COLORS.white, color: '#F59E0B', fontSize: '12px', fontWeight: 600,
+                      fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer',
+                      opacity: statusLoading && statusLoading !== 'paused' ? 0.5 : 1, transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => { if (!statusLoading) e.currentTarget.style.background = '#FFFBEB'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
+                  >
+                    {statusLoading === 'paused' ? 'Pausing…' : '⏸ Pause Event'}
+                  </button>
+                )}
+                {currentStatus === 'paused' && (
+                  <button onClick={() => handleStatusChange('active')} disabled={!!statusLoading}
+                    style={{
+                      padding: '8px 20px', borderRadius: '8px', border: '1px solid #22C55E',
+                      background: COLORS.white, color: '#22C55E', fontSize: '12px', fontWeight: 600,
+                      fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer',
+                      opacity: statusLoading && statusLoading !== 'active' ? 0.5 : 1, transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => { if (!statusLoading) e.currentTarget.style.background = '#F0FDF4'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
+                  >
+                    {statusLoading === 'active' ? 'Resuming…' : '▶ Resume Event'}
+                  </button>
+                )}
+                {currentStatus !== 'completed' && (
+                  <button onClick={() => setConfirmComplete(true)} disabled={!!statusLoading}
+                    style={{
+                      padding: '8px 20px', borderRadius: '8px', border: '1px solid #6B8EAE',
+                      background: COLORS.white, color: '#6B8EAE', fontSize: '12px', fontWeight: 600,
+                      fontFamily: 'var(--font-sans)', cursor: statusLoading ? 'not-allowed' : 'pointer',
+                      opacity: statusLoading ? 0.5 : 1, transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => { if (!statusLoading) e.currentTarget.style.background = '#EFF6FF'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
+                  >
+                    ✓ Complete Event
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* ═══ ERROR / SUCCESS ═══ */}
