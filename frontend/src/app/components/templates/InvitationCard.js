@@ -61,8 +61,8 @@ export default function InvitationCard({ template, theme, guestName, config }) {
             <span className="text-[8.5px] font-bold tracking-[1.5px]" style={{ color: lightAccentColor }}>SATURDAY · OCTOBER 24, 2026</span>
             <span className="text-[7.5px] italic text-stone-500">The Grand Ballroom · New York</span>
 
-            {cfg.sections?.map((sec, i) => (
-              <span key={i} className="text-[7px] text-stone-500">{sec}</span>
+            {cfg.sections && typeof cfg.sections === "object" && !Array.isArray(cfg.sections) && Object.entries(cfg.sections).filter(([, v]) => v).map(([key, ], i) => (
+              <span key={i} className="text-[7px] text-stone-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
             ))}
           </div>
 
