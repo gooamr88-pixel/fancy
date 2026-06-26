@@ -7,10 +7,12 @@ import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
+import { useAlert } from '../../_components/AlertContext';
 
 const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function OrganizersPage() {
+  const { showAlert, showConfirm, showToast } = useAlert();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [selectedOrg, setSelectedOrg] = useState(null);
@@ -34,7 +36,7 @@ export default function OrganizersPage() {
       const res = await adminApi.get(`/organizers/${org.ownerUserId}`);
       setOrgDetails(res?.user || res || null);
     } catch (err) {
-      alert(err.message || 'Failed to load details');
+      await showAlert(err.message || 'Failed to load details', 'Error', 'error');
     } finally {
       setLoadingDetails(false);
     }
@@ -50,39 +52,39 @@ export default function OrganizersPage() {
     setImpersonating(true);
     try {
       const res = await adminApi.post(`/organizers/${ownerUserId}/impersonate`);
-      alert(res?.message || 'Impersonation session established. Redirecting…');
+      await showAlert(res?.message || 'Impersonation session established. Redirecting…', 'Success', 'success');
       setTimeout(() => {
         window.location.href = '/dashboard';
       }, 1000);
     } catch (err) {
-      alert(err.message || 'Impersonation failed');
+      await showAlert(err.message || 'Impersonation failed', 'Error', 'error');
     } finally {
       setImpersonating(false);
     }
   };
 
   const handleResetPassword = async (ownerUserId) => {
-    if (!window.confirm('Reset this organizer password to a temporary password? This will revoke all active sessions.')) return;
+    if (!await showConfirm('Reset this organizer password to a temporary password? This will revoke all active sessions.', 'Reset Password', 'warning')) return;
     try {
       const res = await adminApi.post(`/organizers/${ownerUserId}/reset-password`);
       setTempPassword(res?.tempPassword || '');
-      alert('Temporary password set successfully.');
+      await showAlert('Temporary password set successfully.', 'Success', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to reset password');
+      await showAlert(err.message || 'Failed to reset password', 'Error', 'error');
     }
   };
 
   const handleToggleSuspend = async (ownerUserId, currentStatus) => {
     const nextStatus = currentStatus === 'banned' ? 'active' : 'banned';
-    if (!window.confirm(`Are you sure you want to set this organizer status to ${nextStatus.toUpperCase()}?`)) return;
+    if (!await showConfirm(`Are you sure you want to set this organizer status to ${nextStatus.toUpperCase()}?`, 'Update Status', 'warning')) return;
     setChangingStatus(true);
     try {
       await adminApi.patch(`/organizers/${ownerUserId}/status`, { status: nextStatus });
       setOrgDetails(prev => prev ? { ...prev, status: nextStatus } : null);
-      alert(`Account status updated to ${nextStatus}.`);
+      await showAlert(`Account status updated to ${nextStatus}.`, 'Success', 'success');
       reload();
     } catch (err) {
-      alert(err.message || 'Failed to update status');
+      await showAlert(err.message || 'Failed to update status', 'Error', 'error');
     } finally {
       setChangingStatus(false);
     }
@@ -157,7 +159,7 @@ export default function OrganizersPage() {
                     <code style={{ fontSize: '14px', fontWeight: 700, color: T.text900, background: T.surfaceAlt, padding: '4px 8px', borderRadius: '4px', border: `1px solid ${T.border}` }}>{tempPassword}</code>
                     <button type="button" style={{ background: 'transparent', border: `1px solid ${T.border}`, padding: '4px 8px', fontSize: '11px', borderRadius: '6px', cursor: 'pointer', color: T.text700 }} onClick={() => {
                       navigator.clipboard.writeText(tempPassword);
-                      alert('Copied to clipboard!');
+                      showToast('Copied to clipboard!');
                     }}>Copy</button>
                   </div>
                   <p style={{ fontSize: '11px', color: T.text500, marginTop: '8px', marginBottom: 0 }}>Provide this password securely to the organizer. They will be prompted to change it upon login.</p>

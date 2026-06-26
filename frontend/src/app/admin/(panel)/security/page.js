@@ -5,12 +5,14 @@ import adminApi from '../../_lib/adminApi';
 import DataTable from '../../_components/DataTable';
 import { Button } from '../../_components/Modal';
 import { T } from '../../_components/theme';
+import { useAlert } from '../../_components/AlertContext';
 
 /**
  * Security Center (Master Plan §19): active sessions (revocable), security
  * events, and platform-wide login history.
  */
 export default function SecurityPage() {
+  const { showAlert } = useAlert();
   const [tab, setTab] = useState('sessions');
   const [sessions, setSessions] = useState({ rows: [], pagination: null, page: 1, loading: true });
   const [events, setEvents] = useState({ rows: [], pagination: null, page: 1, loading: true });
@@ -60,7 +62,7 @@ export default function SecurityPage() {
       await adminApi.post(`/security/sessions/${sessionId}/revoke`);
       await loadSessions(sessions.page);
     } catch (err) {
-      alert(err.message || 'Revoke failed');
+      await showAlert(err.message || 'Revoke failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }

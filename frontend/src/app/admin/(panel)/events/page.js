@@ -7,10 +7,12 @@ import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
+import { useAlert } from '../../_components/AlertContext';
 
 const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function EventsPage() {
+  const { showAlert, showConfirm } = useAlert();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -32,10 +34,10 @@ export default function EventsPage() {
     setBusyId(eventId);
     try {
       await adminApi.patch(`/events/${eventId}`, { status });
-      alert(`Event status updated to ${status}.`);
+      await showAlert(`Event status updated to ${status}.`, 'Success', 'success');
       reload();
     } catch (err) {
-      alert(err.message || 'Failed to change status');
+      await showAlert(err.message || 'Failed to change status', 'Error', 'error');
     } finally {
       setBusyId(null);
     }
@@ -45,24 +47,24 @@ export default function EventsPage() {
     setBusyId(eventId);
     try {
       await adminApi.patch(`/events/${eventId}`, { isPaid });
-      alert(isPaid ? 'Marked as Paid.' : 'Marked as Unpaid.');
+      await showAlert(isPaid ? 'Marked as Paid.' : 'Marked as Unpaid.', 'Success', 'success');
       reload();
     } catch (err) {
-      alert(err.message || 'Failed to update paid status');
+      await showAlert(err.message || 'Failed to update paid status', 'Error', 'error');
     } finally {
       setBusyId(null);
     }
   };
 
   const handleDeleteEvent = async (eventId, title) => {
-    if (!window.confirm(`Permanently delete "${title}" and ALL its RSVPs, seating, payments and check-ins? This cannot be undone.`)) return;
+    if (!await showConfirm(`Permanently delete "${title}" and ALL its RSVPs, seating, payments and check-ins? This cannot be undone.`, 'Delete Event', 'danger')) return;
     setBusyId(eventId);
     try {
       await adminApi.del(`/events/${eventId}`);
-      alert('Event deleted successfully.');
+      await showAlert('Event deleted successfully.', 'Success', 'success');
       reload();
     } catch (err) {
-      alert(err.message || 'Failed to delete event');
+      await showAlert(err.message || 'Failed to delete event', 'Error', 'error');
     } finally {
       setBusyId(null);
     }
@@ -77,11 +79,11 @@ export default function EventsPage() {
         eventId: approval.event.id,
         amountCents: parseInt(approval.amountCents, 10)
       });
-      alert('Manual payment approved & event activated.');
+      await showAlert('Manual payment approved & event activated.', 'Success', 'success');
       setApproval(null);
       reload();
     } catch (err) {
-      alert(err.message || 'Approval failed');
+      await showAlert(err.message || 'Approval failed', 'Error', 'error');
     } finally {
       setSubmittingApproval(false);
     }
@@ -95,11 +97,11 @@ export default function EventsPage() {
       await adminApi.post(`/events/${grantModal.eventId}/grant-sms`, {
         credits: parseInt(grantAmount, 10)
       });
-      alert(`Granted ${grantAmount} SMS credits.`);
+      await showAlert(`Granted ${grantAmount} SMS credits.`, 'Success', 'success');
       setGrantModal(null);
       reload();
     } catch (err) {
-      alert(err.message || 'Failed to grant credits');
+      await showAlert(err.message || 'Failed to grant credits', 'Error', 'error');
     } finally {
       setBusyId(null);
     }

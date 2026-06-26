@@ -4,6 +4,9 @@ import { useState } from 'react';
 import { T } from './theme';
 import Sidebar from './Sidebar';
 import usePermissions from '../_hooks/usePermissions';
+import { logout } from '../../utils/apiClient';
+import LogoutModal from '../../components/LogoutModal';
+import { AlertProvider } from './AlertContext';
 
 /**
  * The Super Admin Control Center shell (Foundation F3): permission-gated sidebar
@@ -15,6 +18,7 @@ import usePermissions from '../_hooks/usePermissions';
 export default function AdminShell({ children }) {
   const { me, loading, error, can, isSuperAdmin } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   if (loading) {
     return (
@@ -32,7 +36,9 @@ export default function AdminShell({ children }) {
     return (
       <Centered>
         <div style={{ textAlign: 'center', maxWidth: 400, background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '40px 32px', boxShadow: T.shadowMd }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20, color: T.primary }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+          </div>
           <h2 style={{ fontSize: 20, fontWeight: 700, color: T.text900, margin: '0 0 12px', fontFamily: 'var(--font-serif)' }}>Access Restricted</h2>
           <p style={{ fontSize: 14, color: T.text500, margin: '0 0 24px', lineHeight: 1.6 }}>
             {error || 'You do not have administrative access to this area.'}
@@ -46,78 +52,81 @@ export default function AdminShell({ children }) {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: T.bg, color: T.text900, fontFamily: 'var(--font-sans)' }}>
-      <Sidebar can={can} open={sidebarOpen} onNavigate={() => {}} />
+    <AlertProvider>
+      <div style={{ display: 'flex', minHeight: '100vh', background: T.bg, color: T.text900, fontFamily: 'var(--font-sans)' }}>
+        <Sidebar can={can} open={sidebarOpen} onNavigate={() => {}} onLogout={() => setShowLogoutModal(true)} />
 
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        {/* Topbar */}
-        <header
-          style={{
-            height: 64,
-            background: 'rgba(25, 27, 30, 0.95)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0 24px',
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
-          }}
-        >
-          <button
-            onClick={() => setSidebarOpen((v) => !v)}
-            aria-label="Toggle navigation"
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* Topbar */}
+          <header
             style={{
-              border: 'none',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              width: 36,
-              height: 36,
-              borderRadius: T.radiusSm,
+              height: 64,
+              background: 'rgba(25, 27, 30, 0.95)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#A19E95',
-              transition: 'all 0.2s',
+              justifyContent: 'space-between',
+              padding: '0 24px',
+              position: 'sticky',
+              top: 0,
+              zIndex: 10,
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.color = '#FFFFFF'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'; e.currentTarget.style.color = '#A19E95'; }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <span
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              aria-label="Toggle navigation"
               style={{
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: '0.04em',
-                color: '#B8944F',
-                background: 'rgba(184, 148, 79, 0.15)',
-                border: '1px solid rgba(184, 148, 79, 0.3)',
-                padding: '4px 12px',
-                borderRadius: 20,
-                textTransform: 'uppercase',
+                border: 'none',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                width: 36,
+                height: 36,
+                borderRadius: T.radiusSm,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#A19E95',
+                transition: 'all 0.2s',
               }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.color = '#FFFFFF'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'; e.currentTarget.style.color = '#A19E95'; }}
             >
-              {isSuperAdmin ? 'Super Admin' : (me.roles && me.roles[0]) || 'Admin'}
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>{me.name || 'Admin'}</span>
-              <span style={{ fontSize: 11, color: '#A19E95' }}>{me.email}</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: '0.04em',
+                  color: '#B8944F',
+                  background: 'rgba(184, 148, 79, 0.15)',
+                  border: '1px solid rgba(184, 148, 79, 0.3)',
+                  padding: '4px 12px',
+                  borderRadius: 20,
+                  textTransform: 'uppercase',
+                }}
+              >
+                {isSuperAdmin ? 'Super Admin' : (me.roles && me.roles[0]) || 'Admin'}
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>{me.name || 'Admin'}</span>
+                <span style={{ fontSize: 11, color: '#A19E95' }}>{me.email}</span>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
 
-        <main style={{ flex: 1, padding: '32px clamp(20px, 4vw, 40px)', maxWidth: 1440, width: '100%', boxSizing: 'border-box' }}>
-          {children}
-        </main>
+          <main style={{ flex: 1, padding: '32px clamp(20px, 4vw, 40px)', maxWidth: 1440, width: '100%', boxSizing: 'border-box' }}>
+            {children}
+          </main>
+        </div>
+        <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
       </div>
-    </div>
+    </AlertProvider>
   );
 }
 

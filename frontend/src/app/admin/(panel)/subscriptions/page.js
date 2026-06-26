@@ -7,6 +7,7 @@ import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
+import { useAlert } from '../../_components/AlertContext';
 
 /**
  * Subscription Management (Master Plan §11). First-class plans (CRUD +
@@ -32,6 +33,7 @@ export default function SubscriptionsPage() {
 }
 
 function Plans() {
+  const { showAlert, showConfirm } = useAlert();
   const { can } = usePermissions();
   const manage = can('subscriptions.manage');
   const [plans, setPlans] = useState([]);
@@ -86,10 +88,10 @@ function Plans() {
       maxEvents: form.maxEvents === '' ? null : parseInt(form.maxEvents, 10),
       sortOrder: parseInt(form.sortOrder, 10) || 0,
     };
-    if (!base.name) { alert('Name is required.'); return; }
+    if (!base.name) { await showAlert('Name is required.', 'Validation Error', 'warning'); return; }
     if (editing === 'new') {
       const key = form.key.trim().toLowerCase();
-      if (!/^[a-z][a-z0-9_]*$/.test(key)) { alert('Key must be lowercase snake_case (e.g. pro_plan).'); return; }
+      if (!/^[a-z][a-z0-9_]*$/.test(key)) { await showAlert('Key must be lowercase snake_case (e.g. pro_plan).', 'Validation Error', 'warning'); return; }
       base.key = key;
     }
     setBusy(true);
@@ -99,7 +101,7 @@ function Plans() {
       setEditing(null);
       reload();
     } catch (err) {
-      alert(err.message || 'Save failed');
+      await showAlert(err.message || 'Save failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }
@@ -107,13 +109,13 @@ function Plans() {
 
   const toggleActive = async (p) => {
     try { await adminApi.patch(`/subscriptions/plans/${p.id}/active`, { isActive: !p.is_active }); reload(); }
-    catch (err) { alert(err.message || 'Update failed'); }
+    catch (err) { await showAlert(err.message || 'Update failed', 'Error', 'error'); }
   };
 
   const remove = async (p) => {
-    if (!window.confirm(`Delete plan "${p.name}"? Plans with active subscriptions cannot be deleted — disable instead.`)) return;
+    if (!await showConfirm(`Delete plan "${p.name}"? Plans with active subscriptions cannot be deleted — disable instead.`, 'Delete Plan', 'danger')) return;
     try { await adminApi.del(`/subscriptions/plans/${p.id}`); reload(); }
-    catch (err) { alert(err.message || 'Delete failed'); }
+    catch (err) { await showAlert(err.message || 'Delete failed', 'Error', 'error'); }
   };
 
   return (

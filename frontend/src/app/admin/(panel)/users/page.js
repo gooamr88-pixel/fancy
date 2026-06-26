@@ -7,6 +7,7 @@ import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
+import { useAlert } from '../../_components/AlertContext';
 
 /**
  * User Management (Master Plan §4): paginated list with search, lifecycle
@@ -14,6 +15,7 @@ import { T } from '../../_components/theme';
  * login history with per-session revocation.
  */
 export default function UsersPage() {
+  const { showAlert, showPrompt } = useAlert();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [detail, setDetail] = useState(null);
@@ -38,7 +40,7 @@ export default function UsersPage() {
   const changeStatus = async (userId, status) => {
     let reason = '';
     if (status !== 'active') {
-      reason = window.prompt(`Reason for ${status}:`, '') || '';
+      reason = await showPrompt(`Reason for ${status}:`, `Set ${status} Reason`) || '';
     }
     setBusy(true);
     try {
@@ -46,7 +48,7 @@ export default function UsersPage() {
       reload();
       if (detail?.user) await openDetail(userId);
     } catch (err) {
-      alert(err.message || 'Action failed');
+      await showAlert(err.message || 'Action failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }
@@ -58,7 +60,7 @@ export default function UsersPage() {
       await adminApi.post(`/users/${userId}/sessions/${sessionId}/revoke`);
       await openDetail(userId);
     } catch (err) {
-      alert(err.message || 'Revoke failed');
+      await showAlert(err.message || 'Revoke failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }

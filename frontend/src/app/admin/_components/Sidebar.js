@@ -43,7 +43,7 @@ const ICONS = {
  * Items the current admin cannot access are hidden; sections not yet built are
  * shown disabled with a "soon" tag.
  */
-export default function Sidebar({ can, open, onNavigate }) {
+export default function Sidebar({ can, open, onNavigate, onLogout }) {
   const pathname = usePathname();
 
   return (
@@ -51,8 +51,10 @@ export default function Sidebar({ can, open, onNavigate }) {
       style={{
         width: 256,
         flex: '0 0 256px',
-        background: '#191B1E',
-        borderRight: '1px solid rgba(255, 255, 255, 0.08)',
+        background: 'rgba(25, 27, 30, 0.95)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderRight: '1px solid rgba(184, 148, 79, 0.08)',
         height: '100vh',
         position: 'sticky',
         top: 0,
@@ -65,8 +67,8 @@ export default function Sidebar({ can, open, onNavigate }) {
       }}
       data-admin-sidebar
     >
-      <div style={{ padding: '4px 8px 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-        <span style={{ fontSize: 20, color: '#B8944F', textShadow: '0 0 10px rgba(184, 148, 79, 0.4)' }}>✦</span>
+      <div style={{ padding: '4px 8px 16px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <span style={{ fontSize: 20, color: '#D7BE80', textShadow: '0 0 12px rgba(215, 190, 128, 0.5)' }}>✦</span>
         <span style={{ fontWeight: 800, fontSize: 16, color: '#FFFFFF', letterSpacing: '-0.02em', fontFamily: 'var(--font-serif)' }}>Control Center</span>
       </div>
 
@@ -84,18 +86,21 @@ export default function Sidebar({ can, open, onNavigate }) {
                 const icon = ICONS[it.key] || <span style={{ fontSize: 14 }}>⚙️</span>;
                 const inner = (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-                    <span style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 28,
-                      height: 28,
-                      borderRadius: T.radiusSm,
-                      background: active ? 'rgba(184, 148, 79, 0.12)' : 'rgba(255,255,255,0.02)',
-                      border: `1px solid ${active ? 'rgba(184, 148, 79, 0.25)' : 'transparent'}`,
-                      color: active ? '#B8944F' : '#A19E95',
-                      transition: 'all 0.2s',
-                    }}>
+                    <span 
+                      className="sidebar-icon-container"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 28,
+                        height: 28,
+                        borderRadius: T.radiusSm,
+                        background: active ? 'rgba(184, 148, 79, 0.12)' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${active ? 'rgba(184, 148, 79, 0.25)' : 'transparent'}`,
+                        color: active ? '#D7BE80' : '#A19E95',
+                        transition: 'all 0.2s',
+                      }}
+                    >
                       {icon}
                     </span>
                     <span style={{ flex: 1 }}>{it.label}</span>
@@ -109,11 +114,11 @@ export default function Sidebar({ can, open, onNavigate }) {
                 const baseStyle = {
                   display: 'flex',
                   alignItems: 'center',
-                  padding: '6px 8px',
+                  padding: '8px 10px',
                   borderRadius: T.radiusSm,
                   fontSize: 13,
                   fontWeight: active ? 700 : 500,
-                  color: active ? '#B8944F' : '#A19E95',
+                  color: active ? '#D7BE80' : '#A19E95',
                   background: active ? 'rgba(184, 148, 79, 0.08)' : 'transparent',
                   cursor: 'pointer',
                   transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -124,20 +129,21 @@ export default function Sidebar({ can, open, onNavigate }) {
                     key={it.key}
                     href={it.href}
                     onClick={onNavigate}
+                    className={`sidebar-item ${active ? 'active' : ''}`}
                     style={{
                       ...baseStyle,
                       textDecoration: 'none',
                     }}
                   >
                     {active && (
-                      <span style={{ position: 'absolute', left: -4, top: 8, bottom: 8, width: 3, background: '#B8944F', borderRadius: 2 }} />
+                      <span style={{ position: 'absolute', left: -4, top: 10, bottom: 10, width: 3, background: '#D7BE80', borderRadius: 2 }} />
                     )}
                     {inner}
                   </Link>
                 ) : (
                   <div
                     key={it.key}
-                    style={{ ...baseStyle, color: 'rgba(255,255,255,0.3)', cursor: 'not-allowed' }}
+                    style={{ ...baseStyle, color: 'rgba(255,255,255,0.25)', cursor: 'not-allowed' }}
                     title="Coming soon"
                   >
                     {inner}
@@ -148,6 +154,100 @@ export default function Sidebar({ can, open, onNavigate }) {
           );
         })}
       </div>
+
+      {/* Exit/Actions */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: 16 }}>
+        <Link
+          href="/dashboard"
+          className="sidebar-exit-btn dashboard"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '8px 10px',
+            borderRadius: T.radiusSm,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#D7BE80',
+            background: 'rgba(184, 148, 79, 0.08)',
+            textDecoration: 'none',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span className="exit-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: T.radiusSm, background: 'rgba(184, 148, 79, 0.12)', color: '#D7BE80', transition: 'all 0.2s' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><polyline points="9 21 9 9 15 9 15 21"/></svg>
+          </span>
+          <span>Organizer Dashboard</span>
+        </Link>
+
+        <button
+          onClick={onLogout}
+          className="sidebar-exit-btn signout"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '8px 10px',
+            borderRadius: T.radiusSm,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#EF4444',
+            background: 'rgba(239, 68, 68, 0.04)',
+            border: 'none',
+            width: '100%',
+            textAlign: 'left',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span className="exit-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: T.radiusSm, background: 'rgba(239, 68, 68, 0.1)', color: '#EF4444', transition: 'all 0.2s' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </span>
+          <span>Sign Out</span>
+        </button>
+      </div>
+
+      <style jsx global>{`
+        .sidebar-item {
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .sidebar-item:hover {
+          background: rgba(255, 255, 255, 0.03) !important;
+          color: #FFFFFF !important;
+        }
+        .sidebar-item:hover .sidebar-icon-container {
+          transform: scale(1.05);
+          background: rgba(184, 148, 79, 0.15) !important;
+          color: #D7BE80 !important;
+          border-color: rgba(184, 148, 79, 0.3) !important;
+        }
+        .sidebar-item.active {
+          background: rgba(184, 148, 79, 0.08) !important;
+          color: #D7BE80 !important;
+        }
+        .sidebar-item.active .sidebar-icon-container {
+          background: rgba(184, 148, 79, 0.12) !important;
+          border-color: rgba(184, 148, 79, 0.25) !important;
+          color: #D7BE80 !important;
+        }
+        .sidebar-exit-btn {
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .sidebar-exit-btn.dashboard:hover {
+          background: rgba(184, 148, 79, 0.15) !important;
+        }
+        .sidebar-exit-btn.dashboard:hover .exit-icon {
+          transform: scale(1.05);
+          background: rgba(184, 148, 79, 0.22) !important;
+        }
+        .sidebar-exit-btn.signout:hover {
+          background: rgba(239, 68, 68, 0.1) !important;
+        }
+        .sidebar-exit-btn.signout:hover .exit-icon {
+          transform: scale(1.05);
+          background: rgba(239, 68, 68, 0.15) !important;
+        }
+      `}</style>
     </nav>
   );
 }

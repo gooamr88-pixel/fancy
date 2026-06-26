@@ -8,6 +8,7 @@ import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
+import { useAlert } from '../../_components/AlertContext';
 
 /**
  * Payment Center (Master Plan §9). Platform-wide payment ledger with status /
@@ -42,6 +43,7 @@ export default function PaymentsPage() {
 }
 
 function PaymentsLedger() {
+  const { showAlert } = useAlert();
   const { can } = usePermissions();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
@@ -75,11 +77,11 @@ function PaymentsLedger() {
         amountCents: cents,
         reason: reason || undefined,
       });
-      alert(res?.message || 'Refund processed.');
+      await showAlert(res?.message || 'Refund processed.', 'Success', 'success');
       close();
       reload();
     } catch (err) {
-      alert(err.message || 'Refund failed');
+      await showAlert(err.message || 'Refund failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }
@@ -89,11 +91,11 @@ function PaymentsLedger() {
     setBusy(true);
     try {
       await adminApi.post(`/payments/${active.id}/decline`, { reason: reason || undefined });
-      alert('Payment declined.');
+      await showAlert('Payment declined.', 'Success', 'success');
       close();
       reload();
     } catch (err) {
-      alert(err.message || 'Decline failed');
+      await showAlert(err.message || 'Decline failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }
@@ -103,11 +105,11 @@ function PaymentsLedger() {
     setBusy(true);
     try {
       await adminApi.post('/manual-approve', { eventId: active.event_id, amountCents: active.amount_cents });
-      alert('Manual payment approved — event activated.');
+      await showAlert('Manual payment approved — event activated.', 'Success', 'success');
       close();
       reload();
     } catch (err) {
-      alert(err.message || 'Approval failed');
+      await showAlert(err.message || 'Approval failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }

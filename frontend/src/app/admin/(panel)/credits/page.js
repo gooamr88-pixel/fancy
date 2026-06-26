@@ -7,6 +7,7 @@ import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
+import { useAlert } from '../../_components/AlertContext';
 
 /**
  * Credit Management (Master Plan §10). Two surfaces:
@@ -32,6 +33,7 @@ export default function CreditsPage() {
 }
 
 function PackageCatalog() {
+  const { showAlert, showConfirm } = useAlert();
   const { can } = usePermissions();
   const manage = can('credits.manage');
   const [packages, setPackages] = useState([]);
@@ -82,7 +84,7 @@ function PackageCatalog() {
       isActive: form.isActive,
     };
     if (!payload.name || !payload.credits || payload.credits <= 0) {
-      alert('Name and a positive credits value are required.');
+      showAlert('Name and a positive credits value are required.', 'Validation Error', 'warning');
       return;
     }
     setBusy(true);
@@ -92,7 +94,7 @@ function PackageCatalog() {
       setEditing(null);
       reload();
     } catch (err) {
-      alert(err.message || 'Save failed');
+      showAlert(err.message || 'Save failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }
@@ -100,13 +102,13 @@ function PackageCatalog() {
 
   const toggleActive = async (p) => {
     try { await adminApi.patch(`/credits/packages/${p.id}`, { isActive: !p.is_active }); reload(); }
-    catch (err) { alert(err.message || 'Update failed'); }
+    catch (err) { showAlert(err.message || 'Update failed', 'Error', 'error'); }
   };
 
   const remove = async (p) => {
-    if (!window.confirm(`Delete package "${p.name}"?`)) return;
+    if (!await showConfirm(`Delete package "${p.name}"?`, 'Delete Package', 'danger')) return;
     try { await adminApi.del(`/credits/packages/${p.id}`); reload(); }
-    catch (err) { alert(err.message || 'Delete failed'); }
+    catch (err) { showAlert(err.message || 'Delete failed', 'Error', 'error'); }
   };
 
   return (
@@ -182,6 +184,7 @@ function PackageCatalog() {
 }
 
 function SmsWallets() {
+  const { showAlert } = useAlert();
   const { can } = usePermissions();
   const manage = can('credits.manage');
   const [page, setPage] = useState(1);
@@ -197,14 +200,14 @@ function SmsWallets() {
 
   const doGrant = async () => {
     const n = parseInt(credits, 10);
-    if (!n || n <= 0) { alert('Enter a positive number of credits.'); return; }
+    if (!n || n <= 0) { showAlert('Enter a positive number of credits.', 'Validation Error', 'warning'); return; }
     setBusy(true);
     try {
       await adminApi.post(`/events/${grant.event_id}/grant-sms`, { credits: n });
       setGrant(null); setCredits('');
       reload();
     } catch (err) {
-      alert(err.message || 'Grant failed');
+      showAlert(err.message || 'Grant failed', 'Error', 'error');
     } finally {
       setBusy(false);
     }

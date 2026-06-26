@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import adminApi from '../../_lib/adminApi';
 import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
+import { useAlert } from '../../_components/AlertContext';
 
 /**
  * Roles & Permissions (Master Plan §18). Lists roles with their permission
@@ -11,6 +12,7 @@ import { T, card } from '../../_components/theme';
  * super_admin is shown read-only (implicit wildcard).
  */
 export default function RolesPage() {
+  const { showAlert } = useAlert();
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [admins, setAdmins] = useState([]);
@@ -65,7 +67,7 @@ export default function RolesPage() {
       setEditing(null);
       reload();
     } catch (err) {
-      alert(err.message || 'Failed to save');
+      await showAlert(err.message || 'Failed to save', 'Error', 'error');
     } finally {
       setSaving(false);
     }

@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import { T, card } from '../../_components/theme';
 import { Button } from '../../_components/Modal';
+import { useAlert } from '../../_components/AlertContext';
 
 export default function ConfigPage() {
+  const { showAlert } = useAlert();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -47,9 +49,9 @@ export default function ConfigPage() {
         pricing_tiers: pricingTiers,
         manual_payment_methods: manualMethods
       });
-      alert('Configuration saved successfully.');
+      await showAlert('Configuration saved successfully.', 'Success', 'success');
     } catch (err) {
-      alert(err.message || 'Failed to save configuration');
+      await showAlert(err.message || 'Failed to save configuration', 'Error', 'error');
     } finally {
       setSaving(false);
     }
