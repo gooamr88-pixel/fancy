@@ -19,6 +19,8 @@ const D = {
 
 const ICONS = {
   overview: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+  finance: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  health: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>,
   events: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
   pending: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
   payments: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
@@ -31,6 +33,8 @@ const ICONS = {
 
 const NAV = [
   { key: 'overview', label: 'Dashboard', icon: ICONS.overview },
+  { key: 'finance', label: 'Finance', icon: ICONS.finance },
+  { key: 'health', label: 'Health', icon: ICONS.health },
   { key: 'events', label: 'Events', icon: ICONS.events },
   { key: 'pending', label: 'Review', icon: ICONS.pending },
   { key: 'payments', label: 'Ledger', icon: ICONS.payments },
@@ -57,6 +61,7 @@ const STATUS_COLORS = {
   pending: { bg: 'rgba(245, 158, 11, 0.08)', fg: '#D97706', br: 'rgba(245, 158, 11, 0.2)' },
   failed: { bg: 'rgba(239, 68, 68, 0.08)', fg: '#EF4444', br: 'rgba(239, 68, 68, 0.2)' },
   refunded: { bg: '#FDFCF9', fg: '#77736A', br: '#E8E2D6' },
+  banned: { bg: 'rgba(239, 68, 68, 0.08)', fg: '#EF4444', br: 'rgba(239, 68, 68, 0.2)' },
 };
 
 function Badge({ status, label }) {
@@ -151,6 +156,18 @@ export default function AdminPage() {
   const [grantAmount, setGrantAmount] = useState(100);
   const [busyId, setBusyId] = useState(null);
 
+  // Health telemetry & Financial command center data states
+  const [healthData, setHealthData] = useState(null);
+  const [financeData, setFinanceData] = useState(null);
+
+  // Tenant Management Modal states
+  const [selectedOrg, setSelectedOrg] = useState(null);
+  const [orgDetails, setOrgDetails] = useState(null);
+  const [loadingOrgDetails, setLoadingOrgDetails] = useState(false);
+  const [tempPassword, setTempPassword] = useState('');
+  const [impersonating, setImpersonating] = useState(false);
+  const [changingStatus, setChangingStatus] = useState(false);
+
   // Filters
   const [eventSearch, setEventSearch] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('all');
@@ -211,6 +228,10 @@ export default function AdminPage() {
         const d = await api('/admin/users'); setUsers(d.users || []);
       } else if (tab === 'activity') {
         const d = await api('/admin/activity'); setActivity(d.logs || []);
+      } else if (tab === 'health') {
+        const d = await api('/admin/health'); setHealthData(d.health || null);
+      } else if (tab === 'finance') {
+        const d = await api('/admin/finance/summary'); setFinanceData(d.finance || null);
       } else if (tab === 'config') {
         const d = await api('/admin/pricing');
         if (d.config) {
@@ -236,6 +257,71 @@ export default function AdminPage() {
   }, [loadedTabs, loadTab]);
 
   const refreshTab = (tab) => { setLoadedTabs(p => ({ ...p, [tab]: false })); loadTab(tab); };
+
+  // Health auto-refresh effect (15 seconds)
+  useEffect(() => {
+    if (activeTab !== 'health') return;
+    const interval = setInterval(() => {
+      refreshTab('health');
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [activeTab]);
+
+  // Tenant Details and Actions Loader
+  const loadOrgDetails = useCallback(async (ownerUserId) => {
+    setLoadingOrgDetails(true);
+    setTempPassword('');
+    try {
+      const d = await api(`/admin/organizers/${ownerUserId}`);
+      setOrgDetails(d.user || d);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoadingOrgDetails(false);
+    }
+  }, [api]);
+
+  const handleImpersonate = async (ownerUserId) => {
+    setImpersonating(true);
+    try {
+      const d = await api(`/admin/organizers/${ownerUserId}/impersonate`, { method: 'POST' });
+      showToast(d.message || 'Impersonation session established. Redirecting…');
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1000);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setImpersonating(false);
+    }
+  };
+
+  const handleResetPassword = async (ownerUserId) => {
+    if (!window.confirm('Reset this organizer password to a temporary password? This will revoke all active sessions.')) return;
+    try {
+      const d = await api(`/admin/organizers/${ownerUserId}/reset-password`, { method: 'POST' });
+      setTempPassword(d.tempPassword);
+      showToast('Temporary password set successfully.');
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const handleToggleSuspend = async (ownerUserId, currentStatus) => {
+    const nextStatus = currentStatus === 'banned' ? 'active' : 'banned';
+    if (!window.confirm(`Are you sure you want to set this organizer status to ${nextStatus.toUpperCase()}?`)) return;
+    setChangingStatus(true);
+    try {
+      await api(`/admin/organizers/${ownerUserId}/status`, { method: 'PATCH', body: JSON.stringify({ status: nextStatus }) });
+      setOrgDetails(prev => prev ? { ...prev, status: nextStatus } : null);
+      setOrganizations(prev => prev.map(org => org.ownerUserId === ownerUserId ? { ...org, status: nextStatus } : org));
+      showToast(`Account status updated to ${nextStatus}.`);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setChangingStatus(false);
+    }
+  };
 
   // ── Actions ──
   const handleApprove = async (e) => {
@@ -657,11 +743,92 @@ export default function AdminPage() {
             </>
           )}
 
+          {/* ── SYSTEM HEALTH ── */}
+          {activeTab === 'health' && (
+            <div>
+              <p style={{ fontSize: '13px', color: D.text300, marginBottom: '20px' }}>
+                Overall Platform Status: {healthData ? (
+                  <strong style={{ color: healthData.overall === 'healthy' ? D.emerald : D.rose, textTransform: 'uppercase', fontWeight: 800 }}>
+                    {healthData.overall}
+                  </strong>
+                ) : 'Checking…'}
+              </p>
+              {healthData ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                  {(healthData.services || []).map((s) => {
+                    const statusColors = {
+                      healthy: D.emerald,
+                      configured: D.emerald,
+                      degraded: D.rose,
+                      unconfigured: D.amber,
+                    };
+                    const color = statusColors[s.status] || D.text300;
+                    return (
+                      <div key={s.name} style={{ ...cardStyle, padding: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                          <span style={{ fontWeight: 700, color: D.text100, textTransform: 'capitalize', fontSize: '14px' }}>{s.name}</span>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, display: 'inline-block', boxShadow: `0 0 8px ${color}` }} />
+                        </div>
+                        <div style={{ fontSize: '12px', color: color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.status}</div>
+                        {s.latencyMs != null && <div style={{ fontSize: '11px', color: D.text400, marginTop: '4px' }}>Latency: {s.latencyMs} ms</div>}
+                        {s.error && <div style={{ fontSize: '10px', color: D.rose, marginTop: '4px', lineHeight: 1.4 }}>{s.error}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ ...cardStyle, padding: '48px', textAlign: 'center', color: D.text500 }}>Loading health telemetry…</div>
+              )}
+            </div>
+          )}
+
+          {/* ── FINANCIAL COMMAND CENTER ── */}
+          {activeTab === 'finance' && (
+            <div>
+              {financeData ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                    <StatCard label="Gross Revenue" value={money(financeData.totals?.grossCents)} icon="💰" color={D.emerald} />
+                    <StatCard label="Net Revenue" value={money(financeData.totals?.netCents)} sub={`${money(financeData.totals?.refundedCents)} refunded`} icon="💵" />
+                    <StatCard label="Platform Profit" value={money(financeData.totals?.platformProfitCents)} sub={`${financeData.totals?.commissionPct || 0}% commission`} color={D.amber} icon="💹" />
+                    <StatCard label="Payments Count" value={financeData.totals?.paymentCount || 0} icon="🧾" />
+                    <StatCard label="30D Net Forecast" value={money(financeData.forecast?.next30DaysNetCents)} sub={`${money(financeData.forecast?.avgDailyNetCents)}/day avg`} color={D.amber} icon="📈" />
+                  </div>
+                  
+                  <div style={{ ...cardStyle, padding: '24px' }}>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: D.text100, marginBottom: '4px', fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>Daily Net Revenue</h3>
+                    <p style={{ fontSize: '12px', color: D.text500, marginBottom: '20px' }}>Platform net revenue history per day</p>
+                    
+                    {financeData.series?.length === 0 ? (
+                      <p style={{ color: D.text400, fontSize: '13px', fontStyle: 'italic' }}>No transactions recorded in this window.</p>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '160px', overflowX: 'auto', paddingBottom: '8px' }}>
+                        {(() => {
+                          const maxNet = Math.max(1, ...(financeData.series || []).map(s => s.net_cents || 0));
+                          return (financeData.series || []).map((s, idx) => {
+                            const percent = ((s.net_cents || 0) / maxNet) * 100;
+                            return (
+                              <div key={idx} title={`${s.day}: ${money(s.net_cents)}`} style={{ flex: '1 0 10px', minWidth: '10px', display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                <div style={{ width: '100%', height: `${Math.max(2, percent)}%`, background: D.amber, borderRadius: '2px 2px 0 0', opacity: 0.85, transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '1'} onMouseLeave={e => e.currentTarget.style.opacity = '0.85'} />
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ ...cardStyle, padding: '48px', textAlign: 'center', color: D.text500 }}>Loading financials…</div>
+              )}
+            </div>
+          )}
+
           {/* ── ORGANIZATIONS ── */}
           {activeTab === 'organizations' && (
             <TableShell title="Organizations" subtitle={`${organizations.length} registered organizers`}
               action={<input placeholder="Search organizations…" value={orgSearch} onChange={e => setOrgSearch(e.target.value)} style={{ ...inputStyle, width: '220px' }} />}
-              head={<><Th>Organization</Th><Th>Contact</Th><Th>Events</Th><Th>Active</Th><Th>Lifetime Revenue</Th><Th>Billing</Th><Th>Joined</Th></>}>
+              head={<><Th>Organization</Th><Th>Contact</Th><Th>Events</Th><Th>Active</Th><Th>Lifetime Revenue</Th><Th>Billing</Th><Th>Joined</Th><Th align="right">Action</Th></>}>
               {filteredOrgs.length ? filteredOrgs.map(o => (
                 <tr key={o.id} style={{ borderBottom: `1px solid ${D.cardBorder}` }}>
                   <Td color={D.text200}><b>{o.name || 'Unnamed'}</b></Td>
@@ -674,8 +841,11 @@ export default function AdminPage() {
                   <Td color={D.emerald}><b>{money(o.lifetimeRevenueCents)}</b></Td>
                   <Td>{o.hasStripeCustomer ? <Badge status="completed" label="Stripe" /> : <Badge status="draft" label="None" />}</Td>
                   <Td color={D.text400}>{dateStr(o.createdAt)}</Td>
+                  <Td align="right">
+                    <button style={btn('ghost')} onClick={() => { setSelectedOrg(o); loadOrgDetails(o.ownerUserId); }}>Manage</button>
+                  </Td>
                 </tr>
-              )) : <tr><td colSpan="7" style={{ textAlign: 'center', padding: '48px', color: D.text500 }}>No organizations found.</td></tr>}
+              )) : <tr><td colSpan="8" style={{ textAlign: 'center', padding: '48px', color: D.text500 }}>No organizations found.</td></tr>}
             </TableShell>
           )}
 
@@ -869,6 +1039,87 @@ export default function AdminPage() {
               <button type="submit" disabled={busyId === grantModal.eventId} style={btn('primary')}>Grant Credits</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Manage Tenant Modal */}
+      {selectedOrg && (
+        <Modal onClose={() => { setSelectedOrg(null); setOrgDetails(null); }} title="Manage Organizer Account">
+          {loadingOrgDetails ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 0' }}>
+              <div style={{ width: '24px', height: '24px', border: `2px solid ${D.cardBorder}`, borderTop: `2px solid ${D.amber}`, borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '12px' }} />
+              <span style={{ fontSize: '13px', color: D.text300 }}>Loading account details…</span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `1px solid ${D.cardBorder}`, paddingBottom: '16px' }}>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 700, color: D.text100 }}>{selectedOrg.name || 'Unnamed Organization'}</div>
+                  <div style={{ fontSize: '12px', color: D.text400, marginTop: '2px' }}>{orgDetails?.email || selectedOrg.email || '—'}</div>
+                </div>
+                <Badge status={orgDetails?.status || 'active'} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px', color: D.text300 }}>
+                <div>
+                  <span style={{ display: 'block', color: D.text400, fontSize: '10px', textTransform: 'uppercase', fontWeight: 700 }}>Joined Date</span>
+                  <span style={{ fontWeight: 600, color: D.text200 }}>{dateStr(selectedOrg.createdAt)}</span>
+                </div>
+                <div>
+                  <span style={{ display: 'block', color: D.text400, fontSize: '10px', textTransform: 'uppercase', fontWeight: 700 }}>Lifetime Revenue</span>
+                  <span style={{ fontWeight: 600, color: D.emerald }}>{money(selectedOrg.lifetimeRevenueCents)}</span>
+                </div>
+              </div>
+
+              {tempPassword && (
+                <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: `1px dashed ${D.amber}`, borderRadius: '12px', padding: '14px' }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: D.amber, fontWeight: 700 }}>Temporary Password Generated</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                    <code style={{ fontSize: '14px', fontWeight: 700, color: D.text100, background: D.bg, padding: '4px 8px', borderRadius: '4px', border: `1px solid ${D.cardBorder}` }}>{tempPassword}</code>
+                    <button type="button" style={{ ...btn('ghost'), padding: '4px 8px', fontSize: '11px' }} onClick={() => {
+                      navigator.clipboard.writeText(tempPassword);
+                      showToast('Copied to clipboard!');
+                    }}>Copy</button>
+                  </div>
+                  <p style={{ fontSize: '11px', color: D.text400, marginTop: '8px', marginBottom: 0 }}>Provide this password securely to the organizer. They will be prompted to change it upon login.</p>
+                </div>
+              )}
+
+              <div style={{ borderTop: `1px solid ${D.cardBorder}`, paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button
+                  type="button"
+                  disabled={impersonating}
+                  onClick={() => handleImpersonate(selectedOrg.ownerUserId)}
+                  style={{ ...btn('primary'), width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: impersonating ? 0.7 : 1 }}
+                >
+                  {impersonating ? 'Redirection session active…' : '👤 Impersonate Organizer'}
+                </button>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleResetPassword(selectedOrg.ownerUserId)}
+                    style={{ ...btn('ghost'), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                  >
+                    🔑 Reset Password
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={changingStatus}
+                    onClick={() => handleToggleSuspend(selectedOrg.ownerUserId, orgDetails?.status)}
+                    style={{ ...btn(orgDetails?.status === 'banned' ? 'primary' : 'danger'), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                  >
+                    {changingStatus ? 'Updating…' : orgDetails?.status === 'banned' ? '🔓 Reactivate Account' : '🚫 Suspend Account'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <button type="button" onClick={() => { setSelectedOrg(null); setOrgDetails(null); }} style={btn('ghost')}>Close</button>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
 
