@@ -18,14 +18,14 @@ export const NAV_GROUPS = [
     heading: 'People',
     items: [
       { key: 'users', label: 'Users', href: '/admin/users', perm: 'users.view', icon: '👤', ready: true },
-      { key: 'organizers', label: 'Organizers', href: '/admin/organizers', perm: 'organizers.view', icon: '🏢', ready: false },
+      { key: 'organizers', label: 'Organizers', href: '/admin/organizers', perm: 'organizers.view', icon: '🏢', ready: true },
       { key: 'support', label: 'Support', href: '/admin/support', perm: 'support.view', icon: '🎫', ready: false },
     ],
   },
   {
     heading: 'Events & Guests',
     items: [
-      { key: 'events', label: 'Events', href: '/admin/events', perm: 'events.view', icon: '🎉', ready: false },
+      { key: 'events', label: 'Events', href: '/admin/events', perm: 'events.view', icon: '🎉', ready: true },
       { key: 'invitations', label: 'Invitations', href: '/admin/invitations', perm: 'invitations.view', icon: '✉️', ready: false },
       { key: 'guests', label: 'Guests', href: '/admin/guests', perm: 'guests.view', icon: '🧑‍🤝‍🧑', ready: false },
     ],
@@ -44,7 +44,7 @@ export const NAV_GROUPS = [
     heading: 'Platform',
     items: [
       { key: 'cms', label: 'Landing CMS', href: '/admin/cms', perm: 'cms.view', icon: '📝', ready: false },
-      { key: 'config', label: 'Configuration', href: '/admin/config', perm: 'config.view', icon: '⚙️', ready: false },
+      { key: 'config', label: 'Configuration', href: '/admin/config', perm: 'config.view', icon: '⚙️', ready: true },
       { key: 'feature-flags', label: 'Feature Flags', href: '/admin/feature-flags', perm: 'flags.view', icon: '🚩', ready: false },
       { key: 'auth-config', label: 'Auth Settings', href: '/admin/auth-config', perm: 'authconfig.view', icon: '🔑', ready: false },
       { key: 'notifications', label: 'Notifications', href: '/admin/notifications', perm: 'notifications.view', icon: '🔔', ready: false },
