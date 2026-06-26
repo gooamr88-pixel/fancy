@@ -36,7 +36,56 @@
   /* Tier 4 — Arabic: ornate calligraphic display (seal & titles) + naskh fallback */
   --font-arabic-display: var(--font-aref), 'Aref Ruqaa', 'Amiri', serif;
   --font-arabic: 'Amiri', 'Noto Naskh Arabic', 'Aref Ruqaa', serif;
+
+  /* Admin Dashboard Light Theme (Default) */
+  --admin-bg: #FAFAF8;
+  --admin-surface: #FFFFFF;
+  --admin-surface-alt: #FDFCF9;
+  --admin-border: #E8E2D6;
+  --admin-border-strong: #D7BE80;
+  --admin-text-900: #191B1E;
+  --admin-text-700: #4A4D53;
+  --admin-text-500: #77736A;
+  --admin-text-400: #A19E95;
+  --admin-primary: #B8944F;
+  --admin-primary-soft: rgba(184, 148, 79, 0.08);
+  --admin-primary-hover: #D7BE80;
+  --admin-primary-dark: #8A6D34;
+  --admin-danger: #EF4444;
+  --admin-danger-light: #F43F5E;
+  --admin-success: #10B981;
+  --admin-success-dark: #059669;
+  --admin-sky: #0EA5E9;
+  --admin-violet: #8B5CF6;
+  --admin-white: #FFFFFF;
 }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Admin Dashboard Dark Theme override */
+    --admin-bg: #121210;
+    --admin-surface: #1E1E1B;
+    --admin-surface-alt: #262622;
+    --admin-border: #3D3A33;
+    --admin-border-strong: #8A6D34;
+    --admin-text-900: #F8F4EC;
+    --admin-text-700: #D0CBBF;
+    --admin-text-500: #A8A397;
+    --admin-text-400: #8E8A7E;
+    --admin-primary: #D7BE80;
+    --admin-primary-soft: rgba(215, 190, 128, 0.1);
+    --admin-primary-hover: #E8D8B0;
+    --admin-primary-dark: #B8944F;
+    --admin-danger: #F87171;
+    --admin-danger-light: #FB7185;
+    --admin-success: #34D399;
+    --admin-success-dark: #059669;
+    --admin-sky: #38BDF8;
+    --admin-violet: #A78BFA;
+    --admin-white: #1E1E1B;
+  }
+}
+
 
 @theme inline {
   --color-champagne-gold: var(--champagne-gold);

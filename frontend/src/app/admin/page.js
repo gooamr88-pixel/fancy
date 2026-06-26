@@ -8,13 +8,13 @@ import LogoutModal from '../components/LogoutModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const D = {
-  bg: '#FAFAF8', bg2: '#FFFFFF', card: '#FFFFFF', cardBorder: '#E8E2D6', borderLight: '#D7BE80',
-  text100: '#191B1E', text200: '#4A4D53', text300: '#77736A', text400: '#A19E95', text500: '#BDBAB2',
-  amber: '#B8944F', amberHover: '#D7BE80', amberDark: '#8A6D34',
-  rose: '#EF4444', roseLight: '#f43f5e',
-  emerald: '#10B981', emeraldDark: '#059669',
-  sky: '#0EA5E9', violet: '#8B5CF6',
-  white: '#FFFFFF',
+  bg: 'var(--admin-bg, #FAFAF8)', bg2: 'var(--admin-surface, #FFFFFF)', card: 'var(--admin-surface, #FFFFFF)', cardBorder: 'var(--admin-border, #E8E2D6)', borderLight: 'var(--admin-border-strong, #D7BE80)',
+  text100: 'var(--admin-text-900, #191B1E)', text200: 'var(--admin-text-700, #4A4D53)', text300: 'var(--admin-text-500, #77736A)', text400: 'var(--admin-text-400, #A19E95)', text500: 'var(--admin-text-500, #BDBAB2)',
+  amber: 'var(--admin-primary, #B8944F)', amberHover: 'var(--admin-primary-hover, #D7BE80)', amberDark: 'var(--admin-primary-dark, #8A6D34)',
+  rose: 'var(--admin-danger, #EF4444)', roseLight: 'var(--admin-danger-light, #f43f5e)',
+  emerald: 'var(--admin-success, #10B981)', emeraldDark: 'var(--admin-success-dark, #059669)',
+  sky: 'var(--admin-sky, #0EA5E9)', violet: 'var(--admin-violet, #8B5CF6)',
+  white: 'var(--admin-white, #FFFFFF)',
 };
 
 const ICONS = {
