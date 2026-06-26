@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import Link from "next/link";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GuestEnvelopeReveal — the cinematic, one-time luxury invitation opening.
@@ -63,6 +64,38 @@ const METAL = {
   },
 };
 
+/* Build a maps deep-link to the venue. Prefers exact coordinates, falls back to
+   the venue name/address. Uses Apple Maps on iOS, Google Maps elsewhere. */
+function buildDirectionsUrl(event) {
+  const hasCoords = event?.location_lat != null && event?.location_lng != null;
+  const dest = hasCoords
+    ? `${event.location_lat},${event.location_lng}`
+    : encodeURIComponent([event?.location_name, event?.location_address].filter(Boolean).join(', '));
+  if (!dest) return null;
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  return isIOS ? `https://maps.apple.com/?daddr=${dest}` : `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+}
+
+/* Build the embeddable map URL. Uses the Google Maps Embed API when a key is
+   configured (works from either coordinates or a free-text address), otherwise
+   falls back to a keyless OpenStreetMap embed, which needs coordinates. */
+function buildMapEmbedSrc(event) {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const hasCoords = event?.location_lat != null && event?.location_lng != null;
+  const query = hasCoords
+    ? `${event.location_lat},${event.location_lng}`
+    : [event?.location_name, event?.location_address].filter(Boolean).join(', ');
+  if (!query) return null;
+  if (apiKey) {
+    return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(query)}&zoom=15`;
+  }
+  if (hasCoords) {
+    const { location_lat: lat, location_lng: lng } = event;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.008},${lat - 0.006},${lng + 0.008},${lat + 0.006}&layer=mapnik&marker=${lat},${lng}`;
+  }
+  return null;
+}
+
 /* ─── Name + monogram derivation from real event data ─── */
 const isArabic = (s) => typeof s === "string" && /[؀-ۿ]/.test(s);
 
@@ -97,6 +130,19 @@ function deriveIdentity(event, lang) {
   sealText = sealText || "✦";
 
   return { full: full || "You're Invited", sealText, sealArabic: isArabic(sealText) };
+}
+
+/* Small detail presenter row for the invitation card */
+function DetailRow({ icon, label, value }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, textAlign: 'left', padding: '0 6px' }}>
+      <span style={{ fontSize: 16, lineHeight: '20px' }}>{icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#9A9486', fontWeight: 700 }}>{label}</div>
+        <div style={{ fontSize: 13.5, color: '#191B1E', fontWeight: 500, lineHeight: 1.4 }}>{value}</div>
+      </div>
+    </div>
+  );
 }
 
 /* ─── The medallion artwork — one metal skin (bronze or gold) ─── */
@@ -245,7 +291,7 @@ function Flap({ side, open, patternUrl, delay }) {
   );
 }
 
-export default function GuestEnvelopeReveal({ event, onComplete }) {
+export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete }) {
   const prefersReduced = useReducedMotion();
 
   // stage: 0 preload · 1 paper · 2 seal-focus(resting) · 3 activating · 4 opening · 5 light · 6 reveal · 7 done
@@ -336,8 +382,11 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
     finishedRef.current = true;
     clearTimers();
     setStage(7);
+    try {
+      if (event?.id) window.localStorage.setItem(`fancy_envelope_seen_${event.id}`, '1');
+    } catch { /* non-fatal */ }
     onComplete && onComplete();
-  }, [clearTimers, onComplete]);
+  }, [clearTimers, onComplete, event]);
 
   // Drive the cinematic opening once the guest activates the seal. Guarded by a
   // ref so the idle auto-open can never restart an in-progress sequence.
@@ -347,9 +396,13 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
     setStage(3);                       // ACTIVATION — bronze → gold, glow, dust
     after(620, () => setStage(4));     // OPENING — flaps peel back
     after(1180, () => setStage(5));    // LIGHT — golden volumetric bloom
-    after(1820, () => setStage(6));    // REVEAL — invitation lockup rises
-    after(4600, () => finish());       // HANDOFF — dissolve into the live page
-  }, [after, finish]);
+    after(1820, () => {
+      setStage(6);                     // REVEAL — invitation lockup rises
+      try {
+        if (event?.id) window.localStorage.setItem(`fancy_envelope_seen_${event.id}`, '1');
+      } catch { /* non-fatal */ }
+    });
+  }, [after, event]);
 
   /* Choreography after mount: preload → paper → seal focus (resting). */
   useEffect(() => {
@@ -639,7 +692,7 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
         )}
       </AnimatePresence>
 
-      {/* ── STAGE 7: the invitation lockup rises from the light ── */}
+      {/* ── STAGE 7: the interactive luxury card rises from the light ── */}
       <AnimatePresence>
         {revealing && (
           <motion.div
@@ -648,67 +701,183 @@ export default function GuestEnvelopeReveal({ event, onComplete }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
-            style={{ position: "absolute", inset: 0, zIndex: 7, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "32px 26px", pointerEvents: "none" }}
+            style={{ position: "absolute", inset: 0, zIndex: 7, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "24px 16px", pointerEvents: "none" }}
           >
+            {/* Blurry backplate overlay */}
             <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(70% 60% at 50% 45%, rgba(255,250,238,0.78), rgba(250,242,225,0.4) 60%, transparent 85%)" }} />
 
+            {/* Scrollable Luxury Invitation Card */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.6, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-              style={{ position: "relative", marginBottom: 22 }}
+              initial={{ opacity: 0, y: 60, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 90, damping: 18, delay: 0.15 }}
+              style={{
+                width: '100%',
+                maxWidth: '430px',
+                maxHeight: '85vh',
+                overflowY: 'auto',
+                background: 'linear-gradient(180deg, #FFFFFF 0%, #FFFDF8 100%)',
+                borderRadius: 20,
+                border: `1px solid ${theme.primary}26`,
+                boxShadow: '0 40px 80px -24px rgba(25,27,30,0.4)',
+                padding: '34px 26px 28px',
+                textAlign: 'center',
+                WebkitOverflowScrolling: 'touch',
+                pointerEvents: 'auto',
+                position: 'relative',
+                zIndex: 8,
+              }}
             >
-              {sealGoldImg ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={sealGoldImg} alt="" aria-hidden width={92} height={92} style={{ width: 92, height: 92, objectFit: "contain", filter: sealGoldImg === sealImg ? "brightness(1.32) saturate(1.45) drop-shadow(0 8px 18px rgba(150,110,40,0.3))" : "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }} />
-              ) : (
-                <svg width="92" height="92" viewBox="0 0 220 220" aria-hidden style={{ filter: "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }}>
-                  <MedallionSkin skin="gold" uid="lock" text={identity.sealText} arabic={identity.sealArabic} />
-                </svg>
-              )}
+              {/* Crest Medallion */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+                {sealGoldImg ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={sealGoldImg} alt="" aria-hidden width={84} height={84} style={{ width: 84, height: 84, objectFit: "contain", filter: sealGoldImg === sealImg ? "brightness(1.32) saturate(1.45) drop-shadow(0 8px 18px rgba(150,110,40,0.3))" : "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }} />
+                ) : (
+                  <svg width="84" height="84" viewBox="0 0 220 220" aria-hidden style={{ filter: "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }}>
+                    <MedallionSkin skin="gold" uid="lock" text={identity.sealText} arabic={identity.sealArabic} />
+                  </svg>
+                )}
+              </div>
+
+              {/* Invitation Eyebrow */}
+              <span style={{ display: 'block', fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.32em", textTransform: "uppercase", fontWeight: 700, color: theme.primary, marginBottom: 12 }}>
+                {copy.eyebrow}
+              </span>
+
+              {/* Title */}
+              <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,6.8vw,32px)", fontWeight: 500, lineHeight: 1.2, color: "#2a1f12", margin: '0 0 8px' }}>
+                {displayName}
+              </h2>
+
+              {/* Elegant Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '14px 0 18px' }}>
+                <span style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+                <span style={{ fontSize: 16, color: theme.primary }}>✦</span>
+                <span style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+              </div>
+
+              {/* Event Details */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
+                {dateStr && (
+                  <DetailRow icon="📅" label={isRTL ? 'التاريخ' : 'When'} value={dateStr} />
+                )}
+                {locationStr && (
+                  <DetailRow icon="📍" label={isRTL ? 'المكان' : 'Where'} value={[locationStr, event?.location_address].filter(Boolean).join(' · ')} />
+                )}
+                {event?.dress_code && (
+                  <DetailRow icon="🎩" label={isRTL ? 'الزي' : 'Dress code'} value={isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code} />
+                )}
+              </div>
+
+              {/* Venue Map Embed & Directions */}
+              {(event?.location_name || event?.location_address || (event?.location_lat != null && event?.location_lng != null)) && (() => {
+                const mapEmbedSrc = buildMapEmbedSrc(event);
+                const directionsUrl = buildDirectionsUrl(event);
+                if (!mapEmbedSrc && !directionsUrl) return null;
+                return (
+                  <div style={{ marginBottom: 22 }}>
+                    {mapEmbedSrc ? (
+                      <div style={{
+                        position: 'relative', borderRadius: 14, overflow: 'hidden',
+                        border: `1px solid ${theme.primary}26`,
+                        boxShadow: '0 10px 26px -14px rgba(25,27,30,0.32)',
+                      }}>
+                        <iframe
+                          title={isRTL ? 'خريطة موقع الحدث' : 'Event location map'}
+                          src={mapEmbedSrc}
+                          width="100%" height="168"
+                          style={{ border: 0, display: 'block', filter: 'saturate(1.02)' }}
+                          loading="lazy"
+                          referrerPolicy="no-referrer-when-downgrade"
+                        />
+                        {directionsUrl && (
+                          <a
+                            href={directionsUrl} target="_blank" rel="noopener noreferrer"
+                            style={{
+                              position: 'absolute', bottom: 10, [isRTL ? 'left' : 'right']: 10,
+                              display: 'inline-flex', alignItems: 'center', gap: 5,
+                              padding: '8px 13px', borderRadius: 10, textDecoration: 'none',
+                              background: '#FFFFFF', border: `1px solid ${theme.primary}33`,
+                              color: theme.primary, fontSize: 11.5, fontWeight: 700,
+                              boxShadow: '0 4px 12px -4px rgba(25,27,30,0.35)',
+                              WebkitTapHighlightColor: 'transparent',
+                            }}
+                          >
+                            🧭 {isRTL ? 'الاتجاهات' : 'Directions'}
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <a
+                        href={directionsUrl} target="_blank" rel="noopener noreferrer"
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          padding: '13px 16px', borderRadius: 12, textDecoration: 'none',
+                          background: `${theme.primary}10`, border: `1px solid ${theme.primary}2E`,
+                          color: theme.primary, fontSize: 13, fontWeight: 700,
+                          WebkitTapHighlightColor: 'transparent',
+                        }}
+                      >
+                        🧭 {isRTL ? 'احصل على الاتجاهات' : 'Get Directions'}
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* RSVP status badge (if already responded) */}
+              {guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response) && (() => {
+                const STATUS_LABEL = {
+                  yes: isRTL ? 'حاضر' : 'Attending',
+                  maybe: isRTL ? 'ربما' : 'Tentative',
+                  no: isRTL ? 'معتذر' : 'Declined',
+                };
+                return (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    padding: '8px 14px', borderRadius: 999, alignSelf: 'center', marginBottom: 16,
+                    background: `${theme.primary}12`, border: `1px solid ${theme.primary}33`,
+                    color: theme.primary, fontSize: 12.5, fontWeight: 700,
+                  }}>
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: theme.primary }} />
+                    {isRTL ? 'تم تسجيل ردّك بالفعل' : "You've already responded"} · {STATUS_LABEL[guestRsvp.response]}
+                  </div>
+                );
+              })()}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <Link
+                  href={`/${slug}/rsvp${guestRsvp?.id ? `?rsvp_id=${guestRsvp.id}` : ''}${isRTL ? `${guestRsvp?.id ? '&' : '?'}lang=ar` : ''}`}
+                  style={{
+                    height: 52, borderRadius: 14, textDecoration: 'none',
+                    background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary || '#D7BE80'})`,
+                    color: '#FFFFFF', fontSize: 15, fontWeight: 700, letterSpacing: '0.02em',
+                    boxShadow: `0 10px 24px ${theme.primary}44`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    pointerEvents: 'auto',
+                  }}
+                >
+                  {guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response)
+                    ? (isRTL ? 'عرض / تعديل ردّك' : 'View / update your RSVP')
+                    : (isRTL ? 'تأكيد الحضور' : 'RSVP Now')}
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={finish}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5,
+                    color: '#9A9486', fontWeight: 600, padding: 8, fontFamily: "var(--font-sans)",
+                    pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                    alignSelf: 'center',
+                  }}
+                >
+                  {isRTL ? 'استعراض التفاصيل الكاملة ←' : 'Explore Event Details →'}
+                </button>
+              </div>
             </motion.div>
-
-            <motion.span
-              initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.35, duration: 0.7 }}
-              style={{ position: "relative", fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.4em", textTransform: "uppercase", fontWeight: 700, color: theme.primary, marginBottom: 14 }}
-            >
-              {copy.eyebrow}
-            </motion.span>
-
-            <motion.h2
-              initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              style={{ position: "relative", fontFamily: "var(--font-serif)", fontSize: "clamp(26px,8vw,42px)", fontWeight: 500, lineHeight: 1.15, color: "#2a1f12", margin: 0, maxWidth: 600 }}
-            >
-              {displayName}
-            </motion.h2>
-
-            <motion.div
-              initial={{ opacity: 0, scaleX: 0 }} animate={{ opacity: 1, scaleX: 1 }}
-              transition={{ delay: 0.7, duration: 0.7 }}
-              style={{ position: "relative", width: 120, height: 1, margin: "18px 0", background: `linear-gradient(90deg, transparent, ${theme.primary}, transparent)` }}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.82, duration: 0.7 }}
-              style={{ position: "relative", display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}
-            >
-              {dateStr && <span style={{ fontFamily: "var(--font-sans)", fontSize: 13, letterSpacing: "0.16em", textTransform: "uppercase", color: "#6f5a3a", fontWeight: 600 }}>{dateStr}</span>}
-              {locationStr && <span style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 15, color: "#8a7350" }}>{locationStr}</span>}
-              <span style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 13, color: "#a08a63", marginTop: 6 }}>{copy.join}</span>
-            </motion.div>
-
-            <motion.button
-              type="button"
-              onClick={finish}
-              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.0, duration: 0.6 }}
-              style={{ ...enterBtnStyle(theme), position: "relative", pointerEvents: "auto" }}
-            >
-              {copy.enter} <span aria-hidden style={{ marginInlineStart: 6 }}>→</span>
-            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>

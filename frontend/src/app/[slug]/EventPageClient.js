@@ -31,7 +31,6 @@ import {
   inputBlur,
 } from '../components/guest/GuestUI';
 import GuestEnvelopeReveal from '../components/templates/GuestEnvelopeReveal';
-import InvitationEnvelope from './InvitationEnvelope';
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
@@ -63,7 +62,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const [slug, setSlug] = useState(serverSlug || '');
   const [event, setEvent] = useState(initialEvent || null);
   const [guestRsvp, setGuestRsvp] = useState(null);
-  const [opened, setOpened] = useState(false);
   const [loading, setLoading] = useState(!initialEvent);
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState({});
@@ -129,11 +127,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       // Canonical SSR-safe "decide after mount" read: localStorage/matchMedia can't
       // be known during SSR, so the flip to true must happen post-mount in an effect.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (!reduceMotion && !seen) setShowReveal(true);
+      if (!reduceMotion && !seen && !skipEnvelope) setShowReveal(true);
     } catch {
       /* localStorage/matchMedia unavailable → simply skip the reveal */
     }
-  }, [event, loading, error, passwordRequired, isPrivate, underReview, notLive]);
+  }, [event, loading, error, passwordRequired, isPrivate, underReview, notLive, skipEnvelope]);
 
   const handleRevealComplete = useCallback(() => {
     setShowReveal(false);
@@ -485,28 +483,19 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // interval re-renders the page, so this flips on its own when the window opens.
   const seatingRevealed = isSeatingRevealed(event.event_date);
 
-  // ─── Premium entry: the sealed envelope greets the guest before any details. ───
-  if (!opened && !skipEnvelope) {
-    return (
-      <InvitationEnvelope
-        event={event}
-        slug={slug}
-        guestRsvp={guestRsvp}
-        themeColor={themeColor}
-        secondaryColor={customColors.secondary || '#D7BE80'}
-        isRTL={isRTL}
-        onEnter={() => setOpened(true)}
-      />
-    );
-  }
-
   return (
     <PageTransition>
       {/* One-time premium envelope reveal — fixed overlay above the page; the
           page tree below is rendered untouched underneath it. */}
       <AnimatePresence>
         {showReveal && (
-          <GuestEnvelopeReveal key="guest-reveal" event={event} onComplete={handleRevealComplete} />
+          <GuestEnvelopeReveal
+            key="guest-reveal"
+            event={event}
+            slug={slug}
+            guestRsvp={guestRsvp}
+            onComplete={handleRevealComplete}
+          />
         )}
       </AnimatePresence>
       <div dir={isRTL ? 'rtl' : 'ltr'} style={{
