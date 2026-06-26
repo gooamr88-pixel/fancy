@@ -5,51 +5,64 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../utils/apiClient';
 import LogoutModal from '../components/LogoutModal';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const D = {
-  bg: '#0a0c10', bg2: '#0d0f14', card: '#111318', cardBorder: '#1e2028', borderLight: '#2d303a',
-  text100: '#f0f1f3', text200: '#d8dae0', text300: '#b8bcc5', text400: '#8b8fa0', text500: '#5f6375',
-  amber: '#f59e0b', amberHover: '#eab308', amberDark: '#d97706',
-  rose: '#f43f5e', roseLight: '#fb7185',
-  emerald: '#34d399', emeraldDark: '#059669',
-  sky: '#38bdf8', violet: '#a78bfa',
+  bg: '#090a0f', bg2: '#12141a', card: '#12141a', cardBorder: '#202530', borderLight: '#2d3545',
+  text100: '#f3f4f6', text200: '#d1d5db', text300: '#9ca3af', text400: '#6b7280', text500: '#4b5563',
+  amber: '#C5A86B', amberHover: '#D7C49E', amberDark: '#8A6D34',
+  rose: '#EF4444', roseLight: '#F87171',
+  emerald: '#10B981', emeraldDark: '#059669',
+  sky: '#0EA5E9', violet: '#8B5CF6',
   white: '#FFFFFF',
 };
 
+const ICONS = {
+  overview: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>,
+  events: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+  pending: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  payments: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
+  organizations: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><line x1="9" y1="22" x2="9" y2="16"/><path d="M9 16h6v6"/></svg>,
+  sms: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+  roles: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+  config: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  activity: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
+};
+
 const NAV = [
-  { key: 'overview', label: 'Overview', icon: '📊' },
-  { key: 'events', label: 'Events', icon: '🎉' },
-  { key: 'pending', label: 'Pending Payments', icon: '⏳' },
-  { key: 'payments', label: 'Revenue & Payments', icon: '💳' },
-  { key: 'organizations', label: 'Organizations', icon: '🏢' },
-  { key: 'sms', label: 'SMS Credits', icon: '✉️' },
-  { key: 'roles', label: 'Users & Roles', icon: '🔐' },
-  { key: 'config', label: 'Pricing Config', icon: '⚙️' },
-  { key: 'activity', label: 'Activity Log', icon: '📜' },
+  { key: 'overview', label: 'Dashboard', icon: ICONS.overview },
+  { key: 'events', label: 'Events', icon: ICONS.events },
+  { key: 'pending', label: 'Review', icon: ICONS.pending },
+  { key: 'payments', label: 'Ledger', icon: ICONS.payments },
+  { key: 'organizations', label: 'Tenants', icon: ICONS.organizations },
+  { key: 'sms', label: 'Messaging', icon: ICONS.sms },
+  { key: 'roles', label: 'Access', icon: ICONS.roles },
+  { key: 'config', label: 'System', icon: ICONS.config },
+  { key: 'activity', label: 'Logs', icon: ICONS.activity },
 ];
 
-const cardStyle = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: '16px' };
-const inputStyle = { width: '100%', background: D.bg, border: `1px solid ${D.cardBorder}`, borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: D.text200, outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box', transition: 'border-color 0.2s' };
+const cardStyle = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: '12px', transition: 'all 0.2s' };
+const inputStyle = { width: '100%', background: D.bg, border: `1px solid ${D.borderLight}`, borderRadius: '6px', padding: '10px', fontSize: '13px', color: D.text100, outline: 'none' };
 
 const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const dateStr = (d) => d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
 const dateTime = (d) => d ? new Date(d).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
 const STATUS_COLORS = {
-  active: { bg: 'rgba(16,185,129,0.1)', fg: D.emerald, br: 'rgba(16,185,129,0.2)' },
-  pending_review: { bg: 'rgba(245,158,11,0.12)', fg: D.amber, br: 'rgba(245,158,11,0.25)' },
-  draft: { bg: 'rgba(255,255,255,0.04)', fg: D.text300, br: D.cardBorder },
-  paused: { bg: 'rgba(245,158,11,0.1)', fg: D.amber, br: 'rgba(245,158,11,0.2)' },
-  completed: { bg: 'rgba(56,189,248,0.1)', fg: D.sky, br: 'rgba(56,189,248,0.2)' },
-  pending: { bg: 'rgba(245,158,11,0.1)', fg: D.amber, br: 'rgba(245,158,11,0.2)' },
-  failed: { bg: 'rgba(244,63,94,0.1)', fg: D.roseLight, br: 'rgba(244,63,94,0.2)' },
-  refunded: { bg: 'rgba(167,139,250,0.1)', fg: D.violet, br: 'rgba(167,139,250,0.2)' },
+  active: { bg: '#064e3b', fg: '#34d399', br: '#10b981' },
+  pending_review: { bg: '#451a03', fg: '#fcd34d', br: '#d97706' },
+  draft: { bg: '#262626', fg: '#a3a3a3', br: '#404040' },
+  paused: { bg: '#451a03', fg: '#fcd34d', br: '#d97706' },
+  completed: { bg: '#064e3b', fg: '#34d399', br: '#10b981' },
+  pending: { bg: '#451a03', fg: '#fcd34d', br: '#d97706' },
+  failed: { bg: '#450a0a', fg: '#f87171', br: '#ef4444' },
+  refunded: { bg: '#262626', fg: '#a3a3a3', br: '#404040' },
 };
 
 function Badge({ status, label }) {
   const c = STATUS_COLORS[status] || STATUS_COLORS.draft;
   return (
-    <span style={{ background: c.bg, color: c.fg, border: `1px solid ${c.br}`, padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
+    <span style={{ background: c.bg, color: c.fg, border: `1px solid ${c.br}`, padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' }}>
       {label || status}
     </span>
   );
@@ -58,45 +71,43 @@ function Badge({ status, label }) {
 function StatCard({ label, value, sub, color }) {
   return (
     <div style={{ ...cardStyle, padding: '20px' }}>
-      <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: D.text400, fontWeight: 700, display: 'block' }}>{label}</span>
-      <span style={{ fontSize: '24px', fontWeight: 900, display: 'block', marginTop: '8px', color: color || D.text100 }}>{value}</span>
-      {sub && <span style={{ fontSize: '11px', color: D.text500, display: 'block', marginTop: '4px' }}>{sub}</span>}
+      <span style={{ fontSize: '10px', color: D.text300, textTransform: 'uppercase', fontWeight: 700 }}>{label}</span>
+      <div style={{ fontSize: '24px', fontWeight: 700, color: D.text100, marginTop: '8px' }}>{value}</div>
+      {sub && <div style={{ fontSize: '12px', color: D.text400, marginTop: '4px' }}>{sub}</div>}
     </div>
   );
 }
 
 function Th({ children, align }) {
-  return <th style={{ padding: '12px 20px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: D.text400, fontWeight: 700, textAlign: align || 'left', whiteSpace: 'nowrap' }}>{children}</th>;
+  return <th style={{ padding: '12px 16px', fontSize: '10px', color: D.text300, textTransform: 'uppercase', textAlign: align || 'left', borderBottom: `1px solid ${D.cardBorder}` }}>{children}</th>;
 }
 function Td({ children, align, color }) {
-  return <td style={{ padding: '14px 20px', color: color || D.text300, textAlign: align || 'left' }}>{children}</td>;
+  return <td style={{ padding: '12px 16px', color: color || D.text200, fontSize: '13px', textAlign: align || 'left' }}>{children}</td>;
 }
 
 function TableShell({ title, subtitle, head, children, action }) {
   return (
-    <div style={{ ...cardStyle, overflow: 'hidden' }}>
-      <div style={{ padding: '20px 24px', borderBottom: `1px solid ${D.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+    <div style={cardStyle}>
+      <div style={{ padding: '20px', borderBottom: `1px solid ${D.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h3 style={{ fontSize: '15px', fontWeight: 700, color: D.text100 }}>{title}</h3>
-          {subtitle && <p style={{ fontSize: '12px', color: D.text400, marginTop: '4px' }}>{subtitle}</p>}
+          <div style={{ fontSize: '14px', fontWeight: 600, color: D.text100 }}>{title}</div>
+          {subtitle && <div style={{ fontSize: '12px', color: D.text300 }}>{subtitle}</div>}
         </div>
         {action}
       </div>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', textAlign: 'left', fontSize: '13px', borderCollapse: 'collapse' }}>
-          <thead><tr style={{ background: D.bg, borderBottom: `1px solid ${D.cardBorder}` }}>{head}</tr></thead>
-          <tbody>{children}</tbody>
-        </table>
-      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead><tr>{head}</tr></thead>
+        <tbody>{children}</tbody>
+      </table>
     </div>
   );
 }
 
 const btn = (variant = 'primary') => {
-  const base = { padding: '7px 14px', fontSize: '11px', fontWeight: 700, borderRadius: '8px', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'all 0.15s', whiteSpace: 'nowrap' };
-  if (variant === 'primary') return { ...base, background: D.amberDark, color: D.white, border: 'none' };
-  if (variant === 'ghost') return { ...base, background: 'transparent', color: D.text300, border: `1px solid ${D.borderLight}` };
-  if (variant === 'danger') return { ...base, background: 'transparent', color: D.roseLight, border: '1px solid rgba(244,63,94,0.3)' };
+  const base = { padding: '8px 16px', fontSize: '12px', fontWeight: 600, borderRadius: '6px', cursor: 'pointer', border: 'none', transition: 'all 0.2s' };
+  if (variant === 'primary') return { ...base, background: D.amber, color: D.bg };
+  if (variant === 'ghost') return { ...base, background: 'transparent', color: D.text200, border: `1px solid ${D.borderLight}` };
+  if (variant === 'danger') return { ...base, background: '#450a0a', color: D.roseLight, border: `1px solid #7f1d1d` };
   return base;
 };
 
@@ -400,45 +411,126 @@ export default function AdminPage() {
     <div style={{ minHeight: '100vh', background: D.bg, color: D.text100, fontFamily: 'var(--font-sans)', display: 'flex' }}>
 
       {/* Sidebar */}
-      <aside className="admin-sidebar" style={{ width: '236px', background: D.bg2, borderRight: `1px solid ${D.cardBorder}`, padding: '24px 16px', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', transform: sidebarOpen ? 'translateX(0)' : undefined }}>
-        <div style={{ padding: '0 8px 20px', borderBottom: `1px solid ${D.cardBorder}`, marginBottom: '16px' }}>
-          <span style={{ color: D.amber, textTransform: 'uppercase', letterSpacing: '0.2em', fontSize: '10px', fontWeight: 800 }}>Fancy Platform</span>
-          <h1 style={{ fontSize: '17px', fontWeight: 800, letterSpacing: '-0.02em', marginTop: '4px', color: D.text100 }}>Super Admin</h1>
+      <aside className="admin-sidebar" style={{ width: '256px', background: D.bg2, borderRight: `1px solid ${D.cardBorder}`, padding: '24px 16px', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', transform: sidebarOpen ? 'translateX(0)' : undefined, boxShadow: '4px 0 24px rgba(0,0,0,0.25)', zIndex: 40 }}>
+        <div style={{ padding: '4px 8px 16px', borderBottom: `1px solid ${D.cardBorder}`, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 20, color: D.amber, textShadow: '0 0 10px rgba(197, 168, 107, 0.4)' }}>✦</span>
+          <div>
+            <span style={{ color: D.amber, textTransform: 'uppercase', letterSpacing: '0.12em', fontSize: '9px', fontWeight: 800 }}>Control Panel</span>
+            <h1 style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', marginTop: '2px', color: D.text100, fontFamily: 'var(--font-serif)' }}>Super Admin</h1>
+          </div>
         </div>
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1, overflowY: 'auto' }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, overflowY: 'auto' }}>
           {NAV.map(n => {
             const active = activeTab === n.key;
             const count = n.key === 'pending' ? pendingPayments.length : null;
             return (
               <button key={n.key} onClick={() => goTab(n.key)}
-                style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: active ? 700 : 500, textAlign: 'left', background: active ? 'rgba(245,158,11,0.12)' : 'transparent', color: active ? D.amber : D.text300, transition: 'all 0.15s' }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '13px',
+                  fontWeight: active ? 700 : 500,
+                  textAlign: 'left',
+                  background: active ? 'rgba(197, 168, 107, 0.08)' : 'transparent',
+                  color: active ? D.amber : D.text300,
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  position: 'relative'
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
-                <span style={{ fontSize: '15px' }}>{n.icon}</span>
+                {active && (
+                  <span style={{ position: 'absolute', left: -4, top: 8, bottom: 8, width: 3, background: D.amber, borderRadius: 2 }} />
+                )}
+                <span style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 24,
+                  height: 24,
+                  borderRadius: '6px',
+                  background: active ? 'rgba(197, 168, 107, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                  border: `1px solid ${active ? 'rgba(197, 168, 107, 0.25)' : 'transparent'}`,
+                  color: active ? D.amber : D.text400,
+                  transition: 'all 0.2s'
+                }} className="nav-icon-container">
+                  {n.icon}
+                </span>
                 <span style={{ flex: 1 }}>{n.label}</span>
-                {count ? <span style={{ background: D.amberDark, color: D.white, fontSize: '10px', fontWeight: 800, padding: '1px 7px', borderRadius: '10px' }}>{count}</span> : null}
+                {count ? <span style={{ background: D.rose, color: D.white, fontSize: '9px', fontWeight: 800, padding: '2px 8px', borderRadius: '10px', boxShadow: '0 0 10px rgba(239, 68, 68, 0.3)' }}>{count}</span> : null}
               </button>
             );
           })}
         </nav>
-        <div style={{ borderTop: `1px solid ${D.cardBorder}`, paddingTop: '12px', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <Link href="/dashboard" style={{ padding: '9px 12px', fontSize: '12px', fontWeight: 600, color: D.text300, textDecoration: 'none', borderRadius: '8px' }}>← Organizer Dashboard</Link>
-          <button onClick={() => setShowLogoutModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: D.text400, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}
-            onMouseEnter={e => e.currentTarget.style.color = D.roseLight}
-            onMouseLeave={e => e.currentTarget.style.color = D.text400}>Sign Out</button>
+        <div style={{ borderTop: `1px solid ${D.cardBorder}`, paddingTop: '16px', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <Link href="/dashboard" style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 12px',
+            fontSize: '12px',
+            fontWeight: 700,
+            color: D.text300,
+            textDecoration: 'none',
+            borderRadius: '8px',
+            transition: 'all 0.2s',
+            background: 'rgba(255, 255, 255, 0.01)',
+            border: `1px solid ${D.cardBorder}`
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = D.amber; e.currentTarget.style.color = D.text100; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = D.cardBorder; e.currentTarget.style.color = D.text300; }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            Organizer Dashboard
+          </Link>
+          <button onClick={() => setShowLogoutModal(true)} style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '9px 12px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: 700,
+            color: D.text400,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+            textAlign: 'left',
+            transition: 'all 0.2s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = D.roseLight}
+          onMouseLeave={e => e.currentTarget.style.color = D.text400}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign Out
+          </button>
         </div>
       </aside>
-      {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 30 }} className="admin-overlay" />}
+      {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 30, backdropFilter: 'blur(4px)' }} className="admin-overlay" />}
 
       {/* Main */}
-      <main style={{ flex: 1, minWidth: 0, padding: '28px 32px 64px' }}>
-        <div style={{ maxWidth: '1180px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <button className="admin-menu-btn" onClick={() => setSidebarOpen(true)} style={{ ...btn('ghost'), display: 'none', padding: '8px 12px' }}>☰</button>
-              <h2 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em' }}>{activeNav?.icon} {activeNav?.label}</h2>
+      <main style={{ flex: 1, minWidth: 0, padding: '32px clamp(20px, 4vw, 40px)' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px', gap: '12px', borderBottom: `1px solid ${D.cardBorder}`, paddingBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <button className="admin-menu-btn" onClick={() => setSidebarOpen(true)} style={{ ...btn('ghost'), display: 'none', padding: '8px 12px', background: D.card }}>☰</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '8px', background: 'rgba(197, 168, 107, 0.1)', color: D.amber, border: '1px solid rgba(197, 168, 107, 0.2)' }}>{activeNav?.icon}</span>
+                <h2 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', fontFamily: 'var(--font-serif)', margin: 0 }}>{activeNav?.label}</h2>
+              </div>
             </div>
-            <button onClick={() => refreshTab(activeTab)} style={btn('ghost')}>{tabLoading ? 'Refreshing…' : '↻ Refresh'}</button>
+            <button onClick={() => refreshTab(activeTab)} style={{ ...btn('ghost'), display: 'inline-flex', alignItems: 'center', gap: 8, background: D.card }}>
+              {tabLoading ? (
+                <div style={{ width: '12px', height: '12px', border: `2px solid ${D.cardBorder}`, borderTop: `2px solid ${D.amber}`, borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              )}
+              {tabLoading ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
 
           {/* ── OVERVIEW ── */}
@@ -803,8 +895,8 @@ export default function AdminPage() {
 
 function Field({ label, small, children }) {
   return (
-    <div>
-      <label style={{ fontSize: small ? '9px' : '11px', textTransform: 'uppercase', color: D.text500, fontWeight: 700, display: 'block', marginBottom: '6px', letterSpacing: '0.05em' }}>{label}</label>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <label style={{ fontSize: small ? '9px' : '11px', textTransform: 'uppercase', color: D.text400, fontWeight: 800, display: 'block', letterSpacing: '0.08em' }}>{label}</label>
       {children}
     </div>
   );
@@ -812,9 +904,9 @@ function Field({ label, small, children }) {
 
 function Modal({ title, onClose, children }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(10,12,16,0.85)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div onClick={e => e.stopPropagation()} style={{ ...cardStyle, width: '100%', maxWidth: '440px', padding: '24px', boxShadow: '0 24px 60px rgba(0,0,0,0.4)' }}>
-        <h3 style={{ fontSize: '17px', fontWeight: 700, color: D.text100, marginBottom: '8px' }}>{title}</h3>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(6,7,10,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div onClick={e => e.stopPropagation()} style={{ ...cardStyle, width: '100%', maxWidth: '440px', padding: '28px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', border: `1px solid ${D.cardBorder}`, animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 800, color: D.text100, marginBottom: '16px', fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>{title}</h3>
         {children}
       </div>
     </div>
@@ -822,55 +914,73 @@ function Modal({ title, onClose, children }) {
 }
 
 function OverviewTab({ overview }) {
-  if (!overview) return <div style={{ ...cardStyle, padding: '48px', textAlign: 'center', color: D.text500 }}>Loading metrics…</div>;
+  if (!overview) return <div style={{ ...cardStyle, padding: '48px', textAlign: 'center', color: D.text500 }}>
+    <div style={{ width: '24px', height: '24px', border: `2px solid ${D.cardBorder}`, borderTop: `2px solid ${D.amber}`, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
+    Loading metrics…
+  </div>;
   const { events, organizations, rsvps, checkIns, revenue, sms, recentActivity } = overview;
   const maxRev = Math.max(...revenue.trend.map(t => t.cents), 1);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }} className="admin-stat-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }} className="admin-stat-grid">
         <StatCard label="Gross Revenue" value={money(revenue.grossCents)} sub={`${money(revenue.pendingCents)} pending`} color={D.emerald} />
         <StatCard label="Total Events" value={events.total} sub={`${events.paid} paid · ${events.unpaid} unpaid`} color={D.amber} />
         <StatCard label="Organizations" value={organizations} sub="registered organizers" color={D.sky} />
         <StatCard label="Guests Attending" value={rsvps.attendingGuests} sub={`${rsvps.attendingParties} parties`} color={D.violet} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }} className="admin-stat-grid">
-        <StatCard label="Check-ins" value={checkIns} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }} className="admin-stat-grid">
+        <StatCard label="Check-ins" value={checkIns} sub="guest entries completed" color={D.emerald} />
         <StatCard label="RSVPs Total" value={rsvps.total} sub={`${rsvps.declined} declined · ${rsvps.pending} pending`} />
-        <StatCard label="SMS Credits Sold" value={sms.purchased} sub={`${sms.remaining} remaining`} />
+        <StatCard label="SMS Credits Sold" value={sms.purchased} sub={`${sms.remaining} remaining`} color={D.sky} />
         <StatCard label="Refunded" value={money(revenue.refundedCents)} color={D.roseLight} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '24px' }} className="admin-overview-cols">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }} className="admin-overview-cols">
         {/* Revenue chart */}
         <div style={{ ...cardStyle, padding: '24px' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: D.text100, marginBottom: '4px' }}>Revenue — last 6 months</h3>
-          <p style={{ fontSize: '12px', color: D.text500, marginBottom: '24px' }}>Completed payments by month</p>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', height: '160px' }}>
-            {revenue.trend.map(t => (
-              <div key={t.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', height: '100%', justifyContent: 'flex-end' }}>
-                <span style={{ fontSize: '10px', color: D.text400, fontWeight: 700 }}>{t.cents ? `$${Math.round(t.cents / 100)}` : ''}</span>
-                <div style={{ width: '100%', maxWidth: '44px', height: `${(t.cents / maxRev) * 100}%`, minHeight: t.cents ? '4px' : '0', background: `linear-gradient(180deg, ${D.amber}, ${D.amberDark})`, borderRadius: '6px 6px 0 0', transition: 'height 0.3s' }} />
-                <span style={{ fontSize: '11px', color: D.text500 }}>{t.label}</span>
-              </div>
-            ))}
+          <h3 style={{ fontSize: '15px', fontWeight: 800, color: D.text100, marginBottom: '2px', fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>Revenue — last 6 months</h3>
+          <p style={{ fontSize: '12px', color: D.text500, marginBottom: '20px' }}>Completed platform payments by month</p>
+          
+          <div style={{ position: 'relative', height: '180px', marginTop: '20px', padding: '0 10px' }}>
+            {/* Gridlines */}
+            <div style={{ position: 'absolute', inset: '0 0 24px 0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} style={{ borderTop: `1px dashed ${D.cardBorder}`, width: '100%', height: 0 }} />
+              ))}
+            </div>
+            {/* Bars container */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end', gap: '16px', height: '100%', paddingBottom: '24px', zIndex: 1 }}>
+              {revenue.trend.map(t => {
+                const percent = (t.cents / maxRev) * 100;
+                return (
+                  <div key={t.month} className="chart-col" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', height: '100%', justifyContent: 'flex-end' }}>
+                    <span style={{ fontSize: '10.5px', color: D.text200, fontWeight: 800, opacity: 0, transition: 'opacity 0.2s', marginBottom: '2px', background: 'rgba(0,0,0,0.8)', padding: '2px 6px', borderRadius: '4px', border: `1px solid ${D.cardBorder}` }} className="chart-val">
+                      {t.cents ? `$${Math.round(t.cents / 100).toLocaleString()}` : '$0'}
+                    </span>
+                    <div style={{ width: '100%', maxWidth: '38px', height: `${percent}%`, minHeight: t.cents ? '6px' : '0', background: `linear-gradient(180deg, ${D.amberHover}, ${D.amber})`, borderRadius: '6px 6px 0 0', transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)', cursor: 'pointer', boxShadow: '0 0 15px rgba(197, 168, 107, 0.1)' }} className="chart-bar" />
+                    <span style={{ fontSize: '11px', color: D.text400, fontWeight: 700 }}>{t.label}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Status breakdown */}
         <div style={{ ...cardStyle, padding: '24px' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: D.text100, marginBottom: '20px' }}>Events by Status</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 800, color: D.text100, marginBottom: '20px', fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>Events by Status</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {Object.entries(events.byStatus).map(([status, count]) => {
               const pct = events.total ? (count / events.total) * 100 : 0;
               const c = STATUS_COLORS[status] || STATUS_COLORS.draft;
               return (
                 <div key={status}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '6px' }}>
-                    <span style={{ color: D.text300, textTransform: 'capitalize' }}>{status}</span>
-                    <span style={{ color: D.text400, fontWeight: 700 }}>{count}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
+                    <span style={{ color: D.text200, textTransform: 'capitalize', fontWeight: 600 }}>{status.replace(/_/g, ' ')}</span>
+                    <span style={{ color: D.text100, fontWeight: 800 }}>{count}</span>
                   </div>
-                  <div style={{ height: '8px', background: D.bg, borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ width: `${pct}%`, height: '100%', background: c.fg, borderRadius: '4px' }} />
+                  <div style={{ height: '8px', background: D.bg, borderRadius: '4px', overflow: 'hidden', border: `1px solid ${D.cardBorder}` }}>
+                    <div style={{ width: `${pct}%`, height: '100%', background: c.fg, borderRadius: '4px', boxShadow: `0 0 10px ${c.fg}` }} />
                   </div>
                 </div>
               );
@@ -881,15 +991,15 @@ function OverviewTab({ overview }) {
 
       {/* Recent activity */}
       <div style={{ ...cardStyle, padding: '24px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 700, color: D.text100, marginBottom: '16px' }}>Recent Activity</h3>
+        <h3 style={{ fontSize: '15px', fontWeight: 800, color: D.text100, marginBottom: '16px', fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>Recent Activity</h3>
         {recentActivity.length ? (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {recentActivity.map((a, i) => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 0', borderBottom: i < recentActivity.length - 1 ? `1px solid ${D.cardBorder}` : 'none' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: D.amber, flexShrink: 0 }} />
-                <code style={{ color: D.sky, fontSize: '11px' }}>{a.action}</code>
-                <span style={{ color: D.text400, fontSize: '12px', flex: 1 }}>{a.eventTitle || a.entityType || ''}</span>
-                <span style={{ color: D.text500, fontSize: '11px' }}>{dateTime(a.createdAt)}</span>
+              <div key={a.id} className="activity-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 8px', borderBottom: i < recentActivity.length - 1 ? `1px solid ${D.cardBorder}` : 'none', borderRadius: '6px', transition: 'background-color 0.2s' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: D.amber, flexShrink: 0, boxShadow: `0 0 8px ${D.amber}` }} />
+                <code style={{ color: D.sky, fontSize: '11px', background: 'rgba(14, 165, 233, 0.08)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(14, 165, 233, 0.15)' }}>{a.action}</code>
+                <span style={{ color: D.text200, fontSize: '12.5px', flex: 1, fontWeight: 500 }}>{a.eventTitle || a.entityType || ''}</span>
+                <span style={{ color: D.text500, fontSize: '11px', fontWeight: 600 }}>{dateTime(a.createdAt)}</span>
               </div>
             ))}
           </div>
@@ -897,6 +1007,22 @@ function OverviewTab({ overview }) {
       </div>
 
       <style jsx>{`
+        .chart-col:hover .chart-val {
+          opacity: 1 !important;
+        }
+        .chart-bar:hover {
+          background: linear-gradient(180deg, #FFFFFF, ${D.amber}) !important;
+          box-shadow: 0 0 25px rgba(197, 168, 107, 0.3) !important;
+          transform: scaleX(1.05);
+        }
+        .activity-row:hover {
+          background-color: rgba(255, 255, 255, 0.015);
+        }
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 880px) {
           .admin-stat-grid { grid-template-columns: repeat(2, 1fr) !important; }
           .admin-overview-cols { grid-template-columns: 1fr !important; }

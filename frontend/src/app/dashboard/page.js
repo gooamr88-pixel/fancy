@@ -744,34 +744,6 @@ export default function DashboardPage() {
                   </Link>
                 )}
 
-                <FeatureGate isPaid={!!activeEvent?.is_paid} feature="add_guest" onUpgrade={() => { setActiveTab('events'); }}>
-                <button
-                  onClick={() => setShowAddGuestModal(true)}
-                  id="btn-add-guest"
-                  style={{
-                    padding: '9px 18px',
-                    background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
-                    color: COLORS.white,
-                    border: 'none',
-                    borderRadius: '30px',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-sans)',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    boxShadow: '0 4px 15px rgba(184, 148, 79, 0.25)',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(184, 148, 79, 0.4)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(184, 148, 79, 0.25)'; }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Add Guest
-                </button>
-                </FeatureGate>
-
                 <FeatureGate isPaid={!!activeEvent?.is_paid} feature="seating_map" onUpgrade={() => { setActiveTab('events'); }}>
                 <Link
                   href="/dashboard/seating-map"

@@ -80,8 +80,8 @@ export default function RolesPage() {
 
   return (
     <div>
-      <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0 }}>Roles &amp; Permissions</h1>
+      <header style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Roles &amp; Permissions</h1>
         <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>{permissions.length} permissions across {roles.length} roles.</p>
       </header>
 

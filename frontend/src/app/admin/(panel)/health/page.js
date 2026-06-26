@@ -40,15 +40,15 @@ export default function HealthPage() {
 
   return (
     <div>
-      <header style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+      <header style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0 }}>System Health</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>System Health</h1>
           <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>
             {health ? `Overall: ` : 'Checking…'}
             {health && <strong style={{ color: STATUS_COLOR[health.overall] || T.text700, textTransform: 'capitalize' }}>{health.overall}</strong>}
           </p>
         </div>
-        <span style={{ fontSize: 11, color: T.text400 }}>Auto-refresh 15s</span>
+        <span style={{ fontSize: 11, color: T.text400, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Auto-refresh 15s</span>
       </header>
 
       {error && <p style={{ color: T.danger }}>{error}</p>}

@@ -68,8 +68,8 @@ export default function UsersPage() {
 
   return (
     <div>
-      <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0 }}>Users</h1>
+      <header style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Users</h1>
         <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Manage accounts, sessions and lifecycle.</p>
       </header>
 

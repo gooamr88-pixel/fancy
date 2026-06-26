@@ -417,7 +417,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         <div style={{
           flex: 1, overflowY: 'auto', padding: '0 28px 16px',
           display: 'flex', flexDirection: 'column', gap: '6px',
-          minHeight: '160px',
+          minHeight: 0,
         }}>
           {filteredGuests.length === 0 ? (
             <div style={{

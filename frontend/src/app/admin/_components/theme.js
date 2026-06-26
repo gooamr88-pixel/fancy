@@ -10,33 +10,33 @@
  */
 export const T = {
   // Surfaces (app bg → cards → raised/hover)
-  bg: '#0b0e14',
-  surface: '#141a24',
-  surfaceAlt: '#1b2330',
-  border: '#26303f',
-  borderStrong: '#374152',
+  bg: '#090a0f',
+  surface: '#12141a',
+  surfaceAlt: '#181b22',
+  border: '#202530',
+  borderStrong: '#2d3545',
 
   // Text (high → low emphasis)
-  text900: '#e7edf5',
-  text700: '#aeb9c9',
-  text500: '#7e8a9c',
-  text400: '#5d6878',
+  text900: '#f3f4f6',
+  text700: '#d1d5db',
+  text500: '#9ca3af',
+  text400: '#6b7280',
 
-  // Brand / accents (brighter than light-mode equivalents for dark contrast)
-  primary: '#6d82ff',
-  primarySoft: 'rgba(109,130,255,0.15)',
-  success: '#34d399',
-  successSoft: 'rgba(52,211,153,0.14)',
-  warning: '#fbbf24',
-  warningSoft: 'rgba(251,191,36,0.14)',
-  danger: '#f87171',
-  dangerSoft: 'rgba(248,113,113,0.14)',
+  // Brand / accents (Luxury Champagne Gold and semantic alerts)
+  primary: '#C5A86B',
+  primarySoft: 'rgba(197, 168, 107, 0.12)',
+  success: '#10B981',
+  successSoft: 'rgba(16, 185, 129, 0.12)',
+  warning: '#F59E0B',
+  warningSoft: 'rgba(245, 158, 11, 0.12)',
+  danger: '#EF4444',
+  dangerSoft: 'rgba(239, 68, 68, 0.12)',
 
   // Shape
-  radius: '12px',
-  radiusSm: '8px',
-  shadow: '0 1px 2px rgba(0,0,0,0.45)',
-  shadowMd: '0 10px 30px rgba(0,0,0,0.55)',
+  radius: '16px',
+  radiusSm: '10px',
+  shadow: '0 4px 20px rgba(0,0,0,0.4)',
+  shadowMd: '0 12px 40px rgba(0,0,0,0.6)',
 };
 
 export const card = {
@@ -44,6 +44,7 @@ export const card = {
   border: `1px solid ${T.border}`,
   borderRadius: T.radius,
   boxShadow: T.shadow,
+  transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
 };
 
 export default T;

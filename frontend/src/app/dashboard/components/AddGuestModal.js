@@ -33,6 +33,9 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.guest_name.trim()) { setError('Guest name is required.'); return; }
+    if (!formData.email.trim()) { setError('Email address is required.'); return; }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) { setError('Please enter a valid email address.'); return; }
     // Phone is required so the guest can receive SMS invitations; normalize to
     // E.164 (US default) before sending.
     const normalizedPhone = normalizeToE164(formData.phone);
@@ -51,7 +54,7 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
         credentials: 'include',
         body: JSON.stringify({
           guestName: formData.guest_name.trim(),
-          email: formData.email.trim() || undefined,
+          email: formData.email.trim(),
           phone: normalizedPhone,
           partySize: parseInt(formData.party_size, 10),
           response: formData.response,
@@ -139,9 +142,9 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
             {/* Email & Phone row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
-                <label style={labelStyle}>Email</label>
+                <label style={labelStyle}>Email *</label>
                 <input value={formData.email} onChange={handleChange('email')} type="email"
-                  placeholder="email@example.com" style={inputStyle}
+                  placeholder="email@example.com" required style={inputStyle}
                   onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
                   onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
                 />
