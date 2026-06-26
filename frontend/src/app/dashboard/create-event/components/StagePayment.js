@@ -69,6 +69,9 @@ export default function StagePayment({
   const selectableTiers = (isPaid && upgrading) ? upgradeTiers : billableTiers;
   // The locked "Current Plan" view: paid and not actively upgrading.
   const showCurrentPlan = isPaid && !!currentTierName && !upgrading;
+  // When manualRef exists, the payment was submitted but awaiting verification.
+  // Hide the plan cards and show a "Pending Plan" banner instead.
+  const showPendingPlan = !!manualRef && !isPaid && !upgrading;
   const currentMaxGuests = currentTier ? currentTier.max_guests : currentTierMaxGuests;
   const currentFeatures = Array.isArray(currentTier?.features) ? currentTier.features.filter(Boolean) : [];
 
@@ -96,18 +99,20 @@ export default function StagePayment({
           borderRadius: 20, padding: '5px 14px', marginBottom: 12,
         }}>
           <span style={{ fontSize: 11, color: C.gold, fontWeight: 600, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {showCurrentPlan ? 'Step 3 — Your Plan' : upgrading ? 'Step 3 — Upgrade Plan' : 'Step 3 — Platform Fee'}
+            {showCurrentPlan ? 'Step 3 — Your Plan' : showPendingPlan ? 'Step 3 — Pending' : upgrading ? 'Step 3 — Upgrade Plan' : 'Step 3 — Platform Fee'}
           </span>
         </div>
         <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 600, color: C.charcoal, margin: 0 }}>
-          {showCurrentPlan ? 'Your Event is Active' : upgrading ? 'Upgrade Your Plan' : 'Activate Your Event'}
+          {showCurrentPlan ? 'Your Event is Active' : showPendingPlan ? 'Payment Pending' : upgrading ? 'Upgrade Your Plan' : 'Activate Your Event'}
         </h2>
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: C.stone, margin: '8px 0 0' }}>
           {showCurrentPlan
             ? 'Your platform fee is paid and your event is live. Here is your current plan.'
-            : upgrading
-              ? 'Choose a higher tier below. Upgrading is a one-time charge for the new license.'
-              : 'Choose a license tier and complete the one-time platform fee. Your event stays a private draft until paid.'}
+            : showPendingPlan
+              ? 'Your payment is awaiting admin verification. You can continue setting up your event.'
+              : upgrading
+                ? 'Choose a higher tier below. Upgrading is a one-time charge for the new license.'
+                : 'Choose a license tier and complete the one-time platform fee. Your event stays a private draft until paid.'}
         </p>
       </div>
 
@@ -203,8 +208,50 @@ export default function StagePayment({
         </div>
       )}
 
+      {/* Pending Plan banner — shown after manual payment submission, before admin verification */}
+      {showPendingPlan && selectedTier && (
+        <div style={{
+          background: 'linear-gradient(135deg, #FFFDF7 0%, #FFFFFF 100%)',
+          border: `2px solid ${C.gold}`, borderRadius: 18, padding: 26, marginBottom: 24,
+          boxShadow: '0 8px 30px rgba(184,148,79,0.12)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Selected Plan</span>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 700, color: C.charcoal, margin: '4px 0 0' }}>{selectedTier.name}</h3>
+            </div>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 100,
+              background: 'rgba(184,148,79,0.10)', border: '1px solid rgba(184,148,79,0.25)',
+              fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em',
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, animation: 'sp-pulse 2s ease-in-out infinite' }} /> Pending Verification
+            </span>
+          </div>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.gold, margin: '14px 0 2px' }}>{fmt(selectedTier.price_cents)}</div>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: '4px 0 0' }}>
+            {selectedTier.max_guests > 0 ? `Up to ${selectedTier.max_guests} guests` : 'Unlimited guests'}
+          </p>
+          {upgradeTiers.length > 0 && (
+            <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px solid ${C.border}` }}>
+              <button onClick={startUpgrade} disabled={processing} style={{
+                height: 48, padding: '0 26px', borderRadius: 12, border: 'none',
+                background: 'linear-gradient(135deg, #B8944F, #a6833f)', color: C.white,
+                fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700,
+                cursor: processing ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
+                boxShadow: '0 4px 16px rgba(184,148,79,0.28)',
+              }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                Upgrade Plan
+              </button>
+            </div>
+          )}
+          <style>{`@keyframes sp-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
+        </div>
+      )}
+
       {/* Tier cards (selection / upgrade) */}
-      {!showCurrentPlan && (
+      {!showCurrentPlan && !showPendingPlan && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
         {selectableTiers.length === 0 ? (
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, fontStyle: 'italic' }}>
