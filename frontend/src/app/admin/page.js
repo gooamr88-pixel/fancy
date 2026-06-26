@@ -796,6 +796,7 @@ export default function AdminPage() {
           .admin-tier-row { grid-template-columns: 1fr 1fr !important; }
         }
       `}</style>
+      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );
 }
@@ -901,7 +902,6 @@ function OverviewTab({ overview }) {
           .admin-overview-cols { grid-template-columns: 1fr !important; }
         }
       `}</style>
-      <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );
 }
