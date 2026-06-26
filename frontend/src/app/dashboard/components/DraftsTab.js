@@ -5,6 +5,7 @@ import { toast } from '../../utils/toast';
 const C = {
   gold: '#B8944F', charcoal: '#191B1E', white: '#FFFFFF',
   border: '#E8E2D6', stone: '#77736A', soft: '#FAF8F3', danger: '#C45E5E',
+  success: '#3B9B6D', pending: '#D4A04A',
 };
 
 const goldBtn = {
@@ -21,10 +22,20 @@ const fmtDate = (d) => {
   return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+/** Check if an event has a pending cash/manual payment awaiting admin verification */
+const getPendingPayment = (ev) => {
+  const payments = ev?.event_payments;
+  if (!Array.isArray(payments)) return null;
+  return payments.find(p => p && p.status === 'pending' && p.payment_method === 'cash_manual') || null;
+};
+
 /**
  * Dashboard → Drafts. Lists events the organizer started but hasn't activated yet
  * (status 'draft', unpaid), with one-click resume into the create-event wizard and
  * a safe delete. Filters from the events list the dashboard already loads.
+ *
+ * Events with a pending manual payment show a different "Pending Verification" badge
+ * instead of a plain "Draft" label.
  */
 export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
   const [deleting, setDeleting] = useState(null);
@@ -69,10 +80,26 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {drafts.map((ev) => (
-            <div key={ev.id} style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {drafts.map((ev) => {
+            const pendingPay = getPendingPayment(ev);
+            const isPending = !!pendingPay;
+            return (
+            <div key={ev.id} style={{ background: C.white, border: `1px solid ${isPending ? 'rgba(184,148,79,0.35)' : C.border}`, borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: 'rgba(184,148,79,0.1)', border: '1px solid rgba(184,148,79,0.25)', padding: '3px 9px', borderRadius: 100 }}>Draft</span>
+                {isPending ? (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                    fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 800,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    color: C.pending, background: 'rgba(212,160,74,0.10)',
+                    border: '1px solid rgba(212,160,74,0.30)', padding: '3px 9px', borderRadius: 100,
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.pending, animation: 'draft-pulse 2s ease-in-out infinite' }} />
+                    Pending Verification
+                  </span>
+                ) : (
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: 'rgba(184,148,79,0.1)', border: '1px solid rgba(184,148,79,0.25)', padding: '3px 9px', borderRadius: 100 }}>Draft</span>
+                )}
                 {fmtDate(ev.updated_at) && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone }}>Edited {fmtDate(ev.updated_at)}</span>}
               </div>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: 0 }}>{ev.title || 'Untitled event'}</h3>
@@ -81,6 +108,22 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
                 {ev.location_name && <span>📍 {ev.location_name}</span>}
                 {ev.slug && <span style={{ wordBreak: 'break-all' }}>🔗 /{ev.slug}</span>}
               </div>
+
+              {/* Pending payment info */}
+              {isPending && pendingPay.reference_number && (
+                <div style={{
+                  background: 'rgba(59,155,109,0.05)', border: '1px solid rgba(59,155,109,0.20)',
+                  borderRadius: 8, padding: '8px 10px',
+                  display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                }}>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone }}>Ref:</span>
+                  <code style={{ background: C.soft, padding: '2px 8px', borderRadius: 5, color: C.gold, fontWeight: 700, fontSize: 12 }}>{pendingPay.reference_number}</code>
+                  {pendingPay.tier_name && (
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: C.stone, marginLeft: 'auto' }}>{pendingPay.tier_name}</span>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button onClick={() => continueDraft(ev.id)} style={{ ...goldBtn, flex: 1 }}>Continue setup</button>
                 <button onClick={() => deleteDraft(ev)} disabled={deleting === ev.id}
@@ -89,9 +132,11 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
+      <style>{`@keyframes draft-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
     </div>
   );
 }
