@@ -139,12 +139,6 @@ export function AlertProvider({ children }) {
           >
             <AlertDialogInner modal={modal} getIcon={getIcon} />
           </div>
-          <style jsx>{`
-            @keyframes alertFadeIn {
-              from { opacity: 0; transform: scale(0.95); }
-              to { opacity: 1; transform: scale(1); }
-            }
-          `}</style>
         </div>
       )}
 
@@ -185,12 +179,6 @@ export function AlertProvider({ children }) {
           </div>
         ))}
       </div>
-      <style jsx global>{`
-        @keyframes toastSlideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
     </AlertContext.Provider>
   );
 }
