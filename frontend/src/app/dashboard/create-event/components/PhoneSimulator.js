@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MobilePreview from '../../../../app/components/templates/MobilePreview';
 
-/* Logical device size. The frame is always rendered at this exact pixel
-   size and then uniformly scaled to fit its column — so the preview
-   content never reflows or re-wraps; it only scales. (Audit Issue 2.) */
-const BASE_W = 300;
-const BASE_H = 610;
+/* Logical device size — increased for better content visibility.
+   The frame is always rendered at this exact pixel size and then
+   uniformly scaled to fit its column — so the preview content
+   never reflows or re-wraps; it only scales. */
+const BASE_W = 320;
+const BASE_H = 650;
 
 /* ═══ Fit-to-width scale hook (ResizeObserver, SSR-safe) ═══ */
 function useFitScale(baseWidth, maxScale = 1) {
@@ -95,29 +96,45 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
 
   const handleSelect = useCallback((key) => setStep(key), []);
 
+  /* Derive accent for ambient glow */
+  const accentColor = theme?.primary || template?.accent || '#B8944F';
+
   /* The phone frame, rendered at fixed logical size then scaled */
   const frame = (
     <div style={{ width: BASE_W * scale, height: BASE_H * scale }}>
       <div style={{ width: BASE_W, height: BASE_H, transform: `scale(${scale})`, transformOrigin: 'top center' }}>
         <div style={{
           width: BASE_W, height: BASE_H,
-          background: '#1A1A1A', borderRadius: 44, padding: 9,
-          boxShadow: '0 0 0 1px rgba(255,255,255,0.08), 0 20px 60px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.1)',
+          background: '#111111', borderRadius: 48, padding: 10,
+          boxShadow: `0 0 0 1px rgba(255,255,255,0.06), 0 25px 70px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15), 0 0 60px ${accentColor}08`,
           position: 'relative', boxSizing: 'border-box',
         }}>
-          {/* Notch */}
+          {/* Dynamic Island */}
           <div style={{
-            position: 'absolute', top: 9, left: '50%', transform: 'translateX(-50%)',
-            width: 96, height: 26, borderRadius: 14, background: '#0A0A0A', zIndex: 60,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)',
+            width: 100, height: 28, borderRadius: 16, background: '#000', zIndex: 60,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: 'inset 0 0 2px rgba(255,255,255,0.05)',
           }}>
-            <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#1a1a2e', border: '1.5px solid #2a2a3e' }} />
-            <div style={{ width: 30, height: 3, borderRadius: 2, background: '#1a1a2e' }} />
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a1a2e', border: '1.5px solid #2a2a3e' }} />
+            <div style={{ width: 32, height: 3, borderRadius: 2, background: '#1a1a2e' }} />
+          </div>
+
+          {/* Glass reflection overlay */}
+          <div style={{
+            position: 'absolute', inset: 10, borderRadius: 38, zIndex: 55,
+            pointerEvents: 'none', overflow: 'hidden',
+          }}>
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(160deg, rgba(255,255,255,0.08) 0%, transparent 30%, transparent 70%, rgba(255,255,255,0.03) 100%)',
+              mixBlendMode: 'overlay',
+            }} />
           </div>
 
           {/* Screen */}
           <div style={{
-            width: '100%', height: '100%', borderRadius: 36, overflow: 'hidden',
+            width: '100%', height: '100%', borderRadius: 38, overflow: 'hidden',
             background: '#000', position: 'relative', display: 'flex', flexDirection: 'column',
           }}>
             <MobilePreview
@@ -133,8 +150,8 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
 
           {/* Home indicator */}
           <div style={{
-            position: 'absolute', bottom: 7, left: '50%', transform: 'translateX(-50%)',
-            width: 90, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.18)', zIndex: 60,
+            position: 'absolute', bottom: 8, left: '50%', transform: 'translateX(-50%)',
+            width: 96, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)', zIndex: 60,
           }} />
         </div>
       </div>
@@ -145,7 +162,7 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
   if (isMobile) {
     return (
       <div className="ce-phone" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', gap: 10 }}>
-        <div ref={wrapRef} style={{ width: '100%', maxWidth: 280, display: 'flex', justifyContent: 'center' }}>
+        <div ref={wrapRef} style={{ width: '100%', maxWidth: 320, display: 'flex', justifyContent: 'center' }}>
           {frame}
         </div>
         <FlowStepper step={step} onSelect={handleSelect} compact />

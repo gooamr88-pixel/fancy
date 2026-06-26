@@ -493,8 +493,8 @@ export default function Stage1_TemplatesSimulator({
 
         /* ── Mobile: full reimagination ── */
         @media (max-width: 768px) {
-          .s1-root { padding: 20px 0 32px !important; }
-          .s1-header { margin-bottom: 16px !important; padding: 0 20px; }
+          .s1-root { padding: 16px 0 32px !important; }
+          .s1-header { margin-bottom: 12px !important; padding: 0 20px; }
           .s1-subtitle { font-size: 12px !important; margin-top: 8px !important; }
           .s1-split { display: none !important; }
           .s1-mobile-layout {
@@ -505,7 +505,7 @@ export default function Stage1_TemplatesSimulator({
           .s1-mobile-preview {
             display: flex;
             justify-content: center;
-            padding: 0 12px;
+            padding: 0 8px;
           }
           .s1-carousel::-webkit-scrollbar { display: none; }
         }

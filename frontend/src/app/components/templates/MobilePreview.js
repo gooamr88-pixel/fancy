@@ -45,6 +45,146 @@ function FitScaler({ baseWidth, baseHeight, children }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   Scene Background — unique per template pattern.
+   Each template gets its own distinct, premium background treatment
+   instead of a single shared wood texture.
+   ═══════════════════════════════════════════════════════════════ */
+function getSceneStyles(pattern) {
+  switch (pattern) {
+    case "serif": // Royale Wedding — deep marble with gold edge lighting
+      return {
+        background: "linear-gradient(165deg, #1a1815 0%, #2a2520 20%, #1e1b18 40%, #252220 60%, #1a1815 80%, #151310 100%)",
+        overlay: "radial-gradient(ellipse at 50% 30%, rgba(184,148,79,0.08) 0%, transparent 60%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 30%, rgba(10,8,5,0.50) 100%)",
+      };
+    case "luxury": // Eternal Love — midnight velvet with sparkle
+      return {
+        background: "linear-gradient(170deg, #0B0F1A 0%, #0D1225 25%, #111830 50%, #0A0E1C 75%, #080B15 100%)",
+        overlay: "radial-gradient(ellipse at 50% 35%, rgba(215,190,128,0.06) 0%, transparent 55%)",
+        vignette: "radial-gradient(110% 75% at 50% 40%, transparent 25%, rgba(5,5,15,0.55) 100%)",
+      };
+    case "organic": // Woodland — warm linen/canvas
+      return {
+        background: "linear-gradient(170deg, #E8DFD0 0%, #DDD4C4 25%, #D5CCBC 50%, #DDD5C6 75%, #E2D9CA 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(184,148,79,0.06) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 35%, rgba(100,85,60,0.20) 100%)",
+      };
+    case "geo": // Conference — dark slate industrial
+      return {
+        background: "linear-gradient(170deg, #1A1D24 0%, #1E2128 25%, #22252E 50%, #1C1F26 75%, #181B22 100%)",
+        overlay: "radial-gradient(ellipse at 50% 35%, rgba(59,130,246,0.05) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 30%, rgba(8,8,12,0.45) 100%)",
+      };
+    case "minimal": // Gala — clean white studio
+      return {
+        background: "linear-gradient(170deg, #F7F6F3 0%, #F0EFEC 25%, #EBEAE6 50%, #F0EFEC 75%, #F5F4F1 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(0,0,0,0.02) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 40%, rgba(180,175,165,0.18) 100%)",
+      };
+    case "floral": // Garden — soft blush rose
+      return {
+        background: "linear-gradient(170deg, #F5E6EA 0%, #F0DBE0 25%, #EBCFD6 50%, #F0DBE0 75%, #F3E2E7 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(232,143,172,0.06) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 35%, rgba(120,60,80,0.15) 100%)",
+      };
+    case "custom": // Custom — warm linen (same as organic but lighter)
+      return {
+        background: "linear-gradient(170deg, #F2ECE2 0%, #EBE5DA 25%, #E5DFD4 50%, #EBE5DA 75%, #EEE8DE 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(139,115,85,0.05) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 35%, rgba(80,65,45,0.18) 100%)",
+      };
+    default:
+      return {
+        background: "linear-gradient(170deg, #2a2520 0%, #1e1b18 50%, #151310 100%)",
+        overlay: "radial-gradient(ellipse at 50% 35%, rgba(184,148,79,0.06) 0%, transparent 55%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 30%, rgba(10,8,5,0.40) 100%)",
+      };
+  }
+}
+
+/* Ambient floating particles styled per template */
+function SceneParticles({ pattern, accentColor }) {
+  const isDark = ["serif", "luxury", "geo"].includes(pattern);
+  const particleColor = isDark ? "rgba(255,255,255,0.12)" : `${accentColor}18`;
+  const glowColor = isDark ? "rgba(215,190,128,0.15)" : `${accentColor}10`;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+      {[0,1,2,3,4,5].map(i => (
+        <div
+          key={i}
+          className="mp-particle"
+          style={{
+            position: "absolute",
+            bottom: "-8px",
+            left: `${15 + i * 14}%`,
+            width: 3 + (i % 3) * 2,
+            height: 3 + (i % 3) * 2,
+            borderRadius: "50%",
+            background: `radial-gradient(circle, ${particleColor} 0%, ${glowColor} 50%, transparent 70%)`,
+            animationDelay: `${i * 1.8}s`,
+            animationDuration: `${10 + (i % 3) * 4}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* Pattern-specific decorative background elements */
+function SceneDecor({ pattern, accentColor }) {
+  if (pattern === "luxury") {
+    // Subtle starfield dots
+    return (
+      <div className="pointer-events-none absolute inset-0 z-0" style={{ opacity: 0.5 }}>
+        {[...Array(20)].map((_, i) => (
+          <div
+            key={i}
+            className="mp-star"
+            style={{
+              position: "absolute",
+              width: 1.5 + (i % 3),
+              height: 1.5 + (i % 3),
+              borderRadius: "50%",
+              background: "rgba(215,190,128,0.4)",
+              top: `${5 + (i * 47 + 13) % 90}%`,
+              left: `${3 + (i * 31 + 7) % 94}%`,
+              animationDelay: `${(i * 0.7) % 5}s`,
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
+  if (pattern === "geo") {
+    // Subtle grid dots
+    return (
+      <div className="pointer-events-none absolute inset-0 z-0" style={{ opacity: 0.15 }}>
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: `radial-gradient(circle, ${accentColor}40 1px, transparent 1px)`,
+          backgroundSize: "24px 24px",
+        }} />
+      </div>
+    );
+  }
+  if (pattern === "minimal") {
+    // Subtle dot grid
+    return (
+      <div className="pointer-events-none absolute inset-0 z-0" style={{ opacity: 0.08 }}>
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: "radial-gradient(circle, #666 0.5px, transparent 0.5px)",
+          backgroundSize: "16px 16px",
+        }} />
+      </div>
+    );
+  }
+  return null;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
    MobilePreview — the guest-experience simulator.
 
    Rebuilt for stability (see audit, Issue 2):
@@ -99,8 +239,26 @@ export default function MobilePreview({
   }, [isLoading]);
 
   const accentColor = theme?.primary || theme?.accent || template?.accent || "#B8944F";
+  const secondaryColor = theme?.secondary || "#D7BE80";
   const isOpened = OPENED_FAMILY.includes(step);
   const showSheet = step === "attending" || step === "declined";
+  const pattern = template?.pattern || "serif";
+  const sceneStyles = getSceneStyles(pattern);
+  const isDarkScene = ["serif", "luxury", "geo"].includes(pattern);
+
+  /* CTA gradient per template */
+  const ctaGradient = `linear-gradient(135deg, ${accentColor}, ${secondaryColor}, ${accentColor})`;
+  const ctaTextColor = isDarkScene || ["organic", "floral", "custom"].includes(pattern) ? "#191B1E" : "#191B1E";
+  const ctaFooterBg = isDarkScene
+    ? `linear-gradient(to top, rgba(10,8,5,0.96) 0%, rgba(10,8,5,0.82) 55%, transparent 100%)`
+    : `linear-gradient(to top, rgba(60,50,35,0.92) 0%, rgba(60,50,35,0.70) 55%, transparent 100%)`;
+
+  /* Event details card styling per scene */
+  const detailsCardBg = isDarkScene ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.92)";
+  const detailsCardBorder = isDarkScene ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.50)";
+  const detailsCardText = isDarkScene ? "#E8E2D6" : "#191B1E";
+  const detailsCardSubtext = isDarkScene ? "#AAA59C" : "#77736A";
+  const detailsCardBackdrop = isDarkScene ? "blur(16px)" : "blur(12px)";
 
   /* ─── The inner screen (shared by bare + framed shells) ─── */
   const screen = (
@@ -137,14 +295,16 @@ export default function MobilePreview({
       {/* ═══ THE SCENE — fixed flex-1 stage, never reflows ═══ */}
       <div
         className="flex-1 relative overflow-hidden flex flex-col"
-        style={{
-          backgroundImage: "linear-gradient(rgba(0,0,0,0.10), rgba(0,0,0,0.18)), url('/images/wood_texture.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
+        style={{ background: sceneStyles.background }}
       >
-        {/* Soft vignette for depth */}
-        <div className="pointer-events-none absolute inset-0 z-0" style={{ background: "radial-gradient(120% 80% at 50% 38%, transparent 40%, rgba(20,14,8,0.30) 100%)" }} />
+        {/* Template-specific overlay glow */}
+        <div className="pointer-events-none absolute inset-0 z-0" style={{ background: sceneStyles.overlay }} />
+        {/* Vignette for depth */}
+        <div className="pointer-events-none absolute inset-0 z-0" style={{ background: sceneStyles.vignette }} />
+        {/* Template-specific decorative elements */}
+        <SceneDecor pattern={pattern} accentColor={accentColor} />
+        {/* Ambient floating particles */}
+        <SceneParticles pattern={pattern} accentColor={accentColor} />
 
         <AnimatePresence mode="wait">
           {isLoading ? (
@@ -172,7 +332,7 @@ export default function MobilePreview({
                 onClick={() => setStep("envelope")}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[15px] shrink-0" style={{ background: `linear-gradient(135deg, ${accentColor}, ${theme?.secondary || accentColor})` }}>✉️</div>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[15px] shrink-0" style={{ background: `linear-gradient(135deg, ${accentColor}, ${secondaryColor})` }}>✉️</div>
                   <div className="flex flex-col flex-1 min-w-0">
                     <span className="text-[10px] font-bold text-stone-800 font-sans">Fancy Invitation</span>
                     <span className="text-[9px] text-stone-500 font-sans truncate">You&apos;ve received an invitation — tap to open</span>
@@ -207,33 +367,47 @@ export default function MobilePreview({
             >
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-5 pb-4 flex flex-col items-center gap-4" style={{ scrollbarWidth: "none" }}>
-                {/* Hero invitation card */}
+                {/* Hero invitation card — LARGER for better visibility */}
                 <motion.div
-                  className="w-[210px] shrink-0 rounded-lg shadow-2xl overflow-hidden"
-                  style={{ height: 290 }}
+                  className="w-[230px] shrink-0 rounded-lg overflow-hidden"
+                  style={{
+                    height: 310,
+                    boxShadow: isDarkScene
+                      ? `0 20px 50px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.3), 0 0 40px ${accentColor}12`
+                      : `0 20px 50px rgba(0,0,0,0.20), 0 8px 20px rgba(0,0,0,0.10), 0 0 1px rgba(0,0,0,0.08)`,
+                  }}
                   initial={{ y: 16, opacity: 0, scale: 0.96 }} animate={{ y: 0, opacity: 1, scale: 1 }}
                   transition={{ type: "spring", stiffness: 120, damping: 18 }}
                 >
                   <InvitationCard template={template} theme={theme} guestName={guestName} config={config} />
                 </motion.div>
 
-                {/* Event details panel */}
+                {/* Event details panel — styled per scene */}
                 {sections.details && (
                 <motion.div
-                  className="w-full max-w-[240px] shrink-0 bg-white/92 backdrop-blur-md rounded-2xl p-3.5 shadow-xl border border-white/50 flex flex-col gap-2.5"
+                  className="w-full max-w-[245px] shrink-0 rounded-2xl p-4 flex flex-col gap-3"
+                  style={{
+                    background: detailsCardBg,
+                    backdropFilter: detailsCardBackdrop,
+                    WebkitBackdropFilter: detailsCardBackdrop,
+                    border: `1px solid ${detailsCardBorder}`,
+                    boxShadow: isDarkScene
+                      ? "0 8px 32px rgba(0,0,0,0.3)"
+                      : "0 8px 32px rgba(0,0,0,0.08)",
+                  }}
                   initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15, type: "spring", stiffness: 140, damping: 20 }}
                 >
-                  <span className="text-[8px] font-bold uppercase tracking-[2px] font-sans" style={{ color: accentColor }}>Event Details</span>
+                  <span className="text-[8px] font-bold uppercase tracking-[2.5px] font-sans" style={{ color: accentColor }}>Event Details</span>
                   {[
                     ["📅", "Saturday, October 24, 2026", "4:00 PM"],
                     ["📍", "The Grand Ballroom", "Plaza Hotel, New York"],
                     ["👗", "Dress code", "Black tie optional"],
                   ].map(([icon, a, b]) => (
-                    <div key={a} className="flex items-start gap-2">
-                      <span className="text-[12px] leading-none mt-0.5">{icon}</span>
+                    <div key={a} className="flex items-start gap-2.5">
+                      <span className="text-[13px] leading-none mt-0.5">{icon}</span>
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-stone-800 font-sans leading-tight">{a}</span>
-                        <span className="text-[9px] text-stone-500 font-sans leading-tight">{b}</span>
+                        <span className="text-[10.5px] font-bold font-sans leading-tight" style={{ color: detailsCardText }}>{a}</span>
+                        <span className="text-[9px] font-sans leading-tight" style={{ color: detailsCardSubtext }}>{b}</span>
                       </div>
                     </div>
                   ))}
@@ -242,11 +416,16 @@ export default function MobilePreview({
               </div>
 
               {/* In-flow CTA footer — always fully visible, never overlaps content */}
-              <div className="shrink-0 px-5 pt-5 pb-5 flex flex-col gap-2.5 items-center relative" style={{ background: "linear-gradient(to top, rgba(28,20,12,0.95) 0%, rgba(28,20,12,0.78) 55%, rgba(28,20,12,0) 100%)" }}>
+              <div className="shrink-0 px-5 pt-5 pb-5 flex flex-col gap-2.5 items-center relative" style={{ background: ctaFooterBg }}>
                 <button
                   onClick={() => setStep("attending")}
-                  className="w-full max-w-[240px] text-[#191B1E] py-2.5 rounded-full font-bold font-sans text-xs active:scale-[0.97] transition-all cursor-pointer flex items-center justify-center gap-2 uppercase tracking-[2px] bg-gradient-to-r from-[#B8944F] via-[#D7BE80] to-[#B8944F] border border-[#B8944F]/50 shadow-[0_6px_20px_rgba(184,148,79,0.35)] hover:brightness-105"
-                  style={{ backgroundImage: `linear-gradient(to right, ${accentColor}, ${theme?.secondary || "#D7BE80"}, ${accentColor})` }}
+                  className="w-full max-w-[245px] py-2.5 rounded-full font-bold font-sans text-xs active:scale-[0.97] transition-all cursor-pointer flex items-center justify-center gap-2 uppercase tracking-[2px]"
+                  style={{
+                    backgroundImage: ctaGradient,
+                    color: ctaTextColor,
+                    border: `1px solid ${accentColor}50`,
+                    boxShadow: `0 6px 24px ${accentColor}40, 0 2px 8px rgba(0,0,0,0.10)`,
+                  }}
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   {ctaLabel}
@@ -275,6 +454,26 @@ export default function MobilePreview({
           template={{ ...template, accent: accentColor }}
         />
       </div>
+
+      {/* CSS animations for particles and stars */}
+      <style jsx>{`
+        @keyframes mp-float {
+          0% { transform: translateY(0) scale(1); opacity: 0; }
+          10% { opacity: 0.7; }
+          85% { opacity: 0.5; }
+          100% { transform: translateY(-100vh) scale(0.3); opacity: 0; }
+        }
+        .mp-particle {
+          animation: mp-float linear infinite;
+        }
+        @keyframes mp-twinkle {
+          0%, 100% { opacity: 0.2; transform: scale(0.8); }
+          50% { opacity: 0.8; transform: scale(1.2); }
+        }
+        .mp-star {
+          animation: mp-twinkle 3s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 
