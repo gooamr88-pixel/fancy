@@ -81,49 +81,83 @@ function FloatingParticles() {
 
 /* ═══ Mobile Template Chip (horizontal carousel item) ═══ */
 function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
+  /* Mini visual preview that hints at the template's unique look */
+  const chipVisual = {
+    engagement: { bg: 'linear-gradient(135deg, #0B0F19 0%, #151B26 100%)', accent: preset.primary, isDark: true },
+    wedding:    { bg: 'linear-gradient(135deg, #FCFAF6 0%, #F5EDE0 100%)', accent: preset.primary, isDark: false },
+    custom:     { bg: 'linear-gradient(135deg, #F8F4EB 0%, #F0EADA 100%)', accent: preset.primary, isDark: false },
+  }[template.key] || { bg: '#FAF8F5', accent: preset.primary, isDark: false };
+
   return (
     <button
       onClick={() => onSelect(template.key)}
       style={{
         flex: '0 0 auto',
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '10px 16px 10px 10px',
+        display: 'flex', alignItems: 'stretch', gap: 0,
         borderRadius: 16,
         border: isSelected ? '2px solid #B8944F' : '1.5px solid rgba(184,148,79,0.15)',
-        background: isSelected ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.6)',
+        background: isSelected ? 'rgba(255,255,255,0.97)' : 'rgba(255,255,255,0.7)',
         backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         boxShadow: isSelected
-          ? '0 4px 20px rgba(184,148,79,0.15), 0 2px 8px rgba(0,0,0,0.04)'
+          ? '0 6px 24px rgba(184,148,79,0.18), 0 2px 8px rgba(0,0,0,0.06)'
           : '0 2px 8px rgba(0,0,0,0.03)',
         cursor: 'pointer',
         transition: 'all 0.3s cubic-bezier(0.16,1,0.3,1)',
         WebkitTapHighlightColor: 'transparent',
-        minWidth: 0,
+        minWidth: 0, overflow: 'hidden',
       }}
     >
+      {/* Visual preview strip */}
       <div style={{
-        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
-        background: `linear-gradient(135deg, ${preset.primary}, ${preset.secondary || preset.primary}88)`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 20,
+        width: 56, flexShrink: 0,
+        background: chipVisual.bg,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 3, padding: '8px 6px',
+        position: 'relative', overflow: 'hidden',
       }}>
-        {template.icon}
+        {/* Mini card silhouette */}
+        <div style={{
+          width: 32, height: 42, borderRadius: 4,
+          border: `1px solid ${chipVisual.accent}${chipVisual.isDark ? '50' : '40'}`,
+          background: chipVisual.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.85)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 2, padding: 3,
+        }}>
+          <div style={{ width: 14, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.5 }} />
+          <div style={{ fontSize: 8, lineHeight: 1 }}>{template.icon}</div>
+          <div style={{ width: 18, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.3 }} />
+          <div style={{ width: 10, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.2 }} />
+        </div>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, minWidth: 0 }}>
-        <span style={{
-          fontFamily: 'var(--font-serif)', fontSize: 13, fontWeight: 600,
-          color: isSelected ? '#191B1E' : '#555',
-          whiteSpace: 'nowrap',
-        }}>{template.label}</span>
+
+      {/* Text content */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '10px 14px 10px 10px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{
+            fontFamily: 'var(--font-serif)', fontSize: 13, fontWeight: 600,
+            color: isSelected ? '#191B1E' : '#555',
+            whiteSpace: 'nowrap',
+          }}>{template.label}</span>
+          <span style={{
+            fontFamily: 'var(--font-sans)', fontSize: 7.5, fontWeight: 700,
+            color: '#B8944F', background: 'rgba(184,148,79,0.10)',
+            border: '1px solid rgba(184,148,79,0.18)',
+            borderRadius: 4, padding: '1px 5px',
+            textTransform: 'uppercase', letterSpacing: '0.05em',
+            whiteSpace: 'nowrap',
+          }}>{template.tier}</span>
+        </div>
         <span style={{
           fontFamily: 'var(--font-sans)', fontSize: 10,
           color: '#99958D', whiteSpace: 'nowrap',
-        }}>{template.presets.length} color{template.presets.length > 1 ? 's' : ''}</span>
+          maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>{template.tagline}</span>
       </div>
+
       {isSelected && (
         <div style={{
-          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-          background: '#B8944F', marginLeft: 4,
+          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+          background: '#B8944F', margin: 'auto 10px auto 0',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
@@ -134,6 +168,7 @@ function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
     </button>
   );
 }
+
 
 /* ═══ Mobile Preset Selector Row ═══ */
 function MobilePresetRow({ template, activePresetIndex, onPresetSelect }) {

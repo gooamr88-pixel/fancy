@@ -91,7 +91,7 @@ function FlowStepper({ step, onSelect, compact }) {
 export default function PhoneSimulator({ template, theme, guestName, onGuestNameChange, config, isMobile = false }) {
   // The journey starts at the closed envelope. A fresh template layout resets
   // it because Stage1 remounts this component via `key={templateType}`.
-  const [step, setStep] = useState('envelope');
+  const [step, setStep] = useState('opened');
   const [wrapRef, scale] = useFitScale(BASE_W, 1);
 
   const handleSelect = useCallback((key) => setStep(key), []);
@@ -105,7 +105,7 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
       <div style={{ width: BASE_W, height: BASE_H, transform: `scale(${scale})`, transformOrigin: 'top center' }}>
         <div style={{
           width: BASE_W, height: BASE_H,
-          background: '#111111', borderRadius: 48, padding: 10,
+          background: '#111111', borderRadius: 46, padding: 8,
           boxShadow: `0 0 0 1px rgba(255,255,255,0.06), 0 25px 70px rgba(0,0,0,0.25), 0 10px 30px rgba(0,0,0,0.15), 0 0 60px ${accentColor}08`,
           position: 'relative', boxSizing: 'border-box',
         }}>
@@ -135,6 +135,7 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
           {/* Screen */}
           <div style={{
             width: '100%', height: '100%', borderRadius: 38, overflow: 'hidden',
+            border: '0.5px solid rgba(255,255,255,0.05)',
             background: '#000', position: 'relative', display: 'flex', flexDirection: 'column',
           }}>
             <MobilePreview
