@@ -404,14 +404,30 @@ const login = async (req, res, next) => {
 
     const userId = org.owner_user_id;
 
-    // Resolve user role
+    // Resolve user role — check both the legacy user_roles table AND the new
+    // RBAC model (admin_users → admin_user_roles → roles) so that RBAC-assigned
+    // super admins are correctly detected.
     const { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', userId)
       .single();
 
-    const role = roleData?.role || 'organizer';
+    let role = roleData?.role || 'organizer';
+
+    // If the legacy table says 'organizer', check the RBAC model for a super_admin role.
+    if (role !== 'super_admin') {
+      const { data: adminRow } = await supabase
+        .from('admin_users')
+        .select('id, status, admin_user_roles(roles(key))')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (adminRow) {
+        const roleKeys = (adminRow.admin_user_roles || []).map(aur => aur.roles?.key).filter(Boolean);
+        if (roleKeys.includes('super_admin')) role = 'super_admin';
+      }
+    }
 
     // Issue httpOnly auth cookie + server-side session
     await issueAuthCookie(req, res, { id: userId, email: normalizedEmail, role });
