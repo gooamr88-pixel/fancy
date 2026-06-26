@@ -87,7 +87,8 @@ export default function StagePayment({
 
   const startUpgrade = () => {
     setUpgrading(true);
-    if (upgradeTiers[0]) onSelectTier(upgradeTiers[0].name);
+    setShowManual(!stripeEnabled); // Reset to initial payment state
+    // Don't pre-select any upgrade tier — let the user choose
   };
   const cancelUpgrade = () => {
     setUpgrading(false);
@@ -344,8 +345,8 @@ export default function StagePayment({
         </button>
       )}
 
-      {/* Manual reference confirmation */}
-      {manualRef && (
+      {/* Manual reference confirmation — hide during upgrade */}
+      {manualRef && !upgrading && (
         <div style={{
           background: 'rgba(59,155,109,0.06)', border: '1px solid rgba(59,155,109,0.25)',
           borderRadius: 12, padding: '18px 20px', marginBottom: 20,
@@ -364,8 +365,8 @@ export default function StagePayment({
         </div>
       )}
 
-      {/* Payment method selection */}
-      {!manualRef && !paymentConfirmed && !showCurrentPlan && (
+      {/* Payment method selection — show when: no prior ref OR actively upgrading with a higher tier selected */}
+      {((!manualRef && !paymentConfirmed && !showCurrentPlan) || (upgrading && selectedTierName && selectedTierName !== lockedPlanName)) && (
         <>
           {(!showManual && stripeEnabled) ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
