@@ -10,27 +10,27 @@
  */
 export const T = {
   // Surfaces (app bg → cards → raised/hover)
-  bg: '#090a0f',
-  surface: '#12141a',
-  surfaceAlt: '#181b22',
-  border: '#202530',
-  borderStrong: '#2d3545',
+  bg: '#FAFAF8',
+  surface: '#FFFFFF',
+  surfaceAlt: '#FDFCF9',
+  border: '#E8E2D6',
+  borderStrong: '#D7BE80',
 
   // Text (high → low emphasis)
-  text900: '#f3f4f6',
-  text700: '#d1d5db',
-  text500: '#9ca3af',
-  text400: '#6b7280',
+  text900: '#191B1E',
+  text700: '#4A4D53',
+  text500: '#77736A',
+  text400: '#A19E95',
 
   // Brand / accents (Luxury Champagne Gold and semantic alerts)
-  primary: '#C5A86B',
-  primarySoft: 'rgba(197, 168, 107, 0.12)',
+  primary: '#B8944F',
+  primarySoft: 'rgba(184, 148, 79, 0.08)',
   success: '#10B981',
-  successSoft: 'rgba(16, 185, 129, 0.12)',
+  successSoft: 'rgba(16, 185, 129, 0.08)',
   warning: '#F59E0B',
-  warningSoft: 'rgba(245, 158, 11, 0.12)',
+  warningSoft: 'rgba(245, 158, 11, 0.08)',
   danger: '#EF4444',
-  dangerSoft: 'rgba(239, 68, 68, 0.12)',
+  dangerSoft: 'rgba(239, 68, 68, 0.08)',
 
   // Shape
   radius: '16px',

@@ -8,10 +8,10 @@ import LogoutModal from '../components/LogoutModal';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const D = {
-  bg: '#090a0f', bg2: '#12141a', card: '#12141a', cardBorder: '#202530', borderLight: '#2d3545',
-  text100: '#f3f4f6', text200: '#d1d5db', text300: '#9ca3af', text400: '#6b7280', text500: '#4b5563',
-  amber: '#C5A86B', amberHover: '#D7C49E', amberDark: '#8A6D34',
-  rose: '#EF4444', roseLight: '#F87171',
+  bg: '#FAFAF8', bg2: '#FFFFFF', card: '#FFFFFF', cardBorder: '#E8E2D6', borderLight: '#D7BE80',
+  text100: '#191B1E', text200: '#4A4D53', text300: '#77736A', text400: '#A19E95', text500: '#BDBAB2',
+  amber: '#B8944F', amberHover: '#D7BE80', amberDark: '#8A6D34',
+  rose: '#EF4444', roseLight: '#f43f5e',
   emerald: '#10B981', emeraldDark: '#059669',
   sky: '#0EA5E9', violet: '#8B5CF6',
   white: '#FFFFFF',
@@ -41,7 +41,7 @@ const NAV = [
   { key: 'activity', label: 'Logs', icon: ICONS.activity },
 ];
 
-const cardStyle = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: '12px', transition: 'all 0.2s' };
+const cardStyle = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: '16px', boxShadow: '0 4px 20px rgba(25, 27, 30, 0.02)', transition: 'all 0.2s' };
 const inputStyle = { width: '100%', background: D.bg, border: `1px solid ${D.borderLight}`, borderRadius: '6px', padding: '10px', fontSize: '13px', color: D.text100, outline: 'none' };
 
 const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -49,14 +49,14 @@ const dateStr = (d) => d ? new Date(d).toLocaleDateString(undefined, { year: 'nu
 const dateTime = (d) => d ? new Date(d).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
 const STATUS_COLORS = {
-  active: { bg: '#064e3b', fg: '#34d399', br: '#10b981' },
-  pending_review: { bg: '#451a03', fg: '#fcd34d', br: '#d97706' },
-  draft: { bg: '#262626', fg: '#a3a3a3', br: '#404040' },
-  paused: { bg: '#451a03', fg: '#fcd34d', br: '#d97706' },
-  completed: { bg: '#064e3b', fg: '#34d399', br: '#10b981' },
-  pending: { bg: '#451a03', fg: '#fcd34d', br: '#d97706' },
-  failed: { bg: '#450a0a', fg: '#f87171', br: '#ef4444' },
-  refunded: { bg: '#262626', fg: '#a3a3a3', br: '#404040' },
+  active: { bg: 'rgba(16, 185, 129, 0.08)', fg: '#10B981', br: 'rgba(16, 185, 129, 0.2)' },
+  pending_review: { bg: 'rgba(245, 158, 11, 0.08)', fg: '#D97706', br: 'rgba(245, 158, 11, 0.2)' },
+  draft: { bg: '#FDFCF9', fg: '#77736A', br: '#E8E2D6' },
+  paused: { bg: 'rgba(245, 158, 11, 0.08)', fg: '#D97706', br: 'rgba(245, 158, 11, 0.2)' },
+  completed: { bg: 'rgba(16, 185, 129, 0.08)', fg: '#10B981', br: 'rgba(16, 185, 129, 0.2)' },
+  pending: { bg: 'rgba(245, 158, 11, 0.08)', fg: '#D97706', br: 'rgba(245, 158, 11, 0.2)' },
+  failed: { bg: 'rgba(239, 68, 68, 0.08)', fg: '#EF4444', br: 'rgba(239, 68, 68, 0.2)' },
+  refunded: { bg: '#FDFCF9', fg: '#77736A', br: '#E8E2D6' },
 };
 
 function Badge({ status, label }) {
@@ -105,9 +105,9 @@ function TableShell({ title, subtitle, head, children, action }) {
 
 const btn = (variant = 'primary') => {
   const base = { padding: '8px 16px', fontSize: '12px', fontWeight: 600, borderRadius: '6px', cursor: 'pointer', border: 'none', transition: 'all 0.2s' };
-  if (variant === 'primary') return { ...base, background: D.amber, color: D.bg };
-  if (variant === 'ghost') return { ...base, background: 'transparent', color: D.text200, border: `1px solid ${D.borderLight}` };
-  if (variant === 'danger') return { ...base, background: '#450a0a', color: D.roseLight, border: `1px solid #7f1d1d` };
+  if (variant === 'primary') return { ...base, background: D.amber, color: '#FFFFFF' };
+  if (variant === 'ghost') return { ...base, background: 'transparent', color: D.text200, border: `1px solid ${D.cardBorder}` };
+  if (variant === 'danger') return { ...base, background: 'rgba(239, 68, 68, 0.08)', color: D.rose, border: `1px solid rgba(239, 68, 68, 0.15)` };
   return base;
 };
 
@@ -411,7 +411,7 @@ export default function AdminPage() {
     <div style={{ minHeight: '100vh', background: D.bg, color: D.text100, fontFamily: 'var(--font-sans)', display: 'flex' }}>
 
       {/* Sidebar */}
-      <aside className="admin-sidebar" style={{ width: '256px', background: D.bg2, borderRight: `1px solid ${D.cardBorder}`, padding: '24px 16px', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', transform: sidebarOpen ? 'translateX(0)' : undefined, boxShadow: '4px 0 24px rgba(0,0,0,0.25)', zIndex: 40 }}>
+      <aside className="admin-sidebar" style={{ width: '256px', background: D.bg2, borderRight: `1px solid ${D.cardBorder}`, padding: '24px 16px', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', transform: sidebarOpen ? 'translateX(0)' : undefined, boxShadow: '0 4px 30px rgba(25, 27, 30, 0.03)', zIndex: 40 }}>
         <div style={{ padding: '4px 8px 16px', borderBottom: `1px solid ${D.cardBorder}`, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ fontSize: 20, color: D.amber, textShadow: '0 0 10px rgba(197, 168, 107, 0.4)' }}>✦</span>
           <div>
@@ -442,7 +442,7 @@ export default function AdminPage() {
                   transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                   position: 'relative'
                 }}
-                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(0,0,0,0.02)'; }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
                 {active && (
                   <span style={{ position: 'absolute', left: -4, top: 8, bottom: 8, width: 3, background: D.amber, borderRadius: 2 }} />
@@ -454,8 +454,8 @@ export default function AdminPage() {
                   width: 24,
                   height: 24,
                   borderRadius: '6px',
-                  background: active ? 'rgba(197, 168, 107, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-                  border: `1px solid ${active ? 'rgba(197, 168, 107, 0.25)' : 'transparent'}`,
+                  background: active ? 'rgba(184, 148, 79, 0.12)' : 'rgba(0, 0, 0, 0.02)',
+                  border: `1px solid ${active ? 'rgba(184, 148, 79, 0.25)' : 'transparent'}`,
                   color: active ? D.amber : D.text400,
                   transition: 'all 0.2s'
                 }} className="nav-icon-container">
@@ -479,7 +479,7 @@ export default function AdminPage() {
             textDecoration: 'none',
             borderRadius: '8px',
             transition: 'all 0.2s',
-            background: 'rgba(255, 255, 255, 0.01)',
+            background: 'rgba(0, 0, 0, 0.01)',
             border: `1px solid ${D.cardBorder}`
           }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = D.amber; e.currentTarget.style.color = D.text100; }}
@@ -520,7 +520,7 @@ export default function AdminPage() {
               <button className="admin-menu-btn" onClick={() => setSidebarOpen(true)} style={{ ...btn('ghost'), display: 'none', padding: '8px 12px', background: D.card }}>☰</button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '8px', background: 'rgba(197, 168, 107, 0.1)', color: D.amber, border: '1px solid rgba(197, 168, 107, 0.2)' }}>{activeNav?.icon}</span>
-                <h2 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', fontFamily: 'var(--font-serif)', margin: 0 }}>{activeNav?.label}</h2>
+                <h2 style={{ fontSize: '22px', fontWeight: 800, letterSpacing: '-0.02em', fontFamily: 'var(--font-serif)', margin: 0, color: D.text100 }}>{activeNav?.label}</h2>
               </div>
             </div>
             <button onClick={() => refreshTab(activeTab)} style={{ ...btn('ghost'), display: 'inline-flex', alignItems: 'center', gap: 8, background: D.card }}>
@@ -904,8 +904,8 @@ function Field({ label, small, children }) {
 
 function Modal({ title, onClose, children }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(6,7,10,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div onClick={e => e.stopPropagation()} style={{ ...cardStyle, width: '100%', maxWidth: '440px', padding: '28px', boxShadow: '0 24px 60px rgba(0,0,0,0.5)', border: `1px solid ${D.cardBorder}`, animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(25, 27, 30, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+      <div onClick={e => e.stopPropagation()} style={{ ...cardStyle, width: '100%', maxWidth: '440px', padding: '28px', boxShadow: '0 24px 60px rgba(25, 27, 30, 0.12)', border: `1px solid ${D.cardBorder}`, animation: 'fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
         <h3 style={{ fontSize: '18px', fontWeight: 800, color: D.text100, marginBottom: '16px', fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>{title}</h3>
         {children}
       </div>
@@ -980,7 +980,7 @@ function OverviewTab({ overview }) {
                     <span style={{ color: D.text100, fontWeight: 800 }}>{count}</span>
                   </div>
                   <div style={{ height: '8px', background: D.bg, borderRadius: '4px', overflow: 'hidden', border: `1px solid ${D.cardBorder}` }}>
-                    <div style={{ width: `${pct}%`, height: '100%', background: c.fg, borderRadius: '4px', boxShadow: `0 0 10px ${c.fg}` }} />
+                    <div style={{ width: `${pct}%`, height: '100%', background: c.fg, borderRadius: '4px' }} />
                   </div>
                 </div>
               );
@@ -996,7 +996,7 @@ function OverviewTab({ overview }) {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {recentActivity.map((a, i) => (
               <div key={a.id} className="activity-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 8px', borderBottom: i < recentActivity.length - 1 ? `1px solid ${D.cardBorder}` : 'none', borderRadius: '6px', transition: 'background-color 0.2s' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: D.amber, flexShrink: 0, boxShadow: `0 0 8px ${D.amber}` }} />
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: D.amber, flexShrink: 0 }} />
                 <code style={{ color: D.sky, fontSize: '11px', background: 'rgba(14, 165, 233, 0.08)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(14, 165, 233, 0.15)' }}>{a.action}</code>
                 <span style={{ color: D.text200, fontSize: '12.5px', flex: 1, fontWeight: 500 }}>{a.eventTitle || a.entityType || ''}</span>
                 <span style={{ color: D.text500, fontSize: '11px', fontWeight: 600 }}>{dateTime(a.createdAt)}</span>
@@ -1011,12 +1011,12 @@ function OverviewTab({ overview }) {
           opacity: 1 !important;
         }
         .chart-bar:hover {
-          background: linear-gradient(180deg, #FFFFFF, ${D.amber}) !important;
-          box-shadow: 0 0 25px rgba(197, 168, 107, 0.3) !important;
+          background: linear-gradient(180deg, ${D.amberHover}, ${D.amber}) !important;
+          box-shadow: 0 4px 15px rgba(184, 148, 79, 0.25) !important;
           transform: scaleX(1.05);
         }
         .activity-row:hover {
-          background-color: rgba(255, 255, 255, 0.015);
+          background-color: rgba(0, 0, 0, 0.02);
         }
         @keyframes fadeInUp {
           from { opacity: 0; transform: translateY(12px); }

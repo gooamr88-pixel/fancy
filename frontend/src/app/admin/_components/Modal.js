@@ -14,7 +14,7 @@ export default function Modal({ open, title, onClose, children, footer, width = 
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(6, 7, 10, 0.85)',
+        background: 'rgba(25, 27, 30, 0.65)',
         backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
         display: 'flex',
@@ -47,7 +47,7 @@ export default function Modal({ open, title, onClose, children, footer, width = 
             aria-label="Close"
             style={{
               border: 'none',
-              background: 'rgba(255,255,255,0.02)',
+              background: 'transparent',
               border: `1px solid ${T.border}`,
               width: 30,
               height: 30,
@@ -59,8 +59,8 @@ export default function Modal({ open, title, onClose, children, footer, width = 
               color: T.text500,
               transition: 'all 0.2s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = T.text900; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.color = T.text500; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; e.currentTarget.style.color = T.text900; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = T.text500; }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -75,7 +75,7 @@ export default function Modal({ open, title, onClose, children, footer, width = 
 export function Button({ onClick, children, variant = 'default', disabled, type = 'button' }) {
   const styles = {
     default: { background: T.surface, color: T.text700, border: `1px solid ${T.border}` },
-    primary: { background: T.primary, color: '#090a0f', border: `1px solid ${T.primary}`, fontWeight: 800 },
+    primary: { background: T.primary, color: '#FFFFFF', border: `1px solid ${T.primary}`, fontWeight: 800 },
     danger: { background: 'rgba(239, 68, 68, 0.1)', color: T.danger, border: `1px solid rgba(239, 68, 68, 0.2)` },
     warning: { background: 'rgba(245, 158, 11, 0.1)', color: T.warning, border: `1px solid rgba(245, 158, 11, 0.2)` },
     ghost: { background: 'transparent', color: T.text500, border: `1px solid ${T.border}` },

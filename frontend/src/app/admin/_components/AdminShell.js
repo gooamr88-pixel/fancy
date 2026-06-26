@@ -46,7 +46,7 @@ export default function AdminShell({ children }) {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: T.bg, colorScheme: 'dark', fontFamily: 'var(--font-sans)' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: T.bg, color: T.text900, fontFamily: 'var(--font-sans)' }}>
       <Sidebar can={can} open={sidebarOpen} onNavigate={() => {}} />
 
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
@@ -54,10 +54,10 @@ export default function AdminShell({ children }) {
         <header
           style={{
             height: 64,
-            background: 'rgba(18, 20, 26, 0.75)',
+            background: 'rgba(255, 255, 255, 0.85)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
-            borderBottom: `1px solid ${T.border}`,
+            borderBottom: '1px solid rgba(184, 148, 79, 0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -72,7 +72,7 @@ export default function AdminShell({ children }) {
             aria-label="Toggle navigation"
             style={{
               border: 'none',
-              background: 'rgba(255,255,255,0.02)',
+              background: 'rgba(0,0,0,0.02)',
               border: `1px solid ${T.border}`,
               width: 36,
               height: 36,
@@ -84,8 +84,8 @@ export default function AdminShell({ children }) {
               color: T.text700,
               transition: 'all 0.2s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = T.primary; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; e.currentTarget.style.color = T.text700; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; e.currentTarget.style.color = T.primary; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.02)'; e.currentTarget.style.color = T.text700; }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
