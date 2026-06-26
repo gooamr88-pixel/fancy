@@ -54,10 +54,10 @@ export default function AdminShell({ children }) {
         <header
           style={{
             height: 64,
-            background: 'rgba(255, 255, 255, 0.85)',
+            background: 'rgba(25, 27, 30, 0.95)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
-            borderBottom: '1px solid rgba(184, 148, 79, 0.15)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -72,8 +72,8 @@ export default function AdminShell({ children }) {
             aria-label="Toggle navigation"
             style={{
               border: 'none',
-              background: 'rgba(0,0,0,0.02)',
-              border: `1px solid ${T.border}`,
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               width: 36,
               height: 36,
               borderRadius: T.radiusSm,
@@ -81,11 +81,11 @@ export default function AdminShell({ children }) {
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              color: T.text700,
+              color: '#A19E95',
               transition: 'all 0.2s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; e.currentTarget.style.color = T.primary; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.02)'; e.currentTarget.style.color = T.text700; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'; e.currentTarget.style.color = '#FFFFFF'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'; e.currentTarget.style.color = '#A19E95'; }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
@@ -96,9 +96,9 @@ export default function AdminShell({ children }) {
                 fontSize: 11,
                 fontWeight: 800,
                 letterSpacing: '0.04em',
-                color: T.primary,
-                background: T.primarySoft,
-                border: `1px solid rgba(197, 168, 107, 0.25)`,
+                color: '#B8944F',
+                background: 'rgba(184, 148, 79, 0.15)',
+                border: '1px solid rgba(184, 148, 79, 0.3)',
                 padding: '4px 12px',
                 borderRadius: 20,
                 textTransform: 'uppercase',
@@ -107,8 +107,8 @@ export default function AdminShell({ children }) {
               {isSuperAdmin ? 'Super Admin' : (me.roles && me.roles[0]) || 'Admin'}
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: T.text900 }}>{me.name || 'Admin'}</span>
-              <span style={{ fontSize: 11, color: T.text500 }}>{me.email}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>{me.name || 'Admin'}</span>
+              <span style={{ fontSize: 11, color: '#A19E95' }}>{me.email}</span>
             </div>
           </div>
         </header>

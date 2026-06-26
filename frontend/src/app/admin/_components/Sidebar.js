@@ -51,8 +51,8 @@ export default function Sidebar({ can, open, onNavigate }) {
       style={{
         width: 256,
         flex: '0 0 256px',
-        background: T.surface,
-        borderRight: `1px solid ${T.border}`,
+        background: '#191B1E',
+        borderRight: '1px solid rgba(255, 255, 255, 0.08)',
         height: '100vh',
         position: 'sticky',
         top: 0,
@@ -61,13 +61,13 @@ export default function Sidebar({ can, open, onNavigate }) {
         display: open ? 'flex' : 'none',
         flexDirection: 'column',
         gap: 20,
-        boxShadow: '4px 0 24px rgba(0,0,0,0.25)',
+        boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
       }}
       data-admin-sidebar
     >
-      <div style={{ padding: '4px 8px 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${T.border}` }}>
-        <span style={{ fontSize: 20, color: T.primary, textShadow: '0 0 10px rgba(197, 168, 107, 0.4)' }}>✦</span>
-        <span style={{ fontWeight: 800, fontSize: 16, color: T.text900, letterSpacing: '-0.02em', fontFamily: 'var(--font-serif)' }}>Control Center</span>
+      <div style={{ padding: '4px 8px 12px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+        <span style={{ fontSize: 20, color: '#B8944F', textShadow: '0 0 10px rgba(184, 148, 79, 0.4)' }}>✦</span>
+        <span style={{ fontWeight: 800, fontSize: 16, color: '#FFFFFF', letterSpacing: '-0.02em', fontFamily: 'var(--font-serif)' }}>Control Center</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
@@ -76,7 +76,7 @@ export default function Sidebar({ can, open, onNavigate }) {
           if (visible.length === 0) return null;
           return (
             <div key={group.heading} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <div style={{ padding: '0 8px 4px', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.text400, fontWeight: 800 }}>
+              <div style={{ padding: '0 8px 4px', fontSize: 9.5, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#77736A', fontWeight: 800 }}>
                 {group.heading}
               </div>
               {visible.map((it) => {
@@ -91,16 +91,16 @@ export default function Sidebar({ can, open, onNavigate }) {
                       width: 28,
                       height: 28,
                       borderRadius: T.radiusSm,
-                      background: active ? 'rgba(197, 168, 107, 0.15)' : 'rgba(255,255,255,0.02)',
-                      border: `1px solid ${active ? 'rgba(197, 168, 107, 0.25)' : 'transparent'}`,
-                      color: active ? T.primary : T.text500,
+                      background: active ? 'rgba(184, 148, 79, 0.12)' : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${active ? 'rgba(184, 148, 79, 0.25)' : 'transparent'}`,
+                      color: active ? '#B8944F' : '#A19E95',
                       transition: 'all 0.2s',
                     }}>
                       {icon}
                     </span>
                     <span style={{ flex: 1 }}>{it.label}</span>
                     {!it.ready && (
-                      <span style={{ fontSize: 8, fontWeight: 800, textTransform: 'uppercase', color: T.text400, background: T.surfaceAlt, padding: '2px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>
+                      <span style={{ fontSize: 8, fontWeight: 800, textTransform: 'uppercase', color: '#A19E95', background: 'rgba(255,255,255,0.04)', padding: '2px 6px', borderRadius: 4, letterSpacing: '0.05em' }}>
                         soon
                       </span>
                     )}
@@ -113,8 +113,8 @@ export default function Sidebar({ can, open, onNavigate }) {
                   borderRadius: T.radiusSm,
                   fontSize: 13,
                   fontWeight: active ? 700 : 500,
-                  color: active ? T.primary : T.text700,
-                  background: active ? 'rgba(197, 168, 107, 0.08)' : 'transparent',
+                  color: active ? '#B8944F' : '#A19E95',
+                  background: active ? 'rgba(184, 148, 79, 0.08)' : 'transparent',
                   cursor: 'pointer',
                   transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
                   position: 'relative',
@@ -130,14 +130,14 @@ export default function Sidebar({ can, open, onNavigate }) {
                     }}
                   >
                     {active && (
-                      <span style={{ position: 'absolute', left: -4, top: 8, bottom: 8, width: 3, background: T.primary, borderRadius: 2 }} />
+                      <span style={{ position: 'absolute', left: -4, top: 8, bottom: 8, width: 3, background: '#B8944F', borderRadius: 2 }} />
                     )}
                     {inner}
                   </Link>
                 ) : (
                   <div
                     key={it.key}
-                    style={{ ...baseStyle, color: T.text400, cursor: 'not-allowed' }}
+                    style={{ ...baseStyle, color: 'rgba(255,255,255,0.3)', cursor: 'not-allowed' }}
                     title="Coming soon"
                   >
                     {inner}
