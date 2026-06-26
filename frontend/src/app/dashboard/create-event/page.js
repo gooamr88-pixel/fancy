@@ -282,6 +282,21 @@ export default function CreateEventWizard() {
           setTemplateData(ev.template_data);
           if (ev.template_data.customDesign) setCustomConfig(ev.template_data.customDesign);
         }
+
+        // Restore payment state from event_payments if a pending manual payment exists.
+        const payments = Array.isArray(ev.event_payments) ? ev.event_payments : [];
+        const pendingCash = payments.find(p => p && p.status === 'pending' && p.payment_method === 'cash_manual');
+        if (pendingCash) {
+          setManualRef(pendingCash.reference_number || '');
+          if (pendingCash.tier_name) setSelectedTierName(pendingCash.tier_name);
+        }
+        // If the event is already paid, restore that state too.
+        if (ev.is_paid) {
+          setEventIsPaid(true);
+          if (ev.current_tier_name) setCurrentTierName(ev.current_tier_name);
+          if (ev.current_tier_max_guests) setCurrentTierMaxGuests(ev.current_tier_max_guests);
+        }
+
         // Continue on the Configure step; clean the URL so a refresh won't re-hydrate.
         setDirection(1);
         setStep(1);
@@ -458,7 +473,10 @@ export default function CreateEventWizard() {
     setSlugStatus('checking');
     slugTimerRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`${apiUrl}/public/events/${slug}`);
+        // Pass the current eventId so the backend can exclude the event's own slug
+        // from the "taken" check when resuming a draft.
+        const checkUrl = `${apiUrl}/public/events/${slug}${eventId ? `?exclude=${encodeURIComponent(eventId)}` : ''}`;
+        const res = await fetch(checkUrl);
         if (res.status === 404) {
           setSlugStatus('available');
           setSuggestedSlug('');
@@ -478,7 +496,7 @@ export default function CreateEventWizard() {
     return () => {
       if (slugTimerRef.current) clearTimeout(slugTimerRef.current);
     };
-  }, [slug, apiUrl]);
+  }, [slug, apiUrl, eventId]);
 
   /* ═══ Derived values ═══ */
   const activeTemplate = TEMPLATES.find(t => t.key === templateType) || TEMPLATES[0];

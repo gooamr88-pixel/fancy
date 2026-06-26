@@ -317,6 +317,14 @@ const getPublicEventBySlug = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
     }
 
+    // When the frontend passes ?exclude=<eventId>, it means the organizer is editing
+    // that event and wants to keep its existing slug. Treat as "not found" so the
+    // slug checker marks it as available.
+    const excludeId = req.query.exclude;
+    if (excludeId && event.id === excludeId) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
+    }
+
     const isDemo = event.slug === 'demo';
 
     if (!event.is_paid && !isDemo) {
