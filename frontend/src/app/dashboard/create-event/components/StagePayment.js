@@ -66,7 +66,12 @@ export default function StagePayment({
     ? billableTiers
     : billableTiers.filter(t => t.price_cents > currentPrice);
   // Tiers shown in the selectable grid depend on the mode.
-  const selectableTiers = (isPaid && upgrading) ? upgradeTiers : billableTiers;
+  // When upgrading, show ALL plans but mark the current one as locked.
+  const selectableTiers = upgrading ? billableTiers : billableTiers;
+  // The pending/current plan name for upgrade comparison.
+  const lockedPlanName = isPaid ? currentTierName : (manualRef ? selectedTierName : null);
+  const lockedTier = lockedPlanName ? (tiers || []).find(t => t.name === lockedPlanName) : null;
+  const lockedPrice = lockedTier ? lockedTier.price_cents : null;
   // The locked "Current Plan" view: paid and not actively upgrading.
   const showCurrentPlan = isPaid && !!currentTierName && !upgrading;
   // When manualRef exists, the payment was submitted but awaiting verification.
@@ -258,36 +263,55 @@ export default function StagePayment({
             {upgrading ? 'You are already on the highest available plan.' : 'No pricing tiers are configured yet. You can skip and pay later from the dashboard.'}
           </p>
         ) : selectableTiers.map((tier) => {
-          const isActive = selectedTierName === tier.name;
+          const isLocked = upgrading && lockedPlanName && tier.name === lockedPlanName;
+          const isBelowCurrent = upgrading && lockedPrice != null && tier.price_cents <= lockedPrice && !isLocked;
+          const isDisabled = isLocked || isBelowCurrent;
+          const isActive = !isDisabled && selectedTierName === tier.name;
           const features = Array.isArray(tier.features) ? tier.features.filter(Boolean) : [];
           return (
             <div key={tier.name}
-              onClick={() => !processing && onSelectTier(tier.name)}
+              onClick={() => !processing && !isDisabled && onSelectTier(tier.name)}
               style={{
-                background: C.white,
-                border: isActive ? `2px solid ${C.gold}` : `1.5px solid ${C.border}`,
-                borderRadius: 16, padding: 22, cursor: processing ? 'default' : 'pointer',
+                background: isLocked ? 'linear-gradient(135deg, #FFFDF7 0%, #FBF8F0 100%)' : isBelowCurrent ? '#FAFAF8' : C.white,
+                border: isLocked ? `2px solid ${C.gold}` : isActive ? `2px solid ${C.gold}` : `1.5px solid ${C.border}`,
+                borderRadius: 16, padding: 22,
+                cursor: isDisabled ? 'default' : processing ? 'default' : 'pointer',
                 transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
-                boxShadow: isActive ? '0 4px 20px rgba(184,148,79,0.12)' : '0 2px 8px rgba(0,0,0,0.04)',
+                boxShadow: isLocked ? '0 4px 20px rgba(184,148,79,0.10)' : isActive ? '0 4px 20px rgba(184,148,79,0.12)' : '0 2px 8px rgba(0,0,0,0.04)',
+                opacity: isBelowCurrent ? 0.5 : 1,
+                position: 'relative',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, color: C.charcoal, margin: 0 }}>
+                <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, color: isDisabled ? C.stone : C.charcoal, margin: 0 }}>
                   {tier.name}
-                  {tier.recommended && (
+                  {isLocked && (
+                    <span style={{ marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 700, color: C.success, background: 'rgba(59,155,109,0.10)', border: '1px solid rgba(59,155,109,0.20)', padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', verticalAlign: 'middle' }}>Current Plan</span>
+                  )}
+                  {tier.recommended && !isLocked && (
                     <span style={{ marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.gold, background: 'rgba(184,148,79,0.12)', padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', verticalAlign: 'middle' }}>Popular</span>
                   )}
                 </h3>
-                <div style={{
-                  width: 22, height: 22, borderRadius: '50%',
-                  border: isActive ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
-                  background: isActive ? C.gold : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {isActive && (
+                {isLocked ? (
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: C.success,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    border: isActive ? `2px solid ${C.gold}` : `2px solid ${C.border}`,
+                    background: isActive ? C.gold : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {isActive && (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round"><path d="M5 13l4 4L19 7" /></svg>
+                    )}
+                  </div>
+                )}
               </div>
               <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 700, color: C.gold, margin: '10px 0 4px' }}>{fmt(tier.price_cents)}</div>
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0 }}>
@@ -309,14 +333,14 @@ export default function StagePayment({
         </div>
       )}
 
-      {/* Cancel upgrade — return to the locked current-plan view */}
-      {upgrading && !manualRef && (
+      {/* Cancel upgrade — return to the locked current-plan / pending view */}
+      {upgrading && (
         <button onClick={cancelUpgrade} disabled={processing} style={{
           background: 'none', border: 'none', color: C.stone, marginBottom: 20,
           fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
           cursor: processing ? 'not-allowed' : 'pointer', textDecoration: 'underline',
         }}>
-          ← Keep my current plan ({currentTierName})
+          ← Keep my current plan ({lockedPlanName || currentTierName})
         </button>
       )}
 
