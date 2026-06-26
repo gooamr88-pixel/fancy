@@ -49,6 +49,9 @@ export default function StagePayment({
   // When already paid, the plans stay locked on the current plan until the user
   // explicitly chooses to upgrade.
   const [upgrading, setUpgrading] = useState(false);
+  // Capture the plan name at the time of manual payment submission so it doesn't
+  // change when the user clicks other tiers during upgrade.
+  const [paidPlanName, setPaidPlanName] = useState(selectedTierName);
 
   const activeMethods = (manualMethods || []).filter(m => m && m.is_active !== false);
   // "Contact Sales" tiers have no fixed price, so they can't be paid online here.
@@ -61,17 +64,22 @@ export default function StagePayment({
   // saved on the event if the tier was later renamed/removed by an admin).
   const currentTier = (tiers || []).find(t => t.name === currentTierName) || null;
   const currentPrice = currentTier ? currentTier.price_cents : null;
-  // Only strictly more expensive tiers count as an upgrade (full price charged).
-  const upgradeTiers = currentPrice == null
-    ? billableTiers
-    : billableTiers.filter(t => t.price_cents > currentPrice);
-  // Tiers shown in the selectable grid depend on the mode.
-  // When upgrading, show ALL plans but mark the current one as locked.
-  const selectableTiers = upgrading ? billableTiers : billableTiers;
+
   // The pending/current plan name for upgrade comparison.
-  const lockedPlanName = isPaid ? currentTierName : (manualRef ? selectedTierName : null);
+  // Use the captured paidPlanName (frozen at payment time) instead of the live selectedTierName.
+  const lockedPlanName = isPaid ? currentTierName : (manualRef ? paidPlanName : null);
   const lockedTier = lockedPlanName ? (tiers || []).find(t => t.name === lockedPlanName) : null;
   const lockedPrice = lockedTier ? lockedTier.price_cents : null;
+
+  // The effective price for upgrade filtering: use whichever is set (paid or pending).
+  const effectivePrice = currentPrice ?? lockedPrice;
+  // Only strictly more expensive tiers count as an upgrade (full price charged).
+  const upgradeTiers = effectivePrice == null
+    ? billableTiers
+    : billableTiers.filter(t => t.price_cents > effectivePrice);
+  // Tiers shown in the selectable grid depend on the mode.
+  // When upgrading, show ALL plans but mark the current one as locked.
+  const selectableTiers = billableTiers;
   // The locked "Current Plan" view: paid and not actively upgrading.
   const showCurrentPlan = isPaid && !!currentTierName && !upgrading;
   // When manualRef exists, the payment was submitted but awaiting verification.
@@ -82,6 +90,7 @@ export default function StagePayment({
 
   const submitManual = () => {
     const label = chosenMethod || (activeMethods[0]?.label || 'Manual Transfer');
+    setPaidPlanName(selectedTierName); // Freeze the plan name at submission time
     onPayManual(label, payerRef.trim());
   };
 
@@ -215,7 +224,7 @@ export default function StagePayment({
       )}
 
       {/* Pending Plan banner — shown after manual payment submission, before admin verification */}
-      {showPendingPlan && selectedTier && (
+      {showPendingPlan && lockedTier && (
         <div style={{
           background: 'linear-gradient(135deg, #FFFDF7 0%, #FFFFFF 100%)',
           border: `2px solid ${C.gold}`, borderRadius: 18, padding: 26, marginBottom: 24,
@@ -224,7 +233,7 @@ export default function StagePayment({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
             <div>
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Selected Plan</span>
-              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 700, color: C.charcoal, margin: '4px 0 0' }}>{selectedTier.name}</h3>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 700, color: C.charcoal, margin: '4px 0 0' }}>{lockedTier.name}</h3>
             </div>
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 100,
@@ -234,9 +243,9 @@ export default function StagePayment({
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, animation: 'sp-pulse 2s ease-in-out infinite' }} /> Pending Verification
             </span>
           </div>
-          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.gold, margin: '14px 0 2px' }}>{fmt(selectedTier.price_cents)}</div>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.gold, margin: '14px 0 2px' }}>{fmt(lockedTier.price_cents)}</div>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: '4px 0 0' }}>
-            {selectedTier.max_guests > 0 ? `Up to ${selectedTier.max_guests} guests` : 'Unlimited guests'}
+            {lockedTier.max_guests > 0 ? `Up to ${lockedTier.max_guests} guests` : 'Unlimited guests'}
           </p>
           {upgradeTiers.length > 0 && (
             <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px solid ${C.border}` }}>
