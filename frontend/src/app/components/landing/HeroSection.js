@@ -503,7 +503,7 @@ export default function HeroSection() {
               letterSpacing: "-0.3px",
             }}
           >
-            Weddings, events, and more.
+            Weddings, custom, and eternal love.
           </h2>
 
           {/* Occasion Cards Grid */}
