@@ -206,7 +206,7 @@ export default function OrganizerProfile({ events = [] }) {
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
-    if (!passwordForm.currentPassword) { toast.error('Current password is required.'); return; }
+    if (profile?.hasPassword && !passwordForm.currentPassword) { toast.error('Current password is required.'); return; }
     if (passwordForm.newPassword.length < 8) { toast.error('New password must be at least 8 characters.'); return; }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) { toast.error('Passwords do not match.'); return; }
 
@@ -215,12 +215,13 @@ export default function OrganizerProfile({ events = [] }) {
       await apiFetch('/auth/change-password', {
         method: 'POST',
         body: JSON.stringify({
-          currentPassword: passwordForm.currentPassword,
+          currentPassword: profile?.hasPassword ? passwordForm.currentPassword : undefined,
           newPassword: passwordForm.newPassword
         })
       });
-      toast.success('Password changed successfully.');
+      toast.success(profile?.hasPassword ? 'Password changed successfully.' : 'Password created successfully.');
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setProfile(prev => ({ ...prev, hasPassword: true }));
     } catch (err) {
       toast.error(err.message || 'Failed to change password.');
     } finally {
@@ -458,36 +459,66 @@ export default function OrganizerProfile({ events = [] }) {
         <h3 style={sectionTitleStyle}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-            Security & Password
+            {profile?.hasPassword ? 'Security & Password' : 'Security & Google Login'}
           </span>
         </h3>
         <form onSubmit={handleChangePassword}>
-          <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Current Password</label>
-            <div style={{ position: 'relative' }}>
-              <input type={showCurrentPassword ? "text" : "password"} value={passwordForm.currentPassword} onChange={handlePasswordChange('currentPassword')} placeholder="••••••••" 
-                style={{ ...inputStyle, paddingRight: '40px' }}
-                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-                onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-              />
-              <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                style={{
-                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
-                  color: COLORS.stone, outline: 'none', padding: 0
-                }}
-              >
-                {showCurrentPassword ? (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                )}
-              </button>
+          {!profile?.hasPassword && (
+            <div style={{
+              display: 'flex', gap: '12px', background: '#F0F4F8', border: '1px solid #D0E0F0',
+              borderRadius: '8px', padding: '14px 16px', marginBottom: '18px', alignItems: 'flex-start'
+            }}>
+              <div style={{
+                background: COLORS.white, borderRadius: '50%', width: '28px', height: '28px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '13px', color: '#1B365D', fontFamily: 'var(--font-sans)', marginBottom: '3px' }}>
+                  Connected with Google
+                </div>
+                <div style={{ fontSize: '12px', color: '#4E6A8A', fontFamily: 'var(--font-sans)', lineHeight: 1.4 }}>
+                  Your account is currently using Google Sign-In. You don't have a local password set. 
+                  If you'd like to sign in directly with your email as well, you can create a password below.
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+          {profile?.hasPassword && (
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Current Password</label>
+              <div style={{ position: 'relative' }}>
+                <input type={showCurrentPassword ? "text" : "password"} value={passwordForm.currentPassword} onChange={handlePasswordChange('currentPassword')} placeholder="••••••••" 
+                  style={{ ...inputStyle, paddingRight: '40px' }}
+                  onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                  onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+                />
+                <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    color: COLORS.stone, outline: 'none', padding: 0
+                  }}
+                >
+                  {showCurrentPassword ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
           <div style={rowStyle}>
             <div style={fieldGroupStyle}>
-              <label style={labelStyle}>New Password</label>
+              <label style={labelStyle}>{profile?.hasPassword ? 'New Password' : 'Create Password'}</label>
               <div style={{ position: 'relative' }}>
                 <input type={showNewPassword ? "text" : "password"} value={passwordForm.newPassword} onChange={handlePasswordChange('newPassword')} placeholder="••••••••" 
                   style={{ ...inputStyle, paddingRight: '40px' }}
@@ -510,7 +541,7 @@ export default function OrganizerProfile({ events = [] }) {
               </div>
             </div>
             <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Confirm New Password</label>
+              <label style={labelStyle}>{profile?.hasPassword ? 'Confirm New Password' : 'Confirm Password'}</label>
               <div style={{ position: 'relative' }}>
                 <input type={showConfirmPassword ? "text" : "password"} value={passwordForm.confirmPassword} onChange={handlePasswordChange('confirmPassword')} placeholder="••••••••" 
                   style={{ ...inputStyle, paddingRight: '40px' }}
@@ -544,7 +575,11 @@ export default function OrganizerProfile({ events = [] }) {
             onMouseEnter={(e) => { if (!changingPassword) { e.currentTarget.style.background = COLORS.softBg; e.currentTarget.style.borderColor = COLORS.gold; } }}
             onMouseLeave={(e) => { if (!changingPassword) { e.currentTarget.style.background = COLORS.white; e.currentTarget.style.borderColor = COLORS.border; } }}
           >
-            {changingPassword ? 'Updating Password…' : 'Update Password'}
+            {changingPassword ? (
+              profile?.hasPassword ? 'Updating Password…' : 'Creating Password…'
+            ) : (
+              profile?.hasPassword ? 'Update Password' : 'Create Password'
+            )}
           </button>
         </form>
       </div>

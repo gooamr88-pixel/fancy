@@ -692,7 +692,7 @@ const getProfile = async (req, res, next) => {
   try {
     let { data: org, error } = await supabase
       .from('organizations')
-      .select('id, name, email, phone, created_at, bio, website, logo_url, social_links')
+      .select('id, name, email, phone, created_at, bio, website, logo_url, social_links, password_hash')
       .eq('owner_user_id', req.user.id)
       .single();
 
@@ -700,7 +700,7 @@ const getProfile = async (req, res, next) => {
       logger.info('Branding columns do not exist in organizations table yet; falling back to core fields');
       const fallbackResult = await supabase
         .from('organizations')
-        .select('id, name, email, phone, created_at')
+        .select('id, name, email, phone, created_at, password_hash')
         .eq('owner_user_id', req.user.id)
         .single();
       if (fallbackResult.error || !fallbackResult.data) {
@@ -711,7 +711,13 @@ const getProfile = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Profile not found' });
     }
 
-    res.json({ success: true, profile: org });
+    const profileData = {
+      ...org,
+      hasPassword: !!org.password_hash
+    };
+    delete profileData.password_hash;
+
+    res.json({ success: true, profile: profileData });
   } catch (err) {
     next(err);
   }
@@ -786,8 +792,8 @@ const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ success: false, error: 'MISSING_FIELDS', message: 'Current and new passwords are required' });
+    if (!newPassword) {
+      return res.status(400).json({ success: false, error: 'MISSING_FIELDS', message: 'New password is required' });
     }
 
     if (!passwordRegex.test(newPassword)) {
@@ -805,16 +811,19 @@ const changePassword = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Profile not found' });
     }
 
-    // Verify current password using the existing verifyPassword function
-    const isValid = await verifyPassword(currentPassword, org.password_hash, org.email);
-    if (!isValid) {
-      return res.status(400).json({ success: false, error: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
+    if (org.password_hash) {
+      if (!currentPassword) {
+        return res.status(400).json({ success: false, error: 'MISSING_FIELDS', message: 'Current password is required' });
+      }
+      const isValid = await verifyPassword(currentPassword, org.password_hash, org.email);
+      if (!isValid) {
+        return res.status(400).json({ success: false, error: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
+      }
+      if (currentPassword === newPassword) {
+        return res.status(400).json({ success: false, error: 'SAME_PASSWORD', message: 'New password must be different from your current password.' });
+      }
     }
 
-    // Hash new password
-    if (currentPassword === newPassword) {
-      return res.status(400).json({ success: false, error: 'SAME_PASSWORD', message: 'New password must be different from your current password.' });
-    }
     const newHash = await hashPassword(newPassword);
 
     const { error: updateError } = await supabase

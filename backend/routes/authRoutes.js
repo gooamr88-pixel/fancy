@@ -67,7 +67,6 @@ router.patch('/profile', [
 // Change password (requires current password): POST /api/v1/auth/change-password
 router.post('/change-password', [
   requireAuth,
-  body('currentPassword').notEmpty().withMessage('Current password is required'),
   body('newPassword').isLength({ min: 8 }).withMessage('New password must be at least 8 characters'),
   validate
 ], authController.changePassword);
