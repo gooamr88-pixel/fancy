@@ -72,4 +72,10 @@ router.post('/change-password', [
   validate
 ], authController.changePassword);
 
+// Get active sessions: GET /api/v1/auth/sessions
+router.get('/sessions', requireAuth, authController.getSessions);
+
+// Revoke a specific session: POST /api/v1/auth/sessions/:sessionId/revoke
+router.post('/sessions/:sessionId/revoke', requireAuth, authController.revokeSession);
+
 module.exports = router;

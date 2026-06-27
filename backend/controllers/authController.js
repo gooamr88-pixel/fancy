@@ -690,13 +690,24 @@ const resetPassword = async (req, res, next) => {
  */
 const getProfile = async (req, res, next) => {
   try {
-    const { data: org, error } = await supabase
+    let { data: org, error } = await supabase
       .from('organizations')
-      .select('id, name, email, phone, created_at')
+      .select('id, name, email, phone, created_at, bio, website, logo_url, social_links')
       .eq('owner_user_id', req.user.id)
       .single();
 
-    if (error || !org) {
+    if (error && error.message && (error.message.includes('column') || error.message.includes('does not exist'))) {
+      logger.info('Branding columns do not exist in organizations table yet; falling back to core fields');
+      const fallbackResult = await supabase
+        .from('organizations')
+        .select('id, name, email, phone, created_at')
+        .eq('owner_user_id', req.user.id)
+        .single();
+      if (fallbackResult.error || !fallbackResult.data) {
+        return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Profile not found' });
+      }
+      org = fallbackResult.data;
+    } else if (error || !org) {
       return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Profile not found' });
     }
 
@@ -712,11 +723,15 @@ const getProfile = async (req, res, next) => {
  */
 const updateProfile = async (req, res, next) => {
   try {
-    const { name, phone } = req.body;
+    const { name, phone, bio, website, logo_url, social_links } = req.body;
     
     const updates = {};
-    if (name) updates.name = name.trim();
-    if (phone) updates.phone = phone.trim();
+    if (name !== undefined) updates.name = name.trim();
+    if (phone !== undefined) updates.phone = phone.trim();
+    if (bio !== undefined) updates.bio = bio !== null ? bio.trim() : null;
+    if (website !== undefined) updates.website = website !== null ? website.trim() : null;
+    if (logo_url !== undefined) updates.logo_url = logo_url !== null ? logo_url.trim() : null;
+    if (social_links !== undefined) updates.social_links = social_links;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ success: false, error: 'NO_UPDATES', message: 'No fields to update' });
@@ -726,10 +741,36 @@ const updateProfile = async (req, res, next) => {
       .from('organizations')
       .update(updates)
       .eq('owner_user_id', req.user.id)
-      .select('id, name, email, phone')
+      .select('id, name, email, phone, bio, website, logo_url, social_links')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (error.message && (error.message.includes('column') || error.message.includes('does not exist'))) {
+        logger.warn('Failed to update branding columns (columns do not exist); retrying with core fields only');
+        const coreUpdates = {};
+        if (name !== undefined) coreUpdates.name = name.trim();
+        if (phone !== undefined) coreUpdates.phone = phone.trim();
+        
+        if (Object.keys(coreUpdates).length === 0) {
+          return res.status(400).json({ success: false, error: 'MIGRATION_REQUIRED', message: 'Branding columns do not exist in the database. Please apply migrations.' });
+        }
+        
+        const { data: retryOrg, error: retryErr } = await supabase
+          .from('organizations')
+          .update(coreUpdates)
+          .eq('owner_user_id', req.user.id)
+          .select('id, name, email, phone')
+          .single();
+          
+        if (retryErr) throw retryErr;
+        return res.json({ 
+          success: true, 
+          profile: retryOrg, 
+          message: 'Profile updated (core fields only; branding columns do not exist).' 
+        });
+      }
+      throw error;
+    }
 
     res.json({ success: true, profile: org, message: 'Profile updated successfully' });
   } catch (err) {
@@ -935,6 +976,70 @@ const googleAuth = async (req, res, next) => {
   }
 };
 
+const getSessions = async (req, res, next) => {
+  try {
+    const { data: sessions, error } = await supabase
+      .from('sessions')
+      .select('id, jti, ip, user_agent, device_label, created_at, last_seen_at, expires_at, revoked_at')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const activeSessions = (sessions || []).map(s => ({
+      id: s.id,
+      ip: s.ip,
+      user_agent: s.user_agent,
+      device_label: s.device_label,
+      created_at: s.created_at,
+      last_seen_at: s.last_seen_at,
+      expires_at: s.expires_at,
+      revoked_at: s.revoked_at,
+      isCurrent: s.jti === req.user.jti,
+      isActive: !s.revoked_at && (!s.expires_at || new Date(s.expires_at).getTime() > Date.now())
+    }));
+
+    res.json({ success: true, sessions: activeSessions });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const revokeSession = async (req, res, next) => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ success: false, error: 'MISSING_SESSION_ID', message: 'Session ID is required.' });
+    }
+
+    const { data: session, error: findError } = await supabase
+      .from('sessions')
+      .select('jti, user_id')
+      .eq('id', sessionId)
+      .single();
+
+    if (findError || !session) {
+      return res.status(404).json({ success: false, error: 'SESSION_NOT_FOUND', message: 'Session not found.' });
+    }
+
+    if (session.user_id !== req.user.id) {
+      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'You do not have permission to revoke this session.' });
+    }
+
+    const { error: updateError } = await supabase
+      .from('sessions')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', sessionId);
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true, message: 'Session revoked successfully.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   register,
   verifyRegistration,
@@ -946,6 +1051,8 @@ module.exports = {
   updateProfile,
   changePassword,
   googleAuth,
+  getSessions,
+  revokeSession,
   // Exposed for admin tooling (Master Plan §5 — admin-initiated password reset).
   hashPassword,
 };
