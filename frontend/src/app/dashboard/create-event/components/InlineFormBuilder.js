@@ -50,6 +50,7 @@ const onBlur = (e) => e.target.style.borderColor = C.border;
 
 export default function InlineFormBuilder({ fields, onFieldsChange }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [label, setLabel] = useState('');
   const [key, setKey] = useState('');
   const [type, setType] = useState('text');
@@ -74,6 +75,18 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
     setLabel(''); setKey(''); setType('text');
     setOptionsStr(''); setIsRequired(false);
     setCondition('always'); setShowForm(false);
+    setEditingId(null);
+  };
+
+  const startEdit = (f) => {
+    setEditingId(f.id);
+    setLabel(f.label || '');
+    setKey(f.key || '');
+    setType(f.type || 'text');
+    setOptionsStr(Array.isArray(f.options) ? f.options.join(', ') : '');
+    setIsRequired(!!f.isRequired);
+    setCondition(f.condition || 'always');
+    setShowForm(true);
   };
 
   const handleSave = () => {
@@ -83,14 +96,23 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
       options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
       if (options.length === 0) return;
     }
-    const newField = {
-      id: crypto.randomUUID(),
-      label: label.trim(),
-      key: key.trim(),
-      type, options, isRequired, condition,
-      sortOrder: fields.length,
-    };
-    onFieldsChange([...fields, newField]);
+    if (editingId) {
+      // Update existing field — key is immutable.
+      const updated = fields.map(f => f.id === editingId
+        ? { ...f, label: label.trim(), type, options, isRequired, condition }
+        : f
+      );
+      onFieldsChange(updated);
+    } else {
+      const newField = {
+        id: crypto.randomUUID(),
+        label: label.trim(),
+        key: key.trim(),
+        type, options, isRequired, condition,
+        sortOrder: fields.length,
+      };
+      onFieldsChange([...fields, newField]);
+    }
     resetForm();
   };
 
@@ -151,7 +173,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
               <h4 style={{
                 fontFamily: 'var(--font-sans)', fontSize: 14,
                 fontWeight: 700, color: C.charcoal, margin: 0,
-              }}>New Custom Question</h4>
+              }}>{editingId ? 'Edit Custom Question' : 'New Custom Question'}</h4>
 
               {/* Row 1: Label + Key */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -165,10 +187,11 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                 <div>
                   <label style={lblStyle}>Field Key</label>
                   <input type="text" value={key}
-                    onChange={e => setKey(e.target.value)}
+                    onChange={e => { if (!editingId) setKey(e.target.value); }}
                     placeholder="e.g. dietary_restrictions"
-                    style={{ ...iStyle, fontFamily: 'monospace' }}
-                    onFocus={onFocus} onBlur={onBlur} />
+                    disabled={!!editingId}
+                    style={{ ...iStyle, fontFamily: 'monospace', ...(editingId ? { background: '#F0ECE3', color: '#A09A91', cursor: 'not-allowed' } : {}) }}
+                    onFocus={e => { if (!editingId) onFocus(e); }} onBlur={onBlur} />
                 </div>
               </div>
 
@@ -252,7 +275,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                   fontSize: 12, fontWeight: 700, cursor: 'pointer',
                   fontFamily: 'var(--font-sans)',
                   opacity: (!label.trim() || !key.trim()) ? 0.5 : 1,
-                }}>Save Question</button>
+                }}>{editingId ? 'Update Question' : 'Save Question'}</button>
               </div>
             </div>
           </motion.div>
@@ -318,22 +341,42 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(f.id)}
-                  style={{
-                    padding: 6, background: 'rgba(196,94,94,0.06)',
-                    border: '1px solid rgba(196,94,94,0.15)',
-                    borderRadius: 8, cursor: 'pointer', color: C.error,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    transition: 'background 0.2s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,94,94,0.06)'}
-                >
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                  </svg>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    onClick={() => startEdit(f)}
+                    title="Edit question"
+                    style={{
+                      padding: 6, background: 'rgba(184,148,79,0.08)',
+                      border: '1px solid rgba(184,148,79,0.2)',
+                      borderRadius: 8, cursor: 'pointer', color: C.gold,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'background 0.2s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,148,79,0.16)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(184,148,79,0.08)'}
+                  >
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(f.id)}
+                    title="Delete question"
+                    style={{
+                      padding: 6, background: 'rgba(196,94,94,0.06)',
+                      border: '1px solid rgba(196,94,94,0.15)',
+                      borderRadius: 8, cursor: 'pointer', color: C.error,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'background 0.2s',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(196,94,94,0.12)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(196,94,94,0.06)'}
+                  >
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                </div>
               </motion.div>
             );
           })}
