@@ -629,26 +629,32 @@ export default function SeatingMapPage() {
   };
 
   /* ── add element ── */
-  const addElement = async ({ shape, name, capacity, color, width, height }) => {
-    const meta = SHAPES[shape];
-    const body = {
-      tableName: name,
-      shape,
-      elementType: meta.cat,
-      x: clamp((-view.tx / view.scale) / WORLD_W * 100 + 8, 2, 90),
-      y: clamp((-view.ty / view.scale) / WORLD_H * 100 + 8, 2, 90),
-    };
-    if (meta.cat === 'table') body.maxCapacity = capacity;
-    else { body.width = width || meta.w; body.height = height || meta.h; body.color = color || meta.color; }
+  const addElement = async (payloads) => {
+    const items = Array.isArray(payloads) ? payloads : [payloads];
+    setSaving(true);
     try {
-      const res = await fetch(`${API_URL}/events/${eventId}/tables`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to add element');
+      for (const item of items) {
+        const meta = SHAPES[item.shape];
+        const body = {
+          tableName: item.tableName || item.name,
+          shape: item.shape,
+          elementType: item.elementType || meta.cat,
+          x: item.x !== undefined ? item.x : clamp((-view.tx / view.scale) / WORLD_W * 100 + 8, 2, 90),
+          y: item.y !== undefined ? item.y : clamp((-view.ty / view.scale) / WORLD_H * 100 + 8, 2, 90),
+        };
+        if (body.elementType === 'table') body.maxCapacity = item.maxCapacity || item.capacity;
+        else { body.width = item.width || meta.w; body.height = item.height || meta.h; body.color = item.color || meta.color; }
+
+        const res = await fetch(`${API_URL}/events/${eventId}/tables`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Failed to add element');
+      }
       setShowAdd(false);
       loadLayout();
     } catch (err) { toast.error(err.message); }
+    finally { setSaving(false); }
   };
 
   /* ── inspector save / delete ── */
@@ -947,7 +953,7 @@ export default function SeatingMapPage() {
       </div>
 
       {/* Add element modal */}
-      {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} />}
+      {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} view={view} />}
 
       <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
@@ -956,9 +962,37 @@ export default function SeatingMapPage() {
 }
 
 /* ════════════════════════════════════════════════════════════════
+   Smart helper for naming incrementing (letters/numbers)
+   ════════════════════════════════════════════════════════════════ */
+function generateNumberedName(baseName, index, startNum) {
+  // 1. Check if name ends with a single letter (e.g. Table A or Table a)
+  const letterMatch = baseName.match(/^(.*?)\s*([a-zA-Z])$/);
+  if (letterMatch) {
+    const prefix = letterMatch[1];
+    const letter = letterMatch[2];
+    const charCode = letter.charCodeAt(0);
+    const newCharCode = charCode + index;
+    if ((letter >= 'A' && letter <= 'Z' && newCharCode <= 90) ||
+        (letter >= 'a' && letter <= 'z' && newCharCode <= 122)) {
+      return `${prefix} ${String.fromCharCode(newCharCode)}`.trim();
+    }
+  }
+
+  // 2. Check if name ends with a number (e.g. Table 1)
+  const numMatch = baseName.match(/^(.*?)\s*(\d+)$/);
+  if (numMatch) {
+    const prefix = numMatch[1];
+    const num = parseInt(numMatch[2]);
+    return `${prefix} ${num + index}`.trim();
+  }
+
+  return `${baseName} ${startNum + index}`.trim();
+}
+
+/* ════════════════════════════════════════════════════════════════
    Add element modal — pick a shape (table) or a zone, then details
    ════════════════════════════════════════════════════════════════ */
-function AddElementModal({ onClose, onAdd, btn }) {
+function AddElementModal({ onClose, onAdd, btn, view }) {
   const [shape, setShape] = useState('round');
   const meta = SHAPES[shape];
   const [name, setName] = useState('');
@@ -966,6 +1000,16 @@ function AddElementModal({ onClose, onAdd, btn }) {
   const [customColor, setCustomColor] = useState('');
   const [customWidth, setCustomWidth] = useState('');
   const [customHeight, setCustomHeight] = useState('');
+
+  // Layout arrangement states
+  const [isMultiple, setIsMultiple] = useState(false);
+  const [layoutMode, setLayoutMode] = useState('horizontal'); // 'horizontal', 'vertical', 'grid'
+  const [quantity, setQuantity] = useState('4');
+  const [gridCols, setGridCols] = useState('3');
+  const [gridRows, setGridRows] = useState('2');
+  const [spacing, setSpacing] = useState('40');
+  const [startNumber, setStartNumber] = useState('1');
+  const [autoNumber, setAutoNumber] = useState(true);
 
   const pick = (s) => {
     setShape(s);
@@ -981,18 +1025,92 @@ function AddElementModal({ onClose, onAdd, btn }) {
 
   const submit = () => {
     if (!name.trim()) { toast.error('Please enter a label.'); return; }
-    const payload = { shape, name: name.trim() };
-    if (meta.cat === 'table') {
-      const cap = parseInt(capacity);
-      if (isNaN(cap) || cap < 1) { toast.error('Enter a valid capacity.'); return; }
-      payload.capacity = cap;
+    
+    let numElements = 1;
+    let qty = 1;
+    let cols = 1;
+    let rows = 1;
+    let gap = 40;
+    
+    if (isMultiple) {
+      gap = parseInt(spacing);
+      if (isNaN(gap) || gap < 0) { toast.error('Please enter a valid spacing.'); return; }
+      
+      if (layoutMode !== 'grid') {
+        qty = parseInt(quantity);
+        if (isNaN(qty) || qty < 2 || qty > 50) { toast.error('Quantity must be between 2 and 50.'); return; }
+        numElements = qty;
+      } else {
+        cols = parseInt(gridCols);
+        rows = parseInt(gridRows);
+        if (isNaN(cols) || cols < 1 || cols > 10 || isNaN(rows) || rows < 1 || rows > 10) {
+          toast.error('Grid columns and rows must be between 1 and 10.');
+          return;
+        }
+        if (cols * rows < 2) {
+          toast.error('Grid layout must contain at least 2 elements.');
+          return;
+        }
+        numElements = cols * rows;
+      }
     }
-    if (meta.cat === 'zone') {
-      if (customColor) payload.color = customColor;
-      if (customWidth) payload.width = parseInt(customWidth) || meta.w;
-      if (customHeight) payload.height = parseInt(customHeight) || meta.h;
+
+    const payloads = [];
+    const itemW = meta.cat === 'table' ? meta.w : (parseInt(customWidth) || meta.w);
+    const itemH = meta.cat === 'table' ? meta.h : (parseInt(customHeight) || meta.h);
+    
+    const startXPercent = clamp((-view.tx / view.scale) / WORLD_W * 100 + 8, 2, 90);
+    const startYPercent = clamp((-view.ty / view.scale) / WORLD_H * 100 + 8, 2, 90);
+    const startXPx = startXPercent / 100 * WORLD_W;
+    const startYPx = startYPercent / 100 * WORLD_H;
+
+    for (let i = 0; i < numElements; i++) {
+      let xPx = startXPx;
+      let yPx = startYPx;
+
+      if (isMultiple) {
+        if (layoutMode === 'horizontal') {
+          xPx = startXPx + i * (itemW + gap);
+        } else if (layoutMode === 'vertical') {
+          yPx = startYPx + i * (itemH + gap);
+        } else if (layoutMode === 'grid') {
+          const colIdx = i % cols;
+          const rowIdx = Math.floor(i / cols);
+          xPx = startXPx + colIdx * (itemW + gap);
+          yPx = startYPx + rowIdx * (itemH + gap);
+        }
+      }
+
+      const xPct = clamp((xPx / WORLD_W) * 100, 2, 98);
+      const yPct = clamp((yPx / WORLD_H) * 100, 2, 98);
+
+      let finalName = name.trim();
+      if (isMultiple && autoNumber) {
+        finalName = generateNumberedName(finalName, i, parseInt(startNumber) || 1);
+      }
+
+      const payload = {
+        shape,
+        tableName: finalName,
+        elementType: meta.cat,
+        x: xPct,
+        y: yPct,
+      };
+
+      if (meta.cat === 'table') {
+        const cap = parseInt(capacity);
+        if (isNaN(cap) || cap < 1) { toast.error('Enter a valid capacity.'); return; }
+        payload.maxCapacity = cap;
+      } else {
+        payload.width = parseInt(customWidth) || meta.w;
+        payload.height = parseInt(customHeight) || meta.h;
+        payload.color = customColor || meta.color;
+      }
+
+      payloads.push(payload);
     }
-    onAdd(payload);
+
+    onAdd(payloads);
   };
 
   const inputStyle = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', fontFamily: 'var(--font-sans)', transition: 'border-color 0.2s' };
@@ -1061,6 +1179,67 @@ function AddElementModal({ onClose, onAdd, btn }) {
               </div>
             </>
           )}
+
+          {/* Multiple Elements Layout section */}
+          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={isMultiple} onChange={e => setIsMultiple(e.target.checked)} style={{ cursor: 'pointer' }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>Add multiple elements in a layout</span>
+            </label>
+
+            {isMultiple && (
+              <div style={{
+                marginTop: 4, padding: 14, background: C.softBg, border: `1px solid ${C.border}`,
+                borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 12,
+                animation: 'fadeIn 0.2s ease'
+              }}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={labelStyle}>Arrangement</label>
+                    <select value={layoutMode} onChange={e => setLayoutMode(e.target.value)} style={inputStyle}>
+                      <option value="horizontal">Horizontal Row</option>
+                      <option value="vertical">Vertical Column</option>
+                      <option value="grid">Grid Layout</option>
+                    </select>
+                  </div>
+                  {layoutMode !== 'grid' ? (
+                    <div style={{ width: 120 }}>
+                      <label style={labelStyle}>Quantity</label>
+                      <input type="number" min="2" max="50" value={quantity} onChange={e => setQuantity(e.target.value)} style={inputStyle} />
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ width: 70 }}>
+                        <label style={labelStyle}>Columns</label>
+                        <input type="number" min="1" max="10" value={gridCols} onChange={e => setGridCols(e.target.value)} style={inputStyle} />
+                      </div>
+                      <div style={{ width: 70 }}>
+                        <label style={labelStyle}>Rows</label>
+                        <input type="number" min="1" max="10" value={gridRows} onChange={e => setGridRows(e.target.value)} style={inputStyle} />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={labelStyle}>Gap Spacing (px)</label>
+                    <input type="number" min="0" max="500" value={spacing} onChange={e => setSpacing(e.target.value)} style={inputStyle} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={labelStyle}>Start Numbering</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input type="number" min="1" value={startNumber} onChange={e => setStartNumber(e.target.value)} style={{ ...inputStyle, flex: 1 }} disabled={!autoNumber} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', cursor: 'pointer', fontSize: 11, color: C.stone }}>
+                        <input type="checkbox" checked={autoNumber} onChange={e => setAutoNumber(e.target.checked)} />
+                        Auto
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
