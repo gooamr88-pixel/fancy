@@ -73,10 +73,23 @@ export default function StagePayment({
 
   // The effective price for upgrade filtering: use whichever is set (paid or pending).
   const effectivePrice = currentPrice ?? lockedPrice;
-  // Only strictly more expensive tiers count as an upgrade (full price charged).
+  // Only strictly more expensive tiers count as an upgrade.
   const upgradeTiers = effectivePrice == null
     ? billableTiers
     : billableTiers.filter(t => t.price_cents > effectivePrice);
+
+  // PRICING-1: an upgrade charges only the DIFFERENCE from the already-paid/pending
+  // plan — never the new tier's full price again. `currentPrice` is what's already
+  // on file (it only flips to the new tier once the upgrade is actually approved/
+  // fulfilled), so it's the correct base for the credit even while a pending
+  // upgrade payment exists. The backend (createCheckoutSession / initiateManualPayment)
+  // computes this exact same way and is the source of truth for what's charged —
+  // this is purely a transparent preview so the organizer sees it before paying.
+  const dueNowCents = (tierPriceCents) => {
+    if (currentPrice != null && tierPriceCents > currentPrice) return tierPriceCents - currentPrice;
+    return tierPriceCents;
+  };
+  const isProratedTier = (tierPriceCents) => currentPrice != null && tierPriceCents > currentPrice;
   // Tiers shown in the selectable grid depend on the mode.
   // When upgrading, show ALL plans but mark the current one as locked.
   const selectableTiers = billableTiers;
@@ -243,7 +256,14 @@ export default function StagePayment({
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, animation: 'sp-pulse 2s ease-in-out infinite' }} /> Pending Verification
             </span>
           </div>
-          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.gold, margin: '14px 0 2px' }}>{fmt(lockedTier.price_cents)}</div>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.gold, margin: '14px 0 2px' }}>
+            {fmt(dueNowCents(lockedTier.price_cents))}
+            {isProratedTier(lockedTier.price_cents) && (
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: C.stone, marginLeft: 8 }}>
+                due now &middot; full plan price {fmt(lockedTier.price_cents)}, credited {fmt(currentPrice)} for your current plan
+              </span>
+            )}
+          </div>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: '4px 0 0' }}>
             {lockedTier.max_guests > 0 ? `Up to ${lockedTier.max_guests} guests` : 'Unlimited guests'}
           </p>
@@ -323,7 +343,19 @@ export default function StagePayment({
                   </div>
                 )}
               </div>
-              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 700, color: C.gold, margin: '10px 0 4px' }}>{fmt(tier.price_cents)}</div>
+              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 700, color: C.gold, margin: '10px 0 4px' }}>
+                {fmt(dueNowCents(tier.price_cents))}
+                {!isDisabled && isProratedTier(tier.price_cents) && (
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 700, color: C.stone, marginLeft: 6, verticalAlign: 'middle' }}>
+                    due now
+                  </span>
+                )}
+              </div>
+              {!isDisabled && isProratedTier(tier.price_cents) && (
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, margin: '0 0 4px', textDecoration: 'line-through', opacity: 0.7 }}>
+                  Full price {fmt(tier.price_cents)}
+                </p>
+              )}
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0 }}>
                 {tier.max_guests > 0 ? `Up to ${tier.max_guests} guests` : 'Unlimited guests'}
               </p>
@@ -391,7 +423,7 @@ export default function StagePayment({
                   boxShadow: (processing || !selectedTierName) ? 'none' : '0 4px 18px rgba(184,148,79,0.3)',
                 }}
               >
-                💳 Pay with Card
+                💳 Pay with Card{selectedTier ? ` · ${fmt(dueNowCents(selectedTier.price_cents))}` : ''}
               </button>
               <button
                 onClick={() => setShowManual(true)}
@@ -429,8 +461,13 @@ export default function StagePayment({
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal, fontWeight: 600 }}>
                     Activating <strong>{selectedTier.name}</strong>
                     {selectedTier.max_guests > 0 ? ` · up to ${selectedTier.max_guests} guests` : ' · unlimited guests'}
+                    {isProratedTier(selectedTier.price_cents) && (
+                      <span style={{ display: 'block', fontWeight: 400, color: C.stone, fontSize: 12, marginTop: 2 }}>
+                        Full price {fmt(selectedTier.price_cents)} − {fmt(currentPrice)} already paid for your current plan
+                      </span>
+                    )}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.gold }}>{fmt(selectedTier.price_cents)}</span>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.gold }}>{fmt(dueNowCents(selectedTier.price_cents))}</span>
                 </div>
               )}
 

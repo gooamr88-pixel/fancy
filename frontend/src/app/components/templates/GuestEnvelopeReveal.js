@@ -27,8 +27,10 @@ import Link from "next/link";
      • data-testid="guest-envelope-skip" on the always-available skip control
      • calls onComplete() exactly once when finished or skipped
 
-   The parent (EventPageClient) already plays this only once per event
-   (localStorage) and never under reduced-motion; we still defend internally.
+   The parent (EventPageClient) plays this on every page load, regardless of
+   channel (email link, raw URL, QR scan) or prior visits — there is no
+   "seen before" memory. Reduced-motion preference is still handled here
+   internally (a static, instantly-skippable fallback card).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── Radial-symmetry geometry for the seal (computed once at module load) ─── */
@@ -382,11 +384,8 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete
     finishedRef.current = true;
     clearTimers();
     setStage(7);
-    try {
-      if (event?.id) window.localStorage.setItem(`fancy_envelope_seen_${event.id}`, '1');
-    } catch { /* non-fatal */ }
     onComplete && onComplete();
-  }, [clearTimers, onComplete, event]);
+  }, [clearTimers, onComplete]);
 
   // Drive the cinematic opening once the guest activates the seal. Guarded by a
   // ref so the idle auto-open can never restart an in-progress sequence.
@@ -396,13 +395,8 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete
     setStage(3);                       // ACTIVATION — bronze → gold, glow, dust
     after(620, () => setStage(4));     // OPENING — flaps peel back
     after(1180, () => setStage(5));    // LIGHT — golden volumetric bloom
-    after(1820, () => {
-      setStage(6);                     // REVEAL — invitation lockup rises
-      try {
-        if (event?.id) window.localStorage.setItem(`fancy_envelope_seen_${event.id}`, '1');
-      } catch { /* non-fatal */ }
-    });
-  }, [after, event]);
+    after(1820, () => setStage(6));    // REVEAL — invitation lockup rises
+  }, [after]);
 
   /* Choreography after mount: preload → paper → seal focus (resting). */
   useEffect(() => {

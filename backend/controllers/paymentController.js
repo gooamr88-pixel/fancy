@@ -137,7 +137,7 @@ const createCheckoutSession = async (req, res, next) => {
     // 2. Fetch or create stripe customer ID for organization
     const { data: eventData, error: eventError } = await supabase
       .from('events')
-      .select('org_id, organizations(stripe_customer_id, email, name)')
+      .select('org_id, is_paid, tier_name, organizations(stripe_customer_id, email, name)')
       .eq('id', eventId)
       .single();
 
@@ -148,6 +148,25 @@ const createCheckoutSession = async (req, res, next) => {
         message: 'Event not found.'
       });
     }
+
+    // PRICING-1: an upgrade charges only the DIFFERENCE from the already-paid plan,
+    // never the new tier's full price again — the organizer already paid for the
+    // base tier once. `events.tier_name` only changes when a checkout/manual
+    // payment is actually fulfilled, so it's still the pre-upgrade tier here even
+    // if an earlier upgrade attempt is sitting pending.
+    let previousTier = null;
+    if (eventData.is_paid && eventData.tier_name) {
+      previousTier = adminConfig.pricing_tiers.find(t => t.name.toLowerCase() === eventData.tier_name.toLowerCase()) || null;
+    }
+    const isUpgrade = !!previousTier;
+    if (isUpgrade && tier.price_cents <= previousTier.price_cents) {
+      return res.status(400).json({
+        success: false,
+        error: 'NOT_AN_UPGRADE',
+        message: `'${tier.name}' is not more expensive than your current plan ('${previousTier.name}'). Choose a higher tier to upgrade.`
+      });
+    }
+    const chargeAmountCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
 
     let customerId = eventData.organizations?.stripe_customer_id;
     if (!customerId) {
@@ -173,10 +192,12 @@ const createCheckoutSession = async (req, res, next) => {
       line_items: [{
         price_data: {
           currency: 'usd',
-          unit_amount: tier.price_cents,
+          unit_amount: chargeAmountCents,
           product_data: {
-            name: `Fancy RSVP - ${tier.name} License`,
-            description: `License for up to ${tier.max_guests} guests`
+            name: isUpgrade ? `Fancy RSVP - Upgrade to ${tier.name} License` : `Fancy RSVP - ${tier.name} License`,
+            description: isUpgrade
+              ? `License for up to ${tier.max_guests} guests. Full price $${(tier.price_cents / 100).toFixed(2)}, credited $${(previousTier.price_cents / 100).toFixed(2)} already paid for ${previousTier.name}.`
+              : `License for up to ${tier.max_guests} guests`
           }
         },
         quantity: 1
@@ -185,7 +206,10 @@ const createCheckoutSession = async (req, res, next) => {
         event_id: eventId,
         tier_name: tier.name,
         tier_max_guests: tier.max_guests != null ? String(tier.max_guests) : '',
-        type: 'event_fee'
+        type: 'event_fee',
+        is_upgrade: isUpgrade ? '1' : '0',
+        previous_tier_name: isUpgrade ? previousTier.name : '',
+        previous_amount_cents: isUpgrade ? String(previousTier.price_cents) : '',
       },
       // Return the user to the WIZARD (not the dashboard) at the payment step, and
       // carry session_id so the frontend can synchronously verify + show success
@@ -681,6 +705,28 @@ const initiateManualPayment = async (req, res, next) => {
     }
     const tierMaxGuests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
 
+    // PRICING-1: an upgrade charges only the DIFFERENCE from the already-paid plan
+    // — mirrors createCheckoutSession's logic exactly so card and manual payment
+    // never disagree on what an upgrade costs.
+    const { data: eventRow } = await supabase
+      .from('events')
+      .select('is_paid, tier_name')
+      .eq('id', eventId)
+      .single();
+    let previousTier = null;
+    if (eventRow?.is_paid && eventRow.tier_name) {
+      previousTier = adminConfig.pricing_tiers.find(t => t.name.toLowerCase() === eventRow.tier_name.toLowerCase()) || null;
+    }
+    const isUpgrade = !!previousTier;
+    if (isUpgrade && tier.price_cents <= previousTier.price_cents) {
+      return res.status(400).json({
+        success: false,
+        error: 'NOT_AN_UPGRADE',
+        message: `'${tier.name}' is not more expensive than your current plan ('${previousTier.name}'). Choose a higher tier to upgrade.`
+      });
+    }
+    const chargeAmountCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
+
     // 2. If a pending cash payment already exists, REFRESH it to the currently
     //    selected plan (price + tier) instead of blindly returning the stale one —
     //    otherwise switching plans before approval would silently have no effect.
@@ -694,7 +740,7 @@ const initiateManualPayment = async (req, res, next) => {
 
     if (existingPending && existingPending.length > 0) {
       const patch = {
-        amount_cents: tier.price_cents,
+        amount_cents: chargeAmountCents,
         tier_name: tier.name,
         tier_max_guests: tierMaxGuests,
       };
@@ -728,7 +774,7 @@ const initiateManualPayment = async (req, res, next) => {
       .insert({
         event_id: eventId,
         reference_number: refCode,
-        amount_cents: tier.price_cents,
+        amount_cents: chargeAmountCents,
         status: 'pending',
         payment_method: 'cash_manual',
         currency: 'usd',
@@ -749,7 +795,7 @@ const initiateManualPayment = async (req, res, next) => {
       action: 'event_payment_manual_initiated',
       entity_type: 'event_payment',
       entity_id: data.id,
-      metadata: { ref_code: refCode, tier_name: tier.name }
+      metadata: { ref_code: refCode, tier_name: tier.name, is_upgrade: isUpgrade, previous_tier_name: previousTier?.name || null }
     });
 
     return res.status(200).json({

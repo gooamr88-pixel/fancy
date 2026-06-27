@@ -536,7 +536,7 @@ export default function CreateEventWizard() {
     setDistributionMethods(prev => ({ ...prev, [method]: !prev[method] }));
   }, []);
 
-  /* ═══ Cover image upload (Supabase storage, base64 fallback) ═══ */
+  /* ═══ Cover image upload (Supabase storage — no base64 fallback) ═══ */
   const handleCoverImageUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -556,13 +556,11 @@ export default function CreateEventWizard() {
       const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
       setCoverImageUrl(publicUrl);
     } catch (err) {
-      console.error('Cover image upload failed, falling back to inline encoding:', err);
-      const reader = new FileReader();
-      reader.onload = (ev) => { setCoverImageUrl(ev.target.result); setCoverImageUploading(false); };
-      reader.readAsDataURL(file);
-      return;
+      console.error('Cover image upload failed:', err);
+      toast.error('Cover image upload failed. Please try again or paste an external URL instead.');
+    } finally {
+      setCoverImageUploading(false);
     }
-    setCoverImageUploading(false);
   }, []);
 
   /* ═══ Invitation seal + background uploads → stored in template_data so the
@@ -585,13 +583,11 @@ export default function CreateEventWizard() {
       const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
       setTemplateData((d) => ({ ...d, [tdKey]: publicUrl }));
     } catch (err) {
-      console.error('Invitation asset upload failed, falling back to inline encoding:', err);
-      const reader = new FileReader();
-      reader.onload = (ev) => { setTemplateData((d) => ({ ...d, [tdKey]: ev.target.result })); setBusy(false); };
-      reader.readAsDataURL(file);
-      return;
+      console.error('Invitation asset upload failed:', err);
+      toast.error('File upload failed. Please try again or paste an external URL instead.');
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }, []);
 
   const handleSealImageUpload = useCallback((e) => {
@@ -602,7 +598,7 @@ export default function CreateEventWizard() {
     uploadInvitationAsset(e.target.files?.[0], 'invitation-bg', 'invitation_bg_url', setInvitationBgUploading);
   }, [uploadInvitationAsset]);
 
-  /* ═══ Background music upload (Supabase storage, base64 fallback) ═══ */
+  /* ═══ Background music upload (Supabase storage — no base64 fallback) ═══ */
   const handleMusicUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -622,16 +618,14 @@ export default function CreateEventWizard() {
       const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
       setBackgroundMusicUrl(publicUrl);
     } catch (err) {
-      console.error('Music upload failed, falling back to inline encoding:', err);
-      const reader = new FileReader();
-      reader.onload = (ev) => { setBackgroundMusicUrl(ev.target.result); setMusicUploading(false); };
-      reader.readAsDataURL(file);
-      return;
+      console.error('Music upload failed:', err);
+      toast.error('Music upload failed. Please try again or paste an external URL instead.');
+    } finally {
+      setMusicUploading(false);
     }
-    setMusicUploading(false);
   }, []);
 
-  /* ═══ Gallery image upload (Supabase storage, base64 fallback) ═══ */
+  /* ═══ Gallery image upload (Supabase storage — no base64 fallback) ═══ */
   const handleGalleryUpload = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -652,13 +646,8 @@ export default function CreateEventWizard() {
         const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
         setGalleryUrls(prev => [...prev, publicUrl]);
       } catch (err) {
-        console.error('Gallery upload failed, falling back to inline encoding:', err);
-        await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (ev) => { setGalleryUrls(prev => [...prev, ev.target.result]); resolve(); };
-          reader.onerror = resolve;
-          reader.readAsDataURL(file);
-        });
+        console.error('Gallery upload failed:', err);
+        toast.error(`"${file.name}" could not be uploaded. Please try again or paste an external URL.`);
       }
     }
     setGalleryUploading(false);
@@ -705,6 +694,13 @@ export default function CreateEventWizard() {
     return Object.keys(merged).length > 0 ? merged : undefined;
   }, [templateType, templateData, customConfig]);
 
+  /* ═══ Safety-net: strip any accidental base64 data URIs so they never
+     reach the API payload (prevents 413 / oversized JSON crashes) ═══ */
+  const sanitizeUrl = useCallback((url) => {
+    if (typeof url === 'string' && url.startsWith('data:')) return '';
+    return url;
+  }, []);
+
   /* ═══ Build the create (camelCase) payload from current state ═══ */
   const buildCreatePayload = useCallback(() => ({
     slug,
@@ -722,17 +718,17 @@ export default function CreateEventWizard() {
     rsvpDeadline: rsvpDeadline || undefined,
     privacyMode,
     accessPassword: privacyMode === 'password' ? accessPassword : undefined,
-    coverImageUrl: coverImageUrl || undefined,
-    galleryUrls: galleryUrls.length > 0 ? galleryUrls : undefined,
+    coverImageUrl: sanitizeUrl(coverImageUrl) || undefined,
+    galleryUrls: galleryUrls.length > 0 ? galleryUrls.filter(u => !u.startsWith('data:')) : undefined,
     customColors,
     templateData: buildTemplateData(),
     eventType: templateType,
-    backgroundMusicUrl: backgroundMusicUrl || '',
+    backgroundMusicUrl: sanitizeUrl(backgroundMusicUrl) || '',
   }), [
     slug, templateType, title, description, eventDate, eventEndDate,
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword, coverImageUrl,
-    galleryUrls, customColors, buildTemplateData, backgroundMusicUrl,
+    galleryUrls, customColors, buildTemplateData, backgroundMusicUrl, sanitizeUrl,
   ]);
 
   /* ═══ Create the draft event (first time) or update it (on revisits) ═══ */
@@ -824,6 +820,17 @@ export default function CreateEventWizard() {
       setError('Please choose an available event URL.');
       return;
     }
+    // Guard: warn the organizer early if any media is still a base64 data URI
+    // (upload failed silently or Supabase was unreachable). They won't be sent
+    // to the API, so the event would lose those assets.
+    const hasBase64Media =
+      (coverImageUrl && coverImageUrl.startsWith('data:')) ||
+      (backgroundMusicUrl && backgroundMusicUrl.startsWith('data:')) ||
+      galleryUrls.some(u => u.startsWith('data:'));
+    if (hasBase64Media) {
+      setError('Some uploaded files could not be saved to storage. Please re-upload them or paste external URLs before continuing.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -832,13 +839,15 @@ export default function CreateEventWizard() {
     } catch (err) {
       if (err.code === 'SLUG_TAKEN') {
         setError('This event URL is already taken. Please choose a different slug.');
+      } else if (err.message && err.message.includes('too large')) {
+        setError('Your event data is too large to save. Please use smaller images or paste external URLs for your media.');
       } else {
         setError(err.message || 'Could not save your event. Please try again.');
       }
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, title, slug, eventDate, slugStatus, ensureDraftEvent, goNext]);
+  }, [submitting, title, slug, eventDate, slugStatus, coverImageUrl, backgroundMusicUrl, galleryUrls, ensureDraftEvent, goNext]);
 
   /* ═══ Save the event as a draft and exit to the dashboard Drafts section ═══
      Persists everything entered so far (creates the draft if needed, else PATCHes)

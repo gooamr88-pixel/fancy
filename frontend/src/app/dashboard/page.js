@@ -24,6 +24,7 @@ import RSVPsTab from './components/RSVPsTab';
 import GuestsTab from './components/GuestsTab';
 import FeatureGate from './components/FeatureGate';
 import OrganizerOverview from './components/OrganizerOverview';
+import OrganizerProfile from './components/OrganizerProfile';
 import SendInvitationModal from './components/SendInvitationModal';
 
 /* ═══════════════════════════════════════════════
@@ -71,6 +72,9 @@ const sidebarNav = [
   )},
   { key: 'campaigns', label: 'SMS Campaigns', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+  )},
+  { key: 'profile', label: 'Profile', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2"/></svg>
   )},
   { key: 'settings', label: 'Settings', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -486,8 +490,8 @@ export default function DashboardPage() {
           justifyContent: 'space-between',
           transition: 'all 0.3s ease',
         }}>
-          {(activeTab === 'overview' || activeTab === 'events' || activeTab === 'drafts') ? (
-            /* ── Overview / Events / Drafts: clean header, no event-specific controls ── */
+          {(activeTab === 'overview' || activeTab === 'events' || activeTab === 'drafts' || activeTab === 'profile') ? (
+            /* ── Overview / Events / Drafts / Profile: clean header, no event-specific controls ── */
             <>
               <div>
                 <h1 style={{
@@ -498,7 +502,7 @@ export default function DashboardPage() {
                   margin: 0,
                   letterSpacing: '-0.01em'
                 }}>
-                  {activeTab === 'overview' ? 'Dashboard Overview' : activeTab === 'drafts' ? 'Drafts' : 'Your Events'}
+                  {activeTab === 'overview' ? 'Dashboard Overview' : activeTab === 'drafts' ? 'Drafts' : activeTab === 'profile' ? 'Organizer Profile' : 'Your Events'}
                 </h1>
                 <p style={{
                   fontFamily: 'var(--font-sans)',
@@ -511,7 +515,9 @@ export default function DashboardPage() {
                     ? 'Aggregated insights across all your events'
                     : activeTab === 'drafts'
                       ? `${draftCount} draft${draftCount !== 1 ? 's' : ''} waiting to be finished`
-                      : `You have ${liveCount} event${liveCount !== 1 ? 's' : ''}`}
+                      : activeTab === 'profile'
+                        ? 'Your account and organization details'
+                        : `You have ${liveCount} event${liveCount !== 1 ? 's' : ''}`}
                 </p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -849,7 +855,9 @@ export default function DashboardPage() {
 
         <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
 
-          {activeTab === 'settings' ? (
+          {activeTab === 'profile' ? (
+            <OrganizerProfile events={events} />
+          ) : activeTab === 'settings' ? (
             <EventSettings eventId={eventId} event={activeEvent} onEventUpdated={(updated) => {
               setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, ...updated } : ev));
             }} />

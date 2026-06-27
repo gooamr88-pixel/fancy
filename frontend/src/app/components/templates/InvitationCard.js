@@ -10,11 +10,15 @@ import React from "react";
    ═══════════════════════════════════════════════════════════════ */
 const FONT_CLASS = { serif: "font-serif", sans: "font-sans", script: "font-script" };
 
-export default function InvitationCard({ template, theme, guestName, config }) {
+export default function InvitationCard({ template, theme, guestName, config, data }) {
   const accentColor = theme?.primary || "#B8944F";
   const lightAccentColor = theme?.secondary || "#D7BE80";
   const pattern = template?.pattern;
   const name = guestName || "Sarah & John";
+  // Real event data (guest-facing pages) overrides the demo placeholder copy
+  // below. Callers that don't pass `data` (the organizer simulator, the
+  // marketing showcase) keep rendering the original curated demo content.
+  const d = data || {};
 
   switch (pattern) {
     /* ──────────────────────────────────────────────────────────
@@ -23,6 +27,9 @@ export default function InvitationCard({ template, theme, guestName, config }) {
     case "custom": {
       const cfg = config || {};
       const headingClass = FONT_CLASS[cfg.headingFont] || "font-serif";
+      const OCCASION_PHRASE = { graduation: "our graduation", farewell: "our farewell" };
+      const occasionPhrase = OCCASION_PHRASE[cfg.occasionType] || (cfg.occasionType === "other" ? cfg.occasionLabel : null);
+      const eyebrow = occasionPhrase ? `We are inviting you to ${occasionPhrase}` : "You are invited";
       return (
         <div
           className="w-full h-full flex flex-col select-none relative overflow-hidden rounded"
@@ -49,7 +56,7 @@ export default function InvitationCard({ template, theme, guestName, config }) {
           )}
 
           <div className="flex-1 flex flex-col items-center justify-center text-center px-5 gap-2.5">
-            <span className="text-[7px] uppercase tracking-[3px] font-sans font-semibold" style={{ color: `${accentColor}88` }}>You are invited</span>
+            <span className="text-[7px] uppercase tracking-[3px] font-sans font-semibold" style={{ color: `${accentColor}88` }}>{eyebrow}</span>
             <span className={`${headingClass} leading-tight`} style={{ color: accentColor, fontSize: cfg.headingFont === "script" ? 30 : 20 }}>
               {cfg.headline || "You're Invited"}
             </span>
@@ -157,7 +164,7 @@ export default function InvitationCard({ template, theme, guestName, config }) {
             <div
               className="w-[32px] h-[32px] rounded-full flex items-center justify-center font-sans text-[9px] font-bold tracking-wider"
               style={{ border: `1.5px solid ${accentColor}`, color: accentColor, background: `${accentColor}08` }}
-            >A&J</div>
+            >{d.monogram || "A&J"}</div>
             <span className="text-[6.5px] uppercase tracking-[4px] font-semibold" style={{ color: `${accentColor}90` }}>The Marriage Celebration</span>
           </div>
 
@@ -166,7 +173,7 @@ export default function InvitationCard({ template, theme, guestName, config }) {
             <span className="text-[7px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">Request the honor of your presence</span>
             <span className="text-[7px] tracking-[2px] font-sans font-light uppercase text-stone-400">at the marriage of</span>
 
-            <span className="font-script text-[30px] leading-tight px-1 mt-1" style={{ color: accentColor }}>Aria &amp; Julian</span>
+            <span className="font-script text-[30px] leading-tight px-1 mt-1" style={{ color: accentColor }}>{d.names || "Aria & Julian"}</span>
 
             {/* Ornamental flourish divider — elaborate symmetrical */}
             <svg width="120" height="16" viewBox="0 0 120 16" className="my-1" style={{ opacity: 0.6 }}>
@@ -185,10 +192,13 @@ export default function InvitationCard({ template, theme, guestName, config }) {
               <circle cx="112" cy="8" r="1" fill={accentColor} opacity="0.4" />
             </svg>
 
-            <span className="text-[9px] font-bold tracking-[2px]" style={{ color: lightAccentColor }}>SATURDAY, OCTOBER 24, 2026</span>
+            <span className="text-[9px] font-bold tracking-[2px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY, OCTOBER 24, 2026"}</span>
             <span className="text-[7.5px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%]">
-              At four o&apos;clock in the afternoon<br />
-              <strong className="text-stone-700 font-semibold">The Grand Ballroom</strong> · Plaza Hotel, New York
+              {d.venueLine ? (
+                <strong className="text-stone-700 font-semibold">{d.venueLine}</strong>
+              ) : (
+                <>At four o&apos;clock in the afternoon<br /><strong className="text-stone-700 font-semibold">The Grand Ballroom</strong> · Plaza Hotel, New York</>
+              )}
             </span>
           </div>
 
@@ -242,15 +252,15 @@ export default function InvitationCard({ template, theme, guestName, config }) {
 
           {/* Header */}
           <div className="flex items-center justify-between pt-3 relative z-10">
-            <span className="text-[6.5px] font-bold tracking-[2.5px] uppercase text-slate-400">Annual Conference</span>
-            <span className="text-[7px] font-bold px-2.5 py-0.5 rounded-full text-white" style={{ background: accentColor }}>NYC &apos;26</span>
+            <span className="text-[6.5px] font-bold tracking-[2.5px] uppercase text-slate-400">{d.eyebrow || "Annual Conference"}</span>
+            <span className="text-[7px] font-bold px-2.5 py-0.5 rounded-full text-white" style={{ background: accentColor }}>{d.badge || "NYC '26"}</span>
           </div>
 
           {/* Main content — bold asymmetric layout */}
           <div className="flex flex-col gap-1.5 my-auto relative z-10">
-            <span className="text-[7.5px] tracking-[3px] uppercase font-extrabold" style={{ color: accentColor }}>Shaping the future</span>
+            <span className="text-[7.5px] tracking-[3px] uppercase font-extrabold" style={{ color: accentColor }}>{d.subtitle || "Shaping the future"}</span>
             <h4 className="text-[22px] font-extrabold leading-[1.05] tracking-tight text-slate-900">
-              Technology &amp;<br />Innovation Summit
+              {d.headline || (<>Technology &amp;<br />Innovation Summit</>)}
             </h4>
             {/* Accent line connector */}
             <div className="flex items-center gap-2 my-1">
@@ -258,12 +268,12 @@ export default function InvitationCard({ template, theme, guestName, config }) {
               <div className="h-[2.5px] w-4" style={{ background: `${accentColor}40` }} />
               <div className="h-[2.5px] w-1.5" style={{ background: `${accentColor}20` }} />
             </div>
-            <span className="text-[9px] font-semibold text-slate-500">Saturday · October 24, 2026</span>
+            <span className="text-[9px] font-semibold text-slate-500">{d.dateLine || "Saturday · October 24, 2026"}</span>
           </div>
 
           {/* Schedule block */}
           <div className="flex flex-col gap-2.5 rounded-lg p-3 relative z-10" style={{ background: `${accentColor}06`, border: `1px solid ${accentColor}15` }}>
-            {[["09:00", "Opening Keynote"], ["11:30", "AI & Cloud Panel"], ["14:30", "Hands-on Workshops"]].map(([time, label]) => (
+            {(d.agenda || [["09:00", "Opening Keynote"], ["11:30", "AI & Cloud Panel"], ["14:30", "Hands-on Workshops"]]).map(([time, label]) => (
               <div key={time} className="flex items-center justify-between text-[7.5px]">
                 <span className="font-mono text-slate-400 font-medium">{time}</span>
                 <span className="font-semibold text-slate-700">{label}</span>
@@ -278,7 +288,7 @@ export default function InvitationCard({ template, theme, guestName, config }) {
               <span className="text-[11px] font-bold text-slate-900">{name}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[7px] font-mono text-slate-300">#SUM-2026</span>
+              <span className="text-[7px] font-mono text-slate-300">{d.passCode || "#SUM-2026"}</span>
               <div className="w-5 h-5 rounded flex items-center justify-center" style={{ background: `${accentColor}15`, border: `1px solid ${accentColor}25` }}>
                 <div className="w-2 h-2" style={{ background: accentColor, borderRadius: 1 }} />
               </div>
@@ -367,7 +377,7 @@ export default function InvitationCard({ template, theme, guestName, config }) {
           {/* Spacious organic center — more breathing room */}
           <div className="flex flex-col items-start mt-auto mb-2 relative z-10 pl-1">
             <span className="text-[7px] tracking-[2px] uppercase font-sans text-stone-400 mb-1">invite you to celebrate the wedding of</span>
-            <span className="font-script text-[32px] leading-[1.1]" style={{ color: "#6B5D3E" }}>Mia &amp; Noah</span>
+            <span className="font-script text-[32px] leading-[1.1]" style={{ color: "#6B5D3E" }}>{d.names || "Mia & Noah"}</span>
           </div>
 
           {/* Botanical sprig divider — hand-drawn feel */}
@@ -396,8 +406,8 @@ export default function InvitationCard({ template, theme, guestName, config }) {
 
           {/* Date & venue — centered, earthy tones */}
           <div className="flex flex-col items-center text-center relative z-10 gap-0.5 mb-auto">
-            <span className="text-[9px] font-semibold tracking-[1.5px] text-stone-600">OCTOBER 24, 2026 · 4 PM</span>
-            <span className="text-[8px] italic text-stone-500 mt-0.5">Pine Valley Cabin · Catskills, NY</span>
+            <span className="text-[9px] font-semibold tracking-[1.5px] text-stone-600">{d.dateLine || "OCTOBER 24, 2026 · 4 PM"}</span>
+            <span className="text-[8px] italic text-stone-500 mt-0.5">{d.venueLine || "Pine Valley Cabin · Catskills, NY"}</span>
           </div>
 
           {/* Guest name — warm and inviting */}
@@ -494,7 +504,7 @@ export default function InvitationCard({ template, theme, guestName, config }) {
               className="font-serif font-light text-[24px] tracking-wide text-transparent bg-clip-text leading-tight"
               style={{ backgroundImage: `linear-gradient(105deg, #E8D5A3, ${lightAccentColor}, #FBF6E9, ${lightAccentColor}, #E8D5A3)` }}
             >
-              Sophia &amp; Thomas
+              {d.names || "Sophia & Thomas"}
             </span>
 
             {/* Diamond motif divider — signature luxury element */}
@@ -509,10 +519,13 @@ export default function InvitationCard({ template, theme, guestName, config }) {
               <span className="w-8 h-px" style={{ background: `linear-gradient(90deg, ${lightAccentColor}70, transparent)` }} />
             </div>
 
-            <span className="text-[8px] tracking-[3px] font-sans uppercase" style={{ color: `${lightAccentColor}DD` }}>October 24, 2026</span>
+            <span className="text-[8px] tracking-[3px] font-sans uppercase" style={{ color: `${lightAccentColor}DD` }}>{d.dateLine || "October 24, 2026"}</span>
             <span className="text-[7.5px] font-sans font-light text-slate-400 max-w-[88%] leading-relaxed mt-2">
-              An evening of champagne &amp; celebration<br />
-              <strong className="text-white font-medium">The Penthouse Pavilion</strong>
+              {d.venueLine ? (
+                <strong className="text-white font-medium">{d.venueLine}</strong>
+              ) : (
+                <>An evening of champagne &amp; celebration<br /><strong className="text-white font-medium">The Penthouse Pavilion</strong></>
+              )}
             </span>
           </div>
 
@@ -525,7 +538,7 @@ export default function InvitationCard({ template, theme, guestName, config }) {
           {/* Bottom accent — "Black Tie" tag */}
           <div className="flex items-center gap-3 relative z-10 mt-1">
             <span className="w-6 h-px" style={{ background: `${lightAccentColor}30` }} />
-            <span className="text-[7px] uppercase tracking-[3.5px] font-sans font-bold" style={{ color: `${lightAccentColor}80` }}>Black Tie</span>
+            <span className="text-[7px] uppercase tracking-[3.5px] font-sans font-bold" style={{ color: `${lightAccentColor}80` }}>{d.dressCode || "Black Tie"}</span>
             <span className="w-6 h-px" style={{ background: `${lightAccentColor}30` }} />
           </div>
         </div>
@@ -556,20 +569,20 @@ export default function InvitationCard({ template, theme, guestName, config }) {
 
           {/* Header */}
           <div className="flex justify-between items-center relative z-10">
-            <span className="text-[7px] font-bold tracking-[3.5px] text-stone-400 uppercase">The Annual Gala</span>
-            <span className="text-[7px] text-stone-400 font-mono">№ 024</span>
+            <span className="text-[7px] font-bold tracking-[3.5px] text-stone-400 uppercase">{d.eyebrow || "The Annual Gala"}</span>
+            <span className="text-[7px] text-stone-400 font-mono">{d.badge || "№ 024"}</span>
           </div>
 
           {/* Main content — large confident serif typography */}
           <div className="my-auto flex flex-col text-left relative z-10">
             <span className="text-[7.5px] tracking-[5px] uppercase text-stone-400 font-light">An Evening Of</span>
             <span className="font-serif text-[30px] font-light tracking-tight text-[#111] leading-[1.02] mt-2">
-              Art &amp;<br />Philanthropy
+              {d.headline || (<>Art &amp;<br />Philanthropy</>)}
             </span>
             {/* Editorial rule line */}
             <div className="w-14 h-[1.5px] bg-stone-800 my-4" />
-            <span className="text-[7.5px] text-stone-500 font-light uppercase tracking-[2.5px]">The Metropolitan · New York</span>
-            <span className="text-[7.5px] text-stone-500 font-light uppercase tracking-[2.5px] mt-0.5">October 24 · 7:00 PM</span>
+            <span className="text-[7.5px] text-stone-500 font-light uppercase tracking-[2.5px]">{d.venueLine || "The Metropolitan · New York"}</span>
+            <span className="text-[7.5px] text-stone-500 font-light uppercase tracking-[2.5px] mt-0.5">{d.dateLine || "October 24 · 7:00 PM"}</span>
           </div>
 
           {/* Perforated line — ticket stub effect */}
@@ -663,8 +676,8 @@ export default function InvitationCard({ template, theme, guestName, config }) {
           <div className="text-[7px] uppercase tracking-[3.5px] font-sans font-semibold text-center text-stone-500 relative z-10 mt-2">You&apos;re invited to a</div>
 
           <div className="flex flex-col items-center text-center my-auto relative z-10">
-            <span className="font-script text-[34px] leading-none" style={{ color: accentColor }}>Garden Party</span>
-            <span className="text-[7.5px] tracking-[2px] uppercase font-sans text-stone-500 mt-2">In celebration of Lucy&apos;s 30th</span>
+            <span className="font-script text-[34px] leading-none" style={{ color: accentColor }}>{d.headline || "Garden Party"}</span>
+            <span className="text-[7.5px] tracking-[2px] uppercase font-sans text-stone-500 mt-2">{d.subtitle || "In celebration of Lucy's 30th"}</span>
 
             {/* Floral vine divider */}
             <div className="flex items-center gap-2 my-3">
@@ -683,8 +696,8 @@ export default function InvitationCard({ template, theme, guestName, config }) {
               <span className="w-7 h-px" style={{ background: `${accentColor}40` }} />
             </div>
 
-            <span className="text-[9px] font-bold tracking-[1.5px] text-stone-600">SATURDAY · OCTOBER 24, 2026</span>
-            <span className="text-[8px] italic text-stone-500 mt-1">The Rose Terrace · Plaza Hotel</span>
+            <span className="text-[9px] font-bold tracking-[1.5px] text-stone-600">{d.dateLine || "SATURDAY · OCTOBER 24, 2026"}</span>
+            <span className="text-[8px] italic text-stone-500 mt-1">{d.venueLine || "The Rose Terrace · Plaza Hotel"}</span>
           </div>
 
           <div className="flex flex-col items-center gap-0.5 relative z-10">
@@ -692,7 +705,7 @@ export default function InvitationCard({ template, theme, guestName, config }) {
             <span className="font-script text-xl" style={{ color: accentColor }}>{name}</span>
           </div>
 
-          <div className="text-[7px] font-sans font-bold uppercase tracking-[2.5px] relative z-10 mt-1" style={{ color: `${lightAccentColor}90` }}>Kindly reply by Sept 15</div>
+          <div className="text-[7px] font-sans font-bold uppercase tracking-[2.5px] relative z-10 mt-1" style={{ color: `${lightAccentColor}90` }}>{d.replyBy || "Kindly reply by Sept 15"}</div>
         </div>
       );
 

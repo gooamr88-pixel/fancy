@@ -31,10 +31,76 @@ import {
   inputBlur,
 } from '../components/guest/GuestUI';
 import GuestEnvelopeReveal from '../components/templates/GuestEnvelopeReveal';
+import InvitationCard from '../components/templates/InvitationCard';
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
    ═══════════════════════════════════════════════════════════════ */
+
+// Maps an event's template_type to the matching InvitationCard pattern —
+// the same mapping the organizer sees in Stage1_TemplatesSimulator
+// (TEMPLATE_PREVIEW_MAP), so the guest's card matches what was picked.
+const INVITATION_PATTERN_BY_TEMPLATE = {
+  wedding: 'serif',
+  engagement: 'luxury',
+  corporate: 'geo',
+  birthday: 'floral',
+  gala: 'minimal',
+  custom: 'custom',
+};
+
+function formatEventDateLine(event, isRTL) {
+  if (!event?.event_date) return null;
+  return new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+}
+
+// Builds the real-data props for InvitationCard from the live event record,
+// replacing the demo placeholder copy (fake names/dates/venues) the card
+// otherwise renders for the organizer simulator / marketing showcase.
+function buildInvitationCardData(event, isRTL) {
+  const td = event?.template_data || {};
+  const venueLine = [event?.location_name, event?.location_address].filter(Boolean).join(' · ') || null;
+  const dateLine = formatEventDateLine(event, isRTL);
+  const dressCode = (isRTL && event?.dress_code_ar) || event?.dress_code || null;
+
+  switch (event?.template_type) {
+    case 'wedding': {
+      const a = td.groom_name || td.partner1Name;
+      const b = td.bride_name || td.partner2Name;
+      const names = a && b ? `${a} & ${b}` : (event?.title || null);
+      const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
+      return { names, monogram, dateLine, venueLine };
+    }
+    case 'engagement': {
+      const a = td.partner1Name;
+      const b = td.partner2Name;
+      const names = a && b ? `${a} & ${b}` : (event?.title || null);
+      return { names, dateLine, venueLine, dressCode };
+    }
+    case 'corporate': {
+      const headline = event?.title || null;
+      const eyebrow = td.company_name || td.companyName || null;
+      return { headline, eyebrow, dateLine };
+    }
+    case 'birthday': {
+      const headline = td.birthdayPersonName || event?.title || null;
+      const subtitle = td.theme || null;
+      const replyBy = event?.rsvp_deadline
+        ? `Kindly reply by ${new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' })}`
+        : null;
+      return { headline, subtitle, dateLine, venueLine, replyBy };
+    }
+    case 'gala': {
+      const headline = event?.title || null;
+      const eyebrow = td.honorees ? `Honoring ${td.honorees}` : null;
+      return { headline, eyebrow, dateLine, venueLine };
+    }
+    default:
+      return { names: event?.title || null, dateLine, venueLine, dressCode };
+  }
+}
 
 function sanitizeFontName(name) {
   if (!name) return null;
@@ -56,8 +122,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const searchParams = useSearchParams();
   // Per-guest invitation token. Unlocks private events and lets the RSVP form pre-fill.
   const invitationRsvpId = searchParams?.get('party_id') || null;
-  // Skip the envelope intro when the host links straight to details (?view=full).
-  const skipEnvelope = searchParams?.get('view') === 'full';
+  const invitationGuestId = searchParams?.get('g') || null;
 
   const [slug, setSlug] = useState(serverSlug || '');
   const [event, setEvent] = useState(initialEvent || null);
@@ -94,10 +159,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Dress code expand
   const [dressCodeExpanded, setDressCodeExpanded] = useState(false);
 
-  // One-time premium envelope reveal (the first time a guest opens this link).
-  // Defaults to false so SSR/first paint render the page normally (no hydration
-  // mismatch); the decision is made client-side once the event has loaded.
-  const [showReveal, setShowReveal] = useState(false);
+  // Premium envelope reveal — plays every single time this page loads (same
+  // animation regardless of channel: email link, raw URL, or QR scan, and
+  // regardless of any prior visit). Tracks only whether *this* mount's
+  // viewing has been dismissed; a fresh page load always starts undismissed.
+  const [revealDismissed, setRevealDismissed] = useState(false);
 
   // Auth / access states. Declared here — BEFORE the effects below that read them —
   // so their dependency arrays don't reference these bindings while they're still in
@@ -116,29 +182,15 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     setShowFloatingCTA(!heroInView && !rsvpCardInView);
   }, [heroInView, rsvpCardInView]);
 
-  // Decide whether to play the envelope reveal. Only on the fully-loaded public
-  // event page — never over the loading/password/private/review/error states.
-  useEffect(() => {
-    if (!event || loading || error || passwordRequired || isPrivate || underReview || notLive) return;
-    if (typeof window === 'undefined') return;
-    try {
-      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const seen = window.localStorage.getItem(`fancy_envelope_seen_${event.id}`);
-      // Canonical SSR-safe "decide after mount" read: localStorage/matchMedia can't
-      // be known during SSR, so the flip to true must happen post-mount in an effect.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (!reduceMotion && !seen && !skipEnvelope) setShowReveal(true);
-    } catch {
-      /* localStorage/matchMedia unavailable → simply skip the reveal */
-    }
-  }, [event, loading, error, passwordRequired, isPrivate, underReview, notLive, skipEnvelope]);
+  // Plays over the fully-loaded public event page only — never over the
+  // loading/password/private/review/error states. No localStorage check, no
+  // query-param bypass: every page load (email link, raw URL, QR scan, repeat
+  // visit) shows the same reveal until this mount's viewing is dismissed.
+  const showReveal = !!event && !loading && !error && !passwordRequired && !isPrivate && !underReview && !notLive && !revealDismissed;
 
   const handleRevealComplete = useCallback(() => {
-    setShowReveal(false);
-    try {
-      if (event?.id) window.localStorage.setItem(`fancy_envelope_seen_${event.id}`, '1');
-    } catch { /* non-fatal */ }
-  }, [event]);
+    setRevealDismissed(true);
+  }, []);
 
   /* ─── Seating Search ─── */
   const handleSeatingSearch = async (e) => {
@@ -483,6 +535,35 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // interval re-renders the page, so this flips on its own when the window opens.
   const seatingRevealed = isSeatingRevealed(event.event_date);
 
+  // Digital invitation card — same artwork the organizer previewed in
+  // Stage1_TemplatesSimulator, now rendered with this event's real data.
+  const invitationPattern = INVITATION_PATTERN_BY_TEMPLATE[event.template_type] || 'serif';
+  const invitationGuestName = guestRsvp?.guest_name || (isRTL ? 'ضيفنا الكريم' : 'Esteemed Guest');
+  const invitationTheme = { primary: themeColor, secondary: customColors.secondary || '#D7BE80' };
+  const invitationData = invitationPattern === 'custom' ? null : buildInvitationCardData(event, isRTL);
+
+  // Once a guest has answered, the public RSVP form is locked by default —
+  // the backend (submit_rsvp_v2) rejects a second submission outright. The
+  // host can opt back in per-event via "Allow guests to change their
+  // response" (event.allow_guest_edits); only then do we surface an edit link.
+  const hasResponded = !!guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response);
+  const allowGuestEdits = !!event.allow_guest_edits;
+  const RSVP_STATUS = {
+    yes: { label: isRTL ? 'تأكيد الحضور' : 'Attending', color: '#3B9B6D' },
+    no: { label: isRTL ? 'الاعتذار عن الحضور' : 'Declined', color: '#C45E5E' },
+    maybe: { label: isRTL ? 'ربما' : 'Tentative', color: '#6366f1' },
+  };
+  const responseStatus = hasResponded ? RSVP_STATUS[guestRsvp.response] : null;
+
+  // Build the RSVP form URL, preserving invitation tokens so private events stay unlocked.
+  const rsvpFormUrl = (() => {
+    const params = new URLSearchParams();
+    params.set('lang', lang);
+    if (invitationRsvpId) params.set('party_id', invitationRsvpId);
+    if (invitationGuestId) params.set('g', invitationGuestId);
+    return `/${slug}/rsvp?${params.toString()}`;
+  })();
+
   return (
     <PageTransition>
       {/* One-time premium envelope reveal — fixed overlay above the page; the
@@ -610,6 +691,25 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
           {/* ─── LEFT COLUMN: Details ─── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+
+            {/* Digital Invitation Card */}
+            <ScaleIn delay={0.05}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '100%', maxWidth: '280px', aspectRatio: '210 / 290',
+                  borderRadius: '14px', overflow: 'hidden',
+                  boxShadow: '0 20px 50px -16px rgba(25,27,30,0.28)',
+                }}>
+                  <InvitationCard
+                    template={{ pattern: invitationPattern }}
+                    theme={invitationTheme}
+                    guestName={invitationGuestName}
+                    config={invitationPattern === 'custom' ? event.template_data : undefined}
+                    data={invitationData}
+                  />
+                </div>
+              </div>
+            </ScaleIn>
 
             {/* Event Details Card */}
             <FadeInUp delay={0.1}>
@@ -1030,21 +1130,56 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             {/* RSVP Card */}
             <div ref={rsvpCardRef}>
               <ScaleIn delay={0.2}>
-                <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
-                  <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
-                  <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
-                    {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : undefined) : 'N/A'}</strong> {t.card_desc}
-                  </p>
-                  <GlowPulse color={themeColor} intensity={0.25}>
-                    <Link href={`/${slug}/rsvp?lang=${lang}`} style={{
-                      display: 'block', width: '100%', padding: '16px', textAlign: 'center', color: '#FFFFFF', fontWeight: 700,
-                      fontSize: '14px', borderRadius: '12px', textDecoration: 'none', fontFamily: 'var(--font-sans)',
-                      background: themeColor, letterSpacing: '0.5px', boxSizing: 'border-box',
+                {hasResponded ? (
+                  <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '14px', padding: '36px 28px' }}>
+                    <div style={{
+                      width: '52px', height: '52px', margin: '0 auto', borderRadius: '50%',
+                      background: `${responseStatus.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      {t.rsvp_now}
-                    </Link>
-                  </GlowPulse>
-                </GlassmorphismCard>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={responseStatus.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E', margin: 0 }}>
+                      {isRTL ? 'تم تسجيل ردّك' : "You've already responded"}
+                    </h3>
+                    <span style={{
+                      display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '6px',
+                      padding: '6px 16px', borderRadius: '999px', background: `${responseStatus.color}14`,
+                      color: responseStatus.color, fontWeight: 700, fontSize: '13px', fontFamily: 'var(--font-sans)',
+                    }}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: responseStatus.color }} />
+                      {responseStatus.label}
+                    </span>
+                    {allowGuestEdits ? (
+                      <Link href={rsvpFormUrl} style={{
+                        marginTop: '6px', fontSize: '13px', fontWeight: 600, color: themeColor, textDecoration: 'none', fontFamily: 'var(--font-sans)',
+                      }}>
+                        {isRTL ? 'تعديل ردّك ←' : 'Update your response →'}
+                      </Link>
+                    ) : (
+                      <p style={{ fontSize: '12px', color: '#A09A91', lineHeight: 1.6, margin: 0, fontFamily: 'var(--font-sans)' }}>
+                        {isRTL ? 'الردود مقفلة. لتغيير ردك، تواصل مع المُنظّم مباشرة.' : 'Responses are locked. To make a change, please contact the host directly.'}
+                      </p>
+                    )}
+                  </GlassmorphismCard>
+                ) : (
+                  <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
+                    <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
+                    <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
+                      {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : undefined) : 'N/A'}</strong> {t.card_desc}
+                    </p>
+                    <GlowPulse color={themeColor} intensity={0.25}>
+                      <Link href={rsvpFormUrl} style={{
+                        display: 'block', width: '100%', padding: '16px', textAlign: 'center', color: '#FFFFFF', fontWeight: 700,
+                        fontSize: '14px', borderRadius: '12px', textDecoration: 'none', fontFamily: 'var(--font-sans)',
+                        background: themeColor, letterSpacing: '0.5px', boxSizing: 'border-box',
+                      }}>
+                        {t.rsvp_now}
+                      </Link>
+                    </GlowPulse>
+                  </GlassmorphismCard>
+                )}
               </ScaleIn>
             </div>
 
@@ -1236,8 +1371,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         )}
 
         {/* ═══ FLOATING RSVP CTA ═══ */}
+        {/* Hidden once the response is locked — there is nothing actionable left
+            to surface here when the host hasn't enabled guest self-edits. */}
         <AnimatePresence>
-          {showFloatingCTA && !eventPassed && (
+          {showFloatingCTA && !eventPassed && !(hasResponded && !allowGuestEdits) && (
             <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -1267,12 +1404,12 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 )}
               </div>
               <GlowPulse color={themeColor} intensity={0.3} style={{ flexShrink: 0 }}>
-                <Link href={`/${slug}/rsvp?lang=${lang}`} style={{
+                <Link href={rsvpFormUrl} style={{
                   display: 'inline-block', padding: '10px 28px', background: themeColor, color: '#FFFFFF',
                   fontWeight: 700, fontSize: '13px', borderRadius: '10px', textDecoration: 'none',
                   fontFamily: 'var(--font-sans)', letterSpacing: '0.3px', whiteSpace: 'nowrap',
                 }}>
-                  {t.rsvp_now}
+                  {hasResponded ? (isRTL ? 'تعديل ردّك' : 'Update Response') : t.rsvp_now}
                 </Link>
               </GlowPulse>
             </motion.div>

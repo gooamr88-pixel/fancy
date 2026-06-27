@@ -75,29 +75,60 @@ export default function StepIdentify({
                 {isRTL ? 'لقد وجدنا دعوتك! يرجى اختيار اسمك لتأكيد الحضور:' : 'We found your invitation! Please select your name below:'}
               </p>
               <StaggerChildren staggerDelay={0.08}>
-                {searchResults.map((result, i) => (
-                  <StaggerItem key={result.id || i}>
-                    <motion.button
-                      whileHover={{ scale: 1.01, borderColor: '#B8944F' }}
-                      whileTap={{ scale: 0.99 }}
-                      onClick={() => onSelectResult(result)}
-                      style={{
-                        width: '100%', textAlign: isRTL ? 'right' : 'left',
-                        padding: '16px', border: '1px solid #E8E2D6', borderRadius: '14px',
-                        background: '#FFFFFF', cursor: 'pointer',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, color: '#191B1E', fontSize: '14px' }}>
-                        {result.guestName}
-                      </span>
-                      <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 12px', background: '#F8F4EC', borderRadius: '8px', color: '#77736A' }}>
-                        {isRTL ? `مرافقين: ${result.partySize}` : `Party: ${result.partySize}`}
-                      </span>
-                    </motion.button>
-                  </StaggerItem>
-                ))}
+                {searchResults.map((result, i) => {
+                  // The backend withholds `id` for organizer-imported guests with no
+                  // email on file (anti-hijacking — see searchPartiesPublic). Selecting
+                  // such a card can't actually attach to that record, so it must NOT
+                  // behave like a normal selectable result (that silently created a
+                  // duplicate RSVP). Show it as a locked match instead.
+                  const unclaimable = !result.id;
+                  return (
+                    <StaggerItem key={result.id || `${result.guestName}-${i}`}>
+                      {unclaimable ? (
+                        <div style={{
+                          width: '100%', textAlign: isRTL ? 'right' : 'left',
+                          padding: '16px', border: '1px dashed #E8E2D6', borderRadius: '14px',
+                          background: '#FAFAF8', display: 'flex', flexDirection: 'column', gap: '6px',
+                          fontFamily: 'var(--font-sans)',
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600, color: '#77736A', fontSize: '14px' }}>
+                              {result.guestName}
+                            </span>
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 12px', background: '#F0ECE3', borderRadius: '8px', color: '#A09A91' }}>
+                              {isRTL ? `مرافقين: ${result.partySize}` : `Party: ${result.partySize}`}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '11.5px', color: '#A09A91', lineHeight: 1.5 }}>
+                            🔒 {isRTL
+                              ? 'لإثبات الهوية، يرجى استخدام الرابط الشخصي المُرسل إليك من المنظّم لتحديث هذه الدعوة.'
+                              : 'For security, please use the personal link sent to you by the host to update this invitation.'}
+                          </span>
+                        </div>
+                      ) : (
+                        <motion.button
+                          whileHover={{ scale: 1.01, borderColor: '#B8944F' }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => onSelectResult(result)}
+                          style={{
+                            width: '100%', textAlign: isRTL ? 'right' : 'left',
+                            padding: '16px', border: '1px solid #E8E2D6', borderRadius: '14px',
+                            background: '#FFFFFF', cursor: 'pointer',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
+                          }}
+                        >
+                          <span style={{ fontWeight: 600, color: '#191B1E', fontSize: '14px' }}>
+                            {result.guestName}
+                          </span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 12px', background: '#F8F4EC', borderRadius: '8px', color: '#77736A' }}>
+                            {isRTL ? `مرافقين: ${result.partySize}` : `Party: ${result.partySize}`}
+                          </span>
+                        </motion.button>
+                      )}
+                    </StaggerItem>
+                  );
+                })}
               </StaggerChildren>
               <button
                 onClick={onContinueNew}

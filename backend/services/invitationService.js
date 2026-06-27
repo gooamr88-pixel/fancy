@@ -162,7 +162,7 @@ async function sendQrTicketEmail(eventId, partyId) {
     .from('seating_assignments')
     .select(`
       id, table_id,
-      tables(table_name),
+      tables(table_name, zones(zone_name)),
       rsvp_parties(id, label, guests(is_primary_contact, email)),
       events(id, title, event_date)
     `)
@@ -192,7 +192,8 @@ async function sendQrTicketEmail(eventId, partyId) {
 
   const qrImageUrl = `${BACKEND_BASE()}/api/v1/public/qr/${encodeURIComponent(token)}.png`;
   const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize };
-  const html = getQRTicketTemplate(shimParty, event, assignment.tables.table_name, qrImageUrl);
+  const zoneName = assignment.tables?.zones?.zone_name || null;
+  const html = getQRTicketTemplate(shimParty, event, assignment.tables.table_name, qrImageUrl, zoneName);
 
   const success = await notificationService.sendEmailViaBrevo(primaryEmail, `Your Ticket & Table Assignment: ${event.title}`, html);
   await logInvitation({

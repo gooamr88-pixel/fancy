@@ -323,7 +323,8 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
           setPricingTiers(all);
           setManualMethods((res.config.manual_payment_methods || []).filter(m => m && m.is_active !== false));
           // Default selection: first billable (and, in upgrade mode, strictly
-          // higher-priced) tier — full price is charged for the new license.
+          // higher-priced) tier — an upgrade charges only the difference from the
+          // already-paid plan (see dueNowCents below), never the full new price.
           const billable = all.filter(t => t && t.is_custom !== true);
           const curPrice = upgradeFromTier ? (all.find(t => t.name === upgradeFromTier)?.price_cents ?? null) : null;
           const disp = (upgradeFromTier && curPrice != null) ? billable.filter(t => t.price_cents > curPrice) : billable;
@@ -344,6 +345,10 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
   const displayTiers = (isUpgrade && currentPrice != null)
     ? billableTiers.filter(t => t.price_cents > currentPrice)
     : billableTiers;
+  // PRICING-1: mirrors the backend's createCheckoutSession/initiateManualPayment
+  // proration — an upgrade is charged the difference, never the new tier's full price.
+  const isProratedTier = (tierPriceCents) => currentPrice != null && tierPriceCents > currentPrice;
+  const dueNowCents = (tierPriceCents) => isProratedTier(tierPriceCents) ? tierPriceCents - currentPrice : tierPriceCents;
 
   const handleStripePayment = async () => {
     if (!selectedTier) return;
@@ -460,8 +465,13 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
               }}>
               <span style={{ fontSize: '13px', fontWeight: 700, color: C.charcoal, display: 'block' }}>{tier.name} License</span>
               <span style={{ fontSize: '11px', color: C.stone, display: 'block', marginTop: '2px' }}>Up to {tier.max_guests} Guests</span>
-              <span style={{ fontSize: '16px', fontWeight: 900, color: C.gold, display: 'block', marginTop: '10px' }}>
-                ${(tier.price_cents / 100).toFixed(2)} USD
+              {isProratedTier(tier.price_cents) && (
+                <span style={{ fontSize: '11px', color: C.stone, display: 'block', marginTop: '8px', textDecoration: 'line-through', opacity: 0.7 }}>
+                  ${(tier.price_cents / 100).toFixed(2)}
+                </span>
+              )}
+              <span style={{ fontSize: '16px', fontWeight: 900, color: C.gold, display: 'block', marginTop: isProratedTier(tier.price_cents) ? '2px' : '10px' }}>
+                ${(dueNowCents(tier.price_cents) / 100).toFixed(2)} USD{isProratedTier(tier.price_cents) ? ' due now' : ''}
               </span>
             </div>
           );
@@ -487,7 +497,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
               boxShadow: (processing || !selectedTier) ? 'none' : '0 4px 16px rgba(184,148,79,0.28)',
               transition: 'all 0.2s',
             }}>
-            {processing ? 'Processing...' : (isUpgrade ? '💳 Pay & Upgrade with Card' : '💳 Pay with Card')}
+            {processing ? 'Processing...' : `💳 ${isUpgrade ? 'Pay & Upgrade with Card' : 'Pay with Card'}${selectedTier ? ` · $${(dueNowCents(selectedTier.price_cents) / 100).toFixed(2)}` : ''}`}
           </button>
           <button onClick={() => setShowManual(true)} disabled={processing || !selectedTier}
             style={{
@@ -521,8 +531,13 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.charcoal, fontWeight: 600 }}>
                 {isUpgrade ? 'Upgrading to ' : 'Activating '}<strong>{selectedTier.name}</strong>
                 {selectedTier.max_guests > 0 ? ` · up to ${selectedTier.max_guests} guests` : ' · unlimited guests'}
+                {isProratedTier(selectedTier.price_cents) && (
+                  <span style={{ display: 'block', fontWeight: 400, color: C.stone, fontSize: 11, marginTop: 2 }}>
+                    Full price ${(selectedTier.price_cents / 100).toFixed(2)} − ${(currentPrice / 100).toFixed(2)} already paid
+                  </span>
+                )}
               </span>
-              <span style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 700, color: C.gold }}>${(selectedTier.price_cents / 100).toFixed(2)}</span>
+              <span style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 700, color: C.gold }}>${(dueNowCents(selectedTier.price_cents) / 100).toFixed(2)}</span>
             </div>
           )}
 

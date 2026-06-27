@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
 import DigitalEnvelope from '../DigitalEnvelope';
@@ -97,7 +97,7 @@ const STATUS_META = {
 
 /** The bulletproof read-only lock. The input form is NOT rendered here — the only
  *  way past it is the host-gated "Update my response" action (requirement #3). */
-function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit }) {
+function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset }) {
   const meta = STATUS_META[guest?.response] || STATUS_META.yes;
   const name = guest?.guest_name || '';
   return (
@@ -143,6 +143,23 @@ function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit }) {
               </p>
             )}
           </div>
+          <div style={{ borderTop: '1px solid #F0ECE3', marginTop: '16px', paddingTop: '16px', textAlign: 'center' }}>
+            <button
+              onClick={onReset}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: '12px', color: '#A09A91', fontFamily: 'var(--font-sans)',
+                textDecoration: 'underline', textUnderlineOffset: '3px',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#191B1E'}
+              onMouseLeave={e => e.currentTarget.style.color = '#A09A91'}
+            >
+              {isRTL
+                ? `لست ${name}؟ سجّل كشخص آخر`
+                : `Not ${name}? RSVP as someone else`}
+            </button>
+          </div>
         </GlassmorphismCard>
       </ScaleIn>
     </Centered>
@@ -154,21 +171,13 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
   const engine = useRsvpResolver(context);
   const reduceMotion = useReducedMotion();
 
-  // DigitalEnvelope intro — premium first-touch, once per device per event, and never
-  // when the guest prefers reduced motion. Shown only for the rich (slug) experience.
-  const [envelopeOpen, setEnvelopeOpen] = useState(false);
-  useEffect(() => {
-    if (!envelope || reduceMotion || engine.phase === 'resolving' || !engine.event) return;
-    try {
-      const seen = window.localStorage.getItem(`fancy_envelope_seen_${engine.event.id}`);
-      if (!seen) setEnvelopeOpen(true);
-    } catch { /* storage unavailable → skip envelope */ }
-  }, [envelope, reduceMotion, engine.phase, engine.event]);
+  // DigitalEnvelope intro — plays every time this page loads (no "seen before"
+  // memory, consistent with the main event page's envelope), and never when
+  // the guest prefers reduced motion. Shown only for the rich (slug) experience.
+  const [envelopeDismissed, setEnvelopeDismissed] = useState(false);
+  const envelopeOpen = !!envelope && !reduceMotion && engine.phase !== 'resolving' && !!engine.event && !envelopeDismissed;
 
-  const closeEnvelope = () => {
-    try { if (engine.event) window.localStorage.setItem(`fancy_envelope_seen_${engine.event.id}`, '1'); } catch { /* ignore */ }
-    setEnvelopeOpen(false);
-  };
+  const closeEnvelope = () => setEnvelopeDismissed(true);
 
   // The single idempotent submit. A duplicate/already-responded result ALWAYS locks
   // centrally — the child never has to reimplement the lock.
@@ -202,7 +211,13 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
   if (engine.phase === 'locked') {
     return (
       <>
-        <RsvpLockedCard event={engine.event} guest={engine.guest} allowEdits={engine.allowEdits} isRTL={isRTL} onEdit={engine.openEdit} />
+        <RsvpLockedCard event={engine.event} guest={engine.guest} allowEdits={engine.allowEdits} isRTL={isRTL} onEdit={engine.openEdit} onReset={() => {
+          const slug = engine.event?.slug;
+          if (slug && typeof window !== 'undefined') {
+            try { window.localStorage.removeItem(`fancy_rsvp_${slug}`); } catch {}
+          }
+          engine.refetch();
+        }} />
         {envelopeOverlay}
       </>
     );

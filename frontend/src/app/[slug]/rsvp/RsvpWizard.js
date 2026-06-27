@@ -93,6 +93,10 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   useEffect(() => {
     if (!guest) return;
     skipNameResetRef.current = true;
+    // Synchronizing local form state to the engine-resolved `guest` prop, which
+    // only becomes available asynchronously — this is the prop-to-state sync
+    // case the rule's "subscribe to external updates" carve-out is for.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (guest.id) setPartyId(guest.id);
     if (guest.guest_name) setGuestName(guest.guest_name);
     if (guest.email) setEmail(guest.email);
@@ -152,13 +156,17 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   /* ═══ Sync additional guests with party size ═══ */
   useEffect(() => {
     const size = parseInt(partySize) || 1;
+    // Deriving the additionalGuests array length from partySize — kept as an
+    // effect (not render-time derivation) because it must preserve each
+    // existing guest's already-typed name/meal fields across resizes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (size <= 1) { setAdditionalGuests([]); return; }
     const diff = size - 1;
     setAdditionalGuests(prev => {
       const copy = [...prev];
       if (copy.length < diff) {
         while (copy.length < diff)
-          copy.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, fullName: '', mealSelection: '', dietaryNotes: '' });
+          copy.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, fullName: '', mealSelection: '', dietaryNotes: '', customAnswers: {} });
       } else if (copy.length > diff) { copy.splice(diff); }
       return copy;
     });
@@ -203,9 +211,32 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     setValidationErrors(prev => { const n = { ...prev }; delete n[`field_${fieldId}`]; return n; });
   };
 
-  /* ═══ Compute total steps and current progress ═══ */
-  const totalSteps = 5; // 1-Name, 2-Attend, 3/3B/3C-Details, 4-Questions, 5-Success
-  const currentProgress = step === 35 || step === 36 ? 3 : step;
+  const setCompanionAnswer = (guestIndex, fieldId, value) => {
+    setAdditionalGuests(prev => {
+      const copy = [...prev];
+      copy[guestIndex] = { ...copy[guestIndex], customAnswers: { ...(copy[guestIndex].customAnswers || {}), [fieldId]: value } };
+      return copy;
+    });
+  };
+
+  const toggleCompanionMultiAnswer = (guestIndex, fieldId, opt) => {
+    setAdditionalGuests(prev => {
+      const copy = [...prev];
+      const cur = ((copy[guestIndex].customAnswers || {})[fieldId] || '').split(',').map(s => s.trim()).filter(Boolean);
+      const idx = cur.indexOf(opt);
+      if (idx >= 0) cur.splice(idx, 1); else cur.push(opt);
+      copy[guestIndex] = { ...copy[guestIndex], customAnswers: { ...(copy[guestIndex].customAnswers || {}), [fieldId]: cur.join(', ') } };
+      return copy;
+    });
+  };
+
+  /* ═══ Compute total steps and current progress ═══
+     The "maybe"/"decline" variants of step 3 use 3.1/3.2 rather than the
+     ordinal 4 + epsilon (e.g. 35/36) precisely so they sort BETWEEN 3 and 4 —
+     goToStep()'s `nextStep > step` direction check depends on that ordering;
+     values greater than 4 made the 3.x ↔ 4 transitions slide backward. */
+  const totalSteps = 5; // 1-Name, 2-Attend, 3/3.1/3.2-Details, 4-Questions, 5-Success
+  const currentProgress = step === 3.1 || step === 3.2 ? 3 : step;
 
   const handleSelectSearchResult = (result) => {
     setPartyId(result.id);
@@ -247,7 +278,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       partyId, guestName, email, phone: normalizedPhone, response: attending,
       partySize: attending === 'yes' ? partySize : 1,
       notes: enrichedNotes, primaryGuestMeal: primaryMeal,
-      additionalGuests: attending === 'yes' ? additionalGuests : [],
+      additionalGuests: attending === 'yes' ? additionalGuests.map(g => ({ ...g, customAnswers: g.customAnswers || {} })) : [],
       customAnswers: Object.keys(customAnswers).map(fieldId => ({ fieldId, value: customAnswers[fieldId] })),
       decline_reason: attending === 'no' ? declineReason : undefined,
       maybe_confirm_by: attending === 'maybe' ? maybeFollowUp : undefined,
@@ -360,14 +391,14 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                     setAttending(val);
                     setTimeout(() => {
                       if (val === 'yes') goToStep(3);
-                      else if (val === 'maybe') goToStep(35);
-                      else goToStep(36);
+                      else if (val === 'maybe') goToStep(3.1);
+                      else goToStep(3.2);
                     }, 400);
                   }}
                 />
               )}
 
-              {(step === 3 || step === 35 || step === 36) && (
+              {(step === 3 || step === 3.1 || step === 3.2) && (
                 <StepPartyDetails
                   t={t} isRTL={isRTL} attending={attending}
                   partySize={partySize} setPartySize={setPartySize}
@@ -385,12 +416,15 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                 <StepCustomQuestions
                   t={t} isRTL={isRTL} fields={customQuestionFields}
                   customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
+                  additionalGuests={attending === 'yes' ? additionalGuests : []}
+                  setCompanionAnswer={setCompanionAnswer}
+                  toggleCompanionMultiAnswer={toggleCompanionMultiAnswer}
                   notes={notes} setNotes={setNotes} validationErrors={validationErrors}
                   submitting={submitting}
                   onBack={() => {
                     if (attending === 'yes') goToStep(3);
-                    else if (attending === 'maybe') goToStep(35);
-                    else if (attending === 'no') goToStep(36);
+                    else if (attending === 'maybe') goToStep(3.1);
+                    else if (attending === 'no') goToStep(3.2);
                     else goToStep(2);
                   }}
                   onSubmit={handleSubmit}

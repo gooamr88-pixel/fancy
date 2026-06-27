@@ -15,6 +15,12 @@ const FONTS = [
   { key: 'script', label: 'Romantic', css: 'var(--font-script)' },
 ];
 
+const OCCASIONS = [
+  { key: 'graduation', label: 'Graduation', emoji: '🎓', phrase: 'our graduation' },
+  { key: 'farewell', label: 'Farewell', emoji: '👋', phrase: 'our farewell' },
+  { key: 'other', label: 'Other', emoji: '✨', phrase: null },
+];
+
 const PALETTES = [
   { name: 'Linen', primary: '#8B7355', secondary: '#D4C5A9', accent: '#8B7355', background: '#FAF8F5' },
   { name: 'Blush', primary: '#C96A7B', secondary: '#F3D3DA', accent: '#C96A7B', background: '#FFF7F8' },
@@ -144,6 +150,45 @@ export default function CustomBuilder({ config, onChange }) {
             );
           })}
         </div>
+      </div>
+
+      {/* Occasion type — drives the "We are inviting you to our…" invite line */}
+      <div>
+        <label style={labelStyle}>Occasion</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {OCCASIONS.map(o => {
+            const active = config.occasionType === o.key;
+            return (
+              <button key={o.key} onClick={() => onChange({ occasionType: o.key })}
+                style={{
+                  flex: 1, padding: '8px 6px', borderRadius: 10, cursor: 'pointer',
+                  border: `1.5px solid ${active ? '#B8944F' : '#E8E2D6'}`,
+                  background: active ? 'rgba(184,148,79,0.08)' : '#fff', transition: 'all 0.2s',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                }}>
+                <span style={{ fontSize: 16, lineHeight: 1 }}>{o.emoji}</span>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: active ? '#B8944F' : '#77736A' }}>{o.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        {config.occasionType === 'other' && (
+          <input
+            style={{ ...inputStyle, marginTop: 8 }}
+            value={config.occasionLabel || ''}
+            onChange={e => onChange({ occasionLabel: e.target.value })}
+            placeholder="e.g. our housewarming"
+          />
+        )}
+        {config.occasionType && (
+          <p style={{ margin: '6px 0 0', fontFamily: 'var(--font-sans)', fontSize: 10.5, color: '#77736A', fontStyle: 'italic' }}>
+            Invite line will read: “We are inviting you to {
+              OCCASIONS.find(o => o.key === config.occasionType)?.phrase
+                || config.occasionLabel
+                || 'our celebration'
+            }”
+          </p>
+        )}
       </div>
 
       {/* Headline + CTA */}
