@@ -19,7 +19,7 @@ function hashIP(ip) {
  * Record a guest engagement event (public endpoint — no auth required).
  * POST /api/v1/public/events/:slug/analytics
  *
- * Body: { eventType, sessionId?, rsvpId?, metadata?, referrer? }
+ * Body: { eventType, sessionId?, partyId?, metadata?, referrer? }
  *
  * Supported event types:
  *   - page_view          — Guest opens event page
@@ -39,7 +39,7 @@ function hashIP(ip) {
  */
 const trackGuestEvent = async (req, res) => {
   const { slug } = req.params;
-  const { eventType, sessionId, rsvpId, metadata, referrer } = req.body;
+  const { eventType, sessionId, partyId, metadata, referrer } = req.body;
 
   if (!eventType) {
     return res.status(400).json({ success: false, error: 'eventType is required' });
@@ -74,7 +74,7 @@ const trackGuestEvent = async (req, res) => {
       .from('guest_analytics')
       .insert({
         event_id: event.id,
-        rsvp_id: rsvpId || null,
+        party_id: partyId || null,
         session_id: sessionId || null,
         event_type: eventType,
         metadata: metadata || {},
@@ -126,15 +126,15 @@ const getEventAnalytics = async (req, res, next) => {
         .eq('event_id', eventId)
         .order('created_at', { ascending: true }),
 
-      // 2. RSVP stats
+      // 2. RSVP stats (party_size is derived from the embedded guest count)
       supabase
-        .from('rsvps')
-        .select('id, response, response_source, decline_reason, maybe_confirm_by, created_at, rsvp_at, party_size')
+        .from('rsvp_parties')
+        .select('id, response, response_source, decline_reason, maybe_confirm_by, created_at, responded_at, guests(id)')
         .eq('event_id', eventId),
 
       // 3. Decline reasons
       supabase
-        .from('rsvps')
+        .from('rsvp_parties')
         .select('decline_reason')
         .eq('event_id', eventId)
         .eq('response', 'no')
@@ -142,7 +142,7 @@ const getEventAnalytics = async (req, res, next) => {
 
       // 4. Response source breakdown
       supabase
-        .from('rsvps')
+        .from('rsvp_parties')
         .select('response_source')
         .eq('event_id', eventId)
         .not('response', 'eq', 'pending'),
@@ -169,7 +169,7 @@ const getEventAnalytics = async (req, res, next) => {
     const declinedCount = rsvps.filter(r => r.response === 'no').length;
     const maybeCount = rsvps.filter(r => r.response === 'maybe').length;
     const pendingCount = rsvps.filter(r => r.response === 'pending').length;
-    const totalHeadcount = rsvps.filter(r => r.response === 'yes').reduce((sum, r) => sum + (r.party_size || 1), 0);
+    const totalHeadcount = rsvps.filter(r => r.response === 'yes').reduce((sum, r) => sum + ((r.guests || []).length || 1), 0);
 
     // ─── CONVERSION FUNNEL ───
     const funnelSteps = [
@@ -260,9 +260,9 @@ const getMaybeGuests = async (req, res, next) => {
   const { eventId } = req.params;
 
   try {
-    const { data: maybeGuests, error } = await supabase
-      .from('rsvps')
-      .select('id, guest_name, email, phone, maybe_confirm_by, created_at, updated_at')
+    const { data: maybeParties, error } = await supabase
+      .from('rsvp_parties')
+      .select('id, label, maybe_confirm_by, created_at, updated_at, guests(is_primary_contact, email, phone)')
       .eq('event_id', eventId)
       .eq('response', 'maybe')
       .order('created_at', { ascending: false });
@@ -271,11 +271,15 @@ const getMaybeGuests = async (req, res, next) => {
 
     return res.json({
       success: true,
-      guests: (maybeGuests || []).map(g => ({
-        ...g,
-        daysSinceRsvp: Math.floor((Date.now() - new Date(g.created_at).getTime()) / (1000 * 60 * 60 * 24)),
-        isOverdue: g.maybe_confirm_by && new Date() > new Date(g.updated_at || g.created_at).getTime() + parseDuration(g.maybe_confirm_by),
-      })),
+      guests: (maybeParties || []).map(p => {
+        const primary = (p.guests || []).find(g => g.is_primary_contact) || {};
+        return {
+          id: p.id, guest_name: p.label, email: primary.email || null, phone: primary.phone || null,
+          maybe_confirm_by: p.maybe_confirm_by, created_at: p.created_at, updated_at: p.updated_at,
+          daysSinceRsvp: Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24)),
+          isOverdue: p.maybe_confirm_by && new Date() > new Date(p.updated_at || p.created_at).getTime() + parseDuration(p.maybe_confirm_by),
+        };
+      }),
     });
   } catch (err) {
     next(err);

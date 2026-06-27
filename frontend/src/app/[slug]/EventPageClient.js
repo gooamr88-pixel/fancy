@@ -55,7 +55,7 @@ function getDirectionsUrl(lat, lng, address) {
 export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const searchParams = useSearchParams();
   // Per-guest invitation token. Unlocks private events and lets the RSVP form pre-fill.
-  const invitationRsvpId = searchParams?.get('rsvp_id') || null;
+  const invitationRsvpId = searchParams?.get('party_id') || null;
   // Skip the envelope intro when the host links straight to details (?view=full).
   const skipEnvelope = searchParams?.get('view') === 'full';
 
@@ -151,8 +151,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
       const res = await fetch(`${apiUrl}/public/events/${slug}/seating/search?query=${encodeURIComponent(seatingSearchQuery)}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Search failed');
-      setSeatingResults(data.results || []);
+      if (!res.ok || !data.success) throw new Error(data.message || 'Search failed');
+      setSeatingResults(data.data?.results || []);
       trackEvent('seating_search', { query: seatingSearchQuery });
     } catch (err) {
       setSeatingError(err.message || 'Something went wrong');
@@ -208,7 +208,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       const headers = {};
       if (password) headers['x-event-password'] = password;
       // Forward the invitation token so the backend can unlock a private event.
-      const query = invitationRsvpId ? `?rsvp_id=${encodeURIComponent(invitationRsvpId)}` : '';
+      const query = invitationRsvpId ? `?party_id=${encodeURIComponent(invitationRsvpId)}` : '';
       const res = await fetch(`${apiUrl}/public/events/${slug}${query}`, { headers });
 
       if (!res.ok) {

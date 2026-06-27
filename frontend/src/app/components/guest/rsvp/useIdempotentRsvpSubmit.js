@@ -26,14 +26,14 @@ const newIdempotencyKey = () =>
     ? crypto.randomUUID()
     : `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-/** Did a (possibly lost) submit actually record a response for this guest? Never throws. */
-async function didResponseLand(rsvpId) {
-  if (!rsvpId) return null;
+/** Did a (possibly lost) submit actually record a response for this party? Never throws. */
+async function didResponseLand(partyId) {
+  if (!partyId) return null;
   try {
-    const res = await fetch(`${API_URL}/public/rsvp/guest/${rsvpId}`);
+    const res = await fetch(`${API_URL}/public/rsvp/guest/${partyId}`);
     if (!res.ok) return null;
     const d = await res.json().catch(() => ({}));
-    const g = d?.guest;
+    const g = d?.data?.guest;
     return g && ['yes', 'no', 'maybe'].includes(g.response) ? g : null;
   } catch { return null; }
 }
@@ -77,15 +77,16 @@ export function useIdempotentRsvpSubmit({ onSuccess, onLocked, messages = {} } =
       }
 
       keyRef.current = null;            // success → fresh key for any future edit
-      onSuccess?.(data);
-      return { ok: true, data };
+      const payload = data.data || {};
+      onSuccess?.(payload);
+      return { ok: true, data: payload };
     } catch (err) {
       // Possible lost-response: reconcile before declaring failure.
       const landed = await didResponseLand(reconcileId);
       if (landed) {
         keyRef.current = null;
-        onSuccess?.({ reconciled: true, rsvpId: reconcileId, guest: landed, response: landed.response });
-        return { ok: true, reconciled: true, data: { rsvpId: reconcileId, response: landed.response } };
+        onSuccess?.({ reconciled: true, partyId: reconcileId, guest: landed, response: landed.response });
+        return { ok: true, reconciled: true, data: { partyId: reconcileId, response: landed.response } };
       }
       toast.error(messages.failed || 'We couldn’t save your RSVP. Please check your connection and try again.');
       return { ok: false, reason: 'NETWORK', error: err };

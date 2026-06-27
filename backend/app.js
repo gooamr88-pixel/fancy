@@ -193,6 +193,7 @@ const rsvpRoutes = require('./routes/rsvpRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const tableRoutes = require('./routes/tableRoutes');
 const campaignRoutes = require('./routes/campaignRoutes');
+const invitationRoutes = require('./routes/invitationRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const fieldRoutes = require('./routes/fieldRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
@@ -210,6 +211,7 @@ app.use('/api/v1/events/:eventId/checkin', requireAuth, verifyEventOwner, checki
 app.use('/api/v1/events/:eventId/rsvps', requireAuth, verifyEventOwner, rsvpRoutes);
 app.use('/api/v1/events/:eventId/tables', requireAuth, verifyEventOwner, tableRoutes);
 app.use('/api/v1/events/:eventId/campaigns', requireAuth, verifyEventOwner, campaignRoutes);
+app.use('/api/v1/events/:eventId/invitations', requireAuth, verifyEventOwner, invitationRoutes);
 app.use('/api/v1/events/:eventId/fields', requireAuth, verifyEventOwner, fieldRoutes);
 app.use('/api/v1/events/:eventId/analytics', requireAuth, verifyEventOwner, analyticsRoutes);
 app.use('/api/v1/dashboard', requireAuth, dashboardRoutes);

@@ -9,7 +9,7 @@ const getFields = async (req, res, next) => {
 
   try {
     const { data: fields, error } = await supabase
-      .from('rsvp_form_fields')
+      .from('custom_form_fields')
       .select('*')
       .eq('event_id', eventId)
       .order('sort_order', { ascending: true });
@@ -31,7 +31,7 @@ const getFields = async (req, res, next) => {
  */
 const saveField = async (req, res, next) => {
   const { eventId } = req.params;
-  const { fieldKey, fieldLabel, fieldType, options, isRequired, sortOrder } = req.body;
+  const { fieldKey, fieldLabel, fieldType, options, isRequired, sortOrder, scope } = req.body;
 
   if (!fieldKey || !fieldLabel || !fieldType) {
     return res.status(400).json({
@@ -41,7 +41,7 @@ const saveField = async (req, res, next) => {
     });
   }
 
-  // Keep in lockstep with the rsvp_form_fields.field_type CHECK constraint
+  // Keep in lockstep with the custom_form_fields.field_type CHECK constraint
   // (migration 20260617000000_field_type_expansion) so a value accepted here is
   // never rejected by the database with a 23514 violation.
   const ALLOWED_FIELD_TYPES = ['text', 'email', 'phone', 'url', 'select', 'multiselect', 'radio', 'textarea', 'number', 'checkbox', 'date'];
@@ -53,9 +53,13 @@ const saveField = async (req, res, next) => {
     });
   }
 
+  // scope distinguishes per-party questions (e.g. hotel block) from per-guest
+  // questions (e.g. meal) — see custom_form_fields.scope (Phase 1 migration).
+  const fieldScope = ['party', 'guest'].includes(scope) ? scope : 'party';
+
   try {
     const { data: field, error } = await supabase
-      .from('rsvp_form_fields')
+      .from('custom_form_fields')
       .insert({
         event_id: eventId,
         field_key: fieldKey,
@@ -63,7 +67,8 @@ const saveField = async (req, res, next) => {
         field_type: fieldType,
         options: options || [],
         is_required: !!isRequired,
-        sort_order: parseInt(sortOrder) || 0
+        sort_order: parseInt(sortOrder) || 0,
+        scope: fieldScope
       })
       .select()
       .single();
@@ -86,10 +91,16 @@ const saveField = async (req, res, next) => {
  */
 const updateField = async (req, res, next) => {
   const { eventId, fieldId } = req.params;
-  const { fieldLabel, fieldType, options, isRequired, sortOrder } = req.body;
+  const { fieldLabel, fieldType, options, isRequired, sortOrder, scope } = req.body;
 
   const updates = {};
   if (fieldLabel !== undefined) updates.field_label = fieldLabel;
+  if (scope !== undefined) {
+    if (!['party', 'guest'].includes(scope)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: "scope must be 'party' or 'guest'." });
+    }
+    updates.scope = scope;
+  }
   if (fieldType !== undefined) {
     const ALLOWED_FIELD_TYPES = ['text', 'select', 'checkbox', 'radio', 'textarea', 'date', 'number', 'email', 'phone', 'url'];
     if (!ALLOWED_FIELD_TYPES.includes(fieldType)) {
@@ -111,7 +122,7 @@ const updateField = async (req, res, next) => {
 
   try {
     const { data: field, error } = await supabase
-      .from('rsvp_form_fields')
+      .from('custom_form_fields')
       .update(updates)
       .eq('id', fieldId)
       .eq('event_id', eventId)
@@ -136,7 +147,7 @@ const deleteField = async (req, res, next) => {
 
   try {
     const { error } = await supabase
-      .from('rsvp_form_fields')
+      .from('custom_form_fields')
       .delete()
       .eq('id', fieldId)
       .eq('event_id', eventId);

@@ -112,8 +112,8 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
         body: JSON.stringify(bodyPayload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Import failed');
-      setResult(data);
+      if (!res.ok || data.success === false) throw new Error(data.message || 'Import failed');
+      setResult(data.data);
       onImportComplete?.();
     } catch (err) {
       setError(err.message || 'Something went wrong');
@@ -193,8 +193,13 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
                 Import Complete
               </h3>
               <p style={{ fontSize: '14px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: '0 0 4px' }}>
-                <strong style={{ color: COLORS.gold }}>{result.imported || result.count || totalRows}</strong> guests imported successfully
+                <strong style={{ color: COLORS.gold }}>{result.importedCount ?? totalRows}</strong> guests imported successfully
               </p>
+              {result.skippedCount > 0 && (
+                <p style={{ fontSize: '12px', color: COLORS.stone, marginTop: '4px', fontFamily: 'var(--font-sans)' }}>
+                  {result.skippedCount} duplicate{result.skippedCount === 1 ? '' : 's'} skipped
+                </p>
+              )}
               {result.errors && result.errors.length > 0 && (
                 <p style={{ fontSize: '12px', color: '#C45E5E', marginTop: '8px', fontFamily: 'var(--font-sans)' }}>
                   {result.errors.length} row(s) had errors

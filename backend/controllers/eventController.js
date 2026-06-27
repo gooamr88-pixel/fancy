@@ -258,7 +258,7 @@ const getEvent = async (req, res, next) => {
   try {
     const { data: event, error } = await supabase
       .from('events')
-      .select('*, rsvp_form_fields(*), event_payments(*)')
+      .select('*, custom_form_fields(*), event_payments(*)')
       .eq('id', eventId)
       .single();
 
@@ -308,7 +308,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         is_paid,
         status,
         allow_guest_edits,
-        rsvp_form_fields(*)
+        custom_form_fields(*)
       `)
       .eq('slug', slug)
       .single();
@@ -357,26 +357,32 @@ const getPublicEventBySlug = async (req, res, next) => {
     }
 
     // ─── Invitation Token Bypass ───
-    // An optional rsvp_id query param acts as a per-guest invitation token. When it
-    // strictly resolves to an RSVP belonging to THIS event, we (a) unlock private
-    // events and (b) return that guest's own RSVP so the form can be pre-filled.
+    // An optional party_id query param acts as a per-guest invitation token. When it
+    // strictly resolves to a party belonging to THIS event, we (a) unlock private
+    // events and (b) return that party's own RSVP so the form can be pre-filled.
     // It never widens access to other events (event_id is enforced) and is validated
     // as a UUID before hitting the DB to avoid malformed-input errors.
-    const invitationRsvpId = req.query.rsvp_id;
+    const invitationPartyId = req.query.party_id;
     let guestRsvp = null;
-    if (invitationRsvpId && UUID_REGEX.test(invitationRsvpId)) {
-      const { data: rsvpRecord } = await supabase
-        .from('rsvps')
-        .select('id, guest_name, email, phone, response, party_size, notes')
-        .eq('id', invitationRsvpId)
+    if (invitationPartyId && UUID_REGEX.test(invitationPartyId)) {
+      const { data: partyRecord } = await supabase
+        .from('rsvp_parties')
+        .select('id, label, response, notes, guests(is_primary_contact, email, phone)')
+        .eq('id', invitationPartyId)
         .eq('event_id', event.id)
         .maybeSingle();
-      if (rsvpRecord) guestRsvp = rsvpRecord;
+      if (partyRecord) {
+        const primary = (partyRecord.guests || []).find((g) => g.is_primary_contact) || {};
+        guestRsvp = {
+          id: partyRecord.id, guest_name: partyRecord.label, email: primary.email || null, phone: primary.phone || null,
+          response: partyRecord.response, party_size: (partyRecord.guests || []).length || 1, notes: partyRecord.notes,
+        };
+      }
     }
 
     // Privacy mode enforcement
     if (event.privacy_mode === 'private') {
-      // A valid invitation token (rsvp_id linked to this event) bypasses the lock.
+      // A valid invitation token (party_id linked to this event) bypasses the lock.
       if (!guestRsvp) {
         return res.status(403).json({
           success: false,
@@ -591,17 +597,17 @@ const getEventStats = async (req, res, next) => {
   const { eventId } = req.params;
 
   try {
-    // 1. ONE rsvps read powers both the response stats and the meal breakdown
-    //    (previously two separate full-table scans of rsvps).
-    const { data: rsvps, error: rsvpError } = await supabase
-      .from('rsvps')
-      .select('id, response, party_size, invitation_sent')
+    // 1. ONE rsvp_parties read (with embedded guests) powers both the response
+    //    stats and the meal breakdown — party_size is derived from the guest count.
+    const { data: parties, error: partyError } = await supabase
+      .from('rsvp_parties')
+      .select('id, response, guests(id, meal_selection)')
       .eq('event_id', eventId);
 
-    if (rsvpError) throw rsvpError;
+    if (partyError) throw partyError;
 
     let stats = {
-      invitedParties: rsvps.length,
+      invitedParties: parties.length,
       invitationsSent: 0,
       attendingParties: 0,
       attendingGuests: 0,
@@ -616,18 +622,20 @@ const getEventStats = async (req, res, next) => {
       seatingAssignedGuests: 0
     };
 
-    const attendingRsvpIds = [];
-    rsvps.forEach(rsvp => {
-      const size = rsvp.party_size || 1;
-      if (rsvp.invitation_sent) stats.invitationsSent++;
-      if (isAcceptedResponse(rsvp.response)) {
+    const mealSummary = {};
+    parties.forEach(party => {
+      const size = (party.guests || []).length || 1;
+      if (isAcceptedResponse(party.response)) {
         stats.attendingParties++;
         stats.attendingGuests += size;
-        attendingRsvpIds.push(rsvp.id);
-      } else if (isDeclinedResponse(rsvp.response)) {
+        (party.guests || []).forEach(g => {
+          const meal = g.meal_selection || 'No Selection';
+          mealSummary[meal] = (mealSummary[meal] || 0) + 1;
+        });
+      } else if (isDeclinedResponse(party.response)) {
         stats.declinedParties++;
         stats.declinedGuests += size;
-      } else if (isMaybeResponse(rsvp.response)) {
+      } else if (isMaybeResponse(party.response)) {
         stats.maybeParties++;
         stats.maybeGuests += size;
       } else {
@@ -638,26 +646,19 @@ const getEventStats = async (req, res, next) => {
 
     stats.totalExpectedGuests = stats.attendingGuests;
 
-    // 2. Meal breakdown, check-in count and seating progress are independent —
-    //    fetch them concurrently instead of three sequential round-trips.
-    const [mealsRes, checkinRes, seatingRes] = await Promise.all([
-      attendingRsvpIds.length > 0
-        ? supabase.from('rsvp_guests').select('meal_selection').in('rsvp_id', attendingRsvpIds)
-        : Promise.resolve({ data: [] }),
+    // 2. Invitations-sent (distinct parties), check-in count and seating progress
+    //    are independent — fetch them concurrently.
+    const [invitationsRes, checkinRes, seatingRes] = await Promise.all([
+      supabase.from('invitations').select('party_id').eq('event_id', eventId).in('status', ['sent', 'delivered', 'opened', 'responded']),
       supabase.from('check_ins').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
-      supabase.from('seating_assignments').select('rsvps(party_size)').eq('event_id', eventId),
+      supabase.from('seating_assignments').select('rsvp_parties(guests(id))').eq('event_id', eventId),
     ]);
 
-    const mealSummary = {};
-    (mealsRes.data || []).forEach(m => {
-      const meal = m.meal_selection || 'No Selection';
-      mealSummary[meal] = (mealSummary[meal] || 0) + 1;
-    });
-
+    stats.invitationsSent = new Set((invitationsRes.data || []).map(i => i.party_id)).size;
     stats.checkedInGuests = checkinRes.count || 0;
 
     (seatingRes.data || []).forEach(sa => {
-      if (sa.rsvps) stats.seatingAssignedGuests += sa.rsvps.party_size;
+      if (sa.rsvp_parties) stats.seatingAssignedGuests += (sa.rsvp_parties.guests || []).length || 0;
     });
 
     return res.json({

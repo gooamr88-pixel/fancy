@@ -82,7 +82,7 @@ export default function CampaignsPage() {
 
   const segmentInfo = useMemo(() => {
     // Estimate with representative values; the server measures each guest exactly.
-    const sampleUrl = 'https://fancyrsvp.com/your-event?rsvp_id=00000000-0000-0000-0000-000000000000';
+    const sampleUrl = 'https://fancyrsvp.com/your-event/rsvp?g=00000000-0000-0000-0000-000000000000';
     let body = renderTemplate(messageTemplate, {
       name: 'Alexander', url: sampleUrl, rsvp_link: sampleUrl,
       table_number: '12', table: '12', event: 'Your Event', event_name: 'Your Event',

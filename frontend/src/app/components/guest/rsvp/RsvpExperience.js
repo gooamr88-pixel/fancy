@@ -23,8 +23,8 @@ import { useIdempotentRsvpSubmit } from './useIdempotentRsvpSubmit';
  *     {(api) => <QuickConfirm {...api} />}
  *   </RsvpExperience>
  *
- *   <RsvpExperience context={{ kind: 'slug', slug, guestId, rsvpId }} envelope lang={lang}>
- *     {(api) => <FullRsvpForm {...api} />}
+ *   <RsvpExperience context={{ kind: 'slug', slug, guestId, partyId }} envelope lang={lang}>
+ *     {(api) => <RsvpWizard {...api} />}
  *   </RsvpExperience>
  *
  * Render-prop `api`: { event, guest, intendedResponse, allowEdits, context, isRTL,

@@ -1,6 +1,6 @@
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
-const notificationService = require('../utils/notificationService');
+const invitationService = require('../services/invitationService');
 const { broadcast } = require('../utils/realtime');
 
 /**
@@ -24,7 +24,7 @@ const assignSeat = async (req, res, next) => {
     // Call the postgres atomic seating function
     const { data, error } = await supabase.rpc('assign_seat', {
       p_event_id: eventId,
-      p_rsvp_id: rsvpId,
+      p_party_id: rsvpId,
       p_table_id: tableId,
       p_assigned_by: assignedBy,
       p_force: !!force
@@ -52,7 +52,7 @@ const assignSeat = async (req, res, next) => {
 
     // Auto-fire QR ticket email on successful seating assignment
     try {
-      await notificationService.sendQRTicketEmail(eventId, rsvpId);
+      await invitationService.sendQrTicketEmail(eventId, rsvpId);
     } catch (emailErr) {
       logger.error({ err: emailErr, rsvpId }, 'Failed to auto-send QR ticket email');
     }
@@ -88,7 +88,7 @@ const reassignSeat = async (req, res, next) => {
     // Call the postgres atomic reassignment function
     const { data, error } = await supabase.rpc('reassign_seat', {
       p_event_id: eventId,
-      p_rsvp_id: rsvpId,
+      p_party_id: rsvpId,
       p_new_table_id: newTableId,
       p_assigned_by: assignedBy
     });
@@ -120,7 +120,7 @@ const reassignSeat = async (req, res, next) => {
 
     // Auto-fire updated QR ticket email on successful reassignment
     try {
-      await notificationService.sendQRTicketEmail(eventId, rsvpId);
+      await invitationService.sendQrTicketEmail(eventId, rsvpId);
     } catch (emailErr) {
       logger.error({ err: emailErr, rsvpId }, 'Failed to auto-send updated QR ticket email');
     }
@@ -155,7 +155,7 @@ const unassignSeat = async (req, res, next) => {
   try {
     const { data, error } = await supabase.rpc('unassign_seat', {
       p_event_id: eventId,
-      p_rsvp_id: rsvpId,
+      p_party_id: rsvpId,
       p_assigned_by: assignedBy
     });
 
@@ -214,14 +214,14 @@ const saveSeatingBatch = async (req, res, next) => {
     // 1. Fetch current seating assignments for this event to compare
     const { data: currentAssignments, error: fetchErr } = await supabase
       .from('seating_assignments')
-      .select('rsvp_id, table_id')
+      .select('party_id, table_id')
       .eq('event_id', eventId);
 
     if (fetchErr) throw fetchErr;
 
     const currentMap = {};
     (currentAssignments || []).forEach(a => {
-      currentMap[a.rsvp_id] = a.table_id;
+      currentMap[a.party_id] = a.table_id;
     });
 
     const results = [];
@@ -238,7 +238,7 @@ const saveSeatingBatch = async (req, res, next) => {
         if (currentTableId) {
           const { data, error } = await supabase.rpc('unassign_seat', {
             p_event_id: eventId,
-            p_rsvp_id: rsvpId,
+            p_party_id: rsvpId,
             p_assigned_by: assignedBy
           });
           results.push({ rsvpId, action: 'unassign', success: !error && data?.success, error: error || data?.message });
@@ -249,7 +249,7 @@ const saveSeatingBatch = async (req, res, next) => {
           // Assign
           const { data, error } = await supabase.rpc('assign_seat', {
             p_event_id: eventId,
-            p_rsvp_id: rsvpId,
+            p_party_id: rsvpId,
             p_table_id: tableId,
             p_assigned_by: assignedBy,
             p_force: forceFlag
@@ -259,7 +259,7 @@ const saveSeatingBatch = async (req, res, next) => {
           // Reassign
           const { data, error } = await supabase.rpc('reassign_seat', {
             p_event_id: eventId,
-            p_rsvp_id: rsvpId,
+            p_party_id: rsvpId,
             p_new_table_id: tableId,
             p_assigned_by: assignedBy,
             p_force: forceFlag

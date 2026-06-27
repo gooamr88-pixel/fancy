@@ -221,56 +221,25 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
     setSending(true);
     setResult(null);
     try {
-      let res, data;
-      if (channel === 'email') {
-        // Use the existing email invitation endpoint
-        res = await fetch(`${apiUrl}/events/${eventId}/rsvps/send-invitations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ rsvpIds: Array.from(selectedIds) }),
-        });
-        data = await res.json();
-        if (!res.ok || !data.success) {
-          const err = new Error(data.message || 'Failed to send email invitations.');
-          err.code = data.error;
-          throw err;
-        }
-        setResult({
-          success: true, channel: 'email',
-          sent: data.sentCount, failed: data.failedCount, skipped: data.skippedCount,
-          message: data.message,
-        });
-      } else {
-        // Send SMS to the selected guests via the campaign endpoint. The backend
-        // keys custom sends off `guestIds` (rsvp ids) and only targets guests that
-        // have a phone number.
-        res = await fetch(`${apiUrl}/events/${eventId}/campaigns/send-sms`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            messageTemplate: 'Hello {name}, you are invited to our event! RSVP now: {url}',
-            guestIds: Array.from(selectedIds),
-          }),
-        });
-        data = await res.json();
-        if (!res.ok || !data.success) {
-          const err = new Error(data.message || 'Failed to send SMS invitations.');
-          err.code = data.error;
-          throw err;
-        }
-        // Large campaigns are queued to the async worker (HTTP 202, async:true) and
-        // have no immediate counts — surface a "queued" state instead of "0 sent".
-        setResult(data.async
-          ? { success: true, channel: 'sms', queued: true, message: data.message || 'SMS campaign queued — messages are sending in the background.' }
-          : {
-              success: true, channel: 'sms',
-              sent: data.sentCount, failed: data.failedCount, skipped: data.skippedCount,
-              credits: data.creditsUsed,
-              message: data.message,
-            });
+      // One unified endpoint for every channel — the backend normalizes email's
+      // sync counts and SMS's possibly-async dispatch into the same response shape.
+      const body = channel === 'email'
+        ? { channel: 'email', partyIds: Array.from(selectedIds) }
+        : { channel: 'sms', messageTemplate: 'Hello {name}, you are invited to our event! RSVP now: {url}', guestIds: Array.from(selectedIds) };
+
+      const res = await fetch(`${apiUrl}/events/${eventId}/invitations/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        const err = new Error(data.message || `Failed to send ${channel} invitations.`);
+        err.code = data.error;
+        throw err;
       }
+      setResult({ success: true, ...data.data });
       if (onSuccess) onSuccess();
     } catch (err) {
       setResult({ success: false, message: err.message, code: err.code });
@@ -462,7 +431,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
               fontSize: '12px', fontFamily: 'var(--font-sans)', lineHeight: 1.6, color: tone.fg,
             }}>
               {result.success ? (
-                result.queued ? (
+                result.async ? (
                   <><strong>✓ SMS Queued</strong> — {result.message}</>
                 ) : (
                   <>
@@ -470,7 +439,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
                     {' — '}{result.sent} sent
                     {result.failed > 0 && `, ${result.failed} failed`}
                     {result.skipped > 0 && `, ${result.skipped} skipped`}
-                    {result.credits ? ` · ${result.credits} credits used` : ''}
+                    {result.creditsUsed ? ` · ${result.creditsUsed} credits used` : ''}
                   </>
                 )
               ) : isNotLive ? (

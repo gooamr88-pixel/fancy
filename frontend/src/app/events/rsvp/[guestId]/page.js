@@ -20,8 +20,8 @@ export default function GuestRSVPResolverPage({ params }) {
           throw new Error('Guest invitation link is invalid or expired.');
         }
         const data = await res.json();
-        if (data.success && data.slug) {
-          router.replace(`/${data.slug}/rsvp?g=${guestId}`);
+        if (data.success && data.data?.slug) {
+          router.replace(`/${data.data.slug}/rsvp?g=${guestId}`);
         } else {
           throw new Error('Could not find event associated with this invitation.');
         }

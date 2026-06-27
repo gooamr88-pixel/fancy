@@ -8,8 +8,8 @@
 -- Usage:  psql -f clean_database.sql
 --    or:  paste into Supabase SQL Editor
 --
--- Last updated: 2026-06-26 — synced with migration
--- 20260704000000_submit_rsvp_phone_dedupe + backend 002_guest_analytics.
+-- Last updated: 2026-06-27 — synced with migration
+-- 20260705000000_guest_experience_rebuild + backend 002_guest_analytics.
 -- ═══════════════════════════════════════════════════════════
 
 BEGIN;
@@ -50,11 +50,13 @@ DECLARE
         'sms_credit_wallets',
         'seating_assignments',
         'tables',
-        'custom_answers',
-        'rsvp_guests',
         'check_ins',
-        'rsvp_form_fields',
-        'rsvps',
+        'custom_answers',
+        'custom_form_fields',
+        'rsvp_response_history',
+        'invitations',
+        'guests',
+        'rsvp_parties',
         'activity_logs',
         'events',
         'organizations',

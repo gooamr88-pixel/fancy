@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useReducer, useRef } from 'react';
+import { publicApiFetch } from '../../../utils/publicApi';
 
 /**
  * useRsvpResolver — the SINGLE entry-context resolver for the guest RSVP experience.
@@ -11,8 +12,8 @@ import { useEffect, useReducer, useRef } from 'react';
  * from — so the guest never sees mock/empty data flash before the real event loads.
  *
  * Entry contexts:
- *   { kind: 'token', token }                       → email one-click (signed token)
- *   { kind: 'slug', slug, guestId?, rsvpId? }      → public link / private SMS (?g=) / invite (?rsvp_id=)
+ *   { kind: 'token', token }                        → email one-click (signed token)
+ *   { kind: 'slug', slug, guestId?, partyId? }      → public link / private SMS (?g=) / invite (?party_id=)
  *
  * Normalized result:
  *   phase: 'resolving' | 'ready' | 'locked' | 'closed' | 'underReview'
@@ -20,7 +21,6 @@ import { useEffect, useReducer, useRef } from 'react';
  *   event, guest, allowEdits, intendedResponse, error, refetch()
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const RESPONDED = new Set(['yes', 'no', 'maybe']);
 
 const storageKeyFor = (slug) => `fancy_rsvp_${slug}`;
@@ -59,12 +59,14 @@ export function rememberGuest(slug, id) {
 }
 
 async function resolveToken(token, signal) {
-  const res = await fetch(`${API_URL}/public/rsvp/invite?token=${encodeURIComponent(token)}`, { signal });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.success) {
-    const err = new Error(data.message || 'This invitation link is invalid or has expired.');
-    err.phase = 'unavailable';
-    throw err;
+  let data;
+  try {
+    data = await publicApiFetch(`/public/rsvp/invite?token=${encodeURIComponent(token)}`, { signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw err;
+    const e = new Error(err.message || 'This invitation link is invalid or has expired.');
+    e.phase = 'unavailable';
+    throw e;
   }
   const guest = data.guest || null;
   // Token flow is one-shot: an already-answered guest is locked (they edit via the
@@ -78,24 +80,25 @@ async function resolveToken(token, signal) {
   return { phase: 'ready', event: data.event, guest, allowEdits: false, intendedResponse: data.intendedResponse || null };
 }
 
-async function resolveSlug({ slug, guestId, rsvpId }, signal) {
-  // Identity priority mirrors the legacy form: explicit invite token (?rsvp_id) →
+async function resolveSlug({ slug, guestId, partyId }, signal) {
+  // Identity priority mirrors the legacy form: explicit invite token (?party_id) →
   // private SMS id (?g) → device-remembered id. Whichever we have is sent as the
   // per-guest unlock token, which the backend validates belongs to this event
-  // (unlocks private events AND returns that guest's prefill/lock state).
-  const unlockId = rsvpId || guestId || rememberedId(slug);
-  const query = unlockId ? `?rsvp_id=${encodeURIComponent(unlockId)}` : '';
-  const res = await fetch(`${API_URL}/public/events/${slug}${query}`, { signal });
+  // (unlocks private events AND returns that party's prefill/lock state).
+  const unlockId = partyId || guestId || rememberedId(slug);
+  const query = unlockId ? `?party_id=${encodeURIComponent(unlockId)}` : '';
 
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 402) { const e = new Error('not live'); e.phase = 'paymentRequired'; throw e; }
-    if (res.status === 403 && data.error === 'EVENT_UNDER_REVIEW') { const e = new Error('review'); e.phase = 'underReview'; throw e; }
-    if (res.status === 403 && data.error === 'EVENT_CLOSED') { const e = new Error('closed'); e.phase = 'closed'; throw e; }
+  let data;
+  try {
+    data = await publicApiFetch(`/public/events/${slug}${query}`, { signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw err;
+    if (err.status === 402) { const e = new Error('not live'); e.phase = 'paymentRequired'; throw e; }
+    if (err.status === 403 && err.code === 'EVENT_UNDER_REVIEW') { const e = new Error('review'); e.phase = 'underReview'; throw e; }
+    if (err.status === 403 && err.code === 'EVENT_CLOSED') { const e = new Error('closed'); e.phase = 'closed'; throw e; }
     const e = new Error('This event could not be found.'); e.phase = 'unavailable'; throw e;
   }
 
-  const data = await res.json();
   const event = data.event;
   const guest = data.guestRsvp || null;
   const allowEdits = !!event?.allow_guest_edits;

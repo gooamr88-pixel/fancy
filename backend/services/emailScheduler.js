@@ -20,7 +20,7 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { dispatch } = require('./emailService');
 const { getEventStats } = require('../utils/emailContext');
-const { generateRsvpToken } = require('../utils/rsvpToken');
+const tokenService = require('./tokenService');
 const T = require('../utils/emailTemplates');
 
 const HOUR = 3600 * 1000;
@@ -32,11 +32,16 @@ const stamp = (table, id, col) => supabase.from(table).update({ [col]: nowISO() 
 const frontendBase = () =>
   (process.env.FRONTEND_URL || 'https://fancyrsvp.com').split(',')[0].trim().replace(/\/$/, '');
 
-const rsvpLinks = (rsvpId, eventId) => {
-  const link = (response) => `${frontendBase()}/rsvp?token=${encodeURIComponent(generateRsvpToken({ rsvpId, eventId, response }))}`;
+// Per-party "already sent?" stamps (reminder_sent_at etc.) were absorbed into the
+// invitations ledger's per-channel tracking; lifecycle reminders aren't an
+// invitation-delivery channel, so they rely solely on dispatch()'s email_log(kind,ref)
+// UNIQUE-index dedup for idempotency rather than a pre-filter column.
+const rsvpLinks = (partyId, eventId) => {
+  const link = (response) => `${frontendBase()}/rsvp?token=${encodeURIComponent(tokenService.signRsvpInvite({ partyId, eventId, response }))}`;
   return { accept: link('accepted'), decline: link('declined'), maybe: link('maybe'), manage: link(undefined) };
 };
 const orgEmailOk = (ev) => !(ev.notification_preferences && ev.notification_preferences.email === false);
+const primaryEmailOf = (party) => (party.guests || []).find((g) => g.is_primary_contact)?.email || null;
 
 /* ─── 1. RSVP reminders — invited, still-pending guests as the deadline nears ─── */
 async function jobRsvpReminders() {
@@ -49,15 +54,15 @@ async function jobRsvpReminders() {
     .limit(100);
   let sent = 0;
   for (const ev of (events || [])) {
-    const { data: rsvps } = await supabase
-      .from('rsvps').select('id, guest_name, email, response')
-      .eq('event_id', ev.id).eq('response', 'pending')
-      .is('reminder_sent_at', null).not('email', 'is', null).limit(LIMIT);
-    for (const r of (rsvps || [])) {
-      if (!r.email) continue;
-      const html = T.getRsvpReminderTemplate(r, ev, rsvpLinks(r.id, ev.id));
-      const res = await dispatch({ kind: 'rsvp_reminder', ref: `rsvp:${r.id}`, to: r.email, subject: `Reminder: please RSVP for ${ev.title}`, html, eventId: ev.id });
-      await stamp('rsvps', r.id, 'reminder_sent_at');
+    const { data: parties } = await supabase
+      .from('rsvp_parties').select('id, label, response, guests(is_primary_contact, email)')
+      .eq('event_id', ev.id).eq('response', 'pending').limit(LIMIT);
+    for (const party of (parties || [])) {
+      const email = primaryEmailOf(party);
+      if (!email) continue;
+      const r = { id: party.id, guest_name: party.label, email, response: party.response };
+      const html = T.getRsvpReminderTemplate(r, ev, rsvpLinks(party.id, ev.id));
+      const res = await dispatch({ kind: 'rsvp_reminder', ref: `rsvp:${party.id}`, to: email, subject: `Reminder: please RSVP for ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
     }
   }
@@ -76,16 +81,16 @@ async function jobEventReminders() {
   let sent = 0;
   for (const ev of (events || [])) {
     const revealed = (new Date(ev.event_date).getTime() - Date.now()) <= DAY; // 24h seating reveal
-    const { data: rsvps } = await supabase
-      .from('rsvps').select('id, guest_name, email, party_size, seating_assignments(tables(table_name))')
-      .eq('event_id', ev.id).eq('response', 'yes')
-      .is('event_reminder_sent_at', null).not('email', 'is', null).limit(LIMIT);
-    for (const r of (rsvps || [])) {
-      if (!r.email) continue;
-      const tableName = revealed ? (r.seating_assignments?.[0]?.tables?.table_name || null) : null;
+    const { data: parties } = await supabase
+      .from('rsvp_parties').select('id, label, guests(is_primary_contact, email), seating_assignments(tables(table_name))')
+      .eq('event_id', ev.id).eq('response', 'yes').limit(LIMIT);
+    for (const party of (parties || [])) {
+      const email = primaryEmailOf(party);
+      if (!email) continue;
+      const r = { id: party.id, guest_name: party.label, email, party_size: (party.guests || []).length || 1 };
+      const tableName = revealed ? (party.seating_assignments?.[0]?.tables?.table_name || null) : null;
       const html = T.getEventReminderTemplate(r, ev, { tableName });
-      const res = await dispatch({ kind: 'event_reminder', ref: `rsvp:${r.id}`, to: r.email, subject: `See you soon at ${ev.title}`, html, eventId: ev.id });
-      await stamp('rsvps', r.id, 'event_reminder_sent_at');
+      const res = await dispatch({ kind: 'event_reminder', ref: `rsvp:${party.id}`, to: email, subject: `See you soon at ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
     }
   }
@@ -136,15 +141,15 @@ async function jobPostEvent() {
       }
       await stamp('events', ev.id, 'recap_sent_at');
     }
-    const { data: rsvps } = await supabase
-      .from('rsvps').select('id, guest_name, email')
-      .eq('event_id', ev.id).eq('response', 'yes')
-      .is('thank_you_sent_at', null).not('email', 'is', null).limit(LIMIT);
-    for (const r of (rsvps || [])) {
-      if (!r.email) continue;
+    const { data: parties } = await supabase
+      .from('rsvp_parties').select('id, label, guests(is_primary_contact, email)')
+      .eq('event_id', ev.id).eq('response', 'yes').limit(LIMIT);
+    for (const party of (parties || [])) {
+      const email = primaryEmailOf(party);
+      if (!email) continue;
+      const r = { id: party.id, guest_name: party.label, email };
       const html = T.getPostEventThankYouTemplate(r, ev);
-      const res = await dispatch({ kind: 'thank_you', ref: `rsvp:${r.id}`, to: r.email, subject: `Thank you for celebrating ${ev.title}`, html, eventId: ev.id });
-      await stamp('rsvps', r.id, 'thank_you_sent_at');
+      const res = await dispatch({ kind: 'thank_you', ref: `rsvp:${party.id}`, to: email, subject: `Thank you for celebrating ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
     }
   }
@@ -194,15 +199,16 @@ async function notifyGuestsOfEventChange(eventId) {
     const url = `${T.getPublicBaseUrl()}/${ev.slug || ''}`;
     const changeKey = crypto.createHash('sha1').update(`${ev.event_date}|${where}`).digest('hex').slice(0, 12);
 
-    const { data: rsvps } = await supabase
-      .from('rsvps').select('id, guest_name, email')
-      .eq('event_id', eventId).in('response', ['yes', 'maybe'])
-      .not('email', 'is', null).limit(LIMIT);
+    const { data: parties } = await supabase
+      .from('rsvp_parties').select('id, label, guests(is_primary_contact, email)')
+      .eq('event_id', eventId).in('response', ['yes', 'maybe']).limit(LIMIT);
     let sent = 0;
-    for (const r of (rsvps || [])) {
-      if (!r.email) continue;
+    for (const party of (parties || [])) {
+      const email = primaryEmailOf(party);
+      if (!email) continue;
+      const r = { id: party.id, guest_name: party.label, email };
       const html = T.getEventUpdatedTemplate(r, ev, changes, url);
-      const res = await dispatch({ kind: 'event_update', ref: `evchg:${eventId}:${changeKey}:${r.id}`, to: r.email, subject: `Update to ${ev.title}`, html, eventId });
+      const res = await dispatch({ kind: 'event_update', ref: `evchg:${eventId}:${changeKey}:${party.id}`, to: email, subject: `Update to ${ev.title}`, html, eventId });
       if (res.sent) sent++;
     }
     return sent;

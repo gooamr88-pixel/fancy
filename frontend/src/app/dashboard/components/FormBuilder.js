@@ -42,7 +42,7 @@ export default function FormBuilder({ eventId }) {
 
   useEffect(() => { loadFields(); }, [loadFields]);
 
-  const TYPES_WITH_OPTIONS = ['select', 'radio'];
+  const TYPES_WITH_OPTIONS = ['select', 'radio', 'multiselect'];
 
   // Auto-derive the field key from the label — but only while ADDING. The key is
   // immutable once a field exists (changing it would orphan saved guest answers).
@@ -188,6 +188,7 @@ export default function FormBuilder({ eventId }) {
                 <option value="text">Single Line Text</option>
                 <option value="textarea">Paragraph Description</option>
                 <option value="select">Multiple Choice (Dropdown)</option>
+                <option value="multiselect">Multiple Choice (Checkboxes)</option>
                 <option value="radio">Single Choice (Radio)</option>
                 <option value="checkbox">Toggle Agreement (Checkbox)</option>
                 <option value="number">Number</option>

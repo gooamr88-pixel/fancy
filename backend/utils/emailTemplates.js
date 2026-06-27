@@ -29,26 +29,26 @@ const escapeHtml = (str) => {
 const { getPublicBaseUrl } = require('./publicUrl');
 
 /**
- * Builds a guest's personal event link. When an rsvpId is supplied it is appended as
- * the per-guest invitation token (`?rsvp_id=...`), which unlocks private events and
- * pre-fills that guest's RSVP form. Route is `/{slug}` (no `/e/` prefix).
+ * Builds a guest's personal event link. When a partyId is supplied it is appended as
+ * the per-guest invitation token (`?party_id=...`), which unlocks private events and
+ * pre-fills that party's RSVP form. Route is `/{slug}` (no `/e/` prefix).
  */
-const buildGuestEventUrl = (slug, rsvpId) => {
+const buildGuestEventUrl = (slug, partyId) => {
   const base = `${getPublicBaseUrl()}/${slug || ''}`;
-  return rsvpId ? `${base}?rsvp_id=${encodeURIComponent(rsvpId)}` : base;
+  return partyId ? `${base}?party_id=${encodeURIComponent(partyId)}` : base;
 };
 
 /**
- * Builds a guest's DIRECT RSVP-form link: `/{slug}/rsvp?g={rsvpId}` (INV-3).
+ * Builds a guest's DIRECT RSVP-form link: `/{slug}/rsvp?g={partyId}` (INV-3).
  *
  * Used for SMS so a tap lands straight on the form — no landing-page detour and no
  * `/events/rsvp/{id}` resolver redirect (that resolver remains only as a fallback for
  * any links already in the wild). The form treats `g` as the per-guest unlock token,
  * so this opens private events too (see the public RSVP page's event fetch).
  */
-const buildGuestRsvpUrl = (slug, rsvpId) => {
+const buildGuestRsvpUrl = (slug, partyId) => {
   const base = `${getPublicBaseUrl()}/${slug || ''}/rsvp`;
-  return rsvpId ? `${base}?g=${encodeURIComponent(rsvpId)}` : base;
+  return partyId ? `${base}?g=${encodeURIComponent(partyId)}` : base;
 };
 
 /* ═══ Brand tokens ═══ */

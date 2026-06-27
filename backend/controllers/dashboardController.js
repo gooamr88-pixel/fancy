@@ -79,11 +79,11 @@ const getDashboardData = async (req, res, next) => {
       upcomingEventsResult,
       recentActivityResult
     ] = await Promise.all([
-      // a) Stats — RSVP aggregation
+      // a) Stats — RSVP aggregation (party_size is derived from the embedded guest count)
       safeQuery(
         supabase
-          .from('rsvps')
-          .select('response, party_size')
+          .from('rsvp_parties')
+          .select('response, guests(id)')
           .in('event_id', eventIds)
       ),
 
@@ -96,28 +96,16 @@ const getDashboardData = async (req, res, next) => {
         { data: null, error: null, count: 0 }
       ),
 
-      // c) RSVP Trend — try submitted_at first, fall back to created_at
+      // c) RSVP Trend, keyed by created_at (when the party record was first created)
       (async () => {
-        const tryCol = async (col) => {
-          const result = await supabase
-            .from('rsvps')
-            .select(`${col}, response, party_size`)
-            .in('event_id', eventIds)
-            .not(col, 'is', null)
-            .order(col, { ascending: true });
-          if (result.error) throw result.error;
-          // Normalize to submitted_at key for downstream processing
-          return { ...result, data: (result.data || []).map(r => ({ ...r, submitted_at: r[col] })) };
-        };
-        try {
-          return await tryCol('submitted_at');
-        } catch (e1) {
-          try {
-            return await tryCol('created_at');
-          } catch (e2) {
-            return { data: [], error: e2 };
-          }
-        }
+        const result = await supabase
+          .from('rsvp_parties')
+          .select('created_at, response, guests(id)')
+          .in('event_id', eventIds)
+          .not('created_at', 'is', null)
+          .order('created_at', { ascending: true });
+        if (result.error) return { data: [], error: result.error };
+        return { ...result, data: (result.data || []).map(r => ({ ...r, submitted_at: r.created_at })) };
       })(),
 
       // d) Upcoming Events
@@ -155,7 +143,7 @@ const getDashboardData = async (req, res, next) => {
     let pendingCount = 0;
 
     rsvps.forEach(rsvp => {
-      const size = rsvp.party_size || 1;
+      const size = (rsvp.guests || []).length || 1;
       totalGuests += size;
       if (isAcceptedResponse(rsvp.response)) {
         acceptedCount += size;
@@ -195,7 +183,7 @@ const getDashboardData = async (req, res, next) => {
         if (!dailyMap[dateKey]) {
           dailyMap[dateKey] = { accepted: 0, declined: 0, pending: 0 };
         }
-        const size = rsvp.party_size || 1;
+        const size = (rsvp.guests || []).length || 1;
         if (isAcceptedResponse(rsvp.response)) {
           dailyMap[dateKey].accepted += size;
         } else if (isDeclinedResponse(rsvp.response)) {
@@ -246,14 +234,14 @@ const getDashboardData = async (req, res, next) => {
       if (upcomingIds.length > 0) {
         try {
           const { data: allYesRsvps } = await supabase
-            .from('rsvps')
-            .select('event_id, party_size, response')
+            .from('rsvp_parties')
+            .select('event_id, response, guests(id)')
             .in('event_id', upcomingIds);
 
           if (allYesRsvps) {
             allYesRsvps.forEach(r => {
               if (isAcceptedResponse(r.response)) {
-                guestCountMap[r.event_id] = (guestCountMap[r.event_id] || 0) + (r.party_size || 1);
+                guestCountMap[r.event_id] = (guestCountMap[r.event_id] || 0) + ((r.guests || []).length || 1);
               }
             });
           }
@@ -280,22 +268,22 @@ const getDashboardData = async (req, res, next) => {
     } else {
       const activityRaw = recentActivityResult.data || [];
 
-      // Join with rsvps table to get guest_name where entity_type = 'rsvp'
+      // Join with rsvp_parties to get the guest label where entity_type identifies a party
       const rsvpEntityIds = activityRaw
-        .filter(a => a.entity_type === 'rsvp' && a.entity_id)
+        .filter(a => ['rsvp', 'rsvp_party', 'check_in'].includes(a.entity_type) && a.entity_id)
         .map(a => a.entity_id);
 
       let rsvpNameMap = {};
       if (rsvpEntityIds.length > 0) {
         try {
           const { data: rsvpNames } = await supabase
-            .from('rsvps')
-            .select('id, guest_name')
+            .from('rsvp_parties')
+            .select('id, label')
             .in('id', rsvpEntityIds);
 
           if (rsvpNames) {
             rsvpNames.forEach(r => {
-              rsvpNameMap[r.id] = r.guest_name;
+              rsvpNameMap[r.id] = r.label;
             });
           }
         } catch (e) {

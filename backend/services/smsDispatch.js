@@ -53,13 +53,20 @@ function resolveResponses(audiences) {
   return [...set];
 }
 
-/** Fetch phone-bearing recipients for the chosen audience or an explicit guest list. */
+/**
+ * Fetch phone-bearing recipients for the chosen audience or an explicit
+ * party-id list. SMS targets a party's primary contact, mirroring how email
+ * invitations target the primary contact's email — `id`/`guest_name` below
+ * are the party id and label (the historical "rsvp"/"guest" naming downstream
+ * in this file is kept as-is; only the underlying query changed).
+ */
 async function fetchRecipients(eventId, { audiences = ['pending'], guestIds = null, limit = 100000 } = {}) {
   let query = supabase
-    .from('rsvps')
-    .select('id, guest_name, phone, response')
+    .from('rsvp_parties')
+    .select('id, label, response, guests!inner(is_primary_contact, phone)')
     .eq('event_id', eventId)
-    .not('phone', 'is', null);
+    .eq('guests.is_primary_contact', true)
+    .not('guests.phone', 'is', null);
 
   if (Array.isArray(guestIds) && guestIds.length > 0) {
     query = query.in('id', guestIds);
@@ -69,20 +76,23 @@ async function fetchRecipients(eventId, { audiences = ['pending'], guestIds = nu
   }
   const { data, error } = await query.limit(limit);
   if (error) throw error;
-  return data || [];
+  return (data || []).map((p) => {
+    const primary = Array.isArray(p.guests) ? p.guests[0] : p.guests;
+    return { id: p.id, guest_name: p.label, phone: primary?.phone, response: p.response };
+  });
 }
 
-/** rsvp_id → assigned table name, for the {table_number} tag (best-effort, never fatal). */
+/** party_id → assigned table name, for the {table_number} tag (best-effort, never fatal). */
 async function getTableMap(eventId) {
   const map = {};
   try {
     const { data: seats } = await supabase
       .from('seating_assignments')
-      .select('rsvp_id, tables(table_name)')
+      .select('party_id, tables(table_name)')
       .eq('event_id', eventId);
     for (const s of (seats || [])) {
       const name = s.tables && s.tables.table_name;
-      if (s.rsvp_id && name) map[s.rsvp_id] = name;
+      if (s.party_id && name) map[s.party_id] = name;
     }
   } catch (e) {
     logger.warn({ err: e, eventId }, 'getTableMap failed; {table_number} will render empty.');

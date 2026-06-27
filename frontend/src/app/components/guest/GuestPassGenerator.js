@@ -5,23 +5,49 @@ import { motion } from 'framer-motion';
 
 /* ═══════════════════════════════════════════════════════════════
    FANCY RSVP — Premium Guest Pass / Ticket Generator
-   Generates a visual event ticket with QR code
+   A real boarding-pass-style object: a main stub + a tear-off QR
+   stub joined by a die-cut perforation, foil corner seal, and a
+   slow gold shimmer sweep. Generates a matching downloadable PNG.
    ═══════════════════════════════════════════════════════════════ */
+
+// The perforation's "holes" are small circles painted in the card's resting
+// background. GuestPassCard is only ever mounted inside the wizard's white
+// success-step body, so matching that exact white keeps the die-cut illusion
+// seamless without needing a real CSS mask (better Safari/print compatibility).
+const PUNCH_BG = '#FFFFFF';
+
+function Perforation({ isRTL }) {
+  const holes = Array.from({ length: 9 });
+  return (
+    <div aria-hidden style={{
+      position: 'absolute', top: 0, bottom: 0, [isRTL ? 'right' : 'left']: '70%',
+      width: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+      alignItems: 'center', zIndex: 3, pointerEvents: 'none',
+    }}>
+      <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: PUNCH_BG, marginTop: '-4px' }} />
+      <div style={{
+        flex: 1, width: 0, borderLeft: '1.5px dashed rgba(255,255,255,0.22)',
+        margin: '2px 0',
+      }} />
+      <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: PUNCH_BG, marginBottom: '-4px' }} />
+    </div>
+  );
+}
 
 export default function GuestPassCard({
   guestName, eventTitle, eventDate, eventLocation,
   tableName, response = 'yes', qrData, themeColor = '#B8944F',
   isRTL = false, onDownload,
 }) {
-  const canvasRef = useRef(null);
   const [qrImageUrl, setQrImageUrl] = useState(null);
+  const [flipped, setFlipped] = useState(false);
 
   // Generate QR code client-side
   useEffect(() => {
     if (!qrData) return;
     import('qrcode').then(QRCode => {
       QRCode.toDataURL(qrData, {
-        width: 160, margin: 1,
+        width: 200, margin: 1,
         color: { dark: '#191B1E', light: '#FFFFFF' },
       }).then(url => setQrImageUrl(url)).catch(() => {});
     }).catch(() => {});
@@ -30,251 +56,333 @@ export default function GuestPassCard({
   const dateFormatted = eventDate
     ? new Date(eventDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
     : '';
-
+  const dateShort = eventDate
+    ? new Date(eventDate).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })
+    : '';
   const timeFormatted = eventDate
     ? new Date(eventDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
     : '';
 
+  const statusMeta = response === 'yes'
+    ? { label: { en: 'Confirmed', ar: 'مؤكد' }, color: '#10b981', soft: 'rgba(16,185,129,0.15)' }
+    : response === 'maybe'
+      ? { label: { en: 'Tentative', ar: 'مبدئي' }, color: '#6366f1', soft: 'rgba(99,102,241,0.15)' }
+      : { label: { en: 'Registered', ar: 'مسجل' }, color: '#77736A', soft: 'rgba(255,255,255,0.08)' };
+
   const handleDownload = useCallback(async () => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    const w = 800;
-    const h = 480;
+    const w = 900;
+    const h = 460;
+    const stubX = w - 240; // QR stub starts here
     canvas.width = w;
     canvas.height = h;
 
-    // Background
+    const clipRoundRect = (x, y, ww, hh, r) => { ctx.beginPath(); ctx.roundRect(x, y, ww, hh, r); };
+
+    // Body
     ctx.fillStyle = '#191B1E';
-    ctx.beginPath();
-    ctx.roundRect(0, 0, w, h, 24);
+    clipRoundRect(0, 0, w, h, 26);
     ctx.fill();
 
-    // Gold accent line
-    ctx.fillStyle = themeColor;
-    ctx.fillRect(0, 0, w, 5);
+    // Shimmering gold spine
+    const spine = ctx.createLinearGradient(0, 0, w, 0);
+    spine.addColorStop(0, '#B8944F'); spine.addColorStop(0.5, '#F4E6C2'); spine.addColorStop(1, '#B8944F');
+    ctx.fillStyle = spine;
+    ctx.fillRect(0, 0, w, 6);
 
-    // Left section
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '700 11px sans-serif';
-    ctx.letterSpacing = '3px';
-    ctx.fillText('GUEST PASS', 40, 48);
-
-    ctx.fillStyle = themeColor;
-    ctx.font = '700 28px serif';
-    ctx.fillText(eventTitle || '', 40, 90);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = '400 14px sans-serif';
-    ctx.fillText(dateFormatted, 40, 125);
-    ctx.fillText(timeFormatted, 40, 148);
-    if (eventLocation) ctx.fillText(eventLocation, 40, 175);
-
-    // Divider
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(40, 210);
-    ctx.lineTo(w - 220, 210);
-    ctx.stroke();
+    // Perforation holes (cut into the body color so they read as real punches)
+    for (let i = 0; i <= 8; i++) {
+      const y = 20 + i * ((h - 40) / 8);
+      ctx.beginPath();
+      ctx.arc(stubX, y, 9, 0, Math.PI * 2);
+      ctx.fillStyle = '#0E0F10';
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.setLineDash([6, 7]);
+    ctx.beginPath(); ctx.moveTo(stubX, 30); ctx.lineTo(stubX, h - 30); ctx.stroke();
     ctx.setLineDash([]);
 
-    // Guest info
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = '700 10px sans-serif';
-    ctx.fillText('GUEST', 40, 245);
+    // Left section — main stub
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '700 11px sans-serif';
+    ctx.fillText('G U E S T   P A S S', 44, 50);
 
+    ctx.fillStyle = themeColor;
+    ctx.font = '700 30px Georgia, serif';
+    ctx.fillText((eventTitle || '').slice(0, 38), 44, 94);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    ctx.font = '400 15px sans-serif';
+    ctx.fillText(`${dateFormatted}${timeFormatted ? '  ·  ' + timeFormatted : ''}`, 44, 128);
+    if (eventLocation) ctx.fillText(eventLocation, 44, 152);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.setLineDash([4, 5]);
+    ctx.beginPath(); ctx.moveTo(44, 188); ctx.lineTo(stubX - 50, 188); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '700 10px sans-serif';
+    ctx.fillText('GUEST', 44, 222);
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = '600 22px serif';
-    ctx.fillText(guestName || '', 40, 275);
+    ctx.font = '600 26px Georgia, serif';
+    ctx.fillText(guestName || '', 44, 256);
 
     if (tableName) {
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
       ctx.font = '700 10px sans-serif';
-      ctx.fillText('TABLE', 40, 315);
-
+      ctx.fillText('TABLE', 44, 296);
       ctx.fillStyle = themeColor;
-      ctx.font = '700 20px sans-serif';
-      ctx.fillText(tableName, 40, 345);
+      ctx.font = '700 24px sans-serif';
+      ctx.fillText(tableName, 44, 326);
     }
 
-    // Status badge
-    const statusText = response === 'yes' ? 'CONFIRMED' : response === 'maybe' ? 'TENTATIVE' : 'REGISTERED';
+    const statusText = (response === 'yes' ? 'CONFIRMED' : response === 'maybe' ? 'TENTATIVE' : 'REGISTERED');
+    ctx.font = '700 11px sans-serif';
+    const statusWidth = ctx.measureText(statusText).width + 28;
+    clipRoundRect(44, 358, statusWidth, 32, 16);
     ctx.fillStyle = themeColor;
-    ctx.font = '700 10px sans-serif';
-    const statusWidth = ctx.measureText(statusText).width + 24;
-    ctx.beginPath();
-    ctx.roundRect(40, 375, statusWidth, 28, 6);
     ctx.fill();
-    ctx.fillStyle = '#191B1E';
-    ctx.fillText(statusText, 52, 394);
+    ctx.fillStyle = '#0E0F10';
+    ctx.fillText(statusText, 58, 379);
 
-    // Fancy branding
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.font = '400 10px sans-serif';
-    ctx.fillText('Powered by Fancy RSVP', 40, h - 24);
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.font = '400 11px sans-serif';
+    ctx.fillText('Powered by Fancy RSVP', 44, h - 24);
 
-    // QR Section (right side)
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(w - 200, 30);
-    ctx.lineTo(w - 200, h - 30);
-    ctx.stroke();
+    // Right section — QR stub
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '700 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(dateShort.toUpperCase(), stubX + (w - stubX) / 2, 44);
+
+    const finish = () => downloadCanvas(canvas, guestName);
 
     if (qrImageUrl) {
       const qrImg = new Image();
       qrImg.crossOrigin = 'anonymous';
       qrImg.onload = () => {
-        ctx.drawImage(qrImg, w - 180, (h - 160) / 2, 160, 160);
-
+        const qrSize = 168;
+        const qrX = stubX + ((w - stubX) - qrSize) / 2;
+        const qrY = (h - qrSize) / 2 - 10;
+        ctx.fillStyle = '#FFFFFF';
+        clipRoundRect(qrX - 12, qrY - 12, qrSize + 24, qrSize + 24, 14);
+        ctx.fill();
+        ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
         ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.font = '500 10px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Scan to check in', w - 100, (h + 160) / 2 + 24);
+        ctx.font = '500 11px sans-serif';
+        ctx.fillText('SCAN TO CHECK IN', stubX + (w - stubX) / 2, qrY + qrSize + 36);
         ctx.textAlign = 'start';
-
-        downloadCanvas(canvas, guestName);
+        finish();
       };
+      qrImg.onerror = finish;
       qrImg.src = qrImageUrl;
     } else {
-      // No QR — download without it
-      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
       ctx.font = '500 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('QR code will be', w - 100, h / 2 - 10);
-      ctx.fillText('emailed separately', w - 100, h / 2 + 10);
+      ctx.fillText('QR sent', stubX + (w - stubX) / 2, h / 2 - 8);
+      ctx.fillText('separately', stubX + (w - stubX) / 2, h / 2 + 12);
       ctx.textAlign = 'start';
-      downloadCanvas(canvas, guestName);
+      finish();
     }
 
     if (onDownload) onDownload();
-  }, [eventTitle, dateFormatted, timeFormatted, eventLocation, guestName, tableName, response, themeColor, qrImageUrl, onDownload]);
+  }, [eventTitle, dateFormatted, dateShort, timeFormatted, eventLocation, guestName, tableName, response, themeColor, qrImageUrl, onDownload]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 20, delay: 0.3 }}
-      style={{
-        background: '#191B1E', borderRadius: '20px', overflow: 'hidden',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.25)', maxWidth: '440px',
-        width: '100%', margin: '0 auto',
-      }}
-    >
-      {/* Gold accent */}
-      <div style={{ height: '4px', background: `linear-gradient(90deg, ${themeColor}, #D7BE80, ${themeColor})` }} />
+    <div style={{ perspective: '1400px', maxWidth: '480px', width: '100%', margin: '0 auto' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 28, scale: 0.93, rotateX: -10 }}
+        animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+        transition={{ type: 'spring', stiffness: 180, damping: 18, delay: 0.25 }}
+        whileHover={{ rotateX: 2, rotateY: -2, scale: 1.012 }}
+        onClick={() => setFlipped(f => !f)}
+        role="button"
+        tabIndex={0}
+        aria-label={isRTL ? 'اضغط لقلب البطاقة' : 'Tap to flip the pass'}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setFlipped(f => !f); }}
+        style={{ position: 'relative', transformStyle: 'preserve-3d', cursor: 'pointer' }}
+      >
+        {/* ── FRONT ── */}
+        <motion.div
+          animate={{ rotateY: flipped ? 180 : 0, opacity: flipped ? 0 : 1 }}
+          transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+          style={{
+            backfaceVisibility: 'hidden', position: flipped ? 'absolute' : 'relative', inset: 0,
+            background: '#191B1E', borderRadius: '20px', overflow: 'hidden',
+            boxShadow: '0 26px 70px -16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)',
+          }}
+        >
+          {/* Shimmering gold spine — reuses the brand's shimmer utility for a moving highlight. */}
+          <div className="gold-shimmer-line" style={{ height: '5px' }} />
 
-      <div style={{ padding: '28px 28px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <span style={{
-              fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px',
-              color: 'rgba(255,255,255,0.4)', fontWeight: 700, fontFamily: 'var(--font-sans)',
-            }}>
-              {isRTL ? 'بطاقة الضيف' : 'Guest Pass'}
-            </span>
-            <h3 style={{
-              fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600,
-              color: themeColor, marginTop: '4px', lineHeight: 1.2,
-            }}>
-              {eventTitle}
-            </h3>
-          </div>
-          <div style={{
-            padding: '5px 12px', borderRadius: '6px',
-            background: response === 'yes' ? 'rgba(16,185,129,0.15)' : response === 'maybe' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.08)',
-            color: response === 'yes' ? '#10b981' : response === 'maybe' ? '#6366f1' : '#77736A',
-            fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px',
+          {/* Foil corner seal */}
+          <div aria-hidden style={{
+            position: 'absolute', top: 0, [isRTL ? 'left' : 'right']: 0, width: '86px', height: '86px',
+            overflow: 'hidden', zIndex: 2, pointerEvents: 'none',
           }}>
-            {response === 'yes' ? (isRTL ? 'مؤكد' : 'Confirmed') : response === 'maybe' ? (isRTL ? 'مبدئي' : 'Tentative') : (isRTL ? 'مسجل' : 'Registered')}
-          </div>
-        </div>
-
-        {/* Event details */}
-        <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-          <div>
-            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '2px' }}>
-              {isRTL ? 'التاريخ' : 'Date'}
-            </span>
-            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{dateFormatted}</span>
-          </div>
-          <div>
-            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '2px' }}>
-              {isRTL ? 'الوقت' : 'Time'}
-            </span>
-            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{timeFormatted}</span>
-          </div>
-        </div>
-
-        {/* Dashed divider */}
-        <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)', margin: '0 -28px', padding: '0 28px' }} />
-
-        {/* Guest info row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <div>
-            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-              {isRTL ? 'الضيف' : 'Guest'}
-            </span>
-            <span style={{
-              fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600, color: '#FFFFFF',
+            <div style={{
+              position: 'absolute', top: '14px', [isRTL ? 'left' : 'right']: '-34px',
+              width: '120px', transform: isRTL ? 'rotate(-45deg)' : 'rotate(45deg)',
+              background: `linear-gradient(100deg, ${themeColor}, #F4E6C2 50%, ${themeColor})`,
+              color: '#191B1E', fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em',
+              textAlign: 'center', padding: '3px 0', textTransform: 'uppercase',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
             }}>
-              {guestName}
+              {isRTL ? 'دعوة فاخرة' : 'VIP Invite'}
+            </div>
+          </div>
+
+          <Perforation isRTL={isRTL} />
+
+          <div style={{ display: 'flex' }}>
+            {/* Main stub */}
+            <div style={{ flex: '1 1 68%', padding: '26px 26px 22px', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)', fontWeight: 700, fontFamily: 'var(--font-sans)' }}>
+                    {isRTL ? 'بطاقة الضيف' : 'Guest Pass'}
+                  </span>
+                  <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '19px', fontWeight: 600, color: themeColor, marginTop: '4px', lineHeight: 1.25 }}>
+                    {eventTitle}
+                  </h3>
+                </div>
+                <span style={{
+                  flexShrink: 0, padding: '5px 11px', borderRadius: '20px', background: statusMeta.soft, color: statusMeta.color,
+                  fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', border: `1px solid ${statusMeta.color}33`,
+                }}>
+                  {isRTL ? statusMeta.label.ar : statusMeta.label.en}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '22px', flexWrap: 'wrap' }}>
+                <Field label={isRTL ? 'التاريخ' : 'Date'} value={dateFormatted} isRTL={isRTL} />
+                <Field label={isRTL ? 'الوقت' : 'Time'} value={timeFormatted} isRTL={isRTL} />
+              </div>
+
+              <div style={{ borderTop: '1px dashed rgba(255,255,255,0.1)' }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+                <div>
+                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                    {isRTL ? 'الضيف' : 'Guest'}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '17px', fontWeight: 600, color: '#FFFFFF' }}>{guestName}</span>
+                </div>
+                {tableName && (
+                  <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
+                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                      {isRTL ? 'الطاولة' : 'Table'}
+                    </span>
+                    <span style={{ fontSize: '17px', fontWeight: 800, color: themeColor, fontFamily: 'var(--font-sans)' }}>{tableName}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* QR stub */}
+            <div style={{
+              flex: '0 0 32%', padding: '22px 16px', display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'rgba(255,255,255,0.02)',
+            }}>
+              {dateShort && (
+                <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)' }}>
+                  {dateShort.toUpperCase()}
+                </span>
+              )}
+              {qrImageUrl ? (
+                <div style={{ padding: '8px', background: '#FFFFFF', borderRadius: '10px' }}>
+                  <img src={qrImageUrl} alt="Check-in QR" style={{ width: '88px', height: '88px', display: 'block' }} />
+                </div>
+              ) : (
+                <div style={{
+                  width: '104px', height: '104px', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.18)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                  fontSize: '9px', color: 'rgba(255,255,255,0.3)', padding: '8px', fontFamily: 'var(--font-sans)',
+                }}>
+                  {isRTL ? 'سيُرسل لاحقاً' : 'Sent separately'}
+                </div>
+              )}
+              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', textAlign: 'center', lineHeight: 1.4 }}>
+                {isRTL ? 'امسح للتسجيل' : 'Scan to check in'}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ padding: '0 26px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+              style={{
+                width: '100%', padding: '12px', borderRadius: '10px',
+                border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
+                color: 'rgba(255,255,255,0.75)', fontSize: '13px', fontWeight: 600,
+                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#FFFFFF'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+            >
+              ⬇ {isRTL ? 'تحميل بطاقة الدخول' : 'Download Guest Pass'}
+            </button>
+            <span style={{ textAlign: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em' }}>
+              {isRTL ? 'اضغط على البطاقة لرؤية التفاصيل' : 'Tap the pass to flip it over'}
             </span>
           </div>
-          {tableName && (
-            <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
-              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                {isRTL ? 'الطاولة' : 'Table'}
+        </motion.div>
+
+        {/* ── BACK ── */}
+        <motion.div
+          animate={{ rotateY: flipped ? 0 : -180, opacity: flipped ? 1 : 0 }}
+          transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+          style={{
+            backfaceVisibility: 'hidden', position: flipped ? 'relative' : 'absolute', inset: 0,
+            background: 'linear-gradient(160deg, #15161A 0%, #1F2126 100%)', borderRadius: '20px',
+            boxShadow: '0 26px 70px -16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)',
+            padding: '30px 28px', display: 'flex', flexDirection: 'column', gap: '16px',
+            textAlign: isRTL ? 'right' : 'left', minHeight: '280px',
+          }}
+        >
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.35)', fontWeight: 700 }}>
+            {isRTL ? 'تفاصيل التذكرة' : 'Pass Details'}
+          </span>
+          <div style={{ height: '1px', background: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.15) 0, rgba(255,255,255,0.15) 6px, transparent 6px, transparent 12px)' }} />
+          {eventLocation && (
+            <div>
+              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                {isRTL ? 'الموقع' : 'Venue'}
               </span>
-              <span style={{ fontSize: '18px', fontWeight: 800, color: themeColor, fontFamily: 'var(--font-sans)' }}>
-                {tableName}
-              </span>
+              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>{eventLocation}</span>
             </div>
           )}
-        </div>
-
-        {/* QR Code area */}
-        {qrImageUrl && (
-          <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
-            <div style={{
-              display: 'inline-block', padding: '12px', background: '#FFFFFF',
-              borderRadius: '12px',
-            }}>
-              <img src={qrImageUrl} alt="Check-in QR" style={{ width: '120px', height: '120px', display: 'block' }} />
-            </div>
-            <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '8px' }}>
-              {isRTL ? 'امسح للتسجيل عند الوصول' : 'Scan to check in at the venue'}
-            </p>
+          <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, fontStyle: 'italic' }}>
+            {isRTL
+              ? 'يُرجى إبراز رمز QR عند الوصول لتسجيل دخولك بسلاسة. هذه التذكرة شخصية وغير قابلة للتحويل.'
+              : 'Present this QR at the entrance for a seamless check-in. This pass is personal and non-transferable.'}
+          </p>
+          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px' }}>Fancy RSVP</span>
+            <span style={{ fontSize: '10px', color: themeColor, fontWeight: 700 }}>
+              {isRTL ? '↺ اضغط للعودة' : '↺ Tap to flip back'}
+            </span>
           </div>
-        )}
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
 
-        {/* Download button */}
-        <button
-          onClick={handleDownload}
-          style={{
-            width: '100%', padding: '12px', borderRadius: '10px',
-            border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
-            color: 'rgba(255,255,255,0.7)', fontSize: '13px', fontWeight: 600,
-            cursor: 'pointer', fontFamily: 'var(--font-sans)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#FFFFFF'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-        >
-          📥 {isRTL ? 'تحميل بطاقة الدخول' : 'Download Guest Pass'}
-        </button>
-
-        {/* Fancy branding */}
-        <p style={{
-          textAlign: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.2)',
-          fontFamily: 'var(--font-sans)', letterSpacing: '1px',
-        }}>
-          Powered by Fancy RSVP
-        </p>
-      </div>
-    </motion.div>
+function Field({ label, value, isRTL }) {
+  if (!value) return null;
+  return (
+    <div>
+      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '2px' }}>
+        {label}
+      </span>
+      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{value}</span>
+    </div>
   );
 }
 

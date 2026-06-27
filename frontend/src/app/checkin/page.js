@@ -48,18 +48,19 @@ export default function CheckInPage() {
 
   useEffect(() => { if (eventId) fetchCheckInSummary(); }, [fetchCheckInSummary, eventId]);
 
-  useEffect(() => { if (!eventId || !authReady) return; if (!searchQuery.trim()) { setSearchResults([]); return; } const delaySearch = setTimeout(async () => { try { const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${encodeURIComponent(searchQuery)}`, { credentials: 'include' }); const data = await res.json(); if (data.success) setSearchResults(data.results); } catch (err) { /* search failed silently */ } }, 300); return () => clearTimeout(delaySearch); }, [searchQuery, eventId, authReady]);
+  useEffect(() => { if (!eventId || !authReady) return; if (!searchQuery.trim()) { setSearchResults([]); return; } const delaySearch = setTimeout(async () => { try { const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${encodeURIComponent(searchQuery)}`, { credentials: 'include' }); const data = await res.json(); if (data.success) setSearchResults(data.data?.results || []); } catch (err) { /* search failed silently */ } }, 300); return () => clearTimeout(delaySearch); }, [searchQuery, eventId, authReady]);
 
-  const handleManualCheckIn = async (rsvpId) => {
+  const handleManualCheckIn = async (partyId) => {
     if (!authReady) return;
     try {
-      const res = await fetch(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ rsvpId, checkedInBy: 'Tablet Front-Desk' }) });
+      const res = await fetch(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ partyId, checkedInBy: 'Tablet Front-Desk' }) });
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Check-in failed');
       if (data.success) {
+        const result = data.data;
         setSelectedGuest(prev => prev ? { ...prev, isCheckedIn: true, checkedInAt: new Date().toLocaleTimeString() } : null);
-        setCheckInLogs(logs => [{ rsvpId, guestName: data.guestName, partySize: data.partySize, tableName: data.tableName, checkedInAt: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }), method: 'manual_search' }, ...logs]);
+        setCheckInLogs(logs => [{ partyId, guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, checkedInAt: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }), method: 'manual_search' }, ...logs]);
         fetchCheckInSummary();
-        setOverlayData({ type: 'success', guestName: data.guestName, partySize: data.partySize, tableName: data.tableName, message: 'Guest arrival verified. Welcome to the event!' });
+        setOverlayData({ type: 'success', guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, message: 'Guest arrival verified. Welcome to the event!' });
         setShowConfirmOverlay(true);
       }
     } catch (err) { setOverlayData({ type: 'error', message: err.message }); setShowConfirmOverlay(true); }
@@ -72,10 +73,11 @@ export default function CheckInPage() {
       const data = await res.json();
       if (!res.ok) { setScanStatus({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setOverlayData({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setShowConfirmOverlay(true); return; }
       if (data.success) {
-        setScanStatus({ type: 'success', message: `${data.guestName} (${data.partySize} guests) checked in successfully at ${data.tableName}.` });
-        setCheckInLogs(logs => [{ rsvpId: data.checkInData.rsvp_id, guestName: data.guestName, partySize: data.partySize, tableName: data.tableName, checkedInAt: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }), method: 'qr_scan' }, ...logs]);
+        const result = data.data;
+        setScanStatus({ type: 'success', message: `${result.guestName} (${result.partySize} guests) checked in successfully at ${result.tableName}.` });
+        setCheckInLogs(logs => [{ partyId: result.partyId, guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, checkedInAt: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }), method: 'qr_scan' }, ...logs]);
         fetchCheckInSummary();
-        setOverlayData({ type: 'success', guestName: data.guestName, partySize: data.partySize, tableName: data.tableName, message: 'QR Ticket credentials verified successfully!' });
+        setOverlayData({ type: 'success', guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, message: 'QR Ticket credentials verified successfully!' });
         setShowConfirmOverlay(true);
       }
     } catch (err) { setScanStatus({ type: 'error', message: 'Could not connect to scanner backend service.' }); setOverlayData({ type: 'error', message: 'Could not connect to scanner backend service.' }); setShowConfirmOverlay(true); }

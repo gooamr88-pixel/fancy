@@ -849,7 +849,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete
               {/* Action Buttons */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <Link
-                  href={`/${slug}/rsvp${guestRsvp?.id ? `?rsvp_id=${guestRsvp.id}` : ''}${isRTL ? `${guestRsvp?.id ? '&' : '?'}lang=ar` : ''}`}
+                  href={`/${slug}/rsvp${guestRsvp?.id ? `?party_id=${guestRsvp.id}` : ''}${isRTL ? `${guestRsvp?.id ? '&' : '?'}lang=ar` : ''}`}
                   style={{
                     height: 52, borderRadius: 14, textDecoration: 'none',
                     background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary || '#D7BE80'})`,

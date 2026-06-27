@@ -1,7 +1,7 @@
 'use client';
 import { toast } from '../utils/toast';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../utils/apiClient';
@@ -244,15 +244,18 @@ export default function DashboardPage() {
       if (statsData?.success) setStats(statsData.stats);
       if (tablesData?.success) setTables(tablesData.tables);
       if (rsvpsData?.success) {
-        const formattedGuests = rsvpsData.rsvps.map(r => {
+        const formattedGuests = (rsvpsData.data?.rsvps || []).map(r => {
           const assignedTableId = r.seating_assignments && r.seating_assignments.length > 0 ? r.seating_assignments[0].table_id : '';
-          const guestMeals = r.rsvp_guests?.map(rg => rg.meal_selection).filter(Boolean).join(', ') || '-';
+          const party = r.guests || [];
+          const primary = party.find(g => g.is_primary_contact) || party[0] || {};
+          const guestMeals = party.map(g => g.meal_selection).filter(Boolean).join(', ') || '-';
+          const wasInvited = (r.invitations || []).some(i => ['sent', 'delivered', 'opened', 'responded'].includes(i.status));
           return {
-            id: r.id, guest_name: r.guest_name, party_size: r.party_size, response: r.response,
-            email: r.email || '-', phone: r.phone || '-', tableId: assignedTableId, meal: guestMeals,
-            invitation_sent: !!r.invitation_sent,
+            id: r.id, guest_name: r.label, party_size: party.length || 1, response: r.response,
+            email: primary.email || '-', phone: primary.phone || '-', tableId: assignedTableId, meal: guestMeals,
+            invitation_sent: wasInvited,
             // Full per-companion details so the organizer sees everyone in the party.
-            guests: r.rsvp_guests || [],
+            guests: party,
             notes: r.notes || '',
             timestamp: r.created_at || null
           };
@@ -322,83 +325,7 @@ export default function DashboardPage() {
     } catch (err) { toast.error(err.message); }
   }, [apiUrl, eventId, rsvps, loadDashboardData]);
 
-  const handleSendInvitations = useCallback(async () => {
-    if (!eventId) return;
-    const uninvited = rsvps.filter(g => g.email && g.email !== '-' && !g.invitation_sent).length;
-    const confirmMsg = uninvited > 0
-      ? `Send an email invitation (Accept / Decline / Maybe) to ${uninvited} guest${uninvited === 1 ? '' : 's'} who haven't been invited yet?`
-      : 'All guests with an email have already been invited. Re-send invitations to everyone?';
-    if (!window.confirm(confirmMsg)) return;
-    try {
-      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/send-invitations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ resend: uninvited === 0 })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || 'Failed to send invitations.');
-      toast.success(data.message);
-      loadDashboardData();
-    } catch (err) {
-      toast.error(err.message);
-    }
-  }, [apiUrl, eventId, rsvps, loadDashboardData]);
-
-  // Debounced authoritative reload — reconciles optimistic realtime updates with backend truth.
-  const reconcileTimer = useRef(null);
-  const scheduleReconcile = useCallback(() => {
-    if (reconcileTimer.current) clearTimeout(reconcileTimer.current);
-    reconcileTimer.current = setTimeout(() => { loadDashboardData(); }, 1500);
-  }, [loadDashboardData]);
-
-  useEffect(() => () => { if (reconcileTimer.current) clearTimeout(reconcileTimer.current); }, []);
-
-  const handleRealtimeRsvp = useCallback((payload) => {
-    if (payload.eventType === 'INSERT') {
-      const r = payload.new;
-      // Mock-demo rows (no Supabase configured) have no backend counterpart — keep them
-      // purely optimistic. Real rows get reconciled against authoritative stats shortly after.
-      const isMock = typeof r.id === 'string' && r.id.startsWith('mock-');
-      const isYes = r.response === 'yes' || r.response === 'accepted' || r.response === 'attending';
-      const isNo = r.response === 'no' || r.response === 'declined' || r.response === 'not attending';
-      const formatted = {
-        id: r.id, guest_name: r.guest_name, party_size: r.party_size, response: r.response,
-        email: r.email || '-', phone: r.phone || '-', tableId: '', meal: r.meal || '-',
-        timestamp: new Date().toISOString()
-      };
-      setRsvps(prev => [formatted, ...prev]);
-      setStats(prev => {
-        const size = r.party_size || 1;
-        const newAttendingGuests = isYes ? prev.attendingGuests + size : prev.attendingGuests;
-        const newDeclinedGuests = isNo ? prev.declinedGuests + size : prev.declinedGuests;
-        const newPendingGuests = (!isYes && !isNo) ? prev.pendingGuests + size : prev.pendingGuests;
-        const newAttendingParties = isYes ? prev.attendingParties + 1 : prev.attendingParties;
-        const newDeclinedParties = isNo ? prev.declinedParties + 1 : prev.declinedParties;
-        const newPendingParties = (!isYes && !isNo) ? prev.pendingParties + 1 : prev.pendingParties;
-        const newTotalExpected = isYes ? prev.totalExpectedGuests + size : prev.totalExpectedGuests;
-        const newMealSummary = { ...prev.mealSummary };
-        if (isYes && r.meal && r.meal !== 'None') { newMealSummary[r.meal] = (newMealSummary[r.meal] || 0) + 1; }
-        return {
-          ...prev,
-          invitedParties: prev.invitedParties + 1,
-          attendingParties: newAttendingParties,
-          attendingGuests: newAttendingGuests,
-          declinedParties: newDeclinedParties,
-          declinedGuests: newDeclinedGuests,
-          pendingParties: newPendingParties,
-          pendingGuests: newPendingGuests,
-          totalExpectedGuests: newTotalExpected,
-          mealSummary: newMealSummary,
-        };
-      });
-      // Reconcile real inserts with authoritative backend stats (also refreshes
-      // seating/meal aggregates the optimistic math can't compute).
-      if (!isMock) scheduleReconcile();
-    } else { loadDashboardData(); }
-  }, [loadDashboardData, scheduleReconcile]);
-
-  useRealtimeRSVPs(eventId, handleRealtimeRsvp);
+  useRealtimeRSVPs(eventId, loadDashboardData);
 
   const totalSeatedCountText = useMemo(() => `${stats.seatingAssignedGuests} / ${stats.attendingGuests}`, [stats.seatingAssignedGuests, stats.attendingGuests]);
 

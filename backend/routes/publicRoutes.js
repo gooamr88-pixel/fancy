@@ -73,7 +73,7 @@ router.post('/events/:slug/rsvp', [
 
 // Public self-service check-in
 router.post('/events/:slug/self-checkin', [
-  body('rsvpId').isUUID().withMessage('Valid RSVP ID is required'),
+  body('partyId').isUUID().withMessage('Valid party ID is required'),
   body('guestName').optional().trim().isLength({ max: 200 }).withMessage('Guest name too long'),
   validate
 ], checkinController.selfCheckIn);
@@ -82,7 +82,7 @@ router.post('/events/:slug/self-checkin', [
 router.post('/events/:slug/analytics', [
   body('eventType').trim().notEmpty().withMessage('Event type is required'),
   body('sessionId').optional().trim().isLength({ max: 100 }),
-  body('rsvpId').optional().isUUID(),
+  body('partyId').optional().isUUID(),
   validate
 ], trackGuestEvent);
 

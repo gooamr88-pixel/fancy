@@ -45,7 +45,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
     ? guest.guest_name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?';
 
-  // Companions the guest brought (rsvp_guests). The primary guest is included in
+  // Companions the guest brought (guests). The primary guest is included in
   // that table, so a party of N typically has N rows; surface them all.
   const party = Array.isArray(guest.guests) ? guest.guests : [];
   const hasDetails = party.length > 0 || (guest.notes && guest.notes.trim());
@@ -174,7 +174,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
                     <span style={{ fontSize: '12px', fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)' }}>
                       {p.full_name || 'Unnamed guest'}
                     </span>
-                    {p.is_primary && <span style={{ fontSize: '8px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.gold, background: 'rgba(184,148,79,0.12)', padding: '2px 6px', borderRadius: '4px' }}>Primary</span>}
+                    {p.is_primary_contact && <span style={{ fontSize: '8px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.gold, background: 'rgba(184,148,79,0.12)', padding: '2px 6px', borderRadius: '4px' }}>Primary</span>}
                     {p.meal_selection && (
                       <span style={{ fontSize: '10px', color: COLORS.stone, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8zM6 1v3M10 1v3M14 1v3"/></svg>

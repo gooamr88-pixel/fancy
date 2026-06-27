@@ -1,117 +1,57 @@
 const { supabase } = require('../config/supabase');
-const { verifyTicketToken } = require('../utils/qrHelper');
+const tokenService = require('../services/tokenService');
+const guestService = require('../services/guestService');
+const { isEventLiveForGuests } = require('../utils/eventAccess');
+const { sendOk, sendFail } = require('../utils/responseEnvelope');
 const { broadcast } = require('../utils/realtime');
 
-/** Escape special characters in user input before using it in a LIKE / ILIKE pattern. */
-function escapeLikePattern(str) {
-  return str.replace(/[%_\\]/g, '\\$&');
-}
-
 /**
- * Scan QR ticket and check-in guest.
+ * Scan QR ticket and check in the whole party it represents.
  * POST /api/v1/events/:eventId/checkin/scan
  */
 const scanCheckIn = async (req, res, next) => {
   const { eventId } = req.params;
   const { token, checkedInBy } = req.body;
 
-  if (!token) {
-    return res.status(400).json({ success: false, error: 'token is required.' });
+  if (!token) return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'token is required.' });
+
+  let decoded;
+  try {
+    decoded = tokenService.verifyQrTicket(token);
+  } catch {
+    return sendFail(res, { status: 400, error: 'INVALID_TICKET', message: 'The QR Code is invalid or has been tampered with.' });
+  }
+
+  if (decoded.eventId !== eventId) {
+    return sendFail(res, { status: 400, error: 'EVENT_MISMATCH', message: 'This ticket belongs to a different event.' });
   }
 
   try {
-    // 1. Verify and decode JWT token
-    let decoded;
-    try {
-      decoded = verifyTicketToken(token);
-    } catch (err) {
-      return res.status(400).json({
-        success: false,
-        error: 'INVALID_TICKET',
-        message: 'The QR Code is invalid or has been tampered with.'
-      });
-    }
+    const { data: party } = await supabase.from('rsvp_parties').select('label').eq('id', decoded.partyId).single();
+    const result = await guestService.checkInParty(eventId, decoded.partyId, { method: 'qr_scan', checkedInBy: checkedInBy || null });
 
-    const { guest_id, event_id: tokenEventId, table_name, party_size } = decoded;
-
-    // 2. Validate event match
-    if (tokenEventId !== eventId) {
-      return res.status(400).json({
-        success: false,
-        error: 'EVENT_MISMATCH',
-        message: 'This ticket belongs to a different event.'
-      });
-    }
-
-    // 3. Perform check-in (insert directly, handle duplicate via DB UNIQUE constraint)
-    const { data: checkInData, error: checkInError } = await supabase
-      .from('check_ins')
-      .insert({
-        event_id: eventId,
-        rsvp_id: guest_id,
-        checked_in_by: checkedInBy || 'QR Scanner',
-        method: 'qr_scan',
-        party_count_arrived: party_size
-      })
-      .select()
-      .single();
-
-    if (checkInError) {
-      // Handle duplicate check-in (UNIQUE constraint violation)
-      if (checkInError.code === '23505') {
-        const { data: existingCheckIn } = await supabase
-          .from('check_ins')
-          .select('id, checked_in_at')
-          .eq('event_id', eventId)
-          .eq('rsvp_id', guest_id)
-          .single();
-
-        return res.status(409).json({
-          success: false,
-          error: 'ALREADY_CHECKED_IN',
-          message: `Guest already checked in at ${existingCheckIn ? new Date(existingCheckIn.checked_in_at).toLocaleTimeString() : 'an earlier time'}`,
-          checkedInAt: existingCheckIn?.checked_in_at
+    if (!result.success) {
+      if (result.error === 'ALREADY_CHECKED_IN') {
+        return sendFail(res, {
+          status: 409, error: 'ALREADY_CHECKED_IN',
+          message: `${party?.label || 'Guest'} already checked in at ${result.checkedInAt ? new Date(result.checkedInAt).toLocaleTimeString() : 'an earlier time'}`,
         });
       }
-      return res.status(500).json({
-        success: false,
-        error: 'CHECKIN_FAILED',
-        message: 'Could not record check-in in database.'
-      });
+      return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
     }
 
-    // 5. Fetch guest name for response
-    const { data: rsvp } = await supabase
-      .from('rsvps')
-      .select('guest_name')
-      .eq('id', guest_id)
-      .single();
-
-    // Insert activity log
     await supabase.from('activity_logs').insert({
-      event_id: eventId,
-      action: 'guest_checked_in',
-      entity_type: 'check_in',
-      entity_id: checkInData.id,
-      metadata: { guest_name: rsvp?.guest_name, party_size, method: 'qr_scan' }
+      event_id: eventId, action: 'guest_checked_in', entity_type: 'check_in', entity_id: decoded.partyId,
+      metadata: { guest_name: party?.label, party_size: decoded.partySize, method: 'qr_scan' },
     });
 
-    // Broadcast checkin event (fire-and-forget REST broadcast — no per-request socket).
     broadcast(eventId, 'checkin_update', {
-      rsvpId: guest_id,
-      guestName: rsvp?.guest_name,
-      partySize: party_size,
-      tableName: table_name,
-      method: 'qr_scan',
+      partyId: decoded.partyId, guestName: party?.label, partySize: result.totalGuests, tableName: decoded.tableName, method: 'qr_scan',
     });
 
-    return res.status(200).json({
-      success: true,
-      message: `${rsvp?.guest_name || 'Guest'} checked in successfully.`,
-      guestName: rsvp?.guest_name,
-      tableName: table_name,
-      partySize: party_size,
-      checkInData
+    return sendOk(res, {
+      message: `${party?.label || 'Guest'} checked in successfully.`,
+      partyId: decoded.partyId, guestName: party?.label, tableName: decoded.tableName, partySize: result.totalGuests, checkedInCount: result.checkedInCount,
     });
   } catch (err) {
     next(err);
@@ -119,304 +59,112 @@ const scanCheckIn = async (req, res, next) => {
 };
 
 /**
- * Performs a manual check-in by RSVP ID.
+ * Manual check-in by party id (staff search).
  * POST /api/v1/events/:eventId/checkin/manual
  */
 const manualCheckIn = async (req, res, next) => {
   const { eventId } = req.params;
-  const { rsvpId, checkedInBy } = req.body;
+  const { partyId, checkedInBy } = req.body;
 
-  if (!rsvpId) {
-    return res.status(400).json({ success: false, error: 'rsvpId is required.' });
-  }
+  if (!partyId) return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'partyId is required.' });
 
   try {
-    // 1. Fetch guest party details and table assignment
-    const { data: guestData, error: guestError } = await supabase
-      .from('rsvps')
-      .select('*, seating_assignments(tables(table_name))')
-      .eq('id', rsvpId)
-      .eq('event_id', eventId)
-      .single();
+    const { data: party, error: partyError } = await supabase
+      .from('rsvp_parties').select('label, seating_assignments(tables(table_name))').eq('id', partyId).eq('event_id', eventId).single();
+    if (partyError || !party) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND', message: 'Guest not found.' });
 
-    if (guestError || !guestData) {
-      return res.status(404).json({ success: false, error: 'GUEST_NOT_FOUND', message: 'Guest not found.' });
+    const tableName = party.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
+    const result = await guestService.checkInParty(eventId, partyId, { method: 'manual_search', checkedInBy: checkedInBy || null });
+
+    if (!result.success) {
+      if (result.error === 'ALREADY_CHECKED_IN') return sendFail(res, { status: 409, error: 'ALREADY_CHECKED_IN', message: 'Guest already checked in.' });
+      return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
     }
 
-    // 2. Record check-in (insert directly, handle duplicate via DB UNIQUE constraint)
-    const tableName = guestData.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
-    
-    const { data: checkInData, error: checkInError } = await supabase
-      .from('check_ins')
-      .insert({
-        event_id: eventId,
-        rsvp_id: rsvpId,
-        checked_in_by: checkedInBy || 'Manual Staff Search',
-        method: 'manual_search',
-        party_count_arrived: guestData.party_size
-      })
-      .select()
-      .single();
-
-    if (checkInError) {
-      // Handle duplicate check-in (UNIQUE constraint violation)
-      if (checkInError.code === '23505') {
-        return res.status(409).json({
-          success: false,
-          error: 'ALREADY_CHECKED_IN',
-          message: 'Guest already checked in.'
-        });
-      }
-      return res.status(500).json({ success: false, error: 'CHECKIN_FAILED' });
-    }
-
-    // Insert activity log
     await supabase.from('activity_logs').insert({
-      event_id: eventId,
-      action: 'guest_checked_in',
-      entity_type: 'check_in',
-      entity_id: checkInData.id,
-      metadata: { guest_name: guestData.guest_name, party_size: guestData.party_size, method: 'manual_search' }
+      event_id: eventId, action: 'guest_checked_in', entity_type: 'check_in', entity_id: partyId,
+      metadata: { guest_name: party.label, party_size: result.totalGuests, method: 'manual_search' },
     });
 
-    // Broadcast checkin event (fire-and-forget REST broadcast — no per-request socket).
-    broadcast(eventId, 'checkin_update', {
-      rsvpId,
-      guestName: guestData.guest_name,
-      partySize: guestData.party_size,
-      tableName,
-      method: 'manual_search',
-    });
+    broadcast(eventId, 'checkin_update', { partyId, guestName: party.label, partySize: result.totalGuests, tableName, method: 'manual_search' });
 
-    return res.status(200).json({
-      success: true,
-      message: `${guestData.guest_name} checked in successfully.`,
-      guestName: guestData.guest_name,
-      tableName,
-      partySize: guestData.party_size,
-      checkInData
-    });
+    return sendOk(res, { message: `${party.label} checked in successfully.`, partyId, guestName: party.label, tableName, partySize: result.totalGuests, checkedInCount: result.checkedInCount });
   } catch (err) {
     next(err);
   }
 };
 
 /**
- * Searches guests for autocomplete dropdown at check-in desk.
+ * Searches guests for the autocomplete dropdown at the check-in desk.
  * GET /api/v1/events/:eventId/checkin/search
  */
 const searchGuests = async (req, res, next) => {
   const { eventId } = req.params;
   const { query } = req.query;
-
-  if (!query) {
-    return res.json({ success: true, results: [] });
-  }
+  if (!query) return sendOk(res, { results: [] });
 
   try {
-    // Search by guest name matching query prefix/substring
-    const { data, error } = await supabase
-      .from('rsvps')
-      .select(`
-        id,
-        guest_name,
-        party_size,
-        response,
-        rsvp_guests(
-          full_name,
-          meal_selection,
-          dietary_notes
-        ),
-        seating_assignments(
-          tables(table_name)
-        ),
-        check_ins(
-          id,
-          checked_in_at
-        )
-      `)
-      .eq('event_id', eventId)
-      .ilike('guest_name', `%${escapeLikePattern(query)}%`)
-      .limit(10);
-
-    if (error) throw error;
-
-    const results = data.map(item => {
-      const isCheckedIn = item.check_ins && item.check_ins.length > 0;
-      const tableName = item.seating_assignments && item.seating_assignments.length > 0 
-        ? item.seating_assignments[0]?.tables?.table_name || 'Unassigned'
-        : 'Unassigned';
-      
-      // Extract meal selections from rsvp_guests
-      const meals = (item.rsvp_guests || []).map(g => ({
-        fullName: g.full_name,
-        mealSelection: g.meal_selection,
-        dietaryNotes: g.dietary_notes
-      }));
-
-      return {
-        id: item.id,
-        guestName: item.guest_name,
-        partySize: item.party_size,
-        response: item.response,
-        tableName,
-        isCheckedIn,
-        checkedInAt: isCheckedIn ? item.check_ins[0].checked_in_at : null,
-        meals
-      };
-    });
-
-    return res.json({
-      success: true,
-      results
-    });
+    const results = await guestService.searchGuestsForCheckin(eventId, query, 10);
+    return sendOk(res, { results });
   } catch (err) {
     next(err);
   }
 };
 
 /**
- * Reverses a guest check-in by deleting the check-in record.
+ * Reverses every check-in for a party.
  * POST /api/v1/events/:eventId/checkin/undo
  */
 const undoCheckIn = async (req, res, next) => {
   try {
     const { eventId } = req.params;
-    const { rsvpId } = req.body;
+    const { partyId } = req.body;
+    if (!partyId) return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'partyId is required.' });
 
-    if (!rsvpId) {
-      return res.status(400).json({ success: false, error: 'MISSING_RSVP_ID', message: 'rsvpId is required' });
-    }
+    const removed = await guestService.undoPartyCheckIn(eventId, partyId);
+    if (removed === 0) return sendFail(res, { status: 404, error: 'NOT_FOUND', message: 'No check-in record found for this guest.' });
 
-    const { data, error } = await supabase
-      .from('check_ins')
-      .delete()
-      .eq('event_id', eventId)
-      .eq('rsvp_id', rsvpId)
-      .select();
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'No check-in record found for this guest' });
-    }
-
-    res.json({ success: true, message: 'Check-in reversed successfully' });
+    return sendOk(res, { message: 'Check-in reversed successfully.' });
   } catch (err) {
     next(err);
   }
 };
 
 /**
- * Self-service check-in: guest checks themselves in by providing their RSVP id.
+ * Self-service check-in: a guest checks themselves in with their party id +
+ * matching name (the second factor — a party id alone is an enumerable
+ * capability that travels in shared links, so it must not be sufficient on
+ * its own to mark a no-show as arrived).
  * POST /api/v1/public/events/:slug/self-checkin
  */
 const selfCheckIn = async (req, res, next) => {
   const { slug } = req.params;
-  const { rsvpId, guestName } = req.body;
+  const { partyId, guestName } = req.body;
 
-  // SECURITY: the rsvpId is an enumerable capability that travels in invitation /
-  // SMS links, so it must NOT be sufficient on its own to check a guest in (that
-  // let anyone holding a link mark a no-show as arrived). Require the matching name
-  // as a lightweight second factor — the name check below is now mandatory.
-  if (!rsvpId || !guestName || !guestName.trim()) {
-    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'rsvpId and guestName are required.' });
-  }
-
-  // Require a guest name and enforce that it matches the record below. The public
-  // guest search can surface rsvpIds, so rsvpId alone must not be sufficient to
-  // check a guest in — otherwise anyone could fraudulently check in arbitrary guests.
-  if (!guestName || !guestName.trim()) {
-    return res.status(400).json({ success: false, error: 'GUEST_NAME_REQUIRED', message: 'Guest name is required to confirm your check-in.' });
+  if (!partyId || !guestName || !guestName.trim()) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'partyId and guestName are required.' });
   }
 
   try {
-    // 1. Resolve event
-    const { data: event, error: eventError } = await supabase
-      .from('events')
-      .select('id, is_paid, status')
-      .eq('slug', slug)
-      .single();
+    const { data: event, error: eventError } = await supabase.from('events').select('id, is_paid, status').eq('slug', slug).single();
+    if (eventError || !event) return sendFail(res, { status: 404, error: 'EVENT_NOT_FOUND' });
+    if (!isEventLiveForGuests({ ...event, slug })) return sendFail(res, { status: 403, error: 'EVENT_INACTIVE', message: 'Event is not active.' });
 
-    if (eventError || !event) {
-      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
-    }
+    const party = await guestService.getPartyForSelfCheckIn(event.id, partyId, guestName);
+    if (!party) return sendFail(res, { status: 404, error: 'RSVP_NOT_FOUND', message: 'Guest not found for this event.' });
+    if (party.nameMismatch) return sendFail(res, { status: 400, error: 'NAME_MISMATCH', message: 'Guest name does not match the RSVP record.' });
 
-    if (!event.is_paid || event.status !== 'active') {
-      return res.status(403).json({ success: false, error: 'EVENT_INACTIVE', message: 'Event is not active.' });
-    }
-
-    // 2. Verify RSVP exists and belongs to this event
-    const { data: rsvp, error: rsvpError } = await supabase
-      .from('rsvps')
-      .select('id, guest_name, party_size, seating_assignments(tables(table_name))')
-      .eq('id', rsvpId)
-      .eq('event_id', event.id)
-      .single();
-
-    if (rsvpError || !rsvp) {
-      return res.status(404).json({ success: false, error: 'RSVP_NOT_FOUND', message: 'Guest not found for this event.' });
-    }
-
-    // Mandatory name match (see note above): the provided name must match the RSVP
-    // record (case-insensitive, trimmed) before we record a self check-in.
-    if (rsvp.guest_name.trim().toLowerCase() !== guestName.trim().toLowerCase()) {
-      return res.status(400).json({ success: false, error: 'NAME_MISMATCH', message: 'Guest name does not match the RSVP record.' });
-    }
-
-    // 3. Perform check-in (insert directly, handle duplicate via DB UNIQUE constraint)
-    const { data: checkInData, error: checkInError } = await supabase
-      .from('check_ins')
-      .insert({
-        event_id: event.id,
-        rsvp_id: rsvpId,
-        checked_in_by: 'Self-Service Kiosk',
-        method: 'self_service',
-        party_count_arrived: rsvp.party_size
-      })
-      .select()
-      .single();
-
-    if (checkInError) {
-      // Handle duplicate check-in (UNIQUE constraint violation)
-      if (checkInError.code === '23505') {
-        const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
-        const { data: existingCheckIn } = await supabase
-          .from('check_ins')
-          .select('id, checked_in_at')
-          .eq('event_id', event.id)
-          .eq('rsvp_id', rsvpId)
-          .single();
-
-        return res.status(409).json({
-          success: false,
-          error: 'ALREADY_CHECKED_IN',
-          message: `You are already checked in.`,
-          checkedInAt: existingCheckIn?.checked_in_at,
-          tableName
-        });
+    const result = await guestService.checkInParty(event.id, partyId, { method: 'self_service' });
+    if (!result.success) {
+      if (result.error === 'ALREADY_CHECKED_IN') {
+        return sendFail(res, { status: 409, error: 'ALREADY_CHECKED_IN', message: 'You are already checked in.', meta: { checkedInAt: result.checkedInAt, tableName: party.tableName } });
       }
-      return res.status(500).json({ success: false, error: 'CHECKIN_FAILED' });
+      return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
     }
 
-    const tableName = rsvp.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
+    broadcast(event.id, 'checkin_update', { partyId, guestName: party.label, partySize: result.totalGuests, tableName: party.tableName, method: 'self_service' });
 
-    // Broadcast checkin event (fire-and-forget REST broadcast — no per-request socket).
-    broadcast(event.id, 'checkin_update', {
-      rsvpId,
-      guestName: rsvp.guest_name,
-      partySize: rsvp.party_size,
-      tableName,
-      method: 'self_service',
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: `Welcome, ${rsvp.guest_name}! You are checked in.`,
-      guestName: rsvp.guest_name,
-      tableName,
-      partySize: rsvp.party_size
-    });
+    return sendOk(res, { message: `Welcome, ${party.label}! You are checked in.`, guestName: party.label, tableName: party.tableName, partySize: result.totalGuests });
   } catch (err) {
     next(err);
   }
@@ -427,5 +175,5 @@ module.exports = {
   manualCheckIn,
   searchGuests,
   undoCheckIn,
-  selfCheckIn
+  selfCheckIn,
 };
