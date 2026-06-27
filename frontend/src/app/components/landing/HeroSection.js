@@ -510,7 +510,7 @@ export default function HeroSection() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateColumns: "repeat(3, 1fr)",
               gap: "24px",
               maxWidth: "960px",
               margin: "0 auto",
@@ -535,39 +535,23 @@ export default function HeroSection() {
                 icon: (
                   <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                     <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
-                    <path d="M14 26V18L20 14L26 18V26" stroke="#B8944F" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
-                    <path d="M17 26V22H23V26" stroke="#B8944F" strokeWidth="1.2" fill="none" />
-                    <circle cx="20" cy="11" r="1.5" fill="#D7BE80" />
+                    <path d="M13 27L15 25M18 22L27 13C28.1 11.9 28.1 10.1 27 9C25.9 7.9 24.1 7.9 23 9L14 18M14 18L12 24L18 22" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M25 8L27 10" stroke="#D7BE80" strokeWidth="1" strokeLinecap="round" />
                   </svg>
                 ),
-                title: "Engagements",
-                desc: "Toast to love with beautiful event pages.",
+                title: "Custom",
+                desc: "Design custom event pages tailored to your style.",
               },
               {
                 icon: (
                   <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                     <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
-                    <rect x="13" y="15" width="14" height="12" rx="2" stroke="#B8944F" strokeWidth="1.5" fill="none" />
-                    <path d="M16 15V13C16 11.3431 17.3431 10 19 10H21C22.6569 10 24 11.3431 24 13V15" stroke="#B8944F" strokeWidth="1.2" />
-                    <path d="M17 20H23" stroke="#D7BE80" strokeWidth="1" strokeLinecap="round" />
+                    <path d="M15 16C15 13.2 17.2 11 20 11C21.6 11 22.8 11.8 23.5 12.6C24.2 11.8 25.4 11 27 11C29.8 11 32 13.2 32 16C32 20.8 24.2 25.2 23.5 25.2C22.8 25.2 15 20.8 15 16Z" stroke="#B8944F" strokeWidth="1.5" />
+                    <path d="M8 19C8 16.8 9.8 15 12 15C13.3 15 14.2 15.6 14.8 16.3M14.8 26.2C14.2 26.2 8 22.8 8 19C8 18 8.3 17 9 16.2" stroke="#D7BE80" strokeWidth="1.2" strokeLinecap="round" />
                   </svg>
                 ),
-                title: "Showers",
-                desc: "Plan seamlessly and gather with ease.",
-              },
-              {
-                icon: (
-                  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-                    <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
-                    <rect x="12" y="13" width="16" height="14" rx="1.5" stroke="#B8944F" strokeWidth="1.5" fill="none" />
-                    <line x1="12" y1="18" x2="28" y2="18" stroke="#B8944F" strokeWidth="1" />
-                    <line x1="20" y1="18" x2="20" y2="27" stroke="#D7BE80" strokeWidth="0.8" />
-                    <circle cx="16" cy="22" r="1" fill="#D7BE80" />
-                    <circle cx="24" cy="22" r="1" fill="#D7BE80" />
-                  </svg>
-                ),
-                title: "Corporate Events",
-                desc: "Professional invitations for every occasion.",
+                title: "Eternal Love",
+                desc: "Toast to love with beautiful, eternal pages.",
               },
             ].map((card) => (
               <div key={card.title} className="occasion-card">
