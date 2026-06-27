@@ -3,6 +3,7 @@ import { toast } from '../../utils/toast';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../../utils/apiClient';
+import { supabase } from '../../utils/supabaseClient';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -68,6 +69,11 @@ export default function OrganizerProfile({ events = [] }) {
     newPassword: '',
     confirmPassword: ''
   });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [sessionToRevoke, setSessionToRevoke] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -129,6 +135,50 @@ export default function OrganizerProfile({ events = [] }) {
 
   const handlePasswordChange = (field) => (e) => setPasswordForm(prev => ({ ...prev, [field]: e.target.value }));
 
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('File size exceeds 8MB. Please use a smaller file.');
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      if (!supabase) throw new Error('Supabase client is not initialized.');
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile?.id || 'logo'}-${Date.now()}.${fileExt}`;
+      const filePath = `logos/${fileName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage
+        .from('event-assets')
+        .getPublicUrl(filePath);
+      setForm(prev => ({ ...prev, logo_url: publicUrl }));
+      toast.success('Logo uploaded successfully.');
+    } catch (err) {
+      console.error('Logo upload failed, falling back to base64:', err);
+      if (file.size > 3.5 * 1024 * 1024) {
+        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file.");
+        setLogoUploading(false);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setForm(prev => ({ ...prev, logo_url: event.target.result }));
+        setLogoUploading(false);
+      };
+      reader.onerror = () => {
+        toast.error('Failed to read the logo file.');
+        setLogoUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Name cannot be empty.'); return; }
     setSaving(true);
@@ -179,7 +229,6 @@ export default function OrganizerProfile({ events = [] }) {
   };
 
   const handleRevokeSession = async (sessionId) => {
-    if (!confirm('Are you sure you want to log out this device?')) return;
     try {
       await apiFetch(`/auth/sessions/${sessionId}/revoke`, { method: 'POST' });
       toast.success('Device logged out successfully.');
@@ -315,10 +364,26 @@ export default function OrganizerProfile({ events = [] }) {
         <div style={rowStyle}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Logo / Avatar URL</label>
-            <input value={form.logo_url} onChange={handleChange('logo_url')} placeholder="https://example.com/logo.png" style={inputStyle}
-              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-            />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input value={form.logo_url} onChange={handleChange('logo_url')} placeholder="https://example.com/logo.png" 
+                style={{ ...inputStyle, flex: 1 }}
+                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+              />
+              <input type="file" accept="image/*" onChange={handleLogoUpload} disabled={logoUploading} style={{ display: 'none' }} id="logo-upload-input" />
+              <label htmlFor="logo-upload-input" style={{
+                padding: '10px 20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+                background: COLORS.white, color: COLORS.charcoal, fontSize: '13px', fontWeight: 600,
+                cursor: logoUploading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                whiteSpace: 'nowrap', transition: 'all 0.2s', userSelect: 'none'
+              }}
+              onMouseEnter={(e) => { if (!logoUploading) { e.currentTarget.style.background = COLORS.softBg; e.currentTarget.style.borderColor = COLORS.gold; } }}
+              onMouseLeave={(e) => { if (!logoUploading) { e.currentTarget.style.background = COLORS.white; e.currentTarget.style.borderColor = COLORS.border; } }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                {logoUploading ? 'Uploading…' : 'Upload'}
+              </label>
+            </div>
           </div>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Brand Website</label>
@@ -399,25 +464,73 @@ export default function OrganizerProfile({ events = [] }) {
         <form onSubmit={handleChangePassword}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Current Password</label>
-            <input type="password" value={passwordForm.currentPassword} onChange={handlePasswordChange('currentPassword')} placeholder="••••••••" style={inputStyle}
-              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input type={showCurrentPassword ? "text" : "password"} value={passwordForm.currentPassword} onChange={handlePasswordChange('currentPassword')} placeholder="••••••••" 
+                style={{ ...inputStyle, paddingRight: '40px' }}
+                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+              />
+              <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                style={{
+                  position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  color: COLORS.stone, outline: 'none', padding: 0
+                }}
+              >
+                {showCurrentPassword ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                )}
+              </button>
+            </div>
           </div>
           <div style={rowStyle}>
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>New Password</label>
-              <input type="password" value={passwordForm.newPassword} onChange={handlePasswordChange('newPassword')} placeholder="••••••••" style={inputStyle}
-                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-                onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input type={showNewPassword ? "text" : "password"} value={passwordForm.newPassword} onChange={handlePasswordChange('newPassword')} placeholder="••••••••" 
+                  style={{ ...inputStyle, paddingRight: '40px' }}
+                  onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                  onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+                />
+                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    color: COLORS.stone, outline: 'none', padding: 0
+                  }}
+                >
+                  {showNewPassword ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                  )}
+                </button>
+              </div>
             </div>
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Confirm New Password</label>
-              <input type="password" value={passwordForm.confirmPassword} onChange={handlePasswordChange('confirmPassword')} placeholder="••••••••" style={inputStyle}
-                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-                onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input type={showConfirmPassword ? "text" : "password"} value={passwordForm.confirmPassword} onChange={handlePasswordChange('confirmPassword')} placeholder="••••••••" 
+                  style={{ ...inputStyle, paddingRight: '40px' }}
+                  onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                  onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+                />
+                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                    color: COLORS.stone, outline: 'none', padding: 0
+                  }}
+                >
+                  {showConfirmPassword ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
           <button type="submit" disabled={changingPassword}
@@ -456,7 +569,6 @@ export default function OrganizerProfile({ events = [] }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {sessions.map((s) => {
               const active = s.isActive;
-              // If session is revoked, skip rendering or display as inactive
               if (!active) return null;
 
               return (
@@ -492,7 +604,7 @@ export default function OrganizerProfile({ events = [] }) {
                     </div>
                   </div>
                   {!s.isCurrent && (
-                    <button onClick={() => handleRevokeSession(s.id)}
+                    <button onClick={() => setSessionToRevoke(s)}
                       style={{
                         padding: '6px 12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`,
                         background: COLORS.white, color: COLORS.danger, fontWeight: 600, fontSize: '11px',
@@ -510,6 +622,80 @@ export default function OrganizerProfile({ events = [] }) {
           </div>
         )}
       </div>
+
+      {/* ═══ CONFIRM REVOKE SESSION MODAL ═══ */}
+      {sessionToRevoke && (
+        <div
+          onClick={() => setSessionToRevoke(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '90%', maxWidth: '400px', background: COLORS.white,
+              borderRadius: '16px', border: `1px solid ${COLORS.border}`, boxShadow: '0 20px 40px rgba(0,0,0,0.08)',
+              padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px',
+              animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: COLORS.danger }}>
+              <div style={{
+                background: '#FEF2F2', borderRadius: '50%', width: '40px', height: '40px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+              </div>
+              <h4 style={{ margin: 0, fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600, color: COLORS.charcoal }}>
+                Log Out Device?
+              </h4>
+            </div>
+
+            <p style={{ margin: 0, fontSize: '13px', color: COLORS.stone, fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
+              Are you sure you want to log out <strong>{sessionToRevoke.device_label || 'this device'}</strong> (IP: {sessionToRevoke.ip || 'unknown'})? You will be signed out on that device immediately.
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button
+                onClick={() => setSessionToRevoke(null)}
+                style={{
+                  padding: '8px 16px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+                  background: COLORS.white, color: COLORS.stone, fontSize: '13px', fontWeight: 600,
+                  cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.softBg; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const id = sessionToRevoke.id;
+                  setSessionToRevoke(null);
+                  await handleRevokeSession(id);
+                }}
+                style={{
+                  padding: '8px 16px', borderRadius: '8px', border: 'none',
+                  background: COLORS.danger, color: COLORS.white, fontSize: '13px', fontWeight: 700,
+                  cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.dangerHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.danger; }}
+              >
+                Log Out Device
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      `}</style>
 
     </div>
   );

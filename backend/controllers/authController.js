@@ -808,7 +808,7 @@ const changePassword = async (req, res, next) => {
     // Verify current password using the existing verifyPassword function
     const isValid = await verifyPassword(currentPassword, org.password_hash, org.email);
     if (!isValid) {
-      return res.status(401).json({ success: false, error: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
+      return res.status(400).json({ success: false, error: 'WRONG_PASSWORD', message: 'Current password is incorrect' });
     }
 
     // Hash new password
