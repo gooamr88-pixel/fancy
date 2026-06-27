@@ -215,6 +215,18 @@ export default function SeatingMapPage() {
   const [saving, setSaving] = useState(false);
   const layoutDirty = movedIds.size > 0;
 
+  // Professional Editor State
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const historyIndexRef = useRef(-1);
+  const initialLayoutRef = useRef([]);
+
+  const updateHistoryIndex = (val) => {
+    setHistoryIndex(val);
+    historyIndexRef.current = val;
+  };
+
   // guest list (server-paginated + searchable + virtualized)
   const [guests, setGuests] = useState([]);
   const [guestPage, setGuestPage] = useState(1);
@@ -283,25 +295,36 @@ export default function SeatingMapPage() {
         setElements(prev => {
           const dirty = movedIdsRef.current;
           const geo = dirtyGeometryRef.current;
+          let updated = serverElements;
           // If nothing is dirty locally, fast-path replace
-          if (dirty.size === 0 && Object.keys(geo).length === 0) return serverElements;
-          // Build overlay of local unsaved changes keyed by id
-          const localOverrides = {};
-          prev.forEach(el => {
-            const overrides = {};
-            if (dirty.has(el.id)) {
-              overrides.position_x = el.position_x;
-              overrides.position_y = el.position_y;
-            }
-            if (geo[el.id]) {
-              Object.assign(overrides, geo[el.id]);
-            }
-            if (Object.keys(overrides).length > 0) localOverrides[el.id] = overrides;
-          });
-          // Merge: server data + local dirty overrides
-          return serverElements.map(el =>
-            localOverrides[el.id] ? { ...el, ...localOverrides[el.id] } : el
-          );
+          if (dirty.size === 0 && Object.keys(geo).length === 0) {
+            updated = serverElements;
+          } else {
+            // Build overlay of local unsaved changes keyed by id
+            const localOverrides = {};
+            prev.forEach(el => {
+              const overrides = {};
+              if (dirty.has(el.id)) {
+                overrides.position_x = el.position_x;
+                overrides.position_y = el.position_y;
+              }
+              if (geo[el.id]) {
+                Object.assign(overrides, geo[el.id]);
+              }
+              if (Object.keys(overrides).length > 0) localOverrides[el.id] = overrides;
+            });
+            // Merge: server data + local dirty overrides
+            updated = serverElements.map(el =>
+              localOverrides[el.id] ? { ...el, ...localOverrides[el.id] } : el
+            );
+          }
+
+          initialLayoutRef.current = serverElements;
+          const snap = updated.map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+          setHistory([snap]);
+          updateHistoryIndex(0);
+
+          return updated;
         });
       }
       const sData = await sRes.json().catch(() => ({}));
@@ -472,14 +495,30 @@ export default function SeatingMapPage() {
       } else if (it.mode === 'move') {
         const dx = (e.clientX - it.startX) / view.scale / WORLD_W * 100;
         const dy = (e.clientY - it.startY) / view.scale / WORLD_H * 100;
-        const newPos = { id: it.id, x: clamp(it.origX + dx, 0, 97), y: clamp(it.origY + dy, 0, 97) };
+        let finalX = it.origX + dx;
+        let finalY = it.origY + dy;
+        
+        if (snapToGrid) {
+          const stepX = (32 / WORLD_W) * 100;
+          const stepY = (32 / WORLD_H) * 100;
+          finalX = Math.round(finalX / stepX) * stepX;
+          finalY = Math.round(finalY / stepY) * stepY;
+        }
+
+        const newPos = { id: it.id, x: clamp(finalX, 0, 97), y: clamp(finalY, 0, 97) };
         dragPosRef.current = newPos;
         setDragPos(newPos);
       } else if (it.mode === 'resize') {
         const dw = (e.clientX - it.startX) / view.scale;
         const dh = (e.clientY - it.startY) / view.scale;
-        it.newW = clamp(it.origW + dw, 60, 900);
-        it.newH = clamp(it.origH + dh, 50, 900);
+        let newW = it.origW + dw;
+        let newH = it.origH + dh;
+        if (snapToGrid) {
+          newW = Math.round(newW / 32) * 32;
+          newH = Math.round(newH / 32) * 32;
+        }
+        it.newW = clamp(newW, 60, 900);
+        it.newH = clamp(newH, 50, 900);
         setElements(prev => prev.map(el => el.id === it.id ? { ...el, width: it.newW, height: it.newH } : el));
       } else if (it.mode === 'rotate') {
         it.newRot = Math.round(it.origRot + (e.clientX - it.startX) * 0.5);
@@ -494,7 +533,17 @@ export default function SeatingMapPage() {
       // Read latest dragPos from ref (not stale closure value)
       const currentDragPos = dragPosRef.current;
       if (it.mode === 'move' && currentDragPos && currentDragPos.id === it.id) {
-        setElements(prev => prev.map(el => el.id === it.id ? { ...el, position_x: currentDragPos.x, position_y: currentDragPos.y } : el));
+        setElements(prev => {
+          const updated = prev.map(el => el.id === it.id ? { ...el, position_x: currentDragPos.x, position_y: currentDragPos.y } : el);
+          const snap = updated.map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+          setHistory(h => {
+            const nextHistory = h.slice(0, historyIndexRef.current + 1);
+            historyIndexRef.current = nextHistory.length;
+            setHistoryIndex(nextHistory.length);
+            return [...nextHistory, snap];
+          });
+          return updated;
+        });
         dragPosRef.current = null;
         setDragPos(null);
         setMovedIds(prev => new Set(prev).add(it.id));
@@ -512,7 +561,7 @@ export default function SeatingMapPage() {
     window.addEventListener('pointerup', onUp);
     return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
     // view.scale is needed for coordinate conversion; dragPos intentionally read from ref
-  }, [view.scale, persistGeometry]);
+  }, [view.scale, persistGeometry, snapToGrid]);
 
   /* ── zoom on wheel (anchored to cursor) ── */
   const onWheel = useCallback((e) => {
@@ -624,6 +673,12 @@ export default function SeatingMapPage() {
       }
       setMovedIds(new Set());
       dirtyGeometryRef.current = {};
+
+      // Reset history baseline to the saved state
+      initialLayoutRef.current = elements;
+      const snap = elements.map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+      setHistory([snap]);
+      updateHistoryIndex(0);
     } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
@@ -715,6 +770,163 @@ export default function SeatingMapPage() {
       loadLayout();
     } catch (err) { toast.error(err.message); }
   };
+
+  // Undo/Redo movement handlers
+  const undo = useCallback(() => {
+    if (historyIndexRef.current <= 0) return;
+    const newIdx = historyIndexRef.current - 1;
+    updateHistoryIndex(newIdx);
+    
+    setHistory(h => {
+      const snap = h[newIdx];
+      if (snap) {
+        setElements(prev => prev.map(el => {
+          const match = snap.find(s => s.id === el.id);
+          if (match) return { ...el, position_x: match.x, position_y: match.y };
+          return el;
+        }));
+        
+        // Recalculate movedIds
+        const dirty = new Set();
+        snap.forEach(item => {
+          const orig = initialLayoutRef.current.find(o => o.id === item.id);
+          if (orig && (Number(orig.position_x) !== Number(item.x) || Number(orig.position_y) !== Number(item.y))) {
+            dirty.add(item.id);
+          }
+        });
+        setMovedIds(dirty);
+      }
+      return h;
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setHistory(h => {
+      if (historyIndexRef.current >= h.length - 1) return h;
+      const newIdx = historyIndexRef.current + 1;
+      updateHistoryIndex(newIdx);
+      const snap = h[newIdx];
+      if (snap) {
+        setElements(prev => prev.map(el => {
+          const match = snap.find(s => s.id === el.id);
+          if (match) return { ...el, position_x: match.x, position_y: match.y };
+          return el;
+        }));
+        
+        // Recalculate movedIds
+        const dirty = new Set();
+        snap.forEach(item => {
+          const orig = initialLayoutRef.current.find(o => o.id === item.id);
+          if (orig && (Number(orig.position_x) !== Number(item.x) || Number(orig.position_y) !== Number(item.y))) {
+            dirty.add(item.id);
+          }
+        });
+        setMovedIds(dirty);
+      }
+      return h;
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      if (!selected) return;
+
+      const step = e.shiftKey ? 10 : 1; // 10px shift-nudging, 1px default
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const currentY = pctToPx(selected.position_y, WORLD_H);
+        let targetY = currentY - step;
+        if (snapToGrid) targetY = Math.round(targetY / 32) * 32;
+        const newYPct = clamp((targetY / WORLD_H) * 100, 0, 97);
+        
+        setElements(prev => {
+          const updated = prev.map(el => el.id === selected.id ? { ...el, position_y: newYPct } : el);
+          const snap = updated.map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+          setHistory(h => {
+            const nextHistory = h.slice(0, historyIndexRef.current + 1);
+            updateHistoryIndex(nextHistory.length);
+            return [...nextHistory, snap];
+          });
+          return updated;
+        });
+        setMovedIds(prev => new Set(prev).add(selected.id));
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const currentY = pctToPx(selected.position_y, WORLD_H);
+        let targetY = currentY + step;
+        if (snapToGrid) targetY = Math.round(targetY / 32) * 32;
+        const newYPct = clamp((targetY / WORLD_H) * 100, 0, 97);
+        
+        setElements(prev => {
+          const updated = prev.map(el => el.id === selected.id ? { ...el, position_y: newYPct } : el);
+          const snap = updated.map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+          setHistory(h => {
+            const nextHistory = h.slice(0, historyIndexRef.current + 1);
+            updateHistoryIndex(nextHistory.length);
+            return [...nextHistory, snap];
+          });
+          return updated;
+        });
+        setMovedIds(prev => new Set(prev).add(selected.id));
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const currentX = pctToPx(selected.position_x, WORLD_W);
+        let targetX = currentX - step;
+        if (snapToGrid) targetX = Math.round(targetX / 32) * 32;
+        const newXPct = clamp((targetX / WORLD_W) * 100, 0, 97);
+        
+        setElements(prev => {
+          const updated = prev.map(el => el.id === selected.id ? { ...el, position_x: newXPct } : el);
+          const snap = updated.map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+          setHistory(h => {
+            const nextHistory = h.slice(0, historyIndexRef.current + 1);
+            updateHistoryIndex(nextHistory.length);
+            return [...nextHistory, snap];
+          });
+          return updated;
+        });
+        setMovedIds(prev => new Set(prev).add(selected.id));
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        const currentX = pctToPx(selected.position_x, WORLD_W);
+        let targetX = currentX + step;
+        if (snapToGrid) targetX = Math.round(targetX / 32) * 32;
+        const newXPct = clamp((targetX / WORLD_W) * 100, 0, 97);
+        
+        setElements(prev => {
+          const updated = prev.map(el => el.id === selected.id ? { ...el, position_x: newXPct } : el);
+          const snap = updated.map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+          setHistory(h => {
+            const nextHistory = h.slice(0, historyIndexRef.current + 1);
+            updateHistoryIndex(nextHistory.length);
+            return [...nextHistory, snap];
+          });
+          return updated;
+        });
+        setMovedIds(prev => new Set(prev).add(selected.id));
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteElement();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        duplicateElement();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selected, snapToGrid, deleteElement, duplicateElement, undo, redo]);
 
   const btn = { padding: '8px 16px', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'all 0.2s' };
   const pendingCount = Object.keys(pending).length;
@@ -854,12 +1066,49 @@ export default function SeatingMapPage() {
         {/* ── Center: canvas ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ background: C.white, padding: '8px 14px', borderRadius: 10, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <button onClick={() => setShowAdd(true)} style={{ ...btn, background: C.gold, color: C.white, padding: '6px 14px' }}>+ Add Element</button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button onClick={() => zoomBy(1 / 1.2)} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.charcoal, padding: '6px 12px' }}>−</button>
-              <span style={{ fontSize: 11, color: C.stone, minWidth: 42, textAlign: 'center' }}>{Math.round(view.scale * 100)}%</span>
-              <button onClick={() => zoomBy(1.2)} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.charcoal, padding: '6px 12px' }}>+</button>
-              <button onClick={resetView} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.stone, padding: '6px 12px' }}>Fit</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setShowAdd(true)} style={{ ...btn, background: C.gold, color: C.white, padding: '6px 14px' }}>+ Add Element</button>
+              <button onClick={undo} disabled={historyIndex <= 0} style={{
+                ...btn,
+                background: C.white,
+                border: `1px solid ${C.border}`,
+                color: historyIndex <= 0 ? C.border : C.charcoal,
+                padding: '6px 12px',
+                cursor: historyIndex <= 0 ? 'not-allowed' : 'pointer'
+              }} title="Undo (Ctrl+Z)">
+                Undo
+              </button>
+              <button onClick={redo} disabled={historyIndex >= history.length - 1} style={{
+                ...btn,
+                background: C.white,
+                border: `1px solid ${C.border}`,
+                color: historyIndex >= history.length - 1 ? C.border : C.charcoal,
+                padding: '6px 12px',
+                cursor: historyIndex >= history.length - 1 ? 'not-allowed' : 'pointer'
+              }} title="Redo (Ctrl+Y)">
+                Redo
+              </button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setSnapToGrid(!snapToGrid)} style={{
+                ...btn,
+                background: snapToGrid ? 'rgba(184,148,79,0.08)' : C.white,
+                border: `1px solid ${snapToGrid ? C.gold : C.border}`,
+                color: snapToGrid ? C.gold : C.stone,
+                padding: '6px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+                Snap to Grid
+              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderLeft: `1px solid ${C.border}`, paddingLeft: 8 }}>
+                <button onClick={() => zoomBy(1 / 1.2)} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.charcoal, padding: '6px 12px' }}>−</button>
+                <span style={{ fontSize: 11, color: C.stone, minWidth: 42, textAlign: 'center' }}>{Math.round(view.scale * 100)}%</span>
+                <button onClick={() => zoomBy(1.2)} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.charcoal, padding: '6px 12px' }}>+</button>
+                <button onClick={resetView} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.stone, padding: '6px 12px' }}>Fit</button>
+              </div>
             </div>
           </div>
 
