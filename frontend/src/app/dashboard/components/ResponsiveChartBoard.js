@@ -65,6 +65,7 @@ export default function ResponsiveChartBoard({ stats }) {
       </div>
 
       <div
+        className="rcb-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
@@ -317,6 +318,14 @@ export default function ResponsiveChartBoard({ stats }) {
           </div>
         </div>
       </div>
+      <style>{`
+        @media (max-width: 768px) {
+          .rcb-grid {
+            grid-template-columns: 1fr !important;
+            gap: 24px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

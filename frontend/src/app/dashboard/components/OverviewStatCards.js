@@ -221,13 +221,13 @@ function StatCard({
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      className={span === 2 ? 'osc-rsvp-span' : ''}
       style={{
         position: 'relative',
         background: '#FFFFFF',
         border: `1px solid ${hovered ? '#D4CFC5' : '#E8E2D6'}`,
         borderRadius: 16,
         padding: '24px 22px 20px',
-        gridColumn: span ? `span ${span}` : undefined,
         opacity: visible ? 1 : 0,
         transform: visible
           ? (hovered ? 'translateY(-6px) scale(1.02)' : 'translateY(0) scale(1)')
@@ -328,6 +328,10 @@ const keyframesCSS = `
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 20px;
+  }
+
+  .osc-rsvp-span {
+    grid-column: span 2;
   }
 
   @media (max-width: 1024px) {

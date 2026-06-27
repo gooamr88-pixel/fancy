@@ -137,7 +137,7 @@ export default function StagePayment({
           {showCurrentPlan
             ? 'Your platform fee is paid and your event is live. Here is your current plan.'
             : showPendingPlan
-              ? 'Your payment is awaiting admin verification. You can continue setting up your event.'
+              ? 'Your payment is pending approval. You can continue setting up your event.'
               : upgrading
                 ? 'Choose a higher tier below. Upgrading is a one-time charge for the new license.'
                 : 'Choose a license tier and complete the one-time platform fee. Your event stays a private draft until paid.'}
@@ -253,7 +253,7 @@ export default function StagePayment({
               background: 'rgba(184,148,79,0.10)', border: '1px solid rgba(184,148,79,0.25)',
               fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em',
             }}>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, animation: 'sp-pulse 2s ease-in-out infinite' }} /> Pending Verification
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, animation: 'sp-pulse 2s ease-in-out infinite' }} /> Pending Payment
             </span>
           </div>
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.gold, margin: '14px 0 2px' }}>
@@ -393,7 +393,7 @@ export default function StagePayment({
           borderRadius: 12, padding: '18px 20px', marginBottom: 20,
         }}>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: C.charcoal, margin: '0 0 8px', fontWeight: 700 }}>
-            ✓ Payment submitted — pending verification
+            ✓ Payment submitted — pending payment
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone }}>Reference code:</span>

@@ -261,7 +261,7 @@ export default function OrganizerProfile({ events = [] }) {
     ...inputStyle, minHeight: '80px', resize: 'vertical',
   };
   const fieldGroupStyle = { marginBottom: '16px' };
-  const rowStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' };
+  const rowStyle = { display: 'grid', gap: '16px' };
   const statLabelStyle = { fontSize: '11px', color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: 'var(--font-sans)', marginBottom: '6px' };
   const statValueStyle = { fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 700, color: COLORS.charcoal };
 
@@ -305,7 +305,7 @@ export default function OrganizerProfile({ events = [] }) {
             Account Overview
           </span>
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+        <div className="profile-stats-grid" style={{ display: 'grid', gap: '16px' }}>
           <div>
             <div style={statLabelStyle}>Total Events</div>
             <div style={statValueStyle}>{totalEvents}</div>
@@ -338,7 +338,7 @@ export default function OrganizerProfile({ events = [] }) {
           />
         </div>
 
-        <div style={rowStyle}>
+        <div className="profile-row-grid" style={rowStyle}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Email Address</label>
             <input value={profile?.email || ''} readOnly style={readOnlyStyle} />
@@ -362,7 +362,7 @@ export default function OrganizerProfile({ events = [] }) {
           </span>
         </h3>
 
-        <div style={rowStyle}>
+        <div className="profile-row-grid" style={rowStyle}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Logo / Avatar URL</label>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -412,7 +412,7 @@ export default function OrganizerProfile({ events = [] }) {
             Social Profiles
           </span>
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+        <div className="profile-social-grid" style={{ display: 'grid', gap: '16px' }}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Instagram</label>
             <input value={form.socialLinks.instagram || ''} onChange={handleSocialChange('instagram')} placeholder="username" style={inputStyle}
@@ -516,7 +516,7 @@ export default function OrganizerProfile({ events = [] }) {
               </div>
             </div>
           )}
-          <div style={rowStyle}>
+          <div className="profile-row-grid" style={rowStyle}>
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>{profile?.hasPassword ? 'New Password' : 'Create Password'}</label>
               <div style={{ position: 'relative' }}>
@@ -730,6 +730,23 @@ export default function OrganizerProfile({ events = [] }) {
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .profile-row-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+        .profile-stats-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .profile-social-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        @media (max-width: 640px) {
+          .profile-row-grid,
+          .profile-stats-grid,
+          .profile-social-grid {
+            grid-template-columns: 1fr !important;
+            gap: 12px !important;
+          }
+        }
       `}</style>
 
     </div>

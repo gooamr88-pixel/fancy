@@ -424,6 +424,7 @@ export default function DashboardPage() {
                   router.push('/dashboard/campaigns');
                 } else {
                   setActiveTab(item.key);
+                  setSidebarOpen(false);
                 }
               }}
                 style={{
@@ -475,21 +476,26 @@ export default function DashboardPage() {
       <main style={{ flex: 1, marginLeft: '240px', minHeight: '100vh', background: '#FAFAF8' }}>
 
         {/* Top Bar — sticky glassmorphism container */}
-        <div style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 40,
-          padding: '16px 32px',
-          background: 'rgba(255, 255, 255, 0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(184, 148, 79, 0.15)',
-          boxShadow: '0 4px 20px rgba(25, 27, 30, 0.02)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          transition: 'all 0.3s ease',
-        }}>
+        <div
+          className="top-bar"
+          style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 40,
+            padding: '16px 32px',
+            background: 'rgba(255, 255, 255, 0.85)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderBottom: '1px solid rgba(184, 148, 79, 0.15)',
+            boxShadow: '0 4px 20px rgba(25, 27, 30, 0.02)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            transition: 'all 0.3s ease',
+          }}
+        >
           {(activeTab === 'overview' || activeTab === 'events' || activeTab === 'drafts' || activeTab === 'profile') ? (
             /* ── Overview / Events / Drafts / Profile: clean header, no event-specific controls ── */
             <>
@@ -853,7 +859,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="content-container" style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
 
           {activeTab === 'profile' ? (
             <OrganizerProfile events={events} />
@@ -1293,6 +1299,8 @@ export default function DashboardPage() {
           .sidebar-overlay { display: block !important; }
           .dashboard-sidebar { transform: ${sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'}; }
           main { margin-left: 0 !important; }
+          .top-bar { padding-left: 72px !important; padding-right: 16px !important; }
+          .content-container { padding: 16px !important; }
         }
       `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />

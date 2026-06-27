@@ -102,7 +102,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
                   fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone,
                   lineHeight: 1.6, margin: 0,
                 }}>
-                  This event has a pending payment verification
+                  This event has a pending payment
                   {pendingPay.reference_number && <> (Ref: <code style={{ background: C.soft, padding: '1px 5px', borderRadius: 4, fontSize: 10, fontWeight: 700, color: C.gold }}>{pendingPay.reference_number}</code>)</>}.
                   Deleting it may affect your refund eligibility. Please contact <strong style={{ color: '#8a6d2f' }}>support@fancyrsvp.com</strong> before proceeding.
                 </p>
@@ -238,7 +238,7 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
                     border: '1px solid rgba(212,160,74,0.30)', padding: '3px 9px', borderRadius: 100,
                   }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.pending, animation: 'draft-pulse 2s ease-in-out infinite' }} />
-                    Pending Verification
+                    Pending Payment
                   </span>
                 ) : (
                   <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: C.gold, background: 'rgba(184,148,79,0.1)', border: '1px solid rgba(184,148,79,0.25)', padding: '3px 9px', borderRadius: 100 }}>Draft</span>

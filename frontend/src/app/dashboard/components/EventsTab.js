@@ -426,7 +426,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
     return (
       <div style={{ padding: '20px 24px', background: 'rgba(245,158,11,0.05)', border: `1px solid rgba(245,158,11,0.2)`, borderRadius: '12px', textAlign: 'center' }}>
         <span style={{ fontSize: '32px' }}>⏳</span>
-        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#D97706', margin: '8px 0 4px' }}>Payment Verification Pending</h4>
+        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#D97706', margin: '8px 0 4px' }}>Payment Pending</h4>
         <p style={{ fontSize: '12px', color: C.stone, lineHeight: 1.5, margin: '0 0 16px', fontFamily: 'var(--font-sans)' }}>
           Your offline cash payment request has been submitted successfully. Please share this reference code with the coordinator for manual activation:
         </p>
