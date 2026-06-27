@@ -164,7 +164,7 @@ async function sendQrTicketEmail(eventId, partyId) {
       id, table_id,
       tables(table_name, zones(zone_name)),
       rsvp_parties(id, label, guests(is_primary_contact, email)),
-      events(id, title, event_date)
+      events(id, title, event_date, location_name, location_address)
     `)
     .eq('party_id', partyId)
     .eq('event_id', eventId)

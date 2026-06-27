@@ -359,6 +359,22 @@ const getDeclineConfirmationTemplate = (rsvp, event) => {
 /** Entry pass: QR ticket + table assignment. */
 const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName) => {
   const partySize = rsvp.party_size || 1;
+  const formattedDate = formatEventDate(event.event_date);
+  const hasLocation = event.location_name || event.location_address;
+
+  const dateHtml = formattedDate ? `
+    <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:12px;">
+      📅 <strong>Date:</strong> ${escapeHtml(formattedDate)}
+    </div>
+  ` : '';
+
+  const locationHtml = hasLocation ? `
+    <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">
+      📍 <strong>Venue:</strong> ${escapeHtml(event.location_name || '')}
+      ${event.location_address ? `<br/><span style="font-size:12px; color:${BRAND.stone}; opacity:0.85;">${escapeHtml(event.location_address)}</span>` : ''}
+    </div>
+  ` : '';
+
   return emailShell({
     preheader: `Your entry pass & table for ${event.title}`,
     eyebrow: 'Entry pass & seating',
@@ -372,6 +388,10 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName) => {
           ${zoneName ? `<div style="font-family:${SANS}; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:${BRAND.gold}; margin-bottom:4px;">Zone: ${escapeHtml(zoneName)}</div>` : ''}
           <div style="font-family:${SERIF}; font-size:34px; font-weight:bold; color:${BRAND.charcoal};">${escapeHtml(tableName)}</div>
           <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">Party of ${partySize}</div>
+          
+          ${dateHtml}
+          ${locationHtml}
+          
           <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:22px auto 0;">
             <tr><td style="background-color:${BRAND.white}; border:1px solid ${BRAND.border}; border-radius:14px; padding:14px;">
               <img src="${qrImageUrl}" alt="Check-in QR code" width="200" height="200" style="display:block; width:200px; height:200px;" />

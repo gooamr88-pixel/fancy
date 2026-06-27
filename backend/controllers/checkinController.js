@@ -28,6 +28,17 @@ const scanCheckIn = async (req, res, next) => {
 
   try {
     const { data: party } = await supabase.from('rsvp_parties').select('label').eq('id', decoded.partyId).single();
+    
+    // Query current live table assignment rather than relying solely on the static token payload
+    const { data: assignment } = await supabase
+      .from('seating_assignments')
+      .select('tables(table_name)')
+      .eq('party_id', decoded.partyId)
+      .eq('event_id', eventId)
+      .maybeSingle();
+
+    const tableName = assignment?.tables?.table_name || decoded.tableName || 'Unassigned';
+
     const result = await guestService.checkInParty(eventId, decoded.partyId, { method: 'qr_scan', checkedInBy: checkedInBy || null });
 
     if (!result.success) {
@@ -46,12 +57,12 @@ const scanCheckIn = async (req, res, next) => {
     });
 
     broadcast(eventId, 'checkin_update', {
-      partyId: decoded.partyId, guestName: party?.label, partySize: result.totalGuests, tableName: decoded.tableName, method: 'qr_scan',
+      partyId: decoded.partyId, guestName: party?.label, partySize: result.totalGuests, tableName, method: 'qr_scan',
     });
 
     return sendOk(res, {
       message: `${party?.label || 'Guest'} checked in successfully.`,
-      partyId: decoded.partyId, guestName: party?.label, tableName: decoded.tableName, partySize: result.totalGuests, checkedInCount: result.checkedInCount,
+      partyId: decoded.partyId, guestName: party?.label, tableName, partySize: result.totalGuests, checkedInCount: result.checkedInCount,
     });
   } catch (err) {
     next(err);
