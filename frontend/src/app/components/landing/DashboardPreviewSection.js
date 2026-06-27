@@ -732,6 +732,11 @@ const DashboardPreviewSection = () => {
               desc="Easy navigation and smart filters keep everything orderly and accessible."
             />
             <FeatureCallout
+              icon="✓"
+              title="Instant Check-in"
+              desc="Scan guest QR codes or lookup names to manage check-ins instantly."
+            />
+            <FeatureCallout
               icon="◈"
               title="Premium Usability"
               desc="A refined interface designed for seamless event planning from start to finish."
