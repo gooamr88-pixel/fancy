@@ -806,24 +806,25 @@ export default function FullRsvpForm({ event, guest, context, submit: doSubmit, 
                     />
                   </FadeInUp>
 
-                  {/* Primary Meal Selection */}
+                  {/* Primary Meal Selection — only shown if the organizer configured a meal field */}
+                  {mealField && mealField.options && mealField.options.length > 0 && (
                   <FadeInUp delay={0.2} y={15}>
                     <div style={{ background: '#F8F4EC', padding: '20px', borderRadius: '14px' }}>
-                      <FormField label={t.meal_label.replace('{name}', guestName)}>
+                      <FormField label={(isRTL && mealField.field_label_ar ? mealField.field_label_ar : mealField.field_label) || t.meal_label.replace('{name}', guestName)}>
                         <select
                           value={primaryMeal}
                           onChange={e => setPrimaryMeal(e.target.value)}
                           style={{ ...S.inputBase, cursor: 'pointer' }}
                         >
                           <option value="">{t.meal_select_placeholder}</option>
-                          <option value="Prime Beef Filet">{t.meal_beef}</option>
-                          <option value="Atlantic Salmon">{t.meal_salmon}</option>
-                          <option value="Mushroom Risotto (V)">{t.meal_risotto}</option>
-                          <option value="Kids Meal">{t.meal_kids}</option>
+                          {(isRTL && mealField.options_ar ? mealField.options_ar : mealField.options).map((opt, i) => (
+                            <option key={i} value={opt}>{opt}</option>
+                          ))}
                         </select>
                       </FormField>
                     </div>
                   </FadeInUp>
+                  )}
 
                   {/* Additional Guest Cards */}
                   <AnimatePresence>
@@ -851,19 +852,20 @@ export default function FullRsvpForm({ event, guest, context, submit: doSubmit, 
                             onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
                           />
                         </FormField>
-                        <FormField label={t.guest_meal_label}>
+                        {mealField && mealField.options && mealField.options.length > 0 && (
+                        <FormField label={(isRTL && mealField.field_label_ar ? mealField.field_label_ar : mealField.field_label) || t.guest_meal_label}>
                           <select
                             value={g.mealSelection}
                             onChange={e => { const copy = [...additionalGuests]; copy[index].mealSelection = e.target.value; setAdditionalGuests(copy); }}
                             style={{ ...S.inputBase, cursor: 'pointer' }}
                           >
                             <option value="">{t.meal_select_placeholder}</option>
-                            <option value="Prime Beef Filet">{t.meal_beef}</option>
-                            <option value="Atlantic Salmon">{t.meal_salmon}</option>
-                            <option value="Mushroom Risotto (V)">{t.meal_risotto}</option>
-                            <option value="Kids Meal">{t.meal_kids}</option>
+                            {(isRTL && mealField.options_ar ? mealField.options_ar : mealField.options).map((opt, i) => (
+                              <option key={i} value={opt}>{opt}</option>
+                            ))}
                           </select>
                         </FormField>
+                        )}
                       </motion.div>
                     ))}
                   </AnimatePresence>

@@ -29,6 +29,142 @@ const getPendingPayment = (ev) => {
   return payments.find(p => p && p.status === 'pending' && p.payment_method === 'cash_manual') || null;
 };
 
+/* ═══ Confirmation Modal for Draft Deletion ═══ */
+function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
+  if (!isOpen || !event) return null;
+  const pendingPay = getPendingPayment(event);
+  const hasPendingPayment = !!pendingPay;
+  const title = event.title || 'Untitled event';
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+        animation: 'draftModalFadeIn 0.2s ease',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: C.white, borderRadius: 18, width: '100%', maxWidth: 440,
+          boxShadow: '0 24px 64px rgba(0,0,0,0.14), 0 0 0 1px rgba(232,226,214,0.5)',
+          animation: 'draftModalSlideUp 0.25s ease', overflow: 'hidden',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          padding: '28px 28px 0', textAlign: 'center',
+        }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: '50%',
+            background: 'rgba(196,94,94,0.08)', border: '1px solid rgba(196,94,94,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px', fontSize: 24,
+          }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={C.danger} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+          </div>
+          <h3 style={{
+            fontFamily: 'var(--font-serif)', fontSize: 20, fontWeight: 600,
+            color: C.charcoal, margin: '0 0 6px',
+          }}>Delete Draft?</h3>
+          <p style={{
+            fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone,
+            lineHeight: 1.6, margin: 0, maxWidth: 340, marginInline: 'auto',
+          }}>
+            Are you sure you want to delete <strong style={{ color: C.charcoal }}>&ldquo;{title}&rdquo;</strong>? This action cannot be undone.
+          </p>
+        </div>
+
+        {/* Paid event / pending payment warning */}
+        {hasPendingPayment && (
+          <div style={{
+            margin: '20px 28px 0', padding: '14px 16px', borderRadius: 12,
+            background: 'rgba(212,160,74,0.06)', border: '1px solid rgba(212,160,74,0.20)',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}>
+              <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+              <div>
+                <p style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700,
+                  color: '#8a6d2f', margin: '0 0 4px',
+                }}>Pending Payment Detected</p>
+                <p style={{
+                  fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone,
+                  lineHeight: 1.6, margin: 0,
+                }}>
+                  This event has a pending payment verification
+                  {pendingPay.reference_number && <> (Ref: <code style={{ background: C.soft, padding: '1px 5px', borderRadius: 4, fontSize: 10, fontWeight: 700, color: C.gold }}>{pendingPay.reference_number}</code>)</>}.
+                  Deleting it may affect your refund eligibility. Please contact <strong style={{ color: '#8a6d2f' }}>support@fancyrsvp.com</strong> before proceeding.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{
+          display: 'flex', gap: 10, padding: '24px 28px 28px',
+          marginTop: 4,
+        }}>
+          <button
+            onClick={onClose}
+            disabled={isDeleting}
+            style={{
+              flex: 1, height: 44, borderRadius: 10,
+              border: `1px solid ${C.border}`, background: C.white,
+              color: C.stone, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+              cursor: isDeleting ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => { if (!isDeleting) { e.currentTarget.style.borderColor = C.gold; e.currentTarget.style.color = C.charcoal; } }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.stone; }}
+          >Cancel</button>
+          <button
+            onClick={onConfirm}
+            disabled={isDeleting}
+            style={{
+              flex: 1, height: 44, borderRadius: 10,
+              border: 'none', background: isDeleting ? 'rgba(196,94,94,0.5)' : C.danger,
+              color: C.white, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+              cursor: isDeleting ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              transition: 'all 0.2s',
+              boxShadow: isDeleting ? 'none' : '0 4px 14px rgba(196,94,94,0.25)',
+            }}
+            onMouseEnter={e => { if (!isDeleting) e.currentTarget.style.background = '#b34545'; }}
+            onMouseLeave={e => { if (!isDeleting) e.currentTarget.style.background = C.danger; }}
+          >
+            {isDeleting && (
+              <span style={{
+                width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)',
+                borderTopColor: C.white, borderRadius: '50%', display: 'inline-block',
+                animation: 'draftModalSpin 0.6s linear infinite',
+              }} />
+            )}
+            {isDeleting ? 'Deleting…' : 'Delete Draft'}
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes draftModalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes draftModalSlideUp { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes draftModalSpin { to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
+
 /**
  * Dashboard → Drafts. Lists events the organizer started but hasn't activated yet
  * (status 'draft', unpaid), with one-click resume into the create-event wizard and
@@ -39,20 +175,27 @@ const getPendingPayment = (ev) => {
  */
 export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
   const [deleting, setDeleting] = useState(null);
+  const [confirmEvent, setConfirmEvent] = useState(null); // event object to confirm deletion
   const drafts = (events || []).filter((e) => e && e.status === 'draft' && !e.is_paid);
 
   const continueDraft = (id) => {
     if (typeof window !== 'undefined') window.location.href = `/dashboard/create-event?draft=${encodeURIComponent(id)}`;
   };
 
-  const deleteDraft = async (ev) => {
-    if (typeof window !== 'undefined' && !window.confirm(`Delete draft "${ev.title || 'Untitled event'}"? This can't be undone.`)) return;
+  const handleDeleteClick = (ev) => {
+    setConfirmEvent(ev);
+  };
+
+  const handleConfirmDelete = async () => {
+    const ev = confirmEvent;
+    if (!ev) return;
     setDeleting(ev.id);
     try {
       const res = await fetch(`${apiUrl}/events/${ev.id}`, { method: 'DELETE', credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.success === false) throw new Error(data.message || 'Could not delete draft.');
       toast.success('Draft deleted.');
+      setConfirmEvent(null);
       onRefresh && onRefresh(ev.id);
     } catch (err) {
       toast.error(err.message || 'Could not delete draft.');
@@ -126,7 +269,7 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
 
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button onClick={() => continueDraft(ev.id)} style={{ ...goldBtn, flex: 1 }}>Continue setup</button>
-                <button onClick={() => deleteDraft(ev)} disabled={deleting === ev.id}
+                <button onClick={() => handleDeleteClick(ev)} disabled={deleting === ev.id}
                   style={{ height: 40, padding: '0 14px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)', borderRadius: 10, color: C.danger, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, cursor: deleting === ev.id ? 'not-allowed' : 'pointer' }}>
                   {deleting === ev.id ? '…' : 'Delete'}
                 </button>
@@ -136,6 +279,16 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
           })}
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={!!confirmEvent}
+        onClose={() => setConfirmEvent(null)}
+        onConfirm={handleConfirmDelete}
+        event={confirmEvent}
+        isDeleting={!!deleting}
+      />
+
       <style>{`@keyframes draft-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }`}</style>
     </div>
   );
