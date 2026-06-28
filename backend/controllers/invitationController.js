@@ -86,7 +86,9 @@ const sendInvitations = async (req, res, next) => {
         error: body.success ? undefined : body.error,
         message: body.success ? undefined : body.message,
       };
-      return originalStatus(statusCode).json(normalized);
+      
+      originalStatus(statusCode);
+      return originalJson(normalized);
     };
     return campaignController.sendBulkSMSCampaign(req, res, next);
   } catch (err) {
