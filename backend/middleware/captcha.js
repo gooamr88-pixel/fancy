@@ -14,6 +14,28 @@ const logger = require('../utils/logger');
  * sends the solved token as `captchaToken` in the RSVP body.
  */
 const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+const VERIFY_TIMEOUT_MS = 5000;
+
+// Fail-open is intentional (a Cloudflare outage must never block real guests from
+// RSVPing), but it must not become a free bypass for an attacker who can force
+// verification calls to error repeatedly. Track fail-open events per IP and start
+// rejecting once an IP rides the fail-open path too often — a real outage still
+// lets every other IP through fine, only a single IP hammering the bypass gets cut off.
+const FAIL_OPEN_WINDOW_MS = 15 * 60 * 1000;
+const FAIL_OPEN_MAX_PER_IP = 5;
+const failOpenCounts = new Map(); // ip -> { count, windowStart }
+
+function recordFailOpenAndCheck(ip) {
+  const key = ip || 'unknown';
+  const now = Date.now();
+  const entry = failOpenCounts.get(key);
+  if (!entry || now - entry.windowStart > FAIL_OPEN_WINDOW_MS) {
+    failOpenCounts.set(key, { count: 1, windowStart: now });
+    return true; // allow
+  }
+  entry.count += 1;
+  return entry.count <= FAIL_OPEN_MAX_PER_IP;
+}
 
 async function verifyTurnstile(req, res, next) {
   const secret = process.env.TURNSTILE_SECRET;
@@ -24,6 +46,9 @@ async function verifyTurnstile(req, res, next) {
     return res.status(400).json({ success: false, error: 'CAPTCHA_REQUIRED', message: 'Please complete the verification challenge.' });
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
+
   try {
     const params = new URLSearchParams({ secret, response: String(token) });
     if (req.ip) params.append('remoteip', req.ip);
@@ -31,6 +56,7 @@ async function verifyTurnstile(req, res, next) {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params,
+      signal: controller.signal,
     });
     const data = await resp.json();
     if (!data.success) {
@@ -39,9 +65,16 @@ async function verifyTurnstile(req, res, next) {
     return next();
   } catch (err) {
     // Fail OPEN on a verification-service outage: a guest must never be locked out of
-    // RSVPing because Cloudflare is unreachable. The rate limiter still applies.
-    logger.warn({ err: err.message }, 'Turnstile verification unavailable — allowing request');
+    // RSVPing because Cloudflare is unreachable. But cap how many times a single IP
+    // can ride that bypass so it can't be used to defeat captcha at volume.
+    if (!recordFailOpenAndCheck(req.ip)) {
+      logger.warn({ err: err.message, ip: req.ip }, 'Turnstile verification unavailable — IP exceeded fail-open allowance, rejecting');
+      return res.status(503).json({ success: false, error: 'CAPTCHA_UNAVAILABLE', message: 'Verification is temporarily unavailable. Please try again shortly.' });
+    }
+    logger.warn({ err: err.message, ip: req.ip }, 'Turnstile verification unavailable — allowing request');
     return next();
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

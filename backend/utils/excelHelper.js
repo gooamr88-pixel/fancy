@@ -1,4 +1,5 @@
 const ExcelJS = require('exceljs');
+const { sanitizeCsvValue } = require('./csvHelper');
 
 const generateExcelExport = async (rsvps, tables, checkIns) => {
   const workbook = new ExcelJS.Workbook();
@@ -35,14 +36,14 @@ const generateExcelExport = async (rsvps, tables, checkIns) => {
     const primaryMeal = primaryGuest?.meal_selection || 'None';
 
     guestSheet.addRow({
-      guest_name: r.guest_name,
-      email: r.email || 'N/A',
-      phone: r.phone || 'N/A',
+      guest_name: sanitizeCsvValue(r.guest_name),
+      email: sanitizeCsvValue(r.email) || 'N/A',
+      phone: sanitizeCsvValue(r.phone) || 'N/A',
       response: r.response,
       party_size: r.party_size,
-      table_name: tableName,
-      primary_meal: primaryMeal,
-      notes: r.notes || ''
+      table_name: sanitizeCsvValue(tableName),
+      primary_meal: sanitizeCsvValue(primaryMeal),
+      notes: sanitizeCsvValue(r.notes) || ''
     });
   });
 
@@ -71,11 +72,11 @@ const generateExcelExport = async (rsvps, tables, checkIns) => {
     const occupiedSeats = assignedGuests.reduce((sum, r) => sum + r.party_size, 0);
 
     seatingSheet.addRow({
-      table_name: t.table_name,
+      table_name: sanitizeCsvValue(t.table_name),
       shape: t.shape,
       max_capacity: t.max_capacity,
       occupied: occupiedSeats,
-      guests: guestNames || 'None'
+      guests: sanitizeCsvValue(guestNames) || 'None'
     });
   });
 
@@ -107,7 +108,7 @@ const generateExcelExport = async (rsvps, tables, checkIns) => {
 
   Object.entries(mealCounts).forEach(([meal, count]) => {
     mealSheet.addRow({
-      meal_type: meal,
+      meal_type: sanitizeCsvValue(meal),
       count: count
     });
   });
@@ -133,11 +134,11 @@ const generateExcelExport = async (rsvps, tables, checkIns) => {
   checkIns.forEach(c => {
     const guestName = c.rsvps?.guest_name || 'Unknown Guest';
     checkinSheet.addRow({
-      guest_name: guestName,
+      guest_name: sanitizeCsvValue(guestName),
       checked_in_at: new Date(c.checked_in_at).toLocaleString(),
       method: c.method === 'qr_scan' ? 'QR Code Scan' : c.method === 'self_service' ? 'Self-Service Kiosk' : 'Manual Search',
       party_count: c.party_count_arrived || 1,
-      checked_in_by: c.checked_in_by || 'Staff'
+      checked_in_by: sanitizeCsvValue(c.checked_in_by) || 'Staff'
     });
   });
 

@@ -162,7 +162,11 @@ const optionalAuth = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
-    if (decoded) {
+    // A revoked/expired session must not populate req.user here either — otherwise
+    // a banned/logged-out user keeps being treated as authenticated on every
+    // optionalAuth route until the JWT's natural expiry, even though requireAuth
+    // would already be rejecting the same token elsewhere.
+    if (decoded && (await isSessionValid(decoded))) {
       const userId = decoded.id || decoded.sub;
       const access = await getAccessContext(userId);
       req.user = {

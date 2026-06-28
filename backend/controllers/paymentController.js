@@ -499,10 +499,20 @@ const manualCashApproval = async (req, res, next) => {
           amount_cents: amountCents
         })
         .eq('id', pendingPayment[0].id)
+        .eq('status', 'pending')
         .select()
-        .single();
+        .maybeSingle();
 
       if (updateErr) throw updateErr;
+      if (!updatedPayment) {
+        // Another concurrent request already approved this payment between
+        // our lookup and this update — don't double-process or overwrite it.
+        return res.status(409).json({
+          success: false,
+          error: 'ALREADY_PROCESSED',
+          message: 'This cash payment has already been approved.'
+        });
+      }
       paymentId = updatedPayment.id;
       refNumber = updatedPayment.reference_number || updatedPayment.stripe_checkout_session_id;
 

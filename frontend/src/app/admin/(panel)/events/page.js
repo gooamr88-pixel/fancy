@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import useAdminList from '../../_hooks/useAdminList';
+import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
@@ -13,6 +14,7 @@ const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { mi
 
 export default function EventsPage() {
   const { showAlert, showConfirm } = useAlert();
+  const { can } = usePermissions();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -236,20 +238,24 @@ export default function EventsPage() {
               const pending = r.event_payments?.find(p => p.payment_method === 'cash_manual' && p.status === 'pending');
               return (
                 <div style={{ display: 'inline-flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {r.status === 'pending_review' && (
+                  {r.status === 'pending_review' && can('events.manage') && (
                     <Button variant="primary" disabled={busy} onClick={() => handleStatusChange(r.id, 'active')}>Approve &amp; Go Live</Button>
                   )}
-                  {!r.is_paid && (
+                  {!r.is_paid && can('payments.manage') && (
                     <Button variant="primary" disabled={busy} onClick={() => setApproval({ event: r, amountCents: pending ? pending.amount_cents : 7900 })}>Approve Cash</Button>
                   )}
                   {r.is_paid
-                    ? <Button variant="ghost" disabled={busy} onClick={() => handleUnpay(r.id)}>Revoke</Button>
-                    : <Button variant="ghost" disabled={busy} onClick={() => openFreeEventModal(r.id, r.title)}>Grant Free</Button>}
-                  <Button variant="ghost" disabled={busy} onClick={() => setGrantModal({ eventId: r.id, title: r.title })}>+ SMS</Button>
+                    ? can('events.manage') && <Button variant="ghost" disabled={busy} onClick={() => handleUnpay(r.id)}>Revoke</Button>
+                    : can('events.manage') && <Button variant="ghost" disabled={busy} onClick={() => openFreeEventModal(r.id, r.title)}>Grant Free</Button>}
+                  {can('credits.manage') && (
+                    <Button variant="ghost" disabled={busy} onClick={() => setGrantModal({ eventId: r.id, title: r.title })}>+ SMS</Button>
+                  )}
                   <a href={`/${r.slug}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
                     <Button variant="default">View</Button>
                   </a>
-                  <Button variant="danger" disabled={busy} onClick={() => handleDeleteEvent(r.id, r.title)}>Delete</Button>
+                  {can('events.manage') && (
+                    <Button variant="danger" disabled={busy} onClick={() => handleDeleteEvent(r.id, r.title)}>Delete</Button>
+                  )}
                 </div>
               );
             }

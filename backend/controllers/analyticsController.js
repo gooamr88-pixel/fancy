@@ -9,10 +9,21 @@ const crypto = require('crypto');
 
 /**
  * Anonymize IP for GDPR compliance — stores only a SHA-256 hash.
+ * The salt MUST come from the environment, not source control: IPv4 space is
+ * small enough (~4B addresses) that a salt checked into git lets anyone with
+ * repo access precompute a rainbow table and reverse every stored hash back
+ * to the original IP, defeating the anonymization entirely.
  */
+const IP_HASH_SALT = process.env.IP_HASH_SALT || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('IP_HASH_SALT environment variable must be set in production.');
+  }
+  return 'dev-only-insecure-salt';
+})();
+
 function hashIP(ip) {
   if (!ip) return null;
-  return crypto.createHash('sha256').update(ip + 'fancy-salt-2025').digest('hex').substring(0, 16);
+  return crypto.createHash('sha256').update(ip + IP_HASH_SALT).digest('hex').substring(0, 16);
 }
 
 /**
