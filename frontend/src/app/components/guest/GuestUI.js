@@ -371,6 +371,8 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }) {
 export function CalendarButton({ event, isRTL = false, style = {} }) {
   const [open, setOpen] = useState(false);
 
+  if (!event) return null;
+
   const formatDate = (date) => {
     return new Date(date).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   };

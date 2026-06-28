@@ -19,6 +19,7 @@ import {
   ShimmerPlaceholder,
   PageTransition,
   GlowPulse,
+  ConfettiExplosion,
 } from '../components/guest/GuestAnimations';
 import {
   GlassmorphismCard,
@@ -32,6 +33,8 @@ import {
 } from '../components/guest/GuestUI';
 import GuestEnvelopeReveal from '../components/templates/GuestEnvelopeReveal';
 import InvitationCard from '../components/templates/InvitationCard';
+import { useIdempotentRsvpSubmit } from '../components/guest/rsvp/useIdempotentRsvpSubmit';
+import { toast } from '../utils/toast';
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
@@ -137,6 +140,131 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Local state for the integrated interactive RSVP card
+  const [response, setResponse] = useState('yes');
+  const [partySize, setPartySize] = useState(1);
+  const [mealSelection, setMealSelection] = useState('');
+  const [rsvpSubmitted, setRsvpSubmitted] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
+
+  const isWedding = event?.template_type === 'wedding';
+  const customColors = event?.custom_colors || {};
+  const themeColor = customColors.primary || (isWedding ? '#B8944F' : '#191B1E');
+
+  const patternUrl = useMemo(() => {
+    const encodedColor = encodeURIComponent(themeColor);
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='46' height='46' viewBox='0 0 46 46'>`
+      + `<g fill='none' stroke='${encodedColor}' stroke-opacity='0.18' stroke-width='0.9'>`
+      + `<rect x='9' y='9' width='28' height='28'/>`
+      + `<rect x='9' y='9' width='28' height='28' transform='rotate(45 23 23)'/>`
+      + `<rect x='15' y='15' width='16' height='16'/>`
+      + `<rect x='15' y='15' width='16' height='16' transform='rotate(45 23 23)'/>`
+      + `<circle cx='23' cy='23' r='3'/>`
+      + `<circle cx='0' cy='0' r='3'/><circle cx='46' cy='0' r='3'/><circle cx='0' cy='46' r='3'/><circle cx='46' cy='46' r='3'/>`
+      + `<path d='M23 0 V9 M23 37 V46 M0 23 H9 M37 23 H46'/>`
+      + `<path d='M9 9 L0 0 M37 9 L46 0 M9 37 L0 46 M37 37 L46 46'/>`
+      + `</g>`
+      + `<g fill='none' stroke='%23ffffff' stroke-opacity='0.45' stroke-width='0.6'>`
+      + `<rect x='9.6' y='9.6' width='28' height='28'/>`
+      + `<rect x='9.6' y='9.6' width='28' height='28' transform='rotate(45 23.6 23.6)'/>`
+      + `</g></svg>`;
+    return `url("data:image/svg+xml,${svg}")`;
+  }, [themeColor]);
+
+  // Detect meal selection fields
+  const mealOptions = useMemo(() => {
+    const allCustomFields = event?.custom_form_fields || [];
+    const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
+    const mealField = allCustomFields.find(
+      (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
+    );
+    return mealField?.field_options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
+  }, [event]);
+
+  // Dynamic Google Font Injection for calligraphy
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.href = "https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+    return () => {
+      try { document.head.removeChild(link); } catch (e) {}
+    };
+  }, []);
+
+  // Sync state when guestRsvp is loaded or updated
+  useEffect(() => {
+    if (guestRsvp) {
+      setResponse(guestRsvp.response || 'yes');
+      setPartySize(guestRsvp.party_size || 1);
+      
+      const allCustomFields = event?.custom_form_fields || [];
+      const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
+      const mealField = allCustomFields.find(
+        (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
+      );
+      const mealOptions = mealField?.field_options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
+      setMealSelection(guestRsvp.primary_meal || mealOptions[0]);
+      
+      const hasAnswered = ['yes', 'no', 'maybe'].includes(guestRsvp.response);
+      setRsvpSubmitted(hasAnswered);
+      setIsEditing(!hasAnswered);
+    }
+  }, [guestRsvp, event]);
+
+  const { submit, submitting } = useIdempotentRsvpSubmit({
+    onSuccess: (data) => {
+      setRsvpSubmitted(true);
+      setShowConfetti(true);
+      setIsEditing(false);
+      if (setGuestRsvp && guestRsvp) {
+        setGuestRsvp((prev) => ({
+          ...prev,
+          response: data.response || response,
+          party_size: response === 'yes' ? partySize : 1,
+          primary_meal: response === 'yes' ? mealSelection : null,
+        }));
+      }
+      toast.success(lang === 'ar' ? 'تم حفظ ردّك بنجاح!' : 'Your RSVP has been saved!');
+    },
+    onLocked: (data) => {
+      setRsvpSubmitted(true);
+      setIsEditing(false);
+      if (setGuestRsvp && guestRsvp) {
+        setGuestRsvp((prev) => ({
+          ...prev,
+          response: data.response || response,
+        }));
+      }
+    },
+    messages: {
+      closed: lang === 'ar' ? 'هذا الحدث لم يعد يستقبل الردود.' : 'This event is no longer accepting RSVPs.',
+      full:   lang === 'ar' ? 'اكتمل عدد الضيوف. يُرجى التواصل مع المضيف.' : 'This event has reached its guest limit. Please contact the host.',
+      failed: lang === 'ar' ? 'تعذّر حفظ ردك. تحقق من اتصالك وحاول مرة أخرى.' : 'We couldn’t save your RSVP. Please check your connection and try again.',
+    },
+  });
+
+  const handleConfirmRsvp = async () => {
+    if (!guestRsvp) return;
+    const body = {
+      partyId: guestRsvp.id,
+      guestName: guestRsvp.guest_name,
+      email: guestRsvp.email,
+      phone: guestRsvp.phone,
+      response: response,
+      partySize: response === 'yes' ? partySize : 1,
+      primaryGuestMeal: response === 'yes' ? mealSelection : null,
+      additionalGuests: [],
+      customAnswers: [],
+    };
+    await submit({
+      url: `/public/events/${slug}/rsvp`,
+      body,
+      reconcileId: guestRsvp.id,
+    });
+  };
 
   // Analytics
   const { trackEvent } = useGuestAnalytics(slug);
@@ -293,9 +421,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   }, [fetchEvent]);
 
   useEffect(() => {
-    if (!slug || initialEvent) return;
+    if (!slug || (initialEvent && !invitationRsvpId && !invitationGuestId)) return;
     fetchEvent();
-  }, [slug, fetchEvent, initialEvent]);
+  }, [slug, fetchEvent, initialEvent, invitationRsvpId, invitationGuestId]);
 
   /* ─── Countdown ─── */
   useEffect(() => {
@@ -527,9 +655,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
      MAIN EVENT PAGE
      ═══════════════════════════════════════════════════════════════ */
 
-  const isWedding = event.template_type === 'wedding';
-  const customColors = event.custom_colors || {};
-  const themeColor = customColors.primary || (isWedding ? '#B8944F' : '#191B1E');
+
   const isRTL = lang === 'ar';
   const t = translations[lang];
   const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
@@ -700,23 +826,472 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
             {/* Digital Invitation Card */}
-            <ScaleIn delay={0.05}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '100%', maxWidth: '280px', aspectRatio: '210 / 290',
-                  borderRadius: '14px', overflow: 'hidden',
-                  boxShadow: '0 20px 50px -16px rgba(25,27,30,0.28)',
-                }}>
-                  <InvitationCard
-                    template={{ pattern: invitationPattern }}
-                    theme={invitationTheme}
-                    guestName={invitationGuestName}
-                    config={invitationPattern === 'custom' ? event.template_data : undefined}
-                    data={invitationData}
-                  />
+            {guestRsvp ? (
+              /* ─── Case A: Integrated RSVP Card ─── */
+              <ScaleIn delay={0.05}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', width: '100%' }}>
+                  <div
+                    id="integrated-rsvp-card"
+                    style={{
+                      width: '100%',
+                      maxWidth: '430px',
+                      background: '#FCFAF6',
+                      borderRadius: 20,
+                      border: `1.5px solid ${themeColor}`,
+                      boxShadow: '0 20px 50px -16px rgba(25,27,30,0.28)',
+                      padding: '36px 28px 28px',
+                      textAlign: 'center',
+                      position: 'relative',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {/* Double border details */}
+                    <div style={{ position: 'absolute', inset: '6px', border: `0.7px solid ${themeColor}55`, pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', inset: '10px', border: `0.3px solid ${themeColor}22`, pointerEvents: 'none' }} />
+
+                    {/* Damask pattern watermark background — subtle repeating motif */}
+                    <div style={{ position: 'absolute', inset: 0, opacity: 0.025, pointerEvents: 'none', backgroundImage: patternUrl, backgroundSize: '46px 46px' }} />
+
+                    {/* Vintage Corner Ornaments */}
+                    {[
+                      { top: 8, left: 8, rotate: '0deg' },
+                      { top: 8, right: 8, rotate: '90deg' },
+                      { bottom: 8, right: 8, rotate: '180deg' },
+                      { bottom: 8, left: 8, rotate: '270deg' },
+                    ].map((pos, i) => (
+                      <svg
+                        key={i} width="34" height="34" viewBox="0 0 40 40"
+                        style={{
+                          position: 'absolute',
+                          top: pos.top, bottom: pos.bottom, left: pos.left, right: pos.right,
+                          transform: `rotate(${pos.rotate})`,
+                          opacity: 0.65,
+                          pointerEvents: 'none',
+                          zIndex: 9,
+                        }}
+                      >
+                        <path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke={themeColor} strokeWidth="0.8" />
+                        <path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke={themeColor} strokeWidth="0.8" />
+                        <path d="M5 5 Q5 10 9 14 Q13 18 18 20" fill="none" stroke={themeColor} strokeWidth="0.5" opacity="0.6" />
+                        <path d="M5 5 Q10 5 14 9 Q18 13 20 18" fill="none" stroke={themeColor} strokeWidth="0.5" opacity="0.6" />
+                        <circle cx="3" cy="3" r="1.5" fill={themeColor} />
+                        <circle cx="22" cy="26" r="1" fill={themeColor} opacity="0.8" />
+                        <circle cx="26" cy="22" r="1" fill={themeColor} opacity="0.8" />
+                      </svg>
+                    ))}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, position: 'relative', zIndex: 10 }}>
+                      
+                      {/* RSVP Header */}
+                      <h1 style={{
+                        fontFamily: "'Playfair Display', serif",
+                        fontSize: '36px',
+                        color: themeColor,
+                        letterSpacing: '5px',
+                        margin: '6px 0 0',
+                        fontWeight: 600
+                      }}>
+                        RSVP
+                      </h1>
+                      
+                      {/* Divider */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: -4 }}>
+                        <span style={{ height: 1, width: 36, background: `linear-gradient(90deg, transparent, ${themeColor})` }} />
+                        <span style={{ fontSize: 12, color: themeColor }}>⚜</span>
+                        <span style={{ height: 1, width: 36, background: `linear-gradient(270deg, transparent, ${themeColor})` }} />
+                      </div>
+
+                      {/* Guest Name */}
+                      <div style={{ margin: '4px 0 8px' }}>
+                        <div style={{
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '10px',
+                          letterSpacing: '2.5px',
+                          color: '#8A8270',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          marginBottom: 4
+                        }}>
+                          {isRTL ? 'اسم الضيف:' : 'GUEST NAME:'}
+                        </div>
+                        <div style={{
+                          fontFamily: "'Great Vibes', cursive",
+                          fontSize: '30px',
+                          color: '#2C2A25',
+                          borderBottom: `1.5px solid ${themeColor}33`,
+                          display: 'inline-block',
+                          minWidth: '85%',
+                          padding: '0 12px 4px',
+                          textShadow: '0.5px 0.5px 0px #FFF'
+                        }}>
+                          {guestRsvp.guest_name}
+                        </div>
+                      </div>
+
+                      {/* Accepts / Declines */}
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '10px',
+                          letterSpacing: '2.5px',
+                          color: '#8A8270',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          marginBottom: 10
+                        }}>
+                          {isRTL ? 'تأكيد الحضور:' : 'ACCEPTS/DECLINES:'}
+                        </div>
+                        
+                        {isEditing ? (
+                          <div style={{ display: 'flex', justifyContent: 'center', gap: 24, margin: '4px 0' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: "'Playfair Display', serif", fontSize: '15px', color: '#5C5446', fontStyle: 'italic' }}>
+                              <input
+                                type="radio" name="response" value="yes"
+                                checked={response === 'yes'}
+                                onChange={() => setResponse('yes')}
+                                style={{ accentColor: themeColor, width: 16, height: 16 }}
+                              />
+                              {isRTL ? 'أتشرف بالحضور' : 'Joyfully Accepts'}
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: "'Playfair Display', serif", fontSize: '15px', color: '#5C5446', fontStyle: 'italic' }}>
+                              <input
+                                type="radio" name="response" value="no"
+                                checked={response === 'no'}
+                                onChange={() => setResponse('no')}
+                                style={{ accentColor: themeColor, width: 16, height: 16 }}
+                              />
+                              {isRTL ? 'أعتذر عن الحضور' : 'Regretfully Declines'}
+                            </label>
+                          </div>
+                        ) : (
+                          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: themeColor, fontStyle: 'italic', fontWeight: 600, margin: '4px 0' }}>
+                            {response === 'yes' ? (isRTL ? '✓ أتشرف بالحضور' : '✓ Joyfully Accepts') : (isRTL ? '✗ أعتذر عن الحضور' : '✗ Regretfully Declines')}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Number Attending */}
+                      <div>
+                        <div style={{
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '10px',
+                          letterSpacing: '2.5px',
+                          color: '#8A8270',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          marginBottom: 6
+                        }}>
+                          {isRTL ? 'عدد الحضور:' : 'NUMBER ATTENDING:'}
+                        </div>
+
+                        {isEditing && response === 'yes' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, margin: '4px 0' }}>
+                            <button
+                              type="button"
+                              onClick={() => setPartySize(Math.max(1, partySize - 1))}
+                              disabled={partySize <= 1 || submitting}
+                              style={{
+                                width: 26, height: 26, borderRadius: '50%',
+                                border: `1px solid ${themeColor}`,
+                                background: 'none', color: themeColor,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontWeight: 'bold', fontSize: 14, transition: 'all 0.2s',
+                                opacity: partySize <= 1 ? 0.35 : 1
+                              }}
+                            >
+                              -
+                            </button>
+                            <span style={{
+                              fontFamily: "'Great Vibes', cursive",
+                              fontSize: '28px',
+                              color: '#2C2A25',
+                              borderBottom: `1.5px solid ${themeColor}33`,
+                              padding: '0 20px',
+                              minWidth: '100px',
+                              display: 'inline-block'
+                            }}>
+                              {partySize} {partySize === 1 ? (isRTL ? 'فرد' : 'Guest') : (isRTL ? 'أفراد' : 'Guests')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setPartySize(partySize + 1)}
+                              disabled={submitting}
+                              style={{
+                                width: 26, height: 26, borderRadius: '50%',
+                                border: `1px solid ${themeColor}`,
+                                background: 'none', color: themeColor,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontWeight: 'bold', fontSize: 14, transition: 'all 0.2s'
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{
+                            fontFamily: "'Great Vibes', cursive",
+                            fontSize: '28px',
+                            color: '#2C2A25',
+                            borderBottom: `1.5px solid ${themeColor}33`,
+                            display: 'inline-block',
+                            padding: '0 24px 2px',
+                            marginBottom: 4
+                          }}>
+                            {response === 'yes' ? `${partySize} ${partySize === 1 ? (isRTL ? 'فرد' : 'Guest') : (isRTL ? 'أفراد' : 'Guests')}` : (isRTL ? '٠ أفراد' : '0 Guests')}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Dinner Choice */}
+                      {response === 'yes' && (
+                        <div>
+                          <div style={{
+                            fontFamily: 'var(--font-sans)',
+                            fontSize: '10px',
+                            letterSpacing: '2.5px',
+                            color: '#8A8270',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            marginBottom: 10
+                          }}>
+                            {isRTL ? 'خيارات العشاء:' : 'DINNER CHOICE:'}
+                          </div>
+
+                          {isEditing ? (
+                            <div style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              gap: 8,
+                              margin: '0 auto',
+                              maxWidth: '220px',
+                              padding: '4px 12px'
+                            }}>
+                              {mealOptions.map((opt) => (
+                                <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontFamily: "'Playfair Display', serif", fontSize: '15px', color: '#5C5446', fontStyle: 'italic', width: '100%' }}>
+                                  <input
+                                    type="radio" name="dinner" value={opt}
+                                    checked={mealSelection === opt}
+                                    onChange={() => setMealSelection(opt)}
+                                    disabled={submitting}
+                                    style={{ accentColor: themeColor, width: 15, height: 15 }}
+                                  />
+                                  <span style={{ textAlign: 'left' }}>{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              gap: 8,
+                              margin: '0 auto',
+                              maxWidth: '220px',
+                              padding: '4px 12px'
+                            }}>
+                              {mealOptions.map((opt) => (
+                                <div key={opt} style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                  fontFamily: "'Playfair Display', serif",
+                                  fontSize: '15px',
+                                  color: mealSelection === opt ? '#2C2A25' : '#8A8270',
+                                  opacity: mealSelection === opt ? 1 : 0.45,
+                                  fontStyle: 'italic',
+                                  fontWeight: mealSelection === opt ? 600 : 400
+                                }}>
+                                  <span style={{ fontSize: '18px', color: themeColor, lineHeight: 1 }}>
+                                    {mealSelection === opt ? '☑' : '☐'}
+                                  </span>
+                                  <span style={{ textAlign: 'left' }}>{opt}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Gold Medallion Seal Button */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 14 }}>
+                        
+                        {isEditing ? (
+                          <motion.button
+                            type="button"
+                            onClick={handleConfirmRsvp}
+                            disabled={submitting}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.96 }}
+                            style={{
+                              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                              filter: 'drop-shadow(0 8px 18px rgba(150,110,40,0.35))',
+                              outline: 'none', WebkitTapHighlightColor: 'transparent'
+                            }}
+                          >
+                            <svg width="112" height="112" viewBox="0 0 120 120">
+                              <defs>
+                                <radialGradient id="gold-seal-grad-page" cx="45%" cy="40%" r="60%">
+                                  <stop offset="0%" stopColor="#FFF4D0" />
+                                  <stop offset="40%" stopColor="#E5C158" />
+                                  <stop offset="80%" stopColor="#B38B22" />
+                                  <stop offset="100%" stopColor="#7E5F11" />
+                                </radialGradient>
+                              </defs>
+
+                              <path
+                                d={(() => {
+                                  const cx = 60, cy = 60, r = 54, numScallops = 24, scallopDepth = 4;
+                                  let p = '';
+                                  for (let i = 0; i < numScallops; i++) {
+                                    const a1 = (i / numScallops) * Math.PI * 2;
+                                    const a2 = ((i + 0.5) / numScallops) * Math.PI * 2;
+                                    const a3 = ((i + 1) / numScallops) * Math.PI * 2;
+                                    const x1 = cx + Math.cos(a1) * r;
+                                    const y1 = cy + Math.sin(a1) * r;
+                                    const xm = cx + Math.cos(a2) * (r - scallopDepth);
+                                    const ym = cy + Math.sin(a2) * (r - scallopDepth);
+                                    const x2 = cx + Math.cos(a3) * r;
+                                    const y2 = cy + Math.sin(a3) * r;
+                                    if (i === 0) p += `M ${x1} ${y1}`;
+                                    p += ` Q ${xm} ${ym} ${x2} ${y2}`;
+                                  }
+                                  return p + ' Z';
+                                })()}
+                                fill="url(#gold-seal-grad-page)"
+                                stroke="#5E470E"
+                                strokeWidth="0.8"
+                              />
+
+                              <circle cx="60" cy="60" r="45" fill="none" stroke="#FFE49E" strokeWidth="0.8" strokeDasharray="2, 4" opacity="0.85" />
+                              <circle cx="60" cy="60" r="42" fill="none" stroke="#5E470E" strokeWidth="0.5" opacity="0.5" />
+
+                              <text x="60" y="58" textAnchor="middle" fill="#FFEAA5" fontSize="12" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.5">
+                                {submitting ? (isRTL ? 'جاري...' : 'SEALING...') : (isRTL ? 'اضغط' : 'SEAL &')}
+                              </text>
+                              <text x="60" y="74" textAnchor="middle" fill="#FFEAA5" fontSize="12" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.5">
+                                {submitting ? (isRTL ? 'الحفظ...' : 'SAVING...') : (isRTL ? 'للتأكيد' : 'CONFIRM')}
+                              </text>
+
+                              <text x="59.2" y="57.2" textAnchor="middle" fill="#5C4308" fontSize="12" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.5">
+                                {submitting ? (isRTL ? 'جاري...' : 'SEALING...') : (isRTL ? 'اضغط' : 'SEAL &')}
+                              </text>
+                              <text x="59.2" y="73.2" textAnchor="middle" fill="#5C4308" fontSize="12" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.5">
+                                {submitting ? (isRTL ? 'الحفظ...' : 'SAVING...') : (isRTL ? 'للتأكيد' : 'CONFIRM')}
+                              </text>
+                            </svg>
+                          </motion.button>
+                        ) : (
+                          <motion.div
+                            initial={{ scale: 0.9, rotate: -5 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+                            style={{
+                              filter: 'drop-shadow(0 8px 18px rgba(150,110,40,0.4))',
+                              cursor: 'default'
+                            }}
+                          >
+                            <svg width="112" height="112" viewBox="0 0 120 120">
+                              <defs>
+                                <radialGradient id="gold-seal-grad-page-active" cx="45%" cy="40%" r="60%">
+                                  <stop offset="0%" stopColor="#FFF9E6" />
+                                  <stop offset="35%" stopColor="#F5D77F" />
+                                  <stop offset="75%" stopColor="#CFA129" />
+                                  <stop offset="100%" stopColor="#947116" />
+                                </radialGradient>
+                              </defs>
+
+                              <path
+                                d={(() => {
+                                  const cx = 60, cy = 60, r = 54, numScallops = 24, scallopDepth = 4;
+                                  let p = '';
+                                  for (let i = 0; i < numScallops; i++) {
+                                    const a1 = (i / numScallops) * Math.PI * 2;
+                                    const a2 = ((i + 0.5) / numScallops) * Math.PI * 2;
+                                    const a3 = ((i + 1) / numScallops) * Math.PI * 2;
+                                    const x1 = cx + Math.cos(a1) * r;
+                                    const y1 = cy + Math.sin(a1) * r;
+                                    const xm = cx + Math.cos(a2) * (r - scallopDepth);
+                                    const ym = cy + Math.sin(a2) * (r - scallopDepth);
+                                    const x2 = cx + Math.cos(a3) * r;
+                                    const y2 = cy + Math.sin(a3) * r;
+                                    if (i === 0) p += `M ${x1} ${y1}`;
+                                    p += ` Q ${xm} ${ym} ${x2} ${y2}`;
+                                  }
+                                  return p + ' Z';
+                                })()}
+                                fill="url(#gold-seal-grad-page-active)"
+                                stroke="#5E470E"
+                                strokeWidth="0.8"
+                              />
+
+                              <circle cx="60" cy="60" r="45" fill="none" stroke="#FFE49E" strokeWidth="0.8" strokeDasharray="2, 4" opacity="0.9" />
+                              <circle cx="60" cy="60" r="42" fill="none" stroke="#5E470E" strokeWidth="0.5" opacity="0.6" />
+
+                              <text x="60" y="52" textAnchor="middle" fill="#FFFFFF" fontSize="10.5" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.4">
+                                {isRTL ? 'تم تأكيد' : 'RESPONSE'}
+                              </text>
+                              <text x="60" y="68" textAnchor="middle" fill="#FFFFFF" fontSize="10.5" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.4">
+                                {isRTL ? 'الرد ✓' : 'CONFIRMED ✓'}
+                              </text>
+
+                              <text x="59.2" y="51.2" textAnchor="middle" fill="#5C4308" fontSize="10.5" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.4">
+                                {isRTL ? 'تم تأكيد' : 'RESPONSE'}
+                              </text>
+                              <text x="59.2" y="67.2" textAnchor="middle" fill="#5C4308" fontSize="10.5" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.4">
+                                {isRTL ? 'الرد ✓' : 'CONFIRMED ✓'}
+                              </text>
+                            </svg>
+                          </motion.div>
+                        )}
+
+                        {/* Edit Option Toggle */}
+                        {!isEditing && allowGuestEdits && (
+                          <button
+                            type="button"
+                            onClick={() => setIsEditing(true)}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              fontSize: '12px', color: '#9A9486', textDecoration: 'underline',
+                              marginTop: 10, transition: 'color 0.2s', fontFamily: 'var(--font-sans)',
+                              fontWeight: 500
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.color = '#191B1E'}
+                            onMouseLeave={e => e.currentTarget.style.color = '#9A9486'}
+                          >
+                            ✏️ {isRTL ? 'تعديل ردك' : 'Update Response'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Local Confetti celebration canvas inside the card container */}
+                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', borderRadius: 20 }}>
+                      <ConfettiExplosion active={showConfetti} duration={4000} particleCount={100} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </ScaleIn>
+              </ScaleIn>
+            ) : (
+              /* ─── Case B: Public view (Static Invitation Card Artwork) ─── */
+              <ScaleIn delay={0.05}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                  <div style={{
+                    width: '100%', maxWidth: '280px', aspectRatio: '210 / 290',
+                    borderRadius: '14px', overflow: 'hidden',
+                    boxShadow: '0 20px 50px -16px rgba(25,27,30,0.28)',
+                  }}>
+                    <InvitationCard
+                      template={{ pattern: invitationPattern }}
+                      theme={invitationTheme}
+                      guestName={invitationGuestName}
+                      config={invitationPattern === 'custom' ? event.template_data : undefined}
+                      data={invitationData}
+                    />
+                  </div>
+                </div>
+              </ScaleIn>
+            )}
 
             {/* Event Details Card */}
             <FadeInUp delay={0.1}>
@@ -1135,60 +1710,62 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', position: 'sticky', top: '32px', alignSelf: 'start' }}>
 
             {/* RSVP Card */}
-            <div ref={rsvpCardRef}>
-              <ScaleIn delay={0.2}>
-                {hasResponded ? (
-                  <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '14px', padding: '36px 28px' }}>
-                    <div style={{
-                      width: '52px', height: '52px', margin: '0 auto', borderRadius: '50%',
-                      background: `${responseStatus.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={responseStatus.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E', margin: 0 }}>
-                      {isRTL ? 'تم تسجيل ردّك' : "You've already responded"}
-                    </h3>
-                    <span style={{
-                      display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '6px',
-                      padding: '6px 16px', borderRadius: '999px', background: `${responseStatus.color}14`,
-                      color: responseStatus.color, fontWeight: 700, fontSize: '13px', fontFamily: 'var(--font-sans)',
-                    }}>
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: responseStatus.color }} />
-                      {responseStatus.label}
-                    </span>
-                    {allowGuestEdits ? (
-                      <Link href={rsvpFormUrl} style={{
-                        marginTop: '6px', fontSize: '13px', fontWeight: 600, color: themeColor, textDecoration: 'none', fontFamily: 'var(--font-sans)',
+            {!guestRsvp && (
+              <div ref={rsvpCardRef}>
+                <ScaleIn delay={0.2}>
+                  {hasResponded ? (
+                    <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '14px', padding: '36px 28px' }}>
+                      <div style={{
+                        width: '52px', height: '52px', margin: '0 auto', borderRadius: '50%',
+                        background: `${responseStatus.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
-                        {isRTL ? 'تعديل ردّك ←' : 'Update your response →'}
-                      </Link>
-                    ) : (
-                      <p style={{ fontSize: '12px', color: '#A09A91', lineHeight: 1.6, margin: 0, fontFamily: 'var(--font-sans)' }}>
-                        {isRTL ? 'الردود مقفلة. لتغيير ردك، تواصل مع المُنظّم مباشرة.' : 'Responses are locked. To make a change, please contact the host directly.'}
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={responseStatus.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E', margin: 0 }}>
+                        {isRTL ? 'تم تسجيل ردّك' : "You've already responded"}
+                      </h3>
+                      <span style={{
+                        display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '6px',
+                        padding: '6px 16px', borderRadius: '999px', background: `${responseStatus.color}14`,
+                        color: responseStatus.color, fontWeight: 700, fontSize: '13px', fontFamily: 'var(--font-sans)',
+                      }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: responseStatus.color }} />
+                        {responseStatus.label}
+                      </span>
+                      {allowGuestEdits ? (
+                        <Link href={rsvpFormUrl} style={{
+                          marginTop: '6px', fontSize: '13px', fontWeight: 600, color: themeColor, textDecoration: 'none', fontFamily: 'var(--font-sans)',
+                        }}>
+                          {isRTL ? 'تعديل ردّك ←' : 'Update your response →'}
+                        </Link>
+                      ) : (
+                        <p style={{ fontSize: '12px', color: '#A09A91', lineHeight: 1.6, margin: 0, fontFamily: 'var(--font-sans)' }}>
+                          {isRTL ? 'الردود مقفلة. لتغيير ردك، تواصل مع المُنظّم مباشرة.' : 'Responses are locked. To make a change, please contact the host directly.'}
+                        </p>
+                      )}
+                    </GlassmorphismCard>
+                  ) : (
+                    <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
+                      <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
+                      <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
+                        {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { timeZone: 'UTC' }) : 'N/A'}</strong> {t.card_desc}
                       </p>
-                    )}
-                  </GlassmorphismCard>
-                ) : (
-                  <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
-                    <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
-                    <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
-                      {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { timeZone: 'UTC' }) : 'N/A'}</strong> {t.card_desc}
-                    </p>
-                    <GlowPulse color={themeColor} intensity={0.25}>
-                      <Link href={rsvpFormUrl} style={{
-                        display: 'block', width: '100%', padding: '16px', textAlign: 'center', color: '#FFFFFF', fontWeight: 700,
-                        fontSize: '14px', borderRadius: '12px', textDecoration: 'none', fontFamily: 'var(--font-sans)',
-                        background: themeColor, letterSpacing: '0.5px', boxSizing: 'border-box',
-                      }}>
-                        {t.rsvp_now}
-                      </Link>
-                    </GlowPulse>
-                  </GlassmorphismCard>
-                )}
-              </ScaleIn>
-            </div>
+                      <GlowPulse color={themeColor} intensity={0.25}>
+                        <Link href={rsvpFormUrl} style={{
+                          display: 'block', width: '100%', padding: '16px', textAlign: 'center', color: '#FFFFFF', fontWeight: 700,
+                          fontSize: '14px', borderRadius: '12px', textDecoration: 'none', fontFamily: 'var(--font-sans)',
+                          background: themeColor, letterSpacing: '0.5px', boxSizing: 'border-box',
+                        }}>
+                          {t.rsvp_now}
+                        </Link>
+                      </GlowPulse>
+                    </GlassmorphismCard>
+                  )}
+                </ScaleIn>
+              </div>
+            )}
 
             {/* Seating Finder */}
             <ScaleIn delay={0.35}>
@@ -1411,13 +1988,30 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 )}
               </div>
               <GlowPulse color={themeColor} intensity={0.3} style={{ flexShrink: 0 }}>
-                <Link href={rsvpFormUrl} style={{
-                  display: 'inline-block', padding: '10px 28px', background: themeColor, color: '#FFFFFF',
-                  fontWeight: 700, fontSize: '13px', borderRadius: '10px', textDecoration: 'none',
-                  fontFamily: 'var(--font-sans)', letterSpacing: '0.3px', whiteSpace: 'nowrap',
-                }}>
-                  {hasResponded ? (isRTL ? 'تعديل ردّك' : 'Update Response') : t.rsvp_now}
-                </Link>
+                {guestRsvp ? (
+                  <button
+                    onClick={() => {
+                      const el = document.getElementById('integrated-rsvp-card');
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    style={{
+                      display: 'inline-block', padding: '10px 28px', background: themeColor, color: '#FFFFFF',
+                      fontWeight: 700, fontSize: '13px', borderRadius: '10px', textDecoration: 'none',
+                      fontFamily: 'var(--font-sans)', letterSpacing: '0.3px', whiteSpace: 'nowrap',
+                      border: 'none', cursor: 'pointer'
+                    }}
+                  >
+                    {hasResponded ? (isRTL ? 'تعديل ردّك' : 'Update Response') : t.rsvp_now}
+                  </button>
+                ) : (
+                  <Link href={rsvpFormUrl} style={{
+                    display: 'inline-block', padding: '10px 28px', background: themeColor, color: '#FFFFFF',
+                    fontWeight: 700, fontSize: '13px', borderRadius: '10px', textDecoration: 'none',
+                    fontFamily: 'var(--font-sans)', letterSpacing: '0.3px', whiteSpace: 'nowrap',
+                  }}>
+                    {hasResponded ? (isRTL ? 'تعديل ردّك' : 'Update Response') : t.rsvp_now}
+                  </Link>
+                )}
               </GlowPulse>
             </motion.div>
           )}
