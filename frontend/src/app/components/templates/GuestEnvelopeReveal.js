@@ -150,6 +150,30 @@ function DetailRow({ icon, label, value }) {
   );
 }
 
+/* Four engraved corner flourishes, framing a stationery card */
+function CornerOrnaments({ color }) {
+  const corners = [
+    { top: 10, left: 10, rotate: "0deg" },
+    { top: 10, right: 10, rotate: "90deg" },
+    { bottom: 10, right: 10, rotate: "180deg" },
+    { bottom: 10, left: 10, rotate: "270deg" },
+  ];
+  return corners.map((pos, i) => (
+    <svg
+      key={i} width="32" height="32" viewBox="0 0 40 40" aria-hidden
+      style={{ position: "absolute", top: pos.top, bottom: pos.bottom, left: pos.left, right: pos.right, transform: `rotate(${pos.rotate})`, opacity: 0.6, pointerEvents: "none" }}
+    >
+      <path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke={color} strokeWidth="0.8" />
+      <path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke={color} strokeWidth="0.8" />
+      <path d="M5 5 Q5 10 9 14 Q13 18 18 20" fill="none" stroke={color} strokeWidth="0.5" opacity="0.6" />
+      <path d="M5 5 Q10 5 14 9 Q18 13 20 18" fill="none" stroke={color} strokeWidth="0.5" opacity="0.6" />
+      <circle cx="3" cy="3" r="1.5" fill={color} />
+      <circle cx="22" cy="26" r="1" fill={color} opacity="0.8" />
+      <circle cx="26" cy="22" r="1" fill={color} opacity="0.8" />
+    </svg>
+  ));
+}
+
 /* ─── The medallion artwork — one metal skin (bronze or gold) ─── */
 /* `uid` keeps every instance's gradient ids unique (no cross-SVG collisions). */
 function MedallionSkin({ skin, uid, text, arabic }) {
@@ -498,9 +522,11 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
     return () => clearTimeout(t);
   }, [finish]);
 
-  /* ═══ Reduced-motion fallback: an elegant, static, instantly-skippable card ═══
-     No ambient loops or parallax (honours prefers-reduced-motion), but a single
-     gentle staggered entrance still reads as considered rather than inert. */
+  /* ═══ Reduced-motion fallback: a full luxury stationery card, just without the
+     envelope-opening choreography. Large-scale parallax/spin is avoided, but
+     low-amplitude opacity/glow ambience and a one-shot entrance still ship —
+     this screen is the only thing many guests (and any tooling that forces
+     prefers-reduced-motion) ever actually see, so it has to carry the brand. */
   if (prefersReduced) {
     return (
       <motion.div
@@ -512,50 +538,103 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
         exit={{ opacity: 0 }}
         transition={{ duration: 0.5 }}
         dir={isRTL ? "rtl" : "ltr"}
-        style={{ ...overlayBase, background: "radial-gradient(125% 95% at 50% 26%, #fffdf8 0%, #faf3e2 40%, #f0e1c1 74%, #e3cf9e 100%)" }}
+        style={{ ...overlayBase, background: "radial-gradient(125% 95% at 50% 24%, #fffdf8 0%, #faf3e2 38%, #ecdcb4 70%, #d9bf8c 100%)" }}
       >
+        <style dangerouslySetInnerHTML={{ __html: RM_CSS }} />
+
+        {/* Slow gold aurora sheen */}
+        <div aria-hidden className="rm-aurora" style={{ position: "absolute", inset: 0, background: `linear-gradient(120deg, transparent 20%, ${theme.secondary}33 45%, transparent 70%)`, pointerEvents: "none" }} />
         {/* Embossed arabesque stationery texture + warm vignette */}
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: 0.32, mixBlendMode: "multiply", pointerEvents: "none" }} />
-        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(62% 52% at 50% 28%, rgba(255,255,255,0.55), transparent 70%), radial-gradient(120% 120% at 50% 100%, rgba(110,80,35,0.18), transparent 60%)", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: 0.3, mixBlendMode: "multiply", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(62% 52% at 50% 26%, rgba(255,255,255,0.55), transparent 70%), radial-gradient(120% 120% at 50% 100%, rgba(110,80,35,0.22), transparent 60%)", pointerEvents: "none" }} />
+        {/* Twinkling gold dust scattered across the backdrop */}
+        {SPARKLES.map((s, i) => (
+          <span key={i} aria-hidden className="rm-twinkle" style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, borderRadius: "50%", background: i % 2 ? theme.secondary : "#ffe6a0", boxShadow: "0 0 6px rgba(255,220,140,0.8)", animationDelay: `${s.delay}s`, pointerEvents: "none" }} />
+        ))}
+
+        {/* Top-end language chip — mirrors the live event page composition */}
+        <div style={{ position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineEnd: 16, zIndex: 6 }}>
+          <button
+            type="button"
+            onClick={() => hasArabic && setLang((l) => (l === "en" ? "ar" : "en"))}
+            aria-label={hasArabic ? "Toggle language" : "Language"}
+            style={langChipStyle(!!hasArabic)}
+          >
+            <span aria-hidden style={{ fontSize: 15, opacity: 0.7 }}>🌐</span>
+            <span style={{ fontWeight: 700, letterSpacing: "0.04em" }}>{lang === "en" ? "EN" : "ع"}</span>
+          </button>
+        </div>
 
         <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation" style={skipStyle}>
           Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span>
         </button>
 
+        {/* ── The stationery card ── */}
         <motion.div
           initial="hidden"
           animate="show"
-          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.12, delayChildren: 0.15 } } }}
-          style={{ position: "relative", zIndex: 2, textAlign: "center", padding: "24px", maxWidth: 460 }}
+          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.1, delayChildren: 0.2 } } }}
+          style={{
+            position: "relative", zIndex: 2, width: "100%", maxWidth: 440,
+            background: "linear-gradient(155deg, rgba(255,253,248,0.94), rgba(250,239,219,0.9))",
+            border: `1px solid ${theme.primary}38`,
+            borderRadius: 24,
+            boxShadow: "0 34px 76px -22px rgba(70,45,18,0.38), inset 0 1px 0 rgba(255,255,255,0.65)",
+            padding: "40px 28px 34px",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            overflow: "hidden",
+            textAlign: "center",
+          }}
         >
-          {/* Seal medallion with a soft static halo (no pulsing/spinning) */}
+          <CornerOrnaments color={theme.primary} />
+          <div aria-hidden style={{ position: "absolute", inset: 9, border: `0.6px solid ${theme.primary}26`, borderRadius: 17, pointerEvents: "none" }} />
+
+          {/* Seal medallion: soft halo + one-shot shimmer sweep on mount */}
           <motion.div variants={fadeUp} style={{ position: "relative", display: "inline-block" }}>
-            <div aria-hidden style={{ position: "absolute", inset: "-24%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,221,130,0.5) 0%, rgba(255,200,90,0.2) 46%, transparent 72%)", filter: "blur(5px)" }} />
-            <svg width="150" height="150" viewBox="0 0 220 220" role="img" aria-label="Invitation seal" style={{ position: "relative", display: "block", filter: "drop-shadow(0 14px 26px rgba(90,60,20,0.32))" }}>
+            <div aria-hidden className="rm-halo" style={{ position: "absolute", inset: "-26%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,221,130,0.55) 0%, rgba(255,200,90,0.22) 46%, transparent 72%)", filter: "blur(5px)" }} />
+            <svg width="138" height="138" viewBox="0 0 220 220" role="img" aria-label="Invitation seal" style={{ position: "relative", display: "block", filter: "drop-shadow(0 14px 26px rgba(90,60,20,0.32))" }}>
               <MedallionSkin skin="gold" uid="rm" text={identity.sealText} arabic={identity.sealArabic} />
             </svg>
+            <div aria-hidden style={{ position: "absolute", inset: 0, borderRadius: "50%", overflow: "hidden", pointerEvents: "none" }}>
+              <div className="rm-sheen" />
+            </div>
           </motion.div>
 
           {/* Eyebrow flanked by hairline flourishes */}
-          <motion.div variants={fadeUp} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "24px 0 12px" }}>
-            <span aria-hidden style={{ height: 1, width: 30, background: `linear-gradient(90deg, transparent, ${theme.primary})` }} />
+          <motion.div variants={fadeUp} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "22px 0 12px" }}>
+            <span aria-hidden style={{ height: 1, width: 28, background: `linear-gradient(90deg, transparent, ${theme.primary})` }} />
             <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.34em", textTransform: "uppercase", color: theme.primary, fontWeight: 700 }}>
               {copy.eyebrow}
             </span>
-            <span aria-hidden style={{ height: 1, width: 30, background: `linear-gradient(270deg, transparent, ${theme.primary})` }} />
+            <span aria-hidden style={{ height: 1, width: 28, background: `linear-gradient(270deg, transparent, ${theme.primary})` }} />
           </motion.div>
 
-          <motion.h1 variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(26px,7.4vw,38px)", color: "#2a1f12", margin: 0, fontWeight: 500, lineHeight: 1.22, textShadow: "0 1px 0 rgba(255,255,255,0.7)" }}>
+          <motion.h1 variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,7vw,34px)", color: "#2a1f12", margin: 0, fontWeight: 500, lineHeight: 1.22, textShadow: "0 1px 0 rgba(255,255,255,0.7)" }}>
             {displayTitle}
           </motion.h1>
 
           {copy.join && (
-            <motion.p variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 14.5, color: "#8a7350", margin: "14px 0 0", letterSpacing: "0.02em" }}>
+            <motion.p variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 14, color: "#8a7350", margin: "12px 0 0", letterSpacing: "0.02em" }}>
               {copy.join}
             </motion.p>
           )}
 
-          <motion.div variants={fadeUp} style={{ marginTop: 28 }}>
+          {(dateStr || locationStr) && (
+            <>
+              <motion.div variants={fadeUp} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "20px 0" }}>
+                <span aria-hidden style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+                <span style={{ fontSize: 15, color: theme.primary }}>✦</span>
+                <span aria-hidden style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+              </motion.div>
+              <motion.div variants={fadeUp} style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 6 }}>
+                {dateStr && <DetailRow icon="📅" label={isRTL ? "التاريخ" : "When"} value={dateStr} />}
+                {locationStr && <DetailRow icon="📍" label={isRTL ? "المكان" : "Where"} value={[locationStr, event?.location_address].filter(Boolean).join(" · ")} />}
+              </motion.div>
+            </>
+          )}
+
+          <motion.div variants={fadeUp} style={{ marginTop: 26 }}>
             <motion.button
               type="button"
               onClick={finish}
@@ -1462,6 +1541,34 @@ const DUST = [
   { x: 68, s: 4, delay: 0.4 }, { x: 38, s: 3, delay: 0.55 }, { x: 62, s: 5, delay: 0.7 },
   { x: 50, s: 4, delay: 0.18 }, { x: 35, s: 5, delay: 0.85 }, { x: 65, s: 3, delay: 0.62 },
 ];
+
+/* Ambient twinkle field for the reduced-motion stationery backdrop (fixed positions) */
+const SPARKLES = [
+  { x: 12, y: 18, s: 5, delay: 0 }, { x: 85, y: 14, s: 4, delay: 0.6 },
+  { x: 8, y: 76, s: 4, delay: 1.1 }, { x: 90, y: 68, s: 5, delay: 0.3 },
+  { x: 48, y: 8, s: 3, delay: 1.6 }, { x: 22, y: 88, s: 3, delay: 0.9 },
+  { x: 78, y: 90, s: 4, delay: 1.3 }, { x: 64, y: 5, s: 3, delay: 0.45 },
+];
+
+/* Low-amplitude ambient CSS for the reduced-motion fallback — opacity/glow
+   only, no large-scale translation, rotation, or parallax. */
+const RM_CSS = `
+@keyframes rmAurora { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
+.rm-aurora { animation: rmAurora 9s ease-in-out infinite; }
+
+@keyframes rmTwinkle { 0%,100% { opacity: 0.15; transform: scale(0.85); } 50% { opacity: 0.9; transform: scale(1.15); } }
+.rm-twinkle { animation: rmTwinkle 3.6s ease-in-out infinite; }
+
+@keyframes rmHalo { 0%,100% { opacity: 0.55; } 50% { opacity: 0.85; } }
+.rm-halo { animation: rmHalo 4.4s ease-in-out infinite; }
+
+@keyframes rmSheen { 0% { transform: translateX(-130%) rotate(8deg); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateX(130%) rotate(8deg); opacity: 0; } }
+.rm-sheen {
+  position: absolute; top: -25%; left: 0; width: 55%; height: 150%;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.8) 50%, transparent 62%);
+  animation: rmSheen 1.8s ease-out 0.6s 1;
+}
+`;
 
 /* Ambient CSS loops — cheaper & smoother on the compositor than per-frame JS */
 const REVEAL_CSS = `
