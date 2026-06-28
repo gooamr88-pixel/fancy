@@ -156,6 +156,47 @@ const listAdminUsers = async (req, res, next) => {
 };
 
 /**
+ * Core role-assignment logic: replaces a user's admin roles wholesale.
+ * An empty `roleKeys` array removes admin access entirely (deletes the
+ * admin_users row, cascading admin_user_roles). Shared by the RBAC route
+ * below AND the legacy binary `setUserRole` endpoint (adminController.js)
+ * so both ever write to the one place the access check actually reads.
+ * Throws an Error with `.code = 'INVALID_ROLE'` for unknown role keys.
+ */
+async function applyAdminRoles(userId, roleKeys) {
+  if (roleKeys.length === 0) {
+    const { data: existing } = await supabase.from('admin_users').select('id').eq('user_id', userId).maybeSingle();
+    if (existing) await supabase.from('admin_users').delete().eq('user_id', userId);
+    invalidate(userId);
+    return;
+  }
+
+  const { data: roles, error: rolesErr } = await supabase.from('roles').select('id, key').in('key', roleKeys);
+  if (rolesErr) throw rolesErr;
+  if (!roles || roles.length !== roleKeys.length) {
+    const err = new Error('One or more role keys are invalid.');
+    err.code = 'INVALID_ROLE';
+    throw err;
+  }
+
+  // Upsert the admin_users row.
+  const { data: adminRow, error: upErr } = await supabase
+    .from('admin_users')
+    .upsert({ user_id: userId, status: 'active' }, { onConflict: 'user_id' })
+    .select('id')
+    .single();
+  if (upErr) throw upErr;
+
+  // Replace role assignments.
+  await supabase.from('admin_user_roles').delete().eq('admin_user_id', adminRow.id);
+  const rows = roles.map((r) => ({ admin_user_id: adminRow.id, role_id: r.id }));
+  const { error: insErr } = await supabase.from('admin_user_roles').insert(rows);
+  if (insErr) throw insErr;
+
+  invalidate(userId);
+}
+
+/**
  * PUT /api/v1/admin/rbac/admins/:userId/roles
  * Sets a user's admin roles. body: { roleKeys: [...] }
  * An empty array removes admin access entirely.
@@ -177,39 +218,18 @@ const setAdminRoles = async (req, res, next) => {
   }
 
   try {
-    if (roleKeys.length === 0) {
-      // Remove admin access: delete admin_users row (cascades admin_user_roles).
-      const { data: existing } = await supabase.from('admin_users').select('id').eq('user_id', userId).maybeSingle();
-      if (existing) await supabase.from('admin_users').delete().eq('user_id', userId);
-      invalidate(userId);
-      await logAdminAction(req, { action: 'rbac.admin.remove', entityType: 'admin_user', entityId: userId });
-      return res.json({ success: true, message: 'Admin access removed.' });
-    }
-
-    const { data: roles, error: rolesErr } = await supabase.from('roles').select('id, key').in('key', roleKeys);
-    if (rolesErr) throw rolesErr;
-    if (!roles || roles.length !== roleKeys.length) {
-      return res.status(400).json({ success: false, error: 'INVALID_ROLE', message: 'One or more role keys are invalid.' });
-    }
-
-    // Upsert the admin_users row.
-    const { data: adminRow, error: upErr } = await supabase
-      .from('admin_users')
-      .upsert({ user_id: userId, status: 'active' }, { onConflict: 'user_id' })
-      .select('id')
-      .single();
-    if (upErr) throw upErr;
-
-    // Replace role assignments.
-    await supabase.from('admin_user_roles').delete().eq('admin_user_id', adminRow.id);
-    const rows = roles.map((r) => ({ admin_user_id: adminRow.id, role_id: r.id }));
-    const { error: insErr } = await supabase.from('admin_user_roles').insert(rows);
-    if (insErr) throw insErr;
-
-    invalidate(userId);
-    await logAdminAction(req, { action: 'rbac.admin.set_roles', entityType: 'admin_user', entityId: userId, after: { roleKeys } });
-    return res.json({ success: true, message: 'Admin roles updated.' });
+    await applyAdminRoles(userId, roleKeys);
+    await logAdminAction(req, {
+      action: roleKeys.length === 0 ? 'rbac.admin.remove' : 'rbac.admin.set_roles',
+      entityType: 'admin_user',
+      entityId: userId,
+      after: roleKeys.length ? { roleKeys } : undefined,
+    });
+    return res.json({ success: true, message: roleKeys.length === 0 ? 'Admin access removed.' : 'Admin roles updated.' });
   } catch (err) {
+    if (err.code === 'INVALID_ROLE') {
+      return res.status(400).json({ success: false, error: 'INVALID_ROLE', message: err.message });
+    }
     next(err);
   }
 };
@@ -226,4 +246,5 @@ module.exports = {
   setRolePermissions,
   listAdminUsers,
   setAdminRoles,
+  applyAdminRoles,
 };

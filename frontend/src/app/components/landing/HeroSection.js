@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "../../hooks/useAuth";
+import { motion, AnimatePresence } from "framer-motion";
+import InvitationCard from "../templates/InvitationCard";
 
 /* ═══════════════════════════════════════════════════════════════
    HeroSection — Fancy RSVP (Page 09 Brand Guide — Pixel Perfect)
@@ -13,41 +15,134 @@ import { useAuth } from "../../hooks/useAuth";
    │                                                              │
    │  BEAUTIFULLY DESIGNED                    ┌────────────────┐  │
    │  RSVP EXPERIENCES                        │                │  │
-   │                                          │  Wedding Hero  │  │
-   │  Elegant RSVPs.                          │    Photo       │  │
-   │  Effortless Planning.                    │                │  │
-   │                                          └────────────────┘  │
-   │  The all-in-one RSVP and guest                               │
+   │                                          │  Interactive   │  │
+   │  Elegant RSVPs.                          │   Envelope     │  │
+   │  Effortless Planning.                    │   Animation    │  │
+   │                                          │                │  │
+   │  The all-in-one RSVP and guest           └────────────────┘  │
    │  management platform for weddings                            │
    │  and special events.                                         │
    │                                                              │
    │  [Get Started]  [View Features]                              │
    │                                                              │
    └──────────────────────────────────────────────────────────────┘
-   
-   Below Hero:
-   ┌──────────────────────────────────────────────────────────────┐
-   │         PERFECT FOR ANY OCCASION                             │
-   │     Weddings, events, and more.                              │
-   │  ┌──────┐ ┌──────────┐ ┌────────┐ ┌──────────────┐          │
-   │  │ 💍   │ │ 🥂       │ │ 🎀     │ │ 🏢           │          │
-   │  │Wedd. │ │Engage.   │ │Showers │ │Corp. Events  │          │
-   │  └──────┘ └──────────┘ └────────┘ └──────────────┘          │
-   └──────────────────────────────────────────────────────────────┘
-   
-   Then Features:
-   ┌──────────────────────────────────────────────────────────────┐
-   │  POWERFUL FEATURES                                           │
-   │  Everything you need          ┌─────────────────────────┐    │
-   │  to host with confidence.     │  Dashboard Mockup       │    │
-   │  • Custom RSVP forms...       │  + Invitation Image     │    │
-   │  [Explore All Features]       └─────────────────────────┘    │
-   └──────────────────────────────────────────────────────────────┘
    ═══════════════════════════════════════════════════════════════ */
 
-/* ═══ Interactive Hero Card Component ═══ */
+/* ─── Medallion constants and graphics for the wax seal ─── */
+const C = 110;
+const BAND_BEADS = Array.from({ length: 24 }, (_, i) => i * 15);
+const GUILLOCHE_TICKS = Array.from({ length: 48 }, (_, i) => i * 7.5);
+const INNER_PETALS = Array.from({ length: 12 }, (_, i) => i * 30);
+const ACCENT_DOTS = Array.from({ length: 12 }, (_, i) => i * 30 + 15);
+const PETAL_PATH = "M110 30 C 129 53 127 75 110 89 C 93 75 91 53 110 30 Z";
+const PETAL_VEIN = "M110 41 C 119 55 119 70 110 83 C 101 70 101 55 110 41 Z";
+const PETAL_PATH_SM = "M110 50 C 121 64 120 78 110 88 C 100 78 99 64 110 50 Z";
+
+const METAL_GOLD = {
+  disc: ["#fff3cf", "#f3cd72", "#caa033", "#7e601a"],
+  bevel: ["#fffbe9", "#b6892a"],
+  orn: ["#fff7df", "#f2cf6a", "#9c7b22"],
+  ornStroke: "#7a5c16",
+  center: ["#b08e36", "#6e521a"],
+  mono: "#fff6cf"
+};
+
+function WaxMedallion({ text = "S&J" }) {
+  const m = METAL_GOLD;
+  const s = "gold-hero";
+  return (
+    <svg className="w-[78px] h-[78px] drop-shadow-xl select-none" viewBox="0 0 220 220" style={{ transformStyle: "preserve-3d" }}>
+      <defs>
+        <radialGradient id={`disc-${s}`} cx="38%" cy="32%" r="78%">
+          <stop offset="0%" stopColor={m.disc[0]} />
+          <stop offset="42%" stopColor={m.disc[1]} />
+          <stop offset="76%" stopColor={m.disc[2]} />
+          <stop offset="100%" stopColor={m.disc[3]} />
+        </radialGradient>
+        <linearGradient id={`bevel-${s}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={m.bevel[0]} />
+          <stop offset="50%" stopColor={m.bevel[1]} />
+          <stop offset="100%" stopColor={m.bevel[0]} />
+        </linearGradient>
+        <linearGradient id={`orn-${s}`} x1="50%" y1="0%" x2="50%" y2="100%">
+          <stop offset="0%" stopColor={m.orn[0]} />
+          <stop offset="52%" stopColor={m.orn[1]} />
+          <stop offset="100%" stopColor={m.orn[2]} />
+        </linearGradient>
+        <radialGradient id={`center-${s}`} cx="50%" cy="38%" r="72%">
+          <stop offset="0%" stopColor={m.center[0]} />
+          <stop offset="100%" stopColor={m.center[1]} />
+        </radialGradient>
+      </defs>
+
+      {/* Disc + beveled rim */}
+      <circle cx={C} cy={C} r="104" fill={`url(#disc-${s})`} stroke={`url(#bevel-${s})`} strokeWidth="3.5" />
+      <circle cx={C} cy={C} r="99" fill="none" stroke={m.ornStroke} strokeOpacity="0.35" strokeWidth="0.8" />
+      <circle cx={C} cy={C} r="96.5" fill="none" stroke={m.orn[0]} strokeOpacity="0.5" strokeWidth="0.8" />
+
+      {/* Outer bead band */}
+      {BAND_BEADS.map((deg) => (
+        <rect
+          key={`bead-${deg}`}
+          x="106" y="13.5" width="8" height="8" rx="1.4"
+          fill={`url(#orn-${s})`} stroke={m.ornStroke} strokeOpacity="0.4" strokeWidth="0.5"
+          transform={`rotate(${deg} ${C} ${C}) rotate(45 110 17.5)`}
+        />
+      ))}
+
+      {/* Guilloché double-ring with fine ticks */}
+      <circle cx={C} cy={C} r="84" fill="none" stroke={m.orn[1]} strokeOpacity="0.55" strokeWidth="1" />
+      <circle cx={C} cy={C} r="79" fill="none" stroke={m.ornStroke} strokeOpacity="0.4" strokeWidth="0.8" />
+      {GUILLOCHE_TICKS.map((deg) => (
+        <line
+          key={`tick-${deg}`}
+          x1={C} y1="26.5" x2={C} y2="31" stroke={m.orn[0]} strokeOpacity="0.6" strokeWidth="0.7"
+          transform={`rotate(${deg} ${C} ${C})`}
+        />
+      ))}
+
+      {/* Inner mandala — 12 ogee petals + inner veins */}
+      {INNER_PETALS.map((deg) => (
+        <g key={`petal-${deg}`} transform={`rotate(${deg} ${C} ${C})`}>
+          <path d={PETAL_PATH} fill={`url(#orn-${s})`} stroke={m.ornStroke} strokeOpacity="0.45" strokeWidth="0.7" />
+          <path d={PETAL_VEIN} fill="none" stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.6" />
+        </g>
+      ))}
+      {/* Secondary petal layer, interleaved between the primaries */}
+      {ACCENT_DOTS.map((deg) => (
+        <path key={`pet2-${deg}`} d={PETAL_PATH_SM} fill={`url(#orn-${s})`} fillOpacity="0.9" stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.5" transform={`rotate(${deg} ${C} ${C})`} />
+      ))}
+      {ACCENT_DOTS.map((deg) => (
+        <circle key={`dot-${deg}`} cx={C} cy="44" r="1.9" fill={m.orn[0]} transform={`rotate(${deg} ${C} ${C})`} />
+      ))}
+
+      {/* Centre cartouche + monogram */}
+      <circle cx={C} cy={C} r="31" fill={`url(#center-${s})`} stroke={m.orn[1]} strokeOpacity="0.7" strokeWidth="1.4" />
+      <circle cx={C} cy={C} r="27" fill="none" stroke={m.ornStroke} strokeOpacity="0.5" strokeWidth="0.7" />
+      <text
+        x={C}
+        y={C}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill={m.mono}
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: 34,
+          fontWeight: 600,
+          letterSpacing: 1,
+        }}
+      >
+        {text}
+      </text>
+    </svg>
+  );
+}
+
+/* ═══ Interactive Hero Envelope Component ═══ */
 function HeroCard() {
-  const [flipped, setFlipped] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isCardOut, setIsCardOut] = useState(false);
+  const [showTapIndicator, setShowTapIndicator] = useState(true);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const [mounted, setMounted] = useState(false);
   const [sparkles, setSparkles] = useState([]);
@@ -65,22 +160,53 @@ function HeroCard() {
     })));
   }, []);
 
-  // Auto-flip
+  // Auto-open teaser on page load
   useEffect(() => {
     if (!mounted) return;
-    const t = setTimeout(() => { if (!flipped) setFlipped(true); }, 5000);
+    const t = setTimeout(() => {
+      if (!isOpen) {
+        setIsOpen(true);
+        setShowTapIndicator(false);
+        setTimeout(() => setIsCardOut(true), 600);
+      }
+    }, 2500);
     return () => clearTimeout(t);
-  }, [mounted, flipped]);
+  }, [mounted, isOpen]);
+
+  const handleOpen = () => {
+    if (isOpen) return;
+    setIsOpen(true);
+    setShowTapIndicator(false);
+    setTimeout(() => setIsCardOut(true), 600);
+  };
+
+  const handleClose = (e) => {
+    e.stopPropagation();
+    setIsCardOut(false);
+    setTimeout(() => {
+      setIsOpen(false);
+      setShowTapIndicator(true);
+    }, 800);
+  };
 
   const handleMouseMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 18;
-    const y = ((e.clientY - rect.top) / rect.height - 0.5) * -18;
+    const x = ((e.clientX - rect.left) / rect.width - 0.5) * 10;
+    const y = ((e.clientY - rect.top) / rect.height - 0.5) * -10;
     setTilt({ x, y });
   };
   const handleMouseLeave = () => setTilt({ x: 0, y: 0 });
 
-  if (!mounted) return <div style={{ width: '100%', maxWidth: 420, aspectRatio: '3/4' }} />;
+  if (!mounted) return <div style={{ width: '100%', maxWidth: 320, height: 440 }} />;
+
+  const template = { pattern: "serif" };
+  const theme = { primary: "#B8944F", secondary: "#D7BE80" };
+  const cardData = {
+    names: "Sophia & James",
+    monogram: "S&J",
+    dateLine: "SATURDAY, JUNE 20, 2026",
+    venueLine: "The Plaza · New York",
+  };
 
   return (
     <div className="hc-wrap animate-slide-in-right">
@@ -106,52 +232,200 @@ function HeroCard() {
         className="hc-stage"
         role="button"
         tabIndex={0}
-        aria-label={flipped ? 'Flip card to front' : 'Flip card to see RSVP'}
+        aria-label={isOpen ? 'Click to close invitation' : 'Click to open invitation'}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
-        onClick={() => setFlipped(!flipped)}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setFlipped(!flipped); } }}
+        onClick={isOpen ? undefined : handleOpen}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!isOpen) handleOpen(); } }}
+        style={{
+          perspective: 1400,
+          transformStyle: "preserve-3d",
+          transform: `perspective(1400px) rotateX(${tilt.y}deg) rotateY(${tilt.x}deg)`,
+          transition: "transform 0.1s ease-out",
+        }}
       >
-        <div
-          className={`hc-card ${flipped ? 'hc-flipped' : ''}`}
-          style={{
-            transform: flipped
-              ? `perspective(1400px) rotateY(180deg) rotateX(${tilt.y * 0.3}deg)`
-              : `perspective(1400px) rotateX(${tilt.y}deg) rotateY(${tilt.x}deg)`,
-          }}
-        >
-          {/* ── FRONT FACE ── */}
-          <div className="hc-face hc-front">
-            <img src="/images/hero-card-front.png" alt="Wedding invitation" className="hc-img" />
-            {/* Gold border glow */}
-            <div className="hc-border-glow" />
-            {/* Shimmer sweep */}
-            <div className="hc-shimmer" />
-            {/* Hover light spot */}
-            <div className="hc-light" style={{
-              background: `radial-gradient(circle at ${50 + tilt.x * 3}% ${50 - tilt.y * 3}%, rgba(215,190,128,.12) 0%, transparent 50%)`,
-            }} />
+        <div className="relative w-full h-full" style={{ transformStyle: "preserve-3d" }}>
+          {/* Layer 1: Envelope back pocket */}
+          <div
+            className="absolute left-0 right-0 bottom-0 bg-[#F4EFE6] rounded-b-2xl border border-amber-900/10 shadow-xl"
+            style={{
+              height: 220,
+              zIndex: 10,
+              transformStyle: "preserve-3d",
+            }}
+          >
+            {/* Lining pattern */}
+            <div
+              className="absolute inset-2 top-0 bg-gradient-to-b from-[#DFD3C3] via-[#FAF9F6] to-[#FAF9F6] rounded-b-xl"
+              style={{ transform: "translateZ(1px)" }}
+            />
           </div>
 
-          {/* ── BACK FACE ── */}
-          <div className="hc-face hc-back">
-            <img src="/images/hero-card-back.png" alt="RSVP response" className="hc-img" />
-            <div className="hc-border-glow" />
-            <div className="hc-shimmer hc-shimmer-back" />
+          {/* Layer 2: Invitation card sliding out */}
+          <motion.div
+            className="absolute shadow-2xl rounded-lg overflow-hidden bg-[#FCFAF6]"
+            style={{
+              width: 260,
+              height: 360,
+              left: 30, // Centered inside the 320px stage
+              bottom: 12,
+              transformOrigin: "bottom center",
+              zIndex: isCardOut ? 40 : 20,
+            }}
+            initial={{ y: 0, scale: 0.9, opacity: 0 }}
+            animate={{
+              y: isCardOut ? -180 : 0,
+              scale: isCardOut ? 1.05 : 0.9,
+              opacity: isOpen ? 1 : 0,
+            }}
+            transition={{
+              y: { type: "spring", stiffness: 85, damping: 16 },
+              scale: { type: "spring", stiffness: 85, damping: 16 },
+              opacity: { duration: 0.3 }
+            }}
+          >
+            <InvitationCard template={template} theme={theme} guestName="Sophia & James" data={cardData} />
+
+            {/* Close button inside card (only active when card is out) */}
+            {isCardOut && (
+              <button
+                onClick={handleClose}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-stone-200 shadow-md flex items-center justify-center text-stone-600 hover:text-stone-900 transition-colors z-50 cursor-pointer"
+                aria-label="Close invitation"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            )}
+          </motion.div>
+
+          {/* Layer 3: Front flaps */}
+          <div
+            className="absolute left-0 right-0 bottom-0 pointer-events-none"
+            style={{ height: 220, zIndex: 30 }}
+          >
+            <svg className="w-full h-full filter drop-shadow-md" viewBox="0 0 100 70" preserveAspectRatio="none">
+              <defs>
+                <filter id="flapShadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="#5C4D3C" floodOpacity="0.22" />
+                </filter>
+              </defs>
+              <path d="M 0,0 L 46,38 L 0,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
+              <path d="M 100,0 L 54,38 L 100,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
+              <path d="M 0,70 L 50,34 L 100,70 Z" fill="#F5EFE6" stroke="#E5D8C6" strokeWidth="0.3" filter="url(#flapShadow)" />
+            </svg>
           </div>
+
+          {/* Layer 4: Top folding flap */}
+          <motion.div
+            className="absolute left-0 right-0 w-full transform-style-3d"
+            style={{
+              height: 110,
+              top: 0,
+              transformOrigin: "top center",
+              originY: 0,
+            }}
+            initial={{ rotateX: 0, zIndex: 31 }}
+            animate={{
+              rotateX: isOpen ? 180 : 0,
+              zIndex: isOpen ? 5 : 31,
+            }}
+            transition={{
+              rotateX: { duration: 0.8, ease: [0.4, 0, 0.2, 1] },
+              zIndex: { delay: isOpen ? 0.35 : 0 },
+            }}
+          >
+            {/* Front flap (closed) */}
+            <div className="absolute inset-0 backface-hidden" style={{ zIndex: 32 }}>
+              <svg className="w-full h-full filter drop-shadow-sm" viewBox="0 0 100 45" preserveAspectRatio="none">
+                <polygon points="0,0 50,45 100,0" fill="#FAF9F6" stroke="#DFD3C3" strokeWidth="0.3" />
+              </svg>
+            </div>
+
+            {/* Back flap with gold lining (open) */}
+            <div className="absolute inset-0 backface-hidden animate-none" style={{ transform: "rotateY(180deg)", zIndex: 31 }}>
+              <svg className="w-full h-full drop-shadow-md" viewBox="0 0 100 45" preserveAspectRatio="none">
+                <polygon points="0,0 50,45 100,0" fill="#FAF9F6" />
+                <polygon points="4,1 50,41 96,1" fill="url(#goldLiningHero)" />
+                <defs>
+                  <linearGradient id="goldLiningHero" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#C5A059" /><stop offset="20%" stopColor="#FDF0CD" />
+                    <stop offset="40%" stopColor="#D4AF37" /><stop offset="60%" stopColor="#F3E5AB" />
+                    <stop offset="80%" stopColor="#AA7A1E" /><stop offset="100%" stopColor="#D4AF37" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          </motion.div>
+
+          {/* Layer 5: Wax Seal */}
+          <AnimatePresence>
+            {!isOpen && (
+              <motion.div
+                className="absolute left-1/2 cursor-pointer"
+                style={{
+                  top: 95,
+                  x: "-50%",
+                  y: "-50%",
+                  zIndex: 45,
+                }}
+                exit={{
+                  scale: 0.6,
+                  opacity: 0,
+                  rotate: 15,
+                  transition: { duration: 0.45 }
+                }}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleOpen}
+              >
+                <WaxMedallion text="S&J" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Tap click indicator overlay */}
+          {showTapIndicator && (
+            <div
+              className="absolute left-0 right-0 bottom-0 flex flex-col items-center justify-center pointer-events-none"
+              style={{ height: 165, zIndex: 50 }}
+            >
+              <div className="relative flex items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-14 w-14 rounded-full opacity-35 bg-[#B8944F]" />
+                <span className="relative inline-flex rounded-full h-10 w-10 items-center justify-center shadow-lg text-white bg-[#B8944F]">
+                  <svg className="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </span>
+              </div>
+              <span className="text-[10px] font-bold text-stone-600 uppercase tracking-widest mt-3 bg-white/90 backdrop-blur-sm py-1.5 px-3 rounded-full border border-stone-200/50 shadow-sm animate-pulse">
+                Click to Open
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Label */}
-      <div className={`hc-label ${flipped ? 'hc-label-flip' : ''}`}>
+      <div className={`hc-label ${isOpen ? 'hc-label-flip' : ''}`}>
         <div className="hc-label-dot" />
-        <span>{flipped ? 'RSVP Response Preview' : 'Interactive Invitation Preview'}</span>
-        <span className="hc-label-action">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Tap to {flipped ? 'flip back' : 'see RSVP'}
-        </span>
+        <span>{isOpen ? 'Gilded Wedding Invitation' : 'Interactive Envelope Reveal'}</span>
+        {isOpen ? (
+          <span className="hc-label-action cursor-pointer" onClick={handleClose}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Click to close
+          </span>
+        ) : (
+          <span className="hc-label-action cursor-pointer" onClick={handleOpen}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Click to open
+          </span>
+        )}
       </div>
 
       <style jsx>{`
@@ -202,82 +476,19 @@ function HeroCard() {
           50% { opacity: .6; transform: scale(1.2); }
         }
 
-        /* ═══ 3D CARD ═══ */
+        /* ═══ 3D STAGE ═══ */
         .hc-stage {
-          width: 100%; max-width: 420px;
-          aspect-ratio: 3/4.2;
+          width: 100%; max-width: 320px;
+          height: 440px;
           cursor: pointer; position: relative; z-index: 2;
         }
-        .hc-card {
-          width: 100%; height: 100%;
-          transform-style: preserve-3d;
-          transition: transform .9s cubic-bezier(.25, .8, .25, 1);
-          position: relative;
-        }
 
-        .hc-face {
-          position: absolute; inset: 0;
+        .backface-hidden {
           backface-visibility: hidden;
           -webkit-backface-visibility: hidden;
-          border-radius: 8px;
-          overflow: hidden;
         }
-        .hc-img {
-          width: 100%; height: 100%;
-          object-fit: cover;
-          display: block;
-        }
-
-        /* ── Border Glow ── */
-        .hc-border-glow {
-          position: absolute; inset: 0; border-radius: 8px;
-          box-shadow:
-            inset 0 0 0 1px rgba(215,190,128,.2),
-            inset 0 0 0 2px rgba(215,190,128,.05),
-            0 0 40px rgba(184,148,79,.08),
-            0 20px 60px rgba(0,0,0,.15),
-            0 40px 100px rgba(0,0,0,.08);
-          pointer-events: none;
-          animation: hcBorderPulse 4s ease-in-out infinite;
-        }
-        @keyframes hcBorderPulse {
-          0%, 100% { box-shadow: inset 0 0 0 1px rgba(215,190,128,.2), inset 0 0 0 2px rgba(215,190,128,.05), 0 0 40px rgba(184,148,79,.08), 0 20px 60px rgba(0,0,0,.15), 0 40px 100px rgba(0,0,0,.08); }
-          50% { box-shadow: inset 0 0 0 1px rgba(215,190,128,.35), inset 0 0 0 2px rgba(215,190,128,.1), 0 0 60px rgba(184,148,79,.12), 0 20px 60px rgba(0,0,0,.15), 0 40px 100px rgba(0,0,0,.08); }
-        }
-
-        /* ── Shimmer ── */
-        .hc-shimmer {
-          position: absolute; inset: 0; z-index: 3; pointer-events: none;
-          border-radius: 8px;
-          background: linear-gradient(
-            110deg,
-            transparent 30%,
-            rgba(255,255,255,.03) 38%,
-            rgba(215,190,128,.08) 42%,
-            rgba(255,255,255,.14) 50%,
-            rgba(215,190,128,.08) 58%,
-            rgba(255,255,255,.03) 62%,
-            transparent 70%
-          );
-          background-size: 250% 100%;
-          animation: hcShimmer 5s ease-in-out infinite;
-        }
-        .hc-shimmer-back { animation-delay: 1s; }
-        @keyframes hcShimmer {
-          0% { background-position: 200% 0; }
-          100% { background-position: -200% 0; }
-        }
-
-        /* ── Light follow cursor ── */
-        .hc-light {
-          position: absolute; inset: 0; z-index: 2;
-          pointer-events: none; border-radius: 8px;
-          transition: background .1s ease;
-        }
-
-        /* ── Back ── */
-        .hc-back {
-          transform: rotateY(180deg);
+        .transform-style-3d {
+          transform-style: preserve-3d;
         }
 
         /* ═══ LABEL ═══ */
@@ -287,6 +498,8 @@ function HeroCard() {
           text-transform: uppercase; color: #9A9590;
           font-family: var(--font-sans);
           transition: all .4s ease;
+          width: 100%;
+          max-width: 320px;
         }
         .hc-label-dot {
           width: 6px; height: 6px; border-radius: 50%;

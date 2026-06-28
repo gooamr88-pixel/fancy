@@ -5,6 +5,7 @@ const { logAdminAction } = require('../middleware/adminAudit');
 const { refundEventPayment } = require('../services/stripeRefundService');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getEventLiveTemplate, getPublicBaseUrl } = require('../utils/emailTemplates');
+const { applyAdminRoles } = require('./admin/rbacController');
 
 const VALID_ROLES = ['organizer', 'super_admin'];
 const VALID_EVENT_STATUSES = ['draft', 'pending_review', 'active', 'paused', 'completed'];
@@ -33,9 +34,11 @@ const listPlatformUsers = async (req, res, next) => {
     const orgIds = (orgs || []).map(o => o.id);
     const ownerIds = (orgs || []).map(o => o.owner_user_id);
 
-    const [{ data: roles }, { data: events }] = await Promise.all([
+    const [{ data: admins }, { data: events }] = await Promise.all([
+      // Read the live RBAC tables — the legacy user_roles table is no longer
+      // what the access check reads, so it can't be used to display role here.
       ownerIds.length
-        ? supabase.from('user_roles').select('user_id, role').in('user_id', ownerIds)
+        ? supabase.from('admin_users').select('user_id, status, admin_user_roles(roles(key))').in('user_id', ownerIds)
         : Promise.resolve({ data: [] }),
       orgIds.length
         ? supabase.from('events').select('org_id, is_paid').in('org_id', orgIds)
@@ -50,10 +53,15 @@ const listPlatformUsers = async (req, res, next) => {
       eventCountByOrg.set(e.org_id, c);
     });
 
-    const roleByUser = new Map((roles || []).map(r => [r.user_id, r.role]));
+    const roleKeysByUser = new Map(
+      (admins || [])
+        .filter(a => a.status === 'active')
+        .map(a => [a.user_id, (a.admin_user_roles || []).map(ur => ur.roles?.key).filter(Boolean)])
+    );
 
     const users = (orgs || []).map(o => {
       const counts = eventCountByOrg.get(o.id) || { total: 0, paid: 0 };
+      const roleKeys = roleKeysByUser.get(o.owner_user_id) || [];
       return {
         userId: o.owner_user_id,
         orgId: o.id,
@@ -64,7 +72,8 @@ const listPlatformUsers = async (req, res, next) => {
         status: o.status || 'active',
         eventCount: counts.total,
         paidEventCount: counts.paid,
-        role: roleByUser.get(o.owner_user_id) || 'organizer',
+        role: roleKeys.includes('super_admin') ? 'super_admin' : (roleKeys[0] || 'organizer'),
+        isAdmin: roleKeys.length > 0,
       };
     });
 
@@ -97,6 +106,11 @@ const setUserRole = async (req, res, next) => {
   }
 
   try {
+    // Write to the live RBAC tables the access check actually reads — the
+    // legacy user_roles upsert alone left super_admin grants from this
+    // endpoint with no real effect (the cause of the original lockout).
+    await applyAdminRoles(userId, role === 'super_admin' ? ['super_admin'] : []);
+
     const { data, error } = await supabase
       .from('user_roles')
       .upsert({ user_id: userId, role }, { onConflict: 'user_id' })
@@ -105,6 +119,7 @@ const setUserRole = async (req, res, next) => {
 
     if (error) throw error;
 
+    await logAdminAction(req, { action: 'rbac.legacy_set_role', entityType: 'admin_user', entityId: userId, after: { role } });
     return res.json({ success: true, message: 'User role updated successfully.', userRole: data });
   } catch (err) {
     next(err);

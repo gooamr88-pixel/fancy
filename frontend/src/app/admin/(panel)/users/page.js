@@ -15,7 +15,7 @@ import { useAlert } from '../../_components/AlertContext';
  * login history with per-session revocation.
  */
 export default function UsersPage() {
-  const { showAlert, showPrompt } = useAlert();
+  const { showAlert, showPrompt, showConfirm } = useAlert();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [detail, setDetail] = useState(null);
@@ -45,6 +45,27 @@ export default function UsersPage() {
     setBusy(true);
     try {
       await adminApi.patch(`/users/${userId}/status`, { status, reason });
+      reload();
+      if (detail?.user) await openDetail(userId);
+    } catch (err) {
+      await showAlert(err.message || 'Action failed', 'Error', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setSuperAdmin = async (userId, makeSuperAdmin) => {
+    const ok = await showConfirm(
+      makeSuperAdmin
+        ? 'Grant Super Admin — full, unrestricted platform access. Continue?'
+        : 'Remove admin access from this user?',
+      makeSuperAdmin ? 'Grant Super Admin' : 'Remove Admin Access',
+      makeSuperAdmin ? 'warning' : 'danger'
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await adminApi.put(`/rbac/admins/${userId}/roles`, { roleKeys: makeSuperAdmin ? ['super_admin'] : [] });
       reload();
       if (detail?.user) await openDetail(userId);
     } catch (err) {
@@ -88,6 +109,7 @@ export default function UsersPage() {
           { key: 'email', header: 'Email', render: (r) => <span style={{ color: T.text500 }}>{r.email}</span> },
           { key: 'eventCount', header: 'Events', align: 'right' },
           { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status || 'active'} /> },
+          { key: 'role', header: 'Role', render: (r) => r.isAdmin ? <span style={{ fontWeight: 700, color: T.primary }}>{r.role}</span> : 'Organizer' },
           { key: 'actions', header: '', align: 'right', render: (r) => <Button variant="ghost" onClick={() => openDetail(r.userId)}>Manage</Button> },
         ]}
       />
@@ -95,6 +117,8 @@ export default function UsersPage() {
       <Modal open={!!detail} title={u ? (u.name || u.email) : 'User'} onClose={() => setDetail(null)} width={640}
         footer={u && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {!u.isAdmin && <Button variant="primary" disabled={busy} onClick={() => setSuperAdmin(u.userId, true)}>Make Super Admin</Button>}
+            {u.isAdmin && <Button variant="ghost" disabled={busy} onClick={() => setSuperAdmin(u.userId, false)}>Remove Admin Access</Button>}
             {u.status !== 'active' && <Button variant="primary" disabled={busy} onClick={() => changeStatus(u.userId, 'active')}>Restore</Button>}
             {u.status === 'active' && <Button variant="warning" disabled={busy} onClick={() => changeStatus(u.userId, 'suspended')}>Suspend</Button>}
             {u.status !== 'banned' && <Button variant="danger" disabled={busy} onClick={() => changeStatus(u.userId, 'banned')}>Ban</Button>}
@@ -108,7 +132,7 @@ export default function UsersPage() {
             <Row label="Status"><StatusBadge status={u.status} /></Row>
             <Row label="Email">{u.email}</Row>
             <Row label="Phone">{u.phone || '—'}</Row>
-            <Row label="Role">{u.role}</Row>
+            <Row label="Role">{u.isAdmin ? <span style={{ fontWeight: 700, color: T.primary }}>{u.role}</span> : 'Organizer'}</Row>
             <Row label="Events">{u.eventCount}</Row>
             <Row label="Joined">{new Date(u.createdAt).toLocaleDateString()}</Row>
             {u.suspendedReason && <Row label="Reason">{u.suspendedReason}</Row>}
