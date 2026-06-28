@@ -44,7 +44,7 @@ const jsonLd = {
 
 export default function Home() {
   return (
-    <div style={{ minHeight: "100vh", background: "#FFFFFF" }}>
+    <div style={{ minHeight: "100dvh", background: "#FFFFFF" }}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLdHtml(jsonLd) }}

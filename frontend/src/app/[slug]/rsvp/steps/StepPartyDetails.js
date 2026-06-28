@@ -171,41 +171,112 @@ export default function StepPartyDetails({
       )}
 
       <AnimatePresence>
-        {additionalGuests.map((g, index) => (
-          <motion.div
-            key={g.id}
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            transition={{ duration: 0.35, delay: index * 0.08 }}
-            style={{ padding: '20px', border: '1px solid #E8E2D6', borderRadius: '14px', background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '12px' }}
-          >
-            <h4 style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B8944F', fontWeight: 700 }}>
-              {t.guest_label.replace('{index}', index + 2)}
-            </h4>
-            <FormField label={t.guest_name_label}>
-              <input
-                type="text" value={g.fullName}
-                onChange={e => { const copy = [...additionalGuests]; copy[index].fullName = e.target.value; setAdditionalGuests(copy); }}
-                placeholder={t.name_placeholder}
-                style={S.inputBase}
-                onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
-              />
-            </FormField>
-            {mealField && (
-              <FormField label={t.guest_meal_label}>
-                <select
-                  value={g.mealSelection}
-                  onChange={e => { const copy = [...additionalGuests]; copy[index].mealSelection = e.target.value; setAdditionalGuests(copy); }}
-                  style={{ ...S.inputBase, cursor: 'pointer' }}
-                >
-                  <option value="">{t.meal_select_placeholder}</option>
-                  {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
-                </select>
+        {additionalGuests.map((g, index) => {
+          // Parse title, first name, and last name from fullName
+          // We assume format: "Title. First Last" or "Title First Last" or just "First Last"
+          let title = '';
+          let first = '';
+          let last = '';
+          const parts = (g.fullName || '').split(' ').filter(Boolean);
+          
+          if (parts.length > 0) {
+            const possibleTitle = parts[0];
+            if (['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Child', 'Mr', 'Mrs', 'Ms', 'Dr'].includes(possibleTitle)) {
+              title = possibleTitle.replace('.', '') + '.';
+              if (title === 'Child.') title = 'Child'; // Fix child
+              first = parts[1] || '';
+              last = parts.slice(2).join(' ') || '';
+            } else {
+              first = parts[0] || '';
+              last = parts.slice(1).join(' ') || '';
+            }
+          }
+
+          const updateGuestFullName = (newTitle, newFirst, newLast) => {
+            const copy = [...additionalGuests];
+            const t = newTitle ? `${newTitle} ` : '';
+            copy[index].fullName = `${t}${newFirst} ${newLast}`.replace(/\s+/g, ' ').trim();
+            setAdditionalGuests(copy);
+          };
+
+          return (
+            <motion.div
+              key={g.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ duration: 0.35, delay: index * 0.08 }}
+              style={{ padding: '24px', border: '1px solid #E8E2D6', borderRadius: '16px', background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '16px' }}
+            >
+              <h4 style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B8944F', fontWeight: 700, margin: 0 }}>
+                {t.guest_label.replace('{index}', index + 2)} Details
+              </h4>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '12px' }}>
+                <FormField label={isRTL ? 'اللقب' : 'Title'}>
+                  <select
+                    value={title.replace('.', '')}
+                    onChange={e => updateGuestFullName(e.target.value ? e.target.value + '.' : '', first, last)}
+                    style={{ ...S.inputBase, cursor: 'pointer', padding: '14px 8px' }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  >
+                    <option value="">-</option>
+                    <option value="Mr">Mr.</option>
+                    <option value="Mrs">Mrs.</option>
+                    <option value="Ms">Ms.</option>
+                    <option value="Dr">Dr.</option>
+                    <option value="Child">Child</option>
+                  </select>
+                </FormField>
+                
+                <FormField label={isRTL ? 'الاسم الأول' : 'First Name'}>
+                  <input
+                    type="text" value={first}
+                    onChange={e => updateGuestFullName(title, e.target.value, last)}
+                    placeholder={isRTL ? 'الاسم الأول' : 'First Name'}
+                    style={S.inputBase}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  />
+                </FormField>
+                
+                <FormField label={isRTL ? 'اسم العائلة' : 'Last / Family Name'}>
+                  <input
+                    type="text" value={last}
+                    onChange={e => updateGuestFullName(title, first, e.target.value)}
+                    placeholder={isRTL ? 'اسم العائلة' : 'Family Name'}
+                    style={S.inputBase}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  />
+                </FormField>
+              </div>
+
+              {mealField && (
+                <FormField label={t.guest_meal_label}>
+                  <select
+                    value={g.mealSelection}
+                    onChange={e => { const copy = [...additionalGuests]; copy[index].mealSelection = e.target.value; setAdditionalGuests(copy); }}
+                    style={{ ...S.inputBase, cursor: 'pointer' }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  >
+                    <option value="">{t.meal_select_placeholder}</option>
+                    {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
+                  </select>
+                </FormField>
+              )}
+
+              <FormField label={isRTL ? 'متطلبات غذائية أو حساسية (اختياري)' : 'Dietary Restrictions & Allergies (Optional)'}>
+                <input
+                  type="text" value={g.dietaryNotes || ''}
+                  onChange={e => { const copy = [...additionalGuests]; copy[index].dietaryNotes = e.target.value; setAdditionalGuests(copy); }}
+                  placeholder={isRTL ? 'مثال: نباتي، حساسية من المكسرات...' : 'e.g. Vegetarian, Peanut allergy...'}
+                  style={S.inputBase}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                />
               </FormField>
-            )}
-          </motion.div>
-        ))}
+
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
 
       <FadeInUp delay={0.15} y={15}>

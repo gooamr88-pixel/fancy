@@ -463,7 +463,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (loading) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', fontFamily: 'var(--font-sans)' }}>
           {/* Hero shimmer */}
           <ShimmerPlaceholder width="100%" height="70vh" borderRadius="0" />
           {/* Content shimmers */}
@@ -495,7 +495,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (error === 'PAYMENT_REQUIRED') {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>💳</motion.span>
@@ -512,7 +512,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (error === 'EVENT_CLOSED') {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>🕊️</motion.span>
@@ -529,7 +529,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (underReview) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <motion.span initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>✨</motion.span>
@@ -548,7 +548,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (isPrivate) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <div style={{ width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -568,7 +568,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (passwordRequired) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <div style={{ width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%', background: 'rgba(184,148,79,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -596,7 +596,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (notLive) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.15 }} style={{ fontSize: '48px', display: 'block' }}>⏳</motion.span>
@@ -616,7 +616,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (error || !event) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.1 }} style={{ fontSize: '56px', display: 'block' }}>🔍</motion.span>
@@ -689,7 +689,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         )}
       </AnimatePresence>
       <div dir={isRTL ? 'rtl' : 'ltr'} style={{
-        minHeight: '100vh', position: 'relative',
+        minHeight: '100dvh', position: 'relative',
         backgroundColor: customColors.background || '#F8F4EC', color: '#191B1E',
         fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
       }}>
@@ -736,63 +736,101 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         </div>
 
         {/* ═══ CINEMATIC HERO ═══ */}
-        <div ref={heroRef}>
-          <ParallaxHero
-            imageUrl={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'}
-            height="70vh"
-            overlayGradient="linear-gradient(to top, rgba(25,27,30,0.92) 0%, rgba(25,27,30,0.5) 40%, rgba(25,27,30,0.15) 70%, transparent 100%)"
-            style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-          >
-            <FloatingParticles count={25} color={themeColor} />
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: '100%', width: '100%' }}>
-              <div style={{ textAlign: 'center', paddingBottom: '72px', padding: '0 24px 72px', maxWidth: '800px', width: '100%' }}>
-                {/* Event type badge */}
-                <FadeInUp delay={0.1} y={20}>
-                  <span style={{
-                    fontSize: '11px', textTransform: 'uppercase', letterSpacing: '5px', color: '#D7BE80',
-                    fontWeight: 700, display: 'inline-block', marginBottom: '16px', fontFamily: 'var(--font-sans)',
-                    padding: '6px 20px', borderRadius: '20px',
-                    background: 'rgba(215,190,128,0.1)', border: '1px solid rgba(215,190,128,0.2)',
-                    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-                  }}>
-                    {isRTL ? (event.template_type === 'wedding' ? 'بطاقة زفاف' : 'تفاصيل الفعالية') : `${event.template_type} invitation`}
-                  </span>
-                </FadeInUp>
+        <div ref={heroRef} style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '120px 24px 80px' }}>
+          
+          {/* Ambient Blurred Background */}
+          <div style={{ position: 'absolute', inset: '-10%', zIndex: 0 }}>
+            <img 
+              src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'} 
+              style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(60px) brightness(0.5)' }} 
+              alt="" 
+              aria-hidden="true" 
+            />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(20,22,25,0.85) 0%, rgba(20,22,25,0.5) 100%)' }} />
+          </div>
 
-                {/* Animated title */}
-                <AnimatedText
-                  text={localizedTitle}
-                  tag="h1"
-                  delay={0.3}
-                  style={{
-                    fontSize: '48px', fontWeight: isWedding ? 400 : 700, color: '#FFFFFF',
-                    letterSpacing: '1px', marginBottom: '20px',
-                    fontFamily: isWedding ? 'var(--font-serif)' : 'var(--font-sans)',
-                    lineHeight: 1.15, textShadow: '0 4px 30px rgba(0,0,0,0.3)',
-                  }}
-                  className="ep-hero-title"
-                />
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+            <FloatingParticles count={30} color={themeColor} />
+          </div>
 
-                {/* Description */}
-                <FadeInUp delay={0.7} y={20}>
-                  <p style={{
-                    color: 'rgba(255,255,255,0.75)', maxWidth: '640px', margin: '0 auto',
-                    fontWeight: 300, fontSize: '15px', lineHeight: 1.8,
-                  }}>
-                    {localizedDesc}
-                  </p>
-                </FadeInUp>
+          {/* Hero Content Grid */}
+          <div style={{ 
+            position: 'relative', zIndex: 10, maxWidth: '1100px', width: '100%', 
+            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '64px',
+            flexWrap: 'wrap', justifyContent: 'center'
+          }}>
+            
+            {/* Left/Top: Text Content */}
+            <div style={{ flex: '1 1 400px', textAlign: isRTL ? 'right' : 'left', display: 'flex', flexDirection: 'column', alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+              <FadeInUp delay={0.1} y={20}>
+                <span style={{
+                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '4px', color: '#D7BE80',
+                  fontWeight: 700, display: 'inline-block', marginBottom: '20px', fontFamily: 'var(--font-sans)',
+                  padding: '8px 24px', borderRadius: '100px',
+                  background: 'rgba(215,190,128,0.1)', border: '1px solid rgba(215,190,128,0.2)',
+                  backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                }}>
+                  {isRTL ? (event.template_type === 'wedding' ? 'بطاقة زفاف' : 'تفاصيل الفعالية') : `${event.template_type} invitation`}
+                </span>
+              </FadeInUp>
 
-                {/* Hero action buttons */}
-                <FadeInUp delay={0.9} y={20}>
-                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '28px', flexWrap: 'wrap' }}>
-                    <CalendarButton event={event} isRTL={isRTL} />
-                    <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
-                  </div>
-                </FadeInUp>
-              </div>
+              <AnimatedText
+                text={localizedTitle}
+                tag="h1"
+                delay={0.2}
+                style={{
+                  fontSize: 'clamp(40px, 5vw, 56px)', fontWeight: isWedding ? 400 : 700, color: '#FFFFFF',
+                  letterSpacing: '0.5px', marginBottom: '24px',
+                  fontFamily: isWedding ? 'var(--font-serif)' : 'var(--font-sans)',
+                  lineHeight: 1.15, textShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                }}
+                className="ep-hero-title"
+              />
+
+              <FadeInUp delay={0.5} y={20}>
+                <p style={{
+                  color: 'rgba(255,255,255,0.85)',
+                  fontWeight: 300, fontSize: '16px', lineHeight: 1.8, marginBottom: '40px',
+                  maxWidth: '540px'
+                }}>
+                  {localizedDesc}
+                </p>
+              </FadeInUp>
+
+              <FadeInUp delay={0.7} y={20}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <CalendarButton event={event} isRTL={isRTL} />
+                  <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
+                </div>
+              </FadeInUp>
             </div>
-          </ParallaxHero>
+
+            {/* Right/Bottom: Featured Image Box */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, rotateY: isRTL ? -10 : 10 }}
+              animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+              style={{ 
+                flex: '1 1 400px', display: 'flex', justifyContent: 'center', 
+                perspective: '1000px'
+              }}
+            >
+              <div style={{
+                width: '100%', maxWidth: '420px', maxHeight: '600px',
+                aspectRatio: '4/5', position: 'relative',
+                borderRadius: '24px', overflow: 'hidden',
+                boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15)',
+                transformStyle: 'preserve-3d', background: 'rgba(0,0,0,0.2)'
+              }}>
+                <img 
+                  src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  alt="Event Cover" 
+                />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 30%)' }} />
+              </div>
+            </motion.div>
+          </div>
         </div>
 
         {/* ═══ MAIN CONTENT GRID ═══ */}

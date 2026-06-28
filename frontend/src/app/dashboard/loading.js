@@ -62,7 +62,7 @@ const pulseKeyframes = `
 const styles = {
   container: {
     display: 'flex',
-    minHeight: '100vh',
+    minHeight: '100dvh',
     backgroundColor: '#F8F4EC',
   },
   sidebar: {

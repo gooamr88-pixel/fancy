@@ -505,3 +505,35 @@ h3 {
   to { transform: translateX(0); opacity: 1; }
 }
 
+/* ─── MOB-GENERAL: iOS and Mobile Optimizations ─── */
+@media (max-width: 768px) {
+  /* Prevent horizontal scroll wobble on mobile */
+  html, body {
+    overflow-x: hidden;
+    width: 100%;
+    /* Prevent bouncy rubber-band effect causing layout shifts */
+    overscroll-behavior-y: none;
+  }
+
+  /* Prevent iOS Safari from auto-zooming when focusing on inputs */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Ensure buttons and touch targets are adequately sized for touch (min 44px) */
+  button, .tap-target, [role="button"], a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Base utility for dynamic viewport height (fallback to 100vh if not supported) */
+.min-h-dvh {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.h-dvh {
+  height: 100vh;
+  height: 100dvh;
+}
+

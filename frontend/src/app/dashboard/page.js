@@ -83,7 +83,7 @@ const sidebarNav = [
 
 function DashboardSkeleton() {
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: COLORS.ivory }}>
+    <div style={{ display: 'flex', minHeight: '100dvh', background: COLORS.ivory }}>
       {/* Sidebar skeleton */}
       <div style={{ width: '240px', background: COLORS.white, borderRight: `1px solid ${COLORS.border}`, padding: '24px' }}>
         <div style={{ width: '120px', height: '24px', background: COLORS.border, borderRadius: '8px', marginBottom: '48px' }} />

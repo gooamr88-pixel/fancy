@@ -318,7 +318,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   /* ═══ Render ═══ */
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} style={{
-      minHeight: '100vh', position: 'relative', overflow: 'hidden',
+      minHeight: '100dvh', position: 'relative', overflow: 'hidden',
       background: 'radial-gradient(120% 100% at 50% 0%, rgba(231,212,168,0.4) 0%, #F8F4EC 45%, #EFE6D4 100%)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '24px', fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
