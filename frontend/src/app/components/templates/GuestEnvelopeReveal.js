@@ -332,15 +332,16 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
   const [response, setResponse] = useState(guestRsvp?.response || 'yes');
   const [partySize, setPartySize] = useState(guestRsvp?.party_size || 1);
 
-  // Detect meal selection fields
+  // Detect meal selection fields — only show dinner choice if the organizer configured one.
   const allCustomFields = event?.custom_form_fields || [];
   const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
   const mealField = allCustomFields.find(
     (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
   );
-  const mealOptions = mealField?.options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
+  const hasMealField = !!mealField;
+  const mealOptions = mealField?.options || [];
 
-  const [mealSelection, setMealSelection] = useState(guestRsvp?.primary_meal || mealOptions[0]);
+  const [mealSelection, setMealSelection] = useState(guestRsvp?.primary_meal || (hasMealField ? mealOptions[0] : ''));
   const [rsvpSubmitted, setRsvpSubmitted] = useState(guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response));
   const [showConfetti, setShowConfetti] = useState(false);
   const [isEditing, setIsEditing] = useState(!guestRsvp || !['yes', 'no', 'maybe'].includes(guestRsvp.response));
@@ -366,7 +367,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
           ...prev,
           response: data.response || response,
           party_size: response === 'yes' ? partySize : 1,
-          primary_meal: response === 'yes' ? mealSelection : null,
+          primary_meal: response === 'yes' && hasMealField ? mealSelection : null,
         }));
         // Remember this guest on this device so a tokenless revisit still recognizes them.
         rememberGuest(slug, guestRsvp.id);
@@ -400,7 +401,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
       phone: guestRsvp.phone,
       response: response,
       partySize: response === 'yes' ? partySize : 1,
-      primaryGuestMeal: response === 'yes' ? mealSelection : null,
+      primaryGuestMeal: response === 'yes' && hasMealField ? mealSelection : null,
       additionalGuests: [],
       customAnswers: [],
     };
@@ -1131,7 +1132,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
                   </div>
 
                   {/* Dinner Choice */}
-                  {response === 'yes' && (
+                  {response === 'yes' && hasMealField && (
                     <div>
                       <div style={{
                         fontFamily: 'var(--font-sans)',

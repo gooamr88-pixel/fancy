@@ -180,15 +180,17 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     return `url("data:image/svg+xml,${svg}")`;
   }, [themeColor]);
 
-  // Detect meal selection fields
-  const mealOptions = useMemo(() => {
+  // Detect meal selection fields — the dinner choice UI only appears if the organizer
+  // actually configured one; there is no placeholder/default menu.
+  const mealField = useMemo(() => {
     const allCustomFields = event?.custom_form_fields || [];
     const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
-    const mealField = allCustomFields.find(
+    return allCustomFields.find(
       (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
     );
-    return mealField?.options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
   }, [event]);
+  const hasMealField = !!mealField;
+  const mealOptions = mealField?.options || [];
 
   // Dynamic Google Font Injection for calligraphy
   useEffect(() => {
@@ -206,20 +208,13 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     if (guestRsvp) {
       setResponse(guestRsvp.response || 'yes');
       setPartySize(guestRsvp.party_size || 1);
-      
-      const allCustomFields = event?.custom_form_fields || [];
-      const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
-      const mealField = allCustomFields.find(
-        (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
-      );
-      const mealOptions = mealField?.options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
-      setMealSelection(guestRsvp.primary_meal || mealOptions[0]);
-      
+      setMealSelection(guestRsvp.primary_meal || (hasMealField ? mealOptions[0] : ''));
+
       const hasAnswered = ['yes', 'no', 'maybe'].includes(guestRsvp.response);
       setRsvpSubmitted(hasAnswered);
       setIsEditing(!hasAnswered);
     }
-  }, [guestRsvp, event]);
+  }, [guestRsvp, hasMealField, mealOptions]);
 
   const { submit, submitting } = useIdempotentRsvpSubmit({
     onSuccess: (data) => {
@@ -231,7 +226,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           ...prev,
           response: data.response || response,
           party_size: response === 'yes' ? partySize : 1,
-          primary_meal: response === 'yes' ? mealSelection : null,
+          primary_meal: response === 'yes' && hasMealField ? mealSelection : null,
         }));
         // Remember this guest on this device so a tokenless revisit (e.g. the link
         // was opened again without its party_id) still recognizes them.
@@ -266,7 +261,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       phone: guestRsvp.phone,
       response: response,
       partySize: response === 'yes' ? partySize : 1,
-      primaryGuestMeal: response === 'yes' ? mealSelection : null,
+      primaryGuestMeal: response === 'yes' && hasMealField ? mealSelection : null,
       additionalGuests: [],
       customAnswers: [],
     };
@@ -1055,7 +1050,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                       </div>
 
                       {/* Dinner Choice */}
-                      {response === 'yes' && (
+                      {response === 'yes' && hasMealField && (
                         <div>
                           <div style={{
                             fontFamily: 'var(--font-sans)',
