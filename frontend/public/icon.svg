@@ -1,0 +1,56 @@
+<svg
+  width="38"
+  height="38"
+  viewBox="0 0 38 38"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <g transform="translate(0, 3)">
+    <!-- Envelope body -->
+    <rect
+      x="2"
+      y="8"
+      width="34"
+      height="22"
+      rx="2"
+      stroke="#B8944F"
+      stroke-width="1.5"
+      fill="none"
+    />
+    <!-- Envelope flap -->
+    <path
+      d="M2 10L19 22L36 10"
+      stroke="#B8944F"
+      stroke-width="1.5"
+      fill="none"
+      stroke-linejoin="round"
+    />
+    <!-- Flap top triangle -->
+    <path
+      d="M4 8L19 0L34 8"
+      stroke="#B8944F"
+      stroke-width="1.2"
+      fill="none"
+      stroke-linejoin="round"
+    />
+    <!-- RSVP text inside -->
+    <text
+      x="19"
+      y="21"
+      text-anchor="middle"
+      fill="#B8944F"
+      font-size="6.5"
+      font-family="Georgia, serif"
+      font-weight="600"
+      letter-spacing="1"
+    >
+      RSVP
+    </text>
+    <!-- Small decorative diamond on flap -->
+    <path
+      d="M19 3L20.5 5L19 7L17.5 5Z"
+      fill="#D7BE80"
+      opacity="0.7"
+    />
+  </g>
+</svg>

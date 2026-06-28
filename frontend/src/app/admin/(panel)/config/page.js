@@ -18,6 +18,7 @@ export default function ConfigPage() {
   const [platformCommissionPct, setPlatformCommissionPct] = useState(0.0);
   const [pricingTiers, setPricingTiers] = useState([]);
   const [manualMethods, setManualMethods] = useState([]);
+  const [landingStats, setLandingStats] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -29,6 +30,7 @@ export default function ConfigPage() {
           setPlatformCommissionPct(res.config.platform_commission_pct ?? 0.0);
           setPricingTiers(res.config.pricing_tiers || []);
           setManualMethods(res.config.manual_payment_methods || []);
+          setLandingStats(res.config.landing_stats || []);
         }
       } catch (err) {
         setError(err.message || 'Failed to load configuration');
@@ -42,12 +44,13 @@ export default function ConfigPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await adminApi.post('/pricing', {
-        sms_rate_cents_per_credit: parseFloat(smsRate),
-        sms_markup_percentage: parseFloat(smsMarkupPercentage),
-        platform_commission_pct: parseFloat(platformCommissionPct),
-        pricing_tiers: pricingTiers,
-        manual_payment_methods: manualMethods
+      await adminApi.patch('/pricing', {
+        smsRateCentsPerCredit: parseFloat(smsRate),
+        smsMarkupPercentage: parseFloat(smsMarkupPercentage),
+        platformCommissionPct: parseFloat(platformCommissionPct),
+        pricingTiers,
+        manualPaymentMethods: manualMethods,
+        landingStats,
       });
       await showAlert('Configuration saved successfully.', 'Success', 'success');
     } catch (err) {
@@ -92,6 +95,19 @@ export default function ConfigPage() {
 
   const removeMethod = (idx) => {
     setManualMethods(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // Landing page stat counter helpers
+  const updateStat = (idx, field, val) => {
+    setLandingStats(prev => prev.map((s, i) => i === idx ? { ...s, [field]: val } : s));
+  };
+
+  const addStat = () => {
+    setLandingStats(prev => [...prev, { label: 'New Stat', target: 0, suffix: '+', decimals: 0 }]);
+  };
+
+  const removeStat = (idx) => {
+    setLandingStats(prev => prev.filter((_, i) => i !== idx));
   };
 
   if (loading) return <p style={{ color: T.text500 }}>Loading configuration…</p>;
@@ -206,6 +222,29 @@ export default function ConfigPage() {
                 </label>
               </div>
             )) : <p style={{ fontSize: 12, color: T.text500, fontStyle: 'italic' }}>No offline methods defined.</p>}
+          </div>
+        </div>
+
+        {/* Landing Page Stats */}
+        <div style={{ ...card, padding: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: `1px solid ${T.border}`, paddingBottom: 8 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: T.text900, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Landing Page Stats</h3>
+            <Button variant="ghost" onClick={addStat}>+ Add Stat</Button>
+          </div>
+          <p style={{ fontSize: 11.5, color: T.text500, marginBottom: 18, lineHeight: 1.5 }}>The animated counters shown in the social-proof bar on the public landing page (e.g. &ldquo;10,000+ Events Created&rdquo;).</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {landingStats.length ? landingStats.map((s, idx) => (
+              <div key={idx} style={{ padding: 18, background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: T.radiusSm }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.7fr 0.7fr auto', gap: 12, alignItems: 'end' }}>
+                  <Field label="Label"><input value={s.label} onChange={e => updateStat(idx, 'label', e.target.value)} style={inputStyle} /></Field>
+                  <Field label="Value"><input type="number" step="any" value={s.target} onChange={e => updateStat(idx, 'target', e.target.value)} style={inputStyle} /></Field>
+                  <Field label="Suffix (e.g. + or %)"><input value={s.suffix} onChange={e => updateStat(idx, 'suffix', e.target.value)} style={inputStyle} /></Field>
+                  <Field label="Decimal places"><input type="number" min="0" max="2" value={s.decimals} onChange={e => updateStat(idx, 'decimals', e.target.value)} style={inputStyle} /></Field>
+                  <Button variant="danger" onClick={() => removeStat(idx)}>✕</Button>
+                </div>
+              </div>
+            )) : <p style={{ fontSize: 12, color: T.text500, fontStyle: 'italic' }}>No stats defined.</p>}
           </div>
         </div>
 

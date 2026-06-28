@@ -108,16 +108,19 @@ const issueAuthCookie = async (req, res, payload) => {
  * POST /api/v1/auth/register
  */
 const register = async (req, res, next) => {
-  const { password, name, orgName } = req.body;
+  const { password, name } = req.body;
+  // Organization name is optional — individuals creating an event aren't an "organization".
+  // Falls back to the person's name, mirroring the Google sign-up flow (see googleAuth below).
+  const orgName = req.body.orgName && req.body.orgName.trim() ? req.body.orgName.trim() : name;
   // Normalize email to lowercase so registration and login resolve the same record.
   // (login() looks up by lowercased email; storing verbatim here would lock the user out.)
   const email = req.body.email ? req.body.email.toLowerCase().trim() : '';
 
-  if (!email || !password || !name || !orgName) {
+  if (!email || !password || !name) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'email, password, name, and orgName are required.'
+      message: 'email, password, and name are required.'
     });
   }
 

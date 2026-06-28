@@ -14,7 +14,8 @@ const EyeIcon = ({ show }) => show ? (
 );
 
 export default function RegisterPage() {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [orgName, setOrgName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,7 +36,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name || !orgName || !email || !password) {
+    if (!firstName || !lastName || !email || !password) {
       setToast({ message: 'Please fill in all fields to create your account.', kind: 'error' });
       return;
     }
@@ -48,6 +49,7 @@ export default function RegisterPage() {
     setToast(null);
 
     try {
+      const name = `${firstName.trim()} ${lastName.trim()}`.trim();
       const data = await apiFetch('/auth/register', {
         method: 'POST',
         body: JSON.stringify({ name, orgName, email, password })
@@ -409,17 +411,24 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="auth-field-grid">
               <div className="auth-field">
-                <label htmlFor="name" className="auth-label">Full Name</label>
-                <input id="name" type="text" required autoComplete="name"
-                  value={name} onChange={e => setName(e.target.value)}
-                  placeholder="Julian Vance" className="auth-input" />
+                <label htmlFor="firstName" className="auth-label">First Name</label>
+                <input id="firstName" type="text" required autoComplete="given-name"
+                  value={firstName} onChange={e => setFirstName(e.target.value)}
+                  placeholder="Julian" className="auth-input" />
               </div>
               <div className="auth-field">
-                <label htmlFor="orgName" className="auth-label">Organization</label>
-                <input id="orgName" type="text" required
-                  value={orgName} onChange={e => setOrgName(e.target.value)}
-                  placeholder="Wedding Suite" className="auth-input" />
+                <label htmlFor="lastName" className="auth-label">Last Name</label>
+                <input id="lastName" type="text" required autoComplete="family-name"
+                  value={lastName} onChange={e => setLastName(e.target.value)}
+                  placeholder="Vance" className="auth-input" />
               </div>
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="orgName" className="auth-label">Organization <span style={{ textTransform: 'none', fontWeight: 400 }}>(optional)</span></label>
+              <input id="orgName" type="text"
+                value={orgName} onChange={e => setOrgName(e.target.value)}
+                placeholder="Wedding Suite" className="auth-input" />
             </div>
 
             <div className="auth-field">
