@@ -8,7 +8,7 @@ const logger = require('./utils/logger');
 const { requireAuth, verifyEventOwner, requireSuperAdmin } = require('./middleware/auth');
 
 // Startup environment validation — fail fast if critical secrets are missing.
-const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GOOGLE_CLIENT_ID'];
+const REQUIRED_ENV = ['JWT_SECRET', 'QR_JWT_SECRET', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'GOOGLE_CLIENT_ID', 'IP_HASH_SALT'];
 // Stripe secrets are required only when card payments are turned ON. Pre-live /
 // manual-only mode boots with no Stripe keys. Keyed off the operator's INTENT
 // (the flag) so enabling card payments without keys fails loudly instead of
