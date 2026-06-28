@@ -23,6 +23,8 @@ import {
 import {
   GlassmorphismCard,
   PremiumButton,
+  BentoCard,
+  MagneticButton,
   GalleryLightbox,
   CalendarButton,
   ShareButton,
@@ -1307,54 +1309,45 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               </ScaleIn>
             )}
 
-            {/* Event Details Card */}
+            {/* Event Details Card (Bento Layout) */}
             <FadeInUp delay={0.1}>
-              <GlassmorphismCard bg="rgba(255,255,255,0.92)" border="rgba(232,226,214,0.6)" style={{ padding: '36px' }}>
-                <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E', marginBottom: '24px' }}>{t.details_title}</h2>
-
-                <StaggerChildren staggerDelay={0.12} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }} className="ep-details-grid">
-                  {/* When */}
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '26px', fontWeight: 600, color: '#191B1E', marginBottom: '20px' }}>{t.details_title}</h2>
+              <StaggerChildren staggerDelay={0.15} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }} className="ep-bento-grid">
+                  {/* When BentoCard */}
                   <StaggerItem>
-                    <div>
-                      <span style={{ fontSize: '10px', color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                    <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)" style={{ height: '100%', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '12px' }}>
                         📅 {t.when}
                       </span>
-                      <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500, display: 'block' }}>
+                      <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
                         {new Date(event.event_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}
                       </span>
-                      <span style={{ fontSize: '13px', color: '#77736A', display: 'block', marginTop: '4px' }}>
+                      <span style={{ fontSize: '14px', color: '#77736A', display: 'block' }}>
                         {t.starting_at} {new Date(event.event_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                       </span>
-                    </div>
+                    </BentoCard>
                   </StaggerItem>
 
-                  {/* Where */}
+                  {/* Where BentoCard */}
                   <StaggerItem>
-                    <div>
-                      <span style={{ fontSize: '10px', color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                    <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)" style={{ height: '100%', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '12px' }}>
                         📍 {t.where}
                       </span>
-                      <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500, display: 'block' }}>{event.location_name}</span>
-                      <span style={{ fontSize: '13px', color: '#77736A', display: 'block', marginTop: '4px' }}>{event.location_address}</span>
+                      <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '8px' }}>{event.location_name}</span>
+                      <span style={{ fontSize: '14px', color: '#77736A', display: 'block', marginBottom: '16px' }}>{event.location_address}</span>
                       {(event.location_lat && event.location_lng || event.location_address) && (
-                        <a
-                          href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, mounted)}
-                          target="_blank" rel="noopener noreferrer"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '8px',
-                            fontSize: '12px', fontWeight: 600, color: themeColor, textDecoration: 'none',
-                          }}
-                        >
-                          🧭 {isRTL ? 'احصل على الاتجاهات' : 'Get Directions'} →
-                        </a>
+                        <MagneticButton variant="outline" size="sm" onClick={() => window.open(getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, mounted), '_blank')}>
+                          🧭 {isRTL ? 'الاتجاهات' : 'Get Directions'}
+                        </MagneticButton>
                       )}
-                    </div>
+                    </BentoCard>
                   </StaggerItem>
 
-                  {/* Dress Code (expandable) */}
+                  {/* Dress Code BentoCard (expandable) */}
                   {event.dress_code && (
                     <StaggerItem style={{ gridColumn: '1 / -1' }}>
-                      <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+                      <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)">
                         <button
                           onClick={() => setDressCodeExpanded(!dressCodeExpanded)}
                           style={{
@@ -1362,10 +1355,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-sans)',
                           }}
                         >
-                          <span style={{ fontSize: '10px', color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700 }}>
+                          <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700 }}>
                             👔 {t.dress_code}
                           </span>
-                          <motion.span animate={{ rotate: dressCodeExpanded ? 180 : 0 }} transition={{ duration: 0.25 }} style={{ fontSize: '12px', color: '#77736A' }}>
+                          <motion.span animate={{ rotate: dressCodeExpanded ? 180 : 0 }} transition={{ duration: 0.25 }} style={{ fontSize: '14px', color: themeColor }}>
                             ▼
                           </motion.span>
                         </button>
@@ -1378,22 +1371,21 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                               transition={{ duration: 0.3 }}
                               style={{ overflow: 'hidden' }}
                             >
-                              <span style={{ fontSize: '14px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '8px' }}>
+                              <span style={{ fontSize: '16px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '16px' }}>
                                 {localizedDressCode}
                               </span>
                             </motion.div>
                           )}
                         </AnimatePresence>
                         {!dressCodeExpanded && (
-                          <span style={{ fontSize: '14px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '6px' }}>
+                          <span style={{ fontSize: '16px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '12px' }}>
                             {localizedDressCode}
                           </span>
                         )}
-                      </div>
+                      </BentoCard>
                     </StaggerItem>
                   )}
-                </StaggerChildren>
-              </GlassmorphismCard>
+              </StaggerChildren>
             </FadeInUp>
 
             {/* ═══ COUNTDOWN ═══ */}
@@ -1728,7 +1720,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <div ref={rsvpCardRef}>
                 <ScaleIn delay={0.2}>
                   {hasResponded ? (
-                    <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '14px', padding: '36px 28px' }}>
+                    <BentoCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '14px', padding: '36px 28px' }}>
                       <div style={{
                         width: '52px', height: '52px', margin: '0 auto', borderRadius: '50%',
                         background: `${responseStatus.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1759,9 +1751,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                           {isRTL ? 'الردود مقفلة. لتغيير ردك، تواصل مع المُنظّم مباشرة.' : 'Responses are locked. To make a change, please contact the host directly.'}
                         </p>
                       )}
-                    </GlassmorphismCard>
+                    </BentoCard>
                   ) : (
-                    <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
+                    <BentoCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
                       <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
                       <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
                         {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { timeZone: 'UTC' }) : 'N/A'}</strong> {t.card_desc}
@@ -1775,7 +1767,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                           {t.rsvp_now}
                         </Link>
                       </GlowPulse>
-                    </GlassmorphismCard>
+                    </BentoCard>
                   )}
                 </ScaleIn>
               </div>
