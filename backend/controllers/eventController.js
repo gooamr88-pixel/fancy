@@ -381,6 +381,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         guestRsvp = {
           id: partyRecord.id, guest_name: partyRecord.label, email: primary.email || null, phone: primary.phone || null,
           response: partyRecord.response, party_size: allGuests.length || 1, notes: partyRecord.notes,
+          primary_meal: primary.meal_selection || null,
           additionalGuests: companions.map((g) => ({
             id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
           })),

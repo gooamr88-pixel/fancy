@@ -3,6 +3,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import Link from "next/link";
+import { useIdempotentRsvpSubmit } from "../guest/rsvp/useIdempotentRsvpSubmit";
+import { rememberGuest } from "../guest/rsvp/useRsvpResolver";
+import { ConfettiExplosion } from "../guest/GuestAnimations";
+import { toast } from "../../utils/toast";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GuestEnvelopeReveal — the cinematic, one-time luxury invitation opening.
@@ -145,6 +149,30 @@ function DetailRow({ icon, label, value }) {
       </div>
     </div>
   );
+}
+
+/* Four engraved corner flourishes, framing a stationery card */
+function CornerOrnaments({ color }) {
+  const corners = [
+    { top: 10, left: 10, rotate: "0deg" },
+    { top: 10, right: 10, rotate: "90deg" },
+    { bottom: 10, right: 10, rotate: "180deg" },
+    { bottom: 10, left: 10, rotate: "270deg" },
+  ];
+  return corners.map((pos, i) => (
+    <svg
+      key={i} width="32" height="32" viewBox="0 0 40 40" aria-hidden
+      style={{ position: "absolute", top: pos.top, bottom: pos.bottom, left: pos.left, right: pos.right, transform: `rotate(${pos.rotate})`, opacity: 0.6, pointerEvents: "none" }}
+    >
+      <path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke={color} strokeWidth="0.8" />
+      <path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke={color} strokeWidth="0.8" />
+      <path d="M5 5 Q5 10 9 14 Q13 18 18 20" fill="none" stroke={color} strokeWidth="0.5" opacity="0.6" />
+      <path d="M5 5 Q10 5 14 9 Q18 13 20 18" fill="none" stroke={color} strokeWidth="0.5" opacity="0.6" />
+      <circle cx="3" cy="3" r="1.5" fill={color} />
+      <circle cx="22" cy="26" r="1" fill={color} opacity="0.8" />
+      <circle cx="26" cy="22" r="1" fill={color} opacity="0.8" />
+    </svg>
+  ));
 }
 
 /* ─── The medallion artwork — one metal skin (bronze or gold) ─── */
@@ -293,12 +321,96 @@ function Flap({ side, open, patternUrl, delay }) {
   );
 }
 
-export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete }) {
+export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRsvp, onComplete }) {
   const prefersReduced = useReducedMotion();
 
   // stage: 0 preload · 1 paper · 2 seal-focus(resting) · 3 activating · 4 opening · 5 light · 6 reveal · 7 done
   const [stage, setStage] = useState(0);
   const [lang, setLang] = useState("en");
+
+  // Local state for the integrated interactive RSVP card
+  const [response, setResponse] = useState(guestRsvp?.response || 'yes');
+  const [partySize, setPartySize] = useState(guestRsvp?.party_size || 1);
+
+  // Detect meal selection fields — only show dinner choice if the organizer configured one.
+  const allCustomFields = event?.custom_form_fields || [];
+  const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
+  const mealField = allCustomFields.find(
+    (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
+  );
+  const hasMealField = !!mealField;
+  const mealOptions = mealField?.options || [];
+
+  const [mealSelection, setMealSelection] = useState(guestRsvp?.primary_meal || (hasMealField ? mealOptions[0] : ''));
+  const [rsvpSubmitted, setRsvpSubmitted] = useState(guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response));
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [isEditing, setIsEditing] = useState(!guestRsvp || !['yes', 'no', 'maybe'].includes(guestRsvp.response));
+
+  // Dynamic Google Font Injection
+  useEffect(() => {
+    const link = document.createElement("link");
+    link.href = "https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap";
+    link.rel = "stylesheet";
+    document.head.appendChild(link);
+    return () => {
+      try { document.head.removeChild(link); } catch (e) {}
+    };
+  }, []);
+
+  const { submit, submitting } = useIdempotentRsvpSubmit({
+    onSuccess: (data) => {
+      setRsvpSubmitted(true);
+      setShowConfetti(true);
+      setIsEditing(false);
+      if (setGuestRsvp && guestRsvp) {
+        setGuestRsvp((prev) => ({
+          ...prev,
+          response: data.response || response,
+          party_size: response === 'yes' ? partySize : 1,
+          primary_meal: response === 'yes' && hasMealField ? mealSelection : null,
+        }));
+        // Remember this guest on this device so a tokenless revisit still recognizes them.
+        rememberGuest(slug, guestRsvp.id);
+      }
+      toast.success(lang === "ar" ? "تم حفظ ردّك بنجاح!" : "Your RSVP has been saved!");
+    },
+    onLocked: (data) => {
+      setRsvpSubmitted(true);
+      setIsEditing(false);
+      if (setGuestRsvp && guestRsvp) {
+        setGuestRsvp((prev) => ({
+          ...prev,
+          response: data.response || response,
+        }));
+        rememberGuest(slug, guestRsvp.id);
+      }
+    },
+    messages: {
+      closed: lang === "ar" ? 'هذا الحدث لم يعد يستقبل الردود.' : 'This event is no longer accepting RSVPs.',
+      full:   lang === "ar" ? 'اكتمل عدد الضيوف. يُرجى التواصل مع المضيف.' : 'This event has reached its guest limit. Please contact the host.',
+      failed: lang === "ar" ? 'تعذّر حفظ ردك. تحقق من اتصالك وحاول مرة أخرى.' : 'We couldn’t save your RSVP. Please check your connection and try again.',
+    },
+  });
+
+  const handleConfirmRsvp = async () => {
+    if (!guestRsvp) return;
+    const body = {
+      partyId: guestRsvp.id,
+      guestName: guestRsvp.guest_name,
+      email: guestRsvp.email,
+      phone: guestRsvp.phone,
+      response: response,
+      partySize: response === 'yes' ? partySize : 1,
+      primaryGuestMeal: response === 'yes' && hasMealField ? mealSelection : null,
+      additionalGuests: [],
+      customAnswers: [],
+    };
+    await submit({
+      url: `/public/events/${slug}/rsvp`,
+      body,
+      reconcileId: guestRsvp.id,
+    });
+  };
   const timers = useRef([]);
   const finishedRef = useRef(false);
   const startedRef = useRef(false);
@@ -344,6 +456,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete
   const dateStr = event?.event_date
     ? new Date(event.event_date).toLocaleDateString(isRTL ? "ar-EG" : "en-US", {
         weekday: "long", day: "numeric", month: "long", year: "numeric",
+        timeZone: "UTC",
       })
     : "";
   const locationStr = event?.location_name || "";
@@ -414,7 +527,11 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete
     return () => clearTimeout(t);
   }, [finish]);
 
-  /* ═══ Reduced-motion fallback: an elegant, static, instantly-skippable card ═══ */
+  /* ═══ Reduced-motion fallback: a full luxury stationery card, just without the
+     envelope-opening choreography. Large-scale parallax/spin is avoided, but
+     low-amplitude opacity/glow ambience and a one-shot entrance still ship —
+     this screen is the only thing many guests (and any tooling that forces
+     prefers-reduced-motion) ever actually see, so it has to carry the brand. */
   if (prefersReduced) {
     return (
       <motion.div
@@ -424,24 +541,117 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{ ...overlayBase, background: "radial-gradient(120% 100% at 50% 35%, #fbf6ec 0%, #f2e9d6 60%, #e8dcc2 100%)" }}
+        transition={{ duration: 0.5 }}
+        dir={isRTL ? "rtl" : "ltr"}
+        style={{ ...overlayBase, background: "radial-gradient(125% 95% at 50% 24%, #fffdf8 0%, #faf3e2 38%, #ecdcb4 70%, #d9bf8c 100%)" }}
       >
-        <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation" style={skipStyle}>
-          Skip ›
-        </button>
-        <div style={{ textAlign: "center", padding: "24px", maxWidth: 460 }}>
-          <svg width="150" height="150" viewBox="0 0 220 220" role="img" aria-label="Invitation seal">
-            <MedallionSkin skin="bronze" uid="rm" text={identity.sealText} arabic={identity.sealArabic} />
-          </svg>
-          <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.32em", textTransform: "uppercase", color: theme.primary, fontWeight: 700, margin: "20px 0 10px" }}>
-            {copy.eyebrow}
-          </p>
-          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,7vw,34px)", color: "#2a1f12", margin: 0, fontWeight: 500 }}>
-            {displayTitle}
-          </h1>
-          <button type="button" onClick={finish} style={enterBtnStyle(theme)}>{copy.enter}</button>
+        <style dangerouslySetInnerHTML={{ __html: RM_CSS }} />
+
+        {/* Slow gold aurora sheen */}
+        <div aria-hidden className="rm-aurora" style={{ position: "absolute", inset: 0, background: `linear-gradient(120deg, transparent 20%, ${theme.secondary}33 45%, transparent 70%)`, pointerEvents: "none" }} />
+        {/* Embossed arabesque stationery texture + warm vignette */}
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: 0.3, mixBlendMode: "multiply", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(62% 52% at 50% 26%, rgba(255,255,255,0.55), transparent 70%), radial-gradient(120% 120% at 50% 100%, rgba(110,80,35,0.22), transparent 60%)", pointerEvents: "none" }} />
+        {/* Twinkling gold dust scattered across the backdrop */}
+        {SPARKLES.map((s, i) => (
+          <span key={i} aria-hidden className="rm-twinkle" style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, borderRadius: "50%", background: i % 2 ? theme.secondary : "#ffe6a0", boxShadow: "0 0 6px rgba(255,220,140,0.8)", animationDelay: `${s.delay}s`, pointerEvents: "none" }} />
+        ))}
+
+        {/* Top-end language chip — mirrors the live event page composition */}
+        <div style={{ position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineEnd: 16, zIndex: 6 }}>
+          <button
+            type="button"
+            onClick={() => hasArabic && setLang((l) => (l === "en" ? "ar" : "en"))}
+            aria-label={hasArabic ? "Toggle language" : "Language"}
+            style={langChipStyle(!!hasArabic)}
+          >
+            <span aria-hidden style={{ fontSize: 15, opacity: 0.7 }}>🌐</span>
+            <span style={{ fontWeight: 700, letterSpacing: "0.04em" }}>{lang === "en" ? "EN" : "ع"}</span>
+          </button>
         </div>
+
+        <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation" style={skipStyle}>
+          Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span>
+        </button>
+
+        {/* ── The stationery card ── */}
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.1, delayChildren: 0.2 } } }}
+          style={{
+            position: "relative", zIndex: 2, width: "100%", maxWidth: 440,
+            background: "linear-gradient(155deg, rgba(255,253,248,0.94), rgba(250,239,219,0.9))",
+            border: `1px solid ${theme.primary}38`,
+            borderRadius: 24,
+            boxShadow: "0 34px 76px -22px rgba(70,45,18,0.38), inset 0 1px 0 rgba(255,255,255,0.65)",
+            padding: "40px 28px 34px",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            overflow: "hidden",
+            textAlign: "center",
+          }}
+        >
+          <CornerOrnaments color={theme.primary} />
+          <div aria-hidden style={{ position: "absolute", inset: 9, border: `0.6px solid ${theme.primary}26`, borderRadius: 17, pointerEvents: "none" }} />
+
+          {/* Seal medallion: soft halo + one-shot shimmer sweep on mount */}
+          <motion.div variants={fadeUp} style={{ position: "relative", display: "inline-block" }}>
+            <div aria-hidden className="rm-halo" style={{ position: "absolute", inset: "-26%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,221,130,0.55) 0%, rgba(255,200,90,0.22) 46%, transparent 72%)", filter: "blur(5px)" }} />
+            <svg width="138" height="138" viewBox="0 0 220 220" role="img" aria-label="Invitation seal" style={{ position: "relative", display: "block", filter: "drop-shadow(0 14px 26px rgba(90,60,20,0.32))" }}>
+              <MedallionSkin skin="gold" uid="rm" text={identity.sealText} arabic={identity.sealArabic} />
+            </svg>
+            <div aria-hidden style={{ position: "absolute", inset: 0, borderRadius: "50%", overflow: "hidden", pointerEvents: "none" }}>
+              <div className="rm-sheen" />
+            </div>
+          </motion.div>
+
+          {/* Eyebrow flanked by hairline flourishes */}
+          <motion.div variants={fadeUp} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "22px 0 12px" }}>
+            <span aria-hidden style={{ height: 1, width: 28, background: `linear-gradient(90deg, transparent, ${theme.primary})` }} />
+            <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.34em", textTransform: "uppercase", color: theme.primary, fontWeight: 700 }}>
+              {copy.eyebrow}
+            </span>
+            <span aria-hidden style={{ height: 1, width: 28, background: `linear-gradient(270deg, transparent, ${theme.primary})` }} />
+          </motion.div>
+
+          <motion.h1 variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,7vw,34px)", color: "#2a1f12", margin: 0, fontWeight: 500, lineHeight: 1.22, textShadow: "0 1px 0 rgba(255,255,255,0.7)" }}>
+            {displayTitle}
+          </motion.h1>
+
+          {copy.join && (
+            <motion.p variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 14, color: "#8a7350", margin: "12px 0 0", letterSpacing: "0.02em" }}>
+              {copy.join}
+            </motion.p>
+          )}
+
+          {(dateStr || locationStr) && (
+            <>
+              <motion.div variants={fadeUp} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "20px 0" }}>
+                <span aria-hidden style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+                <span style={{ fontSize: 15, color: theme.primary }}>✦</span>
+                <span aria-hidden style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+              </motion.div>
+              <motion.div variants={fadeUp} style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 6 }}>
+                {dateStr && <DetailRow icon="📅" label={isRTL ? "التاريخ" : "When"} value={dateStr} />}
+                {locationStr && <DetailRow icon="📍" label={isRTL ? "المكان" : "Where"} value={[locationStr, event?.location_address].filter(Boolean).join(" · ")} />}
+              </motion.div>
+            </>
+          )}
+
+          <motion.div variants={fadeUp} style={{ marginTop: 26 }}>
+            <motion.button
+              type="button"
+              onClick={finish}
+              whileHover={{ scale: 1.035, boxShadow: `0 16px 34px ${theme.primary}55, inset 0 1px 0 rgba(255,255,255,0.45)` }}
+              whileTap={{ scale: 0.97 }}
+              style={enterBtnStyle(theme)}
+            >
+              {copy.enter}
+              <span aria-hidden style={{ fontSize: 14, marginInlineStart: 9 }}>{isRTL ? "←" : "→"}</span>
+            </motion.button>
+          </motion.div>
+        </motion.div>
       </motion.div>
     );
   }
@@ -710,11 +920,11 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete
                 maxWidth: '430px',
                 maxHeight: '85vh',
                 overflowY: 'auto',
-                background: 'linear-gradient(180deg, #FFFFFF 0%, #FFFDF8 100%)',
+                background: '#FCFAF6',
                 borderRadius: 20,
-                border: `1px solid ${theme.primary}26`,
+                border: `1.5px solid ${theme.primary}`,
                 boxShadow: '0 40px 80px -24px rgba(25,27,30,0.4)',
-                padding: '34px 26px 28px',
+                padding: '36px 28px 28px',
                 textAlign: 'center',
                 WebkitOverflowScrolling: 'touch',
                 pointerEvents: 'auto',
@@ -722,156 +932,529 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, onComplete
                 zIndex: 8,
               }}
             >
-              {/* Crest Medallion */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-                {sealGoldImg ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={sealGoldImg} alt="" aria-hidden width={84} height={84} style={{ width: 84, height: 84, objectFit: "contain", filter: sealGoldImg === sealImg ? "brightness(1.32) saturate(1.45) drop-shadow(0 8px 18px rgba(150,110,40,0.3))" : "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }} />
-                ) : (
-                  <svg width="84" height="84" viewBox="0 0 220 220" aria-hidden style={{ filter: "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }}>
-                    <MedallionSkin skin="gold" uid="lock" text={identity.sealText} arabic={identity.sealArabic} />
-                  </svg>
-                )}
-              </div>
+              {/* Double border details */}
+              <div style={{ position: 'absolute', inset: '6px', border: `0.7px solid ${theme.primary}55`, pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', inset: '10px', border: `0.3px solid ${theme.primary}22`, pointerEvents: 'none' }} />
 
-              {/* Invitation Eyebrow */}
-              <span style={{ display: 'block', fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.32em", textTransform: "uppercase", fontWeight: 700, color: theme.primary, marginBottom: 12 }}>
-                {copy.eyebrow}
-              </span>
+              {/* Damask pattern watermark background — subtle repeating motif */}
+              <div style={{ position: 'absolute', inset: 0, opacity: 0.025, pointerEvents: 'none', backgroundImage: patternUrl, backgroundSize: '46px 46px' }} />
 
-              {/* Title */}
-              <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,6.8vw,32px)", fontWeight: 500, lineHeight: 1.2, color: "#2a1f12", margin: '0 0 8px' }}>
-                {displayName}
-              </h2>
+              {/* Vintage Corner Ornaments */}
+              {[
+                { top: 8, left: 8, rotate: '0deg' },
+                { top: 8, right: 8, rotate: '90deg' },
+                { bottom: 8, right: 8, rotate: '180deg' },
+                { bottom: 8, left: 8, rotate: '270deg' },
+              ].map((pos, i) => (
+                <svg
+                  key={i} width="34" height="34" viewBox="0 0 40 40"
+                  style={{
+                    position: 'absolute',
+                    top: pos.top, bottom: pos.bottom, left: pos.left, right: pos.right,
+                    transform: `rotate(${pos.rotate})`,
+                    opacity: 0.65,
+                    pointerEvents: 'none',
+                    zIndex: 9,
+                  }}
+                >
+                  <path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke={theme.primary} strokeWidth="0.8" />
+                  <path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke={theme.primary} strokeWidth="0.8" />
+                  <path d="M5 5 Q5 10 9 14 Q13 18 18 20" fill="none" stroke={theme.primary} strokeWidth="0.5" opacity="0.6" />
+                  <path d="M5 5 Q10 5 14 9 Q18 13 20 18" fill="none" stroke={theme.primary} strokeWidth="0.5" opacity="0.6" />
+                  <circle cx="3" cy="3" r="1.5" fill={theme.primary} />
+                  <circle cx="22" cy="26" r="1" fill={theme.primary} opacity="0.8" />
+                  <circle cx="26" cy="22" r="1" fill={theme.primary} opacity="0.8" />
+                </svg>
+              ))}
 
-              {/* Elegant Divider */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '14px 0 18px' }}>
-                <span style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
-                <span style={{ fontSize: 16, color: theme.primary }}>✦</span>
-                <span style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
-              </div>
+              {guestRsvp ? (
+                /* ─── CASE A: Known Guest RSVP Experience ─── */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, position: 'relative', zIndex: 10 }}>
+                  
+                  {/* RSVP Header */}
+                  <h1 style={{
+                    fontFamily: "'Playfair Display', serif",
+                    fontSize: '36px',
+                    color: theme.primary,
+                    letterSpacing: '5px',
+                    margin: '6px 0 0',
+                    fontWeight: 600
+                  }}>
+                    RSVP
+                  </h1>
+                  
+                  {/* Divider */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: -4 }}>
+                    <span style={{ height: 1, width: 36, background: `linear-gradient(90deg, transparent, ${theme.primary})` }} />
+                    <span style={{ fontSize: 12, color: theme.primary }}>⚜</span>
+                    <span style={{ height: 1, width: 36, background: `linear-gradient(270deg, transparent, ${theme.primary})` }} />
+                  </div>
 
-              {/* Event Details */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 22 }}>
-                {dateStr && (
-                  <DetailRow icon="📅" label={isRTL ? 'التاريخ' : 'When'} value={dateStr} />
-                )}
-                {locationStr && (
-                  <DetailRow icon="📍" label={isRTL ? 'المكان' : 'Where'} value={[locationStr, event?.location_address].filter(Boolean).join(' · ')} />
-                )}
-                {event?.dress_code && (
-                  <DetailRow icon="🎩" label={isRTL ? 'الزي' : 'Dress code'} value={isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code} />
-                )}
-              </div>
+                  {/* Guest Name */}
+                  <div style={{ margin: '4px 0 8px' }}>
+                    <div style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '10px',
+                      letterSpacing: '2.5px',
+                      color: '#8A8270',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      marginBottom: 4
+                    }}>
+                      {isRTL ? 'اسم الضيف:' : 'GUEST NAME:'}
+                    </div>
+                    <div style={{
+                      fontFamily: "'Great Vibes', cursive",
+                      fontSize: '30px',
+                      color: '#2C2A25',
+                      borderBottom: `1.5px solid ${theme.primary}33`,
+                      display: 'inline-block',
+                      minWidth: '85%',
+                      padding: '0 12px 4px',
+                      textShadow: '0.5px 0.5px 0px #FFF'
+                    }}>
+                      {guestRsvp.guest_name}
+                    </div>
+                  </div>
 
-              {/* Venue Map Embed & Directions */}
-              {(event?.location_name || event?.location_address || (event?.location_lat != null && event?.location_lng != null)) && (() => {
-                const mapEmbedSrc = buildMapEmbedSrc(event);
-                const directionsUrl = buildDirectionsUrl(event);
-                if (!mapEmbedSrc && !directionsUrl) return null;
-                return (
-                  <div style={{ marginBottom: 22 }}>
-                    {mapEmbedSrc ? (
-                      <div style={{
-                        position: 'relative', borderRadius: 14, overflow: 'hidden',
-                        border: `1px solid ${theme.primary}26`,
-                        boxShadow: '0 10px 26px -14px rgba(25,27,30,0.32)',
-                      }}>
-                        <iframe
-                          title={isRTL ? 'خريطة موقع الحدث' : 'Event location map'}
-                          src={mapEmbedSrc}
-                          width="100%" height="168"
-                          style={{ border: 0, display: 'block', filter: 'saturate(1.02)' }}
-                          loading="lazy"
-                          referrerPolicy="no-referrer-when-downgrade"
-                        />
-                        {directionsUrl && (
-                          <a
-                            href={directionsUrl} target="_blank" rel="noopener noreferrer"
-                            style={{
-                              position: 'absolute', bottom: 10, [isRTL ? 'left' : 'right']: 10,
-                              display: 'inline-flex', alignItems: 'center', gap: 5,
-                              padding: '8px 13px', borderRadius: 10, textDecoration: 'none',
-                              background: '#FFFFFF', border: `1px solid ${theme.primary}33`,
-                              color: theme.primary, fontSize: 11.5, fontWeight: 700,
-                              boxShadow: '0 4px 12px -4px rgba(25,27,30,0.35)',
-                              WebkitTapHighlightColor: 'transparent',
-                            }}
-                          >
-                            🧭 {isRTL ? 'الاتجاهات' : 'Directions'}
-                          </a>
-                        )}
+                  {/* Accepts / Declines */}
+                  <div>
+                    <div style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '10px',
+                      letterSpacing: '2.5px',
+                      color: '#8A8270',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      marginBottom: 10
+                    }}>
+                      {isRTL ? 'تأكيد الحضور:' : 'ACCEPTS/DECLINES:'}
+                    </div>
+                    
+                    {isEditing ? (
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 24, margin: '4px 0' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: "'Playfair Display', serif", fontSize: '15px', color: '#5C5446', fontStyle: 'italic' }}>
+                          <input
+                            type="radio" name="response" value="yes"
+                            checked={response === 'yes'}
+                            onChange={() => setResponse('yes')}
+                            style={{ accentColor: theme.primary, width: 16, height: 16 }}
+                          />
+                          {isRTL ? 'أتشرف بالحضور' : 'Joyfully Accepts'}
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: "'Playfair Display', serif", fontSize: '15px', color: '#5C5446', fontStyle: 'italic' }}>
+                          <input
+                            type="radio" name="response" value="no"
+                            checked={response === 'no'}
+                            onChange={() => setResponse('no')}
+                            style={{ accentColor: theme.primary, width: 16, height: 16 }}
+                          />
+                          {isRTL ? 'أعتذر عن الحضور' : 'Regretfully Declines'}
+                        </label>
                       </div>
                     ) : (
-                      <a
-                        href={directionsUrl} target="_blank" rel="noopener noreferrer"
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                          padding: '13px 16px', borderRadius: 12, textDecoration: 'none',
-                          background: `${theme.primary}10`, border: `1px solid ${theme.primary}2E`,
-                          color: theme.primary, fontSize: 13, fontWeight: 700,
-                          WebkitTapHighlightColor: 'transparent',
-                        }}
-                      >
-                        🧭 {isRTL ? 'احصل على الاتجاهات' : 'Get Directions'}
-                      </a>
+                      <div style={{ fontFamily: "'Playfair Display', serif", fontSize: '18px', color: theme.primary, fontStyle: 'italic', fontWeight: 600, margin: '4px 0' }}>
+                        {response === 'yes' ? (isRTL ? '✓ أتشرف بالحضور' : '✓ Joyfully Accepts') : (isRTL ? '✗ أعتذر عن الحضور' : '✗ Regretfully Declines')}
+                      </div>
                     )}
                   </div>
-                );
-              })()}
 
-              {/* RSVP status badge (if already responded) */}
-              {guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response) && (() => {
-                const STATUS_LABEL = {
-                  yes: isRTL ? 'حاضر' : 'Attending',
-                  maybe: isRTL ? 'ربما' : 'Tentative',
-                  no: isRTL ? 'معتذر' : 'Declined',
-                };
-                return (
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    padding: '8px 14px', borderRadius: 999, alignSelf: 'center', marginBottom: 16,
-                    background: `${theme.primary}12`, border: `1px solid ${theme.primary}33`,
-                    color: theme.primary, fontSize: 12.5, fontWeight: 700,
-                  }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: theme.primary }} />
-                    {isRTL ? 'تم تسجيل ردّك بالفعل' : "You've already responded"} · {STATUS_LABEL[guestRsvp.response]}
+                  {/* Number Attending */}
+                  <div>
+                    <div style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '10px',
+                      letterSpacing: '2.5px',
+                      color: '#8A8270',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      marginBottom: 6
+                    }}>
+                      {isRTL ? 'عدد الحضور:' : 'NUMBER ATTENDING:'}
+                    </div>
+
+                    {isEditing && response === 'yes' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, margin: '4px 0' }}>
+                        <button
+                          type="button"
+                          onClick={() => setPartySize(Math.max(1, partySize - 1))}
+                          disabled={partySize <= 1 || submitting}
+                          style={{
+                            width: 26, height: 26, borderRadius: '50%',
+                            border: `1px solid ${theme.primary}`,
+                            background: 'none', color: theme.primary,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 'bold', fontSize: 14, transition: 'all 0.2s',
+                            opacity: partySize <= 1 ? 0.35 : 1
+                          }}
+                        >
+                          -
+                        </button>
+                        <span style={{
+                          fontFamily: "'Great Vibes', cursive",
+                          fontSize: '28px',
+                          color: '#2C2A25',
+                          borderBottom: `1.5px solid ${theme.primary}33`,
+                          padding: '0 20px',
+                          minWidth: '100px',
+                          display: 'inline-block'
+                        }}>
+                          {partySize} {partySize === 1 ? (isRTL ? 'فرد' : 'Guest') : (isRTL ? 'أفراد' : 'Guests')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPartySize(partySize + 1)}
+                          disabled={submitting}
+                          style={{
+                            width: 26, height: 26, borderRadius: '50%',
+                            border: `1px solid ${theme.primary}`,
+                            background: 'none', color: theme.primary,
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 'bold', fontSize: 14, transition: 'all 0.2s'
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{
+                        fontFamily: "'Great Vibes', cursive",
+                        fontSize: '28px',
+                        color: '#2C2A25',
+                        borderBottom: `1.5px solid ${theme.primary}33`,
+                        display: 'inline-block',
+                        padding: '0 24px 2px',
+                        marginBottom: 4
+                      }}>
+                        {response === 'yes' ? `${partySize} ${partySize === 1 ? (isRTL ? 'فرد' : 'Guest') : (isRTL ? 'أفراد' : 'Guests')}` : (isRTL ? '٠ أفراد' : '0 Guests')}
+                      </div>
+                    )}
                   </div>
-                );
-              })()}
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <Link
-                  href={`/${slug}/rsvp${guestRsvp?.id ? `?party_id=${guestRsvp.id}` : ''}${isRTL ? `${guestRsvp?.id ? '&' : '?'}lang=ar` : ''}`}
-                  style={{
-                    height: 52, borderRadius: 14, textDecoration: 'none',
-                    background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary || '#D7BE80'})`,
-                    color: '#FFFFFF', fontSize: 15, fontWeight: 700, letterSpacing: '0.02em',
-                    boxShadow: `0 10px 24px ${theme.primary}44`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    pointerEvents: 'auto',
-                  }}
-                >
-                  {guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response)
-                    ? (isRTL ? 'عرض / تعديل ردّك' : 'View / update your RSVP')
-                    : (isRTL ? 'تأكيد الحضور' : 'RSVP Now')}
-                </Link>
+                  {/* Dinner Choice */}
+                  {response === 'yes' && hasMealField && (
+                    <div>
+                      <div style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontSize: '10px',
+                        letterSpacing: '2.5px',
+                        color: '#8A8270',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        marginBottom: 10
+                      }}>
+                        {isRTL ? 'خيارات العشاء:' : 'DINNER CHOICE:'}
+                      </div>
 
-                <button
-                  type="button"
-                  onClick={finish}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5,
-                    color: '#9A9486', fontWeight: 600, padding: 8, fontFamily: "var(--font-sans)",
-                    pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                    alignSelf: 'center',
-                  }}
-                >
-                  {isRTL ? 'استعراض التفاصيل الكاملة ←' : 'Explore Event Details →'}
-                </button>
-              </div>
+                      {isEditing ? (
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                          margin: '0 auto',
+                          maxWidth: '220px',
+                          padding: '4px 12px'
+                        }}>
+                          {mealOptions.map((opt) => (
+                            <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontFamily: "'Playfair Display', serif", fontSize: '15px', color: '#5C5446', fontStyle: 'italic', width: '100%' }}>
+                              <input
+                                type="radio" name="dinner" value={opt}
+                                checked={mealSelection === opt}
+                                onChange={() => setMealSelection(opt)}
+                                disabled={submitting}
+                                style={{ accentColor: theme.primary, width: 15, height: 15 }}
+                              />
+                              <span style={{ textAlign: 'left' }}>{opt}</span>
+                            </label>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                          margin: '0 auto',
+                          maxWidth: '220px',
+                          padding: '4px 12px'
+                        }}>
+                          {mealOptions.map((opt) => (
+                            <div key={opt} style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              fontFamily: "'Playfair Display', serif",
+                              fontSize: '15px',
+                              color: mealSelection === opt ? '#2C2A25' : '#8A8270',
+                              opacity: mealSelection === opt ? 1 : 0.45,
+                              fontStyle: 'italic',
+                              fontWeight: mealSelection === opt ? 600 : 400
+                            }}>
+                              <span style={{ fontSize: '18px', color: theme.primary, lineHeight: 1 }}>
+                                {mealSelection === opt ? '☑' : '☐'}
+                              </span>
+                              <span style={{ textAlign: 'left' }}>{opt}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Gold Medallion Seal Button */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 14 }}>
+                    
+                    {isEditing ? (
+                      <motion.button
+                        type="button"
+                        onClick={handleConfirmRsvp}
+                        disabled={submitting}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.96 }}
+                        style={{
+                          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                          filter: 'drop-shadow(0 8px 18px rgba(150,110,40,0.35))',
+                          outline: 'none', WebkitTapHighlightColor: 'transparent'
+                        }}
+                      >
+                        <svg width="112" height="112" viewBox="0 0 120 120">
+                          <defs>
+                            <radialGradient id="gold-seal-grad" cx="45%" cy="40%" r="60%">
+                              <stop offset="0%" stopColor="#FFF4D0" />
+                              <stop offset="40%" stopColor="#E5C158" />
+                              <stop offset="80%" stopColor="#B38B22" />
+                              <stop offset="100%" stopColor="#7E5F11" />
+                            </radialGradient>
+                          </defs>
+
+                          {/* Generate Scalloped Medallion Outer edge */}
+                          <path
+                            d={(() => {
+                              const cx = 60, cy = 60, r = 54, numScallops = 24, scallopDepth = 4;
+                              let p = '';
+                              for (let i = 0; i < numScallops; i++) {
+                                const a1 = (i / numScallops) * Math.PI * 2;
+                                const a2 = ((i + 0.5) / numScallops) * Math.PI * 2;
+                                const a3 = ((i + 1) / numScallops) * Math.PI * 2;
+                                const x1 = cx + Math.cos(a1) * r;
+                                const y1 = cy + Math.sin(a1) * r;
+                                const xm = cx + Math.cos(a2) * (r - scallopDepth);
+                                const ym = cy + Math.sin(a2) * (r - scallopDepth);
+                                const x2 = cx + Math.cos(a3) * r;
+                                const y2 = cy + Math.sin(a3) * r;
+                                if (i === 0) p += `M ${x1} ${y1}`;
+                                p += ` Q ${xm} ${ym} ${x2} ${y2}`;
+                              }
+                              return p + ' Z';
+                            })()}
+                            fill="url(#gold-seal-grad)"
+                            stroke="#5E470E"
+                            strokeWidth="0.8"
+                          />
+
+                          {/* Inner Beaded Ring */}
+                          <circle cx="60" cy="60" r="45" fill="none" stroke="#FFE49E" strokeWidth="0.8" strokeDasharray="2, 4" opacity="0.85" />
+                          <circle cx="60" cy="60" r="42" fill="none" stroke="#5E470E" strokeWidth="0.5" opacity="0.5" />
+
+                          {/* Embossed Text Highlight (White) */}
+                          <text x="60" y="58" textAnchor="middle" fill="#FFEAA5" fontSize="12" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.5">
+                            {submitting ? (isRTL ? 'جاري...' : 'SEALING...') : (isRTL ? 'اضغط' : 'SEAL &')}
+                          </text>
+                          <text x="60" y="74" textAnchor="middle" fill="#FFEAA5" fontSize="12" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.5">
+                            {submitting ? (isRTL ? 'الحفظ...' : 'SAVING...') : (isRTL ? 'للتأكيد' : 'CONFIRM')}
+                          </text>
+
+                          {/* Embossed Text Main (Dark Bronze/Gold) */}
+                          <text x="59.2" y="57.2" textAnchor="middle" fill="#5C4308" fontSize="12" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.5">
+                            {submitting ? (isRTL ? 'جاري...' : 'SEALING...') : (isRTL ? 'اضغط' : 'SEAL &')}
+                          </text>
+                          <text x="59.2" y="73.2" textAnchor="middle" fill="#5C4308" fontSize="12" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.5">
+                            {submitting ? (isRTL ? 'الحفظ...' : 'SAVING...') : (isRTL ? 'للتأكيد' : 'CONFIRM')}
+                          </text>
+                        </svg>
+                      </motion.button>
+                    ) : (
+                      <motion.div
+                        initial={{ scale: 0.9, rotate: -5 }}
+                        animate={{ scale: 1, rotate: 0 }}
+                        transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+                        style={{
+                          filter: 'drop-shadow(0 8px 18px rgba(150,110,40,0.4))',
+                          cursor: 'default'
+                        }}
+                      >
+                        <svg width="112" height="112" viewBox="0 0 120 120">
+                          <defs>
+                            <radialGradient id="gold-seal-grad-active" cx="45%" cy="40%" r="60%">
+                              <stop offset="0%" stopColor="#FFF9E6" />
+                              <stop offset="35%" stopColor="#F5D77F" />
+                              <stop offset="75%" stopColor="#CFA129" />
+                              <stop offset="100%" stopColor="#947116" />
+                            </radialGradient>
+                          </defs>
+
+                          {/* Scalloped Medallion edge */}
+                          <path
+                            d={(() => {
+                              const cx = 60, cy = 60, r = 54, numScallops = 24, scallopDepth = 4;
+                              let p = '';
+                              for (let i = 0; i < numScallops; i++) {
+                                const a1 = (i / numScallops) * Math.PI * 2;
+                                const a2 = ((i + 0.5) / numScallops) * Math.PI * 2;
+                                const a3 = ((i + 1) / numScallops) * Math.PI * 2;
+                                const x1 = cx + Math.cos(a1) * r;
+                                const y1 = cy + Math.sin(a1) * r;
+                                const xm = cx + Math.cos(a2) * (r - scallopDepth);
+                                const ym = cy + Math.sin(a2) * (r - scallopDepth);
+                                const x2 = cx + Math.cos(a3) * r;
+                                const y2 = cy + Math.sin(a3) * r;
+                                if (i === 0) p += `M ${x1} ${y1}`;
+                                p += ` Q ${xm} ${ym} ${x2} ${y2}`;
+                              }
+                              return p + ' Z';
+                            })()}
+                            fill="url(#gold-seal-grad-active)"
+                            stroke="#5E470E"
+                            strokeWidth="0.8"
+                          />
+
+                          <circle cx="60" cy="60" r="45" fill="none" stroke="#FFE49E" strokeWidth="0.8" strokeDasharray="2, 4" opacity="0.9" />
+                          <circle cx="60" cy="60" r="42" fill="none" stroke="#5E470E" strokeWidth="0.5" opacity="0.6" />
+
+                          {/* Embossed Text Highlight (White) */}
+                          <text x="60" y="52" textAnchor="middle" fill="#FFFFFF" fontSize="10.5" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.4">
+                            {isRTL ? 'تم تأكيد' : 'RESPONSE'}
+                          </text>
+                          <text x="60" y="68" textAnchor="middle" fill="#FFFFFF" fontSize="10.5" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.4">
+                            {isRTL ? 'الرد ✓' : 'CONFIRMED ✓'}
+                          </text>
+
+                          {/* Embossed Text Main (Dark Bronze/Gold) */}
+                          <text x="59.2" y="51.2" textAnchor="middle" fill="#5C4308" fontSize="10.5" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.4">
+                            {isRTL ? 'تم تأكيد' : 'RESPONSE'}
+                          </text>
+                          <text x="59.2" y="67.2" textAnchor="middle" fill="#5C4308" fontSize="10.5" fontWeight="800" fontFamily="sans-serif" letterSpacing="0.4">
+                            {isRTL ? 'الرد ✓' : 'CONFIRMED ✓'}
+                          </text>
+                        </svg>
+                      </motion.div>
+                    )}
+
+                    {/* Edit Option Toggle */}
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditing(true)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: '12px', color: '#9A9486', textDecoration: 'underline',
+                          marginTop: 10, transition: 'color 0.2s', fontFamily: 'var(--font-sans)',
+                          fontWeight: 500
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = '#191B1E'}
+                        onMouseLeave={e => e.currentTarget.style.color = '#9A9486'}
+                      >
+                        ✏️ {isRTL ? 'تعديل ردك' : 'Update Response'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Explore Details link */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={finish}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px',
+                        color: theme.primary, fontWeight: 700, padding: 8, fontFamily: "var(--font-sans)",
+                        pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        alignSelf: 'center', transition: 'opacity 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.opacity = 0.8}
+                      onMouseLeave={e => e.currentTarget.style.opacity = 1}
+                    >
+                      {isRTL ? 'استعراض التفاصيل الكاملة ←' : 'Explore Event Details →'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* ─── CASE B: Anonymous / Invite-less View ─── */
+                <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Crest Medallion */}
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
+                    {sealGoldImg ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={sealGoldImg} alt="" aria-hidden width={84} height={84} style={{ width: 84, height: 84, objectFit: "contain", filter: "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }} />
+                    ) : (
+                      <svg width="84" height="84" viewBox="0 0 220 220" aria-hidden style={{ filter: "drop-shadow(0 8px 18px rgba(150,110,40,0.3))" }}>
+                        <MedallionSkin skin="gold" uid="lock" text={identity.sealText} arabic={identity.sealArabic} />
+                      </svg>
+                    )}
+                  </div>
+
+                  {/* Eyebrow */}
+                  <span style={{ display: 'block', fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.32em", textTransform: "uppercase", fontWeight: 700, color: theme.primary }}>
+                    {copy.eyebrow}
+                  </span>
+
+                  {/* Title */}
+                  <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,6.8vw,32px)", fontWeight: 500, lineHeight: 1.2, color: "#2a1f12", margin: '0' }}>
+                    {displayName}
+                  </h2>
+
+                  {/* Divider */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, margin: '4px 0 8px' }}>
+                    <span style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+                    <span style={{ fontSize: 16, color: theme.primary }}>✦</span>
+                    <span style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+                  </div>
+
+                  {/* Event Details */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                    {dateStr && (
+                      <DetailRow icon="📅" label={isRTL ? 'التاريخ' : 'When'} value={dateStr} />
+                    )}
+                    {locationStr && (
+                      <DetailRow icon="📍" label={isRTL ? 'المكان' : 'Where'} value={[locationStr, event?.location_address].filter(Boolean).join(' · ')} />
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+                    <Link
+                      href={`/${slug}/rsvp`}
+                      style={{
+                        height: 52, borderRadius: 14, textDecoration: 'none',
+                        background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary || '#D7BE80'})`,
+                        color: '#FFFFFF', fontSize: 15, fontWeight: 700, letterSpacing: '0.02em',
+                        boxShadow: `0 10px 24px ${theme.primary}44`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      {isRTL ? 'تأكيد الحضور' : 'RSVP Now'}
+                    </Link>
+
+                    <button
+                      type="button"
+                      onClick={finish}
+                      style={{
+                        background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5,
+                        color: '#9A9486', fontWeight: 600, padding: 8, fontFamily: "var(--font-sans)",
+                        pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                        alignSelf: 'center',
+                      }}
+                    >
+                      {isRTL ? 'استعراض التفاصيل الكاملة ←' : 'Explore Event Details →'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </motion.div>
+
+            {/* Confetti celebration canvas inside the reveal overlay */}
+            <ConfettiExplosion active={showConfetti} duration={4000} particleCount={140} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -933,22 +1516,29 @@ const langChipStyle = (active) => ({
 });
 
 const enterBtnStyle = (theme) => ({
-  marginTop: 26,
   display: "inline-flex",
   alignItems: "center",
-  padding: "13px 30px",
+  justifyContent: "center",
+  padding: "16px 38px",
   borderRadius: 999,
-  border: "none",
-  background: `linear-gradient(135deg, ${theme.primary}, #a6833f)`,
+  border: `1px solid ${theme.secondary || "#D7BE80"}99`,
+  background: `linear-gradient(135deg, ${theme.secondary || "#D7BE80"} 0%, ${theme.primary} 55%, #8a6d2e 100%)`,
   color: "#fffdf6",
   fontFamily: "var(--font-sans)",
   fontSize: 13,
   fontWeight: 700,
-  letterSpacing: "0.12em",
+  letterSpacing: "0.16em",
   textTransform: "uppercase",
   cursor: "pointer",
-  boxShadow: "0 10px 28px rgba(184,148,79,0.36)",
+  boxShadow: `0 10px 28px ${theme.primary}40, inset 0 1px 0 rgba(255,255,255,0.4)`,
 });
+
+/* One-shot fade/rise used by the reduced-motion fallback's stagger — small
+   enough offset that it stays clear of vestibular-motion triggers. */
+const fadeUp = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } },
+};
 
 /* Rising-dust particle field (positions fixed so SSR/CSR match) */
 const DUST = [
@@ -956,6 +1546,34 @@ const DUST = [
   { x: 68, s: 4, delay: 0.4 }, { x: 38, s: 3, delay: 0.55 }, { x: 62, s: 5, delay: 0.7 },
   { x: 50, s: 4, delay: 0.18 }, { x: 35, s: 5, delay: 0.85 }, { x: 65, s: 3, delay: 0.62 },
 ];
+
+/* Ambient twinkle field for the reduced-motion stationery backdrop (fixed positions) */
+const SPARKLES = [
+  { x: 12, y: 18, s: 5, delay: 0 }, { x: 85, y: 14, s: 4, delay: 0.6 },
+  { x: 8, y: 76, s: 4, delay: 1.1 }, { x: 90, y: 68, s: 5, delay: 0.3 },
+  { x: 48, y: 8, s: 3, delay: 1.6 }, { x: 22, y: 88, s: 3, delay: 0.9 },
+  { x: 78, y: 90, s: 4, delay: 1.3 }, { x: 64, y: 5, s: 3, delay: 0.45 },
+];
+
+/* Low-amplitude ambient CSS for the reduced-motion fallback — opacity/glow
+   only, no large-scale translation, rotation, or parallax. */
+const RM_CSS = `
+@keyframes rmAurora { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
+.rm-aurora { animation: rmAurora 9s ease-in-out infinite; }
+
+@keyframes rmTwinkle { 0%,100% { opacity: 0.15; transform: scale(0.85); } 50% { opacity: 0.9; transform: scale(1.15); } }
+.rm-twinkle { animation: rmTwinkle 3.6s ease-in-out infinite; }
+
+@keyframes rmHalo { 0%,100% { opacity: 0.55; } 50% { opacity: 0.85; } }
+.rm-halo { animation: rmHalo 4.4s ease-in-out infinite; }
+
+@keyframes rmSheen { 0% { transform: translateX(-130%) rotate(8deg); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateX(130%) rotate(8deg); opacity: 0; } }
+.rm-sheen {
+  position: absolute; top: -25%; left: 0; width: 55%; height: 150%;
+  background: linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.8) 50%, transparent 62%);
+  animation: rmSheen 1.8s ease-out 0.6s 1;
+}
+`;
 
 /* Ambient CSS loops — cheaper & smoother on the compositor than per-frame JS */
 const REVEAL_CSS = `

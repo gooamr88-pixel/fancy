@@ -17,10 +17,8 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const tokenService = require('./tokenService');
 const notificationService = require('../utils/notificationService');
-const { getInvitationTemplate, getQRTicketTemplate } = require('../utils/emailTemplates');
+const { getInvitationTemplate, getQRTicketTemplate, buildGuestEventUrl } = require('../utils/emailTemplates');
 
-const FRONTEND_BASE = () =>
-  (process.env.FRONTEND_URL || 'https://fancyrsvp.com').split(',')[0].trim().replace(/\/$/, '');
 const BACKEND_BASE = () =>
   process.env.BACKEND_URL ? process.env.BACKEND_URL.replace(/\/$/, '') : `http://localhost:${process.env.PORT || 5000}`;
 
@@ -62,35 +60,31 @@ async function resolveLiveEvent(eventId) {
   return { event };
 }
 
-/** Sends one email invitation (3-button choice + manage link) to a party's primary contact. */
+/** Sends one email invitation (single "View Invitation" link to the guest's card) to a party's primary contact. */
 async function sendEmailInvite(event, party) {
   if (!party.primaryEmail) return { sent: false, reason: 'NO_EMAIL' };
 
-  const base = FRONTEND_BASE();
-  const linkFor = (response) => {
-    const token = tokenService.signRsvpInvite({ partyId: party.id, eventId: event.id, response });
-    return { url: `${base}/rsvp?token=${encodeURIComponent(token)}`, token };
-  };
-  const accept = linkFor('accepted');
-  const decline = linkFor('declined');
-  const maybe = linkFor('maybe');
-  const manage = linkFor(undefined);
+  // One link straight to the guest's own invitation card (/{slug}?party_id=...) —
+  // no vote-by-email buttons. The guest sees the full invitation first and RSVPs
+  // from there, same as every other entry point into the event page.
+  const viewUrl = buildGuestEventUrl(event.slug, party.id);
+  // Still mint a token for the ledger (kept for tracking/resend parity with the
+  // other channels) even though it's no longer embedded in the email itself.
+  const ledgerToken = tokenService.signRsvpInvite({ partyId: party.id, eventId: event.id, response: undefined });
 
   const shimParty = { id: party.id, guest_name: party.label, email: party.primaryEmail, party_size: party.partySize };
   const shimEvent = {
     title: event.title, event_date: event.event_date, slug: event.slug,
     location_name: event.location_name, location_address: event.location_address,
   };
-  const html = getInvitationTemplate(shimParty, shimEvent, {
-    accept: accept.url, decline: decline.url, maybe: maybe.url, manage: manage.url,
-  });
+  const html = getInvitationTemplate(shimParty, shimEvent, { view: viewUrl });
 
   const success = await notificationService.sendEmailViaBrevo(party.primaryEmail, `You're Invited: ${event.title}`, html);
   if (!success) {
     await logInvitation({ partyId: party.id, eventId: event.id, channel: 'email', status: 'failed' });
     return { sent: false, reason: 'DELIVERY_FAILED' };
   }
-  await logInvitation({ partyId: party.id, eventId: event.id, channel: 'email', token: manage.token, status: 'sent' });
+  await logInvitation({ partyId: party.id, eventId: event.id, channel: 'email', token: ledgerToken, status: 'sent' });
   return { sent: true };
 }
 

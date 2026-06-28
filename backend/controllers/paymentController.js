@@ -583,13 +583,27 @@ const manualCashApproval = async (req, res, next) => {
  * PATCH /api/v1/admin/pricing
  */
 const updatePricingConfig = async (req, res, next) => {
-  const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct, manualPaymentMethods } = req.body;
+  const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct, manualPaymentMethods, landingStats } = req.body;
 
   const updates = {};
   if (pricingTiers) updates.pricing_tiers = pricingTiers;
   if (smsRateCentsPerCredit !== undefined) updates.sms_rate_cents_per_credit = smsRateCentsPerCredit;
   if (smsMarkupPercentage !== undefined) updates.sms_markup_percentage = smsMarkupPercentage;
   if (platformCommissionPct !== undefined) updates.platform_commission_pct = platformCommissionPct;
+  if (landingStats !== undefined) {
+    if (!Array.isArray(landingStats)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'landingStats must be an array.' });
+    }
+    // Normalize each stat to the shape the landing page's counter animation expects.
+    updates.landing_stats = landingStats
+      .filter(s => s && (s.label || '').trim())
+      .map((s) => ({
+        label: String(s.label).trim(),
+        target: Number(s.target) || 0,
+        suffix: s.suffix || '',
+        decimals: Number(s.decimals) || 0,
+      }));
+  }
   if (manualPaymentMethods !== undefined) {
     if (!Array.isArray(manualPaymentMethods)) {
       return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'manualPaymentMethods must be an array.' });

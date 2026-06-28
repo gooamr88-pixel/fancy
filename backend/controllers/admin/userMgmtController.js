@@ -29,12 +29,18 @@ const getUserDetail = async (req, res, next) => {
     if (error) throw error;
     if (!org) return res.status(404).json({ success: false, error: 'USER_NOT_FOUND', message: 'User not found.' });
 
-    const [{ count: eventCount }, { data: sessions }, { data: logins }, { data: roleRow }] = await Promise.all([
+    const [{ count: eventCount }, { data: sessions }, { data: logins }, { data: adminRow }] = await Promise.all([
       supabase.from('events').select('id', { count: 'exact', head: true }).eq('org_id', org.id),
       supabase.from('sessions').select('id, ip, user_agent, device_label, created_at, last_seen_at, revoked_at, expires_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(10),
       supabase.from('login_history').select('ip, user_agent, success, failure_reason, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(10),
-      supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
+      // Live RBAC tables — the legacy user_roles table no longer reflects real access.
+      supabase.from('admin_users').select('status, admin_user_roles(roles(key))').eq('user_id', userId).maybeSingle(),
     ]);
+
+    const roleKeys = adminRow && adminRow.status === 'active'
+      ? (adminRow.admin_user_roles || []).map((ur) => ur.roles?.key).filter(Boolean)
+      : [];
+    const isAdmin = roleKeys.length > 0;
 
     return res.json({
       success: true,
@@ -49,7 +55,9 @@ const getUserDetail = async (req, res, next) => {
         suspendedAt: org.suspended_at,
         emailVerified: org.email_verified,
         createdAt: org.created_at,
-        role: roleRow?.role || 'organizer',
+        role: roleKeys.includes('super_admin') ? 'super_admin' : (roleKeys[0] || 'organizer'),
+        isAdmin,
+        roleKeys,
         eventCount: eventCount || 0,
         sessions: sessions || [],
         loginHistory: logins || [],

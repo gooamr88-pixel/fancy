@@ -193,16 +193,16 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     document.documentElement.dir = rtl ? 'rtl' : 'ltr';
   }, [lang]);
 
-  const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
+  const localizedTitle = isRTL && event?.title_ar ? event.title_ar : (event?.title || '');
   const isContinueDisabled = partySize > 1 && additionalGuests.some(g => !g.fullName || !g.fullName.trim());
-  const coverImage = event.cover_image_url;
+  const coverImage = event?.cover_image_url;
   // The seating chart (table search + personal map) is hidden until 24h before the event.
-  const seatingRevealed = isSeatingRevealed(event.event_date);
+  const seatingRevealed = event?.event_date ? isSeatingRevealed(event.event_date) : false;
 
   // The meal field is shown as its own dedicated picker in step 3 (driven by the
   // organizer's configured options) rather than asked again as a generic custom
   // question in step 4.
-  const allCustomFields = event.custom_form_fields || [];
+  const allCustomFields = event?.custom_form_fields || [];
   const mealField = findMealField(allCustomFields);
   const customQuestionFields = mealField ? allCustomFields.filter(f => f.id !== mealField.id) : allCustomFields;
 

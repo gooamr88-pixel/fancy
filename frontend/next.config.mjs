@@ -6,6 +6,12 @@ const nextConfig = {
     root: path.resolve('..'),
   },
   async headers() {
+    // Dev mode (Turbopack/webpack) needs 'unsafe-eval' to reconstruct stack traces for
+    // debugging; production builds never call eval(), so the prod CSP stays unrelaxed.
+    const scriptSrc = process.env.NODE_ENV === 'production'
+      ? "script-src 'self' 'unsafe-inline' https://accounts.google.com https://maps.googleapis.com"
+      : "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://maps.googleapis.com";
+
     return [
       {
         source: '/(.*)',
@@ -19,7 +25,7 @@ const nextConfig = {
           { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
           // CSP (L2): existing policy hardened with object-src / base-uri / frame-ancestors
           // as defense-in-depth complementing the H2 JSON-LD escaping fix.
-          { key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' http://localhost:5000 https://*.supabase.co wss://*.supabase.co https://fancyrsvp.com https://accounts.google.com https://oauth2.googleapis.com https://maps.googleapis.com; frame-src 'self' https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" },
+          { key: 'Content-Security-Policy', value: `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' http://localhost:5000 https://*.supabase.co wss://*.supabase.co https://fancyrsvp.com https://accounts.google.com https://oauth2.googleapis.com https://maps.googleapis.com; frame-src 'self' https://accounts.google.com https://www.google.com https://maps.googleapis.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'` },
         ],
       },
     ];

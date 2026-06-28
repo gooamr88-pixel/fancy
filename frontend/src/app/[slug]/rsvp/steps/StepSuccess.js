@@ -43,8 +43,8 @@ export default function StepSuccess({
             <GuestPassCard
               guestName={guestName}
               eventTitle={localizedTitle}
-              eventDate={event.event_date}
-              eventLocation={event.location_name || event.location_address}
+              eventDate={event?.event_date}
+              eventLocation={event?.location_name || event?.location_address}
               tableName={assignedTableName}
               response="yes"
               qrData={partyId ? `fancy-rsvp:${slug}:${partyId}` : null}
@@ -118,8 +118,8 @@ export default function StepSuccess({
             <GuestPassCard
               guestName={guestName}
               eventTitle={localizedTitle}
-              eventDate={event.event_date}
-              eventLocation={event.location_name || event.location_address}
+              eventDate={event?.event_date}
+              eventLocation={event?.location_name || event?.location_address}
               tableName={assignedTableName}
               response="maybe"
               qrData={partyId ? `fancy-rsvp:${slug}:${partyId}` : null}

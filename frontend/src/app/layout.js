@@ -40,6 +40,12 @@ const arefRuqaa = Aref_Ruqaa({
 export const metadata = {
   title: "Fancy RSVP — Elegant RSVPs. Effortless Planning.",
   description: "The all-in-one RSVP and guest management platform for weddings and special events. Create beautiful digital invitations with real-time tracking.",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({ children }) {

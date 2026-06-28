@@ -8,6 +8,7 @@ const { trackGuestEvent } = require('../controllers/analyticsController');
 const { handleSmsStatusCallback } = require('../controllers/campaignController');
 const { verifyTurnstile } = require('../middleware/captcha');
 const { generateQRCodeBuffer } = require('../utils/qrHelper');
+const { getPlatformConfig } = require('../utils/configCache');
 
 const router = express.Router();
 
@@ -15,7 +16,20 @@ const router = express.Router();
 // Public + unauthenticated by design; reconciles + auto-refunds failed deliveries.
 router.post('/sms/status', handleSmsStatusCallback);
 
-// Public landing page configuration fetch
+// Public landing-page stat counters (admin-editable via super_admin_config.landing_stats).
+// Reads the cached config and exposes ONLY this column — never the rest of the row
+// (pricing, payment methods, etc.) to anonymous clients.
+router.get('/landing-stats', async (req, res) => {
+  try {
+    const config = await getPlatformConfig();
+    res.set('Cache-Control', 'public, max-age=30');
+    return res.json({ success: true, stats: config.landing_stats || [] });
+  } catch (err) {
+    return res.status(200).json({ success: false, stats: [] });
+  }
+});
+
+// Public event-by-slug fetch
 router.get('/events/:slug', getPublicEventBySlug);
 
 // Personalized invitation resolver (guest-specific link)

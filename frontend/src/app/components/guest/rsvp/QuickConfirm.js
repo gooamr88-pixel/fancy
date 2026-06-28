@@ -26,7 +26,7 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
   const [finalResponse, setFinalResponse] = useState(null);
 
   const dateStr = event?.event_date
-    ? new Date(event.event_date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    ? new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
     : null;
 
   const handleConfirm = async () => {

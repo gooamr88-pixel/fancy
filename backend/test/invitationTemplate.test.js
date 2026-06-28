@@ -11,20 +11,13 @@ const event = {
 };
 
 const links = {
-  accept: 'https://app.test/rsvp?token=ACCEPT',
-  decline: 'https://app.test/rsvp?token=DECLINE',
-  maybe: 'https://app.test/rsvp?token=MAYBE',
-  manage: 'https://app.test/rsvp?token=MANAGE',
+  view: 'https://app.test/spring-gala?party_id=PARTY-1',
 };
 
-test('invitation template renders all three response buttons with their links', () => {
+test('invitation template renders a single "View Invitation" link to the guest\'s card', () => {
   const html = getInvitationTemplate({ guest_name: 'Ada Lovelace' }, event, links);
-  assert.match(html, /Accept/);
-  assert.match(html, /Decline/);
-  assert.match(html, /Maybe/);
-  assert.ok(html.includes(links.accept), 'accept link present');
-  assert.ok(html.includes(links.decline), 'decline link present');
-  assert.ok(html.includes(links.maybe), 'maybe link present');
+  assert.match(html, /View Invitation/);
+  assert.ok(html.includes(links.view), 'card link present');
 });
 
 test('invitation template includes event title, date and location', () => {
