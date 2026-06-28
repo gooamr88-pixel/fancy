@@ -53,6 +53,7 @@ function formatEventDateLine(event, isRTL) {
   if (!event?.event_date) return null;
   return new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+    timeZone: 'UTC',
   });
 }
 
@@ -88,7 +89,7 @@ function buildInvitationCardData(event, isRTL) {
       const headline = td.birthdayPersonName || event?.title || null;
       const subtitle = td.theme || null;
       const replyBy = event?.rsvp_deadline
-        ? `Kindly reply by ${new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric' })}`
+        ? `Kindly reply by ${new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
         : null;
       return { headline, subtitle, dateLine, venueLine, replyBy };
     }
@@ -107,9 +108,9 @@ function sanitizeFontName(name) {
   return name.replace(/[^a-zA-Z0-9 -]/g, '');
 }
 
-function getDirectionsUrl(lat, lng, address) {
+function getDirectionsUrl(lat, lng, address, mounted = false) {
   const destination = lat && lng ? `${lat},${lng}` : encodeURIComponent(address || '');
-  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isIOS = mounted && typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
   if (isIOS) return `https://maps.apple.com/?daddr=${destination}`;
   return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
 }
@@ -131,6 +132,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState({});
   const [lang, setLang] = useState('en');
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Analytics
   const { trackEvent } = useGuestAnalytics(slug);
@@ -530,10 +536,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const localizedDesc = isRTL && event.description_ar ? event.description_ar : event.description;
   const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
   const musicUrl = event.background_music_url || event.template_data?.bg_music_url;
-  const eventPassed = event.event_date && new Date(event.event_date) < new Date();
+  const eventPassed = mounted && event.event_date && new Date(event.event_date) < new Date();
   // Guest seating is hidden until 24h before the event. The per-second countdown
   // interval re-renders the page, so this flips on its own when the window opens.
-  const seatingRevealed = isSeatingRevealed(event.event_date);
+  const seatingRevealed = mounted && isSeatingRevealed(event.event_date);
 
   // Digital invitation card — same artwork the organizer previewed in
   // Stage1_TemplatesSimulator, now rendered with this event's real data.
@@ -575,6 +581,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             event={event}
             slug={slug}
             guestRsvp={guestRsvp}
+            setGuestRsvp={setGuestRsvp}
             onComplete={handleRevealComplete}
           />
         )}
@@ -724,10 +731,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                         📅 {t.when}
                       </span>
                       <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500, display: 'block' }}>
-                        {new Date(event.event_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        {new Date(event.event_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}
                       </span>
                       <span style={{ fontSize: '13px', color: '#77736A', display: 'block', marginTop: '4px' }}>
-                        {t.starting_at} {new Date(event.event_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : undefined, { hour: '2-digit', minute: '2-digit' })}
+                        {t.starting_at} {new Date(event.event_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                       </span>
                     </div>
                   </StaggerItem>
@@ -742,7 +749,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                       <span style={{ fontSize: '13px', color: '#77736A', display: 'block', marginTop: '4px' }}>{event.location_address}</span>
                       {(event.location_lat && event.location_lng || event.location_address) && (
                         <a
-                          href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address)}
+                          href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, mounted)}
                           target="_blank" rel="noopener noreferrer"
                           style={{
                             display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '8px',
@@ -1167,7 +1174,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
                     <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
                     <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
-                      {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : undefined) : 'N/A'}</strong> {t.card_desc}
+                      {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { timeZone: 'UTC' }) : 'N/A'}</strong> {t.card_desc}
                     </p>
                     <GlowPulse color={themeColor} intensity={0.25}>
                       <Link href={rsvpFormUrl} style={{
@@ -1330,7 +1337,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     {isRTL ? 'الموقع' : 'Location'}
                   </h2>
                   <a
-                    href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address)}
+                    href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, mounted)}
                     target="_blank" rel="noopener noreferrer"
                     style={{
                       display: 'inline-flex', alignItems: 'center', gap: '6px',
@@ -1399,7 +1406,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 </p>
                 {event.rsvp_deadline && (
                   <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', margin: '2px 0 0', fontFamily: 'var(--font-sans)' }}>
-                    {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : undefined, { month: 'short', day: 'numeric' })}
+                    {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
                   </p>
                 )}
               </div>

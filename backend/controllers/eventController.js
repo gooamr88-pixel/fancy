@@ -367,7 +367,7 @@ const getPublicEventBySlug = async (req, res, next) => {
     if (invitationPartyId && UUID_REGEX.test(invitationPartyId)) {
       const { data: partyRecord } = await supabase
         .from('rsvp_parties')
-        .select('id, label, response, notes, guests(is_primary_contact, email, phone)')
+        .select('id, label, response, notes, guests(is_primary_contact, email, phone, meal_selection)')
         .eq('id', invitationPartyId)
         .eq('event_id', event.id)
         .maybeSingle();
@@ -376,6 +376,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         guestRsvp = {
           id: partyRecord.id, guest_name: partyRecord.label, email: primary.email || null, phone: primary.phone || null,
           response: partyRecord.response, party_size: (partyRecord.guests || []).length || 1, notes: partyRecord.notes,
+          primary_meal: primary.meal_selection || null,
         };
       }
     }

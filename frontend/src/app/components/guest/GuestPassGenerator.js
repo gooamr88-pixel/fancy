@@ -54,13 +54,13 @@ export default function GuestPassCard({
   }, [qrData]);
 
   const dateFormatted = eventDate
-    ? new Date(eventDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+    ? new Date(eventDate).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
     : '';
   const dateShort = eventDate
-    ? new Date(eventDate).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })
+    ? new Date(eventDate).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: '2-digit', timeZone: 'UTC' })
     : '';
   const timeFormatted = eventDate
-    ? new Date(eventDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    ? new Date(eventDate).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
     : '';
 
   const statusMeta = response === 'yes'
