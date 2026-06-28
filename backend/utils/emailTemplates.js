@@ -282,28 +282,16 @@ const getInvitationTemplate = (rsvp, event, links) => {
   if (formattedDate) rows.push(['Date', escapeHtml(formattedDate)]);
   if (where) rows.push(['Where', escapeHtml(where)]);
 
-  const choice = (href, label, bg, color, border) =>
-    `<td align="center" style="padding:5px 5px;">
-       <a class="fr-btn" href="${href}" target="_blank" rel="noopener" style="display:inline-block; font-family:${SANS}; font-size:14px; font-weight:bold; letter-spacing:0.3px; color:${color}; background-color:${bg}; text-decoration:none; padding:13px 22px; border-radius:10px; border:1px solid ${border};">${label}</a>
-     </td>`;
-
   return emailShell({
     preheader: `You're invited to ${event.title}`,
     eyebrow: "You're invited",
     heading: escapeHtml(event.title),
     contentHtml: `
       ${greeting(rsvp.guest_name)}
-      ${para("You're warmly invited to join us. Kindly let us know whether you'll be able to attend by choosing one of the options below.")}
+      ${para("You're warmly invited to join us. Open your invitation below to see the full details and let us know if you'll be able to attend.")}
       ${dataTable(rows)}
-      <p style="margin:0 0 14px; font-family:${SANS}; font-size:11px; font-weight:bold; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.stone}; text-align:center;">Will you attend?</p>
-      <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 6px;">
-        <tr>
-          ${choice(links.accept, '✓ Accept', BRAND.success, BRAND.white, BRAND.success)}
-          ${choice(links.maybe, 'Maybe', BRAND.white, BRAND.charcoal, BRAND.border)}
-          ${choice(links.decline, '✕ Decline', BRAND.danger, BRAND.white, BRAND.danger)}
-        </tr>
-      </table>
-      ${para(`You can change your response any time before the deadline. If the buttons don't work, paste this link into your browser:<br><a href="${links.manage || links.accept}" style="color:${BRAND.gold}; word-break:break-all;">${links.manage || links.accept}</a>`, { size: 12, color: BRAND.muted, align: 'center', mb: 0 })}
+      ${button(links.view, 'View Invitation')}
+      ${para(`If the button doesn't work, paste this link into your browser:<br><a href="${links.view}" style="color:${BRAND.gold}; word-break:break-all;">${links.view}</a>`, { size: 12, color: BRAND.muted, align: 'center', mb: 0 })}
     `,
     footerNote: 'Sent via Fancy RSVP on behalf of the event organizer.',
   });

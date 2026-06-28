@@ -45,7 +45,7 @@ function reducer(state, action) {
 }
 
 /** Reads the device-remembered rsvp id for this event (localStorage fallback). */
-function rememberedId(slug) {
+export function rememberedId(slug) {
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem(storageKeyFor(slug));

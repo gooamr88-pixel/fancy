@@ -34,6 +34,7 @@ import {
 import GuestEnvelopeReveal from '../components/templates/GuestEnvelopeReveal';
 import InvitationCard from '../components/templates/InvitationCard';
 import { useIdempotentRsvpSubmit } from '../components/guest/rsvp/useIdempotentRsvpSubmit';
+import { rememberedId, rememberGuest } from '../components/guest/rsvp/useRsvpResolver';
 import { toast } from '../utils/toast';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -127,6 +128,12 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Per-guest invitation token. Unlocks private events and lets the RSVP form pre-fill.
   const invitationRsvpId = searchParams?.get('party_id') || null;
   const invitationGuestId = searchParams?.get('g') || null;
+  // Same identity priority as the RSVP wizard (partyId → guestId → device-remembered
+  // id): a guest who already responded via a tokenless public link has no id in this
+  // URL, but the wizard wrote one to localStorage on submit — read it back here so a
+  // repeat visit recognizes them instead of showing a fresh "RSVP Now" prompt.
+  const deviceRememberedId = rememberedId(serverSlug);
+  const effectiveRsvpId = invitationRsvpId || invitationGuestId || deviceRememberedId;
 
   const [slug, setSlug] = useState(serverSlug || '');
   const [event, setEvent] = useState(initialEvent || null);
@@ -226,6 +233,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           party_size: response === 'yes' ? partySize : 1,
           primary_meal: response === 'yes' ? mealSelection : null,
         }));
+        // Remember this guest on this device so a tokenless revisit (e.g. the link
+        // was opened again without its party_id) still recognizes them.
+        rememberGuest(slug, guestRsvp.id);
       }
       toast.success(lang === 'ar' ? 'تم حفظ ردّك بنجاح!' : 'Your RSVP has been saved!');
     },
@@ -237,6 +247,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           ...prev,
           response: data.response || response,
         }));
+        rememberGuest(slug, guestRsvp.id);
       }
     },
     messages: {
@@ -393,8 +404,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
       const headers = {};
       if (password) headers['x-event-password'] = password;
-      // Forward the invitation token so the backend can unlock a private event.
-      const query = invitationRsvpId ? `?party_id=${encodeURIComponent(invitationRsvpId)}` : '';
+      // Forward the invitation/guest token (or the device-remembered id) so the
+      // backend can unlock a private event and return this guest's existing RSVP.
+      const query = effectiveRsvpId ? `?party_id=${encodeURIComponent(effectiveRsvpId)}` : '';
       const res = await fetch(`${apiUrl}/public/events/${slug}${query}`, { headers });
 
       if (!res.ok) {
@@ -414,16 +426,16 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       setIsPrivate(false);
       setNotLive(false);
     } catch (err) { setError(err.message); } finally { setLoading(false); }
-  }, [slug, invitationRsvpId]);
+  }, [slug, effectiveRsvpId]);
 
   useEffect(() => {
     fetchEventWithPasswordRef.current = (pw) => { setLoading(true); setError(null); fetchEvent(pw); };
   }, [fetchEvent]);
 
   useEffect(() => {
-    if (!slug || (initialEvent && !invitationRsvpId && !invitationGuestId)) return;
+    if (!slug || (initialEvent && !invitationRsvpId && !invitationGuestId && !deviceRememberedId)) return;
     fetchEvent();
-  }, [slug, fetchEvent, initialEvent, invitationRsvpId, invitationGuestId]);
+  }, [slug, fetchEvent, initialEvent, invitationRsvpId, invitationGuestId, deviceRememberedId]);
 
   /* ─── Countdown ─── */
   useEffect(() => {

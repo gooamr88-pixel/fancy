@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useIdempotentRsvpSubmit } from "../guest/rsvp/useIdempotentRsvpSubmit";
+import { rememberGuest } from "../guest/rsvp/useRsvpResolver";
 import { ConfettiExplosion } from "../guest/GuestAnimations";
 import { toast } from "../../utils/toast";
 
@@ -367,6 +368,8 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
           party_size: response === 'yes' ? partySize : 1,
           primary_meal: response === 'yes' ? mealSelection : null,
         }));
+        // Remember this guest on this device so a tokenless revisit still recognizes them.
+        rememberGuest(slug, guestRsvp.id);
       }
       toast.success(lang === "ar" ? "تم حفظ ردّك بنجاح!" : "Your RSVP has been saved!");
     },
@@ -378,6 +381,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
           ...prev,
           response: data.response || response,
         }));
+        rememberGuest(slug, guestRsvp.id);
       }
     },
     messages: {
