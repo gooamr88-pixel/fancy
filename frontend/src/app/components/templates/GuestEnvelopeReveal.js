@@ -498,7 +498,9 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
     return () => clearTimeout(t);
   }, [finish]);
 
-  /* ═══ Reduced-motion fallback: an elegant, static, instantly-skippable card ═══ */
+  /* ═══ Reduced-motion fallback: an elegant, static, instantly-skippable card ═══
+     No ambient loops or parallax (honours prefers-reduced-motion), but a single
+     gentle staggered entrance still reads as considered rather than inert. */
   if (prefersReduced) {
     return (
       <motion.div
@@ -508,24 +510,64 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.4 }}
-        style={{ ...overlayBase, background: "radial-gradient(120% 100% at 50% 35%, #fbf6ec 0%, #f2e9d6 60%, #e8dcc2 100%)" }}
+        transition={{ duration: 0.5 }}
+        dir={isRTL ? "rtl" : "ltr"}
+        style={{ ...overlayBase, background: "radial-gradient(125% 95% at 50% 26%, #fffdf8 0%, #faf3e2 40%, #f0e1c1 74%, #e3cf9e 100%)" }}
       >
+        {/* Embossed arabesque stationery texture + warm vignette */}
+        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: 0.32, mixBlendMode: "multiply", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(62% 52% at 50% 28%, rgba(255,255,255,0.55), transparent 70%), radial-gradient(120% 120% at 50% 100%, rgba(110,80,35,0.18), transparent 60%)", pointerEvents: "none" }} />
+
         <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation" style={skipStyle}>
-          Skip ›
+          Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span>
         </button>
-        <div style={{ textAlign: "center", padding: "24px", maxWidth: 460 }}>
-          <svg width="150" height="150" viewBox="0 0 220 220" role="img" aria-label="Invitation seal">
-            <MedallionSkin skin="bronze" uid="rm" text={identity.sealText} arabic={identity.sealArabic} />
-          </svg>
-          <p style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.32em", textTransform: "uppercase", color: theme.primary, fontWeight: 700, margin: "20px 0 10px" }}>
-            {copy.eyebrow}
-          </p>
-          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,7vw,34px)", color: "#2a1f12", margin: 0, fontWeight: 500 }}>
+
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.12, delayChildren: 0.15 } } }}
+          style={{ position: "relative", zIndex: 2, textAlign: "center", padding: "24px", maxWidth: 460 }}
+        >
+          {/* Seal medallion with a soft static halo (no pulsing/spinning) */}
+          <motion.div variants={fadeUp} style={{ position: "relative", display: "inline-block" }}>
+            <div aria-hidden style={{ position: "absolute", inset: "-24%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,221,130,0.5) 0%, rgba(255,200,90,0.2) 46%, transparent 72%)", filter: "blur(5px)" }} />
+            <svg width="150" height="150" viewBox="0 0 220 220" role="img" aria-label="Invitation seal" style={{ position: "relative", display: "block", filter: "drop-shadow(0 14px 26px rgba(90,60,20,0.32))" }}>
+              <MedallionSkin skin="gold" uid="rm" text={identity.sealText} arabic={identity.sealArabic} />
+            </svg>
+          </motion.div>
+
+          {/* Eyebrow flanked by hairline flourishes */}
+          <motion.div variants={fadeUp} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "24px 0 12px" }}>
+            <span aria-hidden style={{ height: 1, width: 30, background: `linear-gradient(90deg, transparent, ${theme.primary})` }} />
+            <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.34em", textTransform: "uppercase", color: theme.primary, fontWeight: 700 }}>
+              {copy.eyebrow}
+            </span>
+            <span aria-hidden style={{ height: 1, width: 30, background: `linear-gradient(270deg, transparent, ${theme.primary})` }} />
+          </motion.div>
+
+          <motion.h1 variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(26px,7.4vw,38px)", color: "#2a1f12", margin: 0, fontWeight: 500, lineHeight: 1.22, textShadow: "0 1px 0 rgba(255,255,255,0.7)" }}>
             {displayTitle}
-          </h1>
-          <button type="button" onClick={finish} style={enterBtnStyle(theme)}>{copy.enter}</button>
-        </div>
+          </motion.h1>
+
+          {copy.join && (
+            <motion.p variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 14.5, color: "#8a7350", margin: "14px 0 0", letterSpacing: "0.02em" }}>
+              {copy.join}
+            </motion.p>
+          )}
+
+          <motion.div variants={fadeUp} style={{ marginTop: 28 }}>
+            <motion.button
+              type="button"
+              onClick={finish}
+              whileHover={{ scale: 1.035, boxShadow: `0 16px 34px ${theme.primary}55, inset 0 1px 0 rgba(255,255,255,0.45)` }}
+              whileTap={{ scale: 0.97 }}
+              style={enterBtnStyle(theme)}
+            >
+              {copy.enter}
+              <span aria-hidden style={{ fontSize: 14, marginInlineStart: 9 }}>{isRTL ? "←" : "→"}</span>
+            </motion.button>
+          </motion.div>
+        </motion.div>
       </motion.div>
     );
   }
@@ -1390,22 +1432,29 @@ const langChipStyle = (active) => ({
 });
 
 const enterBtnStyle = (theme) => ({
-  marginTop: 26,
   display: "inline-flex",
   alignItems: "center",
-  padding: "13px 30px",
+  justifyContent: "center",
+  padding: "16px 38px",
   borderRadius: 999,
-  border: "none",
-  background: `linear-gradient(135deg, ${theme.primary}, #a6833f)`,
+  border: `1px solid ${theme.secondary || "#D7BE80"}99`,
+  background: `linear-gradient(135deg, ${theme.secondary || "#D7BE80"} 0%, ${theme.primary} 55%, #8a6d2e 100%)`,
   color: "#fffdf6",
   fontFamily: "var(--font-sans)",
   fontSize: 13,
   fontWeight: 700,
-  letterSpacing: "0.12em",
+  letterSpacing: "0.16em",
   textTransform: "uppercase",
   cursor: "pointer",
-  boxShadow: "0 10px 28px rgba(184,148,79,0.36)",
+  boxShadow: `0 10px 28px ${theme.primary}40, inset 0 1px 0 rgba(255,255,255,0.4)`,
 });
+
+/* One-shot fade/rise used by the reduced-motion fallback's stagger — small
+   enough offset that it stays clear of vestibular-motion triggers. */
+const fadeUp = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } },
+};
 
 /* Rising-dust particle field (positions fixed so SSR/CSR match) */
 const DUST = [
