@@ -187,7 +187,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     const mealField = allCustomFields.find(
       (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
     );
-    return mealField?.field_options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
+    return mealField?.options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
   }, [event]);
 
   // Dynamic Google Font Injection for calligraphy
@@ -212,7 +212,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       const mealField = allCustomFields.find(
         (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
       );
-      const mealOptions = mealField?.field_options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
+      const mealOptions = mealField?.options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
       setMealSelection(guestRsvp.primary_meal || mealOptions[0]);
       
       const hasAnswered = ['yes', 'no', 'maybe'].includes(guestRsvp.response);

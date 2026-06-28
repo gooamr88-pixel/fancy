@@ -338,7 +338,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
   const mealField = allCustomFields.find(
     (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
   );
-  const mealOptions = mealField?.field_options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
+  const mealOptions = mealField?.options || ['Filet Mignon', 'Seabass', 'Vegetarian Risotto'];
 
   const [mealSelection, setMealSelection] = useState(guestRsvp?.primary_meal || mealOptions[0]);
   const [rsvpSubmitted, setRsvpSubmitted] = useState(guestRsvp && ['yes', 'no', 'maybe'].includes(guestRsvp.response));
