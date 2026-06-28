@@ -5,6 +5,7 @@ const { logAdminAction } = require('../middleware/adminAudit');
 const { refundEventPayment } = require('../services/stripeRefundService');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getEventLiveTemplate, getPublicBaseUrl } = require('../utils/emailTemplates');
+const { getPlatformConfig } = require('../utils/configCache');
 
 const VALID_ROLES = ['organizer', 'super_admin'];
 const VALID_EVENT_STATUSES = ['draft', 'pending_review', 'active', 'paused', 'completed'];
@@ -407,11 +408,18 @@ const declineManualPayment = async (req, res, next) => {
 
 /**
  * Updates administrative state on any event (status and/or paid flag).
- * PATCH /api/v1/admin/events/:eventId  body: { status?, isPaid? }
+ *
+ * Granting a complimentary event (isPaid: true on an unpaid event) requires a
+ * tierName + compReason: without a tier, tier_max_guests stays NULL and the
+ * RSVP cap silently becomes "unlimited" with no record of why the event was
+ * comped. Revoking (isPaid: false) clears the override and its granted tier
+ * so a future grant doesn't inherit stale data.
+ *
+ * PATCH /api/v1/admin/events/:eventId  body: { status?, isPaid?, tierName?, compReason? }
  */
 const updateEventAdmin = async (req, res, next) => {
   const { eventId } = req.params;
-  const { status, isPaid } = req.body;
+  const { status, isPaid, tierName, compReason } = req.body;
 
   const updates = {};
   if (status !== undefined) {
@@ -422,7 +430,36 @@ const updateEventAdmin = async (req, res, next) => {
   }
   if (isPaid !== undefined) {
     updates.is_paid = !!isPaid;
-    if (isPaid) updates.manual_override = true;
+    if (isPaid) {
+      if (!tierName || !compReason || !compReason.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'tierName and compReason are required when granting a complimentary event.',
+        });
+      }
+      let adminConfig;
+      try {
+        adminConfig = await getPlatformConfig();
+      } catch {
+        return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Could not retrieve pricing configuration.' });
+      }
+      const tier = (adminConfig.pricing_tiers || []).find(t => (t.name || '').toLowerCase() === tierName.toLowerCase());
+      if (!tier) {
+        return res.status(400).json({ success: false, error: 'INVALID_TIER', message: `Pricing tier '${tierName}' not found.` });
+      }
+      updates.manual_override = true;
+      updates.tier_name = tier.name;
+      updates.tier_max_guests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
+      updates.comp_reason = compReason.trim();
+    } else {
+      // Revoking removes the granted tier/reason too — a real Stripe/cash payment
+      // re-populates these from checkout metadata, so nothing legitimate is lost.
+      updates.manual_override = false;
+      updates.tier_name = null;
+      updates.tier_max_guests = null;
+      updates.comp_reason = null;
+    }
   }
 
   if (Object.keys(updates).length === 0) {

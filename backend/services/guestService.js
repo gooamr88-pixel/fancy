@@ -163,7 +163,7 @@ async function getPartyForPublicResolve(partyId) {
 async function searchPartiesPublic(eventId, term, limit = 10) {
   const { data, error } = await supabase
     .from('rsvp_parties')
-    .select('id, label, response, guests(is_primary_contact, email)')
+    .select('id, label, response, guests(id, full_name, is_primary_contact, email, meal_selection, dietary_notes)')
     .eq('event_id', eventId)
     .ilike('label', `%${escapeLikePattern(term)}%`)
     .limit(limit);
@@ -171,7 +171,8 @@ async function searchPartiesPublic(eventId, term, limit = 10) {
   if (error) throw error;
 
   return (data || []).map((item) => {
-    const hasEmail = (item.guests || []).some((g) => g.is_primary_contact && g.email);
+    const allGuests = item.guests || [];
+    const hasEmail = allGuests.some((g) => g.is_primary_contact && g.email);
     return {
       // Only expose the partyId when the primary contact has an email — updating
       // such a record still requires a matching email, so the id is safe to
@@ -180,7 +181,14 @@ async function searchPartiesPublic(eventId, term, limit = 10) {
       id: hasEmail ? item.id : null,
       guestName: item.label,
       response: item.response,
-      partySize: (item.guests || []).length || 1,
+      partySize: allGuests.length || 1,
+      // Companions already on file — only meaningful when claimable (id is set);
+      // an unclaimable result never reaches the form that would consume this.
+      additionalGuests: hasEmail
+        ? allGuests.filter((g) => !g.is_primary_contact).map((g) => ({
+            id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
+          }))
+        : [],
     };
   });
 }

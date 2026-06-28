@@ -6,7 +6,6 @@ import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
-import { isSeatingRevealed, seatingRevealAt } from '../utils/seating';
 import {
   FadeInUp,
   StaggerChildren,
@@ -135,12 +134,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Analytics
   const { trackEvent } = useGuestAnalytics(slug);
 
-  // Seating
-  const [seatingSearchQuery, setSeatingSearchQuery] = useState('');
-  const [seatingSearching, setSeatingSearching] = useState(false);
-  const [seatingResults, setSeatingResults] = useState(null);
-  const [seatingError, setSeatingError] = useState('');
-
   // Audio
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
@@ -191,27 +184,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const handleRevealComplete = useCallback(() => {
     setRevealDismissed(true);
   }, []);
-
-  /* ─── Seating Search ─── */
-  const handleSeatingSearch = async (e) => {
-    e.preventDefault();
-    if (!seatingSearchQuery.trim()) return;
-    setSeatingSearching(true);
-    setSeatingError('');
-    setSeatingResults(null);
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-      const res = await fetch(`${apiUrl}/public/events/${slug}/seating/search?query=${encodeURIComponent(seatingSearchQuery)}`);
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || 'Search failed');
-      setSeatingResults(data.data?.results || []);
-      trackEvent('seating_search', { query: seatingSearchQuery });
-    } catch (err) {
-      setSeatingError(err.message || 'Something went wrong');
-    } finally {
-      setSeatingSearching(false);
-    }
-  };
 
   /* ─── Audio ─── */
   const togglePlay = () => {
@@ -531,16 +503,13 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
   const musicUrl = event.background_music_url || event.template_data?.bg_music_url;
   const eventPassed = event.event_date && new Date(event.event_date) < new Date();
-  // Guest seating is hidden until 24h before the event. The per-second countdown
-  // interval re-renders the page, so this flips on its own when the window opens.
-  const seatingRevealed = isSeatingRevealed(event.event_date);
 
   // Digital invitation card — same artwork the organizer previewed in
   // Stage1_TemplatesSimulator, now rendered with this event's real data.
   const invitationPattern = INVITATION_PATTERN_BY_TEMPLATE[event.template_type] || 'serif';
   const invitationGuestName = guestRsvp?.guest_name || (isRTL ? 'ضيفنا الكريم' : 'Esteemed Guest');
   const invitationTheme = { primary: themeColor, secondary: customColors.secondary || '#D7BE80' };
-  const invitationData = invitationPattern === 'custom' ? null : buildInvitationCardData(event, isRTL);
+  const invitationData = buildInvitationCardData(event, isRTL);
 
   // Once a guest has answered, the public RSVP form is locked by default —
   // the backend (submit_rsvp_v2) rejects a second submission outright. The
@@ -1124,7 +1093,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
           </div>
 
-          {/* ─── RIGHT COLUMN: RSVP & Seating ─── */}
+          {/* ─── RIGHT COLUMN: RSVP ─── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', position: 'sticky', top: '32px', alignSelf: 'start' }}>
 
             {/* RSVP Card */}
@@ -1183,74 +1152,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               </ScaleIn>
             </div>
 
-            {/* Seating Finder */}
-            <ScaleIn delay={0.35}>
-              <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '16px', padding: '32px 28px' }}>
-                <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 600, color: '#191B1E' }}>{t.find_table_title}</h3>
-                <p style={{ fontSize: '12px', color: '#77736A', lineHeight: 1.6 }}>{t.find_table_desc}</p>
-
-                <form onSubmit={handleSeatingSearch} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <input
-                    type="text"
-                    value={seatingSearchQuery}
-                    onChange={(e) => setSeatingSearchQuery(e.target.value)}
-                    placeholder={t.find_table_placeholder}
-                    style={{ ...inputStyle, textAlign: 'center', fontSize: '13px', padding: '12px 14px' }}
-                    onFocus={inputFocus}
-                    onBlur={(e) => inputBlur(e)}
-                  />
-                  <PremiumButton
-                    variant="gold"
-                    fullWidth
-                    size="sm"
-                    loading={seatingSearching}
-                    onClick={handleSeatingSearch}
-                    style={{ background: themeColor }}
-                  >
-                    {t.find_table_btn}
-                  </PremiumButton>
-                </form>
-
-                {/* Results */}
-                <AnimatePresence>
-                  {seatingResults !== null && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.3 }}
-                      style={{ marginTop: '4px', textAlign: isRTL ? 'right' : 'left', overflow: 'hidden' }}
-                    >
-                      {seatingResults.length === 0 ? (
-                        <p style={{ fontSize: '12px', color: '#C45E5E', textAlign: 'center' }}>{t.find_table_no_results}</p>
-                      ) : (
-                        <StaggerChildren staggerDelay={0.08} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {seatingResults.map((res, i) => (
-                            <StaggerItem key={i}>
-                              <div style={{
-                                background: 'rgba(184,148,79,0.04)', border: '1px solid rgba(184,148,79,0.12)',
-                                borderRadius: '10px', padding: '14px',
-                              }}>
-                                <span style={{ fontWeight: 600, fontSize: '13px', color: '#191B1E', display: 'block' }}>
-                                  {t.find_table_assigned.replace('{name}', res.guestName).replace('{tableName}', res.tableName)}
-                                </span>
-                                <span style={{ fontSize: '11px', color: '#77736A', display: 'block', marginTop: '4px' }}>
-                                  {t.find_table_party.replace('{partySize}', res.partySize.toString())}
-                                </span>
-                              </div>
-                            </StaggerItem>
-                          ))}
-                        </StaggerChildren>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {seatingError && (
-                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ fontSize: '12px', color: '#C45E5E', marginTop: '4px' }}>{seatingError}</motion.p>
-                )}
-              </GlassmorphismCard>
-            </ScaleIn>
           </div>
         </div>
 

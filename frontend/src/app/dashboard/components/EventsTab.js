@@ -623,7 +623,8 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
 function CurrentPlanBlock({ eventId, event }) {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [hasUpgrades, setHasUpgrades] = useState(null);
-  const planName = event.tier_name || 'Active Plan';
+  const isComplimentary = !!event.manual_override;
+  const planName = event.tier_name || (isComplimentary ? 'Complimentary Plan' : 'Active Plan');
   const maxGuests = event.tier_max_guests;
 
   // Check whether higher tiers exist so we can hide the "Upgrade" button at the ceiling.
@@ -664,10 +665,24 @@ function CurrentPlanBlock({ eventId, event }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'var(--font-sans)' }}>Current Plan</span>
-          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.charcoal, margin: '2px 0 2px' }}>{planName}</h4>
+          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.charcoal, margin: '2px 0 2px' }}>
+            {planName}
+            {isComplimentary && (
+              <span style={{
+                marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 9, fontWeight: 700, color: C.gold,
+                background: 'rgba(184,148,79,0.10)', border: '1px solid rgba(184,148,79,0.25)',
+                padding: '2px 8px', borderRadius: 100, textTransform: 'uppercase', letterSpacing: '0.05em', verticalAlign: 'middle',
+              }}>Complimentary</span>
+            )}
+          </h4>
           <span style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
             {maxGuests > 0 ? `Up to ${maxGuests} guests` : 'Unlimited guests'}
           </span>
+          {isComplimentary && event.comp_reason && (
+            <span style={{ display: 'block', fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', marginTop: 2 }}>
+              Granted by Fancy RSVP — {event.comp_reason}
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{
@@ -986,9 +1001,10 @@ const EventCard = React.memo(function EventCard({ event, index, isActive, onSele
               </div>
             )}
             {isPaid && event.tier_name && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.gold, fontFamily: 'var(--font-sans)', fontWeight: 600 }}>
+              <div title={event.manual_override ? (event.comp_reason || 'Granted free by Fancy RSVP') : undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.gold, fontFamily: 'var(--font-sans)', fontWeight: 600 }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21.4 8 14 2 9.4h7.6z"/></svg>
-                <span>{event.tier_name}</span>
+                <span>{event.manual_override ? `Complimentary — ${event.tier_name}` : event.tier_name}</span>
               </div>
             )}
           </div>

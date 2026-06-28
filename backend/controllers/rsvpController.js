@@ -518,7 +518,7 @@ const getRsvpInvite = async (req, res, next) => {
   try {
     const { data: party, error } = await supabase
       .from('rsvp_parties')
-      .select('id, label, response, guests(id), events!inner(id, title, event_date, slug, location_name, location_address, is_paid, status, rsvp_deadline)')
+      .select('id, label, response, guests(id, full_name, is_primary_contact, meal_selection, dietary_notes), events!inner(id, title, event_date, slug, location_name, location_address, is_paid, status, rsvp_deadline)')
       .eq('id', payload.partyId)
       .eq('event_id', payload.eventId)
       .single();
@@ -530,10 +530,20 @@ const getRsvpInvite = async (req, res, next) => {
 
     const deadlinePassed = !!event.rsvp_deadline && new Date() > new Date(event.rsvp_deadline);
 
+    const allGuests = party.guests || [];
+    // Companions already on file pre-fill the confirmation form instead of asking the
+    // responder to retype every member of their own party from a blank field.
+    const companions = allGuests.filter((g) => !g.is_primary_contact);
+
     return sendOk(res, {
       intendedResponse: payload.response ? tokenService.mapIntentToResponse(payload.response) : null,
       deadlinePassed,
-      guest: { id: party.id, guest_name: party.label, party_size: (party.guests || []).length || 1, response: party.response },
+      guest: {
+        id: party.id, guest_name: party.label, party_size: allGuests.length || 1, response: party.response,
+        additionalGuests: companions.map((g) => ({
+          id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
+        })),
+      },
       event: { title: event.title, event_date: event.event_date, slug: event.slug, location: event.location_name || event.location_address || null },
     });
   } catch (err) {

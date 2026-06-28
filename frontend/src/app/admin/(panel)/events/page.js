@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import useAdminList from '../../_hooks/useAdminList';
 import DataTable from '../../_components/DataTable';
@@ -17,18 +17,33 @@ export default function EventsPage() {
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [busyId, setBusyId] = useState(null);
-  
+
   // Modals state
   const [approval, setApproval] = useState(null); // { event, amountCents }
   const [grantModal, setGrantModal] = useState(null); // { eventId, title }
   const [grantAmount, setGrantAmount] = useState(100);
   const [submittingApproval, setSubmittingApproval] = useState(false);
 
+  // Grant Free Event modal — requires a tier (sets the guest cap) + a reason
+  // (so the comp shows up in the audit log instead of looking like a silent
+  // unlimited-guest plan). See backend/controllers/adminController.js updateEventAdmin.
+  const [freeEventModal, setFreeEventModal] = useState(null); // { eventId, title }
+  const [pricingTiers, setPricingTiers] = useState([]);
+  const [selectedTierName, setSelectedTierName] = useState('');
+  const [compReason, setCompReason] = useState('');
+  const [submittingFreeGrant, setSubmittingFreeGrant] = useState(false);
+
   const { rows, pagination, loading, reload } = useAdminList(
     '/events',
     { page, limit: 25, q, status: statusFilter },
     (res) => res?.data || res?.events || []
   );
+
+  useEffect(() => {
+    adminApi.get('/pricing').then((res) => {
+      setPricingTiers(res?.config?.pricing_tiers || []);
+    }).catch(() => { /* tier dropdown just stays empty — modal shows a message */ });
+  }, []);
 
   const handleStatusChange = async (eventId, status) => {
     setBusyId(eventId);
@@ -43,11 +58,38 @@ export default function EventsPage() {
     }
   };
 
-  const handleTogglePaid = async (eventId, isPaid) => {
+  const openFreeEventModal = (eventId, title) => {
+    setSelectedTierName(pricingTiers[0]?.name || '');
+    setCompReason('');
+    setFreeEventModal({ eventId, title });
+  };
+
+  const handleGrantFreeEvent = async (e) => {
+    e.preventDefault();
+    if (!freeEventModal || !selectedTierName || !compReason.trim()) return;
+    setSubmittingFreeGrant(true);
+    try {
+      await adminApi.patch(`/events/${freeEventModal.eventId}`, {
+        isPaid: true,
+        tierName: selectedTierName,
+        compReason: compReason.trim(),
+      });
+      await showAlert('Event activated as complimentary.', 'Success', 'success');
+      setFreeEventModal(null);
+      reload();
+    } catch (err) {
+      await showAlert(err.message || 'Failed to grant free event', 'Error', 'error');
+    } finally {
+      setSubmittingFreeGrant(false);
+    }
+  };
+
+  const handleUnpay = async (eventId) => {
+    if (!await showConfirm('Revoke paid access? This clears any granted tier and locks paid features until paid/granted again.', 'Revoke Access', 'danger')) return;
     setBusyId(eventId);
     try {
-      await adminApi.patch(`/events/${eventId}`, { isPaid });
-      await showAlert(isPaid ? 'Marked as Paid.' : 'Marked as Unpaid.', 'Success', 'success');
+      await adminApi.patch(`/events/${eventId}`, { isPaid: false });
+      await showAlert('Marked as unpaid.', 'Success', 'success');
       reload();
     } catch (err) {
       await showAlert(err.message || 'Failed to update paid status', 'Error', 'error');
@@ -174,8 +216,15 @@ export default function EventsPage() {
           {
             key: 'license', header: 'License', render: (r) => {
               const pending = r.event_payments?.find(p => p.payment_method === 'cash_manual' && p.status === 'pending');
+              if (r.is_paid && r.manual_override) {
+                return (
+                  <div title={r.comp_reason || ''}>
+                    <StatusBadge status="active" label={`Complimentary · ${r.tier_name || 'No tier'}`} />
+                  </div>
+                );
+              }
               return r.is_paid
-                ? <StatusBadge status="active" />
+                ? <StatusBadge status="active" label={r.tier_name || 'Paid'} />
                 : pending
                   ? <StatusBadge status="pending" label={`Cash ${money(pending.amount_cents)}`} />
                   : <StatusBadge status="failed" label="Unpaid" />;
@@ -194,8 +243,8 @@ export default function EventsPage() {
                     <Button variant="primary" disabled={busy} onClick={() => setApproval({ event: r, amountCents: pending ? pending.amount_cents : 7900 })}>Approve Cash</Button>
                   )}
                   {r.is_paid
-                    ? <Button variant="ghost" disabled={busy} onClick={() => handleTogglePaid(r.id, false)}>Unpay</Button>
-                    : <Button variant="ghost" disabled={busy} onClick={() => handleTogglePaid(r.id, true)}>Mark Paid</Button>}
+                    ? <Button variant="ghost" disabled={busy} onClick={() => handleUnpay(r.id)}>Revoke</Button>
+                    : <Button variant="ghost" disabled={busy} onClick={() => openFreeEventModal(r.id, r.title)}>Grant Free</Button>}
                   <Button variant="ghost" disabled={busy} onClick={() => setGrantModal({ eventId: r.id, title: r.title })}>+ SMS</Button>
                   <a href={`/${r.slug}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
                     <Button variant="default">View</Button>
@@ -231,6 +280,42 @@ export default function EventsPage() {
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Grant Free Event Modal */}
+      <Modal open={!!freeEventModal} title="Grant Complimentary Event" onClose={() => setFreeEventModal(null)}>
+        <p style={{ fontSize: '12.5px', color: T.text500, lineHeight: 1.6, marginBottom: '20px' }}>
+          Activate <b style={{ color: T.text900 }}>{freeEventModal?.title}</b> for free. Pick the tier to grant so the guest cap and features match a real plan, and record why — this is logged to the audit trail and shown to the organizer.
+        </p>
+        <form onSubmit={handleGrantFreeEvent} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <label style={{ display: 'block' }}>
+            <span style={{ display: 'block', fontSize: 11, color: T.text400, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase' }}>Tier to Grant</span>
+            {pricingTiers.length > 0 ? (
+              <select required value={selectedTierName} onChange={e => setSelectedTierName(e.target.value)}
+                style={{ width: '100%', padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, background: T.surfaceAlt, color: T.text900, outline: 'none', cursor: 'pointer' }}>
+                {pricingTiers.map(t => (
+                  <option key={t.name} value={t.name}>{t.name} — {t.max_guests || '∞'} guests</option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ fontSize: '12px', color: T.text500 }}>No pricing tiers configured yet — set them up under Configuration first.</span>
+            )}
+          </label>
+
+          <label style={{ display: 'block' }}>
+            <span style={{ display: 'block', fontSize: 11, color: T.text400, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase' }}>Reason (required)</span>
+            <textarea required rows={3} value={compReason} onChange={e => setCompReason(e.target.value)}
+              placeholder="e.g. sponsor partnership, support gesture, internal test event"
+              style={{ width: '100%', padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, background: T.surfaceAlt, color: T.text900, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
+          </label>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: 12 }}>
+            <Button variant="ghost" onClick={() => setFreeEventModal(null)}>Cancel</Button>
+            <Button type="submit" variant="primary" disabled={submittingFreeGrant || pricingTiers.length === 0}>
+              {submittingFreeGrant ? 'Activating…' : 'Activate as Complimentary'}
+            </Button>
+          </div>
+        </form>
       </Modal>
 
       {/* Grant SMS Modal */}

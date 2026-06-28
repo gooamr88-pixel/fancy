@@ -283,6 +283,26 @@ export default function CreateEventWizard() {
           if (ev.template_data.customDesign) setCustomConfig(ev.template_data.customDesign);
         }
 
+        // Restore previously-saved custom RSVP questions/meal fields — without this,
+        // the form builder shows empty on resume even though fields already exist in
+        // the DB, and re-adding them collides with the existing field_key on save.
+        try {
+          const fieldsRes = await fetch(`${apiUrl}/events/${ev.id}/fields`, { credentials: 'include' });
+          const fieldsData = await fieldsRes.json();
+          if (fieldsRes.ok && Array.isArray(fieldsData?.fields)) {
+            setCustomFields(fieldsData.fields.map((f) => ({
+              id: f.id,
+              key: f.field_key,
+              label: f.field_label,
+              type: f.field_type,
+              options: Array.isArray(f.options) ? f.options : [],
+              isRequired: !!f.is_required,
+              sortOrder: f.sort_order ?? 0,
+              savedToServer: true,
+            })));
+          }
+        } catch { /* non-fatal — organizer can re-add fields */ }
+
         // Restore payment state from event_payments if a pending manual payment exists.
         const payments = Array.isArray(ev.event_payments) ? ev.event_payments : [];
         const pendingCash = payments.find(p => p && p.status === 'pending' && p.payment_method === 'cash_manual');
@@ -290,12 +310,9 @@ export default function CreateEventWizard() {
           setManualRef(pendingCash.reference_number || '');
           if (pendingCash.tier_name) setSelectedTierName(pendingCash.tier_name);
         }
-        // If the event is already paid, restore that state too.
-        if (ev.is_paid) {
-          setEventIsPaid(true);
-          if (ev.current_tier_name) setCurrentTierName(ev.current_tier_name);
-          if (ev.current_tier_max_guests) setCurrentTierMaxGuests(ev.current_tier_max_guests);
-        }
+        // If the event is already paid, restore that state too (tier name/cap are
+        // refetched correctly once the wizard reaches the Payment step).
+        if (ev.is_paid) setEventIsPaid(true);
 
         // Continue on the Configure step; clean the URL so a refresh won't re-hydrate.
         setDirection(1);
@@ -1001,9 +1018,11 @@ export default function CreateEventWizard() {
         }
       }
 
-      /* ─── 2. Batch-save custom form fields ─── */
-      if (id && customFields.length > 0) {
-        const fieldPromises = customFields.map((field, idx) =>
+      /* ─── 2. Batch-save custom form fields (skip ones already persisted on resume) ─── */
+      const unsavedFields = customFields.filter((field) => !field.savedToServer);
+      if (id && unsavedFields.length > 0) {
+        const failedLabels = [];
+        const fieldPromises = unsavedFields.map((field, idx) =>
           fetch(`${apiUrl}/events/${id}/fields`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1016,13 +1035,20 @@ export default function CreateEventWizard() {
               isRequired: field.isRequired,
               sortOrder: idx,
             }),
-          }).catch(err => {
-            console.error(`Failed to save field "${field.label}":`, err);
-            return null;
+          }).then((res) => {
+            if (!res.ok) failedLabels.push(field.label);
+          }).catch(() => {
+            failedLabels.push(field.label);
           })
         );
 
         await Promise.allSettled(fieldPromises);
+
+        if (failedLabels.length > 0) {
+          setError(`These custom questions could not be saved: ${failedLabels.join(', ')}. Please try again before leaving this page.`);
+          setSubmitting(false);
+          return;
+        }
       }
 
       /* ─── 3. Success → redirect to dashboard ─── */

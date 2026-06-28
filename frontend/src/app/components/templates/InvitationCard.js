@@ -65,8 +65,8 @@ export default function InvitationCard({ template, theme, guestName, config, dat
               <path d="M0 5 Q17 0 35 5 Q53 10 70 5" stroke={accentColor} strokeWidth="0.8" fill="none" />
               <circle cx="35" cy="5" r="1.5" fill={accentColor} opacity="0.5" />
             </svg>
-            <span className="text-[8.5px] font-bold tracking-[1.5px]" style={{ color: lightAccentColor }}>SATURDAY · OCTOBER 24, 2026</span>
-            <span className="text-[7.5px] italic text-stone-500">The Grand Ballroom · New York</span>
+            <span className="text-[8.5px] font-bold tracking-[1.5px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY · OCTOBER 24, 2026"}</span>
+            <span className="text-[7.5px] italic text-stone-500">{d.venueLine || "The Grand Ballroom · New York"}</span>
 
             {cfg.sections && typeof cfg.sections === "object" && !Array.isArray(cfg.sections) && Object.entries(cfg.sections).filter(([, v]) => v).map(([key, ], i) => (
               <span key={i} className="text-[7px] text-stone-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>

@@ -685,6 +685,10 @@ export default function SeatingMapPage() {
 
   /* ── add element ── */
   const addElement = async (payloads) => {
+    // Same in-flight guard as duplicateElement — without it, a double-click on
+    // "Add to Canvas" while a 50-element batch is still POSTing fires a second
+    // overlapping batch, multiplying the duplication.
+    if (saving) return;
     const items = Array.isArray(payloads) ? payloads : [payloads];
     setSaving(true);
     try {
@@ -745,7 +749,12 @@ export default function SeatingMapPage() {
   };
 
   const duplicateElement = async () => {
-    if (!selected) return;
+    // Guard against runaway duplication: the "Duplicate" button and its Ctrl/Cmd+D
+    // shortcut had no in-flight check, so OS key-repeat while the key was held (or a
+    // fast double-click) fired one POST per keydown event — with no uniqueness
+    // constraint on table_name, every one of those succeeded, creating dozens of
+    // identically-named "(Copy)" tables from a single held keypress.
+    if (!selected || saving) return;
     const meta = shapeMeta(selected.shape);
     const body = {
       tableName: `${selected.table_name} (Copy)`,
@@ -761,6 +770,7 @@ export default function SeatingMapPage() {
       body.height = elHeight(selected);
       body.color = selected.color || meta.color;
     }
+    setSaving(true);
     try {
       const res = await fetch(`${API_URL}/events/${eventId}/tables`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body),
@@ -769,6 +779,7 @@ export default function SeatingMapPage() {
       if (!res.ok) throw new Error(data.message || 'Failed to duplicate element');
       loadLayout();
     } catch (err) { toast.error(err.message); }
+    finally { setSaving(false); }
   };
 
   // Undo/Redo movement handlers
@@ -1173,9 +1184,9 @@ export default function SeatingMapPage() {
                 {isZone(selected) && ` • ${Math.round(elWidth(selected))}×${Math.round(elHeight(selected))} · ${Math.round(Number(selected.rotation) || 0)}°`}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={saveInspector} style={{ ...btn, flex: 1, background: C.gold, color: C.white, padding: '7px 10px', fontSize: 11 }}>Save</button>
-                <button onClick={duplicateElement} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', fontSize: 11 }}>Duplicate</button>
-                <button onClick={deleteElement} style={{ ...btn, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)', color: C.danger, padding: '7px 10px', fontSize: 11 }}>Delete</button>
+                <button onClick={saveInspector} disabled={saving} style={{ ...btn, flex: 1, background: C.gold, color: C.white, padding: '7px 10px', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Save</button>
+                <button onClick={duplicateElement} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Duplicate</button>
+                <button onClick={deleteElement} disabled={saving} style={{ ...btn, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)', color: C.danger, padding: '7px 10px', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Delete</button>
               </div>
 
               {!isZone(selected) && (
@@ -1202,7 +1213,7 @@ export default function SeatingMapPage() {
       </div>
 
       {/* Add element modal */}
-      {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} view={view} />}
+      {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} view={view} saving={saving} />}
 
       <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
@@ -1214,17 +1225,23 @@ export default function SeatingMapPage() {
    Smart helper for naming incrementing (letters/numbers)
    ════════════════════════════════════════════════════════════════ */
 function generateNumberedName(baseName, index, startNum) {
-  // 1. Check if name ends with a single letter (e.g. Table A or Table a)
+  // 1. Check if name ends with a single letter (e.g. Table A or Table a). Increments
+  // like a spreadsheet column (A, B, … Z, AA, AB, …) so a batch larger than 26 never
+  // silently falls through to branch 3 and mixes letters with a number on the same
+  // name (e.g. the old code produced "Table A 27" once it ran past "Z").
   const letterMatch = baseName.match(/^(.*?)\s*([a-zA-Z])$/);
   if (letterMatch) {
     const prefix = letterMatch[1];
     const letter = letterMatch[2];
-    const charCode = letter.charCodeAt(0);
-    const newCharCode = charCode + index;
-    if ((letter >= 'A' && letter <= 'Z' && newCharCode <= 90) ||
-        (letter >= 'a' && letter <= 'z' && newCharCode <= 122)) {
-      return `${prefix} ${String.fromCharCode(newCharCode)}`.trim();
+    const isLower = letter >= 'a' && letter <= 'z';
+    let n = (letter.toUpperCase().charCodeAt(0) - 64) + index; // A=1
+    let letters = '';
+    while (n > 0) {
+      const rem = (n - 1) % 26;
+      letters = String.fromCharCode(65 + rem) + letters;
+      n = Math.floor((n - 1) / 26);
     }
+    return `${prefix} ${isLower ? letters.toLowerCase() : letters}`.trim();
   }
 
   // 2. Check if name ends with a number (e.g. Table 1)
@@ -1241,7 +1258,7 @@ function generateNumberedName(baseName, index, startNum) {
 /* ════════════════════════════════════════════════════════════════
    Add element modal — pick a shape (table) or a zone, then details
    ════════════════════════════════════════════════════════════════ */
-function AddElementModal({ onClose, onAdd, btn, view }) {
+function AddElementModal({ onClose, onAdd, btn, view, saving }) {
   const [shape, setShape] = useState('round');
   const meta = SHAPES[shape];
   const [name, setName] = useState('');
@@ -1273,6 +1290,7 @@ function AddElementModal({ onClose, onAdd, btn, view }) {
   const zones = Object.entries(SHAPES).filter(([, m]) => m.cat === 'zone');
 
   const submit = () => {
+    if (saving) return;
     if (!name.trim()) { toast.error('Please enter a label.'); return; }
     
     let numElements = 1;
@@ -1493,7 +1511,7 @@ function AddElementModal({ onClose, onAdd, btn, view }) {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: `1px solid ${C.border}`, paddingTop: 14 }}>
           <button onClick={onClose} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.stone }}>Cancel</button>
-          <button onClick={submit} style={{ ...btn, background: C.gold, color: C.white }}>Add to Canvas</button>
+          <button onClick={submit} disabled={saving} style={{ ...btn, background: C.gold, color: C.white, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Adding…' : 'Add to Canvas'}</button>
         </div>
       </div>
     </div>

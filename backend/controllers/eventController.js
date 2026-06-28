@@ -367,15 +367,23 @@ const getPublicEventBySlug = async (req, res, next) => {
     if (invitationPartyId && UUID_REGEX.test(invitationPartyId)) {
       const { data: partyRecord } = await supabase
         .from('rsvp_parties')
-        .select('id, label, response, notes, guests(is_primary_contact, email, phone)')
+        .select('id, label, response, notes, guests(id, full_name, is_primary_contact, email, phone, meal_selection, dietary_notes)')
         .eq('id', invitationPartyId)
         .eq('event_id', event.id)
         .maybeSingle();
       if (partyRecord) {
-        const primary = (partyRecord.guests || []).find((g) => g.is_primary_contact) || {};
+        const allGuests = partyRecord.guests || [];
+        const primary = allGuests.find((g) => g.is_primary_contact) || {};
+        // Companions already on file (e.g. entered by the organizer during guest import)
+        // so the confirmation form pre-fills their names/meals instead of asking the
+        // responder to retype every member of their own party from a blank field.
+        const companions = allGuests.filter((g) => !g.is_primary_contact);
         guestRsvp = {
           id: partyRecord.id, guest_name: partyRecord.label, email: primary.email || null, phone: primary.phone || null,
-          response: partyRecord.response, party_size: (partyRecord.guests || []).length || 1, notes: partyRecord.notes,
+          response: partyRecord.response, party_size: allGuests.length || 1, notes: partyRecord.notes,
+          additionalGuests: companions.map((g) => ({
+            id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
+          })),
         };
       }
     }

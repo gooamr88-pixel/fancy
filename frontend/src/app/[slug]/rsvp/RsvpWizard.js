@@ -102,6 +102,15 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (guest.email) setEmail(guest.email);
     if (guest.phone) setPhone(guest.phone);
     if (guest.party_size) setPartySize(guest.party_size);
+    // Pre-fill companions already on file (e.g. entered by the organizer during guest
+    // import) so the form asks the responder to confirm/edit each real person instead
+    // of generating blank "Guest 2", "Guest 3" fields that silently discard their names.
+    if (Array.isArray(guest.additionalGuests) && guest.additionalGuests.length > 0) {
+      setAdditionalGuests(guest.additionalGuests.map(g => ({
+        id: g.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '', customAnswers: {},
+      })));
+    }
     if (guest.notes) setNotes(guest.notes);
     if (['yes', 'no', 'maybe'].includes(guest.response)) setAttending(guest.response);
     setStep(2);
@@ -242,6 +251,14 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     setPartyId(result.id);
     setGuestName(result.guestName);
     if (result.partySize) setPartySize(result.partySize);
+    // Pre-fill companions already on file — same reasoning as the token/party_id
+    // prefill effect above: avoid blanking out names the organizer already entered.
+    if (Array.isArray(result.additionalGuests) && result.additionalGuests.length > 0) {
+      setAdditionalGuests(result.additionalGuests.map(g => ({
+        id: g.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '', customAnswers: {},
+      })));
+    }
     goToStep(2);
   };
   const handleContinueAsNew = () => { setPartyId(null); goToStep(2); };
