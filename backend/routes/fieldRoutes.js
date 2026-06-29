@@ -1,6 +1,5 @@
 const express = require('express');
 const { getFields, saveField, updateField, deleteField } = require('../controllers/fieldController');
-const { requirePaidEvent } = require('../middleware/featureGate');
 
 const router = express.Router({ mergeParams: true });
 
@@ -12,9 +11,14 @@ router.param('fieldId', (req, res, next, value) => {
   }
   next();
 });
+// Custom RSVP questions (form_builder) are NOT payment-gated — the One-Page
+// Form already sits behind the pay-first wizard step, and gating field saves
+// again here blocked organizers stuck on a pending (unverified) manual
+// payment from building their form at all. Tables/seating, guest import, and
+// SMS campaigns remain payment-gated below (unchanged).
 router.get('/', getFields);
-router.post('/', requirePaidEvent('form_builder'), saveField);
-router.patch('/:fieldId', requirePaidEvent('form_builder'), updateField);
-router.delete('/:fieldId', requirePaidEvent('form_builder'), deleteField);
+router.post('/', saveField);
+router.patch('/:fieldId', updateField);
+router.delete('/:fieldId', deleteField);
 
 module.exports = router;
