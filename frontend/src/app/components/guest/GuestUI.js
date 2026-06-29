@@ -118,6 +118,88 @@ export function PremiumButton({
   );
 }
 
+// ─── BentoCard ───
+export function BentoCard({
+  children, style = {}, className = '', bg = 'rgba(255, 255, 255, 0.85)',
+  border = 'rgba(232,226,214,0.6)', glowColor = 'rgba(184, 148, 79, 0.1)', delay = 0
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <motion.div
+      className={className}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.6, delay, type: 'spring', stiffness: 100 }}
+      animate={hovered ? { y: -4, boxShadow: `0 20px 40px rgba(0,0,0,0.08), 0 0 20px ${glowColor}` } : { y: 0, boxShadow: '0 8px 32px rgba(0,0,0,0.04)' }}
+      style={{
+        background: bg,
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        border: `1px solid ${border}`,
+        borderRadius: '24px',
+        padding: '32px',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        ...style,
+      }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// ─── MagneticButton ───
+export function MagneticButton({
+  children, onClick, variant = 'gold', size = 'md', fullWidth = false,
+  style = {}, icon, disabled = false, testId
+}) {
+  const containerRef = useRef(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = (e) => {
+    if (!containerRef.current || disabled) return;
+    const { clientX, clientY } = e;
+    const { height, width, left, top } = containerRef.current.getBoundingClientRect();
+    const middleX = clientX - (left + width / 2);
+    const middleY = clientY - (top + height / 2);
+    setPosition({ x: middleX * 0.2, y: middleY * 0.2 });
+  };
+
+  const reset = () => setPosition({ x: 0, y: 0 });
+
+  const { x, y } = position;
+
+  return (
+    <motion.div
+      ref={containerRef}
+      style={{ display: fullWidth ? 'block' : 'inline-block', position: 'relative' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={reset}
+      animate={{ x, y }}
+      transition={{ type: 'spring', stiffness: 150, damping: 15, mass: 0.1 }}
+    >
+      <PremiumButton
+        testId={testId}
+        variant={variant}
+        size={size}
+        fullWidth={fullWidth}
+        style={style}
+        icon={icon}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {children}
+      </PremiumButton>
+    </motion.div>
+  );
+}
+
+
 // ─── AttendanceCard: Interactive attendance choice ───
 export function AttendanceCard({ type, selected, onClick, isRTL = false }) {
   const configs = {
@@ -413,9 +495,9 @@ export function CalendarButton({ event, isRTL = false, style = {} }) {
 
   return (
     <div style={{ position: 'relative', display: 'inline-block', ...style }}>
-      <PremiumButton variant="outline" size="sm" icon="📅" onClick={() => setOpen(!open)}>
+      <MagneticButton variant="outline" size="sm" icon="📅" onClick={() => setOpen(!open)}>
         {isRTL ? 'أضف إلى التقويم' : 'Add to Calendar'}
-      </PremiumButton>
+      </MagneticButton>
       <AnimatePresence>
         {open && (
           <motion.div
@@ -475,9 +557,9 @@ export function ShareButton({ title, text, url, isRTL = false, style = {} }) {
   };
 
   return (
-    <PremiumButton variant="ghost" size="sm" icon={copied ? '✓' : '🔗'} onClick={handleShare} style={style}>
+    <MagneticButton variant="ghost" size="sm" icon={copied ? '✓' : '🔗'} onClick={handleShare} style={style}>
       {copied ? (isRTL ? 'تم النسخ!' : 'Link Copied!') : (isRTL ? 'مشاركة الدعوة' : 'Share Invitation')}
-    </PremiumButton>
+    </MagneticButton>
   );
 }
 

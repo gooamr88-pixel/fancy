@@ -23,6 +23,8 @@ import {
 import {
   GlassmorphismCard,
   PremiumButton,
+  BentoCard,
+  MagneticButton,
   GalleryLightbox,
   CalendarButton,
   ShareButton,
@@ -448,7 +450,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (loading) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', fontFamily: 'var(--font-sans)' }}>
           {/* Hero shimmer */}
           <ShimmerPlaceholder width="100%" height="70vh" borderRadius="0" />
           {/* Content shimmers */}
@@ -480,7 +482,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (error === 'PAYMENT_REQUIRED') {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>💳</motion.span>
@@ -497,7 +499,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (error === 'EVENT_CLOSED') {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>🕊️</motion.span>
@@ -514,7 +516,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (underReview) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <motion.span initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>✨</motion.span>
@@ -533,7 +535,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (isPrivate) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <div style={{ width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -553,7 +555,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (passwordRequired) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <div style={{ width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%', background: 'rgba(184,148,79,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -581,7 +583,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (notLive) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.15 }} style={{ fontSize: '48px', display: 'block' }}>⏳</motion.span>
@@ -601,7 +603,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (error || !event) {
     return (
       <PageTransition>
-        <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center' }}>
               <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.1 }} style={{ fontSize: '56px', display: 'block' }}>🔍</motion.span>
@@ -678,7 +680,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         )}
       </AnimatePresence>
       <div dir={isRTL ? 'rtl' : 'ltr'} style={{
-        minHeight: '100vh', position: 'relative',
+        minHeight: '100dvh', position: 'relative',
         backgroundColor: customColors.background || '#F8F4EC', color: '#191B1E',
         fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
       }}>
@@ -725,63 +727,101 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         </div>
 
         {/* ═══ CINEMATIC HERO ═══ */}
-        <div ref={heroRef}>
-          <ParallaxHero
-            imageUrl={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'}
-            height="70vh"
-            overlayGradient="linear-gradient(to top, rgba(25,27,30,0.92) 0%, rgba(25,27,30,0.5) 40%, rgba(25,27,30,0.15) 70%, transparent 100%)"
-            style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
-          >
-            <FloatingParticles count={25} color={themeColor} />
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', height: '100%', width: '100%' }}>
-              <div style={{ textAlign: 'center', paddingBottom: '72px', padding: '0 24px 72px', maxWidth: '800px', width: '100%' }}>
-                {/* Event type badge */}
-                <FadeInUp delay={0.1} y={20}>
-                  <span style={{
-                    fontSize: '11px', textTransform: 'uppercase', letterSpacing: '5px', color: '#D7BE80',
-                    fontWeight: 700, display: 'inline-block', marginBottom: '16px', fontFamily: 'var(--font-sans)',
-                    padding: '6px 20px', borderRadius: '20px',
-                    background: 'rgba(215,190,128,0.1)', border: '1px solid rgba(215,190,128,0.2)',
-                    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-                  }}>
-                    {isRTL ? (event.template_type === 'wedding' ? 'بطاقة زفاف' : 'تفاصيل الفعالية') : `${event.template_type} invitation`}
-                  </span>
-                </FadeInUp>
+        <div ref={heroRef} style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '120px 24px 80px' }}>
+          
+          {/* Ambient Blurred Background */}
+          <div style={{ position: 'absolute', inset: '-10%', zIndex: 0 }}>
+            <img 
+              src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'} 
+              style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(60px) brightness(0.5)' }} 
+              alt="" 
+              aria-hidden="true" 
+            />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(20,22,25,0.85) 0%, rgba(20,22,25,0.5) 100%)' }} />
+          </div>
 
-                {/* Animated title */}
-                <AnimatedText
-                  text={localizedTitle}
-                  tag="h1"
-                  delay={0.3}
-                  style={{
-                    fontSize: '48px', fontWeight: isWedding ? 400 : 700, color: '#FFFFFF',
-                    letterSpacing: '1px', marginBottom: '20px',
-                    fontFamily: isWedding ? 'var(--font-serif)' : 'var(--font-sans)',
-                    lineHeight: 1.15, textShadow: '0 4px 30px rgba(0,0,0,0.3)',
-                  }}
-                  className="ep-hero-title"
-                />
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+            <FloatingParticles count={30} color={themeColor} />
+          </div>
 
-                {/* Description */}
-                <FadeInUp delay={0.7} y={20}>
-                  <p style={{
-                    color: 'rgba(255,255,255,0.75)', maxWidth: '640px', margin: '0 auto',
-                    fontWeight: 300, fontSize: '15px', lineHeight: 1.8,
-                  }}>
-                    {localizedDesc}
-                  </p>
-                </FadeInUp>
+          {/* Hero Content Grid */}
+          <div style={{ 
+            position: 'relative', zIndex: 10, maxWidth: '1100px', width: '100%', 
+            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '64px',
+            flexWrap: 'wrap', justifyContent: 'center'
+          }}>
+            
+            {/* Left/Top: Text Content */}
+            <div style={{ flex: '1 1 400px', textAlign: isRTL ? 'right' : 'left', display: 'flex', flexDirection: 'column', alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+              <FadeInUp delay={0.1} y={20}>
+                <span style={{
+                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '4px', color: '#D7BE80',
+                  fontWeight: 700, display: 'inline-block', marginBottom: '20px', fontFamily: 'var(--font-sans)',
+                  padding: '8px 24px', borderRadius: '100px',
+                  background: 'rgba(215,190,128,0.1)', border: '1px solid rgba(215,190,128,0.2)',
+                  backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                }}>
+                  {isRTL ? (event.template_type === 'wedding' ? 'بطاقة زفاف' : 'تفاصيل الفعالية') : `${event.template_type} invitation`}
+                </span>
+              </FadeInUp>
 
-                {/* Hero action buttons */}
-                <FadeInUp delay={0.9} y={20}>
-                  <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '28px', flexWrap: 'wrap' }}>
-                    <CalendarButton event={event} isRTL={isRTL} />
-                    <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
-                  </div>
-                </FadeInUp>
-              </div>
+              <AnimatedText
+                text={localizedTitle}
+                tag="h1"
+                delay={0.2}
+                style={{
+                  fontSize: 'clamp(40px, 5vw, 56px)', fontWeight: isWedding ? 400 : 700, color: '#FFFFFF',
+                  letterSpacing: '0.5px', marginBottom: '24px',
+                  fontFamily: isWedding ? 'var(--font-serif)' : 'var(--font-sans)',
+                  lineHeight: 1.15, textShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                }}
+                className="ep-hero-title"
+              />
+
+              <FadeInUp delay={0.5} y={20}>
+                <p style={{
+                  color: 'rgba(255,255,255,0.85)',
+                  fontWeight: 300, fontSize: '16px', lineHeight: 1.8, marginBottom: '40px',
+                  maxWidth: '540px'
+                }}>
+                  {localizedDesc}
+                </p>
+              </FadeInUp>
+
+              <FadeInUp delay={0.7} y={20}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  <CalendarButton event={event} isRTL={isRTL} />
+                  <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
+                </div>
+              </FadeInUp>
             </div>
-          </ParallaxHero>
+
+            {/* Right/Bottom: Featured Image Box */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, rotateY: isRTL ? -10 : 10 }}
+              animate={{ opacity: 1, scale: 1, rotateY: 0 }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+              style={{ 
+                flex: '1 1 400px', display: 'flex', justifyContent: 'center', 
+                perspective: '1000px'
+              }}
+            >
+              <div style={{
+                width: '100%', maxWidth: '420px', maxHeight: '600px',
+                aspectRatio: '4/5', position: 'relative',
+                borderRadius: '24px', overflow: 'hidden',
+                boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15)',
+                transformStyle: 'preserve-3d', background: 'rgba(0,0,0,0.2)'
+              }}>
+                <img 
+                  src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  alt="Event Cover" 
+                />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 30%)' }} />
+              </div>
+            </motion.div>
+          </div>
         </div>
 
         {/* ═══ MAIN CONTENT GRID ═══ */}
@@ -1258,54 +1298,45 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               </ScaleIn>
             )}
 
-            {/* Event Details Card */}
+            {/* Event Details Card (Bento Layout) */}
             <FadeInUp delay={0.1}>
-              <GlassmorphismCard bg="rgba(255,255,255,0.92)" border="rgba(232,226,214,0.6)" style={{ padding: '36px' }}>
-                <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E', marginBottom: '24px' }}>{t.details_title}</h2>
-
-                <StaggerChildren staggerDelay={0.12} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }} className="ep-details-grid">
-                  {/* When */}
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '26px', fontWeight: 600, color: '#191B1E', marginBottom: '20px' }}>{t.details_title}</h2>
+              <StaggerChildren staggerDelay={0.15} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }} className="ep-bento-grid">
+                  {/* When BentoCard */}
                   <StaggerItem>
-                    <div>
-                      <span style={{ fontSize: '10px', color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                    <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)" style={{ height: '100%', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '12px' }}>
                         📅 {t.when}
                       </span>
-                      <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500, display: 'block' }}>
+                      <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
                         {new Date(event.event_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}
                       </span>
-                      <span style={{ fontSize: '13px', color: '#77736A', display: 'block', marginTop: '4px' }}>
+                      <span style={{ fontSize: '14px', color: '#77736A', display: 'block' }}>
                         {t.starting_at} {new Date(event.event_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                       </span>
-                    </div>
+                    </BentoCard>
                   </StaggerItem>
 
-                  {/* Where */}
+                  {/* Where BentoCard */}
                   <StaggerItem>
-                    <div>
-                      <span style={{ fontSize: '10px', color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
+                    <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)" style={{ height: '100%', justifyContent: 'center' }}>
+                      <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '12px' }}>
                         📍 {t.where}
                       </span>
-                      <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500, display: 'block' }}>{event.location_name}</span>
-                      <span style={{ fontSize: '13px', color: '#77736A', display: 'block', marginTop: '4px' }}>{event.location_address}</span>
+                      <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '8px' }}>{event.location_name}</span>
+                      <span style={{ fontSize: '14px', color: '#77736A', display: 'block', marginBottom: '16px' }}>{event.location_address}</span>
                       {(event.location_lat && event.location_lng || event.location_address) && (
-                        <a
-                          href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, mounted)}
-                          target="_blank" rel="noopener noreferrer"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '8px',
-                            fontSize: '12px', fontWeight: 600, color: themeColor, textDecoration: 'none',
-                          }}
-                        >
-                          🧭 {isRTL ? 'احصل على الاتجاهات' : 'Get Directions'} →
-                        </a>
+                        <MagneticButton variant="outline" size="sm" onClick={() => window.open(getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, mounted), '_blank')}>
+                          🧭 {isRTL ? 'الاتجاهات' : 'Get Directions'}
+                        </MagneticButton>
                       )}
-                    </div>
+                    </BentoCard>
                   </StaggerItem>
 
-                  {/* Dress Code (expandable) */}
+                  {/* Dress Code BentoCard (expandable) */}
                   {event.dress_code && (
                     <StaggerItem style={{ gridColumn: '1 / -1' }}>
-                      <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+                      <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)">
                         <button
                           onClick={() => setDressCodeExpanded(!dressCodeExpanded)}
                           style={{
@@ -1313,10 +1344,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-sans)',
                           }}
                         >
-                          <span style={{ fontSize: '10px', color: '#77736A', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700 }}>
+                          <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700 }}>
                             👔 {t.dress_code}
                           </span>
-                          <motion.span animate={{ rotate: dressCodeExpanded ? 180 : 0 }} transition={{ duration: 0.25 }} style={{ fontSize: '12px', color: '#77736A' }}>
+                          <motion.span animate={{ rotate: dressCodeExpanded ? 180 : 0 }} transition={{ duration: 0.25 }} style={{ fontSize: '14px', color: themeColor }}>
                             ▼
                           </motion.span>
                         </button>
@@ -1329,22 +1360,21 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                               transition={{ duration: 0.3 }}
                               style={{ overflow: 'hidden' }}
                             >
-                              <span style={{ fontSize: '14px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '8px' }}>
+                              <span style={{ fontSize: '16px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '16px' }}>
                                 {localizedDressCode}
                               </span>
                             </motion.div>
                           )}
                         </AnimatePresence>
                         {!dressCodeExpanded && (
-                          <span style={{ fontSize: '14px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '6px' }}>
+                          <span style={{ fontSize: '16px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '12px' }}>
                             {localizedDressCode}
                           </span>
                         )}
-                      </div>
+                      </BentoCard>
                     </StaggerItem>
                   )}
-                </StaggerChildren>
-              </GlassmorphismCard>
+              </StaggerChildren>
             </FadeInUp>
 
             {/* ═══ COUNTDOWN ═══ */}
@@ -1679,7 +1709,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <div ref={rsvpCardRef}>
                 <ScaleIn delay={0.2}>
                   {hasResponded ? (
-                    <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '14px', padding: '36px 28px' }}>
+                    <BentoCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '14px', padding: '36px 28px' }}>
                       <div style={{
                         width: '52px', height: '52px', margin: '0 auto', borderRadius: '50%',
                         background: `${responseStatus.color}14`, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1710,9 +1740,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                           {isRTL ? 'الردود مقفلة. لتغيير ردك، تواصل مع المُنظّم مباشرة.' : 'Responses are locked. To make a change, please contact the host directly.'}
                         </p>
                       )}
-                    </GlassmorphismCard>
+                    </BentoCard>
                   ) : (
-                    <GlassmorphismCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
+                    <BentoCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
                       <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
                       <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
                         {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { timeZone: 'UTC' }) : 'N/A'}</strong> {t.card_desc}
@@ -1726,7 +1756,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                           {t.rsvp_now}
                         </Link>
                       </GlowPulse>
-                    </GlassmorphismCard>
+                    </BentoCard>
                   )}
                 </ScaleIn>
               </div>

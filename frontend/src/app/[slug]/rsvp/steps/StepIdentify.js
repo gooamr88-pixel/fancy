@@ -26,7 +26,7 @@ export default function StepIdentify({
             {isRTL ? 'يسعدنا دعوتك للاحتفال معنا' : 'We would be honored by your presence'}
           </h3>
           <p style={{ fontSize: '13px', color: '#77736A', marginTop: '4px', lineHeight: 1.6 }}>
-            {isRTL ? 'ابحث عن اسمك في قائمة الضيوف أو سجّل كضيف جديد' : 'Find your name on the guest list or register as a new guest'}
+            {isRTL ? 'يرجى إدخال اسمك للبدء في تأكيد الحضور' : 'Please enter your name to begin your RSVP'}
           </p>
         </div>
       </FadeInUp>
@@ -49,7 +49,7 @@ export default function StepIdentify({
           />
           {!searchPerformed && (
             <PremiumButton testId="rsvp-search" disabled={!guestName.trim() || searching} onClick={() => search(guestName)} loading={searching} size="md">
-              {isRTL ? 'بحث' : 'Search'}
+              {isRTL ? 'متابعة' : 'Continue'}
             </PremiumButton>
           )}
         </div>
@@ -61,7 +61,7 @@ export default function StepIdentify({
             <ShimmerPlaceholder height="56px" borderRadius="12px" />
             <ShimmerPlaceholder height="56px" borderRadius="12px" />
             <p style={{ color: '#77736A', fontSize: '13px', textAlign: 'center' }}>
-              {isRTL ? 'جاري البحث عن دعوتك...' : 'Searching for your invitation...'}
+              {isRTL ? 'جاري التحقق...' : 'Just a moment...'}
             </p>
           </div>
         </FadeInUp>
@@ -72,7 +72,7 @@ export default function StepIdentify({
           {searchResults.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <p style={{ fontSize: '13px', color: '#77736A', fontWeight: 500 }}>
-                {isRTL ? 'لقد وجدنا دعوتك! يرجى اختيار اسمك لتأكيد الحضور:' : 'We found your invitation! Please select your name below:'}
+                {isRTL ? 'لقد وجدنا دعوة باسمك! يرجى اختيارها للمتابعة:' : 'Welcome back! Please select your invitation to continue:'}
               </p>
               <StaggerChildren staggerDelay={0.08}>
                 {searchResults.map((result, i) => {
@@ -134,18 +134,18 @@ export default function StepIdentify({
                 onClick={onContinueNew}
                 style={{ fontSize: '13px', color: '#B8944F', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'center', textDecoration: 'underline', fontFamily: 'var(--font-sans)', padding: '4px' }}
               >
-                {isRTL ? 'اسمي ليس في القائمة (المتابعة كضيف جديد)' : "My name isn't listed (Continue as a new guest)"}
+                {isRTL ? 'لست أنا (المتابعة كضيف جديد)' : "That's not me (Continue as a new guest)"}
               </button>
             </div>
           ) : (
             <FadeInUp y={10}>
               <div style={{ fontSize: '13px', color: '#77736A', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', padding: '16px', borderRadius: '12px' }}>
-                ⚠️ {isRTL
-                  ? `لم نجد اسماً مطابقاً لـ "${guestName}" في قائمة المدعوين. لا تقلق، يمكنك الاستمرار والتسجيل كضيف جديد.`
-                  : `We couldn't find an invitation matching "${guestName}". No worries, you can still RSVP as a new guest.`}
+                {isRTL
+                  ? `أهلاً بك، ${guestName}! يرجى المتابعة لإتمام تأكيد الحضور.`
+                  : `Welcome, ${guestName}! Please continue to complete your RSVP.`}
               </div>
               <PremiumButton testId="rsvp-continue-new" fullWidth onClick={onContinueNew} style={{ marginTop: '12px' }}>
-                {isRTL ? 'المتابعة كضيف جديد' : 'Continue as a New Guest'}
+                {isRTL ? 'متابعة' : 'Continue'}
               </PremiumButton>
             </FadeInUp>
           )}
