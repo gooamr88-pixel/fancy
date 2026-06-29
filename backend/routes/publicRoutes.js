@@ -2,7 +2,7 @@ const express = require('express');
 const { body, param, query } = require('express-validator');
 const validate = require('../middleware/validate');
 const { getPublicEventBySlug } = require('../controllers/eventController');
-const { submitPublicRSVP, searchPublicGuests, searchPublicSeating, getGuestById, getGuestSeatingMap, getRsvpInvite, respondViaToken } = require('../controllers/rsvpController');
+const { submitPublicRSVP, searchPublicGuests, verifyPublicSeating, getGuestById, getGuestSeatingMap, getRsvpInvite, respondViaToken } = require('../controllers/rsvpController');
 const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
 const { handleSmsStatusCallback } = require('../controllers/campaignController');
@@ -58,11 +58,14 @@ router.get('/events/:slug/rsvp/search', [
   validate
 ], searchPublicGuests);
 
-// Public guest seating search
-router.get('/events/:slug/seating/search', [
-  query('query').optional().trim().isLength({ max: 200 }).withMessage('Search query too long'),
+// Verify a guest by exact name + last 4 phone digits, returning ONLY their own
+// seating map. Replaces the old name-search (which enumerated every match).
+// POST + the strict /public/events limiter (30/15m per IP) throttle guessing.
+router.post('/events/:slug/seating/verify', [
+  body('name').trim().notEmpty().isLength({ max: 200 }).withMessage('Name is required'),
+  body('phoneLast4').trim().matches(/^\d{4}$/).withMessage('Enter the last 4 digits of your phone number'),
   validate
-], searchPublicSeating);
+], verifyPublicSeating);
 
 // Personal seating map for one guest (their table + own party, never other guests)
 router.get('/events/:slug/seating/guest/:guestId', [

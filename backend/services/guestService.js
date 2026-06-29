@@ -163,7 +163,7 @@ async function getPartyForPublicResolve(partyId) {
 async function searchPartiesPublic(eventId, term, limit = 10) {
   const { data, error } = await supabase
     .from('rsvp_parties')
-    .select('id, label, response, guests(id, full_name, is_primary_contact, email, meal_selection, dietary_notes)')
+    .select('id, label, response, guests(id, full_name, is_primary_contact, email, phone, meal_selection, dietary_notes, age_group, relationship, gender)')
     .eq('event_id', eventId)
     .ilike('label', `%${escapeLikePattern(term)}%`)
     .limit(limit);
@@ -186,42 +186,93 @@ async function searchPartiesPublic(eventId, term, limit = 10) {
       // an unclaimable result never reaches the form that would consume this.
       additionalGuests: hasEmail
         ? allGuests.filter((g) => !g.is_primary_contact).map((g) => ({
-            id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
+            id: g.id,
+            fullName: g.full_name || '',
+            mealSelection: g.meal_selection || '',
+            dietaryNotes: g.dietary_notes || '',
+            phone: g.phone || '',
+            ageGroup: g.age_group || '',
+            relationship: g.relationship || '',
+            gender: g.gender || '',
           }))
         : [],
     };
   });
 }
 
-/** "Find my table" search — attending parties only, minimal fields, no party id. */
-async function searchSeatingPublic(eventId, term, limit = 10) {
+/**
+ * "Find my table" verification — replaces the old name-only search, which
+ * enumerated every attending party that matched a name (so typing a common
+ * first name leaked strangers' tables + companion names). A guest must now
+ * prove identity with BOTH their exact name AND the last 4 digits of the
+ * primary contact's phone. We only ever return a seating map when EXACTLY ONE
+ * attending party matches both factors; 0 matches and >1 ambiguous matches are
+ * indistinguishable to the caller (returns null), so no information leaks about
+ * who exists or which factor was wrong.
+ */
+/**
+ * Public seating response shape — host first, then companions, with the new
+ * detail fields (age, relationship, gender, dietary notes) so the result panel
+ * can distinguish the inviter from their guests. Phone is deliberately omitted
+ * — the panel never needs it and we don't want to echo PII back over a guest-
+ * facing endpoint.
+ */
+function shapeSeatingParty(partyRow) {
+  const assignment = Array.isArray(partyRow.seating_assignments)
+    ? partyRow.seating_assignments[0]
+    : partyRow.seating_assignments;
+
+  const members = (partyRow.guests || [])
+    .slice()
+    .sort((a, b) => (b.is_primary_contact ? 1 : 0) - (a.is_primary_contact ? 1 : 0))
+    .map((g) => ({
+      name: g.full_name,
+      meal: g.meal_selection || null,
+      isHost: !!g.is_primary_contact,
+      ageGroup: g.age_group || null,
+      relationship: g.relationship || null,
+      gender: g.gender || null,
+      dietaryNotes: g.dietary_notes || null,
+    }))
+    .filter((g) => g.name);
+
+  return {
+    party: { id: partyRow.id, label: partyRow.label, response: partyRow.response, partySize: members.length || 1 },
+    myTableId: assignment?.table_id || null,
+    myTableName: assignment?.tables?.table_name || null,
+    companions: members,
+  };
+}
+
+async function verifyGuestSeating(eventId, name, phoneLast4) {
+  const cleanName = String(name || '').trim();
+  const last4 = String(phoneLast4 || '').replace(/\D/g, '');
+  if (!cleanName || last4.length !== 4) return null;
+
+  // ilike with no wildcards = case-insensitive exact match on the party label.
   const { data, error } = await supabase
     .from('rsvp_parties')
     .select(`
-      id, label, response, guests(id),
-      seating_assignments(table_id, tables(table_name))
+      id, label, response,
+      seating_assignments(table_id, tables(table_name)),
+      guests(full_name, is_primary_contact, meal_selection, phone, age_group, relationship, gender, dietary_notes)
     `)
     .eq('event_id', eventId)
     .eq('response', 'yes')
-    .ilike('label', `%${escapeLikePattern(term)}%`)
-    .limit(limit);
+    .ilike('label', escapeLikePattern(cleanName))
+    .limit(20);
 
   if (error) throw error;
 
-  return (data || []).map((item) => {
-    const seating = Array.isArray(item.seating_assignments) ? item.seating_assignments[0] : item.seating_assignments;
-    return {
-      // Unlike searchPartiesPublic, the id here is safe to expose: it only unlocks a
-      // READ-ONLY seating map (table + own companions' names/meals) for a party that
-      // has already confirmed attendance (response='yes' filter above) — there is no
-      // write capability or PII (email/phone) reachable through it.
-      id: item.id,
-      guestName: item.label,
-      partySize: (item.guests || []).length || 1,
-      tableName: seating?.tables?.table_name || 'Unassigned',
-      hasTable: !!seating?.table_id,
-    };
+  const matches = (data || []).filter((party) => {
+    const primary = (party.guests || []).find((g) => g.is_primary_contact) || (party.guests || [])[0];
+    const digits = String(primary?.phone || '').replace(/\D/g, '');
+    return digits.length >= 4 && digits.slice(-4) === last4;
   });
+
+  // Exactly one match or nothing — never disambiguate for the caller.
+  if (matches.length !== 1) return null;
+  return shapeSeatingParty(matches[0]);
 }
 
 /** Personal seating view: venue layout + this party's own table + own companions. Never other parties. */
@@ -231,30 +282,14 @@ async function getPartySeatingMap(eventId, partyId) {
     .select(`
       id, label, response,
       seating_assignments(table_id, tables(table_name)),
-      guests(full_name, is_primary_contact, meal_selection)
+      guests(full_name, is_primary_contact, meal_selection, age_group, relationship, gender, dietary_notes)
     `)
     .eq('id', partyId)
     .eq('event_id', eventId)
     .single();
 
   if (error || !party) return null;
-
-  const assignment = Array.isArray(party.seating_assignments) ? party.seating_assignments[0] : party.seating_assignments;
-  const myTableId = assignment?.table_id || null;
-  const myTableName = assignment?.tables?.table_name || null;
-
-  const companions = (party.guests || [])
-    .slice()
-    .sort((a, b) => (b.is_primary_contact ? 1 : 0) - (a.is_primary_contact ? 1 : 0))
-    .map((g) => ({ name: g.full_name, meal: g.meal_selection || null, isPrimary: !!g.is_primary_contact }))
-    .filter((g) => g.name);
-
-  return {
-    party: { id: party.id, label: party.label, response: party.response, partySize: companions.length || 1 },
-    myTableId,
-    myTableName,
-    companions,
-  };
+  return shapeSeatingParty(party);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -687,7 +722,7 @@ module.exports = {
   addGuest,
   getPartyForPublicResolve,
   searchPartiesPublic,
-  searchSeatingPublic,
+  verifyGuestSeating,
   getPartySeatingMap,
   listParties,
   updateParty,

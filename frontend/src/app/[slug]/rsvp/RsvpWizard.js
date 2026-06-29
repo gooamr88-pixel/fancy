@@ -110,7 +110,9 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (Array.isArray(guest.additionalGuests) && guest.additionalGuests.length > 0) {
       setAdditionalGuests(guest.additionalGuests.map(g => ({
         id: g.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '', customAnswers: {},
+        fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '',
+        phone: g.phone || '', ageGroup: g.ageGroup || '', relationship: g.relationship || '', gender: g.gender || '',
+        customAnswers: {},
       })));
     }
     if (guest.notes) setNotes(guest.notes);
@@ -177,7 +179,12 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       const copy = [...prev];
       if (copy.length < diff) {
         while (copy.length < diff)
-          copy.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, fullName: '', mealSelection: '', dietaryNotes: '', customAnswers: {} });
+          copy.push({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            fullName: '', mealSelection: '', dietaryNotes: '',
+            phone: '', ageGroup: '', relationship: '', gender: '',
+            customAnswers: {},
+          });
       } else if (copy.length > diff) { copy.splice(diff); }
       return copy;
     });
@@ -196,7 +203,6 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   }, [lang]);
 
   const localizedTitle = isRTL && event?.title_ar ? event.title_ar : (event?.title || '');
-  const isContinueDisabled = partySize > 1 && additionalGuests.some(g => !g.fullName || !g.fullName.trim());
   const coverImage = event?.cover_image_url;
   // The seating chart (table search + personal map) is hidden until 24h before the event.
   const seatingRevealed = event?.event_date ? isSeatingRevealed(event.event_date) : false;
@@ -250,7 +256,9 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (Array.isArray(result.additionalGuests) && result.additionalGuests.length > 0) {
       setAdditionalGuests(result.additionalGuests.map(g => ({
         id: g.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '', customAnswers: {},
+        fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '',
+        phone: g.phone || '', ageGroup: g.ageGroup || '', relationship: g.relationship || '', gender: g.gender || '',
+        customAnswers: {},
       })));
     }
     setIdentityConfirmed(true);
@@ -435,11 +443,12 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                     style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
                     <StepPartyDetails
                       t={t} isRTL={isRTL} attending={attending}
+                      guestName={guestName}
                       partySize={partySize} setPartySize={setPartySize}
                       mealField={mealField} primaryMeal={primaryMeal} setPrimaryMeal={setPrimaryMeal}
                       additionalGuests={additionalGuests} setAdditionalGuests={setAdditionalGuests}
                       email={email} setEmail={setEmail} phone={phone} setPhone={setPhone}
-                      validationErrors={validationErrors} isContinueDisabled={isContinueDisabled}
+                      validationErrors={validationErrors}
                       maybeFollowUp={maybeFollowUp} setMaybeFollowUp={setMaybeFollowUp}
                       declineReason={declineReason} setDeclineReason={setDeclineReason}
                     />

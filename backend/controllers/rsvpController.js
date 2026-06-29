@@ -54,11 +54,24 @@ const submitPublicRSVP = async (req, res, next) => {
     }
   }
 
+  // Soft-normalise each companion's phone to E.164 if it parses; if not, drop
+  // the raw value rather than persist mixed formats that break the organizer's
+  // search/dedup later. age_group + gender are validated again by the RPC's
+  // CHECK constraints, so out-of-vocab values come back as NULL on insert.
+  const sanitizedAdditional = Array.isArray(additionalGuests)
+    ? additionalGuests.map((g) => {
+        if (!g) return g;
+        const raw = typeof g.phone === 'string' ? g.phone.trim() : '';
+        const normalised = raw ? normalizeToE164(raw) : null;
+        return { ...g, phone: normalised || null };
+      })
+    : [];
+
   try {
     const result = await guestService.submitPublicRsvp({
       slug, partyId, guestName, email, phone: normalizedPhone, response,
       partySize: partySize || 1, notes, primaryMeal: primaryGuestMeal,
-      additionalGuests: Array.isArray(additionalGuests) ? additionalGuests : [],
+      additionalGuests: sanitizedAdditional,
       customAnswers: Array.isArray(customAnswers) ? customAnswers : [],
       declineReason: decline_reason, maybeConfirmBy: maybe_confirm_by,
     });
@@ -435,13 +448,16 @@ const addGuestManually = async (req, res, next) => {
 };
 
 /**
- * Searches guest seating assignment by name (public endpoint).
- * GET /api/v1/public/events/:slug/seating/search
+ * Verifies a guest by exact name + last 4 phone digits and returns ONLY their
+ * own seating map. Replaces the old name-search, which returned every party
+ * matching a name (and a usable id), letting anyone browse strangers' tables
+ * and companion lists. A non-match returns `{ verified: false }` with 200 — we
+ * never reveal whether the name exists or which factor failed.
+ * POST /api/v1/public/events/:slug/seating/verify
  */
-const searchPublicSeating = async (req, res, next) => {
+const verifyPublicSeating = async (req, res, next) => {
   const { slug } = req.params;
-  const { query } = req.query;
-  if (!query || !query.trim()) return sendOk(res, { results: [] });
+  const { name, phoneLast4 } = req.body;
 
   try {
     const { data: event, error: eventError } = await supabase
@@ -449,11 +465,24 @@ const searchPublicSeating = async (req, res, next) => {
     if (eventError || !event) return sendFail(res, { status: 404, error: 'EVENT_NOT_FOUND' });
     if (!isEventLiveForGuests({ ...event, slug })) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
     if (!guestService.isSeatingRevealed(event.event_date)) {
-      return sendOk(res, { locked: true, revealAt: guestService.seatingRevealAtISO(event.event_date), results: [] });
+      return sendOk(res, { locked: true, revealAt: guestService.seatingRevealAtISO(event.event_date), verified: false });
     }
 
-    const results = await guestService.searchSeatingPublic(event.id, query.trim(), 10);
-    return sendOk(res, { results });
+    const seating = await guestService.verifyGuestSeating(event.id, name, phoneLast4);
+    if (!seating) return sendOk(res, { verified: false });
+
+    const { data: tables, error: tablesError } = await supabase
+      .from('tables')
+      .select('id, table_name, element_type, shape, position_x, position_y, width, height, rotation, color, max_capacity')
+      .eq('event_id', event.id).order('sort_order', { ascending: true });
+    if (tablesError) throw tablesError;
+
+    return sendOk(res, {
+      verified: true,
+      guest: { id: seating.party.id, guest_name: seating.party.label, party_size: seating.party.partySize, response: seating.party.response },
+      myTableId: seating.myTableId, myTableName: seating.myTableName,
+      party: seating.companions, tables: tables || [],
+    });
   } catch (err) {
     next(err);
   }
@@ -518,7 +547,7 @@ const getRsvpInvite = async (req, res, next) => {
   try {
     const { data: party, error } = await supabase
       .from('rsvp_parties')
-      .select('id, label, response, guests(id, full_name, is_primary_contact, meal_selection, dietary_notes), events!inner(id, title, event_date, slug, location_name, location_address, is_paid, status, rsvp_deadline)')
+      .select('id, label, response, guests(id, full_name, is_primary_contact, meal_selection, dietary_notes, phone, age_group, relationship, gender), events!inner(id, title, event_date, slug, location_name, location_address, is_paid, status, rsvp_deadline)')
       .eq('id', payload.partyId)
       .eq('event_id', payload.eventId)
       .single();
@@ -541,7 +570,14 @@ const getRsvpInvite = async (req, res, next) => {
       guest: {
         id: party.id, guest_name: party.label, party_size: allGuests.length || 1, response: party.response,
         additionalGuests: companions.map((g) => ({
-          id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
+          id: g.id,
+          fullName: g.full_name || '',
+          mealSelection: g.meal_selection || '',
+          dietaryNotes: g.dietary_notes || '',
+          phone: g.phone || '',
+          ageGroup: g.age_group || '',
+          relationship: g.relationship || '',
+          gender: g.gender || '',
         })),
       },
       event: { title: event.title, event_date: event.event_date, slug: event.slug, location: event.location_name || event.location_address || null },
@@ -647,7 +683,7 @@ module.exports = {
   deleteRSVP,
   updateRSVP,
   addGuestManually,
-  searchPublicSeating,
+  verifyPublicSeating,
   getGuestSeatingMap,
   // Exported for unit testing of the ILIKE-injection escaping.
   escapeLikePattern,

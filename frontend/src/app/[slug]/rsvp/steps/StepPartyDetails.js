@@ -19,14 +19,60 @@ const DECLINE_REASONS = [
   { value: 'Other', icon: '💭', labelEn: 'Other Reasons', labelAr: 'أسباب أخرى' },
 ];
 
+const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Dr', 'Child'];
+const KNOWN_TITLES = new Set(['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Child', 'Mr', 'Mrs', 'Ms', 'Dr']);
+
+const AGE_OPTIONS = (t) => [
+  { value: 'adult',  label: t.age_adult  },
+  { value: 'teen',   label: t.age_teen   },
+  { value: 'child',  label: t.age_child  },
+  { value: 'infant', label: t.age_infant },
+];
+
+const GENDER_OPTIONS = (t) => [
+  { value: 'male',   label: t.gender_male   },
+  { value: 'female', label: t.gender_female },
+];
+
+const RELATIONSHIP_OPTIONS = (t) => [
+  { value: 'spouse',    label: t.relationship_spouse    },
+  { value: 'parent',    label: t.relationship_parent    },
+  { value: 'child',     label: t.relationship_child     },
+  { value: 'sibling',   label: t.relationship_sibling   },
+  { value: 'relative',  label: t.relationship_relative  },
+  { value: 'friend',    label: t.relationship_friend    },
+  { value: 'colleague', label: t.relationship_colleague },
+  { value: 'other',     label: t.relationship_other     },
+];
+
+/** Parse "Title. First Last" / "Title First Last" / "First Last" into 3 parts. */
+function splitName(fullName) {
+  const parts = (fullName || '').split(' ').filter(Boolean);
+  if (parts.length === 0) return { title: '', first: '', last: '' };
+  const head = parts[0];
+  const isTitle = KNOWN_TITLES.has(head);
+  if (isTitle) {
+    const t = head.endsWith('.') ? head : head + '.';
+    return { title: t === 'Child.' ? 'Child' : t, first: parts[1] || '', last: parts.slice(2).join(' ') };
+  }
+  return { title: '', first: parts[0] || '', last: parts.slice(1).join(' ') };
+}
+
+function joinName(title, first, last) {
+  const t = title ? `${title} ` : '';
+  return `${t}${first} ${last}`.replace(/\s+/g, ' ').trim();
+}
+
 /** Step 3 (attending=yes: party details) / 3B (maybe: follow-up) / 3C (no: decline reason). */
 export default function StepPartyDetails({
   t, isRTL, attending,
   partySize, setPartySize, mealField, primaryMeal, setPrimaryMeal,
   additionalGuests, setAdditionalGuests, email, setEmail, phone, setPhone,
-  validationErrors, isContinueDisabled, onBack, onContinue,
+  validationErrors, onBack, onContinue,
   maybeFollowUp, setMaybeFollowUp, declineReason, setDeclineReason,
+  guestName,
 }) {
+  /* ─── attending = maybe ─── */
   if (attending === 'maybe') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -90,6 +136,7 @@ export default function StepPartyDetails({
     );
   }
 
+  /* ─── attending = no ─── */
   if (attending === 'no') {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -148,8 +195,19 @@ export default function StepPartyDetails({
     );
   }
 
-  // attending === 'yes'
+  /* ─── attending = yes ─── */
   const mealOptions = isRTL && mealField?.options_ar ? mealField.options_ar : mealField?.options;
+  const ageOptions = AGE_OPTIONS(t);
+  const genderOptions = GENDER_OPTIONS(t);
+  const relationshipOptions = RELATIONSHIP_OPTIONS(t);
+
+  const updateCompanion = (index, patch) => {
+    setAdditionalGuests(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], ...patch };
+      return copy;
+    });
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -161,49 +219,104 @@ export default function StepPartyDetails({
         <PartySizeStepper value={partySize} onChange={setPartySize} label={t.party_size_label} isRTL={isRTL} />
       </FadeInUp>
 
-      {mealField && (
-        <FadeInUp delay={0.2} y={15}>
-          <div style={{ background: '#F8F4EC', padding: '20px', borderRadius: '14px' }}>
-            <FormField label={(isRTL && mealField.field_label_ar ? mealField.field_label_ar : mealField.field_label).replace('{name}', '')}>
-              <select value={primaryMeal} onChange={e => setPrimaryMeal(e.target.value)} style={{ ...S.inputBase, cursor: 'pointer' }}>
-                <option value="">{t.meal_select_placeholder}</option>
-                {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
-              </select>
-            </FormField>
+      {/* ═══ HOST CARD ═══ */}
+      <FadeInUp delay={0.18} y={15}>
+        <div style={{
+          position: 'relative',
+          padding: '1.5px',
+          borderRadius: '18px',
+          background: 'linear-gradient(135deg, #E7D4A8 0%, #B8944F 50%, #D7BE80 100%)',
+          boxShadow: '0 18px 40px -16px rgba(110,74,34,0.32)',
+        }}>
+          <div style={{
+            background: 'linear-gradient(180deg, #FFFCF6 0%, #F8F4EC 100%)',
+            borderRadius: '16.5px', padding: '20px',
+            display: 'flex', flexDirection: 'column', gap: '14px',
+          }}>
+            {/* Badge ribbon */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span aria-hidden style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: '36px', height: '36px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #D7BE80, #B8944F)',
+                  color: '#FFFFFF', fontSize: '18px', flexShrink: 0,
+                  boxShadow: '0 6px 14px rgba(184,148,79,0.45)',
+                }}>♛</span>
+                <div>
+                  <span style={{
+                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.18em',
+                    color: '#8A6D34', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)',
+                  }}>{t.host_badge}</span>
+                  <strong style={{
+                    fontSize: '17px', color: '#191B1E', display: 'block',
+                    fontFamily: 'var(--font-serif)', fontWeight: 600, lineHeight: 1.2,
+                  }}>{guestName || (isRTL ? 'صاحب الدعوة' : 'Invitee')}</strong>
+                </div>
+              </div>
+              <span style={{
+                fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px',
+                background: 'rgba(184,148,79,0.14)', color: '#8A6D34', whiteSpace: 'nowrap',
+                fontFamily: 'var(--font-sans)',
+              }}>{t.host_section_title}</span>
+            </div>
+
+            <p style={{ fontSize: '12px', color: '#77736A', margin: 0, lineHeight: 1.6 }}>
+              {t.host_subtitle}
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <FormField label={t.email_label} error={validationErrors.email}>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@email.com"
+                  style={{ ...S.inputBase, ...(validationErrors.email ? { borderColor: '#ef4444' } : {}) }}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
+              </FormField>
+              <FormField label={t.phone_label} error={validationErrors.phone}>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000"
+                  style={{ ...S.inputBase, ...(validationErrors.phone ? { borderColor: '#ef4444' } : {}) }}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.phone)} />
+              </FormField>
+            </div>
+
+            {mealField && (
+              <FormField label={(isRTL && mealField.field_label_ar ? mealField.field_label_ar : mealField.field_label).replace('{name}', '')}>
+                <select value={primaryMeal} onChange={e => setPrimaryMeal(e.target.value)} style={{ ...S.inputBase, cursor: 'pointer' }}>
+                  <option value="">{t.meal_select_placeholder}</option>
+                  {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
+                </select>
+              </FormField>
+            )}
+          </div>
+        </div>
+      </FadeInUp>
+
+      {/* ═══ COMPANION CARDS ═══ */}
+      {additionalGuests.length > 0 && (
+        <FadeInUp delay={0.24} y={10}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '10px',
+            paddingTop: '8px',
+          }}>
+            <span aria-hidden style={{ fontSize: '18px' }}>👥</span>
+            <div>
+              <h4 style={{
+                margin: 0, fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E',
+              }}>{t.companions_section_title}</h4>
+              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#77736A', lineHeight: 1.5 }}>
+                {t.companions_section_desc}
+              </p>
+            </div>
           </div>
         </FadeInUp>
       )}
 
       <AnimatePresence>
         {additionalGuests.map((g, index) => {
-          // Parse title, first name, and last name from fullName
-          // We assume format: "Title. First Last" or "Title First Last" or just "First Last"
-          let title = '';
-          let first = '';
-          let last = '';
-          const parts = (g.fullName || '').split(' ').filter(Boolean);
-
-          if (parts.length > 0) {
-            const possibleTitle = parts[0];
-            if (['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Child', 'Mr', 'Mrs', 'Ms', 'Dr'].includes(possibleTitle)) {
-              title = possibleTitle.replace('.', '') + '.';
-              if (title === 'Child.') title = 'Child'; // Fix child
-              first = parts[1] || '';
-              last = parts.slice(2).join(' ') || '';
-            } else {
-              first = parts[0] || '';
-              last = parts.slice(1).join(' ') || '';
-            }
-          }
-
+          const { title, first, last } = splitName(g.fullName);
           const hasError = !!validationErrors[`additionalGuest_${index}`];
-
-          const updateGuestFullName = (newTitle, newFirst, newLast) => {
-            const copy = [...additionalGuests];
-            const t = newTitle ? `${newTitle} ` : '';
-            copy[index].fullName = `${t}${newFirst} ${newLast}`.replace(/\s+/g, ' ').trim();
-            setAdditionalGuests(copy);
-          };
+          const setName = (newTitle, newFirst, newLast) => updateCompanion(index, { fullName: joinName(newTitle, newFirst, newLast) });
 
           return (
             <motion.div
@@ -211,45 +324,117 @@ export default function StepPartyDetails({
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              transition={{ duration: 0.35, delay: index * 0.08 }}
-              style={{ padding: '24px', border: '1px solid #E8E2D6', borderRadius: '16px', background: '#FFFFFF', display: 'flex', flexDirection: 'column', gap: '16px' }}
+              transition={{ duration: 0.35, delay: index * 0.06 }}
+              style={{
+                padding: '20px', border: '1px solid #E8E2D6', borderRadius: '16px',
+                background: '#FFFFFF',
+                boxShadow: '0 2px 8px rgba(25,27,30,0.04)',
+                display: 'flex', flexDirection: 'column', gap: '14px',
+                position: 'relative',
+              }}
             >
-              <h4 style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B8944F', fontWeight: 700, margin: 0 }}>
-                {t.guest_label.replace('{index}', index + 2)} Details
-              </h4>
+              {/* Companion badge */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span aria-hidden style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: '30px', height: '30px', borderRadius: '50%',
+                    background: '#F0ECE3', color: '#8A6D34',
+                    fontSize: '13px', fontWeight: 700, flexShrink: 0,
+                    fontFamily: 'var(--font-sans)',
+                  }}>{index + 2}</span>
+                  <div>
+                    <span style={{
+                      fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em',
+                      color: '#A09A91', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)',
+                    }}>{t.companion_badge}</span>
+                    <strong style={{
+                      fontSize: '14px', color: '#191B1E', display: 'block',
+                      fontFamily: 'var(--font-sans)', fontWeight: 600, lineHeight: 1.2,
+                    }}>{first || last ? joinName(title, first, last) : (isRTL ? `الضيف رقم ${index + 2}` : `Guest #${index + 2}`)}</strong>
+                  </div>
+                </div>
+              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '12px' }}>
+              {/* Name row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px' }}>
                 <FormField label={isRTL ? 'اللقب' : 'Title'}>
                   <select
                     value={title.replace('.', '')}
-                    onChange={e => updateGuestFullName(e.target.value ? e.target.value + '.' : '', first, last)}
+                    onChange={e => setName(e.target.value ? e.target.value + '.' : '', first, last)}
                     style={{ ...S.inputBase, cursor: 'pointer', padding: '14px 8px' }}
                     onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
                   >
                     <option value="">-</option>
-                    <option value="Mr">Mr.</option>
-                    <option value="Mrs">Mrs.</option>
-                    <option value="Ms">Ms.</option>
-                    <option value="Dr">Dr.</option>
-                    <option value="Child">Child</option>
+                    {TITLE_OPTIONS.map(tt => <option key={tt} value={tt}>{tt === 'Child' ? 'Child' : tt + '.'}</option>)}
                   </select>
                 </FormField>
-
                 <FormField label={isRTL ? 'الاسم الأول' : 'First Name'} error={validationErrors[`additionalGuest_${index}`]}>
                   <input
                     type="text" value={first}
-                    onChange={e => updateGuestFullName(title, e.target.value, last)}
+                    onChange={e => setName(title, e.target.value, last)}
                     placeholder={isRTL ? 'الاسم الأول' : 'First Name'}
                     style={{ ...S.inputBase, ...(hasError ? { borderColor: '#ef4444' } : {}) }}
                     onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, hasError)}
                   />
                 </FormField>
-
-                <FormField label={isRTL ? 'اسم العائلة' : 'Last / Family Name'}>
+                <FormField label={isRTL ? 'اسم العائلة' : 'Last Name'}>
                   <input
                     type="text" value={last}
-                    onChange={e => updateGuestFullName(title, first, e.target.value)}
+                    onChange={e => setName(title, first, e.target.value)}
                     placeholder={isRTL ? 'اسم العائلة' : 'Family Name'}
+                    style={S.inputBase}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  />
+                </FormField>
+              </div>
+
+              {/* Age + Gender row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <FormField label={t.age_group_label}>
+                  <select
+                    value={g.ageGroup || ''}
+                    onChange={e => updateCompanion(index, { ageGroup: e.target.value })}
+                    style={{ ...S.inputBase, cursor: 'pointer' }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  >
+                    <option value="">{t.select_placeholder}</option>
+                    {ageOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </FormField>
+                <FormField label={t.gender_label}>
+                  <select
+                    value={g.gender || ''}
+                    onChange={e => updateCompanion(index, { gender: e.target.value })}
+                    style={{ ...S.inputBase, cursor: 'pointer' }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  >
+                    <option value="">{t.select_placeholder}</option>
+                    {genderOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </FormField>
+              </div>
+
+              {/* Relationship + Phone row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <FormField label={t.relationship_label}>
+                  <select
+                    value={g.relationship || ''}
+                    onChange={e => updateCompanion(index, { relationship: e.target.value })}
+                    style={{ ...S.inputBase, cursor: 'pointer' }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  >
+                    <option value="">{t.select_placeholder}</option>
+                    {relationshipOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </FormField>
+                <FormField label={t.companion_phone_label}>
+                  <input
+                    type="tel" value={g.phone || ''}
+                    onChange={e => updateCompanion(index, { phone: e.target.value })}
+                    placeholder="+1 (555) 000-0000"
                     style={S.inputBase}
                     onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
                   />
@@ -260,7 +445,7 @@ export default function StepPartyDetails({
                 <FormField label={t.guest_meal_label}>
                   <select
                     value={g.mealSelection}
-                    onChange={e => { const copy = [...additionalGuests]; copy[index].mealSelection = e.target.value; setAdditionalGuests(copy); }}
+                    onChange={e => updateCompanion(index, { mealSelection: e.target.value })}
                     style={{ ...S.inputBase, cursor: 'pointer' }}
                     onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
                   >
@@ -273,7 +458,7 @@ export default function StepPartyDetails({
               <FormField label={isRTL ? 'متطلبات غذائية أو حساسية (اختياري)' : 'Dietary Restrictions & Allergies (Optional)'}>
                 <input
                   type="text" value={g.dietaryNotes || ''}
-                  onChange={e => { const copy = [...additionalGuests]; copy[index].dietaryNotes = e.target.value; setAdditionalGuests(copy); }}
+                  onChange={e => updateCompanion(index, { dietaryNotes: e.target.value })}
                   placeholder={isRTL ? 'مثال: نباتي، حساسية من المكسرات...' : 'e.g. Vegetarian, Peanut allergy...'}
                   style={S.inputBase}
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
@@ -285,23 +470,10 @@ export default function StepPartyDetails({
         })}
       </AnimatePresence>
 
-      <FadeInUp delay={0.15} y={15}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-          <FormField label={t.email_label} error={validationErrors.email}>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@email.com" style={S.inputBase}
-              onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
-          </FormField>
-          <FormField label={t.phone_label} error={validationErrors.phone}>
-            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" style={S.inputBase}
-              onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.phone)} />
-          </FormField>
-        </div>
-      </FadeInUp>
-
       {(onBack || onContinue) && (
         <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
           {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
-          {onContinue && <PremiumButton testId="rsvp-next" disabled={isContinueDisabled} onClick={onContinue}>{t.continue}</PremiumButton>}
+          {onContinue && <PremiumButton testId="rsvp-next" onClick={onContinue}>{t.continue}</PremiumButton>}
         </div>
       )}
     </div>

@@ -14,7 +14,7 @@ export default function StepIdentify({
   showTableLookup, setShowTableLookup,
 }) {
   const { searching, searchPerformed, searchResults, search } = searchApi;
-  const { tableQuery, setTableQuery, tableResults, tableLookingUp, tableLookupDone, seatingView, setSeatingView, seatingLoading, lookupTable, fetchSeatingMap } = seatingApi;
+  const { verifyName, setVerifyName, verifyLast4, setVerifyLast4, verifying, verifyFailed, setVerifyFailed, seatingView, setSeatingView, seatingLoading, verifyTable } = seatingApi;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -161,69 +161,42 @@ export default function StepIdentify({
           </button>
         ) : (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <label style={S.labelBase}>{isRTL ? 'ابحث باسمك لعرض طاولتك' : 'Search your name to see your table'}</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text" value={tableQuery}
-                onChange={e => setTableQuery(e.target.value)}
-                placeholder={t.name_placeholder}
-                style={{ ...S.inputBase, flex: 1 }}
-                onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
-                onKeyDown={e => { if (e.key === 'Enter') lookupTable(); }}
-              />
-              <PremiumButton disabled={!tableQuery.trim() || tableLookingUp} onClick={lookupTable} loading={tableLookingUp} size="md">
-                {isRTL ? 'بحث' : 'Find'}
-              </PremiumButton>
-            </div>
             {seatingView ? (
-              <SeatingResultPanel view={seatingView} loading={seatingLoading} isRTL={isRTL} onBack={() => setSeatingView(null)} />
-            ) : seatingLoading ? (
-              <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                <div style={{ width: '28px', height: '28px', border: '3px solid #E8E2D6', borderTop: '3px solid #B8944F', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
-                <p style={{ color: '#77736A', fontSize: '12px' }}>{isRTL ? 'جاري تحميل خريطة جلوسك...' : 'Loading your seating map...'}</p>
-              </div>
-            ) : tableLookupDone && (
-              tableResults.length > 0 ? (
-                <StaggerChildren staggerDelay={0.06}>
-                  {tableResults.map((r, i) => {
-                    const assigned = r.tableName && r.tableName !== 'Unassigned';
-                    const clickable = assigned && r.id;
-                    return (
-                      <StaggerItem key={r.id || i}>
-                        <motion.button
-                          whileHover={clickable ? { scale: 1.01, borderColor: '#B8944F' } : {}}
-                          disabled={!clickable}
-                          onClick={() => clickable && fetchSeatingMap(r.id)}
-                          style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            gap: '8px', padding: '14px 16px', border: '1px solid #E8E2D6',
-                            borderRadius: '12px', background: '#FFFFFF', width: '100%',
-                            cursor: clickable ? 'pointer' : 'default',
-                            fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
-                            transition: 'border-color 0.2s',
-                          }}
-                        >
-                          <span style={{ fontWeight: 600, color: '#191B1E', fontSize: '14px' }}>{r.guestName}</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '8px', background: assigned ? 'rgba(184,148,79,0.12)' : '#F8F4EC', color: assigned ? '#B8944F' : '#A09A91' }}>
-                              {assigned ? r.tableName : (isRTL ? 'لم تُخصّص بعد' : 'Not assigned yet')}
-                            </span>
-                            {clickable && (
-                              <span style={{ fontSize: '11px', color: '#B8944F', fontWeight: 700 }}>
-                                {isRTL ? 'عرض الخريطة ←' : 'View map →'}
-                              </span>
-                            )}
-                          </span>
-                        </motion.button>
-                      </StaggerItem>
-                    );
-                  })}
-                </StaggerChildren>
-              ) : (
-                <p style={{ fontSize: '13px', color: '#77736A' }}>
-                  {isRTL ? 'لم نعثر على حجز مطابق. تأكد من اسمك أو سجّل أعلاه.' : "No matching reservation found. Check your name or RSVP above."}
-                </p>
-              )
+              <SeatingResultPanel view={seatingView} loading={seatingLoading} isRTL={isRTL} onBack={() => { setSeatingView(null); setVerifyFailed(false); }} />
+            ) : (
+              <>
+                <label style={S.labelBase}>
+                  {isRTL ? 'للتحقق من هويتك، أدخل اسمك وآخر 4 أرقام من موبايلك' : 'To verify it’s you, enter your name and the last 4 digits of your phone'}
+                </label>
+                <input
+                  type="text" value={verifyName}
+                  onChange={e => { setVerifyName(e.target.value); if (verifyFailed) setVerifyFailed(false); }}
+                  placeholder={t.name_placeholder}
+                  style={{ ...S.inputBase, width: '100%' }}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  onKeyDown={e => { if (e.key === 'Enter') verifyTable(); }}
+                />
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text" inputMode="numeric" maxLength={4} value={verifyLast4}
+                    onChange={e => { setVerifyLast4(e.target.value.replace(/\D/g, '').slice(0, 4)); if (verifyFailed) setVerifyFailed(false); }}
+                    placeholder={isRTL ? 'آخر 4 أرقام' : 'Last 4 digits'}
+                    style={{ ...S.inputBase, flex: 1, letterSpacing: '0.3em', textAlign: 'center' }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                    onKeyDown={e => { if (e.key === 'Enter') verifyTable(); }}
+                  />
+                  <PremiumButton disabled={!verifyName.trim() || verifyLast4.length !== 4 || verifying} onClick={verifyTable} loading={verifying} size="md">
+                    {isRTL ? 'عرض طاولتي' : 'Show my table'}
+                  </PremiumButton>
+                </div>
+                {verifyFailed && (
+                  <p style={{ fontSize: '13px', color: '#77736A', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', padding: '12px 14px', borderRadius: '12px' }}>
+                    {isRTL
+                      ? 'تعذّر التحقق من بياناتك. تأكّد من كتابة اسمك كما هو في الدعوة وآخر 4 أرقام من موبايلك، أو تواصل مع المنظّم.'
+                      : "We couldn't verify your details. Make sure your name matches your invitation and the last 4 digits are correct, or contact the host."}
+                  </p>
+                )}
+              </>
             )}
           </motion.div>
         )}
