@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { MEAL_FIELD_KEY, MEAL_FIELD_KEYS } from '../../../utils/mealField';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -57,6 +58,12 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
   const [optionsStr, setOptionsStr] = useState('');
   const [isRequired, setIsRequired] = useState(false);
   const [condition, setCondition] = useState('always');
+  // True when the open form is the dedicated meal-options shortcut — locks the field
+  // key/type so the guest RSVP wizard's findMealField() picks it up automatically.
+  const [isMealField, setIsMealField] = useState(false);
+  const hasMealField = fields.some(
+    (f) => MEAL_FIELD_KEYS.includes((f.key || '').toLowerCase()) && ['select', 'radio'].includes(f.type)
+  );
 
   const autoKey = useCallback((val) => {
     return val.toLowerCase().trim()
@@ -75,7 +82,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
     setLabel(''); setKey(''); setType('text');
     setOptionsStr(''); setIsRequired(false);
     setCondition('always'); setShowForm(false);
-    setEditingId(null);
+    setEditingId(null); setIsMealField(false);
   };
 
   const startEdit = (f) => {
@@ -86,6 +93,22 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
     setOptionsStr(Array.isArray(f.options) ? f.options.join(', ') : '');
     setIsRequired(!!f.isRequired);
     setCondition(f.condition || 'always');
+    setIsMealField(MEAL_FIELD_KEYS.includes((f.key || '').toLowerCase()) && ['select', 'radio'].includes(f.type));
+    setShowForm(true);
+  };
+
+  // Shortcut for the special "what would the guest like to eat" question — pre-fills
+  // the exact field key the guest RSVP wizard looks for, so the organizer never has
+  // to know or type the magic string themselves.
+  const startAddMeal = () => {
+    setEditingId(null);
+    setLabel('Meal Selection');
+    setKey(MEAL_FIELD_KEY);
+    setType('select');
+    setOptionsStr('');
+    setIsRequired(true);
+    setCondition('attending');
+    setIsMealField(true);
     setShowForm(true);
   };
 
@@ -140,18 +163,34 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
           }}>Add questions guests must answer when RSVPing</p>
         </div>
         {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            style={{
-              padding: '8px 16px', background: C.gold,
-              color: C.white, fontSize: 12, fontWeight: 700,
-              borderRadius: 8, border: 'none', cursor: 'pointer',
-              fontFamily: 'var(--font-sans)',
-              transition: 'background 0.2s',
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = C.goldHover}
-            onMouseLeave={e => e.currentTarget.style.background = C.gold}
-          >+ Add Question</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!hasMealField && (
+              <button
+                onClick={startAddMeal}
+                style={{
+                  padding: '8px 16px', background: C.white,
+                  color: C.gold, fontSize: 12, fontWeight: 700,
+                  borderRadius: 8, border: '1px solid rgba(184,148,79,0.35)', cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                  transition: 'background 0.2s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(184,148,79,0.08)'}
+                onMouseLeave={e => e.currentTarget.style.background = C.white}
+              >🍽 Add Meal Options</button>
+            )}
+            <button
+              onClick={() => setShowForm(true)}
+              style={{
+                padding: '8px 16px', background: C.gold,
+                color: C.white, fontSize: 12, fontWeight: 700,
+                borderRadius: 8, border: 'none', cursor: 'pointer',
+                fontFamily: 'var(--font-sans)',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = C.goldHover}
+              onMouseLeave={e => e.currentTarget.style.background = C.gold}
+            >+ Add Question</button>
+          </div>
         )}
       </div>
 
@@ -173,7 +212,12 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
               <h4 style={{
                 fontFamily: 'var(--font-sans)', fontSize: 14,
                 fontWeight: 700, color: C.charcoal, margin: 0,
-              }}>{editingId ? 'Edit Custom Question' : 'New Custom Question'}</h4>
+              }}>{isMealField ? '🍽 Meal Options' : (editingId ? 'Edit Custom Question' : 'New Custom Question')}</h4>
+              {isMealField && (
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, margin: 0 }}>
+                  Guests will see this as a dedicated meal picker on the RSVP page. Just list the dishes below.
+                </p>
+              )}
 
               {/* Row 1: Label + Key */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -185,13 +229,13 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                     style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </div>
                 <div>
-                  <label style={lblStyle}>Field Key</label>
+                  <label style={lblStyle}>Field Key {(editingId || isMealField) ? '(cannot change)' : ''}</label>
                   <input type="text" value={key}
-                    onChange={e => { if (!editingId) setKey(e.target.value); }}
+                    onChange={e => { if (!editingId && !isMealField) setKey(e.target.value); }}
                     placeholder="e.g. dietary_restrictions"
-                    disabled={!!editingId}
-                    style={{ ...iStyle, fontFamily: 'monospace', ...(editingId ? { background: '#F0ECE3', color: '#A09A91', cursor: 'not-allowed' } : {}) }}
-                    onFocus={e => { if (!editingId) onFocus(e); }} onBlur={onBlur} />
+                    disabled={!!editingId || isMealField}
+                    style={{ ...iStyle, fontFamily: 'monospace', ...((editingId || isMealField) ? { background: '#F0ECE3', color: '#A09A91', cursor: 'not-allowed' } : {}) }}
+                    onFocus={e => { if (!editingId && !isMealField) onFocus(e); }} onBlur={onBlur} />
                 </div>
               </div>
 
@@ -200,7 +244,8 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                 <div>
                   <label style={lblStyle}>Response Type</label>
                   <select value={type} onChange={e => setType(e.target.value)}
-                    style={{ ...iStyle, cursor: 'pointer' }}>
+                    disabled={isMealField}
+                    style={{ ...iStyle, cursor: isMealField ? 'not-allowed' : 'pointer', ...(isMealField ? { background: '#F0ECE3', color: '#A09A91' } : {}) }}>
                     {FIELD_TYPES.map(ft => (
                       <option key={ft.value} value={ft.value}>{ft.label}</option>
                     ))}
@@ -223,7 +268,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
               {/* Row 3: Options (conditional) */}
               {(type === 'select' || type === 'radio') && (
                 <div>
-                  <label style={lblStyle}>Options (comma-separated)</label>
+                  <label style={lblStyle}>{isMealField ? 'Meal Choices (comma-separated)' : 'Options (comma-separated)'}</label>
                   <input type="text" value={optionsStr}
                     onChange={e => setOptionsStr(e.target.value)}
                     placeholder="e.g. Beef, Salmon, Vegetarian"
