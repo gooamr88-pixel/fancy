@@ -2,17 +2,16 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { translations } from '../../utils/translations';
 import { normalizeToE164 } from '../../utils/phone';
 import { publicApiFetch } from '../../utils/publicApi';
 import { useGuestAnalytics, useRsvpFunnelTracking, useAbandonmentTracking } from '../../utils/useGuestAnalytics';
 import { isSeatingRevealed } from '../../utils/seating';
-import { stepVariants, stepTransition, findMealField } from './styles';
+import { findMealField } from './styles';
 import { usePartySearch } from './hooks/usePartySearch';
 import { useSeatingLookup } from './hooks/useSeatingLookup';
 import { FloatingParticles } from '../../components/guest/GuestAnimations';
-import StepRail from './StepRail';
 import StepIdentify from './steps/StepIdentify';
 import StepAttendance from './steps/StepAttendance';
 import StepPartyDetails from './steps/StepPartyDetails';
@@ -20,11 +19,12 @@ import StepCustomQuestions from './steps/StepCustomQuestions';
 import StepSuccess from './steps/StepSuccess';
 
 /**
- * RsvpWizard — the multi-step input surface for the public RSVP form, rendered
+ * RsvpWizard — the single-page input surface for the public RSVP form, rendered
  * as a child of <RsvpExperience> (which owns resolution, the already-responded
- * lock, terminal statuses, and the single idempotent submit). This shell owns
- * only step navigation, the wizard's own local form state, and validation; the
- * actual per-step UI lives in ./steps/*.
+ * lock, terminal statuses, and the single idempotent submit). Sections reveal
+ * progressively on ONE scrollable page (name -> attendance -> details/
+ * questions -> submit) instead of step-by-step navigation; this shell owns the
+ * form's local state and validation, the actual per-section UI lives in ./steps/*.
  */
 export default function RsvpWizard({ event, guest, context, submit: doSubmit, rememberGuest }) {
   const slug = context?.slug || event?.slug;
@@ -32,8 +32,12 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const langParam = searchParams.get('lang') || 'en';
 
   const [lang, setLang] = useState(langParam);
-  const [step, setStep] = useState(1);
-  const [direction, setDirection] = useState(1);
+  // identityConfirmed gates revealing the rest of the page once the guest has
+  // either picked a search result or chosen to continue as a new guest —
+  // resolving partyId here still matters for correct submission/dedup, it's
+  // just no longer a full-page navigation.
+  const [identityConfirmed, setIdentityConfirmed] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const [guestName, setGuestName] = useState('');
   const [attending, setAttending] = useState(null);
@@ -57,10 +61,13 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const searchApi = usePartySearch(slug);
   const seatingApi = useSeatingLookup(slug);
 
-  /* ═══ Analytics ═══ */
+  /* ═══ Analytics ═══
+     The funnel/abandonment trackers just want a numeric "how far along" signal —
+     derive it from the page's reveal state instead of a navigable step index. */
+  const analyticsStep = submitted ? 5 : (attending ? 3 : (identityConfirmed ? 2 : 1));
   const { trackEvent } = useGuestAnalytics(slug);
-  useRsvpFunnelTracking(slug, step);
-  useAbandonmentTracking(slug, step, step === 5);
+  useRsvpFunnelTracking(slug, analyticsStep);
+  useAbandonmentTracking(slug, analyticsStep, submitted);
 
   useEffect(() => { trackEvent('rsvp_started'); }, [trackEvent]);
 
@@ -75,11 +82,6 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     setPartyId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guestName]);
-
-  const goToStep = (nextStep) => {
-    setDirection(nextStep > step ? 1 : -1);
-    setStep(nextStep);
-  };
 
   const [prevLangParam, setPrevLangParam] = useState(langParam);
   if (langParam !== prevLangParam) { setPrevLangParam(langParam); setLang(langParam); }
@@ -113,7 +115,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     }
     if (guest.notes) setNotes(guest.notes);
     if (['yes', 'no', 'maybe'].includes(guest.response)) setAttending(guest.response);
-    setStep(2);
+    setIdentityConfirmed(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -239,14 +241,6 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     });
   };
 
-  /* ═══ Compute total steps and current progress ═══
-     The "maybe"/"decline" variants of step 3 use 3.1/3.2 rather than the
-     ordinal 4 + epsilon (e.g. 35/36) precisely so they sort BETWEEN 3 and 4 —
-     goToStep()'s `nextStep > step` direction check depends on that ordering;
-     values greater than 4 made the 3.x ↔ 4 transitions slide backward. */
-  const totalSteps = 5; // 1-Name, 2-Attend, 3/3.1/3.2-Details, 4-Questions, 5-Success
-  const currentProgress = step === 3.1 || step === 3.2 ? 3 : step;
-
   const handleSelectSearchResult = (result) => {
     setPartyId(result.id);
     setGuestName(result.guestName);
@@ -259,9 +253,9 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
         fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '', customAnswers: {},
       })));
     }
-    goToStep(2);
+    setIdentityConfirmed(true);
   };
-  const handleContinueAsNew = () => { setPartyId(null); goToStep(2); };
+  const handleContinueAsNew = () => { setPartyId(null); setIdentityConfirmed(true); };
 
   /* ═══ Submit Handler — delegates to the engine's idempotent submit ═══
      Validation stays local; idempotency, lost-response reconciliation, the
@@ -276,6 +270,13 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (!normalizedPhone) errors.phone = phone.trim() ? (t.phone_invalid || 'Enter a valid phone number') : (t.phone_required || 'Phone number is required');
     if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
     if (attending === 'yes') {
+      // These used to be gated by a per-section "Continue" button that's gone
+      // now everything lives on one page — enforce them at submit instead.
+      if (partySize > 1) {
+        additionalGuests.forEach((g, index) => {
+          if (!g.fullName || !g.fullName.trim()) errors[`additionalGuest_${index}`] = 'Name is required';
+        });
+      }
       const requiredFields = customQuestionFields.filter(f => f.is_required);
       requiredFields.forEach(field => {
         if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
@@ -283,6 +284,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
         }
       });
     }
+    if (attending === 'maybe' && !maybeFollowUp) errors.maybeFollowUp = 'Please select a follow-up timeframe';
     if (Object.keys(errors).length > 0) { setValidationErrors(errors); return; }
     setValidationErrors({});
     setSubmitting(true);
@@ -310,7 +312,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
         rememberGuest(slug, resolvedId);
         if (attending === 'yes') fetchAssignedTable(resolvedId);
       }
-      goToStep(5);
+      setSubmitted(true);
     }
     // r.reason === 'LOCKED' -> engine has already swapped to the locked card.
   };
@@ -383,13 +385,18 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
               className="gold-shimmer-line" style={{ width: '64px', margin: '14px auto 0' }} />
           </div>
 
-          <div style={{ padding: '28px 32px 32px' }}>
-            {step < 5 && <StepRail currentStep={currentProgress} totalSteps={4} isRTL={isRTL} color={themeColor} />}
+          <div style={{ padding: '28px 32px 32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
 
-            <AnimatePresence mode="wait" custom={direction}>
-              <motion.div key={step} custom={direction} variants={stepVariants} initial="enter" animate="center" exit="exit" transition={stepTransition}>
-
-              {step === 1 && (
+            {submitted ? (
+              <StepSuccess
+                t={t} isRTL={isRTL} attending={attending} event={event} localizedTitle={localizedTitle}
+                guestName={guestName} email={email} partySize={partySize} partyId={partyId} slug={slug}
+                themeColor={themeColor} assignedTableName={assignedTableName}
+                maybeFollowUp={maybeFollowUp} declineReason={declineReason}
+                seatingApi={seatingApi} seatingRevealed={seatingRevealed}
+              />
+            ) : (
+              <>
                 <StepIdentify
                   t={t} isRTL={isRTL}
                   guestName={guestName} setGuestName={setGuestName}
@@ -398,68 +405,47 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                   onSelectResult={handleSelectSearchResult} onContinueNew={handleContinueAsNew}
                   showTableLookup={showTableLookup} setShowTableLookup={setShowTableLookup}
                 />
-              )}
 
-              {step === 2 && (
-                <StepAttendance
-                  t={t} isRTL={isRTL} guestName={guestName} attending={attending}
-                  onBack={() => goToStep(1)}
-                  onSelect={(val) => {
-                    setAttending(val);
-                    setTimeout(() => {
-                      if (val === 'yes') goToStep(3);
-                      else if (val === 'maybe') goToStep(3.1);
-                      else goToStep(3.2);
-                    }, 400);
-                  }}
-                />
-              )}
+                {identityConfirmed && (
+                  <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+                    style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
+                    <StepAttendance
+                      t={t} isRTL={isRTL} guestName={guestName} attending={attending}
+                      onSelect={(val) => setAttending(val)}
+                    />
+                  </motion.div>
+                )}
 
-              {(step === 3 || step === 3.1 || step === 3.2) && (
-                <StepPartyDetails
-                  t={t} isRTL={isRTL} attending={attending}
-                  partySize={partySize} setPartySize={setPartySize}
-                  mealField={mealField} primaryMeal={primaryMeal} setPrimaryMeal={setPrimaryMeal}
-                  additionalGuests={additionalGuests} setAdditionalGuests={setAdditionalGuests}
-                  email={email} setEmail={setEmail} phone={phone} setPhone={setPhone}
-                  validationErrors={validationErrors} isContinueDisabled={isContinueDisabled}
-                  onBack={() => goToStep(2)} onContinue={() => goToStep(4)}
-                  maybeFollowUp={maybeFollowUp} setMaybeFollowUp={setMaybeFollowUp}
-                  declineReason={declineReason} setDeclineReason={setDeclineReason}
-                />
-              )}
+                {identityConfirmed && attending && (
+                  <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+                    style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                    <StepPartyDetails
+                      t={t} isRTL={isRTL} attending={attending}
+                      partySize={partySize} setPartySize={setPartySize}
+                      mealField={mealField} primaryMeal={primaryMeal} setPrimaryMeal={setPrimaryMeal}
+                      additionalGuests={additionalGuests} setAdditionalGuests={setAdditionalGuests}
+                      email={email} setEmail={setEmail} phone={phone} setPhone={setPhone}
+                      validationErrors={validationErrors} isContinueDisabled={isContinueDisabled}
+                      maybeFollowUp={maybeFollowUp} setMaybeFollowUp={setMaybeFollowUp}
+                      declineReason={declineReason} setDeclineReason={setDeclineReason}
+                    />
 
-              {step === 4 && (
-                <StepCustomQuestions
-                  t={t} isRTL={isRTL} fields={customQuestionFields}
-                  customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
-                  additionalGuests={attending === 'yes' ? additionalGuests : []}
-                  setCompanionAnswer={setCompanionAnswer}
-                  toggleCompanionMultiAnswer={toggleCompanionMultiAnswer}
-                  notes={notes} setNotes={setNotes} validationErrors={validationErrors}
-                  submitting={submitting}
-                  onBack={() => {
-                    if (attending === 'yes') goToStep(3);
-                    else if (attending === 'maybe') goToStep(3.1);
-                    else if (attending === 'no') goToStep(3.2);
-                    else goToStep(2);
-                  }}
-                  onSubmit={handleSubmit}
-                />
-              )}
-
-              {step === 5 && (
-                <StepSuccess
-                  t={t} isRTL={isRTL} attending={attending} event={event} localizedTitle={localizedTitle}
-                  guestName={guestName} email={email} partySize={partySize} partyId={partyId} slug={slug}
-                  themeColor={themeColor} assignedTableName={assignedTableName}
-                  maybeFollowUp={maybeFollowUp} declineReason={declineReason}
-                  seatingApi={seatingApi} seatingRevealed={seatingRevealed}
-                />
-              )}
-
-            </motion.div>
-            </AnimatePresence>
+                    <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
+                      <StepCustomQuestions
+                        t={t} isRTL={isRTL} fields={customQuestionFields}
+                        customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
+                        additionalGuests={attending === 'yes' ? additionalGuests : []}
+                        setCompanionAnswer={setCompanionAnswer}
+                        toggleCompanionMultiAnswer={toggleCompanionMultiAnswer}
+                        notes={notes} setNotes={setNotes} validationErrors={validationErrors}
+                        submitting={submitting}
+                        onSubmit={handleSubmit}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </motion.div>

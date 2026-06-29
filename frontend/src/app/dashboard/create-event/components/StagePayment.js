@@ -25,7 +25,8 @@ function CopyBtn({ value }) {
 }
 
 /**
- * Step 3 — Platform Fee Payment.
+ * Step 2 — Platform Fee Payment (now comes right after picking a template,
+ * before the event-details form — pay upfront, then access creation).
  *   • Pay by card  → redirect to Stripe Checkout
  *   • Manual/Cash  → choose one of the Super-Admin-configured methods, transfer
  *     to those details, submit the proof reference, get a reference code; a Super
@@ -127,7 +128,7 @@ export default function StagePayment({
           borderRadius: 20, padding: '5px 14px', marginBottom: 12,
         }}>
           <span style={{ fontSize: 11, color: C.gold, fontWeight: 600, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {showCurrentPlan ? 'Step 3 — Your Plan' : showPendingPlan ? 'Step 3 — Pending' : upgrading ? 'Step 3 — Upgrade Plan' : 'Step 3 — Platform Fee'}
+            {showCurrentPlan ? 'Step 2 — Your Plan' : showPendingPlan ? 'Step 2 — Pending' : upgrading ? 'Step 2 — Upgrade Plan' : 'Step 2 — Platform Fee'}
           </span>
         </div>
         <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 28, fontWeight: 600, color: C.charcoal, margin: 0 }}>
@@ -576,7 +577,7 @@ export default function StagePayment({
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {!isPaid && (
+            {!isPaid && onSkip && (
               <button onClick={onSkip} disabled={processing} style={{
                 background: 'none', border: 'none', color: C.stone,
                 fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,

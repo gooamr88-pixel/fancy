@@ -17,8 +17,10 @@ const StagePayment = dynamic(() => import('./components/StagePayment'), { ssr: f
 const StageTables = dynamic(() => import('./components/StageTables'), { ssr: false });
 const Stage3_Distribution = dynamic(() => import('./components/Stage3_Distribution'), { ssr: false });
 
-/* Wizard step labels (drives the top progress bar) */
-const WIZARD_LABELS = ['Templates', 'Configure', 'Payment', 'Tables', 'Distribute'];
+/* Wizard step labels (drives the top progress bar). Payment now comes right
+   after picking a template/tier and before the event-details form, per the
+   "Login -> Pay Upfront -> Access Event Creation" flow. */
+const WIZARD_LABELS = ['Templates', 'Payment', 'Configure', 'Tables', 'Distribute'];
 const LAST_STEP = 4;
 
 /* ═══════════════════════════════════════════════════════
@@ -314,9 +316,10 @@ export default function CreateEventWizard() {
         // refetched correctly once the wizard reaches the Payment step).
         if (ev.is_paid) setEventIsPaid(true);
 
-        // Continue on the Configure step; clean the URL so a refresh won't re-hydrate.
+        // Paid drafts resume on Configure (step 2); unpaid ones go back to
+        // Payment (step 1) since access to the details form is gated on payment.
         setDirection(1);
-        setStep(1);
+        setStep(ev.is_paid ? 2 : 1);
         window.history.replaceState({}, '', '/dashboard/create-event');
       } catch { /* non-fatal — organizer can start fresh */ }
     })();
@@ -344,9 +347,9 @@ export default function CreateEventWizard() {
     if (resume.selectedTierName) setSelectedTierName(resume.selectedTierName);
     if (resume.slug) { slugManuallyEditedRef.current = true; setSlug(resume.slug); }
 
-    // Land back on the Payment step where the user left off.
+    // Land back on the Payment step (now index 1) where the user left off.
     setDirection(1);
-    setStep(2);
+    setStep(1);
 
     // Strip the payment params so a refresh doesn't re-run this.
     const clean = `${window.location.pathname}`;
@@ -412,8 +415,8 @@ export default function CreateEventWizard() {
 
   /* ═══ Load paid status + current plan when entering the Payment step ═══ */
   useEffect(() => {
-    // Payment is wizard step index 2 (Templates, Configure, Payment, …).
-    if (step !== 2 || !eventId) return;
+    // Payment is wizard step index 1 (Templates, Payment, Configure, …).
+    if (step !== 1 || !eventId) return;
     let cancelled = false;
     (async () => {
       try {
@@ -826,7 +829,29 @@ export default function CreateEventWizard() {
     coverImageUrl, galleryUrls, customColors, buildTemplateData, backgroundMusicUrl,
   ]);
 
-  /* ═══ Advance from Configure → create/update draft, then go to Payment ═══ */
+  /* ═══ Advance from Templates → create the placeholder draft, then go to Payment ═══
+     Only templateType is known at this point; ensureDraftEvent's create branch
+     happily accepts the empty title/slug/eventDate (the backend defaults them) —
+     this just reserves an eventId so Stripe checkout has something to attach to.
+     The One-Page Form (Configure) PATCHes this same event with the real details
+     once payment is confirmed. */
+  const handleTemplateNext = useCallback(async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await ensureDraftEvent();
+      goNext();
+    } catch (err) {
+      setError(err.message || 'Could not start your event. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [submitting, ensureDraftEvent, goNext]);
+
+  /* ═══ Advance from Configure (One-Page Form) → save details, then go to Tables ═══
+     By this point the event already exists and is paid (Payment now gates entry
+     to this step) — ensureDraftEvent's PATCH branch persists the real details. */
   const handleConfigureNext = useCallback(async () => {
     if (submitting) return;
     if (!title || !slug || !eventDate) {
@@ -835,6 +860,13 @@ export default function CreateEventWizard() {
     }
     if (slugStatus === 'taken') {
       setError('Please choose an available event URL.');
+      return;
+    }
+    // Guard: block navigation while any media upload is still in flight, so the
+    // organizer can't advance before the file lands in storage (and the upload's
+    // own state update doesn't race with ensureDraftEvent's payload below).
+    if (musicUploading || coverImageUploading || galleryUploading || sealUploading || invitationBgUploading) {
+      setError('Please wait for your file uploads to finish before continuing.');
       return;
     }
     // Guard: warn the organizer early if any media is still a base64 data URI
@@ -864,7 +896,7 @@ export default function CreateEventWizard() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, title, slug, eventDate, slugStatus, coverImageUrl, backgroundMusicUrl, galleryUrls, ensureDraftEvent, goNext]);
+  }, [submitting, title, slug, eventDate, slugStatus, musicUploading, coverImageUploading, galleryUploading, sealUploading, invitationBgUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, ensureDraftEvent, goNext]);
 
   /* ═══ Save the event as a draft and exit to the dashboard Drafts section ═══
      Persists everything entered so far (creates the draft if needed, else PATCHes)
@@ -1009,7 +1041,7 @@ export default function CreateEventWizard() {
         } catch (err) {
           if (err.code === 'SLUG_TAKEN') {
             setDirection(-1);
-            setStep(1);
+            setStep(2);
             setError('This event URL is already taken. Please choose a different slug.');
             setSubmitting(false);
             return;
@@ -1103,12 +1135,44 @@ export default function CreateEventWizard() {
               activePresetColors={activePresetColors}
               customConfig={customConfig}
               onCustomConfigChange={handleCustomConfigChange}
-              onNext={goNext}
+              onNext={handleTemplateNext}
             />
           </motion.div>
         )}
 
         {step === 1 && (
+          <motion.div
+            key="stagePayment"
+            custom={direction}
+            variants={stepVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+          >
+            <StagePayment
+              tiers={pricingTiers}
+              manualMethods={manualMethods}
+              selectedTierName={selectedTierName}
+              onSelectTier={setSelectedTierName}
+              onPayStripe={handlePayStripe}
+              onPayManual={handlePayManual}
+              manualRef={manualRef}
+              processing={payProcessing}
+              error={payError}
+              paymentConfirmed={paymentConfirmed}
+              paymentNotice={paymentNotice}
+              verifying={verifyingPayment}
+              onContinue={goNext}
+              onBack={goBack}
+              isPaid={eventIsPaid}
+              currentTierName={currentTierName}
+              currentTierMaxGuests={currentTierMaxGuests}
+              stripeEnabled={features.stripeEnabled}
+            />
+          </motion.div>
+        )}
+
+        {step === 2 && (
           <motion.div
             key="stage2"
             custom={direction}
@@ -1146,39 +1210,6 @@ export default function CreateEventWizard() {
               customFields={customFields} onFieldsChange={setCustomFields}
               onNext={handleConfigureNext} onBack={goBack}
               onSaveDraft={handleSaveDraft} savingDraft={savingDraft}
-            />
-          </motion.div>
-        )}
-
-        {step === 2 && (
-          <motion.div
-            key="stagePayment"
-            custom={direction}
-            variants={stepVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-          >
-            <StagePayment
-              tiers={pricingTiers}
-              manualMethods={manualMethods}
-              selectedTierName={selectedTierName}
-              onSelectTier={setSelectedTierName}
-              onPayStripe={handlePayStripe}
-              onPayManual={handlePayManual}
-              manualRef={manualRef}
-              processing={payProcessing}
-              error={payError}
-              paymentConfirmed={paymentConfirmed}
-              paymentNotice={paymentNotice}
-              verifying={verifyingPayment}
-              onContinue={goNext}
-              onBack={goBack}
-              onSkip={goNext}
-              isPaid={eventIsPaid}
-              currentTierName={currentTierName}
-              currentTierMaxGuests={currentTierMaxGuests}
-              stripeEnabled={features.stripeEnabled}
             />
           </motion.div>
         )}

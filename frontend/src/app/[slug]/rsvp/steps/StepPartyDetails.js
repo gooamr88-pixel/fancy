@@ -80,10 +80,12 @@ export default function StepPartyDetails({
           ))}
         </StaggerChildren>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-          <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>
-          <PremiumButton disabled={!maybeFollowUp} onClick={onContinue}>{t.continue}</PremiumButton>
-        </div>
+        {(onBack || onContinue) && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+            {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
+            {onContinue && <PremiumButton disabled={!maybeFollowUp} onClick={onContinue}>{t.continue}</PremiumButton>}
+          </div>
+        )}
       </div>
     );
   }
@@ -136,10 +138,12 @@ export default function StepPartyDetails({
           ))}
         </StaggerChildren>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-          <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>
-          <PremiumButton onClick={onContinue}>{t.continue}</PremiumButton>
-        </div>
+        {(onBack || onContinue) && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+            {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
+            {onContinue && <PremiumButton onClick={onContinue}>{t.continue}</PremiumButton>}
+          </div>
+        )}
       </div>
     );
   }
@@ -183,13 +187,13 @@ export default function StepPartyDetails({
             <h4 style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#B8944F', fontWeight: 700 }}>
               {t.guest_label.replace('{index}', index + 2)}
             </h4>
-            <FormField label={t.guest_name_label}>
+            <FormField label={t.guest_name_label} error={validationErrors[`additionalGuest_${index}`]}>
               <input
                 type="text" value={g.fullName}
                 onChange={e => { const copy = [...additionalGuests]; copy[index].fullName = e.target.value; setAdditionalGuests(copy); }}
                 placeholder={t.name_placeholder}
-                style={S.inputBase}
-                onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                style={{ ...S.inputBase, ...(validationErrors[`additionalGuest_${index}`] ? { borderColor: '#ef4444' } : {}) }}
+                onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_${index}`])}
               />
             </FormField>
             {mealField && (
@@ -221,10 +225,12 @@ export default function StepPartyDetails({
         </div>
       </FadeInUp>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-        <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>
-        <PremiumButton testId="rsvp-next" disabled={isContinueDisabled} onClick={onContinue}>{t.continue}</PremiumButton>
-      </div>
+      {(onBack || onContinue) && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+          {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
+          {onContinue && <PremiumButton testId="rsvp-next" disabled={isContinueDisabled} onClick={onContinue}>{t.continue}</PremiumButton>}
+        </div>
+      )}
     </div>
   );
 }

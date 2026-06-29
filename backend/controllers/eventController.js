@@ -85,13 +85,19 @@ const createEvent = async (req, res, next) => {
     eventType, backgroundMusicUrl
   } = req.body;
 
-  if (!templateType || !title || !eventDate) {
+  if (!templateType) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'templateType, title, and eventDate are required fields.'
+      message: 'templateType is required.'
     });
   }
+
+  // The pay-first flow creates a lightweight placeholder event (template + tier
+  // only) before the organizer has entered title/date — fill in safe defaults
+  // they'll overwrite on the One-Page Form right after payment confirms.
+  const finalTitle = title || 'Untitled Event';
+  const finalEventDate = eventDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
   // If the organizer supplied a slug, it must match the URL-safe format.
   // If omitted, the system auto-generates a unique one (see below).
@@ -119,7 +125,7 @@ const createEvent = async (req, res, next) => {
     }
     const orgId = org.id;
 
-    const eventYear = new Date(eventDate).getFullYear();
+    const eventYear = new Date(finalEventDate).getFullYear();
     let finalSlug;
 
     if (slug) {
@@ -142,7 +148,7 @@ const createEvent = async (req, res, next) => {
       finalSlug = slug;
     } else {
       // No slug supplied — auto-generate a unique link from the event details.
-      const baseSlug = deriveBaseSlug({ title, templateType, templateData });
+      const baseSlug = deriveBaseSlug({ title: finalTitle, templateType, templateData });
       finalSlug = await generateUniqueSlug(supabase, baseSlug, { year: eventYear });
     }
 
@@ -151,9 +157,9 @@ const createEvent = async (req, res, next) => {
       org_id: orgId,
       slug: finalSlug,
       template_type: templateType,
-      title,
+      title: finalTitle,
       description: description || null,
-      event_date: eventDate,
+      event_date: finalEventDate,
       event_end_date: eventEndDate || null,
       location_name: locationName || null,
       location_address: locationAddress || null,

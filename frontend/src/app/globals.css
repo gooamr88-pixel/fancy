@@ -27,10 +27,12 @@
   --section-bg: var(--warm-ivory);
 
   /* ═══ LUXURY TYPOGRAPHY STACK ═══ */
-  /* Tier 1 — Headings: Elegant Serif Display */
-  --font-serif: var(--font-playfair), 'Playfair Display', Georgia, serif;
+  /* Tier 1 — Headings: Elegant Serif Display. Arabic-script fallbacks appended so
+     guest/event text in Arabic doesn't fall back to tofu when rendered through the
+     Latin-only Playfair/Lato fonts instead of the dedicated --font-arabic stack. */
+  --font-serif: var(--font-playfair), 'Playfair Display', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
   /* Tier 2 — Body & Buttons: Clean premium Sans-Serif */
-  --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, sans-serif;
+  --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, 'Noto Naskh Arabic', sans-serif;
   /* Tier 3 — Logo / Brand Moments: High-end Luxury Script */
   --font-script: 'Great Vibes', cursive;
   /* Tier 4 — Arabic: ornate calligraphic display (seal & titles) + naskh fallback */
@@ -98,8 +100,8 @@
   --color-card-bg: var(--card-bg);
   --color-card-border: var(--card-border);
   --color-section-bg: var(--section-bg);
-  --font-serif: var(--font-playfair), 'Playfair Display', Georgia, serif;
-  --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, sans-serif;
+  --font-serif: var(--font-playfair), 'Playfair Display', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
+  --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, 'Noto Naskh Arabic', sans-serif;
   --font-script: 'Great Vibes', cursive;
 }
 

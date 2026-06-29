@@ -193,9 +193,19 @@ export default function InvitationCard({ template, theme, guestName, config, dat
             </svg>
 
             <span className="text-[9px] font-bold tracking-[2px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY, OCTOBER 24, 2026"}</span>
-            <span className="text-[7.5px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%]">
-              {d.venueLine ? (
-                <strong className="text-stone-700 font-semibold">{d.venueLine}</strong>
+            {(d.ceremonyLine || d.receptionLine) && (
+              <span className="text-[7px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%]">
+                {d.ceremonyLine && <>Ceremony: <strong className="text-stone-700 font-semibold">{d.ceremonyLine}</strong></>}
+                {d.ceremonyLine && d.receptionLine && <br />}
+                {d.receptionLine && <>Reception: <strong className="text-stone-700 font-semibold">{d.receptionLine}</strong></>}
+              </span>
+            )}
+            <span className="text-[7.5px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%] flex flex-row items-baseline justify-center gap-1 flex-wrap">
+              {d.venueName || d.venueAddress ? (
+                <>
+                  {d.venueName && <strong className="text-stone-700 font-semibold">{d.venueName}</strong>}
+                  {d.venueAddress && <span>· {d.venueAddress}</span>}
+                </>
               ) : (
                 <>At four o&apos;clock in the afternoon<br /><strong className="text-stone-700 font-semibold">The Grand Ballroom</strong> · Plaza Hotel, New York</>
               )}

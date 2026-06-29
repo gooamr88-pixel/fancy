@@ -6,7 +6,7 @@ import ToastHost from './components/ToastHost';
 
 /* HEADINGS: Elegant Serif Display — for H1, H2, section titles */
 const playfair = Playfair_Display({
-  subsets: ['latin'],
+  subsets: ['latin', 'latin-ext'],
   weight: ['400', '500', '600', '700', '800', '900'],
   style: ['normal', 'italic'],
   variable: '--font-playfair',
@@ -15,7 +15,7 @@ const playfair = Playfair_Display({
 
 /* BODY & BUTTONS: Clean premium Sans-Serif */
 const lato = Lato({
-  subsets: ['latin'],
+  subsets: ['latin', 'latin-ext'],
   weight: ['300', '400', '700', '900'],
   variable: '--font-lato',
   display: 'swap',
@@ -23,7 +23,7 @@ const lato = Lato({
 
 /* LOGO / BRAND MOMENTS: High-end luxury cursive script */
 const greatVibes = Great_Vibes({
-  subsets: ['latin'],
+  subsets: ['latin', 'latin-ext'],
   weight: ['400'],
   variable: '--font-script',
   display: 'swap',

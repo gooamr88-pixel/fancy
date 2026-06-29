@@ -45,8 +45,11 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
     notification_whatsapp: false,
     allow_guest_edits: false
   });
+  // Key names mirror the create-event wizard's Stage2_FormConfiguration (the
+  // canonical writer of these fields) so the digital card never has to guess
+  // which naming scheme an event was created with.
   const [templateData, setTemplateData] = useState({
-    groom_name: '', bride_name: '', family_names: '', ceremony_time: '', reception_time: '',
+    partner1: '', partner2: '', family_names: '', ceremonyLocation: '', receptionLocation: '',
     company_name: '', agenda: '', speakers: ''
   });
   const [saving, setSaving] = useState(false);
@@ -191,11 +194,13 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         allow_guest_edits: !!event.allow_guest_edits
       });
       setTemplateData({
-        groom_name: event.template_data?.groom_name || '',
-        bride_name: event.template_data?.bride_name || '',
+        // Fall back to the legacy bride_name/groom_name/ceremony_time/reception_time
+        // keys for events saved before this rename, so existing data still loads.
+        partner1: event.template_data?.partner1 || event.template_data?.groom_name || '',
+        partner2: event.template_data?.partner2 || event.template_data?.bride_name || '',
         family_names: event.template_data?.family_names || '',
-        ceremony_time: event.template_data?.ceremony_time || '',
-        reception_time: event.template_data?.reception_time || '',
+        ceremonyLocation: event.template_data?.ceremonyLocation || event.template_data?.ceremony_time || '',
+        receptionLocation: event.template_data?.receptionLocation || event.template_data?.reception_time || '',
         company_name: event.template_data?.company_name || '',
         agenda: event.template_data?.agenda || '',
         speakers: event.template_data?.speakers || ''
@@ -403,11 +408,11 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
             <div style={rowStyle}>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Groom's Name</label>
-                <input value={templateData.groom_name} onChange={(e) => setTemplateData(prev => ({ ...prev, groom_name: e.target.value }))} placeholder="Groom Name" style={inputStyle} />
+                <input value={templateData.partner1} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1: e.target.value }))} placeholder="Groom Name" style={inputStyle} />
               </div>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Bride's Name</label>
-                <input value={templateData.bride_name} onChange={(e) => setTemplateData(prev => ({ ...prev, bride_name: e.target.value }))} placeholder="Bride Name" style={inputStyle} />
+                <input value={templateData.partner2} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2: e.target.value }))} placeholder="Bride Name" style={inputStyle} />
               </div>
             </div>
             <div style={fieldGroupStyle}>
@@ -417,11 +422,11 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
             <div style={rowStyle}>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Ceremony Details/Time</label>
-                <input value={templateData.ceremony_time} onChange={(e) => setTemplateData(prev => ({ ...prev, ceremony_time: e.target.value }))} placeholder="e.g. 4:00 PM at St. Mary's Church" style={inputStyle} />
+                <input value={templateData.ceremonyLocation} onChange={(e) => setTemplateData(prev => ({ ...prev, ceremonyLocation: e.target.value }))} placeholder="e.g. 4:00 PM at St. Mary's Church" style={inputStyle} />
               </div>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Reception Details/Time</label>
-                <input value={templateData.reception_time} onChange={(e) => setTemplateData(prev => ({ ...prev, reception_time: e.target.value }))} placeholder="e.g. 6:00 PM at Grand Ballroom" style={inputStyle} />
+                <input value={templateData.receptionLocation} onChange={(e) => setTemplateData(prev => ({ ...prev, receptionLocation: e.target.value }))} placeholder="e.g. 6:00 PM at Grand Ballroom" style={inputStyle} />
               </div>
             </div>
           </div>

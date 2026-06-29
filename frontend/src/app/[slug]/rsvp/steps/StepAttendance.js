@@ -23,9 +23,11 @@ export default function StepAttendance({ t, isRTL, guestName, attending, onSelec
         ))}
       </StaggerChildren>
 
-      <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-        <button onClick={onBack} style={S.backBtn}>{isRTL ? '← السابق' : '← Back'}</button>
-      </div>
+      {onBack && (
+        <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+          <button onClick={onBack} style={S.backBtn}>{isRTL ? '← السابق' : '← Back'}</button>
+        </div>
+      )}
     </div>
   );
 }

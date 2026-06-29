@@ -159,6 +159,7 @@ export default function Stage2_FormConfiguration({
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
   const [galleryInput, setGalleryInput] = useState('');
+  const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading || sealUploading || invitationBgUploading);
 
   return (
     <div style={{ padding: '40px 24px 120px', maxWidth: 860, margin: '0 auto' }}>
@@ -766,19 +767,19 @@ export default function Stage2_FormConfiguration({
             )}
 
             <button onClick={onNext} data-testid="wizard-next"
-            disabled={!title || !slug || !eventDate}
+            disabled={!title || !slug || !eventDate || anyMediaUploading}
             style={{
               height: 48, padding: '0 32px',
-              background: (!title || !slug || !eventDate) ? '#ccc' : 'linear-gradient(135deg, #B8944F, #a6833f)',
+              background: (!title || !slug || !eventDate || anyMediaUploading) ? '#ccc' : 'linear-gradient(135deg, #B8944F, #a6833f)',
               color: C.white, border: 'none', borderRadius: 12,
               fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700,
-              cursor: (!title || !slug || !eventDate) ? 'not-allowed' : 'pointer',
+              cursor: (!title || !slug || !eventDate || anyMediaUploading) ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 8,
-              boxShadow: (!title || !slug || !eventDate) ? 'none' : '0 4px 16px rgba(184,148,79,0.3)',
+              boxShadow: (!title || !slug || !eventDate || anyMediaUploading) ? 'none' : '0 4px 16px rgba(184,148,79,0.3)',
               transition: 'all 0.3s',
             }}
           >
-            Continue to Distribution
+            {anyMediaUploading ? 'Uploading…' : 'Continue to Distribution'}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
           </button>
           </div>

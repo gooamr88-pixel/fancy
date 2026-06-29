@@ -221,8 +221,8 @@ export default function StepCustomQuestions({
         )}
       </AnimatePresence>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-        <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>
+      <div style={{ display: 'flex', justifyContent: onBack ? 'space-between' : 'flex-end', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+        {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
         <GlowPulse color="#B8944F" intensity={submitting ? 0 : 0.2}>
           <PremiumButton testId="rsvp-submit" disabled={submitting} loading={submitting} onClick={onSubmit}>
             {submitting ? t.submitting : t.submit_rsvp}

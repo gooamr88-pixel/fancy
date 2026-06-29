@@ -66,6 +66,14 @@ export function useIdempotentRsvpSubmit({ onSuccess, onLocked, messages = {} } =
           toast.error(messages.full || 'This event has reached its guest limit. Please contact the host.');
           return { ok: false, reason: 'GUEST_LIMIT_REACHED', data };
         }
+        // A 4xx here means the server rejected the payload outright (e.g. a
+        // required custom question, a too-large party) — nothing was written,
+        // so there's no point reconciling. Show the server's actual reason
+        // instead of falling through to the generic network-failure toast.
+        if (res.status >= 400 && res.status < 500) {
+          toast.error(data.message || messages.failed || 'We couldn’t save your RSVP. Please check the form and try again.');
+          return { ok: false, reason: data.error || 'VALIDATION_ERROR', data };
+        }
         throw new Error(data.message || 'Failed to submit RSVP.');
       }
 

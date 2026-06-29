@@ -65,17 +65,25 @@ function formatEventDateLine(event, isRTL) {
 // otherwise renders for the organizer simulator / marketing showcase.
 function buildInvitationCardData(event, isRTL) {
   const td = event?.template_data || {};
-  const venueLine = [event?.location_name, event?.location_address].filter(Boolean).join(' · ') || null;
+  const venueName = event?.location_name || null;
+  const venueAddress = event?.location_address || null;
+  const venueLine = [venueName, venueAddress].filter(Boolean).join(' · ') || null;
   const dateLine = formatEventDateLine(event, isRTL);
   const dressCode = (isRTL && event?.dress_code_ar) || event?.dress_code || null;
 
   switch (event?.template_type) {
     case 'wedding': {
-      const a = td.groom_name || td.partner1Name;
-      const b = td.bride_name || td.partner2Name;
+      // The organizer's create-event wizard (Stage2_FormConfiguration) writes
+      // partner1/partner2 + ceremonyLocation/receptionLocation; the post-creation
+      // edit page (EventSettings) writes bride_name/groom_name + ceremony_time/
+      // reception_time into the same template_data column — read both shapes.
+      const a = td.groom_name || td.partner1Name || td.partner1;
+      const b = td.bride_name || td.partner2Name || td.partner2;
       const names = a && b ? `${a} & ${b}` : (event?.title || null);
       const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
-      return { names, monogram, dateLine, venueLine };
+      const ceremonyLine = td.ceremony_time || td.ceremonyLocation || null;
+      const receptionLine = td.reception_time || td.receptionLocation || null;
+      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine };
     }
     case 'engagement': {
       const a = td.partner1Name;
@@ -274,10 +282,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Analytics
   const { trackEvent } = useGuestAnalytics(slug);
 
-  // Audio
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef(null);
-
   // Gallery lightbox
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -324,25 +328,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const handleRevealComplete = useCallback(() => {
     setRevealDismissed(true);
   }, []);
-
-  /* ─── Audio ─── */
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play()
-        .then(() => {
-          setIsPlaying(true);
-          trackEvent('audio_play');
-        })
-        .catch((err) => {
-          console.error('Audio play failed:', err);
-          alert('Please interact with the page first or check if the audio URL is valid.');
-        });
-    }
-  };
 
   /* ─── Data Fetching ─── */
   const fetchEvent = useCallback(async (password) => {
@@ -636,11 +621,15 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
 
   const isRTL = lang === 'ar';
+  // The root layout hardcodes lang="en"; keep <html lang> in sync with the
+  // guest's chosen language so the browser picks correct glyph-shaping/fonts.
+  useEffect(() => {
+    if (typeof document !== 'undefined') document.documentElement.lang = lang;
+  }, [lang]);
   const t = translations[lang];
   const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
   const localizedDesc = isRTL && event.description_ar ? event.description_ar : event.description;
   const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
-  const musicUrl = event.background_music_url || event.template_data?.bg_music_url;
   const eventPassed = mounted && event.event_date && new Date(event.event_date) < new Date();
 
   // Digital invitation card — same artwork the organizer previewed in
@@ -1924,55 +1913,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* ═══ BACKGROUND MUSIC PLAYER ═══ */}
-        {musicUrl && (
-          <>
-            <audio ref={audioRef} src={musicUrl} loop />
-            <motion.div
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 1 }}
-              style={{
-                position: 'fixed',
-                bottom: showFloatingCTA && !eventPassed ? '80px' : '24px',
-                zIndex: 60,
-                transition: 'bottom 0.3s ease',
-                ...(isRTL ? { left: '24px' } : { right: '24px' }),
-              }}
-            >
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={togglePlay}
-                style={{
-                  width: '52px', height: '52px', borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.95)',
-                  border: `2px solid ${themeColor}`,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', outline: 'none',
-                  backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-                }}
-                title="Background Music"
-              >
-                {isPlaying ? (
-                  <div style={{ display: 'flex', gap: '3px', alignItems: 'flex-end', height: '18px' }}>
-                    <span style={{ width: '3px', background: themeColor, borderRadius: '1px', height: '14px', animation: 'pulseBar 0.8s infinite alternate' }} />
-                    <span style={{ width: '3px', background: themeColor, borderRadius: '1px', height: '8px', animation: 'pulseBar 0.5s infinite alternate' }} />
-                    <span style={{ width: '3px', background: themeColor, borderRadius: '1px', height: '18px', animation: 'pulseBar 0.7s infinite alternate' }} />
-                  </div>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={themeColor} strokeWidth="2.5">
-                    <path d="M9 18V5l12-2v13" />
-                    <circle cx="6" cy="18" r="3" />
-                    <circle cx="18" cy="16" r="3" />
-                  </svg>
-                )}
-              </motion.button>
-            </motion.div>
-          </>
-        )}
 
         {/* ═══ FOOTER ═══ */}
         <FadeInUp>
