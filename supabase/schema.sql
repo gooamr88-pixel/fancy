@@ -1,378 +1,81 @@
--- ═══════════════════════════════════════════════════════════
--- FANCY RSVP - DATABASE SCHEMA & CORE LOGIC
--- Target Database: PostgreSQL 15+ / Supabase
+-- ============================================================================
+-- Fancy RSVP — Database Schema (generated reference snapshot)
 --
--- ⚠ NOT THE SOURCE OF TRUTH. `supabase/migrations/` is canonical and is what
---   actually provisions the database. This file is a hand-maintained reference
---   snapshot of the final schema. It is reconciled through migration
---   20260616200000_party_size_bound (the latest at time of writing) and is kept
---   in sync deliberately — but to stand up or migrate a real database you should
---   still run the migrations in order, not apply this file.
+-- SOURCE OF TRUTH: supabase/migrations/*.sql
 --
---   Reconciled drift now reflected below:
---     • assign_seat / reassign_seat carry the `p_force BOOLEAN` override arg
---       (20260615300000_seating_force_override).
---     • SMS purchase + seating aggregate RPCs are present: record_sms_purchase
---       (20260616100000), get_table_occupancy / get_seating_summary /
---       get_seating_guests (20260616000000_seating_elements_scale).
---     • events.qr_code_url (20260615200000_event_qr_persistence).
---     • tables venue-element/geometry columns + relaxed capacity/shape checks
---       (20260616000000_seating_elements_scale).
---     • rsvps.party_size upper-bound CHECK 1..20 (20260616200000_party_size_bound).
--- ═══════════════════════════════════════════════════════════
+-- This file is a human-readable snapshot of the FINAL schema produced by
+-- applying every migration in order (through
+-- 20260710000000_submit_rsvp_custom_answer_validation). It is NOT executed at
+-- deploy time — the migrations are. Regenerate it whenever migrations change:
+--   apply all migrations to a clean Postgres, then
+--   pg_dump --schema-only --schema=public --no-owner --no-comments
+--
+-- Guest model: rsvp_parties + guests, keyed by party_id. The legacy
+-- rsvps / rsvp_id guest model was rebuilt in
+-- 20260705000000_guest_experience_rebuild and no longer exists.
+-- ============================================================================
 
--- Enable UUID generation extension
+-- Function bodies reference tables created further down in this file; disable
+-- body validation so the snapshot replays regardless of object order (this is
+-- exactly what pg_dump emits).
+SET check_function_bodies = false;
+
+-- Extensions (as declared by the migrations).
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- ─── 1. CORE CLIENT / ORGANIZER TABLES ───
-
-CREATE TABLE IF NOT EXISTS organizations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_user_id UUID NOT NULL,            -- Links to Supabase auth.users (handled via app logic)
-    name TEXT NOT NULL,
-    email TEXT NOT NULL,
-    phone TEXT,
-    stripe_customer_id TEXT UNIQUE,
-    password_hash TEXT,
-    reset_otp TEXT,
-    reset_otp_expires_at TIMESTAMPTZ,
-    otp_attempts INTEGER DEFAULT 0,
-    failed_login_attempts INTEGER DEFAULT 0,
-    lockout_until TIMESTAMPTZ,
-    email_verified BOOLEAN DEFAULT true,
-    registration_otp TEXT,
-    registration_otp_expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    CONSTRAINT organizations_email_unique UNIQUE (email),
-    CONSTRAINT fk_organizations_owner_user_id FOREIGN KEY (owner_user_id) REFERENCES auth.users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_organizations_owner ON organizations(owner_user_id);
-
-CREATE TABLE IF NOT EXISTS user_roles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID UNIQUE NOT NULL,
-    role TEXT NOT NULL DEFAULT 'organizer' CHECK (role IN ('organizer', 'super_admin')),
-    created_at TIMESTAMPTZ DEFAULT now(),
-    CONSTRAINT fk_user_roles_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_roles_user_role ON user_roles(user_id, role);
-
-CREATE TABLE IF NOT EXISTS events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    slug TEXT UNIQUE NOT NULL,
-    template_type TEXT NOT NULL DEFAULT 'custom',
-    title TEXT NOT NULL,
-    description TEXT,
-    event_date TIMESTAMPTZ NOT NULL,
-    event_end_date TIMESTAMPTZ,
-    location_name TEXT,
-    location_address TEXT,
-    location_lat DECIMAL(10, 8),
-    location_lng DECIMAL(11, 8),
-    location_place_id TEXT,
-    dress_code TEXT,
-    rsvp_deadline TIMESTAMPTZ,
-    privacy_mode TEXT DEFAULT 'private' CHECK (privacy_mode IN ('public', 'private', 'password')),
-    access_password TEXT,
-    cover_image_url TEXT,
-    gallery_urls JSONB DEFAULT '[]',
-    custom_colors JSONB DEFAULT '{}',
-    custom_fonts JSONB DEFAULT '{}',
-    template_data JSONB DEFAULT '{}',
-    status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'pending_review', 'active', 'paused', 'completed')),
-    is_paid BOOLEAN DEFAULT FALSE,
-    manual_override BOOLEAN DEFAULT FALSE,
-    event_type TEXT DEFAULT 'wedding',
-    background_music_url TEXT,
-    notification_preferences JSONB DEFAULT '{"email": true, "whatsapp": false}',
-    -- Auto-generated event QR code (PNG data URL) for the public event link;
-    -- set at creation/publish (20260615200000_event_qr_persistence).
-    qr_code_url TEXT,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events(slug);
-CREATE INDEX IF NOT EXISTS idx_events_org_id ON events(org_id);
-
-CREATE TABLE IF NOT EXISTS rsvp_form_fields (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    field_key TEXT NOT NULL,
-    field_label TEXT NOT NULL,
-    field_type TEXT NOT NULL CHECK (field_type IN ('text', 'email', 'phone', 'select', 'multiselect', 'textarea', 'number', 'checkbox')),
-    options JSONB DEFAULT '[]',
-    is_required BOOLEAN DEFAULT FALSE,
-    sort_order INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- `tables` stores both seatable tables and non-seating venue zones (stage, bar,
--- dance floor, etc.). Zones carry no capacity and use width/height/rotation/color
--- geometry. Final state after 20260616000000_seating_elements_scale.
-CREATE TABLE IF NOT EXISTS tables (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    table_name TEXT NOT NULL,
-    -- NULL capacity allowed for zones; seatable tables must be > 0.
-    max_capacity INTEGER CHECK (max_capacity IS NULL OR max_capacity > 0),
-    element_type TEXT NOT NULL DEFAULT 'table' CHECK (element_type IN ('table', 'zone')),
-    shape TEXT DEFAULT 'round' CHECK (shape IN (
-        'round', 'oval', 'square', 'rectangle', 'rectangular', 'banquet', 'head',
-        'stage', 'dance_floor', 'bar', 'dj_booth', 'entrance', 'custom'
-    )),
-    position_x DECIMAL DEFAULT 0,
-    position_y DECIMAL DEFAULT 0,
-    width DECIMAL,
-    height DECIMAL,
-    rotation DECIMAL NOT NULL DEFAULT 0,
-    color TEXT,
-    sort_order INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_tables_event ON tables(event_id);
-
-CREATE TABLE IF NOT EXISTS rsvps (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    guest_name TEXT NOT NULL,
-    email TEXT,
-    phone TEXT,
-    -- 'maybe' added by 20260618100000_rsvp_email_invitations (email Accept/Decline/Maybe).
-    response TEXT NOT NULL CHECK (response IN ('yes', 'no', 'maybe', 'pending')),
-    -- Upper bound added by 20260616200000_party_size_bound (seating math trusts SUM).
-    party_size INTEGER DEFAULT 1 CHECK (party_size BETWEEN 1 AND 20),
-    notes TEXT,
-    confirmation_email_sent BOOLEAN DEFAULT FALSE,
-    qr_email_sent BOOLEAN DEFAULT FALSE,
-    -- Invitation + response provenance, added by 20260618100000_rsvp_email_invitations.
-    invitation_sent BOOLEAN DEFAULT FALSE,
-    invitation_sent_at TIMESTAMPTZ,
-    rsvp_at TIMESTAMPTZ,
-    response_source TEXT,   -- 'web' | 'email' | 'sms' | 'manual' | 'import'
-    submitted_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_rsvps_event_id ON rsvps(event_id);
-CREATE INDEX IF NOT EXISTS idx_rsvps_event_response ON rsvps(event_id, response);
-CREATE INDEX IF NOT EXISTS idx_rsvps_event_invitation ON rsvps(event_id, invitation_sent);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_rsvps_event_email_unique
-  ON rsvps(event_id, email)
-  WHERE response != 'no';
--- Trigram index powering the fast, paginated guest-search panel at scale
--- (20260616000000_seating_elements_scale).
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
-CREATE INDEX IF NOT EXISTS idx_rsvps_guest_name_trgm ON rsvps USING gin (guest_name gin_trgm_ops);
 
-CREATE TABLE IF NOT EXISTS rsvp_guests (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rsvp_id UUID NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
-    full_name TEXT NOT NULL,
-    is_primary BOOLEAN DEFAULT FALSE,
-    meal_selection TEXT,
-    dietary_notes   TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
+-- Name: form_field_scope_type; Type: TYPE; Schema: public
+
+CREATE TYPE public.form_field_scope_type AS ENUM (
+    'party',
+    'guest'
 );
 
-CREATE INDEX IF NOT EXISTS idx_rsvp_guests_rsvp_id ON rsvp_guests(rsvp_id);
+-- Name: guest_list_visibility_type; Type: TYPE; Schema: public
 
-CREATE TABLE IF NOT EXISTS custom_answers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rsvp_id UUID NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
-    field_id UUID NOT NULL REFERENCES rsvp_form_fields(id) ON DELETE CASCADE,
-    answer_value TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
+CREATE TYPE public.guest_list_visibility_type AS ENUM (
+    'none',
+    'attending_only',
+    'all_responses',
+    'anonymized'
 );
 
-CREATE INDEX IF NOT EXISTS idx_custom_answers_rsvp_id ON custom_answers(rsvp_id);
+-- Name: invitation_channel_type; Type: TYPE; Schema: public
 
--- ─── 2. SEATING & CHECK-IN TABLES ───
-
-CREATE TABLE IF NOT EXISTS seating_assignments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    rsvp_id UUID NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
-    table_id UUID NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
-    assigned_at TIMESTAMPTZ DEFAULT now(),
-    assigned_by UUID,
-    UNIQUE(event_id, rsvp_id)
+CREATE TYPE public.invitation_channel_type AS ENUM (
+    'email',
+    'sms',
+    'qr',
+    'public_link'
 );
 
-CREATE INDEX IF NOT EXISTS idx_seating_table ON seating_assignments(table_id);
-CREATE INDEX IF NOT EXISTS idx_seating_event ON seating_assignments(event_id);
+-- Name: invitation_status_type; Type: TYPE; Schema: public
 
-CREATE TABLE IF NOT EXISTS check_ins (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    rsvp_id UUID NOT NULL REFERENCES rsvps(id) ON DELETE CASCADE,
-    checked_in_at TIMESTAMPTZ DEFAULT now(),
-    checked_in_by TEXT,
-    method TEXT CHECK (method IN ('qr_scan', 'manual_search', 'self_service')),
-    party_count_arrived INTEGER DEFAULT 1,
-    UNIQUE(event_id, rsvp_id)
+CREATE TYPE public.invitation_status_type AS ENUM (
+    'queued',
+    'sent',
+    'delivered',
+    'failed',
+    'opened',
+    'responded'
 );
 
-CREATE INDEX IF NOT EXISTS idx_check_ins_event_id ON check_ins(event_id);
+-- Name: rsvp_response_type; Type: TYPE; Schema: public
 
--- ─── 3. FINANCIALS & SMS WALLET ───
-
-CREATE TABLE IF NOT EXISTS event_payments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    stripe_checkout_session_id TEXT UNIQUE,
-    stripe_payment_intent_id TEXT UNIQUE,
-    reference_number TEXT UNIQUE,
-    amount_cents INTEGER NOT NULL,
-    currency TEXT DEFAULT 'usd',
-    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
-    payment_method TEXT DEFAULT 'stripe' CHECK (payment_method IN ('stripe', 'cash_manual')),
-    approved_by UUID,
-    -- Manual/offline transfer verification context (20260616300000_manual_payment_methods).
-    manual_method   TEXT,
-    payer_reference TEXT,
-    verified_by     UUID,
-    verified_at     TIMESTAMPTZ,
-    admin_note      TEXT,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    completed_at TIMESTAMPTZ
+CREATE TYPE public.rsvp_response_type AS ENUM (
+    'pending',
+    'yes',
+    'no',
+    'maybe',
+    'waitlist'
 );
 
-CREATE INDEX IF NOT EXISTS idx_event_payments_event_id ON event_payments(event_id);
+-- Name: _is_event_authorized(uuid, uuid); Type: FUNCTION; Schema: public
 
-CREATE TABLE IF NOT EXISTS sms_credit_wallets (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID UNIQUE NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    credits_purchased INTEGER DEFAULT 0 CHECK (credits_purchased >= 0),
-    credits_used INTEGER DEFAULT 0 CHECK (credits_used >= 0),
-    credits_remaining INTEGER GENERATED ALWAYS AS (credits_purchased - credits_used) STORED,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS sms_credit_ledger (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    wallet_id UUID NOT NULL REFERENCES sms_credit_wallets(id) ON DELETE CASCADE,
-    event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('purchase', 'consumption', 'refund')),
-    credits INTEGER NOT NULL,
-    stripe_payment_intent_id TEXT,
-    sms_recipient TEXT,
-    sms_sid TEXT,
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_sms_credit_ledger_event ON sms_credit_ledger(event_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_credit_ledger_unique_purchase
-  ON sms_credit_ledger(stripe_payment_intent_id)
-  WHERE (transaction_type = 'purchase');
-
-CREATE TABLE IF NOT EXISTS super_admin_config (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    pricing_tiers JSONB NOT NULL DEFAULT '[
-        {"name": "Essential", "price_cents": 7900, "max_guests": 100},
-        {"name": "Premium", "price_cents": 14900, "max_guests": 300},
-        {"name": "Enterprise", "price_cents": 24900, "max_guests": 1000}
-    ]',
-    sms_rate_cents_per_credit INTEGER DEFAULT 8,
-    sms_markup_percentage DECIMAL DEFAULT 40.0,
-    platform_commission_pct DECIMAL DEFAULT 0.0,
-    -- Admin-managed manual payment methods shown to organizers paying offline
-    -- (20260616300000_manual_payment_methods).
-    manual_payment_methods JSONB NOT NULL DEFAULT '[]',
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    updated_by UUID
-);
-
-CREATE TABLE IF NOT EXISTS activity_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id UUID REFERENCES events(id) ON DELETE CASCADE,
-    actor_id UUID,
-    action TEXT NOT NULL,
-    entity_type TEXT,
-    entity_id UUID,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_activity_event ON activity_logs(event_id, created_at DESC);
-
--- Seed Default super_admin_config row if not exists
-INSERT INTO super_admin_config (id, pricing_tiers, sms_rate_cents_per_credit, sms_markup_percentage, platform_commission_pct)
-VALUES (
-    '00000000-0000-0000-0000-000000000000',
-    '[
-        {"name": "Essential", "price_cents": 7900, "max_guests": 100},
-        {"name": "Premium", "price_cents": 14900, "max_guests": 300},
-        {"name": "Enterprise", "price_cents": 24900, "max_guests": 1000}
-    ]'::jsonb,
-    8,
-    40.0,
-    0.0
-) ON CONFLICT (id) DO NOTHING;
-
-
--- ─── 4. UPDATED_AT TRIGGER ───
-
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SET search_path = public;
-
--- Apply updated_at trigger to all tables that have the column
-DO $$
-DECLARE
-  tbl TEXT;
-BEGIN
-  FOR tbl IN
-    SELECT table_name FROM information_schema.columns
-    WHERE column_name = 'updated_at'
-    AND table_schema = 'public'
-  LOOP
-    EXECUTE format(
-      'DROP TRIGGER IF EXISTS set_updated_at ON %I; CREATE TRIGGER set_updated_at BEFORE UPDATE ON %I FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();',
-      tbl, tbl
-    );
-  END LOOP;
-END;
-$$;
-
-
--- ─── 5. HELPER FUNCTIONS ───
-
--- Super admin check helper
-CREATE OR REPLACE FUNCTION is_super_admin(p_user_id UUID)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-    RETURN EXISTS (
-        SELECT 1 FROM user_roles
-        WHERE user_id = p_user_id AND role = 'super_admin'
-    );
-END;
-$$;
-
-
--- Helper: check if a user is authorized for a given event
--- (they must be the org owner or a super admin)
-CREATE OR REPLACE FUNCTION _is_event_authorized(p_event_id UUID, p_user_id UUID)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE FUNCTION public._is_event_authorized(p_event_id uuid, p_user_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 BEGIN
     RETURN EXISTS (
         SELECT 1 FROM events e
@@ -383,339 +86,80 @@ BEGIN
 END;
 $$;
 
+-- Name: _is_event_paid(uuid); Type: FUNCTION; Schema: public
 
--- ─── 6. STORED FUNCTIONS & CONCURRENCY SEATING LOGIC ───
-
--- Atomic Seating Function
--- p_force skips the capacity assertion to allow deliberate overbooking
--- (20260615300000_seating_force_override).
-CREATE OR REPLACE FUNCTION assign_seat(
-    p_event_id UUID,
-    p_rsvp_id UUID,
-    p_table_id UUID,
-    p_assigned_by UUID,
-    p_force BOOLEAN DEFAULT false
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-    v_table_capacity INTEGER;
-    v_current_occupied INTEGER;
-    v_party_size INTEGER;
-    v_remaining INTEGER;
-    v_assignment_id UUID;
-    v_existing UUID;
-    v_table_name TEXT;
+CREATE FUNCTION public._is_event_paid(p_event_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 BEGIN
-    -- Authorization: verify caller owns this event or is super_admin
-    IF NOT public._is_event_authorized(p_event_id, p_assigned_by) THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'UNAUTHORIZED',
-            'message', 'You are not authorized to manage seating for this event.'
-        );
-    END IF;
-
-    -- Acquire transactional advisory lock based on the table's UUID hash
-    PERFORM pg_advisory_xact_lock(hashtext(p_table_id::text));
-
-    -- Check if guest is already assigned
-    SELECT id INTO v_existing
-    FROM seating_assignments
-    WHERE event_id = p_event_id AND rsvp_id = p_rsvp_id;
-
-    IF v_existing IS NOT NULL THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'ALREADY_ASSIGNED',
-            'message', 'This guest is already assigned to a table.'
-        );
-    END IF;
-
-    -- Fetch capacity and lock the table row to avoid modifications during transaction
-    SELECT max_capacity, table_name
-    INTO v_table_capacity, v_table_name
-    FROM tables
-    WHERE id = p_table_id AND event_id = p_event_id
-    FOR UPDATE;
-
-    IF v_table_capacity IS NULL THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'TABLE_NOT_FOUND',
-            'message', 'Specified table not found.'
-        );
-    END IF;
-
-    -- Calculate current table occupancy
-    SELECT COALESCE(SUM(r.party_size), 0)
-    INTO v_current_occupied
-    FROM seating_assignments sa
-    JOIN rsvps r ON r.id = sa.rsvp_id
-    WHERE sa.table_id = p_table_id;
-
-    -- Fetch party size of guest
-    SELECT party_size INTO v_party_size
-    FROM rsvps
-    WHERE id = p_rsvp_id AND event_id = p_event_id AND response = 'yes';
-
-    IF v_party_size IS NULL THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'RSVP_NOT_FOUND',
-            'message', 'RSVP not found or guest is not attending.'
-        );
-    END IF;
-
-    -- Capacity Assertion (skipped when the organizer forces the override)
-    v_remaining := v_table_capacity - v_current_occupied;
-    IF (NOT p_force) AND v_party_size > v_remaining THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'CAPACITY_EXCEEDED',
-            'message', format('%s has %s remaining seats, party size is %s.', v_table_name, v_remaining, v_party_size)
-        );
-    END IF;
-
-    -- Insert atomic seating assignment
-    INSERT INTO seating_assignments (event_id, rsvp_id, table_id, assigned_by)
-    VALUES (p_event_id, p_rsvp_id, p_table_id, p_assigned_by)
-    RETURNING id INTO v_assignment_id;
-
-    -- Log transaction
-    INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
-    VALUES (p_event_id, p_assigned_by, 'table_assigned', 'seating_assignment', v_assignment_id,
-            jsonb_build_object('table_id', p_table_id, 'table_name', v_table_name, 'party_size', v_party_size, 'forced', p_force));
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'assignment_id', v_assignment_id,
-        'seats_remaining', v_remaining - v_party_size,
-        'forced', p_force
+    RETURN EXISTS (
+        SELECT 1 FROM events
+        WHERE id = p_event_id
+          AND (is_paid = true OR manual_override = true)
     );
 END;
 $$;
 
--- Atomic Reassignment Function
--- p_force skips the capacity assertion to allow deliberate overbooking
--- (20260615300000_seating_force_override).
-CREATE OR REPLACE FUNCTION reassign_seat(
-    p_event_id UUID,
-    p_rsvp_id UUID,
-    p_new_table_id UUID,
-    p_assigned_by UUID,
-    p_force BOOLEAN DEFAULT false
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+-- Name: add_guest_to_party(uuid, uuid, text, uuid, text, text, text); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.add_guest_to_party(p_event_id uuid, p_actor uuid, p_full_name text, p_party_id uuid DEFAULT NULL::uuid, p_phone text DEFAULT NULL::text, p_email text DEFAULT NULL::text, p_response text DEFAULT 'pending'::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 DECLARE
-    v_old_table_id UUID;
-    v_old_table_name TEXT;
-    v_new_table_capacity INTEGER;
-    v_new_occupied INTEGER;
-    v_party_size INTEGER;
-    v_new_remaining INTEGER;
-    v_new_table_name TEXT;
-    v_assignment_id UUID;
+  v_party_id   UUID;
+  v_guest_id   UUID;
+  v_is_primary BOOLEAN;
+  v_created_party BOOLEAN := false;
 BEGIN
-    -- Authorization: verify caller owns this event or is super_admin
-    IF NOT public._is_event_authorized(p_event_id, p_assigned_by) THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'UNAUTHORIZED',
-            'message', 'You are not authorized to manage seating for this event.'
-        );
+  IF NOT public._is_event_authorized(p_event_id, p_actor) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'UNAUTHORIZED', 'message', 'You are not authorized to manage guests for this event.');
+  END IF;
+
+  IF p_party_id IS NULL AND NULLIF(btrim(COALESCE(p_phone, '')), '') IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'VALIDATION_ERROR', 'message', 'A phone number is required for the primary contact.');
+  END IF;
+
+  IF p_party_id IS NULL THEN
+    INSERT INTO rsvp_parties (event_id, label, response, response_source)
+    VALUES (p_event_id, p_full_name, p_response::rsvp_response_type, 'manual')
+    RETURNING id INTO v_party_id;
+    v_is_primary := true;
+    v_created_party := true;
+  ELSE
+    SELECT id INTO v_party_id FROM rsvp_parties WHERE id = p_party_id AND event_id = p_event_id;
+    IF v_party_id IS NULL THEN
+      RETURN jsonb_build_object('success', false, 'error', 'RSVP_NOT_FOUND', 'message', 'Party not found.');
     END IF;
+    v_is_primary := false;
+  END IF;
 
-    -- Resolve old assignment
-    SELECT sa.table_id, t.table_name
-    INTO v_old_table_id, v_old_table_name
-    FROM seating_assignments sa
-    JOIN tables t ON t.id = sa.table_id
-    WHERE sa.event_id = p_event_id AND sa.rsvp_id = p_rsvp_id;
-
-    IF v_old_table_id IS NULL THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'NOT_ASSIGNED',
-            'message', 'Guest is not currently assigned to any table.'
-        );
+  BEGIN
+    INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact)
+    VALUES (v_party_id, p_event_id, p_full_name, NULLIF(lower(btrim(COALESCE(p_email, ''))), ''), p_phone, v_is_primary)
+    RETURNING id INTO v_guest_id;
+  EXCEPTION WHEN unique_violation THEN
+    IF v_created_party THEN
+      DELETE FROM rsvp_parties WHERE id = v_party_id;
     END IF;
+    RETURN jsonb_build_object('success', false, 'error', 'DUPLICATE_GUEST', 'message', 'A guest with this email or phone already exists for this event.');
+  END;
 
-    IF v_old_table_id = p_new_table_id THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'SAME_TABLE',
-            'message', 'Guest is already assigned to this table.'
-        );
-    END IF;
+  INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
+  VALUES (p_event_id, p_actor, 'guest_added_manually', 'guest', v_guest_id,
+          jsonb_build_object('party_id', v_party_id, 'full_name', p_full_name));
 
-    -- Lock both tables in UUID order to prevent deadlocks
-    IF p_new_table_id > v_old_table_id THEN
-        PERFORM pg_advisory_xact_lock(hashtext(v_old_table_id::text));
-        PERFORM pg_advisory_xact_lock(hashtext(p_new_table_id::text));
-    ELSE
-        PERFORM pg_advisory_xact_lock(hashtext(p_new_table_id::text));
-        PERFORM pg_advisory_xact_lock(hashtext(v_old_table_id::text));
-    END IF;
-
-    -- Fetch party size
-    SELECT party_size INTO v_party_size FROM rsvps WHERE id = p_rsvp_id;
-
-    -- Check new table capacity
-    SELECT max_capacity, table_name
-    INTO v_new_table_capacity, v_new_table_name
-    FROM tables
-    WHERE id = p_new_table_id AND event_id = p_event_id
-    FOR UPDATE;
-
-    SELECT COALESCE(SUM(r.party_size), 0)
-    INTO v_new_occupied
-    FROM seating_assignments sa
-    JOIN rsvps r ON r.id = sa.rsvp_id
-    WHERE sa.table_id = p_new_table_id;
-
-    v_new_remaining := v_new_table_capacity - v_new_occupied;
-
-    IF (NOT p_force) AND v_party_size > v_new_remaining THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'CAPACITY_EXCEEDED',
-            'message', format('%s has %s remaining seats, party size is %s.', v_new_table_name, v_new_remaining, v_party_size)
-        );
-    END IF;
-
-    -- Update seating assignment
-    UPDATE seating_assignments
-    SET table_id = p_new_table_id,
-        assigned_at = now(),
-        assigned_by = p_assigned_by
-    WHERE event_id = p_event_id AND rsvp_id = p_rsvp_id
-    RETURNING id INTO v_assignment_id;
-
-    -- Log transaction
-    INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
-    VALUES (p_event_id, p_assigned_by, 'table_reassigned', 'seating_assignment', v_assignment_id,
-            jsonb_build_object('from_table', v_old_table_name, 'to_table', v_new_table_name, 'party_size', v_party_size, 'forced', p_force));
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'assignment_id', v_assignment_id,
-        'from_table', v_old_table_name,
-        'to_table', v_new_table_name,
-        'seats_remaining_new_table', v_new_remaining - v_party_size,
-        'forced', p_force
-    );
+  RETURN jsonb_build_object('success', true, 'party_id', v_party_id, 'guest_id', v_guest_id);
 END;
 $$;
 
--- Atomic Seating Unassignment Function
-CREATE OR REPLACE FUNCTION unassign_seat(
-    p_event_id   UUID,
-    p_rsvp_id    UUID,
-    p_assigned_by UUID
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-    v_assignment_id  UUID;
-    v_table_id       UUID;
-    v_table_name     TEXT;
-    v_party_size     INTEGER;
-    v_table_capacity INTEGER;
-    v_current_occupied INTEGER;
-    v_remaining      INTEGER;
-BEGIN
-    -- Authorization: verify caller owns this event or is super_admin
-    IF NOT public._is_event_authorized(p_event_id, p_assigned_by) THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error', 'UNAUTHORIZED',
-            'message', 'You are not authorized to manage seating for this event.'
-        );
-    END IF;
+-- Name: approve_event_cash(uuid, uuid, integer); Type: FUNCTION; Schema: public
 
-    -- Verify the seating assignment exists for this event + rsvp
-    SELECT sa.id, sa.table_id, t.table_name, t.max_capacity, r.party_size
-    INTO v_assignment_id, v_table_id, v_table_name, v_table_capacity, v_party_size
-    FROM public.seating_assignments sa
-    JOIN public.tables t ON t.id = sa.table_id
-    JOIN public.rsvps r ON r.id = sa.rsvp_id
-    WHERE sa.event_id = p_event_id
-      AND sa.rsvp_id  = p_rsvp_id
-    FOR UPDATE OF sa;
-
-    IF v_assignment_id IS NULL THEN
-        RETURN jsonb_build_object(
-            'success', false,
-            'error',   'ASSIGNMENT_NOT_FOUND',
-            'message', 'No seating assignment found for this event and RSVP.'
-        );
-    END IF;
-
-    -- Acquire transactional advisory lock based on the table's UUID hash
-    PERFORM pg_advisory_xact_lock(hashtext(v_table_id::text));
-
-    -- Delete the seating assignment
-    DELETE FROM public.seating_assignments
-    WHERE event_id = p_event_id
-      AND rsvp_id  = p_rsvp_id;
-
-    -- Calculate current table occupancy after deletion
-    SELECT COALESCE(SUM(r.party_size), 0)
-    INTO v_current_occupied
-    FROM public.seating_assignments sa
-    JOIN public.rsvps r ON r.id = sa.rsvp_id
-    WHERE sa.table_id = v_table_id;
-
-    v_remaining := v_table_capacity - v_current_occupied;
-
-    -- Log to activity_logs
-    INSERT INTO public.activity_logs (
-        event_id,
-        actor_id,
-        action,
-        entity_type,
-        entity_id,
-        metadata
-    ) VALUES (
-        p_event_id,
-        p_assigned_by,
-        'table_unassigned',
-        'seating_assignment',
-        v_assignment_id,
-        jsonb_build_object(
-            'table_id',    v_table_id,
-            'table_name',  v_table_name,
-            'rsvp_id',     p_rsvp_id,
-            'party_size',  v_party_size
-        )
-    );
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'message', format('Guest unassigned from %s.', v_table_name),
-        'seats_remaining', v_remaining
-    );
-END;
-$$;
-
--- Super Admin manual cash approval of event payments
-CREATE OR REPLACE FUNCTION approve_event_cash(
-    p_event_id UUID,
-    p_approved_by UUID,
-    p_amount_cents INTEGER
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE FUNCTION public.approve_event_cash(p_event_id uuid, p_approved_by uuid, p_amount_cents integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 DECLARE
     v_is_admin BOOLEAN;
     v_payment_id UUID;
@@ -740,24 +184,38 @@ BEGIN
         updated_at = now()
     WHERE id = p_event_id;
 
-    -- Insert payment record
-    INSERT INTO event_payments (
-        event_id,
-        amount_cents,
-        currency,
-        status,
-        payment_method,
-        approved_by,
-        completed_at
-    ) VALUES (
-        p_event_id,
-        p_amount_cents,
-        'usd',
-        'completed',
-        'cash_manual',
-        p_approved_by,
-        now()
-    ) RETURNING id INTO v_payment_id;
+    -- Check if there is an existing pending cash_manual payment record for this event
+    SELECT id INTO v_payment_id FROM event_payments
+    WHERE event_id = p_event_id AND payment_method = 'cash_manual' AND status = 'pending'
+    LIMIT 1;
+
+    IF v_payment_id IS NOT NULL THEN
+        UPDATE event_payments
+        SET status = 'completed',
+            approved_by = p_approved_by,
+            completed_at = now(),
+            amount_cents = p_amount_cents
+        WHERE id = v_payment_id;
+    ELSE
+        -- Insert a new payment record if none existed
+        INSERT INTO event_payments (
+            event_id,
+            amount_cents,
+            currency,
+            status,
+            payment_method,
+            approved_by,
+            completed_at
+        ) VALUES (
+            p_event_id,
+            p_amount_cents,
+            'usd',
+            'completed',
+            'cash_manual',
+            p_approved_by,
+            now()
+        ) RETURNING id INTO v_payment_id;
+    END IF;
 
     -- Insert activity log
     INSERT INTO activity_logs (
@@ -780,22 +238,185 @@ BEGIN
 END;
 $$;
 
--- Atomic SMS Credit Transaction Checker/Deductor
-CREATE OR REPLACE FUNCTION deduct_sms_credit_atomic(
-    p_event_id UUID,
-    p_phone TEXT
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+-- Name: assign_seat(uuid, uuid, uuid, uuid, boolean); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.assign_seat(p_event_id uuid, p_party_id uuid, p_table_id uuid, p_assigned_by uuid, p_force boolean DEFAULT false) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_table_capacity INTEGER;
+    v_current_occupied INTEGER;
+    v_party_size INTEGER;
+    v_remaining INTEGER;
+    v_assignment_id UUID;
+    v_existing UUID;
+    v_table_name TEXT;
+BEGIN
+    IF NOT public._is_event_authorized(p_event_id, p_assigned_by) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'UNAUTHORIZED', 'message', 'You are not authorized to manage seating for this event.');
+    END IF;
+
+    IF NOT public._is_event_paid(p_event_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'FEATURE_REQUIRES_PAYMENT', 'message', 'Seating assignment requires a paid event.');
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(hashtext(p_table_id::text));
+
+    SELECT id INTO v_existing FROM seating_assignments WHERE event_id = p_event_id AND party_id = p_party_id;
+    IF v_existing IS NOT NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'ALREADY_ASSIGNED', 'message', 'This guest is already assigned to a table.');
+    END IF;
+
+    SELECT max_capacity, table_name INTO v_table_capacity, v_table_name
+    FROM tables WHERE id = p_table_id AND event_id = p_event_id FOR UPDATE;
+
+    IF v_table_capacity IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'TABLE_NOT_FOUND', 'message', 'Specified table not found.');
+    END IF;
+
+    SELECT COALESCE(SUM(gc.cnt), 0) INTO v_current_occupied
+    FROM seating_assignments sa
+    JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = sa.party_id) gc ON true
+    WHERE sa.table_id = p_table_id;
+
+    SELECT COUNT(*) INTO v_party_size
+    FROM guests g
+    JOIN rsvp_parties p ON p.id = g.party_id
+    WHERE g.party_id = p_party_id AND p.event_id = p_event_id AND p.response = 'yes';
+
+    IF v_party_size = 0 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'RSVP_NOT_FOUND', 'message', 'Party not found or guest is not attending.');
+    END IF;
+
+    v_remaining := v_table_capacity - v_current_occupied;
+    IF (NOT p_force) AND v_party_size > v_remaining THEN
+        RETURN jsonb_build_object('success', false, 'error', 'CAPACITY_EXCEEDED',
+            'message', format('%s has %s remaining seats, party size is %s.', v_table_name, v_remaining, v_party_size));
+    END IF;
+
+    INSERT INTO seating_assignments (event_id, party_id, table_id, assigned_by)
+    VALUES (p_event_id, p_party_id, p_table_id, p_assigned_by)
+    RETURNING id INTO v_assignment_id;
+
+    INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
+    VALUES (p_event_id, p_assigned_by, 'table_assigned', 'seating_assignment', v_assignment_id,
+            jsonb_build_object('table_id', p_table_id, 'table_name', v_table_name, 'party_size', v_party_size, 'forced', p_force));
+
+    RETURN jsonb_build_object('success', true, 'assignment_id', v_assignment_id,
+        'seats_remaining', v_remaining - v_party_size, 'forced', p_force);
+END;
+$$;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+-- Name: sms_campaigns; Type: TABLE; Schema: public
+
+CREATE TABLE public.sms_campaigns (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid NOT NULL,
+    message_template text NOT NULL,
+    audience text,
+    status text DEFAULT 'queued'::text NOT NULL,
+    total_recipients integer DEFAULT 0 NOT NULL,
+    sent_count integer DEFAULT 0 NOT NULL,
+    failed_count integer DEFAULT 0 NOT NULL,
+    skipped_count integer DEFAULT 0 NOT NULL,
+    credits_used integer DEFAULT 0 NOT NULL,
+    client_token text,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now(),
+    started_at timestamp with time zone,
+    completed_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT sms_campaigns_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'queued'::text, 'processing'::text, 'completed'::text, 'partial'::text, 'failed'::text, 'cancelled'::text])))
+);
+
+-- Name: claim_next_sms_campaign(); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.claim_next_sms_campaign() RETURNS SETOF public.sms_campaigns
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+    RETURN QUERY
+    UPDATE sms_campaigns c
+    SET status     = 'processing',
+        started_at = COALESCE(c.started_at, now()),
+        updated_at = now()
+    WHERE c.id = (
+        SELECT id FROM sms_campaigns
+        WHERE status IN ('queued', 'processing')
+        ORDER BY created_at
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING c.*;
+END;
+$$;
+
+-- Name: sms_campaign_recipients; Type: TABLE; Schema: public
+
+CREATE TABLE public.sms_campaign_recipients (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    campaign_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    rsvp_id uuid,
+    guest_name text,
+    phone text NOT NULL,
+    status text DEFAULT 'queued'::text NOT NULL,
+    segments integer DEFAULT 1 NOT NULL,
+    credits_charged integer DEFAULT 0 NOT NULL,
+    sms_sid text,
+    ledger_id uuid,
+    idempotency_key text NOT NULL,
+    error text,
+    attempts integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    delivery_status text,
+    delivered_at timestamp with time zone,
+    CONSTRAINT sms_campaign_recipients_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'processing'::text, 'sent'::text, 'failed'::text, 'skipped'::text])))
+);
+
+-- Name: claim_sms_recipients(uuid, integer); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.claim_sms_recipients(p_campaign_id uuid, p_limit integer) RETURNS SETOF public.sms_campaign_recipients
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+    RETURN QUERY
+    UPDATE sms_campaign_recipients r
+    SET status     = 'processing',
+        attempts   = r.attempts + 1,
+        updated_at = now()
+    WHERE r.id IN (
+        SELECT id FROM sms_campaign_recipients
+        WHERE campaign_id = p_campaign_id AND status = 'queued'
+        ORDER BY created_at
+        LIMIT GREATEST(p_limit, 1)
+        FOR UPDATE SKIP LOCKED
+    )
+    RETURNING r.*;
+END;
+$$;
+
+-- Name: deduct_sms_credit_atomic(uuid, text); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.deduct_sms_credit_atomic(p_event_id uuid, p_phone text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 DECLARE
     v_wallet_id UUID;
     v_remaining INTEGER;
     v_ledger_id UUID;
 BEGIN
     -- Row-lock the wallet to prevent concurrent double-spending
-    SELECT id, (credits_purchased - credits_used)
+    SELECT id, (credits_purchased - credits_used) 
     INTO v_wallet_id, v_remaining
     FROM sms_credit_wallets
     WHERE event_id = p_event_id
@@ -824,16 +445,542 @@ BEGIN
 END;
 $$;
 
--- Atomic SMS Credit Refund Function
-CREATE OR REPLACE FUNCTION refund_sms_credit_atomic(
-    p_wallet_id  UUID,
-    p_event_id   UUID,
-    p_ledger_id  UUID
-) RETURNS VOID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+-- Name: deduct_sms_credit_atomic(uuid, text, text); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.deduct_sms_credit_atomic(p_event_id uuid, p_phone text, p_idempotency_key text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_wallet_id UUID;
+    v_remaining INTEGER;
+    v_ledger_id UUID;
+    v_existing_ledger_id UUID;
+BEGIN
+    -- Idempotency check: if key is provided, check for existing entry
+    IF p_idempotency_key IS NOT NULL THEN
+        SELECT id INTO v_existing_ledger_id
+        FROM sms_credit_ledger
+        WHERE idempotency_key = p_idempotency_key;
+
+        IF v_existing_ledger_id IS NOT NULL THEN
+            RETURN jsonb_build_object(
+                'success', true,
+                'ledger_id', v_existing_ledger_id,
+                'idempotent', true
+            );
+        END IF;
+    END IF;
+
+    -- Row-lock the wallet to prevent concurrent double-spending
+    SELECT id, (credits_purchased - credits_used)
+    INTO v_wallet_id, v_remaining
+    FROM sms_credit_wallets
+    WHERE event_id = p_event_id
+    FOR UPDATE;
+
+    IF v_wallet_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_WALLET');
+    END IF;
+
+    IF v_remaining < 1 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INSUFFICIENT_CREDITS');
+    END IF;
+
+    -- Increment credits_used
+    UPDATE sms_credit_wallets
+    SET credits_used = credits_used + 1,
+        updated_at = now()
+    WHERE id = v_wallet_id;
+
+    -- Insert ledger entry in consumption state
+    INSERT INTO sms_credit_ledger (wallet_id, event_id, transaction_type, credits, sms_recipient, idempotency_key)
+    VALUES (v_wallet_id, p_event_id, 'consumption', -1, p_phone, p_idempotency_key)
+    RETURNING id INTO v_ledger_id;
+
+    RETURN jsonb_build_object('success', true, 'wallet_id', v_wallet_id, 'ledger_id', v_ledger_id);
+END;
+$$;
+
+-- Name: deduct_sms_credits_atomic(uuid, integer, text, text); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.deduct_sms_credits_atomic(p_event_id uuid, p_count integer, p_phone text, p_idempotency_key text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_wallet_id          UUID;
+    v_remaining          INTEGER;
+    v_ledger_id          UUID;
+    v_existing_ledger_id UUID;
+BEGIN
+    IF p_count IS NULL OR p_count < 1 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INVALID_COUNT');
+    END IF;
+
+    -- Idempotency gate: a key that's already been charged short-circuits here.
+    IF p_idempotency_key IS NOT NULL THEN
+        SELECT id INTO v_existing_ledger_id
+        FROM sms_credit_ledger
+        WHERE idempotency_key = p_idempotency_key;
+
+        IF v_existing_ledger_id IS NOT NULL THEN
+            RETURN jsonb_build_object('success', true, 'ledger_id', v_existing_ledger_id, 'idempotent', true);
+        END IF;
+    END IF;
+
+    -- Row-lock the wallet to serialize concurrent campaigns / double-clicks.
+    SELECT id, (credits_purchased - credits_used)
+    INTO v_wallet_id, v_remaining
+    FROM sms_credit_wallets
+    WHERE event_id = p_event_id
+    FOR UPDATE;
+
+    IF v_wallet_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NO_WALLET');
+    END IF;
+
+    IF v_remaining < p_count THEN
+        RETURN jsonb_build_object('success', false, 'error', 'INSUFFICIENT_CREDITS',
+            'remaining', v_remaining, 'required', p_count);
+    END IF;
+
+    UPDATE sms_credit_wallets
+    SET credits_used = credits_used + p_count,
+        updated_at   = now()
+    WHERE id = v_wallet_id;
+
+    INSERT INTO sms_credit_ledger (wallet_id, event_id, transaction_type, credits, sms_recipient, idempotency_key)
+    VALUES (v_wallet_id, p_event_id, 'consumption', -p_count, p_phone, p_idempotency_key)
+    RETURNING id INTO v_ledger_id;
+
+    RETURN jsonb_build_object('success', true, 'wallet_id', v_wallet_id, 'ledger_id', v_ledger_id, 'credits', p_count);
+END;
+$$;
+
+-- Name: get_executive_overview(); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.get_executive_overview() RETURNS jsonb
+    LANGUAGE sql STABLE
+    SET search_path TO 'public'
+    AS $$
+  SELECT jsonb_build_object(
+    'events', (
+      SELECT jsonb_build_object(
+        'total',  count(*),
+        'paid',   count(*) FILTER (WHERE is_paid),
+        'unpaid', count(*) FILTER (WHERE NOT is_paid),
+        'byStatus', jsonb_build_object(
+          'draft',          count(*) FILTER (WHERE status = 'draft'),
+          'pending_review', count(*) FILTER (WHERE status = 'pending_review'),
+          'active',         count(*) FILTER (WHERE status = 'active'),
+          'paused',         count(*) FILTER (WHERE status = 'paused'),
+          'completed',      count(*) FILTER (WHERE status = 'completed')
+        )
+      ) FROM events
+    ),
+    'organizations', (SELECT count(*) FROM organizations),
+    'rsvps', (
+      SELECT jsonb_build_object(
+        'total',            (SELECT count(*) FROM rsvp_parties),
+        'attendingParties', (SELECT count(*) FROM rsvp_parties WHERE response = 'yes'),
+        'attendingGuests',  (SELECT COALESCE(count(*), 0) FROM guests g JOIN rsvp_parties p ON p.id = g.party_id WHERE p.response = 'yes'),
+        'declined',         (SELECT count(*) FROM rsvp_parties WHERE response = 'no'),
+        'pending',          (SELECT count(*) FROM rsvp_parties WHERE response NOT IN ('yes', 'no'))
+      )
+    ),
+    'checkIns', (SELECT count(*) FROM check_ins),
+    'revenue', jsonb_build_object(
+      'grossCents',    (SELECT COALESCE(sum(amount_cents), 0) FROM event_payments WHERE status = 'completed'),
+      'pendingCents',  (SELECT COALESCE(sum(amount_cents), 0) FROM event_payments WHERE status = 'pending'),
+      'refundedCents', (SELECT COALESCE(sum(amount_cents), 0) FROM event_payments WHERE status = 'refunded'),
+      'byMonth', (
+        SELECT COALESCE(jsonb_object_agg(m, cents), '{}'::jsonb)
+        FROM (
+          SELECT to_char(date_trunc('month', COALESCE(completed_at, created_at)), 'YYYY-MM') AS m,
+                 sum(amount_cents) AS cents
+          FROM event_payments
+          WHERE status = 'completed'
+            AND COALESCE(completed_at, created_at) >= (now() - interval '12 months')
+          GROUP BY 1
+        ) t
+      )
+    ),
+    'sms', (
+      SELECT jsonb_build_object(
+        'purchased', COALESCE(sum(credits_purchased), 0),
+        'used',      COALESCE(sum(credits_used), 0),
+        'remaining', COALESCE(sum(credits_purchased), 0) - COALESCE(sum(credits_used), 0)
+      ) FROM sms_credit_wallets
+    ),
+    'recentActivity', (
+      SELECT COALESCE(jsonb_agg(a ORDER BY a."createdAt" DESC), '[]'::jsonb)
+      FROM (
+        SELECT al.id,
+               al.action,
+               al.entity_type AS "entityType",
+               al.created_at  AS "createdAt",
+               e.title        AS "eventTitle"
+        FROM activity_logs al
+        LEFT JOIN events e ON e.id = al.event_id
+        ORDER BY al.created_at DESC
+        LIMIT 12
+      ) a
+    )
+  );
+$$;
+
+-- Name: get_seating_guests(uuid, text, text, integer, integer, uuid); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.get_seating_guests(p_event_id uuid, p_search text DEFAULT ''::text, p_filter text DEFAULT 'all'::text, p_limit integer DEFAULT 100, p_offset integer DEFAULT 0, p_table_id uuid DEFAULT NULL::uuid) RETURNS TABLE(id uuid, guest_name text, party_size integer, table_id uuid, total_count bigint)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT p.id,
+         p.label AS guest_name,
+         (SELECT COUNT(*)::INT FROM guests g WHERE g.party_id = p.id) AS party_size,
+         sa.table_id,
+         COUNT(*) OVER() AS total_count
+  FROM rsvp_parties p
+  LEFT JOIN seating_assignments sa
+    ON sa.party_id = p.id AND sa.event_id = p_event_id
+  WHERE p.event_id = p_event_id
+    AND p.response = 'yes'
+    AND (p_search IS NULL OR p_search = '' OR p.label ILIKE '%' || p_search || '%')
+    AND (
+      p_table_id IS NOT NULL AND sa.table_id = p_table_id
+      OR (p_table_id IS NULL AND (
+            p_filter = 'all'
+            OR (p_filter = 'seated'   AND sa.table_id IS NOT NULL)
+            OR (p_filter = 'unseated' AND sa.table_id IS NULL)
+      ))
+    )
+  ORDER BY p.label, p.id
+  LIMIT GREATEST(p_limit, 0) OFFSET GREATEST(p_offset, 0);
+$$;
+
+-- Name: get_seating_summary(uuid); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.get_seating_summary(p_event_id uuid) RETURNS jsonb
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  WITH attending AS (
+    SELECT p.id, (SELECT COUNT(*) FROM guests g WHERE g.party_id = p.id) AS party_size
+    FROM rsvp_parties p
+    WHERE p.event_id = p_event_id AND p.response = 'yes'
+  ),
+  seated AS (
+    SELECT DISTINCT sa.party_id
+    FROM seating_assignments sa
+    JOIN attending a ON a.id = sa.party_id
+    WHERE sa.event_id = p_event_id
+  )
+  SELECT jsonb_build_object(
+    'attendingParties', (SELECT COUNT(*) FROM attending),
+    'attendingGuests',  (SELECT COALESCE(SUM(party_size), 0) FROM attending),
+    'seatedParties',    (SELECT COUNT(*) FROM seated),
+    'seatedGuests',     (SELECT COALESCE(SUM(a.party_size), 0)
+                           FROM attending a WHERE a.id IN (SELECT party_id FROM seated)),
+    'unseatedParties',  (SELECT COUNT(*) FROM attending a WHERE a.id NOT IN (SELECT party_id FROM seated)),
+    'unseatedGuests',   (SELECT COALESCE(SUM(a.party_size), 0)
+                           FROM attending a WHERE a.id NOT IN (SELECT party_id FROM seated))
+  );
+$$;
+
+-- Name: get_table_occupancy(uuid); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.get_table_occupancy(p_event_id uuid) RETURNS TABLE(table_id uuid, occupied bigint)
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT t.id AS table_id,
+         COALESCE(COUNT(g.id), 0)::BIGINT AS occupied
+  FROM tables t
+  LEFT JOIN seating_assignments sa ON sa.table_id = t.id
+  LEFT JOIN rsvp_parties p ON p.id = sa.party_id AND p.response = 'yes'
+  LEFT JOIN guests g ON g.party_id = p.id
+  WHERE t.event_id = p_event_id
+  GROUP BY t.id;
+$$;
+
+-- Name: handle_party_response_change(); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.handle_party_response_change() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.response <> 'yes' THEN
+    DELETE FROM seating_assignments WHERE party_id = NEW.id;
+  END IF;
+
+  -- OLD is unassigned (not just NULL) on an INSERT-triggered invocation, so
+  -- TG_OP must be branched explicitly rather than relying on OR short-circuit —
+  -- referencing OLD.* at all on the INSERT path raises "record old is not
+  -- assigned yet".
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO rsvp_response_history (party_id, event_id, response, changed_by, source, snapshot)
+    VALUES (NEW.id, NEW.event_id, NEW.response, 'system', NEW.response_source,
+            jsonb_build_object('label', NEW.label, 'notes', NEW.notes));
+  ELSIF TG_OP = 'UPDATE' AND NEW.response IS DISTINCT FROM OLD.response THEN
+    INSERT INTO rsvp_response_history (party_id, event_id, response, changed_by, source, snapshot)
+    VALUES (NEW.id, NEW.event_id, NEW.response, 'system', NEW.response_source,
+            jsonb_build_object('label', NEW.label, 'notes', NEW.notes));
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- Name: increment_sms_credits(uuid, integer); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.increment_sms_credits(p_event_id uuid, p_credit_amount integer) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  UPDATE sms_credit_wallets
+  SET credits_purchased = credits_purchased + p_credit_amount
+  WHERE event_id = p_event_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'SMS credit wallet not found for event %', p_event_id;
+  END IF;
+END;
+$$;
+
+-- Name: is_super_admin(uuid); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.is_super_admin(p_user_id uuid) RETURNS boolean
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM user_roles
+        WHERE user_id = p_user_id AND role = 'super_admin'
+    );
+END;
+$$;
+
+-- Name: reassign_seat(uuid, uuid, uuid, uuid, boolean); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.reassign_seat(p_event_id uuid, p_party_id uuid, p_new_table_id uuid, p_assigned_by uuid, p_force boolean DEFAULT false) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_old_table_id UUID;
+    v_old_table_name TEXT;
+    v_new_table_capacity INTEGER;
+    v_new_occupied INTEGER;
+    v_party_size INTEGER;
+    v_new_remaining INTEGER;
+    v_new_table_name TEXT;
+    v_assignment_id UUID;
+BEGIN
+    IF NOT public._is_event_authorized(p_event_id, p_assigned_by) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'UNAUTHORIZED', 'message', 'You are not authorized to manage seating for this event.');
+    END IF;
+
+    IF NOT public._is_event_paid(p_event_id) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'FEATURE_REQUIRES_PAYMENT', 'message', 'Seating assignment requires a paid event.');
+    END IF;
+
+    SELECT sa.table_id, t.table_name
+    INTO v_old_table_id, v_old_table_name
+    FROM seating_assignments sa
+    JOIN tables t ON t.id = sa.table_id
+    WHERE sa.event_id = p_event_id AND sa.party_id = p_party_id;
+
+    IF v_old_table_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'NOT_ASSIGNED', 'message', 'Guest is not currently assigned to any table.');
+    END IF;
+
+    IF v_old_table_id = p_new_table_id THEN
+        RETURN jsonb_build_object('success', false, 'error', 'SAME_TABLE', 'message', 'Guest is already assigned to this table.');
+    END IF;
+
+    IF p_new_table_id > v_old_table_id THEN
+        PERFORM pg_advisory_xact_lock(hashtext(v_old_table_id::text));
+        PERFORM pg_advisory_xact_lock(hashtext(p_new_table_id::text));
+    ELSE
+        PERFORM pg_advisory_xact_lock(hashtext(p_new_table_id::text));
+        PERFORM pg_advisory_xact_lock(hashtext(v_old_table_id::text));
+    END IF;
+
+    SELECT COUNT(*) INTO v_party_size FROM guests WHERE party_id = p_party_id;
+
+    SELECT max_capacity, table_name
+    INTO v_new_table_capacity, v_new_table_name
+    FROM tables WHERE id = p_new_table_id AND event_id = p_event_id FOR UPDATE;
+
+    SELECT COALESCE(SUM(gc.cnt), 0) INTO v_new_occupied
+    FROM seating_assignments sa
+    JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = sa.party_id) gc ON true
+    WHERE sa.table_id = p_new_table_id;
+
+    v_new_remaining := v_new_table_capacity - v_new_occupied;
+
+    IF (NOT p_force) AND v_party_size > v_new_remaining THEN
+        RETURN jsonb_build_object('success', false, 'error', 'CAPACITY_EXCEEDED',
+            'message', format('%s has %s remaining seats, party size is %s.', v_new_table_name, v_new_remaining, v_party_size));
+    END IF;
+
+    UPDATE seating_assignments
+    SET table_id = p_new_table_id, assigned_at = now(), assigned_by = p_assigned_by
+    WHERE event_id = p_event_id AND party_id = p_party_id
+    RETURNING id INTO v_assignment_id;
+
+    INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
+    VALUES (p_event_id, p_assigned_by, 'table_reassigned', 'seating_assignment', v_assignment_id,
+            jsonb_build_object('from_table', v_old_table_name, 'to_table', v_new_table_name, 'party_size', v_party_size, 'forced', p_force));
+
+    RETURN jsonb_build_object('success', true, 'assignment_id', v_assignment_id,
+        'from_table', v_old_table_name, 'to_table', v_new_table_name,
+        'seats_remaining_new_table', v_new_remaining - v_party_size, 'forced', p_force);
+END;
+$$;
+
+-- Name: reconcile_sms_delivery(text, text, text); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.reconcile_sms_delivery(p_sms_sid text, p_status text, p_error_code text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_status      TEXT := lower(COALESCE(p_status, ''));
+    v_is_failure  BOOLEAN;
+    v_recipient   sms_campaign_recipients%ROWTYPE;
+    v_ledger      sms_credit_ledger%ROWTYPE;
+    v_refund      INTEGER;
+    v_err_suffix  TEXT := COALESCE(' code ' || p_error_code, '');
+BEGIN
+    IF p_sms_sid IS NULL OR p_sms_sid = '' THEN
+        RETURN jsonb_build_object('found', false, 'refunded', false, 'error', 'NO_SID');
+    END IF;
+    v_is_failure := v_status IN ('undelivered', 'failed');
+
+    -- Lock the matching recipient job row (may be absent for synchronous sends).
+    SELECT * INTO v_recipient
+    FROM sms_campaign_recipients
+    WHERE sms_sid = p_sms_sid
+    FOR UPDATE;
+
+    -- ── Success / in-flight states: just record delivery status, never refund ──
+    IF NOT v_is_failure THEN
+        IF v_recipient.id IS NOT NULL THEN
+            UPDATE sms_campaign_recipients
+            SET delivery_status = v_status,
+                delivered_at    = CASE WHEN v_status = 'delivered' THEN now() ELSE delivered_at END,
+                updated_at      = now()
+            WHERE id = v_recipient.id;
+        END IF;
+        RETURN jsonb_build_object('found', v_recipient.id IS NOT NULL, 'refunded', false, 'status', v_status);
+    END IF;
+
+    -- ── Failure: refund the consumption ledger row for this SID (once) ──
+    SELECT * INTO v_ledger
+    FROM sms_credit_ledger
+    WHERE sms_sid = p_sms_sid AND transaction_type = 'consumption'
+    FOR UPDATE;
+
+    IF v_ledger.id IS NULL THEN
+        -- Already refunded, or sid not yet stamped. Still mark the recipient failed.
+        IF v_recipient.id IS NOT NULL AND v_recipient.status <> 'failed' THEN
+            UPDATE sms_campaign_recipients
+            SET status = 'failed', delivery_status = v_status, credits_charged = 0,
+                error = 'delivery:' || v_status || v_err_suffix, updated_at = now()
+            WHERE id = v_recipient.id;
+        END IF;
+        RETURN jsonb_build_object('found', v_recipient.id IS NOT NULL, 'refunded', false, 'already', true,
+            'campaign_id', v_recipient.campaign_id);
+    END IF;
+
+    v_refund := GREATEST(ABS(v_ledger.credits), 1);
+
+    -- Decrement usage (clamped ≥ 0) and remove the consumption row → idempotent.
+    UPDATE sms_credit_wallets
+    SET credits_used = GREATEST(credits_used - v_refund, 0), updated_at = now()
+    WHERE id = v_ledger.wallet_id;
+
+    DELETE FROM sms_credit_ledger WHERE id = v_ledger.id;
+
+    IF v_recipient.id IS NOT NULL THEN
+        UPDATE sms_campaign_recipients
+        SET status = 'failed', delivery_status = v_status, credits_charged = 0,
+            error = 'delivery:' || v_status || v_err_suffix, updated_at = now()
+        WHERE id = v_recipient.id;
+    END IF;
+
+    RETURN jsonb_build_object('found', true, 'refunded', true, 'credits', v_refund,
+        'event_id', v_ledger.event_id, 'campaign_id', v_recipient.campaign_id);
+END;
+$$;
+
+-- Name: record_sms_purchase(uuid, integer, text); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.record_sms_purchase(p_event_id uuid, p_credits integer, p_payment_intent text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_wallet_id UUID;
+BEGIN
+  IF p_credits IS NULL OR p_credits <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'INVALID_CREDITS');
+  END IF;
+
+  -- 1. Ensure the wallet exists (idempotent on the unique event_id).
+  INSERT INTO sms_credit_wallets (event_id, credits_purchased, credits_used)
+  VALUES (p_event_id, 0, 0)
+  ON CONFLICT (event_id) DO NOTHING;
+
+  SELECT id INTO v_wallet_id FROM sms_credit_wallets WHERE event_id = p_event_id;
+  IF v_wallet_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'WALLET_NOT_FOUND');
+  END IF;
+
+  -- 2. Idempotency gate: the partial unique index on (stripe_payment_intent_id)
+  --    WHERE transaction_type = 'purchase' makes a repeat payment raise here.
+  BEGIN
+    INSERT INTO sms_credit_ledger (wallet_id, event_id, transaction_type, credits, stripe_payment_intent_id)
+    VALUES (v_wallet_id, p_event_id, 'purchase', p_credits, p_payment_intent);
+  EXCEPTION WHEN unique_violation THEN
+    -- Already processed by an earlier (committed) call that also credited.
+    RETURN jsonb_build_object('success', true, 'already_processed', true);
+  END;
+
+  -- 3. Credit the wallet in the SAME transaction as the ledger insert.
+  UPDATE sms_credit_wallets
+  SET credits_purchased = credits_purchased + p_credits,
+      updated_at = now()
+  WHERE id = v_wallet_id;
+
+  RETURN jsonb_build_object('success', true, 'already_processed', false);
+END;
+$$;
+
+-- Name: refresh_daily_revenue(); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.refresh_daily_revenue() RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_revenue;
+EXCEPTION WHEN OTHERS THEN
+  -- CONCURRENTLY requires a prior populate; fall back on first run.
+  REFRESH MATERIALIZED VIEW mv_daily_revenue;
+END;
+$$;
+
+-- Name: refund_sms_credit_atomic(uuid, uuid, uuid); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.refund_sms_credit_atomic(p_wallet_id uuid, p_event_id uuid, p_ledger_id uuid) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 DECLARE
     v_credits_used INTEGER;
 BEGIN
@@ -868,546 +1015,2145 @@ BEGIN
 END;
 $$;
 
--- Atomic SMS credit increment function (replaces read-modify-write pattern)
-CREATE OR REPLACE FUNCTION increment_sms_credits(
-  p_event_id UUID,
-  p_credit_amount INTEGER
-)
-RETURNS VOID
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  UPDATE sms_credit_wallets
-  SET credits_purchased = credits_purchased + p_credit_amount
-  WHERE event_id = p_event_id;
+-- Name: refund_sms_credits_atomic(uuid, uuid, uuid, integer); Type: FUNCTION; Schema: public
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'SMS credit wallet not found for event %', p_event_id;
-  END IF;
-END;
-$$;
-
--- Webhook-safe atomic SMS credit purchase: ensure wallet + write idempotency
--- ledger row + credit wallet, all in one transaction. A duplicate Stripe delivery
--- is caught via the partial unique index and returns already_processed=true
--- without double-crediting (20260616100000_atomic_sms_purchase).
-CREATE OR REPLACE FUNCTION public.record_sms_purchase(
-  p_event_id        UUID,
-  p_credits         INTEGER,
-  p_payment_intent  TEXT
-) RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE FUNCTION public.refund_sms_credits_atomic(p_wallet_id uuid, p_event_id uuid, p_ledger_id uuid, p_count integer DEFAULT 1) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
 DECLARE
-  v_wallet_id UUID;
+    v_credits_used INTEGER;
+    v_refund       INTEGER;
 BEGIN
-  IF p_credits IS NULL OR p_credits <= 0 THEN
-    RETURN jsonb_build_object('success', false, 'error', 'INVALID_CREDITS');
-  END IF;
+    v_refund := GREATEST(COALESCE(p_count, 1), 1);
 
-  INSERT INTO sms_credit_wallets (event_id, credits_purchased, credits_used)
-  VALUES (p_event_id, 0, 0)
-  ON CONFLICT (event_id) DO NOTHING;
+    SELECT credits_used
+    INTO v_credits_used
+    FROM sms_credit_wallets
+    WHERE id = p_wallet_id AND event_id = p_event_id
+    FOR UPDATE;
 
-  SELECT id INTO v_wallet_id FROM sms_credit_wallets WHERE event_id = p_event_id;
-  IF v_wallet_id IS NULL THEN
-    RETURN jsonb_build_object('success', false, 'error', 'WALLET_NOT_FOUND');
-  END IF;
+    IF v_credits_used IS NULL THEN
+        RAISE EXCEPTION 'WALLET_NOT_FOUND: No wallet for id=% event=%', p_wallet_id, p_event_id;
+    END IF;
 
-  BEGIN
-    INSERT INTO sms_credit_ledger (wallet_id, event_id, transaction_type, credits, stripe_payment_intent_id)
-    VALUES (v_wallet_id, p_event_id, 'purchase', p_credits, p_payment_intent);
-  EXCEPTION WHEN unique_violation THEN
-    RETURN jsonb_build_object('success', true, 'already_processed', true);
-  END;
+    -- Clamp so a buggy/duplicate refund can never push credits_used below zero.
+    IF v_refund > v_credits_used THEN
+        v_refund := v_credits_used;
+    END IF;
 
-  UPDATE sms_credit_wallets
-  SET credits_purchased = credits_purchased + p_credits,
-      updated_at = now()
-  WHERE id = v_wallet_id;
+    UPDATE sms_credit_wallets
+    SET credits_used = credits_used - v_refund,
+        updated_at   = now()
+    WHERE id = p_wallet_id;
 
-  RETURN jsonb_build_object('success', true, 'already_processed', false);
+    DELETE FROM sms_credit_ledger WHERE id = p_ledger_id;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.record_sms_purchase(UUID, INTEGER, TEXT) FROM anon, authenticated;
+-- Name: requeue_stale_sms_recipients(uuid, integer); Type: FUNCTION; Schema: public
 
--- Aggregate occupancy per table (DB-side SUM; never streams rows to Node).
--- 20260616000000_seating_elements_scale.
-CREATE OR REPLACE FUNCTION public.get_table_occupancy(p_event_id UUID)
-RETURNS TABLE(table_id UUID, occupied BIGINT)
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT t.id AS table_id,
-         COALESCE(SUM(r.party_size), 0)::BIGINT AS occupied
-  FROM tables t
-  LEFT JOIN seating_assignments sa ON sa.table_id = t.id
-  LEFT JOIN rsvps r ON r.id = sa.rsvp_id AND r.response = 'yes'
-  WHERE t.event_id = p_event_id
-  GROUP BY t.id;
+CREATE FUNCTION public.requeue_stale_sms_recipients(p_campaign_id uuid, p_stale_seconds integer DEFAULT 300) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_count INTEGER;
+BEGIN
+    UPDATE sms_campaign_recipients
+    SET status = 'queued', updated_at = now()
+    WHERE campaign_id = p_campaign_id
+      AND status = 'processing'
+      AND updated_at < now() - make_interval(secs => GREATEST(p_stale_seconds, 30));
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count;
+END;
 $$;
 
--- Seating summary counts (header stats without loading rows).
-CREATE OR REPLACE FUNCTION public.get_seating_summary(p_event_id UUID)
-RETURNS JSONB
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  WITH attending AS (
-    SELECT id, party_size FROM rsvps
-    WHERE event_id = p_event_id AND response = 'yes'
-  ),
-  seated AS (
-    SELECT DISTINCT sa.rsvp_id
-    FROM seating_assignments sa
-    JOIN attending a ON a.id = sa.rsvp_id
-    WHERE sa.event_id = p_event_id
-  )
-  SELECT jsonb_build_object(
-    'attendingParties', (SELECT COUNT(*) FROM attending),
-    'attendingGuests',  (SELECT COALESCE(SUM(party_size), 0) FROM attending),
-    'seatedParties',    (SELECT COUNT(*) FROM seated),
-    'seatedGuests',     (SELECT COALESCE(SUM(a.party_size), 0)
-                           FROM attending a WHERE a.id IN (SELECT rsvp_id FROM seated)),
-    'unseatedParties',  (SELECT COUNT(*) FROM attending a WHERE a.id NOT IN (SELECT rsvp_id FROM seated)),
-    'unseatedGuests',   (SELECT COALESCE(SUM(a.party_size), 0)
-                           FROM attending a WHERE a.id NOT IN (SELECT rsvp_id FROM seated))
-  );
-$$;
+-- Name: sms_campaign_progress(uuid); Type: FUNCTION; Schema: public
 
--- Paginated + searchable attending-guest list (server-side; total_count is a
--- window count so the UI paginates without a second round-trip).
--- p_filter: 'all' | 'seated' | 'unseated'.
-CREATE OR REPLACE FUNCTION public.get_seating_guests(
-  p_event_id UUID,
-  p_search   TEXT DEFAULT '',
-  p_filter   TEXT DEFAULT 'all',
-  p_limit    INT  DEFAULT 100,
-  p_offset   INT  DEFAULT 0,
-  p_table_id UUID DEFAULT NULL
-)
-RETURNS TABLE(id UUID, guest_name TEXT, party_size INT, table_id UUID, total_count BIGINT)
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT r.id,
-         r.guest_name,
-         r.party_size,
-         sa.table_id,
-         COUNT(*) OVER() AS total_count
-  FROM rsvps r
-  LEFT JOIN seating_assignments sa
-    ON sa.rsvp_id = r.id AND sa.event_id = p_event_id
-  WHERE r.event_id = p_event_id
-    AND r.response = 'yes'
-    AND (p_search IS NULL OR p_search = '' OR r.guest_name ILIKE '%' || p_search || '%')
-    AND (
-      p_table_id IS NOT NULL AND sa.table_id = p_table_id
-      OR (p_table_id IS NULL AND (
-            p_filter = 'all'
-            OR (p_filter = 'seated'   AND sa.table_id IS NOT NULL)
-            OR (p_filter = 'unseated' AND sa.table_id IS NULL)
-      ))
+CREATE FUNCTION public.sms_campaign_progress(p_campaign_id uuid) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+    SELECT jsonb_build_object(
+        'sent',       COUNT(*) FILTER (WHERE status = 'sent'),
+        'failed',     COUNT(*) FILTER (WHERE status = 'failed'),
+        'skipped',    COUNT(*) FILTER (WHERE status = 'skipped'),
+        'queued',     COUNT(*) FILTER (WHERE status = 'queued'),
+        'processing', COUNT(*) FILTER (WHERE status = 'processing'),
+        'total',      COUNT(*),
+        'credits',    COALESCE(SUM(credits_charged) FILTER (WHERE status = 'sent'), 0)
     )
-  ORDER BY r.guest_name, r.id
-  LIMIT GREATEST(p_limit, 0) OFFSET GREATEST(p_offset, 0);
+    FROM sms_campaign_recipients
+    WHERE campaign_id = p_campaign_id;
 $$;
 
--- Seating aggregate RPCs are server-side only (service role), invoked after the
--- event-owner middleware authorizes the caller.
-REVOKE ALL ON FUNCTION public.get_table_occupancy(UUID) FROM anon, authenticated;
-REVOKE ALL ON FUNCTION public.get_seating_summary(UUID) FROM anon, authenticated;
-REVOKE ALL ON FUNCTION public.get_seating_guests(UUID, TEXT, TEXT, INT, INT, UUID) FROM anon, authenticated;
+-- Name: submit_rsvp_v2(text, uuid, text, text, text, text, integer, text, text, jsonb, jsonb, text, text); Type: FUNCTION; Schema: public
 
-
--- ─── 7. RSVP MODIFICATION TRIGGER ───
-
-CREATE OR REPLACE FUNCTION handle_rsvp_modification()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
+CREATE FUNCTION public.submit_rsvp_v2(p_slug text, p_party_id uuid, p_guest_name text, p_email text, p_phone text, p_response text, p_party_size integer, p_notes text, p_primary_meal text, p_additional_guests jsonb, p_custom_answers jsonb, p_decline_reason text, p_maybe_confirm_by text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
 DECLARE
-    v_table_id UUID;
-    v_table_name TEXT;
-    v_max_capacity INTEGER;
-    v_current_occupied INTEGER;
-    v_remaining_seats INTEGER;
+  v_event           events%ROWTYPE;
+  v_is_demo         BOOLEAN;
+  v_party_size      INTEGER;
+  v_norm_email      TEXT;
+  v_existing_email  TEXT;
+  v_existing_resp   rsvp_response_type;
+  v_party_id        UUID;
+  v_is_update       BOOLEAN := false;
+  v_decline_reason  TEXT;
+  v_maybe_confirm   TEXT;
+  v_meal_options    JSONB;
+  v_meal_required   BOOLEAN;
+  v_has_meal_field  BOOLEAN := false;
+  v_opt_count       INTEGER := 0;
+  v_meal            TEXT;
+  v_g               JSONB;
+  v_a               JSONB;
+  v_bad_field_id    TEXT;
+  i                 INTEGER;
+  v_committed       INTEGER;
+  v_org_email       TEXT;
+  v_org_name        TEXT;
+  v_org_phone       TEXT;
 BEGIN
-    -- 1. If response is changing from 'yes' to 'no' or 'pending', clean up assignment and reset party size to 1
-    IF (NEW.response <> 'yes') THEN
-        NEW.party_size := 1;
-        DELETE FROM seating_assignments WHERE rsvp_id = NEW.id;
-    END IF;
+  -- ── 1. Resolve the event by slug ──
+  SELECT * INTO v_event FROM events WHERE slug = p_slug;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_NOT_FOUND', 'message', 'Event not found.');
+  END IF;
 
-    -- 2. If response is 'yes' and party_size changed, validate capacity at the assigned table (if any)
-    IF (NEW.response = 'yes' AND OLD.party_size <> NEW.party_size) THEN
-        -- Check if the guest is assigned to a table
-        SELECT table_id INTO v_table_id
-        FROM seating_assignments
-        WHERE rsvp_id = NEW.id;
+  v_is_demo := (v_event.slug = 'demo');
 
-        IF v_table_id IS NOT NULL THEN
-            -- Acquire row-level lock on the table to prevent race conditions during trigger execution
-            SELECT max_capacity, table_name
-            INTO v_max_capacity, v_table_name
-            FROM tables
-            WHERE id = v_table_id
-            FOR UPDATE;
+  -- Per-event transactional advisory lock: serialises concurrent public
+  -- RSVP submissions for the same event so the guest-cap check below is
+  -- check-and-act atomically. Auto-released on commit or rollback.
+  PERFORM pg_advisory_xact_lock(hashtext('rsvp_submit:' || v_event.id::text));
 
-            -- Calculate total seats occupied by *other* guests at this table
-            SELECT COALESCE(SUM(r.party_size), 0)
-            INTO v_current_occupied
-            FROM seating_assignments sa
-            JOIN rsvps r ON r.id = sa.rsvp_id
-            WHERE sa.table_id = v_table_id AND sa.rsvp_id <> NEW.id;
+  -- ── 2. Gating: payment / review / status / deadline (demo bypasses pay+review) ──
+  IF NOT v_is_demo AND NOT COALESCE(v_event.is_paid, false) THEN
+    RETURN jsonb_build_object('success', false, 'code', 'PAYMENT_REQUIRED',
+      'message', 'This event page is inactive because payment has not been completed.');
+  END IF;
 
-            v_remaining_seats := v_max_capacity - v_current_occupied;
+  IF NOT v_is_demo AND v_event.status = 'pending_review' THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_UNDER_REVIEW',
+      'message', 'This event is awaiting review and is not accepting RSVPs yet.');
+  END IF;
 
-            -- Assert capacity
-            IF NEW.party_size > v_remaining_seats THEN
-                RAISE EXCEPTION 'RSVP party size increase to % exceeds remaining capacity (%) of table %.',
-                    NEW.party_size, v_remaining_seats, v_table_name;
-            END IF;
+  IF NOT v_is_demo AND v_event.status <> 'active' THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_CLOSED',
+      'message', 'This event is no longer accepting RSVPs.');
+  END IF;
+
+  IF v_event.rsvp_deadline IS NOT NULL AND now() > v_event.rsvp_deadline THEN
+    RETURN jsonb_build_object('success', false, 'code', 'DEADLINE_PASSED',
+      'message', 'The RSVP deadline for this event has passed.');
+  END IF;
+
+  -- ── 3. Normalise inputs ──
+  v_party_size := CASE WHEN p_response = 'yes' THEN COALESCE(p_party_size, 1) ELSE 1 END;
+  IF v_party_size < 1 OR v_party_size > 20 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'partySize must be between 1 and 20.');
+  END IF;
+
+  -- RF-1: reject grossly oversized arrays outright (defence-in-depth; the
+  -- child inserts below are also hard-capped).
+  IF jsonb_typeof(p_additional_guests) = 'array' AND jsonb_array_length(p_additional_guests) > 100 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'Too many additional guests submitted.');
+  END IF;
+  IF jsonb_typeof(p_custom_answers) = 'array' AND jsonb_array_length(p_custom_answers) > 200 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'Too many custom answers submitted.');
+  END IF;
+
+  -- Validate every custom-answer fieldId up front (only matters when attending,
+  -- since step 6 below only persists answers for p_response = 'yes') — surface
+  -- a clear error instead of silently dropping the answer at INSERT time.
+  IF p_response = 'yes' AND jsonb_typeof(p_custom_answers) = 'array' THEN
+    FOR v_a IN SELECT * FROM jsonb_array_elements(p_custom_answers) LOOP
+      v_bad_field_id := v_a ->> 'fieldId';
+      IF COALESCE(v_bad_field_id, '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+          'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM custom_form_fields f WHERE f.id = v_bad_field_id::uuid AND f.event_id = v_event.id) THEN
+        RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+          'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+      END IF;
+    END LOOP;
+  END IF;
+
+  v_norm_email := NULLIF(lower(btrim(COALESCE(p_email, ''))), '');
+  v_decline_reason := CASE WHEN p_response = 'no'    THEN NULLIF(p_decline_reason, '')   ELSE NULL END;
+  v_maybe_confirm  := CASE WHEN p_response = 'maybe' THEN NULLIF(p_maybe_confirm_by, '') ELSE NULL END;
+
+  -- ── 4. Meal validation (attending only), against the meal_selection field ──
+  IF p_response = 'yes' THEN
+    SELECT options, COALESCE(is_required, false)
+      INTO v_meal_options, v_meal_required
+      FROM custom_form_fields
+     WHERE event_id = v_event.id AND field_key = 'meal_selection'
+     LIMIT 1;
+    v_has_meal_field := FOUND;
+
+    IF v_has_meal_field THEN
+      v_opt_count := jsonb_array_length(COALESCE(v_meal_options, '[]'::jsonb));
+
+      IF v_opt_count > 0 OR v_meal_required THEN
+        IF v_meal_required AND NULLIF(btrim(COALESCE(p_primary_meal, '')), '') IS NULL THEN
+          RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
+            'message', 'Meal selection is required for the primary guest.');
         END IF;
+        IF NULLIF(p_primary_meal, '') IS NOT NULL AND v_opt_count > 0
+           AND NOT (v_meal_options ? p_primary_meal) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'MEAL_INVALID',
+            'message', format('Meal selection ''%s'' is invalid.', p_primary_meal));
+        END IF;
+
+        IF v_party_size > 1 THEN
+          FOR i IN 0..(v_party_size - 2) LOOP
+            v_g := p_additional_guests -> i;
+            v_meal := NULLIF(btrim(COALESCE(v_g ->> 'mealSelection', '')), '');
+            IF v_meal_required AND v_meal IS NULL THEN
+              RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
+                'message', format('Meal selection is required for Guest #%s.', i + 2));
+            END IF;
+            IF v_meal IS NOT NULL AND v_opt_count > 0 AND NOT (v_meal_options ? v_meal) THEN
+              RETURN jsonb_build_object('success', false, 'code', 'MEAL_INVALID',
+                'message', format('Meal selection ''%s'' for Guest #%s is invalid.', v_meal, i + 2));
+            END IF;
+          END LOOP;
+        END IF;
+      END IF;
+    END IF;
+  END IF;
+
+  -- ── 4b. BIZ-1: enforce the paid tier's guest cap (0/NULL = unlimited) ──
+  -- Safe under concurrency: the advisory lock above serialises all
+  -- submissions for this event, so this check-then-act is now atomic.
+  IF NOT v_is_demo AND COALESCE(v_event.tier_max_guests, 0) > 0 AND p_response IN ('yes', 'maybe') THEN
+    SELECT COALESCE(SUM(gc.cnt), 0) INTO v_committed
+    FROM rsvp_parties p
+    JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = p.id) gc ON true
+    WHERE p.event_id = v_event.id
+      AND p.response IN ('yes', 'maybe')
+      AND (p_party_id IS NULL OR p.id <> p_party_id);
+    IF v_committed + v_party_size > v_event.tier_max_guests THEN
+      RETURN jsonb_build_object('success', false, 'code', 'GUEST_LIMIT_REACHED',
+        'message', 'This event has reached its guest limit. Please contact the host.');
+    END IF;
+  END IF;
+
+  -- ── 5. Insert or update the party + its primary guest row ──
+  IF p_party_id IS NOT NULL THEN
+    -- UPDATE path: ownership check by email match against the primary contact.
+    SELECT response INTO v_existing_resp FROM rsvp_parties WHERE id = p_party_id AND event_id = v_event.id;
+    IF NOT FOUND THEN
+      RETURN jsonb_build_object('success', false, 'code', 'RSVP_NOT_FOUND', 'message', 'The RSVP record was not found.');
     END IF;
 
-    RETURN NEW;
+    SELECT email INTO v_existing_email FROM guests WHERE party_id = p_party_id AND is_primary_contact = true;
+
+    -- Strict, state-aware lock: once answered, the record is closed to
+    -- further public submissions — UNLESS the host enabled guest self-edits
+    -- (RF-2), in which case the guest may overwrite their own response.
+    IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+      RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+        'message', 'You have already responded to this invitation.');
+    END IF;
+
+    IF NULLIF(v_existing_email, '') IS NOT NULL THEN
+      IF v_norm_email IS NULL OR lower(v_existing_email) <> v_norm_email THEN
+        RETURN jsonb_build_object('success', false, 'code', 'RSVP_OWNERSHIP_FAILED',
+          'message', 'Email does not match the original RSVP submission. You cannot modify this RSVP.');
+      END IF;
+    END IF;
+
+    UPDATE rsvp_parties SET
+      label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+      decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+      response_source = 'web_form', responded_at = now(), updated_at = now()
+    WHERE id = p_party_id AND event_id = v_event.id;
+
+    v_party_id := p_party_id;
+    v_is_update := true;
+
+    DELETE FROM guests WHERE party_id = v_party_id;
+    DELETE FROM custom_answers WHERE party_id = v_party_id;
+    -- Seating cleanup on response != 'yes' is handled by trg_party_response_change.
+
+    INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+    VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+            CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+  ELSE
+    -- INSERT path: duplicate-email + duplicate-phone auto-merge guards.
+    -- Instead of rejecting with DUPLICATE_RSVP, find the existing party and
+    -- switch to the UPDATE path (auto-merge) — but only if that party's
+    -- response isn't already locked in (same rule as the explicit-id path).
+
+    -- INSERT path: duplicate-email auto-merge
+    IF v_norm_email IS NOT NULL THEN
+      SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
+        WHERE p.event_id = v_event.id AND g.is_primary_contact AND lower(g.email) = v_norm_email AND p.response <> 'no'
+        LIMIT 1;
+      IF v_party_id IS NOT NULL THEN
+        IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+            'message', 'You have already responded to this invitation.');
+        END IF;
+        -- Auto-merge: treat as an update of the existing record.
+        UPDATE rsvp_parties SET
+          label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+          decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+          response_source = 'web_form', responded_at = now(), updated_at = now()
+        WHERE id = v_party_id AND event_id = v_event.id;
+        v_is_update := true;
+        DELETE FROM guests WHERE party_id = v_party_id;
+        DELETE FROM custom_answers WHERE party_id = v_party_id;
+        IF p_response = 'no' THEN
+          DELETE FROM seating_assignments WHERE party_id = v_party_id;
+        END IF;
+        -- Skip the INSERT below (jump to primary guest + child rows section)
+      END IF;
+    END IF;
+
+    -- INSERT path: duplicate-phone auto-merge
+    IF v_party_id IS NULL AND p_phone IS NOT NULL AND btrim(p_phone) <> '' THEN
+      SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
+        WHERE p.event_id = v_event.id AND g.is_primary_contact AND g.phone = p_phone AND p.response <> 'no'
+        LIMIT 1;
+      IF v_party_id IS NOT NULL THEN
+        IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+            'message', 'You have already responded to this invitation.');
+        END IF;
+        -- Auto-merge: treat as an update of the existing record.
+        UPDATE rsvp_parties SET
+          label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+          decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+          response_source = 'web_form', responded_at = now(), updated_at = now()
+        WHERE id = v_party_id AND event_id = v_event.id;
+        v_is_update := true;
+        DELETE FROM guests WHERE party_id = v_party_id;
+        DELETE FROM custom_answers WHERE party_id = v_party_id;
+        IF p_response = 'no' THEN
+          DELETE FROM seating_assignments WHERE party_id = v_party_id;
+        END IF;
+        -- Skip the INSERT below (jump to primary guest + child rows section)
+      END IF;
+    END IF;
+
+    -- Only create a brand-new party if no existing record was found by email or phone.
+    IF v_party_id IS NULL THEN
+      INSERT INTO rsvp_parties (event_id, label, response, notes, decline_reason, maybe_confirm_by, response_source, responded_at)
+      VALUES (v_event.id, p_guest_name, p_response::rsvp_response_type, p_notes, v_decline_reason, v_maybe_confirm, 'web_form', now())
+      RETURNING id INTO v_party_id;
+
+      BEGIN
+        INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+        VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+                CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+      EXCEPTION WHEN unique_violation THEN
+        -- A concurrent first-time RSVP with the same email/phone won the race.
+        DELETE FROM rsvp_parties WHERE id = v_party_id;
+        RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+          'message', 'An RSVP with this email or phone already exists for this event.');
+      END;
+    ELSE
+      -- Auto-merged: re-insert the primary guest row for the updated party.
+      INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+      VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+              CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+    END IF;
+  END IF;
+
+  -- ── 6. Additional guests + custom answers (attending only) — HARD CAPPED (RF-1) ──
+  IF p_response = 'yes' THEN
+    INSERT INTO guests (party_id, event_id, full_name, is_primary_contact, meal_selection, dietary_notes)
+    SELECT v_party_id, v_event.id, g.elem ->> 'fullName', false,
+           NULLIF(g.elem ->> 'mealSelection', ''), NULLIF(g.elem ->> 'dietaryNotes', '')
+    FROM jsonb_array_elements(COALESCE(p_additional_guests, '[]'::jsonb)) WITH ORDINALITY AS g(elem, ord)
+    WHERE COALESCE(btrim(g.elem ->> 'fullName'), '') <> ''
+      AND g.ord <= GREATEST(v_party_size - 1, 0);
+
+    -- Custom answers: already validated above (every fieldId is a real UUID
+    -- belonging to this event), so this insert is now a straight write rather
+    -- than a silent filter. The ordinality cap (50) remains as defence-in-depth.
+    INSERT INTO custom_answers (party_id, field_id, answer_value)
+    SELECT v_party_id, (a.elem ->> 'fieldId')::uuid, a.elem -> 'value'
+    FROM jsonb_array_elements(COALESCE(p_custom_answers, '[]'::jsonb)) WITH ORDINALITY AS a(elem, ord)
+    WHERE a.ord <= 50;
+  END IF;
+
+  -- ── 7. Activity log (public submit — no actor) ──
+  INSERT INTO activity_logs (event_id, action, entity_type, entity_id, metadata)
+  VALUES (v_event.id, 'rsvp_submitted', 'rsvp_party', v_party_id,
+          jsonb_build_object('guest_name', p_guest_name, 'response', p_response, 'party_size', v_party_size));
+
+  -- ── 8. Org contact for the caller's notification/email (no extra round-trip) ──
+  SELECT email, name, phone INTO v_org_email, v_org_name, v_org_phone
+  FROM organizations WHERE id = v_event.org_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'party_id', v_party_id,
+    'is_update', v_is_update,
+    'event_id', v_event.id,
+    'event_title', v_event.title,
+    'event_date', v_event.event_date,
+    'event_slug', v_event.slug,
+    'response', p_response,
+    'party_size', v_party_size,
+    'guest_email', v_norm_email,
+    'notification_preferences', v_event.notification_preferences,
+    'org_email', v_org_email,
+    'org_name', v_org_name,
+    'org_phone', v_org_phone
+  );
+END;
+$_$;
+
+-- Name: unassign_seat(uuid, uuid, uuid); Type: FUNCTION; Schema: public
+
+CREATE FUNCTION public.unassign_seat(p_event_id uuid, p_party_id uuid, p_assigned_by uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+    v_assignment_id  UUID;
+    v_table_id       UUID;
+    v_table_name     TEXT;
+    v_party_size     INTEGER;
+    v_table_capacity INTEGER;
+    v_current_occupied INTEGER;
+    v_remaining      INTEGER;
+BEGIN
+    IF NOT public._is_event_authorized(p_event_id, p_assigned_by) THEN
+        RETURN jsonb_build_object('success', false, 'error', 'UNAUTHORIZED', 'message', 'You are not authorized to manage seating for this event.');
+    END IF;
+
+    SELECT sa.id, sa.table_id, t.table_name, t.max_capacity,
+           (SELECT COUNT(*) FROM guests g WHERE g.party_id = sa.party_id)
+    INTO v_assignment_id, v_table_id, v_table_name, v_table_capacity, v_party_size
+    FROM public.seating_assignments sa
+    JOIN public.tables t ON t.id = sa.table_id
+    WHERE sa.event_id = p_event_id AND sa.party_id = p_party_id
+    FOR UPDATE OF sa;
+
+    IF v_assignment_id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error', 'ASSIGNMENT_NOT_FOUND', 'message', 'No seating assignment found for this event and party.');
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(hashtext(v_table_id::text));
+
+    DELETE FROM public.seating_assignments WHERE event_id = p_event_id AND party_id = p_party_id;
+
+    SELECT COALESCE(SUM(gc.cnt), 0) INTO v_current_occupied
+    FROM public.seating_assignments sa
+    JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = sa.party_id) gc ON true
+    WHERE sa.table_id = v_table_id;
+
+    v_remaining := v_table_capacity - v_current_occupied;
+
+    INSERT INTO public.activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
+    VALUES (p_event_id, p_assigned_by, 'table_unassigned', 'seating_assignment', v_assignment_id,
+            jsonb_build_object('table_id', v_table_id, 'table_name', v_table_name, 'party_id', p_party_id, 'party_size', v_party_size));
+
+    RETURN jsonb_build_object('success', true, 'message', format('Guest unassigned from %s.', v_table_name), 'seats_remaining', v_remaining);
 END;
 $$;
 
--- Bind the trigger to rsvps table
-DROP TRIGGER IF EXISTS trg_rsvp_modification ON rsvps;
-CREATE TRIGGER trg_rsvp_modification
-    BEFORE UPDATE OF response, party_size ON rsvps
-    FOR EACH ROW
-    EXECUTE FUNCTION handle_rsvp_modification();
+-- Name: update_party_response(uuid, uuid, text, integer, text, text); Type: FUNCTION; Schema: public
 
+CREATE FUNCTION public.update_party_response(p_event_id uuid, p_party_id uuid, p_response text, p_party_size integer DEFAULT NULL::integer, p_actor text DEFAULT 'guest'::text, p_source text DEFAULT NULL::text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_existing_resp rsvp_response_type;
+  v_current_count INTEGER;
+  v_target_size   INTEGER;
+BEGIN
+  SELECT response INTO v_existing_resp FROM rsvp_parties WHERE id = p_party_id AND event_id = p_event_id;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'code', 'RSVP_NOT_FOUND', 'message', 'The RSVP record was not found.');
+  END IF;
 
--- ─── 8. ENABLE ROW LEVEL SECURITY ───
+  IF p_actor = 'guest' AND v_existing_resp IN ('yes', 'no', 'maybe') THEN
+    RETURN jsonb_build_object('success', false, 'code', 'ALREADY_RESPONDED',
+      'message', 'You have already responded to this invitation.');
+  END IF;
 
-ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE events ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rsvp_form_fields ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tables ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rsvps ENABLE ROW LEVEL SECURITY;
-ALTER TABLE rsvp_guests ENABLE ROW LEVEL SECURITY;
-ALTER TABLE custom_answers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE seating_assignments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE check_ins ENABLE ROW LEVEL SECURITY;
-ALTER TABLE event_payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sms_credit_wallets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sms_credit_ledger ENABLE ROW LEVEL SECURITY;
-ALTER TABLE super_admin_config ENABLE ROW LEVEL SECURITY;
-ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+  UPDATE rsvp_parties SET
+    response = p_response::rsvp_response_type,
+    response_source = COALESCE(p_source, response_source),
+    responded_at = now(),
+    updated_at = now()
+  WHERE id = p_party_id AND event_id = p_event_id;
 
+  IF p_response = 'yes' AND p_party_size IS NOT NULL THEN
+    v_target_size := LEAST(GREATEST(p_party_size, 1), 20);
+    SELECT COUNT(*) INTO v_current_count FROM guests WHERE party_id = p_party_id;
 
--- ═══════════════════════════════════════════════════════════
--- 9. HARDENED RLS POLICIES
--- (Matches final state after rls_hardening + rls_security_fix migrations)
--- ═══════════════════════════════════════════════════════════
+    IF v_target_size > v_current_count THEN
+      INSERT INTO guests (party_id, event_id, full_name, is_primary_contact)
+      SELECT p_party_id, p_event_id, 'Guest ' || gs, false
+      FROM generate_series(v_current_count + 1, v_target_size) gs;
+    ELSIF v_target_size < v_current_count THEN
+      DELETE FROM guests WHERE id IN (
+        SELECT id FROM guests
+        WHERE party_id = p_party_id AND is_primary_contact = false
+        ORDER BY created_at DESC
+        LIMIT (v_current_count - v_target_size)
+      );
+    END IF;
+  END IF;
 
--- ── User Roles ──
+  INSERT INTO activity_logs (event_id, action, entity_type, entity_id, metadata)
+  VALUES (p_event_id, 'rsvp_responded_via_token', 'rsvp_party', p_party_id,
+          jsonb_build_object('response', p_response, 'actor', p_actor));
 
-CREATE POLICY admin_all_roles ON user_roles
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()))
-    WITH CHECK (is_super_admin(auth.uid()));
+  RETURN jsonb_build_object('success', true, 'party_id', p_party_id, 'response', p_response);
+END;
+$$;
 
-CREATE POLICY organizer_read_own_role ON user_roles
-    FOR SELECT TO authenticated
-    USING (auth.uid() = user_id);
+-- Name: update_updated_at_column(); Type: FUNCTION; Schema: public
 
--- ── Organizations ──
+CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 
-CREATE POLICY organizer_all_organizations ON organizations
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR owner_user_id = auth.uid())
-    WITH CHECK (is_super_admin(auth.uid()) OR owner_user_id = auth.uid());
+-- Name: validate_custom_answer(); Type: FUNCTION; Schema: public
 
--- ── Events ──
+CREATE FUNCTION public.validate_custom_answer() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_field_type TEXT;
+  v_options    JSONB;
+BEGIN
+  SELECT field_type, options INTO v_field_type, v_options
+  FROM custom_form_fields WHERE id = NEW.field_id;
 
-CREATE POLICY organizer_all_events ON events
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()))
-    WITH CHECK (is_super_admin(auth.uid()) OR org_id IN (SELECT id FROM organizations WHERE owner_user_id = auth.uid()));
+  IF NEW.answer_value IS NULL OR v_options IS NULL OR jsonb_array_length(v_options) = 0 THEN
+    RETURN NEW;
+  END IF;
 
--- Public: only show paid + active events
-CREATE POLICY public_read_events ON events
-    FOR SELECT TO public
-    USING (is_paid = true AND status = 'active');
+  IF v_field_type = 'select' THEN
+    IF NOT (v_options ? (NEW.answer_value #>> '{}')) THEN
+      RAISE EXCEPTION 'Invalid option % for select field %', NEW.answer_value, NEW.field_id;
+    END IF;
+  ELSIF v_field_type = 'multiselect' AND jsonb_typeof(NEW.answer_value) = 'array' THEN
+    IF EXISTS (
+      SELECT 1 FROM jsonb_array_elements_text(NEW.answer_value) val
+      WHERE NOT (v_options ? val)
+    ) THEN
+      RAISE EXCEPTION 'Invalid option in % for multiselect field %', NEW.answer_value, NEW.field_id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
 
--- ── Tables (venue layout) ──
+-- Name: activity_logs; Type: TABLE; Schema: public
 
-CREATE POLICY organizer_all_tables ON tables
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = tables.event_id AND o.owner_user_id = auth.uid()
-    ))
-    WITH CHECK (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = tables.event_id AND o.owner_user_id = auth.uid()
-    ));
+CREATE TABLE public.activity_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid,
+    actor_id uuid,
+    action text NOT NULL,
+    entity_type text,
+    entity_id uuid,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp with time zone DEFAULT now()
+);
 
-CREATE POLICY guest_select_tables ON tables
-    FOR SELECT TO public
-    USING (EXISTS (SELECT 1 FROM events WHERE events.id = tables.event_id AND events.is_paid = true AND events.status = 'active'));
+-- Name: admin_audit_logs; Type: TABLE; Schema: public
 
--- ── RSVP Form Fields ──
+CREATE TABLE public.admin_audit_logs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    actor_user_id uuid,
+    actor_role text,
+    action text NOT NULL,
+    entity_type text,
+    entity_id text,
+    ip text,
+    user_agent text,
+    browser text,
+    os text,
+    before jsonb,
+    after jsonb,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp with time zone DEFAULT now()
+);
 
-CREATE POLICY organizer_all_fields ON rsvp_form_fields
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = rsvp_form_fields.event_id AND o.owner_user_id = auth.uid()
-    ))
-    WITH CHECK (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = rsvp_form_fields.event_id AND o.owner_user_id = auth.uid()
-    ));
+-- Name: admin_user_roles; Type: TABLE; Schema: public
 
--- Public SELECT: only for paid + active events
-CREATE POLICY guest_select_fields ON rsvp_form_fields
-    FOR SELECT TO public
-    USING (
-        EXISTS (
-            SELECT 1 FROM events
-            WHERE events.id = rsvp_form_fields.event_id
-              AND events.is_paid = true
-              AND events.status = 'active'
-        )
-    );
+CREATE TABLE public.admin_user_roles (
+    admin_user_id uuid NOT NULL,
+    role_id uuid NOT NULL
+);
 
--- ── RSVPs ──
+-- Name: admin_users; Type: TABLE; Schema: public
 
-CREATE POLICY organizer_all_rsvps ON rsvps
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = rsvps.event_id AND o.owner_user_id = auth.uid()
-    ))
-    WITH CHECK (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = rsvps.event_id AND o.owner_user_id = auth.uid()
-    ));
+CREATE TABLE public.admin_users (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    status text DEFAULT 'active'::text NOT NULL,
+    mfa_enabled boolean DEFAULT false NOT NULL,
+    last_login_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT admin_users_status_check CHECK ((status = ANY (ARRAY['active'::text, 'suspended'::text])))
+);
 
--- Public INSERT: only into paid + active events
-CREATE POLICY guest_insert_rsvps ON rsvps
-    FOR INSERT TO public
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM events
-            WHERE events.id = rsvps.event_id
-              AND events.is_paid = true
-              AND events.status = 'active'
-        )
-    );
+-- Name: check_ins; Type: TABLE; Schema: public
 
--- Public SELECT: only for paid + active events
-CREATE POLICY guest_select_rsvps ON rsvps
-    FOR SELECT TO public
-    USING (
-        EXISTS (
-            SELECT 1 FROM events
-            WHERE events.id = rsvps.event_id
-              AND events.is_paid = true
-              AND events.status = 'active'
-        )
-    );
+CREATE TABLE public.check_ins (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid NOT NULL,
+    guest_id uuid NOT NULL,
+    party_id uuid NOT NULL,
+    checked_in_at timestamp with time zone DEFAULT now(),
+    checked_in_by uuid,
+    method text,
+    CONSTRAINT check_ins_method_check CHECK ((method = ANY (ARRAY['qr_scan'::text, 'manual_search'::text, 'self_service'::text])))
+);
 
--- ── RSVP Guests ──
+-- Name: credit_packages; Type: TABLE; Schema: public
 
-CREATE POLICY organizer_all_rsvp_guests ON rsvp_guests
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM rsvps r
-        JOIN events e ON r.event_id = e.id
-        JOIN organizations o ON e.org_id = o.id
-        WHERE r.id = rsvp_guests.rsvp_id AND o.owner_user_id = auth.uid()
-    ))
-    WITH CHECK (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM rsvps r
-        JOIN events e ON r.event_id = e.id
-        JOIN organizations o ON e.org_id = o.id
-        WHERE r.id = rsvp_guests.rsvp_id AND o.owner_user_id = auth.uid()
-    ));
+CREATE TABLE public.credit_packages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    type text NOT NULL,
+    name text NOT NULL,
+    credits integer NOT NULL,
+    bonus_credits integer DEFAULT 0 NOT NULL,
+    price_cents integer NOT NULL,
+    currency text DEFAULT 'usd'::text NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT credit_packages_bonus_credits_check CHECK ((bonus_credits >= 0)),
+    CONSTRAINT credit_packages_credits_check CHECK ((credits > 0)),
+    CONSTRAINT credit_packages_price_cents_check CHECK ((price_cents >= 0)),
+    CONSTRAINT credit_packages_type_check CHECK ((type = ANY (ARRAY['sms'::text, 'email'::text, 'qr'::text])))
+);
 
--- Public INSERT: only for RSVPs belonging to paid + active events
-CREATE POLICY guest_insert_rsvp_guests ON rsvp_guests
-    FOR INSERT TO public
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM rsvps r
-            JOIN events e ON r.event_id = e.id
-            WHERE r.id = rsvp_guests.rsvp_id
-              AND e.is_paid = true
-              AND e.status = 'active'
-        )
-    );
+-- Name: custom_answers; Type: TABLE; Schema: public
 
--- Public SELECT: only for paid + active events
-CREATE POLICY guest_select_rsvp_guests ON rsvp_guests
-    FOR SELECT TO public
-    USING (
-        EXISTS (
-            SELECT 1 FROM rsvps r
-            JOIN events e ON r.event_id = e.id
-            WHERE r.id = rsvp_guests.rsvp_id
-              AND e.is_paid = true
-              AND e.status = 'active'
-        )
-    );
+CREATE TABLE public.custom_answers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    party_id uuid NOT NULL,
+    guest_id uuid,
+    field_id uuid NOT NULL,
+    answer_value jsonb,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
 
--- ── Custom Answers ──
+-- Name: custom_form_fields; Type: TABLE; Schema: public
 
-CREATE POLICY organizer_all_answers ON custom_answers
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM rsvps r
-        JOIN events e ON r.event_id = e.id
-        JOIN organizations o ON e.org_id = o.id
-        WHERE r.id = custom_answers.rsvp_id AND o.owner_user_id = auth.uid()
-    ))
-    WITH CHECK (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM rsvps r
-        JOIN events e ON r.event_id = e.id
-        JOIN organizations o ON e.org_id = o.id
-        WHERE r.id = custom_answers.rsvp_id AND o.owner_user_id = auth.uid()
-    ));
+CREATE TABLE public.custom_form_fields (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid NOT NULL,
+    field_key text NOT NULL,
+    field_label text NOT NULL,
+    field_type text NOT NULL,
+    options jsonb DEFAULT '[]'::jsonb,
+    is_required boolean DEFAULT false,
+    sort_order integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT now(),
+    scope public.form_field_scope_type DEFAULT 'party'::public.form_field_scope_type NOT NULL,
+    CONSTRAINT rsvp_form_fields_field_type_check CHECK ((field_type = ANY (ARRAY['text'::text, 'email'::text, 'phone'::text, 'url'::text, 'select'::text, 'multiselect'::text, 'radio'::text, 'textarea'::text, 'number'::text, 'checkbox'::text, 'date'::text])))
+);
 
--- Public INSERT: only for RSVPs belonging to paid + active events
-CREATE POLICY guest_insert_answers ON custom_answers
-    FOR INSERT TO public
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM rsvps r
-            JOIN events e ON r.event_id = e.id
-            WHERE r.id = custom_answers.rsvp_id
-              AND e.is_paid = true
-              AND e.status = 'active'
-        )
-    );
+-- Name: devices; Type: TABLE; Schema: public
 
--- Public SELECT: only for paid + active events
-CREATE POLICY guest_select_answers ON custom_answers
-    FOR SELECT TO public
-    USING (
-        EXISTS (
-            SELECT 1 FROM rsvps r
-            JOIN events e ON r.event_id = e.id
-            WHERE r.id = custom_answers.rsvp_id
-              AND e.is_paid = true
-              AND e.status = 'active'
-        )
-    );
+CREATE TABLE public.devices (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    fingerprint text NOT NULL,
+    label text,
+    trusted boolean DEFAULT false NOT NULL,
+    first_seen timestamp with time zone DEFAULT now(),
+    last_seen timestamp with time zone DEFAULT now()
+);
 
--- ── Seating Assignments ──
+-- Name: email_log; Type: TABLE; Schema: public
 
-CREATE POLICY organizer_all_seating ON seating_assignments
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = seating_assignments.event_id AND o.owner_user_id = auth.uid()
-    ))
-    WITH CHECK (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = seating_assignments.event_id AND o.owner_user_id = auth.uid()
-    ));
+CREATE TABLE public.email_log (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    kind text NOT NULL,
+    ref text,
+    recipient text,
+    event_id uuid,
+    subject text,
+    status text DEFAULT 'sent'::text NOT NULL,
+    error text,
+    created_at timestamp with time zone DEFAULT now()
+);
 
--- Public SELECT: only for paid + active events
-CREATE POLICY guest_select_seating ON seating_assignments
-    FOR SELECT TO public
-    USING (
-        EXISTS (
-            SELECT 1 FROM events
-            WHERE events.id = seating_assignments.event_id
-              AND events.is_paid = true
-              AND events.status = 'active'
-        )
-    );
+-- Name: event_payments; Type: TABLE; Schema: public
 
--- ── Check-ins ──
+CREATE TABLE public.event_payments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid NOT NULL,
+    stripe_checkout_session_id text,
+    stripe_payment_intent_id text,
+    amount_cents integer NOT NULL,
+    currency text DEFAULT 'usd'::text,
+    status text DEFAULT 'pending'::text,
+    payment_method text DEFAULT 'stripe'::text,
+    approved_by uuid,
+    created_at timestamp with time zone DEFAULT now(),
+    completed_at timestamp with time zone,
+    reference_number text,
+    manual_method text,
+    payer_reference text,
+    verified_by uuid,
+    verified_at timestamp with time zone,
+    admin_note text,
+    stripe_refund_id text,
+    refund_amount_cents integer,
+    refunded_at timestamp with time zone,
+    refunded_by uuid,
+    refund_reason text,
+    tier_name text,
+    tier_max_guests integer,
+    CONSTRAINT event_payments_payment_method_check CHECK ((payment_method = ANY (ARRAY['stripe'::text, 'cash_manual'::text]))),
+    CONSTRAINT event_payments_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'completed'::text, 'failed'::text, 'refunded'::text])))
+);
 
-CREATE POLICY organizer_all_checkins ON check_ins
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = check_ins.event_id AND o.owner_user_id = auth.uid()
-    ))
-    WITH CHECK (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = check_ins.event_id AND o.owner_user_id = auth.uid()
-    ));
+-- Name: events; Type: TABLE; Schema: public
 
--- ── Event Payments ──
+CREATE TABLE public.events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    slug text NOT NULL,
+    template_type text DEFAULT 'custom'::text NOT NULL,
+    title text NOT NULL,
+    description text,
+    event_date timestamp with time zone NOT NULL,
+    status text DEFAULT 'draft'::text,
+    is_paid boolean DEFAULT false,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    event_end_date timestamp with time zone,
+    location_name text,
+    location_address text,
+    location_lat numeric(10,8),
+    location_lng numeric(11,8),
+    location_place_id text,
+    dress_code text,
+    rsvp_deadline timestamp with time zone,
+    privacy_mode text DEFAULT 'private'::text,
+    access_password text,
+    cover_image_url text,
+    gallery_urls jsonb DEFAULT '[]'::jsonb,
+    custom_colors jsonb DEFAULT '{}'::jsonb,
+    custom_fonts jsonb DEFAULT '{}'::jsonb,
+    manual_override boolean DEFAULT false,
+    template_data jsonb DEFAULT '{}'::jsonb,
+    event_type text DEFAULT 'wedding'::text,
+    background_music_url text,
+    notification_preferences jsonb DEFAULT '{"email": true, "whatsapp": false}'::jsonb,
+    qr_code_url text,
+    tier_name text,
+    tier_max_guests integer,
+    payment_reminder_sent_at timestamp with time zone,
+    final_report_sent_at timestamp with time zone,
+    recap_sent_at timestamp with time zone,
+    allow_guest_edits boolean DEFAULT false,
+    guest_list_visibility public.guest_list_visibility_type DEFAULT 'none'::public.guest_list_visibility_type NOT NULL,
+    comp_reason text,
+    CONSTRAINT events_privacy_mode_check CHECK ((privacy_mode = ANY (ARRAY['public'::text, 'private'::text, 'password'::text]))),
+    CONSTRAINT events_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'pending_review'::text, 'active'::text, 'paused'::text, 'completed'::text])))
+);
 
-CREATE POLICY organizer_read_payments ON event_payments
-    FOR SELECT TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = event_payments.event_id AND o.owner_user_id = auth.uid()
-    ));
+-- Name: guests; Type: TABLE; Schema: public
 
--- ── SMS Credit Wallets ──
+CREATE TABLE public.guests (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    party_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    full_name text NOT NULL,
+    email text,
+    phone text,
+    is_primary_contact boolean DEFAULT false NOT NULL,
+    meal_selection text,
+    dietary_notes text,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
 
-CREATE POLICY organizer_select_wallet ON sms_credit_wallets
-    FOR SELECT TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = sms_credit_wallets.event_id AND o.owner_user_id = auth.uid()
-    ));
+-- Name: invitations; Type: TABLE; Schema: public
 
--- ── SMS Credit Ledger ──
+CREATE TABLE public.invitations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    party_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    channel public.invitation_channel_type NOT NULL,
+    token text,
+    status public.invitation_status_type DEFAULT 'queued'::public.invitation_status_type NOT NULL,
+    sent_at timestamp with time zone,
+    delivered_at timestamp with time zone,
+    responded_at timestamp with time zone,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
 
-CREATE POLICY organizer_select_ledger ON sms_credit_ledger
-    FOR SELECT TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = sms_credit_ledger.event_id AND o.owner_user_id = auth.uid()
-    ));
+-- Name: login_history; Type: TABLE; Schema: public
 
--- ── Super Admin Config ──
+CREATE TABLE public.login_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid,
+    email text,
+    ip text,
+    user_agent text,
+    success boolean NOT NULL,
+    failure_reason text,
+    created_at timestamp with time zone DEFAULT now()
+);
 
-CREATE POLICY admin_all_config ON super_admin_config
-    FOR ALL TO authenticated
-    USING (is_super_admin(auth.uid()))
-    WITH CHECK (is_super_admin(auth.uid()));
+-- Name: mv_daily_revenue; Type: MATERIALIZED VIEW; Schema: public
 
-CREATE POLICY organizer_select_config ON super_admin_config
-    FOR SELECT TO authenticated
-    USING (true);
+CREATE MATERIALIZED VIEW public.mv_daily_revenue AS
+ SELECT (date_trunc('day'::text, COALESCE(completed_at, created_at)))::date AS day,
+    COALESCE(sum(amount_cents) FILTER (WHERE (status = ANY (ARRAY['completed'::text, 'refunded'::text]))), (0)::bigint) AS gross_cents,
+    COALESCE(sum(
+        CASE
+            WHEN (refunded_at IS NOT NULL) THEN COALESCE(refund_amount_cents, 0)
+            WHEN (status = 'refunded'::text) THEN COALESCE(refund_amount_cents, amount_cents)
+            ELSE 0
+        END), (0)::bigint) AS refunded_cents,
+    (COALESCE(sum(amount_cents) FILTER (WHERE (status = ANY (ARRAY['completed'::text, 'refunded'::text]))), (0)::bigint) - COALESCE(sum(
+        CASE
+            WHEN (refunded_at IS NOT NULL) THEN COALESCE(refund_amount_cents, 0)
+            WHEN (status = 'refunded'::text) THEN COALESCE(refund_amount_cents, amount_cents)
+            ELSE 0
+        END), (0)::bigint)) AS net_cents,
+    count(*) FILTER (WHERE (status = ANY (ARRAY['completed'::text, 'refunded'::text]))) AS payment_count
+   FROM public.event_payments
+  GROUP BY ((date_trunc('day'::text, COALESCE(completed_at, created_at)))::date)
+  WITH NO DATA;
 
--- ── Activity Logs ──
+-- Name: organizations; Type: TABLE; Schema: public
 
-CREATE POLICY organizer_select_logs ON activity_logs
-    FOR SELECT TO authenticated
-    USING (is_super_admin(auth.uid()) OR EXISTS (
-        SELECT 1 FROM events e
-        JOIN organizations o ON e.org_id = o.id
-        WHERE e.id = activity_logs.event_id AND o.owner_user_id = auth.uid()
-    ));
+CREATE TABLE public.organizations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    owner_user_id uuid NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    phone text,
+    stripe_customer_id text,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    reset_otp text,
+    reset_otp_expires_at timestamp with time zone,
+    otp_attempts integer DEFAULT 0,
+    failed_login_attempts integer DEFAULT 0,
+    lockout_until timestamp with time zone,
+    email_verified boolean DEFAULT true,
+    registration_otp text,
+    registration_otp_expires_at timestamp with time zone,
+    status text DEFAULT 'active'::text NOT NULL,
+    suspended_reason text,
+    suspended_at timestamp with time zone,
+    welcome_sent_at timestamp with time zone,
+    bio text,
+    website text,
+    logo_url text,
+    social_links jsonb DEFAULT '{}'::jsonb,
+    CONSTRAINT organizations_status_check CHECK ((status = ANY (ARRAY['active'::text, 'suspended'::text, 'banned'::text])))
+);
+
+-- Name: payment_disputes; Type: TABLE; Schema: public
+
+CREATE TABLE public.payment_disputes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    payment_id uuid,
+    stripe_dispute_id text,
+    stripe_charge_id text,
+    status text,
+    amount_cents integer,
+    currency text DEFAULT 'usd'::text,
+    reason text,
+    evidence_due_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+-- Name: permissions; Type: TABLE; Schema: public
+
+CREATE TABLE public.permissions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    key text NOT NULL,
+    "group" text NOT NULL,
+    description text,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+-- Name: plans; Type: TABLE; Schema: public
+
+CREATE TABLE public.plans (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    key text NOT NULL,
+    name text NOT NULL,
+    description text,
+    price_cents integer DEFAULT 0 NOT NULL,
+    "interval" text DEFAULT 'one_time'::text NOT NULL,
+    currency text DEFAULT 'usd'::text NOT NULL,
+    features jsonb DEFAULT '[]'::jsonb NOT NULL,
+    max_guests integer,
+    max_events integer,
+    is_active boolean DEFAULT true NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT plans_interval_check CHECK (("interval" = ANY (ARRAY['one_time'::text, 'monthly'::text, 'yearly'::text]))),
+    CONSTRAINT plans_price_cents_check CHECK ((price_cents >= 0))
+);
+
+-- Name: role_permissions; Type: TABLE; Schema: public
+
+CREATE TABLE public.role_permissions (
+    role_id uuid NOT NULL,
+    permission_id uuid NOT NULL
+);
+
+-- Name: roles; Type: TABLE; Schema: public
+
+CREATE TABLE public.roles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    key text NOT NULL,
+    name text NOT NULL,
+    description text,
+    is_system boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+-- Name: rsvp_parties; Type: TABLE; Schema: public
+
+CREATE TABLE public.rsvp_parties (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid NOT NULL,
+    label text NOT NULL,
+    response public.rsvp_response_type DEFAULT 'pending'::public.rsvp_response_type NOT NULL,
+    max_party_size integer DEFAULT 1 NOT NULL,
+    notes text,
+    decline_reason text,
+    maybe_confirm_by text,
+    response_source text,
+    responded_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT rsvp_parties_max_party_size_check CHECK (((max_party_size >= 1) AND (max_party_size <= 20)))
+);
+
+-- Name: rsvp_response_history; Type: TABLE; Schema: public
+
+CREATE TABLE public.rsvp_response_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    party_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    response public.rsvp_response_type NOT NULL,
+    changed_by text DEFAULT 'guest'::text NOT NULL,
+    source text,
+    snapshot jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now()
+);
+
+-- Name: seating_assignments; Type: TABLE; Schema: public
+
+CREATE TABLE public.seating_assignments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid NOT NULL,
+    party_id uuid NOT NULL,
+    table_id uuid NOT NULL,
+    assigned_at timestamp with time zone DEFAULT now(),
+    assigned_by uuid
+);
+
+-- Name: security_events; Type: TABLE; Schema: public
+
+CREATE TABLE public.security_events (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid,
+    type text NOT NULL,
+    severity text DEFAULT 'info'::text NOT NULL,
+    ip text,
+    metadata jsonb DEFAULT '{}'::jsonb,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT security_events_severity_check CHECK ((severity = ANY (ARRAY['info'::text, 'warning'::text, 'critical'::text])))
+);
+
+-- Name: sessions; Type: TABLE; Schema: public
+
+CREATE TABLE public.sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    jti text NOT NULL,
+    ip text,
+    user_agent text,
+    device_label text,
+    created_at timestamp with time zone DEFAULT now(),
+    last_seen_at timestamp with time zone DEFAULT now(),
+    expires_at timestamp with time zone,
+    revoked_at timestamp with time zone
+);
+
+-- Name: sms_credit_ledger; Type: TABLE; Schema: public
+
+CREATE TABLE public.sms_credit_ledger (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    wallet_id uuid NOT NULL,
+    event_id uuid NOT NULL,
+    transaction_type text NOT NULL,
+    credits integer NOT NULL,
+    sms_recipient text,
+    sms_sid text,
+    created_at timestamp with time zone DEFAULT now(),
+    stripe_payment_intent_id text,
+    idempotency_key text,
+    CONSTRAINT sms_credit_ledger_transaction_type_check CHECK ((transaction_type = ANY (ARRAY['purchase'::text, 'consumption'::text, 'refund'::text])))
+);
+
+-- Name: sms_credit_wallets; Type: TABLE; Schema: public
+
+CREATE TABLE public.sms_credit_wallets (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid NOT NULL,
+    credits_purchased integer DEFAULT 0,
+    credits_used integer DEFAULT 0,
+    credits_remaining integer GENERATED ALWAYS AS ((credits_purchased - credits_used)) STORED,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT sms_credit_wallets_credits_purchased_check CHECK ((credits_purchased >= 0)),
+    CONSTRAINT sms_credit_wallets_credits_used_check CHECK ((credits_used >= 0))
+);
+
+-- Name: subscriptions; Type: TABLE; Schema: public
+
+CREATE TABLE public.subscriptions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    org_id uuid NOT NULL,
+    plan_id uuid,
+    status text DEFAULT 'active'::text NOT NULL,
+    current_period_start timestamp with time zone,
+    current_period_end timestamp with time zone,
+    stripe_subscription_id text,
+    cancel_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT subscriptions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'past_due'::text, 'canceled'::text, 'trialing'::text])))
+);
+
+-- Name: super_admin_config; Type: TABLE; Schema: public
+
+CREATE TABLE public.super_admin_config (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    pricing_tiers jsonb DEFAULT '[{"name": "Essential", "max_guests": 100, "price_cents": 7900}, {"name": "Premium", "max_guests": 300, "price_cents": 14900}, {"name": "Enterprise", "max_guests": 1000, "price_cents": 24900}]'::jsonb NOT NULL,
+    sms_rate_cents_per_credit integer DEFAULT 8,
+    sms_markup_percentage numeric DEFAULT 40.0,
+    platform_commission_pct numeric DEFAULT 0.0,
+    updated_at timestamp with time zone DEFAULT now(),
+    updated_by uuid,
+    manual_payment_methods jsonb DEFAULT '[]'::jsonb NOT NULL,
+    landing_stats jsonb DEFAULT '[{"label": "Events Created", "suffix": "+", "target": 10000, "decimals": 0}, {"label": "Guests Managed", "suffix": "+", "target": 50000, "decimals": 0}, {"label": "Platform Uptime", "suffix": "%", "target": 99.9, "decimals": 1}]'::jsonb NOT NULL
+);
+
+-- Name: tables; Type: TABLE; Schema: public
+
+CREATE TABLE public.tables (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    event_id uuid NOT NULL,
+    table_name text NOT NULL,
+    max_capacity integer,
+    shape text DEFAULT 'round'::text,
+    position_x numeric DEFAULT 0,
+    position_y numeric DEFAULT 0,
+    sort_order integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT now(),
+    element_type text DEFAULT 'table'::text NOT NULL,
+    width numeric,
+    height numeric,
+    rotation numeric DEFAULT 0 NOT NULL,
+    color text,
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT tables_element_type_check CHECK ((element_type = ANY (ARRAY['table'::text, 'zone'::text]))),
+    CONSTRAINT tables_max_capacity_check CHECK (((max_capacity IS NULL) OR (max_capacity > 0))),
+    CONSTRAINT tables_shape_check CHECK ((shape = ANY (ARRAY['round'::text, 'oval'::text, 'square'::text, 'rectangle'::text, 'rectangular'::text, 'banquet'::text, 'head'::text, 'stage'::text, 'dance_floor'::text, 'bar'::text, 'dj_booth'::text, 'entrance'::text, 'custom'::text])))
+);
+
+-- Name: user_roles; Type: TABLE; Schema: public
+
+CREATE TABLE public.user_roles (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    role text NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT user_roles_role_check CHECK ((role = ANY (ARRAY['super_admin'::text, 'organizer'::text])))
+);
+
+-- Name: activity_logs activity_logs_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.activity_logs
+    ADD CONSTRAINT activity_logs_pkey PRIMARY KEY (id);
+
+-- Name: admin_audit_logs admin_audit_logs_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.admin_audit_logs
+    ADD CONSTRAINT admin_audit_logs_pkey PRIMARY KEY (id);
+
+-- Name: admin_user_roles admin_user_roles_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.admin_user_roles
+    ADD CONSTRAINT admin_user_roles_pkey PRIMARY KEY (admin_user_id, role_id);
+
+-- Name: admin_users admin_users_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.admin_users
+    ADD CONSTRAINT admin_users_pkey PRIMARY KEY (id);
+
+-- Name: admin_users admin_users_user_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.admin_users
+    ADD CONSTRAINT admin_users_user_id_key UNIQUE (user_id);
+
+-- Name: check_ins check_ins_event_id_guest_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.check_ins
+    ADD CONSTRAINT check_ins_event_id_guest_id_key UNIQUE (event_id, guest_id);
+
+-- Name: check_ins check_ins_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.check_ins
+    ADD CONSTRAINT check_ins_pkey PRIMARY KEY (id);
+
+-- Name: credit_packages credit_packages_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.credit_packages
+    ADD CONSTRAINT credit_packages_pkey PRIMARY KEY (id);
+
+-- Name: custom_answers custom_answers_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.custom_answers
+    ADD CONSTRAINT custom_answers_pkey PRIMARY KEY (id);
+
+-- Name: devices devices_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.devices
+    ADD CONSTRAINT devices_pkey PRIMARY KEY (id);
+
+-- Name: devices devices_user_id_fingerprint_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.devices
+    ADD CONSTRAINT devices_user_id_fingerprint_key UNIQUE (user_id, fingerprint);
+
+-- Name: email_log email_log_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.email_log
+    ADD CONSTRAINT email_log_pkey PRIMARY KEY (id);
+
+-- Name: event_payments event_payments_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.event_payments
+    ADD CONSTRAINT event_payments_pkey PRIMARY KEY (id);
+
+-- Name: event_payments event_payments_reference_number_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.event_payments
+    ADD CONSTRAINT event_payments_reference_number_key UNIQUE (reference_number);
+
+-- Name: event_payments event_payments_stripe_checkout_session_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.event_payments
+    ADD CONSTRAINT event_payments_stripe_checkout_session_id_key UNIQUE (stripe_checkout_session_id);
+
+-- Name: event_payments event_payments_stripe_payment_intent_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.event_payments
+    ADD CONSTRAINT event_payments_stripe_payment_intent_id_key UNIQUE (stripe_payment_intent_id);
+
+-- Name: events events_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.events
+    ADD CONSTRAINT events_pkey PRIMARY KEY (id);
+
+-- Name: events events_slug_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.events
+    ADD CONSTRAINT events_slug_key UNIQUE (slug);
+
+-- Name: guests guests_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.guests
+    ADD CONSTRAINT guests_pkey PRIMARY KEY (id);
+
+-- Name: invitations invitations_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.invitations
+    ADD CONSTRAINT invitations_pkey PRIMARY KEY (id);
+
+-- Name: login_history login_history_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.login_history
+    ADD CONSTRAINT login_history_pkey PRIMARY KEY (id);
+
+-- Name: organizations organizations_email_unique; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.organizations
+    ADD CONSTRAINT organizations_email_unique UNIQUE (email);
+
+-- Name: organizations organizations_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.organizations
+    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
+
+-- Name: organizations organizations_stripe_customer_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.organizations
+    ADD CONSTRAINT organizations_stripe_customer_id_key UNIQUE (stripe_customer_id);
+
+-- Name: payment_disputes payment_disputes_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.payment_disputes
+    ADD CONSTRAINT payment_disputes_pkey PRIMARY KEY (id);
+
+-- Name: payment_disputes payment_disputes_stripe_dispute_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.payment_disputes
+    ADD CONSTRAINT payment_disputes_stripe_dispute_id_key UNIQUE (stripe_dispute_id);
+
+-- Name: permissions permissions_key_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.permissions
+    ADD CONSTRAINT permissions_key_key UNIQUE (key);
+
+-- Name: permissions permissions_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.permissions
+    ADD CONSTRAINT permissions_pkey PRIMARY KEY (id);
+
+-- Name: plans plans_key_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.plans
+    ADD CONSTRAINT plans_key_key UNIQUE (key);
+
+-- Name: plans plans_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.plans
+    ADD CONSTRAINT plans_pkey PRIMARY KEY (id);
+
+-- Name: role_permissions role_permissions_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.role_permissions
+    ADD CONSTRAINT role_permissions_pkey PRIMARY KEY (role_id, permission_id);
+
+-- Name: roles roles_key_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_key_key UNIQUE (key);
+
+-- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_pkey PRIMARY KEY (id);
+
+-- Name: custom_form_fields rsvp_form_fields_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.custom_form_fields
+    ADD CONSTRAINT rsvp_form_fields_pkey PRIMARY KEY (id);
+
+-- Name: rsvp_parties rsvp_parties_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.rsvp_parties
+    ADD CONSTRAINT rsvp_parties_pkey PRIMARY KEY (id);
+
+-- Name: rsvp_response_history rsvp_response_history_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.rsvp_response_history
+    ADD CONSTRAINT rsvp_response_history_pkey PRIMARY KEY (id);
+
+-- Name: seating_assignments seating_assignments_event_id_party_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.seating_assignments
+    ADD CONSTRAINT seating_assignments_event_id_party_id_key UNIQUE (event_id, party_id);
+
+-- Name: seating_assignments seating_assignments_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.seating_assignments
+    ADD CONSTRAINT seating_assignments_pkey PRIMARY KEY (id);
+
+-- Name: security_events security_events_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.security_events
+    ADD CONSTRAINT security_events_pkey PRIMARY KEY (id);
+
+-- Name: sessions sessions_jti_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_jti_key UNIQUE (jti);
+
+-- Name: sessions sessions_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_pkey PRIMARY KEY (id);
+
+-- Name: sms_campaign_recipients sms_campaign_recipients_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_campaign_recipients
+    ADD CONSTRAINT sms_campaign_recipients_pkey PRIMARY KEY (id);
+
+-- Name: sms_campaigns sms_campaigns_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_campaigns
+    ADD CONSTRAINT sms_campaigns_pkey PRIMARY KEY (id);
+
+-- Name: sms_credit_ledger sms_credit_ledger_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_credit_ledger
+    ADD CONSTRAINT sms_credit_ledger_pkey PRIMARY KEY (id);
+
+-- Name: sms_credit_wallets sms_credit_wallets_event_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_credit_wallets
+    ADD CONSTRAINT sms_credit_wallets_event_id_key UNIQUE (event_id);
+
+-- Name: sms_credit_wallets sms_credit_wallets_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_credit_wallets
+    ADD CONSTRAINT sms_credit_wallets_pkey PRIMARY KEY (id);
+
+-- Name: subscriptions subscriptions_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.subscriptions
+    ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id);
+
+-- Name: subscriptions subscriptions_stripe_subscription_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.subscriptions
+    ADD CONSTRAINT subscriptions_stripe_subscription_id_key UNIQUE (stripe_subscription_id);
+
+-- Name: super_admin_config super_admin_config_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.super_admin_config
+    ADD CONSTRAINT super_admin_config_pkey PRIMARY KEY (id);
+
+-- Name: tables tables_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.tables
+    ADD CONSTRAINT tables_pkey PRIMARY KEY (id);
+
+-- Name: user_roles user_roles_pkey; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_pkey PRIMARY KEY (id);
+
+-- Name: user_roles user_roles_user_id_key; Type: CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_user_id_key UNIQUE (user_id);
+
+-- Name: idx_activity_event; Type: INDEX; Schema: public
+
+CREATE INDEX idx_activity_event ON public.activity_logs USING btree (event_id, created_at DESC);
+
+-- Name: idx_admin_audit_action; Type: INDEX; Schema: public
+
+CREATE INDEX idx_admin_audit_action ON public.admin_audit_logs USING btree (action, created_at DESC);
+
+-- Name: idx_admin_audit_actor; Type: INDEX; Schema: public
+
+CREATE INDEX idx_admin_audit_actor ON public.admin_audit_logs USING btree (actor_user_id, created_at DESC);
+
+-- Name: idx_admin_audit_created; Type: INDEX; Schema: public
+
+CREATE INDEX idx_admin_audit_created ON public.admin_audit_logs USING btree (created_at DESC);
+
+-- Name: idx_admin_audit_entity; Type: INDEX; Schema: public
+
+CREATE INDEX idx_admin_audit_entity ON public.admin_audit_logs USING btree (entity_type, entity_id);
+
+-- Name: idx_admin_user_roles_admin; Type: INDEX; Schema: public
+
+CREATE INDEX idx_admin_user_roles_admin ON public.admin_user_roles USING btree (admin_user_id);
+
+-- Name: idx_admin_users_user; Type: INDEX; Schema: public
+
+CREATE INDEX idx_admin_users_user ON public.admin_users USING btree (user_id);
+
+-- Name: idx_check_ins_event_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_check_ins_event_id ON public.check_ins USING btree (event_id);
+
+-- Name: idx_check_ins_party_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_check_ins_party_id ON public.check_ins USING btree (party_id);
+
+-- Name: idx_credit_packages_type; Type: INDEX; Schema: public
+
+CREATE INDEX idx_credit_packages_type ON public.credit_packages USING btree (type, is_active, sort_order);
+
+-- Name: idx_custom_answers_field_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_custom_answers_field_id ON public.custom_answers USING btree (field_id);
+
+-- Name: idx_custom_answers_guest_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_custom_answers_guest_id ON public.custom_answers USING btree (guest_id);
+
+-- Name: idx_custom_answers_party_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_custom_answers_party_id ON public.custom_answers USING btree (party_id);
+
+-- Name: idx_email_log_event; Type: INDEX; Schema: public
+
+CREATE INDEX idx_email_log_event ON public.email_log USING btree (event_id, created_at DESC);
+
+-- Name: idx_event_payments_event_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_event_payments_event_id ON public.event_payments USING btree (event_id);
+
+-- Name: idx_events_date_status; Type: INDEX; Schema: public
+
+CREATE INDEX idx_events_date_status ON public.events USING btree (event_date, status);
+
+-- Name: idx_events_org_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_events_org_id ON public.events USING btree (org_id);
+
+-- Name: idx_events_slug; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_events_slug ON public.events USING btree (slug);
+
+-- Name: idx_guests_event_email_unique; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_guests_event_email_unique ON public.guests USING btree (event_id, lower(email)) WHERE (email IS NOT NULL);
+
+-- Name: idx_guests_event_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_guests_event_id ON public.guests USING btree (event_id);
+
+-- Name: idx_guests_event_phone_unique; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_guests_event_phone_unique ON public.guests USING btree (event_id, phone) WHERE (phone IS NOT NULL);
+
+-- Name: idx_guests_full_name_trgm; Type: INDEX; Schema: public
+
+CREATE INDEX idx_guests_full_name_trgm ON public.guests USING gin (full_name public.gin_trgm_ops);
+
+-- Name: idx_guests_one_primary_per_party; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_guests_one_primary_per_party ON public.guests USING btree (party_id) WHERE (is_primary_contact = true);
+
+-- Name: idx_guests_party_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_guests_party_id ON public.guests USING btree (party_id);
+
+-- Name: idx_invitations_event_channel_status; Type: INDEX; Schema: public
+
+CREATE INDEX idx_invitations_event_channel_status ON public.invitations USING btree (event_id, channel, status);
+
+-- Name: idx_invitations_event_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_invitations_event_id ON public.invitations USING btree (event_id);
+
+-- Name: idx_invitations_party_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_invitations_party_id ON public.invitations USING btree (party_id);
+
+-- Name: idx_invitations_token_unique; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_invitations_token_unique ON public.invitations USING btree (token) WHERE (token IS NOT NULL);
+
+-- Name: idx_login_history_email; Type: INDEX; Schema: public
+
+CREATE INDEX idx_login_history_email ON public.login_history USING btree (email, created_at DESC);
+
+-- Name: idx_login_history_user; Type: INDEX; Schema: public
+
+CREATE INDEX idx_login_history_user ON public.login_history USING btree (user_id, created_at DESC);
+
+-- Name: idx_mv_daily_revenue_day; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_mv_daily_revenue_day ON public.mv_daily_revenue USING btree (day);
+
+-- Name: idx_organizations_owner; Type: INDEX; Schema: public
+
+CREATE INDEX idx_organizations_owner ON public.organizations USING btree (owner_user_id);
+
+-- Name: idx_payment_disputes_created; Type: INDEX; Schema: public
+
+CREATE INDEX idx_payment_disputes_created ON public.payment_disputes USING btree (created_at DESC);
+
+-- Name: idx_payment_disputes_payment; Type: INDEX; Schema: public
+
+CREATE INDEX idx_payment_disputes_payment ON public.payment_disputes USING btree (payment_id);
+
+-- Name: idx_plans_active; Type: INDEX; Schema: public
+
+CREATE INDEX idx_plans_active ON public.plans USING btree (is_active, sort_order);
+
+-- Name: idx_role_permissions_role; Type: INDEX; Schema: public
+
+CREATE INDEX idx_role_permissions_role ON public.role_permissions USING btree (role_id);
+
+-- Name: idx_rsvp_parties_event_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_rsvp_parties_event_id ON public.rsvp_parties USING btree (event_id);
+
+-- Name: idx_rsvp_parties_event_response; Type: INDEX; Schema: public
+
+CREATE INDEX idx_rsvp_parties_event_response ON public.rsvp_parties USING btree (event_id, response);
+
+-- Name: idx_rsvp_parties_label_trgm; Type: INDEX; Schema: public
+
+CREATE INDEX idx_rsvp_parties_label_trgm ON public.rsvp_parties USING gin (label public.gin_trgm_ops);
+
+-- Name: idx_rsvp_response_history_event_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_rsvp_response_history_event_id ON public.rsvp_response_history USING btree (event_id, created_at DESC);
+
+-- Name: idx_rsvp_response_history_party_id; Type: INDEX; Schema: public
+
+CREATE INDEX idx_rsvp_response_history_party_id ON public.rsvp_response_history USING btree (party_id, created_at DESC);
+
+-- Name: idx_seating_event; Type: INDEX; Schema: public
+
+CREATE INDEX idx_seating_event ON public.seating_assignments USING btree (event_id);
+
+-- Name: idx_seating_table; Type: INDEX; Schema: public
+
+CREATE INDEX idx_seating_table ON public.seating_assignments USING btree (table_id);
+
+-- Name: idx_security_events_created; Type: INDEX; Schema: public
+
+CREATE INDEX idx_security_events_created ON public.security_events USING btree (created_at DESC);
+
+-- Name: idx_sessions_jti; Type: INDEX; Schema: public
+
+CREATE INDEX idx_sessions_jti ON public.sessions USING btree (jti);
+
+-- Name: idx_sessions_user; Type: INDEX; Schema: public
+
+CREATE INDEX idx_sessions_user ON public.sessions USING btree (user_id, created_at DESC);
+
+-- Name: idx_sms_campaign_recipients_campaign; Type: INDEX; Schema: public
+
+CREATE INDEX idx_sms_campaign_recipients_campaign ON public.sms_campaign_recipients USING btree (campaign_id, status);
+
+-- Name: idx_sms_campaign_recipients_idem; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_sms_campaign_recipients_idem ON public.sms_campaign_recipients USING btree (idempotency_key);
+
+-- Name: idx_sms_campaign_recipients_sid; Type: INDEX; Schema: public
+
+CREATE INDEX idx_sms_campaign_recipients_sid ON public.sms_campaign_recipients USING btree (sms_sid) WHERE (sms_sid IS NOT NULL);
+
+-- Name: idx_sms_campaigns_active; Type: INDEX; Schema: public
+
+CREATE INDEX idx_sms_campaigns_active ON public.sms_campaigns USING btree (created_at) WHERE (status = ANY (ARRAY['queued'::text, 'processing'::text]));
+
+-- Name: idx_sms_campaigns_event; Type: INDEX; Schema: public
+
+CREATE INDEX idx_sms_campaigns_event ON public.sms_campaigns USING btree (event_id, created_at DESC);
+
+-- Name: idx_sms_campaigns_token; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_sms_campaigns_token ON public.sms_campaigns USING btree (client_token) WHERE (client_token IS NOT NULL);
+
+-- Name: idx_sms_credit_ledger_event; Type: INDEX; Schema: public
+
+CREATE INDEX idx_sms_credit_ledger_event ON public.sms_credit_ledger USING btree (event_id);
+
+-- Name: idx_sms_credit_ledger_idempotency; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_sms_credit_ledger_idempotency ON public.sms_credit_ledger USING btree (idempotency_key) WHERE (idempotency_key IS NOT NULL);
+
+-- Name: idx_sms_credit_ledger_sid; Type: INDEX; Schema: public
+
+CREATE INDEX idx_sms_credit_ledger_sid ON public.sms_credit_ledger USING btree (sms_sid) WHERE (sms_sid IS NOT NULL);
+
+-- Name: idx_sms_credit_ledger_unique_purchase; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX idx_sms_credit_ledger_unique_purchase ON public.sms_credit_ledger USING btree (stripe_payment_intent_id) WHERE (transaction_type = 'purchase'::text);
+
+-- Name: idx_subscriptions_org; Type: INDEX; Schema: public
+
+CREATE INDEX idx_subscriptions_org ON public.subscriptions USING btree (org_id);
+
+-- Name: idx_tables_event; Type: INDEX; Schema: public
+
+CREATE INDEX idx_tables_event ON public.tables USING btree (event_id);
+
+-- Name: idx_user_roles_user_role; Type: INDEX; Schema: public
+
+CREATE INDEX idx_user_roles_user_role ON public.user_roles USING btree (user_id, role);
+
+-- Name: uq_email_log_kind_ref; Type: INDEX; Schema: public
+
+CREATE UNIQUE INDEX uq_email_log_kind_ref ON public.email_log USING btree (kind, ref) WHERE (ref IS NOT NULL);
+
+-- Name: credit_packages set_credit_packages_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_credit_packages_updated_at BEFORE UPDATE ON public.credit_packages FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: plans set_plans_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_plans_updated_at BEFORE UPDATE ON public.plans FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: subscriptions set_subscriptions_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_subscriptions_updated_at BEFORE UPDATE ON public.subscriptions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: custom_answers set_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.custom_answers FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: events set_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.events FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: guests set_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.guests FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: invitations set_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.invitations FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: organizations set_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: rsvp_parties set_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.rsvp_parties FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: sms_credit_wallets set_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.sms_credit_wallets FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: super_admin_config set_updated_at; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER set_updated_at BEFORE UPDATE ON public.super_admin_config FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Name: rsvp_parties trg_party_response_change; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER trg_party_response_change AFTER INSERT OR UPDATE OF response ON public.rsvp_parties FOR EACH ROW EXECUTE FUNCTION public.handle_party_response_change();
+
+-- Name: custom_answers trg_validate_custom_answer; Type: TRIGGER; Schema: public
+
+CREATE TRIGGER trg_validate_custom_answer BEFORE INSERT OR UPDATE ON public.custom_answers FOR EACH ROW EXECUTE FUNCTION public.validate_custom_answer();
+
+-- Name: activity_logs activity_logs_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.activity_logs
+    ADD CONSTRAINT activity_logs_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: admin_audit_logs admin_audit_logs_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.admin_audit_logs
+    ADD CONSTRAINT admin_audit_logs_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- Name: admin_user_roles admin_user_roles_admin_user_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.admin_user_roles
+    ADD CONSTRAINT admin_user_roles_admin_user_id_fkey FOREIGN KEY (admin_user_id) REFERENCES public.admin_users(id) ON DELETE CASCADE;
+
+-- Name: admin_user_roles admin_user_roles_role_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.admin_user_roles
+    ADD CONSTRAINT admin_user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+-- Name: admin_users admin_users_user_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.admin_users
+    ADD CONSTRAINT admin_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Name: check_ins check_ins_checked_in_by_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.check_ins
+    ADD CONSTRAINT check_ins_checked_in_by_fkey FOREIGN KEY (checked_in_by) REFERENCES auth.users(id);
+
+-- Name: check_ins check_ins_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.check_ins
+    ADD CONSTRAINT check_ins_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: check_ins check_ins_guest_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.check_ins
+    ADD CONSTRAINT check_ins_guest_id_fkey FOREIGN KEY (guest_id) REFERENCES public.guests(id) ON DELETE CASCADE;
+
+-- Name: check_ins check_ins_party_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.check_ins
+    ADD CONSTRAINT check_ins_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.rsvp_parties(id) ON DELETE CASCADE;
+
+-- Name: custom_answers custom_answers_field_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.custom_answers
+    ADD CONSTRAINT custom_answers_field_id_fkey FOREIGN KEY (field_id) REFERENCES public.custom_form_fields(id) ON DELETE CASCADE;
+
+-- Name: custom_answers custom_answers_guest_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.custom_answers
+    ADD CONSTRAINT custom_answers_guest_id_fkey FOREIGN KEY (guest_id) REFERENCES public.guests(id) ON DELETE CASCADE;
+
+-- Name: custom_answers custom_answers_party_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.custom_answers
+    ADD CONSTRAINT custom_answers_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.rsvp_parties(id) ON DELETE CASCADE;
+
+-- Name: devices devices_user_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.devices
+    ADD CONSTRAINT devices_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Name: event_payments event_payments_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.event_payments
+    ADD CONSTRAINT event_payments_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: events fk_events_org_id; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.events
+    ADD CONSTRAINT fk_events_org_id FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+-- Name: organizations fk_organizations_owner_user_id; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.organizations
+    ADD CONSTRAINT fk_organizations_owner_user_id FOREIGN KEY (owner_user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Name: user_roles fk_user_roles_user_id; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT fk_user_roles_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Name: guests guests_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.guests
+    ADD CONSTRAINT guests_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: guests guests_party_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.guests
+    ADD CONSTRAINT guests_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.rsvp_parties(id) ON DELETE CASCADE;
+
+-- Name: invitations invitations_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.invitations
+    ADD CONSTRAINT invitations_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: invitations invitations_party_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.invitations
+    ADD CONSTRAINT invitations_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.rsvp_parties(id) ON DELETE CASCADE;
+
+-- Name: login_history login_history_user_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.login_history
+    ADD CONSTRAINT login_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- Name: payment_disputes payment_disputes_payment_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.payment_disputes
+    ADD CONSTRAINT payment_disputes_payment_id_fkey FOREIGN KEY (payment_id) REFERENCES public.event_payments(id) ON DELETE SET NULL;
+
+-- Name: role_permissions role_permissions_permission_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.role_permissions
+    ADD CONSTRAINT role_permissions_permission_id_fkey FOREIGN KEY (permission_id) REFERENCES public.permissions(id) ON DELETE CASCADE;
+
+-- Name: role_permissions role_permissions_role_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.role_permissions
+    ADD CONSTRAINT role_permissions_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+-- Name: custom_form_fields rsvp_form_fields_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.custom_form_fields
+    ADD CONSTRAINT rsvp_form_fields_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: rsvp_parties rsvp_parties_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.rsvp_parties
+    ADD CONSTRAINT rsvp_parties_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: rsvp_response_history rsvp_response_history_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.rsvp_response_history
+    ADD CONSTRAINT rsvp_response_history_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: rsvp_response_history rsvp_response_history_party_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.rsvp_response_history
+    ADD CONSTRAINT rsvp_response_history_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.rsvp_parties(id) ON DELETE CASCADE;
+
+-- Name: seating_assignments seating_assignments_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.seating_assignments
+    ADD CONSTRAINT seating_assignments_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: seating_assignments seating_assignments_party_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.seating_assignments
+    ADD CONSTRAINT seating_assignments_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.rsvp_parties(id) ON DELETE CASCADE;
+
+-- Name: seating_assignments seating_assignments_table_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.seating_assignments
+    ADD CONSTRAINT seating_assignments_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.tables(id) ON DELETE CASCADE;
+
+-- Name: security_events security_events_user_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.security_events
+    ADD CONSTRAINT security_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- Name: sessions sessions_user_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sessions
+    ADD CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- Name: sms_campaign_recipients sms_campaign_recipients_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_campaign_recipients
+    ADD CONSTRAINT sms_campaign_recipients_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.sms_campaigns(id) ON DELETE CASCADE;
+
+-- Name: sms_campaign_recipients sms_campaign_recipients_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_campaign_recipients
+    ADD CONSTRAINT sms_campaign_recipients_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: sms_campaigns sms_campaigns_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_campaigns
+    ADD CONSTRAINT sms_campaigns_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: sms_credit_ledger sms_credit_ledger_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_credit_ledger
+    ADD CONSTRAINT sms_credit_ledger_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: sms_credit_ledger sms_credit_ledger_wallet_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_credit_ledger
+    ADD CONSTRAINT sms_credit_ledger_wallet_id_fkey FOREIGN KEY (wallet_id) REFERENCES public.sms_credit_wallets(id) ON DELETE CASCADE;
+
+-- Name: sms_credit_wallets sms_credit_wallets_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.sms_credit_wallets
+    ADD CONSTRAINT sms_credit_wallets_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: subscriptions subscriptions_org_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.subscriptions
+    ADD CONSTRAINT subscriptions_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+-- Name: subscriptions subscriptions_plan_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.subscriptions
+    ADD CONSTRAINT subscriptions_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.plans(id) ON DELETE SET NULL;
+
+-- Name: tables tables_event_id_fkey; Type: FK CONSTRAINT; Schema: public
+
+ALTER TABLE ONLY public.tables
+    ADD CONSTRAINT tables_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
+
+-- Name: activity_logs; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+
+-- Name: super_admin_config admin_all_config; Type: POLICY; Schema: public
+
+CREATE POLICY admin_all_config ON public.super_admin_config TO authenticated USING (public.is_super_admin(auth.uid())) WITH CHECK (public.is_super_admin(auth.uid()));
+
+-- Name: user_roles admin_all_roles; Type: POLICY; Schema: public
+
+CREATE POLICY admin_all_roles ON public.user_roles TO authenticated USING (public.is_super_admin(auth.uid())) WITH CHECK (public.is_super_admin(auth.uid()));
+
+-- Name: admin_audit_logs; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.admin_audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- Name: admin_user_roles; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.admin_user_roles ENABLE ROW LEVEL SECURITY;
+
+-- Name: admin_users; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
+
+-- Name: check_ins; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.check_ins ENABLE ROW LEVEL SECURITY;
+
+-- Name: credit_packages; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.credit_packages ENABLE ROW LEVEL SECURITY;
+
+-- Name: custom_answers; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.custom_answers ENABLE ROW LEVEL SECURITY;
+
+-- Name: custom_form_fields; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.custom_form_fields ENABLE ROW LEVEL SECURITY;
+
+-- Name: devices; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
+
+-- Name: email_log; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.email_log ENABLE ROW LEVEL SECURITY;
+
+-- Name: event_payments; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.event_payments ENABLE ROW LEVEL SECURITY;
+
+-- Name: events; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
+
+-- Name: rsvp_parties guest_select_rsvp_parties; Type: POLICY; Schema: public
+
+CREATE POLICY guest_select_rsvp_parties ON public.rsvp_parties FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM public.events
+  WHERE ((events.id = rsvp_parties.event_id) AND (events.is_paid = true) AND (events.status = 'active'::text) AND (events.guest_list_visibility <> 'none'::public.guest_list_visibility_type)))));
+
+-- Name: seating_assignments guest_select_seating; Type: POLICY; Schema: public
+
+CREATE POLICY guest_select_seating ON public.seating_assignments FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM public.events
+  WHERE ((events.id = seating_assignments.event_id) AND (events.is_paid = true) AND (events.status = 'active'::text)))));
+
+-- Name: guests; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.guests ENABLE ROW LEVEL SECURITY;
+
+-- Name: invitations; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.invitations ENABLE ROW LEVEL SECURITY;
+
+-- Name: login_history; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.login_history ENABLE ROW LEVEL SECURITY;
+
+-- Name: organizations; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
+
+-- Name: check_ins organizer_all_checkins; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_checkins ON public.check_ins TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = check_ins.event_id) AND (o.owner_user_id = auth.uid())))))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = check_ins.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: custom_answers organizer_all_custom_answers; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_custom_answers ON public.custom_answers TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM ((public.rsvp_parties p
+     JOIN public.events e ON ((p.event_id = e.id)))
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((p.id = custom_answers.party_id) AND (o.owner_user_id = auth.uid())))))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM ((public.rsvp_parties p
+     JOIN public.events e ON ((p.event_id = e.id)))
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((p.id = custom_answers.party_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: events organizer_all_events; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_events ON public.events TO authenticated USING ((public.is_super_admin(auth.uid()) OR (org_id IN ( SELECT organizations.id
+   FROM public.organizations
+  WHERE (organizations.owner_user_id = auth.uid()))))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (org_id IN ( SELECT organizations.id
+   FROM public.organizations
+  WHERE (organizations.owner_user_id = auth.uid())))));
+
+-- Name: custom_form_fields organizer_all_fields; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_fields ON public.custom_form_fields TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = custom_form_fields.event_id) AND (o.owner_user_id = auth.uid())))))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = custom_form_fields.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: guests organizer_all_guests; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_guests ON public.guests TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = guests.event_id) AND (o.owner_user_id = auth.uid())))))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = guests.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: organizations organizer_all_organizations; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_organizations ON public.organizations TO authenticated USING ((public.is_super_admin(auth.uid()) OR (owner_user_id = auth.uid()))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (owner_user_id = auth.uid())));
+
+-- Name: rsvp_parties organizer_all_rsvp_parties; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_rsvp_parties ON public.rsvp_parties TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = rsvp_parties.event_id) AND (o.owner_user_id = auth.uid())))))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = rsvp_parties.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: seating_assignments organizer_all_seating; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_seating ON public.seating_assignments TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = seating_assignments.event_id) AND (o.owner_user_id = auth.uid())))))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = seating_assignments.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: tables organizer_all_tables; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_all_tables ON public.tables TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = tables.event_id) AND (o.owner_user_id = auth.uid())))))) WITH CHECK ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = tables.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: user_roles organizer_read_own_role; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_read_own_role ON public.user_roles FOR SELECT TO authenticated USING ((auth.uid() = user_id));
+
+-- Name: event_payments organizer_read_payments; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_read_payments ON public.event_payments FOR SELECT TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = event_payments.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: invitations organizer_select_invitations; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_select_invitations ON public.invitations FOR SELECT TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = invitations.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: sms_credit_ledger organizer_select_ledger; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_select_ledger ON public.sms_credit_ledger FOR SELECT TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = sms_credit_ledger.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: activity_logs organizer_select_logs; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_select_logs ON public.activity_logs FOR SELECT TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = activity_logs.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: rsvp_response_history organizer_select_response_history; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_select_response_history ON public.rsvp_response_history FOR SELECT TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = rsvp_response_history.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: sms_credit_wallets organizer_select_wallet; Type: POLICY; Schema: public
+
+CREATE POLICY organizer_select_wallet ON public.sms_credit_wallets FOR SELECT TO authenticated USING ((public.is_super_admin(auth.uid()) OR (EXISTS ( SELECT 1
+   FROM (public.events e
+     JOIN public.organizations o ON ((e.org_id = o.id)))
+  WHERE ((e.id = sms_credit_wallets.event_id) AND (o.owner_user_id = auth.uid()))))));
+
+-- Name: payment_disputes; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.payment_disputes ENABLE ROW LEVEL SECURITY;
+
+-- Name: permissions; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
+
+-- Name: plans; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
+
+-- Name: role_permissions; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
+
+-- Name: roles; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.roles ENABLE ROW LEVEL SECURITY;
+
+-- Name: rsvp_parties; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.rsvp_parties ENABLE ROW LEVEL SECURITY;
+
+-- Name: rsvp_response_history; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.rsvp_response_history ENABLE ROW LEVEL SECURITY;
+
+-- Name: seating_assignments; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.seating_assignments ENABLE ROW LEVEL SECURITY;
+
+-- Name: security_events; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.security_events ENABLE ROW LEVEL SECURITY;
+
+-- Name: sessions; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
+
+-- Name: sms_credit_ledger; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.sms_credit_ledger ENABLE ROW LEVEL SECURITY;
+
+-- Name: sms_credit_wallets; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.sms_credit_wallets ENABLE ROW LEVEL SECURITY;
+
+-- Name: subscriptions; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+
+-- Name: super_admin_config; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.super_admin_config ENABLE ROW LEVEL SECURITY;
+
+-- Name: tables; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.tables ENABLE ROW LEVEL SECURITY;
+
+-- Name: user_roles; Type: ROW SECURITY; Schema: public
+
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+
+-- Name: SCHEMA public; Type: ACL; Schema: -
+
+REVOKE USAGE ON SCHEMA public FROM PUBLIC;

@@ -9,11 +9,8 @@ const { injectModule } = require('./helpers/inject');
 // assignSeat/reassignSeat auto-fire a QR ticket email — stub the service so no
 // email work happens and we can assert it was triggered.
 let qrEmailCalls = [];
-injectModule('../../utils/notificationService', {
-  sendQRTicketEmail: async (...args) => { qrEmailCalls.push(args); return true; },
-  sendConfirmationEmail: async () => true,
-  sendEmailViaBrevo: async () => true,
-  sendInvitationEmail: async () => ({ sent: true }),
+injectModule('../../services/invitationService', {
+  sendQrTicketEmail: async (...args) => { qrEmailCalls.push(args); return { sent: true }; },
 });
 
 // Realtime broadcasts are fire-and-forget REST calls — stub them out.
@@ -97,7 +94,7 @@ test('assignSeat forwards the force-override flag to the RPC (deliberate overboo
   await invoke(assignSeat, seatReq({ rsvpId: 'r1', tableId: 't1', force: true }));
   assert.equal(params.p_force, true);
   assert.equal(params.p_event_id, 'evt-1');
-  assert.equal(params.p_rsvp_id, 'r1');
+  assert.equal(params.p_party_id, 'r1');
   assert.equal(params.p_table_id, 't1');
 });
 
@@ -180,7 +177,7 @@ test('saveSeatingBatch diffs current vs desired: assign new, reassign moved, una
   mock.setResolver((s) => {
     if (s.table === 'seating_assignments' && s.op === 'select') {
       // r1 currently at t1, r4 currently at t9.
-      return { data: [{ rsvp_id: 'r1', table_id: 't1' }, { rsvp_id: 'r4', table_id: 't9' }] };
+      return { data: [{ party_id: 'r1', table_id: 't1' }, { party_id: 'r4', table_id: 't9' }] };
     }
     if (s.op === 'rpc') { (rpcByFn[s.fn] ||= []).push(s.params); return { data: { success: true } }; }
     return {};
@@ -212,7 +209,7 @@ test('saveSeatingBatch returns 400 BATCH_SAVE_FAILED when any row fails capacity
     if (s.table === 'seating_assignments' && s.op === 'select') return { data: [] };
     if (s.op === 'rpc' && s.fn === 'assign_seat') {
       // r2 overflows its table; r1 is fine.
-      if (s.params.p_rsvp_id === 'r2') return { data: { success: false, message: 'CAPACITY_EXCEEDED' } };
+      if (s.params.p_party_id === 'r2') return { data: { success: false, message: 'CAPACITY_EXCEEDED' } };
       return { data: { success: true } };
     }
     return {};

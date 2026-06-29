@@ -23,6 +23,13 @@ if (missing.length > 0) {
 
 const app = express();
 
+// Behind nginx (Hostinger) the app receives every request from 127.0.0.1 with the
+// real client IP in X-Forwarded-For. Trust exactly ONE proxy hop so:
+//   • req.ip is the real client → rate limiters bucket per-user, not globally
+//   • req.protocol reflects https (X-Forwarded-Proto) for correct redirect/callback URLs
+// Use a numeric hop count (not `true`) so a spoofed XFF can't impersonate an IP.
+app.set('trust proxy', 1);
+
 // Enable security headers
 app.use(helmet({
   crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
