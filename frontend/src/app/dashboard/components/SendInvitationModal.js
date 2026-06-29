@@ -329,7 +329,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
               </>
             ) : (
               <>
-                <strong style={{ color: COLORS.indigo }}>💬 SMS Invitations</strong> — Sends a text message with a unique RSVP link to each selected guest who has a phone number. Uses your SMS credit balance. <em>For advanced options, use the <Link href="/dashboard/campaigns" style={{ color: COLORS.indigo, fontWeight: 700 }}>Campaign Manager</Link>.</em>
+                <strong style={{ color: COLORS.indigo }}>💬 SMS Invitations</strong> — Sends a text message with a unique RSVP link to each selected guest who has a phone number. Uses <strong>this event&apos;s</strong> SMS credit balance (each event has its own wallet). Arabic or emoji messages cost more credits per guest. <em>For advanced options, use the <Link href="/dashboard/campaigns" style={{ color: COLORS.indigo, fontWeight: 700 }}>Campaign Manager</Link>.</em>
               </>
             )}
           </div>

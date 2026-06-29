@@ -458,6 +458,13 @@ export default function CampaignsPage() {
               <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.1em' }}>Remaining Balance</span>
               <span style={{ fontSize: 22, fontWeight: 900, display: 'block', marginTop: 6, color: C.gold }}>{creditsRemaining} Credits</span>
             </div>
+            {/* Wallets are scoped per-event: credits bought here only spend on THIS event. */}
+            <div style={{ gridColumn: '1 / -1', borderTop: `1px solid ${C.border}`, paddingTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <span style={{ fontSize: 13 }}>🔒</span>
+              <span style={{ fontSize: 11, color: C.stone, fontWeight: 600, lineHeight: 1.5 }}>
+                This balance belongs to this event only — credits aren&apos;t shared across your other events.
+              </span>
+            </div>
           </div>
 
           {/* 2. Composer */}
@@ -556,6 +563,16 @@ export default function CampaignsPage() {
                       <span style={{ fontSize: 10, color: C.stone, lineHeight: 1.6 }}>
                         This message spans {segmentsPerMsg} segments, so each guest costs {segmentsPerMsg} credits. Shorten it (or switch off special characters) to drop to a single segment.
                       </span>
+                    )}
+                    {/* UCS-2 (Arabic, accents, emoji) caps a segment at 70 chars vs 160 — so the
+                        same length costs far more credits. Surface this explicitly. */}
+                    {segmentInfo.encoding === 'UCS-2' && (
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(196,94,94,0.06)', border: `1px solid rgba(196,94,94,0.25)`, borderRadius: 8, padding: '8px 10px' }}>
+                        <span style={{ fontSize: 12, lineHeight: 1.4 }}>⚠️</span>
+                        <span style={{ fontSize: 10, color: C.charcoal, lineHeight: 1.6 }}>
+                          <strong>Arabic / special characters detected.</strong> This switches the message to Unicode, where each SMS segment holds only <strong>70 characters</strong> (vs 160 for Latin text) — so it can cost up to <strong>3× the credits</strong> per guest. Use plain Latin text to keep messages to a single segment.
+                        </span>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -783,6 +800,9 @@ export default function CampaignsPage() {
             <h3 style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-serif)' }}>Purchase SMS Credits</h3>
             <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>
               SMS credits are used to send bulk mobile invitations to your guests. Volume discount of 12.5% is automatically applied on packages of 500 credits or more.
+            </p>
+            <p style={{ fontSize: 11, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)', background: C.softBg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', margin: 0 }}>
+              🔒 These credits are added to <strong>this event&apos;s wallet only</strong> — each event keeps its own balance, so they can&apos;t be moved to or shared with another event.
             </p>
             <form onSubmit={handleBuySMSCredits} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>

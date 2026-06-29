@@ -1,0 +1,24 @@
+<svg width="384" height="96" viewBox="0 0 384 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fancy RSVP">
+  <defs>
+    <linearGradient id="fancyGoldLogo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EBD9A6"/>
+      <stop offset="0.5" stop-color="#C9A85C"/>
+      <stop offset="1" stop-color="#8A6D34"/>
+    </linearGradient>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&amp;family=Playfair+Display:wght@600&amp;display=swap');
+      .fancy { font-family: 'Great Vibes', cursive; font-size: 58px; fill: url(#fancyGoldLogo); }
+      .rsvp  { font-family: 'Playfair Display', Georgia, serif; font-size: 30px; font-weight: 600; letter-spacing: 6px; fill: #B8944F; }
+    </style>
+  </defs>
+
+  <g transform="translate(8,24)">
+    <rect x="0" y="15" width="56" height="35" rx="3" fill="none" stroke="url(#fancyGoldLogo)" stroke-width="2"/>
+    <path d="M0 19 L28 42 L56 19" fill="none" stroke="url(#fancyGoldLogo)" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M3 15 L28 0 L53 15" fill="none" stroke="url(#fancyGoldLogo)" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M28 3 L31.4 7 L28 11 L24.6 7 Z" fill="#EBD9A6"/>
+  </g>
+
+  <text class="fancy" x="80" y="62">Fancy</text>
+  <text class="rsvp" x="256" y="58">RSVP</text>
+</svg>

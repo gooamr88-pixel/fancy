@@ -1,56 +1,16 @@
-<svg
-  width="38"
-  height="38"
-  viewBox="0 0 38 38"
-  fill="none"
-  xmlns="http://www.w3.org/2000/svg"
->
-  <g transform="translate(0, 3)">
-    <!-- Envelope body -->
-    <rect
-      x="2"
-      y="8"
-      width="34"
-      height="22"
-      rx="2"
-      stroke="#B8944F"
-      stroke-width="1.5"
-      fill="none"
-    />
-    <!-- Envelope flap -->
-    <path
-      d="M2 10L19 22L36 10"
-      stroke="#B8944F"
-      stroke-width="1.5"
-      fill="none"
-      stroke-linejoin="round"
-    />
-    <!-- Flap top triangle -->
-    <path
-      d="M4 8L19 0L34 8"
-      stroke="#B8944F"
-      stroke-width="1.2"
-      fill="none"
-      stroke-linejoin="round"
-    />
-    <!-- RSVP text inside -->
-    <text
-      x="19"
-      y="21"
-      text-anchor="middle"
-      fill="#B8944F"
-      font-size="6.5"
-      font-family="Georgia, serif"
-      font-weight="600"
-      letter-spacing="1"
-    >
-      RSVP
-    </text>
-    <!-- Small decorative diamond on flap -->
-    <path
-      d="M19 3L20.5 5L19 7L17.5 5Z"
-      fill="#D7BE80"
-      opacity="0.7"
-    />
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fancy RSVP">
+  <defs>
+    <linearGradient id="fancyGold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EBD9A6"/>
+      <stop offset="0.5" stop-color="#C9A85C"/>
+      <stop offset="1" stop-color="#8A6D34"/>
+    </linearGradient>
+  </defs>
+  <g>
+    <rect x="6" y="15" width="36" height="23" rx="2.5" fill="none" stroke="url(#fancyGold)" stroke-width="1.6"/>
+    <path d="M6 17.5 L24 31 L42 17.5" fill="none" stroke="url(#fancyGold)" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M8 15 L24 4 L40 15" fill="none" stroke="url(#fancyGold)" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M24 6.5 L26.4 9.5 L24 12.5 L21.6 9.5 Z" fill="#EBD9A6"/>
+    <text x="24" y="28.5" text-anchor="middle" fill="url(#fancyGold)" font-family="Georgia, 'Times New Roman', serif" font-size="6" font-weight="600" letter-spacing="1">RSVP</text>
   </g>
 </svg>

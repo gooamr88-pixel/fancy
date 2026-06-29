@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { computeSmsSegments } from '../../../utils/smsSegments';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -22,6 +23,9 @@ export default function Stage3_Distribution({
   const [copied, setCopied] = useState(false);
   const [creditQty, setCreditQty] = useState(100);
   const eventUrl = `fancyrsvp.com/${slug || 'your-event'}`;
+  // Segment-accurate counter: Arabic/emoji switch the body to Unicode (70-char
+  // segments vs 160), so the per-segment cap and credit cost change with content.
+  const smsSeg = computeSmsSegments(smsTemplate || '');
 
   const handleCopy = useCallback(async () => {
     try {
@@ -261,10 +265,20 @@ export default function Stage3_Distribution({
                               ))}
                             </div>
                             <span style={{
-                              fontSize: 10, color: C.stone,
+                              fontSize: 10, color: smsSeg.segments > 1 ? C.error : C.stone,
                               fontFamily: 'var(--font-sans)',
-                            }}>{smsTemplate.length}/160</span>
+                            }}>{smsSeg.length}/{smsSeg.perSegment} · {smsSeg.segments} SMS</span>
                           </div>
+
+                          {/* UCS-2 (Arabic / emoji / accents) costs far more credits per guest. */}
+                          {smsSeg.encoding === 'UCS-2' && (
+                            <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)', borderRadius: 8, padding: '8px 10px' }}>
+                              <span style={{ fontSize: 12, lineHeight: 1.4 }}>⚠️</span>
+                              <span style={{ fontSize: 10, color: C.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                                <strong>Arabic / special characters detected.</strong> Each SMS segment now holds only <strong>70 characters</strong> instead of 160, so this message can cost up to <strong>3× the credits</strong> per guest.
+                              </span>
+                            </div>
+                          )}
 
                           {/* Live credit balance */}
                           <div
@@ -277,7 +291,7 @@ export default function Stage3_Distribution({
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                 <span style={{ fontSize: 18 }}>📨</span>
                                 <div>
-                                  <span style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', display: 'block' }}>Available SMS credits</span>
+                                  <span style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', display: 'block' }}>Available SMS credits <span style={{ color: C.gold, fontWeight: 700 }}>· this event</span></span>
                                   <span style={{ fontSize: 20, fontWeight: 800, color: C.charcoal, fontFamily: 'var(--font-sans)' }}>
                                     {smsCreditsLoading && smsCredits === null ? '…' : (smsCredits ?? 0)}
                                   </span>

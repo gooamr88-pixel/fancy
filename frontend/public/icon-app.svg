@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fancy RSVP app icon">
+  <defs>
+    <linearGradient id="fancyGoldApp" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EBD9A6"/>
+      <stop offset="0.5" stop-color="#D7BE80"/>
+      <stop offset="1" stop-color="#B8944F"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#191B1E"/>
+  <g transform="translate(256,250)">
+    <rect x="-112" y="-58" width="224" height="150" rx="14" fill="none" stroke="url(#fancyGoldApp)" stroke-width="9"/>
+    <path d="M-112 -42 L0 42 L112 -42" fill="none" stroke="url(#fancyGoldApp)" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M-100 -58 L0 -132 L100 -58" fill="none" stroke="url(#fancyGoldApp)" stroke-width="7.5" stroke-linejoin="round"/>
+    <path d="M0 -118 L15 -98 L0 -78 L-15 -98 Z" fill="#EBD9A6"/>
+    <text x="0" y="58" text-anchor="middle" fill="url(#fancyGoldApp)" font-family="Georgia, 'Times New Roman', serif" font-size="38" font-weight="600" letter-spacing="6">RSVP</text>
+  </g>
+</svg>
