@@ -156,7 +156,7 @@ async function sendQrTicketEmail(eventId, partyId) {
     .from('seating_assignments')
     .select(`
       id, table_id,
-      tables(table_name, zones(zone_name)),
+      tables(table_name),
       rsvp_parties(id, label, guests(is_primary_contact, email)),
       events(id, title, event_date, location_name, location_address)
     `)
@@ -186,8 +186,10 @@ async function sendQrTicketEmail(eventId, partyId) {
 
   const qrImageUrl = `${BACKEND_BASE()}/api/v1/public/qr/${encodeURIComponent(token)}.png`;
   const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize };
-  const zoneName = assignment.tables?.zones?.zone_name || null;
-  const html = getQRTicketTemplate(shimParty, event, assignment.tables.table_name, qrImageUrl, zoneName);
+  // The data model has no table→zone relationship (zones are standalone venue
+  // elements in the same `tables` table, not a parent of seatable tables), so a
+  // ticket carries no zone label.
+  const html = getQRTicketTemplate(shimParty, event, assignment.tables.table_name, qrImageUrl, null);
 
   const success = await notificationService.sendEmailViaBrevo(primaryEmail, `Your Ticket & Table Assignment: ${event.title}`, html);
   await logInvitation({
