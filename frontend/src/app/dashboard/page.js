@@ -119,6 +119,7 @@ export default function DashboardPage() {
 
   const [tables, setTables] = useState([]);
   const [rsvps, setRsvps] = useState([]);
+  const [customFields, setCustomFields] = useState([]);
   const [newTableName, setNewTableName] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState(10);
   const [searchQuery, setSearchQuery] = useState('');
@@ -235,18 +236,21 @@ export default function DashboardPage() {
     if (!eventId) return;
     try {
 
-      const [statsResult, tablesResult, rsvpsResult] = await Promise.allSettled([
+      const [statsResult, tablesResult, rsvpsResult, fieldsResult] = await Promise.allSettled([
         fetch(`${apiUrl}/events/${eventId}/stats`, { credentials: 'include' }).then(r => r.json()),
         fetch(`${apiUrl}/events/${eventId}/tables`, { credentials: 'include' }).then(r => r.json()),
         fetch(`${apiUrl}/events/${eventId}/rsvps`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`${apiUrl}/events/${eventId}/fields`, { credentials: 'include' }).then(r => r.json()),
       ]);
 
       const statsData = statsResult.status === 'fulfilled' ? statsResult.value : null;
       const tablesData = tablesResult.status === 'fulfilled' ? tablesResult.value : null;
       const rsvpsData = rsvpsResult.status === 'fulfilled' ? rsvpsResult.value : null;
+      const fieldsData = fieldsResult.status === 'fulfilled' ? fieldsResult.value : null;
 
       if (statsData?.success) setStats(statsData.stats);
       if (tablesData?.success) setTables(tablesData.tables);
+      if (fieldsData?.success) setCustomFields(fieldsData.fields || []);
       if (rsvpsData?.success) {
         const formattedGuests = (rsvpsData.data?.rsvps || []).map(r => {
           const assignedTableId = r.seating_assignments && r.seating_assignments.length > 0 ? r.seating_assignments[0].table_id : '';
@@ -260,6 +264,9 @@ export default function DashboardPage() {
             invitation_sent: wasInvited,
             // Full per-companion details so the organizer sees everyone in the party.
             guests: party,
+            // Custom-question answers (e.g. song requests, dietary preferences) the
+            // party head answered during RSVP — labels resolved against customFields.
+            customAnswers: r.custom_answers || [],
             notes: r.notes || '',
             timestamp: r.created_at || null
           };
@@ -890,6 +897,7 @@ export default function DashboardPage() {
             <GuestsTab
               rsvps={rsvps}
               tables={tables}
+              customFields={customFields}
               eventId={eventId}
               onAssignTable={handleAssignTable}
               onRefresh={loadDashboardData}

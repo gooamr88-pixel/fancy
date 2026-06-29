@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, memo } from 'react';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
+import { findMealField } from '../../utils/mealField';
 import FeatureGate from './FeatureGate';
 
 const COLORS = {
@@ -34,7 +35,7 @@ function StatMini({ icon, value, label, accent }) {
 }
 
 /* ── Guest Card ── */
-const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
+const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, customFields }) {
   const [expanded, setExpanded] = useState(false);
   const yes = isAccepted(guest.response);
   const no = isDeclined(guest.response);
@@ -48,7 +49,20 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
   // Companions the guest brought (guests). The primary guest is included in
   // that table, so a party of N typically has N rows; surface them all.
   const party = Array.isArray(guest.guests) ? guest.guests : [];
-  const hasDetails = party.length > 0 || (guest.notes && guest.notes.trim());
+
+  // Custom-question answers the party head gave during RSVP — resolve each
+  // field_id against the event's field definitions to show a human label.
+  // The meal field is excluded here since it's already shown via meal_selection.
+  const mealField = findMealField(customFields);
+  const customAnswers = (guest.customAnswers || [])
+    .filter((a) => !mealField || a.field_id !== mealField.id)
+    .map((a) => ({
+      label: (customFields || []).find((f) => f.id === a.field_id)?.field_label || 'Question',
+      value: a.answer_value,
+    }))
+    .filter((a) => a.value !== null && a.value !== undefined && String(a.value).trim() !== '');
+
+  const hasDetails = party.length > 0 || (guest.notes && guest.notes.trim()) || customAnswers.length > 0;
 
   return (
     <div style={{
@@ -193,6 +207,11 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
                     <strong style={{ color: COLORS.charcoal }}>Note: </strong>{guest.notes}
                   </div>
                 )}
+                {customAnswers.map((a, i) => (
+                  <div key={i} style={{ fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)', background: COLORS.softBg, border: `1px solid ${COLORS.border}`, borderRadius: '8px', padding: '7px 10px' }}>
+                    <strong style={{ color: COLORS.charcoal }}>{a.label}: </strong>{Array.isArray(a.value) ? a.value.join(', ') : a.value}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -203,7 +222,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable }) {
 });
 
 /* ── Main Component ── */
-export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onOpenSendInvitations, isPaid, onUpgrade }) {
+export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onOpenSendInvitations, isPaid, onUpgrade }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
 
@@ -368,7 +387,7 @@ export default function GuestsTab({ rsvps, tables, eventId, onAssignTable, onRef
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
           {filtered.map(guest => (
-            <GuestCard key={guest.id} guest={guest} tables={tables} onAssignTable={onAssignTable} />
+            <GuestCard key={guest.id} guest={guest} tables={tables} onAssignTable={onAssignTable} customFields={customFields} />
           ))}
         </div>
       )}
