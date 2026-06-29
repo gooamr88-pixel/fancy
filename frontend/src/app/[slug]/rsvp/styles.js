@@ -18,15 +18,4 @@ export const S = {
   },
 };
 
-/* Step slide animation variants (used by RsvpWizard's AnimatePresence wrapper).
-   A touch of scale + blur alongside the slide gives each step transition a
-   soft depth-of-field feel rather than a flat sideways swap. */
-export const stepVariants = {
-  enter: (direction) => ({ x: direction > 0 ? 56 : -56, opacity: 0, scale: 0.98, filter: 'blur(4px)' }),
-  center: { x: 0, opacity: 1, scale: 1, filter: 'blur(0px)' },
-  exit: (direction) => ({ x: direction > 0 ? -56 : 56, opacity: 0, scale: 0.98, filter: 'blur(4px)' }),
-};
-
-export const stepTransition = { duration: 0.45, ease: [0.16, 1, 0.3, 1] };
-
 export { MEAL_FIELD_KEYS, findMealField } from '../../utils/mealField';

@@ -26,10 +26,10 @@ import StepSuccess from './steps/StepSuccess';
  * questions -> submit) instead of step-by-step navigation; this shell owns the
  * form's local state and validation, the actual per-section UI lives in ./steps/*.
  */
-export default function RsvpWizard({ event, guest, context, submit: doSubmit, rememberGuest }) {
+export default function RsvpWizard({ event, guest, context, submit: doSubmit, rememberGuest, embedded = false, lang: langProp }) {
   const slug = context?.slug || event?.slug;
   const searchParams = useSearchParams();
-  const langParam = searchParams.get('lang') || 'en';
+  const langParam = langProp || searchParams.get('lang') || 'en';
 
   const [lang, setLang] = useState(langParam);
   // identityConfirmed gates revealing the rest of the page once the guest has
@@ -317,16 +317,28 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     // r.reason === 'LOCKED' -> engine has already swapped to the locked card.
   };
 
-  /* ═══ Render ═══ */
+  /* ═══ Render ═══
+     `embedded` mode (mounted as a section inside EventPageClient) drops the
+     full-viewport centering shell, ambient particles, and the inner language
+     toggle — the host page already supplies page-level background/chrome and
+     its own language control. The card itself is unchanged either way. */
+  const outerStyle = embedded
+    ? {
+        position: 'relative', width: '100%',
+        display: 'flex', justifyContent: 'center',
+        fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
+      }
+    : {
+        minHeight: '100dvh', position: 'relative', overflow: 'hidden',
+        background: 'radial-gradient(120% 100% at 50% 0%, rgba(231,212,168,0.4) 0%, #F8F4EC 45%, #EFE6D4 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '24px', fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
+      };
+
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} style={{
-      minHeight: '100dvh', position: 'relative', overflow: 'hidden',
-      background: 'radial-gradient(120% 100% at 50% 0%, rgba(231,212,168,0.4) 0%, #F8F4EC 45%, #EFE6D4 100%)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '24px', fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
-    }}>
+    <div dir={isRTL ? 'rtl' : 'ltr'} style={outerStyle}>
       {/* Ambient gold dust — a quiet echo of the envelope's ignition, never competing with it. */}
-      <FloatingParticles count={16} color="#D7BE80" />
+      {!embedded && <FloatingParticles count={16} color="#D7BE80" />}
 
       <motion.div
         initial={{ opacity: 0, y: 34, scale: 0.97 }}
@@ -354,24 +366,26 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
               fontSize: '13px', letterSpacing: '4px', color: 'rgba(215,190,128,0.55)', zIndex: 2,
             }}>✦</span>
 
-            <div style={{ position: 'absolute', top: '14px', ...(isRTL ? { left: '14px' } : { right: '14px' }), display: 'flex', gap: '6px', zIndex: 2 }}>
-              {[{ code: 'en', label: 'EN' }, { code: 'ar', label: 'عربي' }].map(l => (
-                <motion.button
-                  key={l.code}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setLang(l.code)}
-                  style={{
-                    fontSize: '10px', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer',
-                    border: lang === l.code ? '1px solid #B8944F' : '1px solid rgba(255,255,255,0.2)',
-                    background: lang === l.code ? '#B8944F' : 'rgba(255,255,255,0.08)',
-                    color: lang === l.code ? '#191B1E' : 'rgba(255,255,255,0.7)',
-                    fontWeight: lang === l.code ? 700 : 400, fontFamily: 'var(--font-sans)',
-                    backdropFilter: 'blur(8px)', transition: 'all 0.2s',
-                  }}
-                >{l.label}</motion.button>
-              ))}
-            </div>
+            {!embedded && (
+              <div style={{ position: 'absolute', top: '14px', ...(isRTL ? { left: '14px' } : { right: '14px' }), display: 'flex', gap: '6px', zIndex: 2 }}>
+                {[{ code: 'en', label: 'EN' }, { code: 'ar', label: 'عربي' }].map(l => (
+                  <motion.button
+                    key={l.code}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setLang(l.code)}
+                    style={{
+                      fontSize: '10px', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer',
+                      border: lang === l.code ? '1px solid #B8944F' : '1px solid rgba(255,255,255,0.2)',
+                      background: lang === l.code ? '#B8944F' : 'rgba(255,255,255,0.08)',
+                      color: lang === l.code ? '#191B1E' : 'rgba(255,255,255,0.7)',
+                      fontWeight: lang === l.code ? 700 : 400, fontFamily: 'var(--font-sans)',
+                      backdropFilter: 'blur(8px)', transition: 'all 0.2s',
+                    }}
+                  >{l.label}</motion.button>
+                ))}
+              </div>
+            )}
 
             <motion.span initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
               style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '4px', color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '10px', fontFamily: 'var(--font-sans)' }}>
