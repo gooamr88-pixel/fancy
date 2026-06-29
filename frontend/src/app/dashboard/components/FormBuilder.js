@@ -2,6 +2,7 @@
 import { toast } from '../../utils/toast';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { MEAL_FIELD_KEY, findMealField } from '../../utils/mealField';
 
 const inputStyle = {
   width: '100%', boxSizing: 'border-box', background: '#FFFFFF', border: '1px solid #E8E2D6',
@@ -23,6 +24,9 @@ export default function FormBuilder({ eventId }) {
   const [optionsString, setOptionsString] = useState('');
   const [isRequired, setIsRequired] = useState(false);
   const [editingId, setEditingId] = useState(null); // null = add mode; a field id = editing that field
+  // True when the open form is the dedicated meal-options shortcut — locks the field
+  // key to MEAL_FIELD_KEY so the guest RSVP wizard's findMealField() picks it up.
+  const [isMealField, setIsMealField] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -55,12 +59,27 @@ export default function FormBuilder({ eventId }) {
 
   const resetForm = () => {
     setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false);
-    setEditingId(null); setShowAddForm(false);
+    setEditingId(null); setIsMealField(false); setShowAddForm(false);
   };
 
   const startAdd = () => {
     setEditingId(null);
     setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false);
+    setIsMealField(false);
+    setShowAddForm(true);
+  };
+
+  // Shortcut for the special "what would the guest like to eat" field — pre-fills the
+  // exact field key the guest RSVP wizard looks for, so the organizer never has to know
+  // or type the magic string themselves.
+  const startAddMeal = () => {
+    setEditingId(null);
+    setLabel('Meal Selection');
+    setKey(MEAL_FIELD_KEY);
+    setType('select');
+    setOptionsString('');
+    setIsRequired(true);
+    setIsMealField(true);
     setShowAddForm(true);
   };
 
@@ -72,6 +91,7 @@ export default function FormBuilder({ eventId }) {
     setType(f.field_type || 'text');
     setOptionsString(Array.isArray(f.options) ? f.options.join(', ') : '');
     setIsRequired(!!f.is_required);
+    setIsMealField(!!findMealField([f]));
     setShowAddForm(true);
   };
 
@@ -151,10 +171,18 @@ export default function FormBuilder({ eventId }) {
           <p style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Configure additional questions guest party heads reply to when completing RSVPs.</p>
         </div>
         {!showAddForm && (
-          <button onClick={startAdd} style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-            onMouseEnter={e => e.target.style.background = '#a6833f'} onMouseLeave={e => e.target.style.background = '#B8944F'}>
-            + Add Custom Question
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {!findMealField(fields) && (
+              <button onClick={startAddMeal} style={{ padding: '8px 16px', background: '#FFFFFF', color: '#B8944F', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: '1px solid rgba(184,148,79,0.35)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                onMouseEnter={e => e.target.style.background = 'rgba(184,148,79,0.08)'} onMouseLeave={e => e.target.style.background = '#FFFFFF'}>
+                🍽 Add Meal Options
+              </button>
+            )}
+            <button onClick={startAdd} style={{ padding: '8px 16px', background: '#B8944F', color: '#FFFFFF', fontSize: '12px', fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              onMouseEnter={e => e.target.style.background = '#a6833f'} onMouseLeave={e => e.target.style.background = '#B8944F'}>
+              + Add Custom Question
+            </button>
+          </div>
         )}
       </div>
 
@@ -165,26 +193,33 @@ export default function FormBuilder({ eventId }) {
       {/* Add Field Form */}
       {showAddForm && (
         <form onSubmit={handleSubmitField} style={{ background: '#F8F4EC', padding: '24px', border: '1px solid #E8E2D6', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>{editingId ? 'Edit Custom Question' : 'New Custom Question'}</h4>
+          <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>
+            {isMealField ? '🍽 Meal Options' : (editingId ? 'Edit Custom Question' : 'New Custom Question')}
+          </h4>
+          {isMealField && (
+            <p style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)', margin: 0 }}>
+              Guests will see this as a dedicated meal picker on the RSVP page. Just list the dishes below.
+            </p>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
-              <label style={labelStyle}>Question / Label (e.g. Dietary Notes)</label>
+              <label style={labelStyle}>{isMealField ? 'Question Label' : 'Question / Label (e.g. Dietary Notes)'}</label>
               <input type="text" value={label} onChange={e => handleLabelChange(e.target.value)} placeholder="e.g. Dietary Restrictions"
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
             </div>
             <div>
-              <label style={labelStyle}>Field Key {editingId ? '(cannot change)' : '(Unique identifier in DB)'}</label>
-              <input type="text" value={key} onChange={e => setKey(e.target.value)} placeholder="e.g. dietary_restrictions" disabled={!!editingId}
-                style={{ ...inputStyle, fontFamily: 'monospace', ...(editingId ? { background: '#F0ECE3', color: '#A09A91', cursor: 'not-allowed' } : {}) }}
-                onFocus={e => { if (!editingId) e.target.style.borderColor = '#B8944F'; }} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
+              <label style={labelStyle}>Field Key {editingId || isMealField ? '(cannot change)' : '(Unique identifier in DB)'}</label>
+              <input type="text" value={key} onChange={e => setKey(e.target.value)} placeholder="e.g. dietary_restrictions" disabled={!!editingId || isMealField}
+                style={{ ...inputStyle, fontFamily: 'monospace', ...((editingId || isMealField) ? { background: '#F0ECE3', color: '#A09A91', cursor: 'not-allowed' } : {}) }}
+                onFocus={e => { if (!editingId && !isMealField) e.target.style.borderColor = '#B8944F'; }} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={labelStyle}>Response Type</label>
-              <select value={type} onChange={e => setType(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+              <select value={type} onChange={e => setType(e.target.value)} disabled={isMealField} style={{ ...inputStyle, cursor: isMealField ? 'not-allowed' : 'pointer', ...(isMealField ? { background: '#F0ECE3', color: '#A09A91' } : {}) }}>
                 <option value="text">Single Line Text</option>
                 <option value="textarea">Paragraph Description</option>
                 <option value="select">Multiple Choice (Dropdown)</option>
@@ -208,7 +243,7 @@ export default function FormBuilder({ eventId }) {
 
           {TYPES_WITH_OPTIONS.includes(type) && (
             <div>
-              <label style={labelStyle}>Choice Options (Comma-separated)</label>
+              <label style={labelStyle}>{isMealField ? 'Meal Choices (Comma-separated)' : 'Choice Options (Comma-separated)'}</label>
               <input type="text" value={optionsString} onChange={e => setOptionsString(e.target.value)} placeholder="e.g. Prime Beef, Atlantic Salmon, Mushroom Risotto"
                 style={inputStyle} onFocus={e => e.target.style.borderColor = '#B8944F'} onBlur={e => e.target.style.borderColor = '#E8E2D6'} />
               <span style={{ fontSize: '10px', color: '#A09A91', display: 'block', marginTop: '4px' }}>Define selections. Separate choices with commas.</span>

@@ -29,14 +29,4 @@ export const stepVariants = {
 
 export const stepTransition = { duration: 0.45, ease: [0.16, 1, 0.3, 1] };
 
-/* Meal field detection — the canonical example of a 'guest'-scoped custom question.
-   Step 3 renders it as the dedicated "what would you like to eat" picker (driven by
-   the organizer's configured options) instead of asking it again as a generic
-   question in step 4. */
-export const MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option'];
-
-export function findMealField(customFormFields) {
-  return (customFormFields || []).find(
-    (f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)
-  );
-}
+export { MEAL_FIELD_KEYS, findMealField } from '../../utils/mealField';
