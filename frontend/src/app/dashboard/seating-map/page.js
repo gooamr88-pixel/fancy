@@ -845,7 +845,7 @@ export default function SeatingMapPage() {
     if (!selected || saving) return;
     const meta = shapeMeta(selected.shape);
     const body = {
-      tableName: `${selected.table_name} (Copy)`,
+      tableName: meta.cat === 'table' ? String(getNextTableNumber(elements)) : `${selected.table_name} (Copy)`,
       shape: selected.shape,
       elementType: selected.element_type || meta.cat,
       x: clamp((Number(selected.position_x) || 0) + 3, 2, 90),
@@ -1285,8 +1285,14 @@ export default function SeatingMapPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, overflowY: 'auto' }}>
               <div>
-                <label style={{ fontSize: 10, color: C.stone, fontWeight: 700, textTransform: 'uppercase' }}>{isZone(selected) ? 'Label' : 'Table Name'}</label>
-                <input value={inspectName} onChange={e => setInspectName(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none', marginTop: 4 }} />
+                <label style={{ fontSize: 10, color: C.stone, fontWeight: 700, textTransform: 'uppercase' }}>{isZone(selected) ? 'Label' : 'Table Number'}</label>
+                <input
+                  type={isZone(selected) ? 'text' : 'number'}
+                  min={isZone(selected) ? undefined : 1}
+                  value={inspectName}
+                  onChange={e => setInspectName(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 10px', fontSize: 12, outline: 'none', marginTop: 4 }}
+                />
               </div>
               {!isZone(selected) && (
                 <div>
@@ -1336,7 +1342,7 @@ export default function SeatingMapPage() {
       </div>
 
       {/* Add element modal */}
-      {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} view={view} saving={saving} />}
+      {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} view={view} saving={saving} elements={elements} />}
 
       <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
@@ -1378,13 +1384,29 @@ function generateNumberedName(baseName, index, startNum) {
   return `${baseName} ${startNum + index}`.trim();
 }
 
+/* Tables are always identified by a plain unique number (no names) — find the
+   next free one from whatever's already on the canvas. */
+function getNextTableNumber(elements) {
+  let max = 0;
+  (elements || []).forEach(el => {
+    if (shapeMeta(el.shape).cat === 'table') {
+      const n = parseInt(el.table_name, 10);
+      if (!isNaN(n) && n > max) max = n;
+    }
+  });
+  return max + 1;
+}
+
 /* ════════════════════════════════════════════════════════════════
    Add element modal — pick a shape (table) or a zone, then details
    ════════════════════════════════════════════════════════════════ */
-function AddElementModal({ onClose, onAdd, btn, view, saving }) {
+function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
   const [shape, setShape] = useState('round');
   const meta = SHAPES[shape];
-  const [name, setName] = useState('');
+  const nextTableNumber = useMemo(() => getNextTableNumber(elements), [elements]);
+  // Default shape ('round') is a table, so the field starts pre-filled with the
+  // next free number — tables never get a typed-in name, only a unique number.
+  const [name, setName] = useState(() => String(getNextTableNumber(elements)));
   const [capacity, setCapacity] = useState(String(SHAPES.round.defaultCap));
   const [customColor, setCustomColor] = useState('');
   const [customWidth, setCustomWidth] = useState('');
@@ -1397,7 +1419,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving }) {
   const [gridCols, setGridCols] = useState('3');
   const [gridRows, setGridRows] = useState('2');
   const [spacing, setSpacing] = useState('40');
-  const [startNumber, setStartNumber] = useState('1');
+  const [startNumber, setStartNumber] = useState(() => String(getNextTableNumber(elements)));
   const [autoNumber, setAutoNumber] = useState(true);
 
   const pick = (s) => {
@@ -1406,7 +1428,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving }) {
     setCustomColor(SHAPES[s].color || '');
     setCustomWidth(String(SHAPES[s].w));
     setCustomHeight(String(SHAPES[s].h));
-    if (!name.trim()) setName(SHAPES[s].label);
+    if (!name.trim()) setName(SHAPES[s].cat === 'table' ? String(nextTableNumber) : SHAPES[s].label);
   };
 
   const tables = Object.entries(SHAPES).filter(([, m]) => m.cat === 'table');
@@ -1414,8 +1436,9 @@ function AddElementModal({ onClose, onAdd, btn, view, saving }) {
 
   const submit = () => {
     if (saving) return;
-    if (!name.trim()) { toast.error('Please enter a label.'); return; }
-    
+    if (!name.trim()) { toast.error(meta.cat === 'table' ? 'Please enter a table number.' : 'Please enter a label.'); return; }
+    if (meta.cat === 'table' && isNaN(parseInt(name, 10))) { toast.error('Table number must be a number.'); return; }
+
     let numElements = 1;
     let qty = 1;
     let cols = 1;
@@ -1476,7 +1499,12 @@ function AddElementModal({ onClose, onAdd, btn, view, saving }) {
 
       let finalName = name.trim();
       if (isMultiple && autoNumber) {
-        finalName = generateNumberedName(finalName, i, parseInt(startNumber) || 1);
+        if (meta.cat === 'table') {
+          const base = parseInt(startNumber, 10);
+          finalName = String((isNaN(base) ? nextTableNumber : base) + i);
+        } else {
+          finalName = generateNumberedName(finalName, i, parseInt(startNumber) || 1);
+        }
       }
 
       const payload = {
@@ -1537,8 +1565,12 @@ function AddElementModal({ onClose, onAdd, btn, view, saving }) {
 
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <label style={labelStyle}>{meta.cat === 'zone' ? 'Label' : 'Table Name'}</label>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder={meta.label} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+              <label style={labelStyle}>{meta.cat === 'zone' ? 'Label' : 'Table Number'}</label>
+              {meta.cat === 'zone' ? (
+                <input value={name} onChange={e => setName(e.target.value)} placeholder={meta.label} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+              ) : (
+                <input type="number" min="1" value={name} onChange={e => setName(e.target.value)} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+              )}
             </div>
             {meta.cat === 'table' && (
               <div style={{ width: 120 }}>
