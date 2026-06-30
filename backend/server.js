@@ -18,6 +18,14 @@ const server = app.listen(PORT, () => {
   logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`=========================================`);
 
+  // BACKEND_URL feeds absolute URLs embedded in outgoing emails (e.g. the QR
+  // check-in ticket image). Left unset in production, it silently falls back
+  // to localhost — guests then get an image no one outside this machine can
+  // ever load. Catch that misconfiguration loudly at boot instead.
+  if (process.env.NODE_ENV === 'production' && !process.env.BACKEND_URL) {
+    logger.error('BACKEND_URL is not set in production — emailed QR code images and other absolute links will point at localhost and fail to load for guests.');
+  }
+
   // Lifecycle email automation (reminders, reports, post-event). No-ops unless
   // EMAIL_AUTOMATION_ENABLED=true; single-leader + idempotent (see emailScheduler).
   try {
