@@ -80,7 +80,7 @@ function renderSeats(shape, capacity, occupied, w, h) {
 /* ════════════════════════════════════════════════════════════════
    Canvas element (memoized so only the dragged/visible ones re-render)
    ════════════════════════════════════════════════════════════════ */
-const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected, dragOver, onPointerDownMove, onResizeStart, onRotateStart, onDropGuest, onDragOverEl, onDragLeaveEl, onSelect }) {
+const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected, showHandles, dragOver, onPointerDownMove, onResizeStart, onRotateStart, onDropGuest, onDragOverEl, onDragLeaveEl, onSelect }) {
   const meta = shapeMeta(el.shape);
   const zone = isZone(el);
   const w = elWidth(el), h = elHeight(el);
@@ -126,8 +126,9 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected
 
       {/* Resize handle (zones only) + rotate handle (any element, when selected) —
           rotation lets a rectangular/oval/banquet/head table flip between a
-          lengthwise and widthwise layout. */}
-      {selected && (
+          lengthwise and widthwise layout. Hidden during a multi-selection so a
+          "Select All" doesn't sprout a handle on every table at once. */}
+      {selected && showHandles && (
         <>
           {zone && (
             <div
@@ -145,7 +146,7 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected
     </div>
   );
 }, (a, b) => (
-  a.el === b.el && a.occupied === b.occupied && a.selected === b.selected && a.dragOver === b.dragOver
+  a.el === b.el && a.occupied === b.occupied && a.selected === b.selected && a.showHandles === b.showHandles && a.dragOver === b.dragOver
 ));
 
 /* ════════════════════════════════════════════════════════════════
@@ -255,6 +256,9 @@ export default function SeatingMapPage() {
   const [containerSize, setContainerSize] = useState({ w: 900, h: 560 });
   const [dragPos, setDragPos] = useState(null);          // { id, x, y } during element move
   const dragPosRef = useRef(null);                       // mirrors dragPos for pointerup closure
+  const [selectedIds, setSelectedIds] = useState(() => new Set()); // multi-select (Select All + group move)
+  const [groupDragPos, setGroupDragPos] = useState(null); // Map id -> {x,y} during group move
+  const groupDragPosRef = useRef(null);                  // mirrors groupDragPos for pointerup closure
   const [dragOverId, setDragOverId] = useState(null);
   const [panning, setPanning] = useState(false);
   const interaction = useRef(null);                      // { mode, id, ... }
@@ -283,6 +287,7 @@ export default function SeatingMapPage() {
 
   /* ── keep refs in sync ── */
   useEffect(() => { dragPosRef.current = dragPos; }, [dragPos]);
+  useEffect(() => { groupDragPosRef.current = groupDragPos; }, [groupDragPos]);
   useEffect(() => { movedIdsRef.current = movedIds; }, [movedIds]);
 
   /* ── load elements + summary (merges with local dirty state) ── */
@@ -452,11 +457,35 @@ export default function SeatingMapPage() {
   const onElementPointerDown = useCallback((e, id) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+
+    // Dragging an element that's part of an active multi-selection moves the
+    // whole group together, preserving everyone's relative position.
+    if (selectedIds.size > 1 && selectedIds.has(id)) {
+      const origins = {};
+      elements.forEach(el => {
+        if (selectedIds.has(el.id)) origins[el.id] = { x: Number(el.position_x) || 0, y: Number(el.position_y) || 0 };
+      });
+      interaction.current = { mode: 'group-move', ids: Array.from(selectedIds), startX: e.clientX, startY: e.clientY, origins };
+      return;
+    }
+
+    // Clicking an element outside the current multi-selection collapses back
+    // to a normal single selection/drag.
+    if (selectedIds.size > 0) setSelectedIds(new Set());
     setSelectedId(id);
     const el = elements.find(x => x.id === id);
     if (!el) return;
     interaction.current = { mode: 'move', id, startX: e.clientX, startY: e.clientY, origX: Number(el.position_x) || 0, origY: Number(el.position_y) || 0 };
+  }, [elements, selectedIds]);
+
+  const selectAll = useCallback(() => {
+    setSelectedId(null);
+    setSelectedIds(new Set(elements.map(e => e.id)));
   }, [elements]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
 
   const onResizeStart = useCallback((e, id) => {
     e.stopPropagation();
@@ -476,6 +505,7 @@ export default function SeatingMapPage() {
     // background → pan (and deselect)
     if (e.target.closest('[data-el-id]')) return;
     setSelectedId(null);
+    setSelectedIds(new Set());
     setPanning(true);
     interaction.current = { mode: 'pan', startX: e.clientX, startY: e.clientY, tx: view.tx, ty: view.ty };
   }, [view]);
@@ -523,6 +553,25 @@ export default function SeatingMapPage() {
         const newPos = { id: it.id, x: clamp(finalX, 0, 97), y: clamp(finalY, 0, 97) };
         dragPosRef.current = newPos;
         setDragPos(newPos);
+      } else if (it.mode === 'group-move') {
+        // Snap the overall delta (not each element individually) so the group
+        // keeps its relative layout instead of drifting apart.
+        let dx = (e.clientX - it.startX) / view.scale / WORLD_W * 100;
+        let dy = (e.clientY - it.startY) / view.scale / WORLD_H * 100;
+        if (snapToGrid) {
+          const stepX = (32 / WORLD_W) * 100;
+          const stepY = (32 / WORLD_H) * 100;
+          dx = Math.round(dx / stepX) * stepX;
+          dy = Math.round(dy / stepY) * stepY;
+        }
+        const next = new Map();
+        it.ids.forEach(id => {
+          const o = it.origins[id];
+          if (!o) return;
+          next.set(id, { x: clamp(o.x + dx, 0, 97), y: clamp(o.y + dy, 0, 97) });
+        });
+        groupDragPosRef.current = next;
+        setGroupDragPos(next);
       } else if (it.mode === 'resize') {
         const dw = (e.clientX - it.startX) / view.scale;
         const dh = (e.clientY - it.startY) / view.scale;
@@ -562,6 +611,30 @@ export default function SeatingMapPage() {
         dragPosRef.current = null;
         setDragPos(null);
         setMovedIds(prev => new Set(prev).add(it.id));
+      } else if (it.mode === 'group-move') {
+        const finalPositions = groupDragPosRef.current;
+        if (finalPositions && finalPositions.size > 0) {
+          setElements(prev => {
+            const updated = prev.map(el => finalPositions.has(el.id)
+              ? { ...el, position_x: finalPositions.get(el.id).x, position_y: finalPositions.get(el.id).y }
+              : el);
+            const snap = updated.map(el => ({ id: el.id, x: el.position_x, y: el.position_y }));
+            setHistory(h => {
+              const nextHistory = h.slice(0, historyIndexRef.current + 1);
+              historyIndexRef.current = nextHistory.length;
+              setHistoryIndex(nextHistory.length);
+              return [...nextHistory, snap];
+            });
+            return updated;
+          });
+          setMovedIds(prev => {
+            const next = new Set(prev);
+            finalPositions.forEach((_, id) => next.add(id));
+            return next;
+          });
+        }
+        groupDragPosRef.current = null;
+        setGroupDragPos(null);
       } else if (it.mode === 'resize' && it.newW != null) {
         // Track dirty geometry so loadLayout() preserves it
         dirtyGeometryRef.current = { ...dirtyGeometryRef.current, [it.id]: { ...(dirtyGeometryRef.current[it.id] || {}), width: it.newW, height: it.newH } };
@@ -859,6 +932,12 @@ export default function SeatingMapPage() {
         return;
       }
 
+      if (e.key === 'Escape' && selectedIds.size > 0) {
+        e.preventDefault();
+        setSelectedIds(new Set());
+        return;
+      }
+
       if (!selected) return;
 
       const step = e.shiftKey ? 10 : 1; // 10px shift-nudging, 1px default
@@ -952,7 +1031,7 @@ export default function SeatingMapPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selected, snapToGrid, deleteElement, duplicateElement, undo, redo]);
+  }, [selected, selectedIds, snapToGrid, deleteElement, duplicateElement, undo, redo]);
 
   const btn = { padding: '8px 16px', fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'all 0.2s' };
   const pendingCount = Object.keys(pending).length;
@@ -1114,6 +1193,20 @@ export default function SeatingMapPage() {
               }} title="Redo (Ctrl+Y)">
                 Redo
               </button>
+              {selectedIds.size > 0 ? (
+                <button onClick={clearSelection} style={{
+                  ...btn, background: 'rgba(184,148,79,0.08)', border: `1px solid ${C.gold}`, color: C.gold, padding: '6px 12px',
+                }} title="Click an empty area or press this to deselect">
+                  {selectedIds.size} selected · Deselect
+                </button>
+              ) : (
+                <button onClick={selectAll} disabled={elements.length === 0} style={{
+                  ...btn, background: C.white, border: `1px solid ${C.border}`, color: elements.length === 0 ? C.border : C.charcoal, padding: '6px 12px',
+                  cursor: elements.length === 0 ? 'not-allowed' : 'pointer',
+                }} title="Select every table & zone — drag any one to move them all together">
+                  Select All
+                </button>
+              )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={() => setSnapToGrid(!snapToGrid)} style={{
@@ -1146,13 +1239,17 @@ export default function SeatingMapPage() {
           >
             <div style={{ position: 'absolute', left: 0, top: 0, width: WORLD_W, height: WORLD_H, transformOrigin: '0 0', transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`, backgroundImage: 'radial-gradient(#E0D8C6 1px, transparent 1px)', backgroundSize: '32px 32px' }}>
               {visibleElements.map(el => {
-                const display = (dragPos && dragPos.id === el.id) ? { ...el, position_x: dragPos.x, position_y: dragPos.y } : el;
+                const groupOverride = groupDragPos && groupDragPos.get(el.id);
+                const display = groupOverride
+                  ? { ...el, position_x: groupOverride.x, position_y: groupOverride.y }
+                  : (dragPos && dragPos.id === el.id) ? { ...el, position_x: dragPos.x, position_y: dragPos.y } : el;
                 return (
                   <CanvasElement
                     key={el.id}
                     el={display}
                     occupied={occByTable[el.id] || 0}
-                    selected={selectedId === el.id}
+                    selected={selectedId === el.id || selectedIds.has(el.id)}
+                    showHandles={selectedId === el.id && selectedIds.size === 0}
                     dragOver={dragOverId === el.id}
                     onPointerDownMove={onElementPointerDown}
                     onResizeStart={onResizeStart}
@@ -1179,7 +1276,11 @@ export default function SeatingMapPage() {
           <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 500, borderBottom: `1px solid ${C.border}`, paddingBottom: 12, marginBottom: 14 }}>Inspector</h3>
           {!selected ? (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-              <p style={{ fontSize: 12, color: C.stone, maxWidth: 170 }}>Select an element on the canvas to edit it.</p>
+              <p style={{ fontSize: 12, color: C.stone, maxWidth: 180 }}>
+                {selectedIds.size > 0
+                  ? `${selectedIds.size} elements selected. Drag any one of them on the canvas to move the whole group together.`
+                  : 'Select an element on the canvas to edit it.'}
+              </p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, overflowY: 'auto' }}>
