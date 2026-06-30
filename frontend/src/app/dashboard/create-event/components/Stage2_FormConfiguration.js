@@ -139,7 +139,6 @@ export default function Stage2_FormConfiguration({
   description, setDescription,
   eventDate, setEventDate,
   eventEndDate, setEventEndDate,
-  locationName, setLocationName,
   locationAddress, setLocationAddress,
   onPlaceSelect,
   templateData, setTemplateData,
@@ -149,6 +148,8 @@ export default function Stage2_FormConfiguration({
   rsvpDeadline, setRsvpDeadline,
   privacyMode, setPrivacyMode,
   accessPassword, setAccessPassword,
+  notificationEmail, setNotificationEmail,
+  allowGuestEdits, setAllowGuestEdits,
   coverImageUrl, setCoverImageUrl, onCoverImageUpload, coverImageUploading,
   backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
   galleryUrls = [], onGalleryUpload, galleryUploading, onAddGalleryUrl, onRemoveGalleryUrl,
@@ -239,23 +240,15 @@ export default function Stage2_FormConfiguration({
             </Field>
           </div>
 
-          <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Field label="Venue Name">
-              <input type="text" value={locationName}
-                onChange={e => setLocationName(e.target.value)}
-                placeholder="Grand Ballroom"
-                style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-            </Field>
-            <Field label="Address">
-              <PlacesAutocomplete
-                value={locationAddress}
-                onChange={setLocationAddress}
-                onPlaceSelect={onPlaceSelect}
-                placeholder="Search venue or address…"
-                style={iStyle}
-              />
-            </Field>
-          </div>
+          <Field label="Venue">
+            <PlacesAutocomplete
+              value={locationAddress}
+              onChange={setLocationAddress}
+              onPlaceSelect={onPlaceSelect}
+              placeholder="Search venue or address…"
+              style={iStyle}
+            />
+          </Field>
         </Section>
 
         {/* ═══ Section B: Template-Specific ═══ */}
@@ -483,6 +476,43 @@ export default function Stage2_FormConfiguration({
               </motion.div>
             )}
           </AnimatePresence>
+
+          <Field label="Notification Preferences">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={notificationEmail}
+                  onChange={e => setNotificationEmail(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: C.gold, cursor: 'pointer' }} />
+                Receive email notification when a guest submits an RSVP
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#A8A29E', cursor: 'not-allowed', userSelect: 'none', opacity: 0.6 }}>
+                <input type="checkbox" checked={false} disabled
+                  style={{ width: 16, height: 16, cursor: 'not-allowed' }} />
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  Receive WhatsApp notification when a guest submits an RSVP
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, color: C.gold, background: `${C.gold}15`,
+                    border: `1px solid ${C.gold}30`, borderRadius: 4, padding: '2px 6px',
+                    letterSpacing: '0.5px', textTransform: 'uppercase', whiteSpace: 'nowrap', opacity: 1,
+                  }}>Coming Soon</span>
+                </span>
+              </label>
+            </div>
+          </Field>
+
+          <Field label="Guest RSVP Options">
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={allowGuestEdits}
+                onChange={e => setAllowGuestEdits(e.target.checked)}
+                style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
+              <span>
+                Allow guests to change their response after submitting
+                <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
+                  When on, a guest can reopen and update their RSVP from their invitation link until the RSVP deadline. When off, responses are locked and any change must go through you.
+                </span>
+              </span>
+            </label>
+          </Field>
 
           <Field label="Cover Image">
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

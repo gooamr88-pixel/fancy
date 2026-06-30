@@ -873,6 +873,13 @@ export default function DashboardPage() {
           ) : activeTab === 'settings' ? (
             <EventSettings eventId={eventId} event={activeEvent} onEventUpdated={(updated) => {
               setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, ...updated } : ev));
+            }} onEventDeleted={(deletedId) => {
+              setEvents(prev => {
+                const remaining = prev.filter(ev => ev.id !== deletedId);
+                setEventId(remaining[0]?.id || '');
+                return remaining;
+              });
+              setActiveTab('overview');
             }} />
           ) : activeTab === 'form-builder' ? (
             <FormBuilder eventId={eventId} />

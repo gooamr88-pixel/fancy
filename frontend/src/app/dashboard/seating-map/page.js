@@ -124,13 +124,17 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected
         </>
       )}
 
-      {/* Resize + rotate handles (zones only, when selected) */}
-      {selected && zone && (
+      {/* Resize handle (zones only) + rotate handle (any element, when selected) —
+          rotation lets a rectangular/oval/banquet/head table flip between a
+          lengthwise and widthwise layout. */}
+      {selected && (
         <>
-          <div
-            onPointerDown={(e) => onResizeStart(e, el.id)}
-            style={{ position: 'absolute', right: -7, bottom: -7, width: 14, height: 14, borderRadius: 4, background: C.white, border: `2px solid ${C.gold}`, cursor: 'nwse-resize', zIndex: 5 }}
-          />
+          {zone && (
+            <div
+              onPointerDown={(e) => onResizeStart(e, el.id)}
+              style={{ position: 'absolute', right: -7, bottom: -7, width: 14, height: 14, borderRadius: 4, background: C.white, border: `2px solid ${C.gold}`, cursor: 'nwse-resize', zIndex: 5 }}
+            />
+          )}
           <div
             onPointerDown={(e) => onRotateStart(e, el.id)}
             style={{ position: 'absolute', left: '50%', top: -26, marginLeft: -7, width: 14, height: 14, borderRadius: '50%', background: C.gold, border: `2px solid ${C.white}`, cursor: 'grab', zIndex: 5 }}
@@ -485,6 +489,17 @@ export default function SeatingMapPage() {
       });
     } catch { /* non-fatal; layout save will reconcile */ }
   }, [eventId]);
+
+  /* ── one-click 90° rotate (lets a rectangle/oval/banquet/head table flip
+     between a lengthwise and widthwise layout without free-drag precision) ── */
+  const rotateSelected = useCallback(() => {
+    if (!selectedId) return;
+    const el = elements.find(x => x.id === selectedId);
+    if (!el) return;
+    const next = ((Number(el.rotation) || 0) + 90) % 360;
+    setElements(prev => prev.map(x => x.id === selectedId ? { ...x, rotation: next } : x));
+    persistGeometry(selectedId, { rotation: next });
+  }, [selectedId, elements, persistGeometry]);
 
   useEffect(() => {
     const onMove = (e) => {
@@ -1181,8 +1196,15 @@ export default function SeatingMapPage() {
               <div style={{ fontSize: 9, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>
                 {shapeMeta(selected.shape).label}
                 {!isZone(selected) && ` • ${occByTable[selected.id] || 0} / ${selected.max_capacity} seated`}
-                {isZone(selected) && ` • ${Math.round(elWidth(selected))}×${Math.round(elHeight(selected))} · ${Math.round(Number(selected.rotation) || 0)}°`}
+                {isZone(selected) && ` • ${Math.round(elWidth(selected))}×${Math.round(elHeight(selected))}`}
+                {` • ${Math.round(Number(selected.rotation) || 0)}°`}
               </div>
+              {!isZone(selected) && elWidth(selected) !== elHeight(selected) && (
+                <button onClick={rotateSelected} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                  Rotate 90° (lengthwise / widthwise)
+                </button>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={saveInspector} disabled={saving} style={{ ...btn, flex: 1, background: C.gold, color: C.white, padding: '7px 10px', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Save</button>
                 <button onClick={duplicateElement} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', fontSize: 11, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>Duplicate</button>

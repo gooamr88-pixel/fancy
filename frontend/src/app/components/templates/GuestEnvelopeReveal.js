@@ -183,7 +183,7 @@ function MedallionSkin({ skin, uid, text, arabic }) {
   const len = (text || "").length;
   const sealFontSize = arabic
     ? (len <= 3 ? 52 : len <= 5 ? 42 : 32)
-    : (len <= 2 ? 42 : len <= 3 ? 34 : 26);
+    : (len <= 2 ? 36 : len <= 3 ? 29 : 22);
   return (
     <g>
       <defs>
@@ -225,12 +225,12 @@ function MedallionSkin({ skin, uid, text, arabic }) {
       ))}
 
       {/* Guilloché double-ring with fine ticks */}
-      <circle cx={C} cy={C} r="84" fill="none" stroke={m.orn[1]} strokeOpacity="0.55" strokeWidth="1" />
-      <circle cx={C} cy={C} r="79" fill="none" stroke={m.ornStroke} strokeOpacity="0.4" strokeWidth="0.8" />
+      <circle cx={C} cy={C} r="84" fill="none" stroke={m.orn[1]} strokeOpacity="0.4" strokeWidth="1" />
+      <circle cx={C} cy={C} r="79" fill="none" stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.8" />
       {GUILLOCHE_TICKS.map((deg) => (
         <line
           key={`tick-${deg}`}
-          x1={C} y1="26.5" x2={C} y2="31" stroke={m.orn[0]} strokeOpacity="0.6" strokeWidth="0.7"
+          x1={C} y1="26.5" x2={C} y2="31" stroke={m.orn[0]} strokeOpacity="0.4" strokeWidth="0.7"
           transform={`rotate(${deg} ${C} ${C})`}
         />
       ))}
@@ -238,8 +238,8 @@ function MedallionSkin({ skin, uid, text, arabic }) {
       {/* Inner mandala — 12 ogee petals + inner veins */}
       {INNER_PETALS.map((deg) => (
         <g key={`petal-${deg}`} transform={`rotate(${deg} ${C} ${C})`}>
-          <path d={PETAL_PATH} fill={`url(#orn-${s})`} stroke={m.ornStroke} strokeOpacity="0.45" strokeWidth="0.7" />
-          <path d={PETAL_VEIN} fill="none" stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.6" />
+          <path d={PETAL_PATH} fill={`url(#orn-${s})`} stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.7" />
+          <path d={PETAL_VEIN} fill="none" stroke={m.ornStroke} strokeOpacity="0.2" strokeWidth="0.6" />
         </g>
       ))}
       {/* Secondary petal layer, interleaved between the primaries */}
@@ -251,15 +251,17 @@ function MedallionSkin({ skin, uid, text, arabic }) {
       ))}
 
       {/* Centre cartouche + monogram */}
-      <circle cx={C} cy={C} r="31" fill={`url(#center-${s})`} stroke={m.orn[1]} strokeOpacity="0.7" strokeWidth="1.4" />
-      <circle cx={C} cy={C} r="27" fill="none" stroke={m.ornStroke} strokeOpacity="0.5" strokeWidth="0.7" />
+      <circle cx={C} cy={C} r="31" fill={`url(#center-${s})`} stroke={m.orn[1]} strokeOpacity="0.85" strokeWidth="1.4" />
+      <circle cx={C} cy={C} r="27" fill="none" stroke={m.ornStroke} strokeOpacity="0.6" strokeWidth="0.7" />
       <text
         x={C} y={C} textAnchor="middle" dominantBaseline="central" fill={m.mono}
+        stroke={m.ornStroke} strokeWidth="0.6" strokeOpacity="0.5"
         style={{
-          fontFamily: arabic ? "var(--font-arabic-display), 'Aref Ruqaa', serif" : "var(--font-script), var(--font-serif)",
+          fontFamily: arabic ? "var(--font-arabic-display), 'Aref Ruqaa', serif" : "var(--font-serif), serif",
           fontSize: sealFontSize,
-          fontWeight: arabic ? 700 : 500,
-          letterSpacing: arabic ? 0 : 1,
+          fontWeight: 700,
+          letterSpacing: arabic ? 0 : 0.5,
+          paintOrder: "stroke fill",
         }}
       >
         {text}
@@ -321,7 +323,7 @@ function Flap({ side, open, patternUrl, delay }) {
   );
 }
 
-export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRsvp, onComplete }) {
+export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRsvp, onComplete, musicRef }) {
   const prefersReduced = useReducedMotion();
 
   // stage: 0 preload · 1 paper · 2 seal-focus(resting) · 3 activating · 4 opening · 5 light · 6 reveal · 7 done
@@ -505,11 +507,14 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
   const openSeal = useCallback(() => {
     if (startedRef.current || finishedRef.current) return;
     startedRef.current = true;
+    // Started synchronously inside the tap so the browser counts it as a real
+    // user gesture; silently ignored when this fires from the idle auto-open.
+    musicRef?.current?.play().catch(() => {});
     setStage(3);                       // ACTIVATION — bronze → gold, glow, dust
     after(620, () => setStage(4));     // OPENING — flaps peel back
     after(1180, () => setStage(5));    // LIGHT — golden volumetric bloom
     after(1820, () => setStage(6));    // REVEAL — invitation lockup rises
-  }, [after]);
+  }, [after, musicRef]);
 
   /* Choreography after mount: preload → paper → seal focus (resting). */
   useEffect(() => {
@@ -642,7 +647,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
           <motion.div variants={fadeUp} style={{ marginTop: 26 }}>
             <motion.button
               type="button"
-              onClick={finish}
+              onClick={() => { musicRef?.current?.play().catch(() => {}); finish(); }}
               whileHover={{ scale: 1.035, boxShadow: `0 16px 34px ${theme.primary}55, inset 0 1px 0 rgba(255,255,255,0.45)` }}
               whileTap={{ scale: 0.97 }}
               style={enterBtnStyle(theme)}

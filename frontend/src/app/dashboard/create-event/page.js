@@ -193,6 +193,8 @@ export default function CreateEventWizard() {
   const [rsvpDeadline, setRsvpDeadline] = useState('');
   const [privacyMode, setPrivacyMode] = useState('private');
   const [accessPassword, setAccessPassword] = useState('');
+  const [notificationEmail, setNotificationEmail] = useState(true);
+  const [allowGuestEdits, setAllowGuestEdits] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [coverImageUploading, setCoverImageUploading] = useState(false);
   const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('');
@@ -276,6 +278,8 @@ export default function CreateEventWizard() {
         setRsvpDeadline(dt(ev.rsvp_deadline));
         setPrivacyMode(ev.privacy_mode || 'private');
         setAccessPassword(ev.access_password || '');
+        setNotificationEmail(ev.notification_preferences?.email !== false);
+        setAllowGuestEdits(!!ev.allow_guest_edits);
         setCoverImageUrl(ev.cover_image_url || '');
         setGalleryUrls(Array.isArray(ev.gallery_urls) ? ev.gallery_urls : []);
         setBackgroundMusicUrl(ev.background_music_url || '');
@@ -744,11 +748,14 @@ export default function CreateEventWizard() {
     templateData: buildTemplateData(),
     eventType: templateType,
     backgroundMusicUrl: sanitizeUrl(backgroundMusicUrl) || '',
+    notificationPreferences: { email: notificationEmail, whatsapp: false },
+    allowGuestEdits,
   }), [
     slug, templateType, title, description, eventDate, eventEndDate,
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword, coverImageUrl,
     galleryUrls, customColors, buildTemplateData, backgroundMusicUrl, sanitizeUrl,
+    notificationEmail, allowGuestEdits,
   ]);
 
   /* ═══ Create the draft event (first time) or update it (on revisits) ═══ */
@@ -806,6 +813,8 @@ export default function CreateEventWizard() {
         custom_colors: customColors,
         template_data: buildTemplateData() || {},
         event_type: templateType,
+        notification_preferences: { email: notificationEmail, whatsapp: false },
+        allow_guest_edits: allowGuestEdits,
       }),
     });
     const data = res.status === 413 ? {} : await res.json();
@@ -827,6 +836,7 @@ export default function CreateEventWizard() {
     eventDate, eventEndDate, locationName, locationAddress, locationLat, locationLng,
     locationPlaceId, dressCode, rsvpDeadline, privacyMode, accessPassword,
     coverImageUrl, galleryUrls, customColors, buildTemplateData, backgroundMusicUrl,
+    notificationEmail, allowGuestEdits,
   ]);
 
   /* ═══ Advance from Templates → create the placeholder draft, then go to Payment ═══
@@ -1191,7 +1201,6 @@ export default function CreateEventWizard() {
               description={description} setDescription={setDescription}
               eventDate={eventDate} setEventDate={setEventDate}
               eventEndDate={eventEndDate} setEventEndDate={setEventEndDate}
-              locationName={locationName} setLocationName={setLocationName}
               locationAddress={locationAddress} setLocationAddress={setLocationAddress}
               onPlaceSelect={handlePlaceSelect}
               templateData={templateData} setTemplateData={setTemplateData}
@@ -1201,6 +1210,8 @@ export default function CreateEventWizard() {
               rsvpDeadline={rsvpDeadline} setRsvpDeadline={setRsvpDeadline}
               privacyMode={privacyMode} setPrivacyMode={setPrivacyMode}
               accessPassword={accessPassword} setAccessPassword={setAccessPassword}
+              notificationEmail={notificationEmail} setNotificationEmail={setNotificationEmail}
+              allowGuestEdits={allowGuestEdits} setAllowGuestEdits={setAllowGuestEdits}
               coverImageUrl={coverImageUrl} setCoverImageUrl={setCoverImageUrl}
               onCoverImageUpload={handleCoverImageUpload} coverImageUploading={coverImageUploading}
               backgroundMusicUrl={backgroundMusicUrl} setBackgroundMusicUrl={setBackgroundMusicUrl}

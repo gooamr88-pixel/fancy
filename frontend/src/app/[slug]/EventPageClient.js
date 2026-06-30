@@ -86,19 +86,19 @@ function buildInvitationCardData(event, isRTL) {
       return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine };
     }
     case 'engagement': {
-      const a = td.partner1Name;
-      const b = td.partner2Name;
+      const a = td.partner1Name || td.partner1;
+      const b = td.partner2Name || td.partner2;
       const names = a && b ? `${a} & ${b}` : (event?.title || null);
       return { names, dateLine, venueLine, dressCode };
     }
     case 'corporate': {
       const headline = event?.title || null;
-      const eyebrow = td.company_name || td.companyName || null;
+      const eyebrow = td.company_name || td.companyName || td.company || null;
       return { headline, eyebrow, dateLine };
     }
     case 'birthday': {
-      const headline = td.birthdayPersonName || event?.title || null;
-      const subtitle = td.theme || null;
+      const headline = td.birthdayPersonName || td.celebrant || event?.title || null;
+      const subtitle = td.theme || td.partyTheme || null;
       const replyBy = event?.rsvp_deadline
         ? `Kindly reply by ${new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
         : null;
@@ -106,7 +106,8 @@ function buildInvitationCardData(event, isRTL) {
     }
     case 'gala': {
       const headline = event?.title || null;
-      const eyebrow = td.honorees ? `Honoring ${td.honorees}` : null;
+      const honoree = td.honorees || td.honoree || null;
+      const eyebrow = honoree ? `Honoring ${honoree}` : null;
       return { headline, eyebrow, dateLine, venueLine };
     }
     default:
@@ -184,6 +185,19 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const heroInView = useInView(heroRef, { amount: 0.1 });
   const rsvpCardInView = useInView(rsvpCardRef, { amount: 0.3 });
   const [showFloatingCTA, setShowFloatingCTA] = useState(false);
+
+  // Background music — the organizer's uploaded track. Browsers block audio
+  // with sound until a real user gesture, so playback is only ever started
+  // from inside a click handler (the envelope seal tap, or this toggle) —
+  // never automatically on mount.
+  const musicRef = useRef(null);
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const toggleMusic = useCallback(() => {
+    const el = musicRef.current;
+    if (!el) return;
+    if (el.paused) el.play().catch(() => {});
+    else el.pause();
+  }, []);
 
   // Dress code expand
   const [dressCodeExpanded, setDressCodeExpanded] = useState(false);
@@ -570,9 +584,20 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             guestRsvp={guestRsvp}
             setGuestRsvp={setGuestRsvp}
             onComplete={handleRevealComplete}
+            musicRef={musicRef}
           />
         )}
       </AnimatePresence>
+      {event.background_music_url && (
+        <audio
+          ref={musicRef}
+          src={event.background_music_url}
+          loop
+          preload="none"
+          onPlay={() => setMusicPlaying(true)}
+          onPause={() => setMusicPlaying(false)}
+        />
+      )}
       <div dir={isRTL ? 'rtl' : 'ltr'} style={{
         minHeight: '100dvh', position: 'relative',
         backgroundColor: customColors.background || '#F8F4EC', color: '#191B1E',
@@ -596,6 +621,32 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             `}} />
           );
         })()}
+
+        {/* ═══ BACKGROUND MUSIC TOGGLE ═══ */}
+        {event.background_music_url && (
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={toggleMusic}
+            aria-label={musicPlaying ? (isRTL ? 'إيقاف الموسيقى' : 'Pause music') : (isRTL ? 'تشغيل الموسيقى' : 'Play music')}
+            style={{
+              position: 'absolute', top: '24px', zIndex: 30,
+              ...(isRTL ? { right: '24px' } : { left: '24px' }),
+              width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer',
+              border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)',
+              backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+              color: 'rgba(255,255,255,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.3s ease',
+            }}
+          >
+            {musicPlaying ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03z"/><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12L19 9.5M19 9.5L21.5 7M19 9.5L16.5 7M19 9.5L21.5 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
+            )}
+          </motion.button>
+        )}
 
         {/* ═══ LANGUAGE TOGGLE ═══ */}
         <div className="ep-lang-toggle" style={{ position: 'absolute', top: '24px', zIndex: 30, display: 'flex', gap: '8px', ...(isRTL ? { left: '24px' } : { right: '24px' }) }}>
@@ -895,12 +946,12 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 <GlassmorphismCard bg="rgba(255,255,255,0.92)" border="rgba(232,226,214,0.6)">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {/* Partners */}
-                    {(event.template_data.partner1Name || event.template_data.partner2Name || event.template_data.groom_name || event.template_data.bride_name) && (
+                    {(event.template_data.partner1Name || event.template_data.partner2Name || event.template_data.groom_name || event.template_data.bride_name || event.template_data.partner1 || event.template_data.partner2) && (
                       <div style={{ textAlign: 'center', position: 'relative' }}>
                         <span style={{ fontFamily: 'var(--font-serif)', fontSize: '28px', color: themeColor, fontWeight: 500, lineHeight: 1.4 }}>
-                          {event.template_data.groom_name || event.template_data.partner1Name}
+                          {event.template_data.groom_name || event.template_data.partner1Name || event.template_data.partner1}
                           <span style={{ display: 'block', fontSize: '16px', opacity: 0.5, margin: '4px 0' }}>&amp;</span>
-                          {event.template_data.bride_name || event.template_data.partner2Name}
+                          {event.template_data.bride_name || event.template_data.partner2Name || event.template_data.partner2}
                         </span>
                       </div>
                     )}
@@ -965,8 +1016,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     )}
 
                     {/* Gift Registry */}
-                    {event.template_data.registryUrl && (
-                      <a href={event.template_data.registryUrl} target="_blank" rel="noopener noreferrer" style={{
+                    {(event.template_data.registryUrl || event.template_data.giftRegistry) && (
+                      <a href={event.template_data.registryUrl || event.template_data.giftRegistry} target="_blank" rel="noopener noreferrer" style={{
                         display: 'block', textAlign: 'center', padding: '16px',
                         background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.15)',
                         borderRadius: '14px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none',
@@ -985,23 +1036,23 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <FadeInUp delay={0.15}>
                 <GlassmorphismCard bg="rgba(255,255,255,0.92)" border="rgba(232,226,214,0.6)">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {(event.template_data.partner1Name || event.template_data.partner2Name) && (
+                    {(event.template_data.partner1Name || event.template_data.partner2Name || event.template_data.partner1 || event.template_data.partner2) && (
                       <div style={{ textAlign: 'center' }}>
                         <span style={{ fontFamily: 'var(--font-serif)', fontSize: '26px', color: themeColor }}>
-                          {event.template_data.partner1Name} &amp; {event.template_data.partner2Name}
+                          {event.template_data.partner1Name || event.template_data.partner1} &amp; {event.template_data.partner2Name || event.template_data.partner2}
                         </span>
                       </div>
                     )}
-                    {event.template_data.ourStory && (
+                    {(event.template_data.ourStory || event.template_data.proposalStory) && (
                       <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
                         <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>
                           {isRTL ? 'قصتنا' : 'Our Story'}
                         </h4>
-                        <p style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.ourStory}</p>
+                        <p style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.ourStory || event.template_data.proposalStory}</p>
                       </div>
                     )}
-                    {event.template_data.registryUrl && (
-                      <a href={event.template_data.registryUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(194,123,142,0.06)', border: '1px solid rgba(194,123,142,0.15)', borderRadius: '14px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
+                    {(event.template_data.registryUrl || event.template_data.giftRegistry) && (
+                      <a href={event.template_data.registryUrl || event.template_data.giftRegistry} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(194,123,142,0.06)', border: '1px solid rgba(194,123,142,0.15)', borderRadius: '14px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
                         🎁 {isRTL ? 'عرض قائمة الهدايا' : 'View Our Gift Registry'} →
                       </a>
                     )}
@@ -1015,10 +1066,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <FadeInUp delay={0.15}>
                 <GlassmorphismCard bg="rgba(255,255,255,0.92)" border="rgba(232,226,214,0.6)">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {(event.template_data.companyName || event.template_data.company_name) && (
+                    {(event.template_data.companyName || event.template_data.company_name || event.template_data.company) && (
                       <div style={{ textAlign: 'center' }}>
                         <span style={{ fontSize: '14px', fontWeight: 700, color: '#1E293B', letterSpacing: '0.5px' }}>
-                          {isRTL ? 'بتنظيم من' : 'Hosted by'} {event.template_data.company_name || event.template_data.companyName}
+                          {isRTL ? 'بتنظيم من' : 'Hosted by'} {event.template_data.company_name || event.template_data.companyName || event.template_data.company}
                         </span>
                       </div>
                     )}
@@ -1059,31 +1110,31 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <FadeInUp delay={0.15}>
                 <GlassmorphismCard bg="rgba(255,255,255,0.92)" border="rgba(232,226,214,0.6)">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {event.template_data.birthdayPersonName && (
+                    {(event.template_data.birthdayPersonName || event.template_data.celebrant) && (
                       <div style={{ textAlign: 'center' }}>
                         <motion.span initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', delay: 0.3 }} style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>🎉</motion.span>
                         <span style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: themeColor, display: 'block' }}>
-                          {event.template_data.birthdayPersonName}
+                          {event.template_data.birthdayPersonName || event.template_data.celebrant}
                         </span>
-                        {event.template_data.ageMilestone && (
+                        {(event.template_data.ageMilestone || event.template_data.age) && (
                           <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.5 }} style={{
                             display: 'inline-block', marginTop: '10px', padding: '5px 20px',
                             background: themeColor, color: '#FFFFFF', borderRadius: '20px',
                             fontSize: '13px', fontWeight: 700,
                           }}>
-                            {event.template_data.ageMilestone}
+                            {event.template_data.ageMilestone || event.template_data.age}
                           </motion.span>
                         )}
                       </div>
                     )}
-                    {event.template_data.theme && (
+                    {(event.template_data.theme || event.template_data.partyTheme) && (
                       <div style={{ textAlign: 'center', borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
                         <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '6px' }}>🎭 {isRTL ? 'ثيم الحفلة' : 'Party Theme'}</span>
-                        <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.theme}</span>
+                        <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.theme || event.template_data.partyTheme}</span>
                       </div>
                     )}
-                    {event.template_data.registryUrl && (
-                      <a href={event.template_data.registryUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(232,93,117,0.06)', border: '1px solid rgba(232,93,117,0.15)', borderRadius: '14px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
+                    {(event.template_data.registryUrl || event.template_data.giftRegistry) && (
+                      <a href={event.template_data.registryUrl || event.template_data.giftRegistry} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(232,93,117,0.06)', border: '1px solid rgba(232,93,117,0.15)', borderRadius: '14px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
                         🎁 {isRTL ? 'عرض قائمة الهدايا' : 'View Gift Registry'} →
                       </a>
                     )}
@@ -1097,10 +1148,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <FadeInUp delay={0.15}>
                 <GlassmorphismCard bg="rgba(255,255,255,0.92)" border="rgba(232,226,214,0.6)">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {event.template_data.honorees && (
+                    {(event.template_data.honorees || event.template_data.honoree) && (
                       <div style={{ textAlign: 'center' }}>
                         <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#B8944F', fontWeight: 700, display: 'block', marginBottom: '10px' }}>✨ {isRTL ? 'تكريم' : 'Honoring'}</span>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{event.template_data.honorees}</span>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{event.template_data.honorees || event.template_data.honoree}</span>
                       </div>
                     )}
                     {event.template_data.program && (
@@ -1109,10 +1160,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                         <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.program}</div>
                       </div>
                     )}
-                    {event.template_data.sponsorTiers && (
+                    {(event.template_data.sponsorTiers || event.template_data.sponsorPackages) && (
                       <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
                         <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🏆 {isRTL ? 'فئات الرعاة' : 'Sponsor Tiers'}</h4>
-                        <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.sponsorTiers}</div>
+                        <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.sponsorTiers || event.template_data.sponsorPackages}</div>
                       </div>
                     )}
                   </div>

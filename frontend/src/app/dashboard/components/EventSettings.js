@@ -31,7 +31,7 @@ function toLocalDateString(dateStr) {
   } catch { return ''; }
 }
 
-export default function EventSettings({ eventId, event, onEventUpdated }) {
+export default function EventSettings({ eventId, event, onEventUpdated, onEventDeleted }) {
   const [form, setForm] = useState({
     title: '', description: '', event_date: '', event_end_date: '', location_name: '', location_address: '',
     location_lat: null, location_lng: null, location_place_id: '',
@@ -50,7 +50,10 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
   // which naming scheme an event was created with.
   const [templateData, setTemplateData] = useState({
     partner1: '', partner2: '', family_names: '', ceremonyLocation: '', receptionLocation: '',
-    company_name: '', agenda: '', speakers: ''
+    company: '', agenda: '', speakers: '',
+    proposalStory: '', giftRegistry: '',
+    celebrant: '', age: '', partyTheme: '',
+    honoree: '', program: '', sponsorPackages: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -59,6 +62,9 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
   const [confirmComplete, setConfirmComplete] = useState(false);
   const [musicUploading, setMusicUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const handleMusicUpload = async (e) => {
@@ -201,9 +207,17 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
         family_names: event.template_data?.family_names || '',
         ceremonyLocation: event.template_data?.ceremonyLocation || event.template_data?.ceremony_time || '',
         receptionLocation: event.template_data?.receptionLocation || event.template_data?.reception_time || '',
-        company_name: event.template_data?.company_name || '',
+        company: event.template_data?.company || event.template_data?.company_name || '',
         agenda: event.template_data?.agenda || '',
-        speakers: event.template_data?.speakers || ''
+        speakers: event.template_data?.speakers || '',
+        proposalStory: event.template_data?.proposalStory || '',
+        giftRegistry: event.template_data?.giftRegistry || '',
+        celebrant: event.template_data?.celebrant || '',
+        age: event.template_data?.age || '',
+        partyTheme: event.template_data?.partyTheme || '',
+        honoree: event.template_data?.honoree || '',
+        program: event.template_data?.program || '',
+        sponsorPackages: event.template_data?.sponsorPackages || '',
       });
     }
   }, [event]);
@@ -231,9 +245,12 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
       delete body.font_heading;
       delete body.font_body;
 
-      // Pack template data
+      // Pack template data — merge onto the event's existing template_data so
+      // fields this form doesn't surface (seal artwork, custom builder config,
+      // love story, gift registry, etc.) survive instead of being wiped out.
       body.template_data = {
-        ...templateData
+        ...event?.template_data,
+        ...templateData,
       };
 
       // Pack notification preferences
@@ -278,6 +295,23 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
       setError(err.message);
     } finally {
       setStatusLoading('');
+    }
+  };
+
+  const handleDeleteEvent = async () => {
+    setDeleting(true);
+    setError('');
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to delete event');
+      onEventDeleted?.(eventId);
+    } catch (err) {
+      setError(err.message || 'Something went wrong');
+      setDeleting(false);
     }
   };
 
@@ -437,7 +471,7 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Corporate Template Details</h4>
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Company Name / Host</label>
-              <input value={templateData.company_name} onChange={(e) => setTemplateData(prev => ({ ...prev, company_name: e.target.value }))} placeholder="Acme Corporation" style={inputStyle} />
+              <input value={templateData.company} onChange={(e) => setTemplateData(prev => ({ ...prev, company: e.target.value }))} placeholder="Acme Corporation" style={inputStyle} />
             </div>
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Speakers (separated by commas)</label>
@@ -446,6 +480,68 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Agenda / Timeline</label>
               <textarea value={templateData.agenda} onChange={(e) => setTemplateData(prev => ({ ...prev, agenda: e.target.value }))} placeholder="9:00 AM - Keynote&#10;10:30 AM - Panel Discussion" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+          </div>
+        )}
+
+        {form.event_type === 'engagement' && (
+          <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Engagement Template Details</h4>
+            <div style={rowStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Partner 1 Name</label>
+                <input value={templateData.partner1} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1: e.target.value }))} placeholder="First partner name" style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Partner 2 Name</label>
+                <input value={templateData.partner2} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2: e.target.value }))} placeholder="Second partner name" style={inputStyle} />
+              </div>
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>The Proposal Story</label>
+              <textarea value={templateData.proposalStory} onChange={(e) => setTemplateData(prev => ({ ...prev, proposalStory: e.target.value }))} placeholder="How did the magic happen…" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Gift Registry URL</label>
+              <input type="url" value={templateData.giftRegistry} onChange={(e) => setTemplateData(prev => ({ ...prev, giftRegistry: e.target.value }))} placeholder="https://registry.example.com" style={inputStyle} />
+            </div>
+          </div>
+        )}
+
+        {form.event_type === 'birthday' && (
+          <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Birthday Template Details</h4>
+            <div style={rowStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Celebrant Name</label>
+                <input value={templateData.celebrant} onChange={(e) => setTemplateData(prev => ({ ...prev, celebrant: e.target.value }))} style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Age Milestone</label>
+                <input value={templateData.age} onChange={(e) => setTemplateData(prev => ({ ...prev, age: e.target.value }))} placeholder="e.g. 30" style={inputStyle} />
+              </div>
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Party Theme / Details</label>
+              <input value={templateData.partyTheme} onChange={(e) => setTemplateData(prev => ({ ...prev, partyTheme: e.target.value }))} placeholder="e.g. Masquerade Ball" style={inputStyle} />
+            </div>
+          </div>
+        )}
+
+        {form.event_type === 'gala' && (
+          <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Gala Template Details</h4>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Guest(s) of Honor / Honoree</label>
+              <input value={templateData.honoree} onChange={(e) => setTemplateData(prev => ({ ...prev, honoree: e.target.value }))} style={inputStyle} />
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Evening Program Schedule</label>
+              <textarea value={templateData.program} onChange={(e) => setTemplateData(prev => ({ ...prev, program: e.target.value }))} placeholder="Detail the evening's program…" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Corporate Sponsor Packages</label>
+              <textarea value={templateData.sponsorPackages} onChange={(e) => setTemplateData(prev => ({ ...prev, sponsorPackages: e.target.value }))} rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
           </div>
         )}
@@ -891,6 +987,75 @@ export default function EventSettings({ eventId, event, onEventUpdated }) {
               </div>
             )}
           </>
+        )}
+      </div>
+
+      {/* ═══ DANGER ZONE ═══ */}
+      <div style={{ ...sectionStyle, border: '1px solid #FECACA' }}>
+        <h3 style={{ ...sectionTitleStyle, color: '#C45E5E', borderBottomColor: '#FECACA' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C45E5E" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            Danger Zone
+          </span>
+        </h3>
+
+        {!deleteConfirmOpen ? (
+          <>
+            <p style={{ fontSize: '13px', color: COLORS.stone, lineHeight: 1.6, marginBottom: '14px', fontFamily: 'var(--font-sans)' }}>
+              Permanently delete this event and all related data — guests, RSVPs, tables, and the activity log. <strong>This cannot be undone.</strong>
+            </p>
+            <button onClick={() => setDeleteConfirmOpen(true)}
+              style={{
+                padding: '8px 20px', borderRadius: '8px', border: '1px solid #C45E5E',
+                background: COLORS.white, color: '#C45E5E', fontSize: '12px', fontWeight: 600,
+                fontFamily: 'var(--font-sans)', cursor: 'pointer', transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#FEF2F2'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
+            >
+              🗑 Delete Event
+            </button>
+          </>
+        ) : (
+          <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '12px', padding: '16px' }}>
+            <p style={{ fontSize: '13px', color: COLORS.charcoal, lineHeight: 1.6, margin: '0 0 12px', fontFamily: 'var(--font-sans)' }}>
+              This will permanently delete <strong>&ldquo;{event?.title}&rdquo;</strong> and all of its guests, RSVPs, and data. Type the event title below to confirm.
+            </p>
+            <input
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={event?.title || ''}
+              style={{ ...inputStyle, marginBottom: '12px' }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleDeleteEvent}
+                disabled={deleting || deleteConfirmText !== (event?.title || '')}
+                style={{
+                  padding: '8px 20px', borderRadius: '8px', border: '1px solid #C45E5E',
+                  background: '#C45E5E', color: COLORS.white, fontSize: '12px', fontWeight: 600,
+                  fontFamily: 'var(--font-sans)',
+                  cursor: (deleting || deleteConfirmText !== (event?.title || '')) ? 'not-allowed' : 'pointer',
+                  opacity: (deleting || deleteConfirmText !== (event?.title || '')) ? 0.5 : 1,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {deleting ? 'Deleting…' : 'Permanently delete this event'}
+              </button>
+              <button
+                onClick={() => { setDeleteConfirmOpen(false); setDeleteConfirmText(''); }}
+                disabled={deleting}
+                style={{
+                  padding: '8px 20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
+                  background: COLORS.white, color: COLORS.stone, fontSize: '12px', fontWeight: 600,
+                  fontFamily: 'var(--font-sans)', cursor: deleting ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

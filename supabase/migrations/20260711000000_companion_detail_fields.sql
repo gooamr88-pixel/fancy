@@ -10,6 +10,14 @@
 --
 -- Backwards compatibility: all three columns are nullable, so existing rows
 -- and any older clients that still POST without these keys keep working.
+--
+-- IMPORTANT: submit_rsvp_v2's body below is copied verbatim from the
+-- function as it actually exists today (including the BIZ-1 tier_max_guests
+-- cap and the RSVP_OWNERSHIP_FAILED email-ownership check added by later
+-- migrations than 20260710) — ONLY the step-6 companion INSERT changes.
+-- An earlier draft of this migration was based on the stale 20260710 file
+-- body and would have silently regressed both of those checks and
+-- referenced a non-existent `guest_limit` column; this version does not.
 -- ════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE public.guests
@@ -44,12 +52,12 @@ ALTER TABLE public.guests
 -- ────────────────────────────────────────────────────────────────────────
 -- Relax the (event_id, phone) unique index to primary contacts only.
 -- The dedup story it was protecting (no two RSVPs for the same person) is
--- about primary contacts (auto-merge in step 5 already uses is_primary_contact
--- + phone). Companions can legitimately share a phone with the host (a parent
+-- about primary contacts (auto-merge already uses is_primary_contact +
+-- phone). Companions can legitimately share a phone with the host (a parent
 -- adding a child whose only contact number IS the parent's), and two minors
--- inside a single party often have no phone or share a household number — so
--- the global uniqueness was producing false-positive insert failures that
--- would roll back the entire RSVP submission. Now scoped to primary contacts.
+-- inside a single party often share a household number — so the global
+-- uniqueness was producing false-positive insert failures that rolled back
+-- the entire RSVP submission. Now scoped to primary contacts.
 -- ────────────────────────────────────────────────────────────────────────
 DROP INDEX IF EXISTS public.idx_guests_event_phone_unique;
 CREATE UNIQUE INDEX idx_guests_event_phone_unique
@@ -60,26 +68,13 @@ CREATE UNIQUE INDEX idx_guests_event_phone_unique
 -- ════════════════════════════════════════════════════════════════════════
 -- submit_rsvp_v2: persist the new fields for each additional guest.
 -- Everything else in the function is byte-for-byte identical to the
--- 20260710 migration — only the companion INSERT in step 6 changes.
+-- function as currently deployed — only the companion INSERT in step 6
+-- changes.
 -- ════════════════════════════════════════════════════════════════════════
-CREATE OR REPLACE FUNCTION public.submit_rsvp_v2(
-  p_slug              TEXT,
-  p_party_id          UUID,
-  p_guest_name        TEXT,
-  p_email             TEXT,
-  p_phone             TEXT,
-  p_response          TEXT,
-  p_party_size        INTEGER,
-  p_notes             TEXT,
-  p_primary_meal      TEXT,
-  p_additional_guests JSONB,
-  p_custom_answers    JSONB,
-  p_decline_reason    TEXT,
-  p_maybe_confirm_by  TEXT
-) RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
+CREATE OR REPLACE FUNCTION public.submit_rsvp_v2(p_slug text, p_party_id uuid, p_guest_name text, p_email text, p_phone text, p_response text, p_party_size integer, p_notes text, p_primary_meal text, p_additional_guests jsonb, p_custom_answers jsonb, p_decline_reason text, p_maybe_confirm_by text) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
 DECLARE
   v_event           events%ROWTYPE;
   v_is_demo         BOOLEAN;
@@ -113,21 +108,27 @@ BEGIN
 
   v_is_demo := (v_event.slug = 'demo');
 
+  -- Per-event transactional advisory lock: serialises concurrent public
+  -- RSVP submissions for the same event so the guest-cap check below is
+  -- check-and-act atomically. Auto-released on commit or rollback.
   PERFORM pg_advisory_xact_lock(hashtext('rsvp_submit:' || v_event.id::text));
 
-  -- ── 2. Gating: payment / review / status / deadline ──
+  -- ── 2. Gating: payment / review / status / deadline (demo bypasses pay+review) ──
   IF NOT v_is_demo AND NOT COALESCE(v_event.is_paid, false) THEN
     RETURN jsonb_build_object('success', false, 'code', 'PAYMENT_REQUIRED',
       'message', 'This event page is inactive because payment has not been completed.');
   END IF;
+
   IF NOT v_is_demo AND v_event.status = 'pending_review' THEN
     RETURN jsonb_build_object('success', false, 'code', 'EVENT_UNDER_REVIEW',
       'message', 'This event is awaiting review and is not accepting RSVPs yet.');
   END IF;
+
   IF NOT v_is_demo AND v_event.status <> 'active' THEN
     RETURN jsonb_build_object('success', false, 'code', 'EVENT_CLOSED',
       'message', 'This event is no longer accepting RSVPs.');
   END IF;
+
   IF v_event.rsvp_deadline IS NOT NULL AND now() > v_event.rsvp_deadline THEN
     RETURN jsonb_build_object('success', false, 'code', 'DEADLINE_PASSED',
       'message', 'The RSVP deadline for this event has passed.');
@@ -140,6 +141,8 @@ BEGIN
       'message', 'partySize must be between 1 and 20.');
   END IF;
 
+  -- RF-1: reject grossly oversized arrays outright (defence-in-depth; the
+  -- child inserts below are also hard-capped).
   IF jsonb_typeof(p_additional_guests) = 'array' AND jsonb_array_length(p_additional_guests) > 100 THEN
     RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
       'message', 'Too many additional guests submitted.');
@@ -149,6 +152,9 @@ BEGIN
       'message', 'Too many custom answers submitted.');
   END IF;
 
+  -- Validate every custom-answer fieldId up front (only matters when attending,
+  -- since step 6 below only persists answers for p_response = 'yes') — surface
+  -- a clear error instead of silently dropping the answer at INSERT time.
   IF p_response = 'yes' AND jsonb_typeof(p_custom_answers) = 'array' THEN
     FOR v_a IN SELECT * FROM jsonb_array_elements(p_custom_answers) LOOP
       v_bad_field_id := v_a ->> 'fieldId';
@@ -163,118 +169,114 @@ BEGIN
     END LOOP;
   END IF;
 
-  v_norm_email     := NULLIF(lower(btrim(COALESCE(p_email, ''))), '');
+  v_norm_email := NULLIF(lower(btrim(COALESCE(p_email, ''))), '');
   v_decline_reason := CASE WHEN p_response = 'no'    THEN NULLIF(p_decline_reason, '')   ELSE NULL END;
   v_maybe_confirm  := CASE WHEN p_response = 'maybe' THEN NULLIF(p_maybe_confirm_by, '') ELSE NULL END;
 
-  -- ── 4. Meal field gating (yes-path only) ──
-  SELECT
-    options, COALESCE(is_required, false)
-  INTO v_meal_options, v_meal_required
-  FROM custom_form_fields
-   WHERE event_id = v_event.id AND field_key = 'meal_selection'
-   LIMIT 1;
-  v_has_meal_field := FOUND;
+  -- ── 4. Meal validation (attending only), against the meal_selection field ──
+  IF p_response = 'yes' THEN
+    SELECT options, COALESCE(is_required, false)
+      INTO v_meal_options, v_meal_required
+      FROM custom_form_fields
+     WHERE event_id = v_event.id AND field_key = 'meal_selection'
+     LIMIT 1;
+    v_has_meal_field := FOUND;
 
-  IF v_has_meal_field AND v_meal_options IS NOT NULL AND jsonb_typeof(v_meal_options) = 'array' THEN
-    v_opt_count := jsonb_array_length(v_meal_options);
-  END IF;
+    IF v_has_meal_field THEN
+      v_opt_count := jsonb_array_length(COALESCE(v_meal_options, '[]'::jsonb));
 
-  IF p_response = 'yes' AND v_has_meal_field AND v_meal_required THEN
-    IF v_opt_count > 0 AND COALESCE(btrim(p_primary_meal), '') = '' THEN
-      RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
-        'message', 'Please choose a meal for the primary guest.');
-    END IF;
-
-    IF v_opt_count > 0 AND jsonb_typeof(p_additional_guests) = 'array' THEN
-      i := 0;
-      FOR v_g IN SELECT * FROM jsonb_array_elements(p_additional_guests) LOOP
-        i := i + 1;
-        IF i > v_party_size - 1 THEN EXIT; END IF;
-        IF COALESCE(btrim(v_g ->> 'mealSelection'), '') = '' THEN
+      IF v_opt_count > 0 OR v_meal_required THEN
+        IF v_meal_required AND NULLIF(btrim(COALESCE(p_primary_meal, '')), '') IS NULL THEN
           RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
-            'message', 'Please choose a meal for every guest.');
+            'message', 'Meal selection is required for the primary guest.');
         END IF;
-      END LOOP;
-    END IF;
-  END IF;
-
-  IF p_response = 'yes' AND v_has_meal_field AND v_opt_count > 0 THEN
-    IF COALESCE(btrim(p_primary_meal), '') <> ''
-       AND NOT EXISTS (
-         SELECT 1 FROM jsonb_array_elements_text(v_meal_options) o WHERE o = p_primary_meal
-       )
-    THEN
-      RETURN jsonb_build_object('success', false, 'code', 'INVALID_MEAL',
-        'message', 'The selected meal option is not available for this event.');
-    END IF;
-
-    IF jsonb_typeof(p_additional_guests) = 'array' THEN
-      i := 0;
-      FOR v_g IN SELECT * FROM jsonb_array_elements(p_additional_guests) LOOP
-        i := i + 1;
-        IF i > v_party_size - 1 THEN EXIT; END IF;
-        v_meal := v_g ->> 'mealSelection';
-        IF COALESCE(btrim(v_meal), '') <> ''
-           AND NOT EXISTS (
-             SELECT 1 FROM jsonb_array_elements_text(v_meal_options) o WHERE o = v_meal
-           )
-        THEN
-          RETURN jsonb_build_object('success', false, 'code', 'INVALID_MEAL',
-            'message', 'One of the selected meal options is not available for this event.');
+        IF NULLIF(p_primary_meal, '') IS NOT NULL AND v_opt_count > 0
+           AND NOT (v_meal_options ? p_primary_meal) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'MEAL_INVALID',
+            'message', format('Meal selection ''%s'' is invalid.', p_primary_meal));
         END IF;
-      END LOOP;
+
+        IF v_party_size > 1 THEN
+          FOR i IN 0..(v_party_size - 2) LOOP
+            v_g := p_additional_guests -> i;
+            v_meal := NULLIF(btrim(COALESCE(v_g ->> 'mealSelection', '')), '');
+            IF v_meal_required AND v_meal IS NULL THEN
+              RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
+                'message', format('Meal selection is required for Guest #%s.', i + 2));
+            END IF;
+            IF v_meal IS NOT NULL AND v_opt_count > 0 AND NOT (v_meal_options ? v_meal) THEN
+              RETURN jsonb_build_object('success', false, 'code', 'MEAL_INVALID',
+                'message', format('Meal selection ''%s'' for Guest #%s is invalid.', v_meal, i + 2));
+            END IF;
+          END LOOP;
+        END IF;
+      END IF;
     END IF;
   END IF;
 
-  -- ── 5. Capacity check (attending only, INSERT path only) ──
-  IF p_response = 'yes' AND p_party_id IS NULL AND v_event.guest_limit IS NOT NULL THEN
-    SELECT COALESCE(SUM(
-        CASE WHEN p.response = 'yes' THEN COALESCE((SELECT COUNT(*) FROM guests gg WHERE gg.party_id = p.id), 1)
-             ELSE 0 END
-      ), 0)
-      INTO v_committed
-      FROM rsvp_parties p
-     WHERE p.event_id = v_event.id;
-
-    IF v_committed + v_party_size > v_event.guest_limit THEN
-      RETURN jsonb_build_object('success', false, 'code', 'GUEST_LIMIT_EXCEEDED',
-        'message', 'This event has reached its guest capacity.');
+  -- ── 4b. BIZ-1: enforce the paid tier's guest cap (0/NULL = unlimited) ──
+  -- Safe under concurrency: the advisory lock above serialises all
+  -- submissions for this event, so this check-then-act is now atomic.
+  IF NOT v_is_demo AND COALESCE(v_event.tier_max_guests, 0) > 0 AND p_response IN ('yes', 'maybe') THEN
+    SELECT COALESCE(SUM(gc.cnt), 0) INTO v_committed
+    FROM rsvp_parties p
+    JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = p.id) gc ON true
+    WHERE p.event_id = v_event.id
+      AND p.response IN ('yes', 'maybe')
+      AND (p_party_id IS NULL OR p.id <> p_party_id);
+    IF v_committed + v_party_size > v_event.tier_max_guests THEN
+      RETURN jsonb_build_object('success', false, 'code', 'GUEST_LIMIT_REACHED',
+        'message', 'This event has reached its guest limit. Please contact the host.');
     END IF;
   END IF;
 
-  -- ── 6. UPSERT party row ──
+  -- ── 5. Insert or update the party + its primary guest row ──
   IF p_party_id IS NOT NULL THEN
-    -- UPDATE path
+    -- UPDATE path: ownership check by email match against the primary contact.
     SELECT response INTO v_existing_resp FROM rsvp_parties WHERE id = p_party_id AND event_id = v_event.id;
     IF NOT FOUND THEN
-      RETURN jsonb_build_object('success', false, 'code', 'NOT_FOUND', 'message', 'RSVP record not found.');
+      RETURN jsonb_build_object('success', false, 'code', 'RSVP_NOT_FOUND', 'message', 'The RSVP record was not found.');
     END IF;
+
+    SELECT email INTO v_existing_email FROM guests WHERE party_id = p_party_id AND is_primary_contact = true;
+
+    -- Strict, state-aware lock: once answered, the record is closed to
+    -- further public submissions — UNLESS the host enabled guest self-edits
+    -- (RF-2), in which case the guest may overwrite their own response.
     IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
       RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
         'message', 'You have already responded to this invitation.');
     END IF;
 
-    SELECT email INTO v_existing_email FROM guests WHERE party_id = p_party_id AND is_primary_contact = true;
+    IF NULLIF(v_existing_email, '') IS NOT NULL THEN
+      IF v_norm_email IS NULL OR lower(v_existing_email) <> v_norm_email THEN
+        RETURN jsonb_build_object('success', false, 'code', 'RSVP_OWNERSHIP_FAILED',
+          'message', 'Email does not match the original RSVP submission. You cannot modify this RSVP.');
+      END IF;
+    END IF;
 
     UPDATE rsvp_parties SET
       label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
       decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
       response_source = 'web_form', responded_at = now(), updated_at = now()
     WHERE id = p_party_id AND event_id = v_event.id;
-    v_is_update := true;
+
     v_party_id := p_party_id;
+    v_is_update := true;
 
     DELETE FROM guests WHERE party_id = v_party_id;
     DELETE FROM custom_answers WHERE party_id = v_party_id;
-    IF p_response = 'no' THEN
-      DELETE FROM seating_assignments WHERE party_id = v_party_id;
-    END IF;
+    -- Seating cleanup on response != 'yes' is handled by trg_party_response_change.
 
     INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
-    VALUES (v_party_id, v_event.id, p_guest_name, COALESCE(v_norm_email, v_existing_email), p_phone, true,
+    VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
             CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
   ELSE
+    -- INSERT path: duplicate-email + duplicate-phone auto-merge guards.
+    -- Instead of rejecting with DUPLICATE_RSVP, find the existing party and
+    -- switch to the UPDATE path (auto-merge) — but only if that party's
+    -- response isn't already locked in (same rule as the explicit-id path).
+
     -- INSERT path: duplicate-email auto-merge
     IF v_norm_email IS NOT NULL THEN
       SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
@@ -285,6 +287,7 @@ BEGIN
           RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
             'message', 'You have already responded to this invitation.');
         END IF;
+        -- Auto-merge: treat as an update of the existing record.
         UPDATE rsvp_parties SET
           label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
           decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
@@ -296,6 +299,7 @@ BEGIN
         IF p_response = 'no' THEN
           DELETE FROM seating_assignments WHERE party_id = v_party_id;
         END IF;
+        -- Skip the INSERT below (jump to primary guest + child rows section)
       END IF;
     END IF;
 
@@ -309,6 +313,7 @@ BEGIN
           RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
             'message', 'You have already responded to this invitation.');
         END IF;
+        -- Auto-merge: treat as an update of the existing record.
         UPDATE rsvp_parties SET
           label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
           decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
@@ -320,9 +325,11 @@ BEGIN
         IF p_response = 'no' THEN
           DELETE FROM seating_assignments WHERE party_id = v_party_id;
         END IF;
+        -- Skip the INSERT below (jump to primary guest + child rows section)
       END IF;
     END IF;
 
+    -- Only create a brand-new party if no existing record was found by email or phone.
     IF v_party_id IS NULL THEN
       INSERT INTO rsvp_parties (event_id, label, response, notes, decline_reason, maybe_confirm_by, response_source, responded_at)
       VALUES (v_event.id, p_guest_name, p_response::rsvp_response_type, p_notes, v_decline_reason, v_maybe_confirm, 'web_form', now())
@@ -333,18 +340,20 @@ BEGIN
         VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
                 CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
       EXCEPTION WHEN unique_violation THEN
+        -- A concurrent first-time RSVP with the same email/phone won the race.
         DELETE FROM rsvp_parties WHERE id = v_party_id;
         RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
           'message', 'An RSVP with this email or phone already exists for this event.');
       END;
     ELSE
+      -- Auto-merged: re-insert the primary guest row for the updated party.
       INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
       VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
               CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
     END IF;
   END IF;
 
-  -- ── 7. Additional guests + custom answers (attending only) ──
+  -- ── 6. Additional guests + custom answers (attending only) — HARD CAPPED (RF-1) ──
   -- The companion insert now carries the new per-person detail fields. We
   -- silently coerce out-of-vocab age_group/gender values to NULL so a stale
   -- client can't trip the CHECK constraint mid-submit and lose the row.
@@ -368,18 +377,21 @@ BEGIN
     WHERE COALESCE(btrim(g.elem ->> 'fullName'), '') <> ''
       AND g.ord <= GREATEST(v_party_size - 1, 0);
 
+    -- Custom answers: already validated above (every fieldId is a real UUID
+    -- belonging to this event), so this insert is now a straight write rather
+    -- than a silent filter. The ordinality cap (50) remains as defence-in-depth.
     INSERT INTO custom_answers (party_id, field_id, answer_value)
     SELECT v_party_id, (a.elem ->> 'fieldId')::uuid, a.elem -> 'value'
     FROM jsonb_array_elements(COALESCE(p_custom_answers, '[]'::jsonb)) WITH ORDINALITY AS a(elem, ord)
     WHERE a.ord <= 50;
   END IF;
 
-  -- ── 8. Activity log ──
+  -- ── 7. Activity log (public submit — no actor) ──
   INSERT INTO activity_logs (event_id, action, entity_type, entity_id, metadata)
   VALUES (v_event.id, 'rsvp_submitted', 'rsvp_party', v_party_id,
           jsonb_build_object('guest_name', p_guest_name, 'response', p_response, 'party_size', v_party_size));
 
-  -- ── 9. Org contact for the caller's notification/email ──
+  -- ── 8. Org contact for the caller's notification/email (no extra round-trip) ──
   SELECT email, name, phone INTO v_org_email, v_org_name, v_org_phone
   FROM organizations WHERE id = v_event.org_id;
 
@@ -400,4 +412,4 @@ BEGIN
     'org_phone', v_org_phone
   );
 END;
-$$;
+$_$;

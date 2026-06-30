@@ -1374,10 +1374,26 @@ BEGIN
   END IF;
 
   -- ── 6. Additional guests + custom answers (attending only) — HARD CAPPED (RF-1) ──
+  -- The companion insert carries the per-person detail fields added by the
+  -- companion-detail-fields migration. Out-of-vocab age_group/gender values
+  -- are silently coerced to NULL so a stale client can't trip the CHECK
+  -- constraint mid-submit and lose the row.
   IF p_response = 'yes' THEN
-    INSERT INTO guests (party_id, event_id, full_name, is_primary_contact, meal_selection, dietary_notes)
-    SELECT v_party_id, v_event.id, g.elem ->> 'fullName', false,
-           NULLIF(g.elem ->> 'mealSelection', ''), NULLIF(g.elem ->> 'dietaryNotes', '')
+    INSERT INTO guests (
+      party_id, event_id, full_name, phone, is_primary_contact,
+      meal_selection, dietary_notes, age_group, relationship, gender
+    )
+    SELECT
+      v_party_id, v_event.id, g.elem ->> 'fullName',
+      NULLIF(btrim(g.elem ->> 'phone'), ''),
+      false,
+      NULLIF(g.elem ->> 'mealSelection', ''),
+      NULLIF(g.elem ->> 'dietaryNotes', ''),
+      CASE WHEN (g.elem ->> 'ageGroup') IN ('adult', 'teen', 'child', 'infant')
+           THEN g.elem ->> 'ageGroup' END,
+      NULLIF(btrim(LEFT(COALESCE(g.elem ->> 'relationship', ''), 60)), ''),
+      CASE WHEN (g.elem ->> 'gender') IN ('male', 'female')
+           THEN g.elem ->> 'gender' END
     FROM jsonb_array_elements(COALESCE(p_additional_guests, '[]'::jsonb)) WITH ORDINALITY AS g(elem, ord)
     WHERE COALESCE(btrim(g.elem ->> 'fullName'), '') <> ''
       AND g.ord <= GREATEST(v_party_size - 1, 0);
@@ -1796,7 +1812,13 @@ CREATE TABLE public.guests (
     meal_selection text,
     dietary_notes text,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    age_group text,
+    relationship text,
+    gender text,
+    CONSTRAINT guests_age_group_check CHECK (((age_group IS NULL) OR (age_group = ANY (ARRAY['adult'::text, 'teen'::text, 'child'::text, 'infant'::text])))),
+    CONSTRAINT guests_gender_check CHECK (((gender IS NULL) OR (gender = ANY (ARRAY['male'::text, 'female'::text])))),
+    CONSTRAINT guests_relationship_length_check CHECK (((relationship IS NULL) OR (length(relationship) <= 60)))
 );
 
 -- Name: invitations; Type: TABLE; Schema: public
@@ -2451,7 +2473,7 @@ CREATE INDEX idx_guests_event_id ON public.guests USING btree (event_id);
 
 -- Name: idx_guests_event_phone_unique; Type: INDEX; Schema: public
 
-CREATE UNIQUE INDEX idx_guests_event_phone_unique ON public.guests USING btree (event_id, phone) WHERE (phone IS NOT NULL);
+CREATE UNIQUE INDEX idx_guests_event_phone_unique ON public.guests USING btree (event_id, phone) WHERE ((phone IS NOT NULL) AND (is_primary_contact = true));
 
 -- Name: idx_guests_full_name_trgm; Type: INDEX; Schema: public
 

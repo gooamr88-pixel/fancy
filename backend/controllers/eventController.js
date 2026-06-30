@@ -82,7 +82,7 @@ const createEvent = async (req, res, next) => {
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword,
     coverImageUrl, galleryUrls, customColors, customFonts, templateData,
-    eventType, backgroundMusicUrl
+    eventType, backgroundMusicUrl, notificationPreferences, allowGuestEdits
   } = req.body;
 
   if (!templateType) {
@@ -178,6 +178,8 @@ const createEvent = async (req, res, next) => {
       template_data: templateData || {},
       event_type: eventType || 'wedding',
       background_music_url: backgroundMusicUrl || null,
+      notification_preferences: { email: notificationPreferences?.email !== false, whatsapp: false },
+      allow_guest_edits: !!allowGuestEdits,
       status: 'draft',
       is_paid: false
     };
