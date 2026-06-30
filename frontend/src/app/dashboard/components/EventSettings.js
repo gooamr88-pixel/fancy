@@ -31,13 +31,45 @@ function toLocalDateString(dateStr) {
   } catch { return ''; }
 }
 
+/* Image upload + preview, shared by the seal and invitation-background fields. */
+function SealUpload({ url, onUpload, onClear, busy, previewFit = 'contain' }) {
+  return (
+    <>
+      <label style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, cursor: busy ? 'wait' : 'pointer',
+        padding: '8px 16px', borderRadius: 8, border: `1px solid ${COLORS.gold}`, color: COLORS.gold,
+        fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+        opacity: busy ? 0.6 : 1,
+      }}>
+        {busy ? 'Uploading…' : '⬆ Upload image'}
+        <input type="file" accept="image/*" onChange={onUpload} disabled={busy} style={{ display: 'none' }} />
+      </label>
+      <span style={{ fontSize: 11, color: COLORS.stone, marginLeft: 10, fontFamily: 'var(--font-sans)' }}>PNG, JPG, WebP • Max 8MB</span>
+      {url && (
+        <div style={{
+          borderRadius: 12, overflow: 'hidden', border: `1px solid ${COLORS.border}`,
+          height: 140, background: COLORS.softBg, marginTop: 10, position: 'relative',
+        }}>
+          <img src={url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: previewFit }}
+            onError={(e) => { e.target.style.display = 'none'; }} />
+          <button type="button" onClick={onClear} aria-label="Remove image" style={{
+            position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
+            border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer',
+            fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>×</button>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function EventSettings({ eventId, event, onEventUpdated, onEventDeleted }) {
   const [form, setForm] = useState({
     title: '', description: '', event_date: '', event_end_date: '', location_name: '', location_address: '',
     location_lat: null, location_lng: null, location_place_id: '',
     rsvp_deadline: '', privacy_mode: 'public', access_password: '',
     dress_code: '', cover_image_url: '', primary_color: '#B8944F',
-    background_music_url: '',
+    background_music_url: '', gallery_urls: [],
     font_heading: 'Playfair Display',
     font_body: 'Inter',
     event_type: 'wedding',
@@ -54,6 +86,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     proposalStory: '', giftRegistry: '',
     celebrant: '', age: '', partyTheme: '',
     honoree: '', program: '', sponsorPackages: '',
+    seal_text: '', seal_image_url: '', invitation_bg_url: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -62,6 +95,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const [confirmComplete, setConfirmComplete] = useState(false);
   const [musicUploading, setMusicUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryInput, setGalleryInput] = useState('');
+  const [sealUploading, setSealUploading] = useState(false);
+  const [invitationBgUploading, setInvitationBgUploading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -173,6 +210,84 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     setCoverUploading(false);
   };
 
+  /* Shared upload path for the gallery/seal/background fields below — tries
+     Supabase storage first, falls back to an embedded base64 data URL (capped
+     at ~3.5MB) so a misconfigured bucket never silently loses the upload. */
+  const uploadFile = async (file, folder) => {
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('File size exceeds 8MB. Please use a smaller file or paste an external URL.');
+      return null;
+    }
+    try {
+      if (!supabase) throw new Error('Supabase client is not initialized.');
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${eventId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${fileExt}`;
+      const filePath = `${folder}/${fileName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
+      return publicUrl;
+    } catch (err) {
+      console.error(`${folder} upload failed, falling back to base64:`, err);
+      if (file.size > 3.5 * 1024 * 1024) {
+        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
+        return null;
+      }
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target.result);
+        reader.onerror = () => { toast.error('Failed to read the file. Please try again or paste an external URL.'); resolve(null); };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const handleGalleryUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setGalleryUploading(true);
+    for (const file of files) {
+      const url = await uploadFile(file, 'gallery');
+      if (url) {
+        setForm(prev => ({ ...prev, gallery_urls: [...prev.gallery_urls, url] }));
+        setSuccess(false);
+      }
+    }
+    setGalleryUploading(false);
+  };
+
+  const addGalleryUrl = (url) => {
+    const trimmed = (url || '').trim();
+    if (!trimmed) return;
+    setForm(prev => ({ ...prev, gallery_urls: [...prev.gallery_urls, trimmed] }));
+    setSuccess(false);
+  };
+
+  const removeGalleryUrl = (index) => {
+    setForm(prev => ({ ...prev, gallery_urls: prev.gallery_urls.filter((_, i) => i !== index) }));
+    setSuccess(false);
+  };
+
+  const handleSealUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSealUploading(true);
+    const url = await uploadFile(file, 'seal');
+    if (url) { setTemplateData(prev => ({ ...prev, seal_image_url: url })); setSuccess(false); }
+    setSealUploading(false);
+  };
+
+  const handleInvitationBgUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setInvitationBgUploading(true);
+    const url = await uploadFile(file, 'invitation-bg');
+    if (url) { setTemplateData(prev => ({ ...prev, invitation_bg_url: url })); setSuccess(false); }
+    setInvitationBgUploading(false);
+  };
+
   useEffect(() => {
     if (event) {
       setForm({
@@ -192,6 +307,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         cover_image_url: event.cover_image_url || '',
         primary_color: event.primary_color || '#B8944F',
         background_music_url: event.background_music_url || '',
+        gallery_urls: Array.isArray(event.gallery_urls) ? event.gallery_urls : [],
         font_heading: event.custom_fonts?.heading || 'Playfair Display',
         font_body: event.custom_fonts?.body || 'Inter',
         event_type: event.event_type || 'wedding',
@@ -218,6 +334,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         honoree: event.template_data?.honoree || '',
         program: event.template_data?.program || '',
         sponsorPackages: event.template_data?.sponsorPackages || '',
+        seal_text: event.template_data?.seal_text || '',
+        seal_image_url: event.template_data?.seal_image_url || '',
+        invitation_bg_url: event.template_data?.invitation_bg_url || '',
       });
     }
   }, [event]);
@@ -687,6 +806,45 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         </div>
 
         <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Photo Gallery</label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <input
+              type="url" value={galleryInput} onChange={(e) => setGalleryInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGalleryUrl(galleryInput); setGalleryInput(''); } }}
+              placeholder="https://example.com/photo.jpg"
+              style={{ ...inputStyle, flex: '1 1 220px' }}
+              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            />
+            <button type="button" onClick={() => { addGalleryUrl(galleryInput); setGalleryInput(''); }}
+              style={{ padding: '10px 16px', borderRadius: '8px', border: `1px solid ${COLORS.gold}`, background: COLORS.white, color: COLORS.gold, fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              + Add
+            </button>
+            <label style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: galleryUploading ? 'wait' : 'pointer',
+              padding: '10px 16px', borderRadius: '8px', border: `1px solid ${COLORS.gold}`, color: COLORS.gold,
+              fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+              opacity: galleryUploading ? 0.6 : 1,
+            }}>
+              {galleryUploading ? 'Uploading…' : '⬆ Upload'}
+              <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} disabled={galleryUploading} style={{ display: 'none' }} />
+            </label>
+          </div>
+          {form.gallery_urls.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
+              {form.gallery_urls.map((url, i) => (
+                <div key={i} style={{ position: 'relative', width: 84, height: 84, borderRadius: '10px', overflow: 'hidden', border: `1px solid ${COLORS.border}`, background: COLORS.softBg }}>
+                  <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { e.target.style.display = 'none'; }} />
+                  <button type="button" onClick={() => removeGalleryUrl(i)} title="Remove"
+                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={fieldGroupStyle}>
           <label style={labelStyle}>Primary Color</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <input type="color" value={form.primary_color} onChange={handleChange('primary_color')}
@@ -802,6 +960,38 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           <span style={{ fontSize: '11px', color: COLORS.stone, display: 'block', marginTop: '6px' }}>
             Provide a direct audio file URL (.mp3 or .ogg) or upload an audio file to play ambient music on the public event page.
           </span>
+        </div>
+      </div>
+
+      {/* ═══ INVITATION SEAL & STATIONERY ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+            Invitation Seal &amp; Stationery
+          </span>
+        </h3>
+        <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+          These power the cinematic envelope guests unseal when they open the link. Leave blank to use the elegant auto-generated bronze seal and arabesque stationery.
+        </p>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Seal Name / Monogram</label>
+          <input value={templateData.seal_text} onChange={(e) => setTemplateData(prev => ({ ...prev, seal_text: e.target.value }))}
+            placeholder="Auto from event name" maxLength={24} style={inputStyle}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+          />
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Custom Seal Artwork</label>
+          <SealUpload url={templateData.seal_image_url} onUpload={handleSealUpload} onClear={() => setTemplateData(prev => ({ ...prev, seal_image_url: '' }))} busy={sealUploading} previewFit="contain" />
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Invitation Background</label>
+          <SealUpload url={templateData.invitation_bg_url} onUpload={handleInvitationBgUpload} onClear={() => setTemplateData(prev => ({ ...prev, invitation_bg_url: '' }))} busy={invitationBgUploading} previewFit="cover" />
         </div>
       </div>
 

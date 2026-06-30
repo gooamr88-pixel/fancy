@@ -195,7 +195,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const toggleMusic = useCallback(() => {
     const el = musicRef.current;
     if (!el) return;
-    if (el.paused) el.play().catch(() => {});
+    if (el.paused) el.play().catch((err) => console.error('Background music playback failed:', err));
     else el.pause();
   }, []);
 
@@ -596,6 +596,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           preload="none"
           onPlay={() => setMusicPlaying(true)}
           onPause={() => setMusicPlaying(false)}
+          onError={(e) => console.error('Background music failed to load:', event.background_music_url, e.target.error)}
         />
       )}
       <div dir={isRTL ? 'rtl' : 'ltr'} style={{

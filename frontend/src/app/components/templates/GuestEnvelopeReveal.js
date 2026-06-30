@@ -508,8 +508,9 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
     if (startedRef.current || finishedRef.current) return;
     startedRef.current = true;
     // Started synchronously inside the tap so the browser counts it as a real
-    // user gesture; silently ignored when this fires from the idle auto-open.
-    musicRef?.current?.play().catch(() => {});
+    // user gesture; logged (not thrown) when this fires from the idle auto-open,
+    // where autoplay-without-gesture is expected to be blocked.
+    musicRef?.current?.play().catch((err) => console.error('Background music playback failed:', err));
     setStage(3);                       // ACTIVATION — bronze → gold, glow, dust
     after(620, () => setStage(4));     // OPENING — flaps peel back
     after(1180, () => setStage(5));    // LIGHT — golden volumetric bloom
@@ -647,7 +648,7 @@ export default function GuestEnvelopeReveal({ event, slug, guestRsvp, setGuestRs
           <motion.div variants={fadeUp} style={{ marginTop: 26 }}>
             <motion.button
               type="button"
-              onClick={() => { musicRef?.current?.play().catch(() => {}); finish(); }}
+              onClick={() => { musicRef?.current?.play().catch((err) => console.error('Background music playback failed:', err)); finish(); }}
               whileHover={{ scale: 1.035, boxShadow: `0 16px 34px ${theme.primary}55, inset 0 1px 0 rgba(255,255,255,0.45)` }}
               whileTap={{ scale: 0.97 }}
               style={enterBtnStyle(theme)}
