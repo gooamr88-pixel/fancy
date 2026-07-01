@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import PlacesAutocomplete from '../../components/PlacesAutocomplete';
 import FontPicker from './FontPicker';
 import { supabase } from '../../utils/supabaseClient';
+import { DressCodeVisualizer } from '../../components/guest/GuestUI';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -773,6 +774,21 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
           />
         </div>
+
+        {form.dress_code && (
+          <div style={{
+            ...fieldGroupStyle,
+            padding: '16px 20px 20px',
+            borderRadius: 12,
+            background: COLORS.softBg,
+            border: `1px solid ${COLORS.border}`
+          }}>
+            <div style={{ fontSize: 11, color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8, fontFamily: 'var(--font-sans)' }}>
+              ✨ Guest Page Dress Code Preview
+            </div>
+            <DressCodeVisualizer dressCodeText={form.dress_code} isRTL={false} />
+          </div>
+        )}
 
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Cover Image</label>

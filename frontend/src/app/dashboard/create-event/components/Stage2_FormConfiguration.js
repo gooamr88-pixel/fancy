@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlacesAutocomplete from '../../../../app/components/PlacesAutocomplete';
 import InlineFormBuilder from './InlineFormBuilder';
+import { DressCodeVisualizer } from '../../../components/guest/GuestUI';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -421,6 +422,20 @@ export default function Stage2_FormConfiguration({
                 >{dc || 'No Dress Code'}</button>
               ))}
             </div>
+            {dressCode && (
+              <div style={{
+                marginTop: 16,
+                padding: '16px 20px 20px',
+                borderRadius: 12,
+                background: C.softBg,
+                border: `1px solid ${C.border}`
+              }}>
+                <div style={{ fontSize: 11, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8, fontFamily: 'var(--font-sans)' }}>
+                  ✨ Guest Page Dress Code Preview
+                </div>
+                <DressCodeVisualizer dressCodeText={dressCode} isRTL={false} />
+              </div>
+            )}
           </Field>
 
           <Field label="RSVP Response Deadline" hint="Guests cannot RSVP after this date">

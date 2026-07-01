@@ -624,7 +624,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const invitationTheme = { primary: themeColor, secondary: customColors.secondary || '#D7BE80' };
   const invitationData = buildInvitationCardData(event, isRTL);
   const hasGallery = !!(event.gallery_urls && Array.isArray(event.gallery_urls) && event.gallery_urls.length > 0);
-  const hasMap = !!(event.location_lat && event.location_lng);
+  const hasMap = !!(event.location_address || (event.location_lat && event.location_lng));
 
   // Once a guest has answered, the public RSVP form is locked by default —
   // the backend (submit_rsvp_v2) rejects a second submission outright. The
@@ -1538,14 +1538,14 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                                 title="Event Location Map"
                                 width="100%" height="100%" style={{ border: 0 }}
                                 loading="lazy" referrerPolicy="no-referrer-when-downgrade"
-                                src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${event.location_lat},${event.location_lng}&zoom=15`}
+                                src={`https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${event.location_lat && event.location_lng ? `${event.location_lat},${event.location_lng}` : encodeURIComponent(event.location_address || '')}&zoom=15`}
                               />
                             ) : (
                               <iframe
                                 title="Event Location Map"
                                 width="100%" height="100%" style={{ border: 0 }}
-                                loading="lazy"
-                                src={`https://www.openstreetmap.org/export/embed.html?bbox=${event.location_lng - 0.01},${event.location_lat - 0.01},${event.location_lng + 0.01},${event.location_lat + 0.01}&layer=mapnik&marker=${event.location_lat},${event.location_lng}`}
+                                loading="lazy" referrerPolicy="no-referrer-when-downgrade"
+                                src={`https://maps.google.com/maps?q=${encodeURIComponent(event.location_address || (event.location_lat && event.location_lng ? `${event.location_lat},${event.location_lng}` : ''))}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
                               />
                             )}
                           </div>
