@@ -1,3 +1,5 @@
+'use client';
+
 import { Component } from 'react';
 
 export default class ErrorBoundary extends Component {
@@ -42,7 +44,7 @@ export default class ErrorBoundary extends Component {
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
 
-            {this.state.errorInfo && (
+            {process.env.NODE_ENV !== 'production' && this.state.errorInfo && (
               <details style={styles.details}>
                 <summary style={styles.summary}>Error Details</summary>
                 <pre style={styles.stack}>

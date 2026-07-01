@@ -29,6 +29,7 @@ function setup(returnedParty) {
   const cap = { guestInserts: [], guestDeletes: 0, seatingDeletes: 0 };
   mock.setResolver((s) => {
     if (s.table === 'rsvp_parties' && s.op === 'update') return { data: returnedParty };
+    if (s.table === 'guests' && s.op === 'upsert') { cap.guestInserts.push(s.payload); return { data: null }; }
     if (s.table === 'guests' && s.op === 'insert') { cap.guestInserts.push(s.payload); return { data: null }; }
     if (s.table === 'guests' && s.op === 'delete') { cap.guestDeletes++; return { data: null }; }
     if (s.table === 'seating_assignments' && s.op === 'delete') { cap.seatingDeletes++; return { data: null }; }

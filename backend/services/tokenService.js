@@ -70,7 +70,9 @@ function signRsvpInvite({ partyId, eventId, response }) {
   if (!partyId || !eventId) throw new Error('partyId and eventId are required');
   const payload = { partyId, eventId };
   if (response) payload.response = response;
-  return sign(PURPOSES.RSVP_INVITE, payload, { expiresIn: '90d' });
+  // Token expires in 30 days — enforced by jwt.verify() in verifyRsvpInvite.
+  // Guests can revisit the same email link to change their mind within this window.
+  return sign(PURPOSES.RSVP_INVITE, payload, { expiresIn: '30d' });
 }
 
 function verifyRsvpInvite(token) {

@@ -130,7 +130,8 @@ const register = async (req, res, next) => {
   }
 
   // Normalize email so lookups match login/Google flows (all lowercase, trimmed)
-  const normalizedEmail = email.toLowerCase().trim();
+  // L11: email is already lowercased+trimmed above — reuse it directly.
+  const normalizedEmail = email;
 
   try {
     // Check if user already exists
@@ -345,12 +346,14 @@ const login = async (req, res, next) => {
 
     const org = orgs && orgs[0];
 
-    // Block unverified accounts
+    // SEC H4: Return a generic error for unverified accounts — do not reveal
+    // that a specific email is registered but unverified.
     if (org && org.email_verified === false) {
-      return res.status(403).json({
+      await recordLogin(req, { userId: org?.owner_user_id, email: normalizedEmail, success: false, failureReason: 'email_not_verified' });
+      return res.status(401).json({
         success: false,
-        error: 'EMAIL_NOT_VERIFIED',
-        message: 'Please verify your email before logging in. Check your inbox for the verification code.'
+        error: 'INVALID_CREDENTIALS',
+        message: 'Invalid email or password.'
       });
     }
 
@@ -365,12 +368,14 @@ const login = async (req, res, next) => {
       });
     }
 
-    // Block Google-only accounts from password login
+    // SEC H4: Return a generic error for Google-only accounts — do not reveal
+    // the auth method tied to a specific email.
     if (org && !org.password_hash) {
-      return res.status(400).json({
+      await recordLogin(req, { userId: org?.owner_user_id, email: normalizedEmail, success: false, failureReason: 'google_only_account' });
+      return res.status(401).json({
         success: false,
-        error: 'GOOGLE_ACCOUNT',
-        message: 'This account uses Google Sign-In. Please use the Google button to log in.'
+        error: 'INVALID_CREDENTIALS',
+        message: 'Invalid email or password.'
       });
     }
 
@@ -716,7 +721,9 @@ const getProfile = async (req, res, next) => {
 
     const profileData = {
       ...org,
-      hasPassword: !!org.password_hash
+      hasPassword: !!org.password_hash,
+      role: req.user.role || 'organizer',
+      isSuperAdmin: !!req.user.isSuperAdmin,
     };
     delete profileData.password_hash;
 

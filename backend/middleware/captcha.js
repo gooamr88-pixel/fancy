@@ -23,13 +23,37 @@ const VERIFY_TIMEOUT_MS = 5000;
 // lets every other IP through fine, only a single IP hammering the bypass gets cut off.
 const FAIL_OPEN_WINDOW_MS = 15 * 60 * 1000;
 const FAIL_OPEN_MAX_PER_IP = 5;
+const FAIL_OPEN_MAP_MAX_SIZE = 10000;
 const failOpenCounts = new Map(); // ip -> { count, windowStart }
+
+// SEC C6: Periodic cleanup to prevent unbounded memory growth.
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of failOpenCounts) {
+    if (now - entry.windowStart > FAIL_OPEN_WINDOW_MS) {
+      failOpenCounts.delete(key);
+    }
+  }
+}, CLEANUP_INTERVAL_MS).unref(); // unref so it doesn't prevent process exit
 
 function recordFailOpenAndCheck(ip) {
   const key = ip || 'unknown';
   const now = Date.now();
   const entry = failOpenCounts.get(key);
   if (!entry || now - entry.windowStart > FAIL_OPEN_WINDOW_MS) {
+    // SEC C6: Evict oldest entries if the map grows too large.
+    if (failOpenCounts.size >= FAIL_OPEN_MAP_MAX_SIZE) {
+      let oldestKey = null;
+      let oldestTime = Infinity;
+      for (const [k, v] of failOpenCounts) {
+        if (v.windowStart < oldestTime) {
+          oldestTime = v.windowStart;
+          oldestKey = k;
+        }
+      }
+      if (oldestKey) failOpenCounts.delete(oldestKey);
+    }
     failOpenCounts.set(key, { count: 1, windowStart: now });
     return true; // allow
   }

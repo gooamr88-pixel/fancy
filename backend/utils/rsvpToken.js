@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 const QR_SECRET = process.env.QR_JWT_SECRET;
+if (!QR_SECRET) throw new Error('FATAL: QR_JWT_SECRET environment variable is required');
 
 /**
  * Generates a signed JWT for an RSVP invite action.

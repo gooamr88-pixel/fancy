@@ -120,6 +120,18 @@ const trackGuestEvent = async (req, res) => {
  */
 const getEventAnalytics = async (req, res, next) => {
   const { eventId } = req.params;
+  const { from, to } = req.query;
+
+  // Validate optional date range parameters
+  if (from && isNaN(Date.parse(from))) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: "Invalid 'from' date parameter. Use ISO 8601 format (e.g. 2026-01-01)." });
+  }
+  if (to && isNaN(Date.parse(to))) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: "Invalid 'to' date parameter. Use ISO 8601 format (e.g. 2026-12-31)." });
+  }
+  if (from && to && new Date(from) > new Date(to)) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: "'from' date must be before 'to' date." });
+  }
 
   try {
     // Run all analytics queries in parallel
@@ -288,7 +300,7 @@ const getMaybeGuests = async (req, res, next) => {
           id: p.id, guest_name: p.label, email: primary.email || null, phone: primary.phone || null,
           maybe_confirm_by: p.maybe_confirm_by, created_at: p.created_at, updated_at: p.updated_at,
           daysSinceRsvp: Math.floor((Date.now() - new Date(p.created_at).getTime()) / (1000 * 60 * 60 * 24)),
-          isOverdue: p.maybe_confirm_by && new Date() > new Date(p.updated_at || p.created_at).getTime() + parseDuration(p.maybe_confirm_by),
+          isOverdue: p.maybe_confirm_by && Date.now() > new Date(p.updated_at || p.created_at).getTime() + parseDuration(p.maybe_confirm_by),
         };
       }),
     });

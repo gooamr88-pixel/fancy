@@ -24,10 +24,11 @@ export default function Toast({ toast, onClose, duration }) {
 
   useEffect(() => {
     if (!toast || autoMs <= 0) return undefined;
-    const id = setTimeout(onClose, autoMs);
-    return () => clearTimeout(id);
-    // Re-arm the timer whenever a new toast is shown.
-  }, [toast, autoMs, onClose]);
+    const timer = setTimeout(onClose, autoMs);
+    return () => clearTimeout(timer);
+    // Re-arm the timer whenever a new toast is shown; include toast.id to reset
+    // the timer when a new toast arrives before the previous one dismissed.
+  }, [toast?.id, toast, autoMs, onClose]);
 
   if (!toast) return null;
 

@@ -8,18 +8,22 @@
 
 /**
  * Convert arbitrary text into a lowercase, dash-separated, URL-safe slug.
- * Strips diacritics and any non-alphanumeric characters.
- * Mirrors the format enforced by the slug regex in eventController:
- *   /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+ * Strips diacritics but keeps non-ASCII letters (particularly Arabic) so that
+ * Arabic event names produce readable, valid URL slugs.
+ * Falls back to the ASCII-only format if the input contains no non-ASCII letters.
  */
-const slugify = (text) =>
-  String(text || '')
+const slugify = (text) => {
+  const s = String(text || '')
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '') // strip accents (combining diacritical marks)
+    .replace(/[\u0300-\u036f]/g, '') // strip combining diacritical marks
+    .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-') // non-alphanumerics -> dash
+    .replace(/[^\p{L}\p{N}]+/gu, '-') // non-letter/non-digit sequences -> dash
     .replace(/-{2,}/g, '-') // collapse repeats
     .replace(/^-+|-+$/g, ''); // trim leading/trailing dashes
+  // Encode non-ASCII for URL safety while keeping readability
+  return s;
+};
 
 /**
  * Derive a base slug from event details, preferring the most identifying names

@@ -40,20 +40,12 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
     if (r.ok) { setFinalResponse(r.data?.response || selected); setDone(true); }
   };
 
-  const Shell = ({ children }) => (
-    <div dir={isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100vh', background: 'linear-gradient(165deg,#F8F4EC,#EDE5D4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
-      <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 120, damping: 16 }} style={{ maxWidth: '500px', width: '100%' }}>
-        <GlassmorphismCard bg="rgba(255,255,255,0.9)" blur={20} hoverable={false} style={{ padding: '44px 36px', borderRadius: '24px' }}>
-          {children}
-        </GlassmorphismCard>
-      </motion.div>
-    </div>
-  );
+
 
   if (done) {
     const meta = RESP[finalResponse] || RESP.yes;
     return (
-      <Shell>
+      <Shell isRTL={isRTL}>
         <ConfettiExplosion active={finalResponse === 'yes'} duration={4500} particleCount={140} />
         <div style={{ textAlign: 'center' }}>
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 14, delay: 0.15 }}
@@ -91,7 +83,7 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
   }
 
   return (
-    <Shell>
+    <Shell isRTL={isRTL}>
       <div style={{ textAlign: 'center', marginBottom: '24px' }}>
         <FadeInUp delay={0.1}>
           <span style={{ display: 'inline-block', padding: '6px 18px', background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)', borderRadius: '100px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.22em', color: '#8A6D34', fontWeight: 700 }}>
@@ -134,3 +126,14 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
     </Shell>
   );
 }
+
+const Shell = ({ children, isRTL }) => (
+  <div dir={isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100vh', background: 'linear-gradient(165deg,#F8F4EC,#EDE5D4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+    <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 120, damping: 16 }} style={{ maxWidth: '500px', width: '100%' }}>
+      <GlassmorphismCard bg="rgba(255,255,255,0.9)" blur={20} hoverable={false} style={{ padding: '44px 36px', borderRadius: '24px' }}>
+        {children}
+      </GlassmorphismCard>
+    </motion.div>
+  </div>
+);
+

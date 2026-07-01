@@ -23,10 +23,11 @@ const FEATURE_LIST = [
   '✦ SMS campaign tools',
 ];
 
-export default function UpgradeModal({ isOpen, onClose, feature, onUpgrade }) {
+export default function UpgradeModal({ isOpen, onClose, feature, isPaid, onUpgrade }) {
   if (!isOpen) return null;
 
   const title = FEATURE_TITLES[feature] || 'Premium Feature';
+  const needsUpgrade = !!isPaid; // Paid but feature not in tier → needs upgrade
 
   return (
     <div
@@ -112,7 +113,10 @@ export default function UpgradeModal({ isOpen, onClose, feature, onUpgrade }) {
             fontFamily: 'var(--font-sans)',
             maxWidth: 340,
           }}>
-            Complete your event payment to unlock all premium features and take full control of your event planning.
+            {needsUpgrade
+              ? `Your current plan does not include ${title}. Upgrade to a higher plan to unlock this feature and more.`
+              : 'Complete your event payment to unlock all premium features and take full control of your event planning.'
+            }
           </p>
         </div>
 
@@ -177,7 +181,7 @@ export default function UpgradeModal({ isOpen, onClose, feature, onUpgrade }) {
               e.currentTarget.style.animation = 'none';
             }}
           >
-            Complete Payment &amp; Activate
+            {needsUpgrade ? 'Upgrade Plan' : 'Complete Payment & Activate'}
           </button>
 
           {/* Maybe Later */}

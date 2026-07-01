@@ -1,7 +1,17 @@
 const ExcelJS = require('exceljs');
 const { sanitizeCsvValue } = require('./csvHelper');
 
+const MAX_EXCEL_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+
 const generateExcelExport = async (rsvps, tables, checkIns) => {
+  // Estimate input data size to prevent runaway memory usage
+  const estimatedSize = JSON.stringify({ rsvps, tables, checkIns }).length;
+  if (estimatedSize > MAX_EXCEL_SIZE_BYTES) {
+    const err = new Error(`Input data exceeds maximum allowed size (${Math.round(estimatedSize / 1024 / 1024)}MB > 10MB). Please reduce the dataset.`);
+    err.code = 'FILE_TOO_LARGE';
+    throw err;
+  }
+
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Fancy RSVP';
   workbook.created = new Date();

@@ -61,7 +61,8 @@ function parsePagination(req, opts = {}) {
  * @returns {string} a quoted, escaped value safe to drop into an or-filter
  */
 function escapeOrSearchTerm(term) {
-  const escaped = String(term).replace(/[\\"]/g, (m) => `\\${m}`);
+  // One literal backslash prefix per special character (not two).
+  const escaped = String(term).replace(/[\\"]/g, (m) => '\\' + m);
   return `"%${escaped}%"`;
 }
 

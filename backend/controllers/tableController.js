@@ -169,6 +169,19 @@ const updateTablePositions = async (req, res, next) => {
   }
 
   try {
+    // Validate all positions are finite numbers before updating
+    for (const pos of tablePositions) {
+      const px = parseFloat(pos.x);
+      const py = parseFloat(pos.y);
+      if (!Number.isFinite(px) || !Number.isFinite(py)) {
+        return res.status(400).json({
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: `Invalid position for table ${pos.id}: x and y must be finite numbers (got x=${pos.x}, y=${pos.y}).`,
+        });
+      }
+    }
+
     // Perform bulk updates in parallel
     const updatePromises = tablePositions.map(pos => 
       supabase

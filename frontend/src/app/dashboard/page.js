@@ -4,6 +4,7 @@ import { toast } from '../utils/toast';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import QRCode from 'qrcode';
 import { logout } from '../utils/apiClient';
 import LogoutModal from '../components/LogoutModal';
 import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
@@ -104,6 +105,52 @@ function DashboardSkeleton() {
   );
 }
 
+/* ═══════════════════════════════════════════════
+   HTML escaping for safe interpolation in document.write()
+   ═══════════════════════════════════════════════ */
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function sanitizeCoverUrl(url) {
+  if (!url) return 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070';
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070';
+    }
+    return encodeURI(url);
+  } catch {
+    return 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070';
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   Local QR code renderer (replaces external qrserver.com API)
+   ═══════════════════════════════════════════════ */
+function QRCodeDisplay({ url, size = 200 }) {
+  const [src, setSrc] = React.useState('');
+  React.useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(url, { width: size }).then(dataUrl => {
+      if (!cancelled) setSrc(dataUrl);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [url, size]);
+  if (!src) return <div style={{ width: size, height: size, background: COLORS.softBg, border: `1px solid ${COLORS.border}`, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontSize: 11, color: COLORS.stone }}>Loading QR…</span></div>;
+  return (
+    <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 16, borderRadius: 12, display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
+      <img src={src} alt="Event QR Code" style={{ width: size, height: size, display: 'block' }} />
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -143,7 +190,7 @@ export default function DashboardPage() {
     if (typeof window !== 'undefined') {
       const orgId = localStorage.getItem('org_id');
       if (!orgId) { router.push('/login'); return; }
-      setIsSuperAdmin(localStorage.getItem('user_role') === 'super_admin');
+      // Super-admin status is validated server-side during data load (see below).
       setAuthChecked(true);
     }
   }, [router]);
@@ -236,17 +283,26 @@ export default function DashboardPage() {
     if (!eventId) return;
     try {
 
-      const [statsResult, tablesResult, rsvpsResult, fieldsResult] = await Promise.allSettled([
+      const [statsResult, tablesResult, rsvpsResult, fieldsResult, profileResult] = await Promise.allSettled([
         fetch(`${apiUrl}/events/${eventId}/stats`, { credentials: 'include' }).then(r => r.json()),
         fetch(`${apiUrl}/events/${eventId}/tables`, { credentials: 'include' }).then(r => r.json()),
         fetch(`${apiUrl}/events/${eventId}/rsvps`, { credentials: 'include' }).then(r => r.json()),
         fetch(`${apiUrl}/events/${eventId}/fields`, { credentials: 'include' }).then(r => r.json()),
+        fetch(`${apiUrl}/auth/profile`, { credentials: 'include' }).then(r => r.json()),
       ]);
 
       const statsData = statsResult.status === 'fulfilled' ? statsResult.value : null;
       const tablesData = tablesResult.status === 'fulfilled' ? tablesResult.value : null;
       const rsvpsData = rsvpsResult.status === 'fulfilled' ? rsvpsResult.value : null;
       const fieldsData = fieldsResult.status === 'fulfilled' ? fieldsResult.value : null;
+      const profileData = profileResult.status === 'fulfilled' ? profileResult.value : null;
+
+      // Server-validated super-admin check (FIX H12: replaces localStorage check)
+      if (profileData?.success && profileData.profile) {
+        setIsSuperAdmin(!!profileData.profile.isSuperAdmin);
+      } else {
+        setIsSuperAdmin(false);
+      }
 
       if (statsData?.success) setStats(statsData.stats);
       if (tablesData?.success) setTables(tablesData.tables);
@@ -538,7 +594,7 @@ export default function DashboardPage() {
                   <Link href="/admin" id="btn-open-super-admin" style={{
                     padding: '10px 18px',
                     background: COLORS.charcoal,
-                    color: COLORS.champagne || '#D7BE80',
+                    color: COLORS.champagne,
                     border: '1px solid rgba(184, 148, 79, 0.35)',
                     borderRadius: '30px',
                     fontSize: '11px',
@@ -668,7 +724,7 @@ export default function DashboardPage() {
                   <Link href="/admin" id="btn-open-super-admin" style={{
                     padding: '8px 16px',
                     background: COLORS.charcoal,
-                    color: COLORS.champagne || '#D7BE80',
+                    color: COLORS.champagne,
                     border: '1px solid rgba(184, 148, 79, 0.35)',
                     borderRadius: '30px',
                     fontSize: '11px',
@@ -690,7 +746,7 @@ export default function DashboardPage() {
                   </Link>
                 )}
 
-                <FeatureGate isPaid={!!activeEvent?.is_paid} feature="seating_map" onUpgrade={() => { setActiveTab('events'); }}>
+                <FeatureGate tierFeatures={activeEvent?.tier_features} isPaid={!!activeEvent?.is_paid} feature="seating_map" onUpgrade={() => { setActiveTab('events'); }}>
                 <Link
                   href="/dashboard/seating-map"
                   id="btn-open-seating-map"
@@ -721,7 +777,7 @@ export default function DashboardPage() {
                 <div style={{ width: '1px', height: '20px', background: COLORS.border, margin: '0 4px' }} />
 
                 {activeTab === 'guests' && (
-                  <FeatureGate isPaid={!!activeEvent?.is_paid} feature="import_guests" onUpgrade={() => { setActiveTab('events'); }}>
+                  <FeatureGate tierFeatures={activeEvent?.tier_features} isPaid={!!activeEvent?.is_paid} feature="import_guests_csv" onUpgrade={() => { setActiveTab('events'); }}>
                   <button
                     onClick={() => setShowImportModal(true)}
                     id="btn-import-csv"
@@ -912,6 +968,7 @@ export default function DashboardPage() {
               onOpenImport={() => setShowImportModal(true)}
               onOpenSendInvitations={() => setShowSendInvitationModal(true)}
               isPaid={!!activeEvent?.is_paid || !!activeEvent?.manual_override}
+              tierFeatures={activeEvent?.tier_features}
               onUpgrade={() => setActiveTab('events')}
             />
           ) : activeTab === 'seating' ? (
@@ -1073,20 +1130,15 @@ export default function DashboardPage() {
                   Scan this code to go directly to the RSVP page of your event
                 </p>
                 
-                <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 16, borderRadius: 12, display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`} 
-                    alt="Event QR Code" 
-                    style={{ width: 200, height: 200, display: 'block' }}
-                  />
-                </div>
+                <QRCodeDisplay url={`${window.location.origin}/${activeEvent.slug}`} size={200} />
                 
                 <div style={{ display: 'flex', gap: 8, width: '100%', marginTop: 8 }}>
                   <button
                     onClick={async () => {
                       try {
-                        const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`);
-                        const blob = await response.blob();
+                        const dataUrl = await QRCode.toDataURL(`${window.location.origin}/${activeEvent.slug}`, { width: 500 });
+                        const res = await fetch(dataUrl);
+                        const blob = await res.blob();
                         const url = window.URL.createObjectURL(blob);
                         const link = document.createElement('a');
                         link.href = url;
@@ -1106,8 +1158,8 @@ export default function DashboardPage() {
                   <button
                     onClick={async () => {
                       try {
-                        const response = await fetch(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&format=svg&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`);
-                        const blob = await response.blob();
+                        const svgString = await QRCode.toString(`${window.location.origin}/${activeEvent.slug}`, { type: 'svg', width: 500 });
+                        const blob = new Blob([svgString], { type: 'image/svg+xml' });
                         const url = window.URL.createObjectURL(blob);
                         const link = document.createElement('a');
                         link.href = url;
@@ -1149,7 +1201,7 @@ export default function DashboardPage() {
                 }}>
                   <div style={{
                     height: '110px',
-                    backgroundImage: `url(${activeEvent.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'})`,
+                    backgroundImage: `url(${sanitizeCoverUrl(activeEvent.cover_image_url)})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     width: '100%'
@@ -1163,11 +1215,7 @@ export default function DashboardPage() {
                       <strong>Venue:</strong> {activeEvent.location_name || 'TBA'}
                     </p>
                     <div style={{ background: COLORS.softBg, border: `1px solid ${COLORS.border}`, padding: 8, borderRadius: 8, marginTop: 8 }}>
-                      <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`} 
-                        alt="Event QR Code" 
-                        style={{ width: 100, height: 100, display: 'block' }}
-                      />
+                      <QRCodeDisplay url={`${window.location.origin}/${activeEvent.slug}`} size={100} />
                     </div>
                     <span style={{ fontSize: '8px', textTransform: 'uppercase', letterSpacing: '2px', color: COLORS.gold, fontWeight: 700, marginTop: 4 }}>
                       Scan to RSVP
@@ -1177,17 +1225,23 @@ export default function DashboardPage() {
 
                 <div style={{ width: '100%', marginTop: 8 }}>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const printWindow = window.open('', '_blank');
-                      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`${window.location.origin}/${activeEvent.slug}`)}`;
-                      const coverUrl = activeEvent.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070';
+                      const qrDataUrl = await QRCode.toDataURL(`${window.location.origin}/${activeEvent.slug}`, { width: 300 });
+                      const coverUrl = sanitizeCoverUrl(activeEvent.cover_image_url);
                       const dateFormatted = activeEvent.event_date ? new Date(activeEvent.event_date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
                       const timeFormatted = activeEvent.event_date ? new Date(activeEvent.event_date).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '';
+
+                      const safeTitle = escapeHtml(activeEvent.title);
+                      const safeLocationName = escapeHtml(activeEvent.location_name) || 'TBA';
+                      const safeLocationAddress = escapeHtml(activeEvent.location_address);
+                      const safeDateFormatted = escapeHtml(dateFormatted);
+                      const safeTimeFormatted = escapeHtml(timeFormatted);
 
                       printWindow.document.write(`
                         <html>
                           <head>
-                            <title>Print Invitation Card - ${activeEvent.title}</title>
+                            <title>Print Invitation Card - ${safeTitle}</title>
                             <style>
                               body {
                                 font-family: sans-serif;
@@ -1266,12 +1320,12 @@ export default function DashboardPage() {
                             <div class="card">
                               <div class="cover"></div>
                               <div class="content">
-                                <h1 class="title">${activeEvent.title}</h1>
-                                <p class="details"><strong>Date:</strong> ${dateFormatted} at ${timeFormatted}</p>
-                                <p class="details"><strong>Venue:</strong> ${activeEvent.location_name || 'TBA'}</p>
-                                <p class="details">${activeEvent.location_address || ''}</p>
+                                <h1 class="title">${safeTitle}</h1>
+                                <p class="details"><strong>Date:</strong> ${safeDateFormatted} at ${safeTimeFormatted}</p>
+                                <p class="details"><strong>Venue:</strong> ${safeLocationName}</p>
+                                <p class="details">${safeLocationAddress}</p>
                                 <div class="qr-container">
-                                  <img class="qr-image" src="${qrUrl}" alt="RSVP QR Code" />
+                                  <img class="qr-image" src="${qrDataUrl}" alt="RSVP QR Code" />
                                 </div>
                                 <div class="scan-text">Scan to RSVP</div>
                               </div>

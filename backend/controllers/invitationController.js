@@ -64,12 +64,16 @@ const sendInvitations = async (req, res, next) => {
     // channel === 'sms' — delegate to the existing campaign dispatcher, then
     // normalize whatever it sent into the unified envelope. It writes directly
     // to `res`, so we intercept via a thin response proxy.
+    // Wrapped in try-finally to guarantee cleanup of monkey-patched methods.
     const campaignController = require('./campaignController');
     const originalJson = res.json.bind(res);
     const originalStatus = res.status.bind(res);
     let statusCode = 200;
     res.status = (code) => { statusCode = code; return res; };
     res.json = (body) => {
+      // Restore original methods before writing the response
+      res.status = originalStatus;
+      res.json = originalJson;
       const normalized = {
         success: body.success,
         data: body.success ? {
@@ -90,7 +94,14 @@ const sendInvitations = async (req, res, next) => {
       originalStatus(statusCode);
       return originalJson(normalized);
     };
-    return campaignController.sendBulkSMSCampaign(req, res, next);
+    try {
+      return await campaignController.sendBulkSMSCampaign(req, res, next);
+    } catch (smsErr) {
+      // Restore original methods on error so downstream error handlers work
+      res.status = originalStatus;
+      res.json = originalJson;
+      throw smsErr;
+    }
   } catch (err) {
     next(err);
   }

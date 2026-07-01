@@ -21,16 +21,16 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * Requires event_payments to be embedded on the event (the list/detail queries do).
  */
 async function withResolvedTier(event) {
-  if (!event || !event.is_paid) return event;
+  if (!event || !event.is_paid) {
+    // Unpaid events get only the free-tier features.
+    const { FREE_TIER_FEATURES } = require('../config/featureRegistry');
+    return event ? { ...event, tier_features: [...FREE_TIER_FEATURES] } : event;
+  }
 
   let tierName = event.tier_name || null;
   let tierMaxGuests = event.tier_max_guests;
   let tierRemoveWatermark = !!event.tier_remove_watermark;
-
-  // If both tier_name and tier_max_guests are already fully resolved, return immediately.
-  if (tierName && tierMaxGuests !== null && tierMaxGuests !== undefined) {
-    return event;
-  }
+  let tierFeatures = [];
 
   const payments = Array.isArray(event.event_payments) ? event.event_payments : [];
   const completed = payments.find(p => p && p.status === 'completed') || payments[0];
@@ -54,6 +54,7 @@ async function withResolvedTier(event) {
           if (match) {
             tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
             tierRemoveWatermark = !!match.remove_watermark;
+            tierFeatures = Array.isArray(match.features) ? match.features : [];
           }
         } else if (completed && completed.amount_cents != null) {
           const match = tiers.find(t => Number(t.price_cents) === Number(completed.amount_cents));
@@ -61,20 +62,34 @@ async function withResolvedTier(event) {
             tierName = match.name;
             tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
             tierRemoveWatermark = !!match.remove_watermark;
+            tierFeatures = Array.isArray(match.features) ? match.features : [];
           }
         }
       } catch { /* config unavailable — leave the plan unresolved this time */ }
     }
   }
 
-  if (!tierName) return event;
+  // If we have a tierName but haven't resolved features yet, do a separate lookup.
+  if (tierName && tierFeatures.length === 0) {
+    try {
+      const cfg = await getPlatformConfig();
+      const tiers = cfg.pricing_tiers || [];
+      const match = tiers.find(t => (t.name || '').toLowerCase() === tierName.toLowerCase());
+      if (match && Array.isArray(match.features)) {
+        tierFeatures = match.features;
+      }
+    } catch { /* features stay empty — safe fallback */ }
+  }
+
+  if (!tierName) return { ...event, tier_features: [] };
 
   // Self-heal: persist so future reads don't re-derive. Never block/fault the read.
   supabase.from('events').update({ tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark }).eq('id', event.id)
     .then(() => {}, () => {});
 
-  return { ...event, tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark };
+  return { ...event, tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark, tier_features: tierFeatures };
 }
+
 
 /**
  * Creates a new event in draft state.
@@ -190,23 +205,39 @@ const createEvent = async (req, res, next) => {
 
     let event, error;
 
-    // Attempt insert
-    ({ data: event, error } = await supabase
-      .from('events')
-      .insert(insertPayload)
-      .select()
-      .single());
-
-    // If the insert failed due to an unknown column (e.g. template_data not yet migrated),
-    // retry without the potentially missing column
-    if (error && (error.code === '42703' || (error.message && error.message.includes('column')))) {
-      logger.warn({ code: error.code, message: error.message }, 'createEvent: retrying without template_data (column may not exist yet)');
-      const { template_data, ...fallbackPayload } = insertPayload;
+    // SEC H5: Insert directly and handle unique constraint violations instead of
+    // check-then-insert (TOCTOU race). On collision, append a random suffix and retry.
+    const MAX_SLUG_RETRIES = 3;
+    for (let attempt = 0; attempt <= MAX_SLUG_RETRIES; attempt++) {
       ({ data: event, error } = await supabase
         .from('events')
-        .insert(fallbackPayload)
+        .insert(insertPayload)
         .select()
         .single());
+
+      // If the insert failed due to an unknown column (e.g. template_data not yet migrated),
+      // retry without the potentially missing column
+      if (error && (error.code === '42703' || (error.message && error.message.includes('column')))) {
+        logger.warn({ code: error.code, message: error.message }, 'createEvent: retrying without template_data (column may not exist yet)');
+        const { template_data, ...fallbackPayload } = insertPayload;
+        ({ data: event, error } = await supabase
+          .from('events')
+          .insert(fallbackPayload)
+          .select()
+          .single());
+      }
+
+      // SEC H5: If the insert failed due to a unique constraint violation on slug,
+      // append a random suffix and retry instead of failing.
+      if (error && (error.code === '23505' || (error.message || '').includes('duplicate key')) && attempt < MAX_SLUG_RETRIES) {
+        const suffix = require('crypto').randomBytes(2).toString('hex'); // 4 hex chars
+        insertPayload.slug = `${finalSlug}-${suffix}`;
+        logger.info({ attempt: attempt + 1, newSlug: insertPayload.slug }, 'createEvent: slug collision, retrying with random suffix');
+        error = null;
+        continue;
+      }
+
+      break; // success or non-retryable error
     }
 
     if (error) {
@@ -218,7 +249,7 @@ const createEvent = async (req, res, next) => {
         message: error.message,
         insertPayloadKeys: Object.keys(insertPayload),
         userId: req.user?.id,
-        slug: finalSlug,
+        slug: insertPayload.slug,
       }, 'createEvent: Supabase insert failed');
 
       // Return a more informative error instead of a generic 500

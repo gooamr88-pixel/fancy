@@ -1,4 +1,8 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_URL = `${API_BASE_URL}/api/v1`;
+
+// Flag to prevent infinite 401 retry loops
+let isRefreshing = false;
 
 export async function apiFetch(path, options = {}) {
   const url = `${API_URL}${path}`;
@@ -33,6 +37,25 @@ export async function apiFetch(path, options = {}) {
       const onAuthPage = typeof window !== 'undefined' && authPaths.includes(window.location.pathname);
 
       if (typeof window !== 'undefined' && !onAuthPage) {
+        // Attempt session refresh before giving up (prevents unnecessary logouts
+        // when the access token expired but the refresh token is still valid).
+        if (!isRefreshing && !options._isRetry) {
+          isRefreshing = true;
+          try {
+            const { supabase } = await import('./supabaseClient');
+            const { error } = await supabase.auth.refreshSession();
+            isRefreshing = false;
+            if (!error) {
+              // Retry the original request once after successful refresh
+              return apiFetch(path, { ...options, _isRetry: true });
+            }
+          } catch {
+            isRefreshing = false;
+          }
+        }
+
+        // Refresh failed or already retried — clear local state and redirect
+        isRefreshing = false;
         // Clear local metadata (non-sensitive display data)
         localStorage.removeItem('org_id');
         localStorage.removeItem('user_role');

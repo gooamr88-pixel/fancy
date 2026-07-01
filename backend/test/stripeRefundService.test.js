@@ -69,8 +69,9 @@ test('a partial refund keeps the payment completed and does NOT revert the event
 
   assert.equal(result.amountCents, 4000);
   assert.equal(stripeCalls.refunds[0].args.amount, 4000);
-  const payUpdate = mock.calls.find(c => c.table === 'event_payments' && c.op === 'update');
-  assert.equal(payUpdate.payload.status, 'completed'); // partial stays completed
+  const payUpdates = mock.calls.filter(c => c.table === 'event_payments' && c.op === 'update');
+  const finalUpdate = payUpdates[payUpdates.length - 1]; // last update is the final status
+  assert.equal(finalUpdate.payload.status, 'completed'); // partial stays completed
   assert.equal(mock.calls.some(c => c.table === 'events' && c.op === 'update'), false);
 });
 

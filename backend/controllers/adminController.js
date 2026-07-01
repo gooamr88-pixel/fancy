@@ -80,6 +80,10 @@ const listPlatformUsers = async (req, res, next) => {
 
     return res.json({ ...buildListResponse(users, p, count), users });
   } catch (err) {
+    logger.error({ err, message: err.message, code: err.code, userId: req.user?.id }, 'listPlatformUsers failed');
+    if (err.code === '42P01' || err.code === '42703') {
+      return res.status(500).json({ success: false, error: 'DATABASE_SCHEMA_ERROR', message: 'A required database table or column is missing.' });
+    }
     next(err);
   }
 };
@@ -253,6 +257,7 @@ const listOrganizations = async (req, res, next) => {
 
     return res.json({ ...buildListResponse(organizations, p, orgsRes.count), organizations });
   } catch (err) {
+    logger.error({ err, message: err.message, code: err.code }, 'listOrganizations failed');
     next(err);
   }
 };
@@ -533,6 +538,10 @@ const updateEventAdmin = async (req, res, next) => {
 
     return res.json({ success: true, message: 'Event updated.', event: data });
   } catch (err) {
+    logger.error({ err, message: err.message, code: err.code, eventId }, 'updateEventAdmin failed');
+    if (err.code === 'PGRST116' || err.code === '22P02') {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: err.message || 'Invalid input.' });
+    }
     next(err);
   }
 };

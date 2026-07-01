@@ -21,7 +21,7 @@ t.beforeEach(() => mock.reset());
 test('event_fee: first delivery marks event pending_review and records the payment', async () => {
   mock.setResolver(({ table, op }) => {
     if (table === 'event_payments' && op === 'select') return { data: [] };      // no existing
-    if (table === 'events' && op === 'update') return { data: null };
+    if (table === 'events' && op === 'update') return { data: { id: 'evt-1' } }; // optimistic lock succeeds
     if (table === 'event_payments' && op === 'insert') return { data: null };
     return {};
   });

@@ -31,11 +31,7 @@ const { computeSmsChargeCents } = require('../utils/pricing');
 const { fulfillCheckoutSession, handleChargeRefunded, handleDisputeEvent } = require('../services/paymentFulfillment');
 const { getPlatformConfig, invalidate: invalidateConfigCache } = require('../utils/configCache');
 
-// FRONTEND_URL may be a comma-separated allowlist (see app.js CORS).
-const allowedReturnOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
-  .split(',')
-  .map(s => s.trim().replace(/\/$/, ''))
-  .filter(Boolean);
+const { getAllowedOrigins } = require('../utils/publicUrl');
 
 /**
  * Resolves the frontend origin to send the user back to after Stripe Checkout.
@@ -47,6 +43,7 @@ const allowedReturnOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000
  * allowlist), falling back to the first configured origin only if we can't match.
  */
 const resolveReturnBase = (req) => {
+  const allowedReturnOrigins = getAllowedOrigins();
   const fromOrigin = (req.headers.origin || '').trim().replace(/\/$/, '');
   if (fromOrigin && allowedReturnOrigins.includes(fromOrigin)) return fromOrigin;
 
@@ -356,6 +353,23 @@ const purchaseSMSCredits = async (req, res, next) => {
 };
 
 /**
+ * SEC C3: In-memory deduplication of Stripe webhook event IDs. Stripe may retry
+ * delivery, so we track recently-processed event IDs to skip duplicates before
+ * they hit the (already-idempotent) fulfillment layer — avoiding unnecessary DB
+ * work and log noise.
+ */
+const _processedWebhookEvents = new Map(); // eventId -> timestamp
+const WEBHOOK_DEDUP_TTL_MS = 60 * 60 * 1000; // 1 hour
+const WEBHOOK_DEDUP_MAX_SIZE = 10000;
+
+function _cleanupWebhookDedup() {
+  const cutoff = Date.now() - WEBHOOK_DEDUP_TTL_MS;
+  for (const [id, ts] of _processedWebhookEvents) {
+    if (ts < cutoff) _processedWebhookEvents.delete(id);
+  }
+}
+
+/**
  * Processes Stripe Webhook payloads.
  * POST /api/v1/payments/webhook
  */
@@ -385,6 +399,12 @@ const stripeWebhook = async (req, res, next) => {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // SEC C3: Deduplicate webhook events — if we've already processed this event
+  // ID, acknowledge it immediately without re-running fulfillment logic.
+  if (_processedWebhookEvents.has(stripeEvent.id)) {
+    return res.json({ received: true, deduplicated: true });
+  }
+
   try {
     // All write logic lives in the shared, idempotent fulfillment service so the
     // webhook and the synchronous /verify endpoint can never diverge.
@@ -395,6 +415,11 @@ const stripeWebhook = async (req, res, next) => {
     } else if (stripeEvent.type === 'charge.dispute.created' || stripeEvent.type === 'charge.dispute.updated' || stripeEvent.type === 'charge.dispute.closed') {
       await handleDisputeEvent(stripeEvent.data.object);
     }
+
+    // SEC C3: Record the event ID after successful processing.
+    _processedWebhookEvents.set(stripeEvent.id, Date.now());
+    // Periodic eviction to prevent unbounded growth.
+    if (_processedWebhookEvents.size > WEBHOOK_DEDUP_MAX_SIZE) _cleanupWebhookDedup();
   } catch (processingErr) {
     // Log the error but ALWAYS return 200 to Stripe — never let processing
     // errors cause 500s which trigger Stripe's retry storm.

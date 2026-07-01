@@ -53,22 +53,25 @@ const server = app.listen(PORT, () => {
 });
 
 // Handle graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM signal received: closing HTTP server');
+function gracefulShutdown(signal) {
+  logger.info(`${signal} signal received: closing HTTP server`);
   try { require('./services/emailScheduler').stop(); } catch { /* ignore */ }
   try { require('./services/smsCampaignWorker').stop(); } catch { /* ignore */ }
   try { require('./services/revenueRollup').stop(); } catch { /* ignore */ }
   server.close(() => {
-    logger.info('HTTP server closed');
+    logger.info('HTTP server closed — all connections drained');
+    process.exit(0);
   });
-});
+  // Force exit after 10 seconds if connections don't drain
+  const forceTimer = setTimeout(() => {
+    logger.warn(`Forced shutdown after 10s timeout (${signal})`);
+    process.exit(1);
+  }, 10000);
+  if (forceTimer.unref) forceTimer.unref();
+}
 
-process.on('SIGINT', () => {
-  logger.info('SIGINT signal received: closing HTTP server');
-  server.close(() => {
-    logger.info('HTTP server closed');
-  });
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Catch unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {

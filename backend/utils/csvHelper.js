@@ -42,7 +42,15 @@ function parseCSVLine(line) {
 const parseCSV = (csvContent) => {
   if (!csvContent) return [];
   
-  const lines = csvContent.split(/\r?\n/);
+  // Strip UTF-8 BOM if present (common in Excel-exported CSVs)
+  let content = csvContent;
+  if (content.charCodeAt(0) === 0xFEFF) {
+    content = content.slice(1);
+  } else if (content.startsWith('\xEF\xBB\xBF')) {
+    content = content.slice(3);
+  }
+  
+  const lines = content.split(/\r?\n/);
   if (lines.length < 2) return [];
 
   // Parse header using RFC 4180 compliant parser

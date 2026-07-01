@@ -1,13 +1,40 @@
 const express = require('express');
 const { body } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 const validate = require('../middleware/validate');
 const { requireAuth } = require('../middleware/auth');
 const authController = require('../controllers/authController');
 
 const router = express.Router();
 
+// SEC H1: Strict per-endpoint rate limiters for sensitive auth routes.
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many login attempts. Please try again after a minute.' },
+});
+
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many registration attempts. Please try again later.' },
+});
+
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many password reset attempts. Please try again later.' },
+});
+
 // Register new organizer (creates unverified account + sends OTP): POST /api/v1/auth/register
 router.post('/register', [
+  signupLimiter,
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('name').trim().notEmpty().withMessage('Your name is required'),
@@ -24,6 +51,7 @@ router.post('/verify-registration', [
 
 // Login organizer (issues auth cookie): POST /api/v1/auth/login
 router.post('/login', [
+  loginLimiter,
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').notEmpty().withMessage('Password is required'),
   validate
@@ -40,12 +68,14 @@ router.post('/google', [
 
 // Forgot password link trigger: POST /api/v1/auth/forgot-password
 router.post('/forgot-password', [
+  passwordResetLimiter,
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   validate
 ], authController.forgotPassword);
 
 // Reset password with OTP code: POST /api/v1/auth/reset-password
 router.post('/reset-password', [
+  passwordResetLimiter,
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('otp').isLength({ min: 6, max: 6 }).isNumeric().withMessage('Valid 6-digit OTP is required'),
   body('newPassword').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),

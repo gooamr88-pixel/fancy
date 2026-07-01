@@ -118,7 +118,10 @@ export function useRsvpResolver(context) {
   // Serialize the context so the effect re-runs only when the identity actually changes.
   const key = JSON.stringify(context || {});
   const ctxRef = useRef(context);
-  ctxRef.current = context;
+
+  useEffect(() => {
+    ctxRef.current = context;
+  });
 
   const run = useRef(0);
 

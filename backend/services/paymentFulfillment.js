@@ -43,14 +43,23 @@ const fulfillCheckoutSession = async (session) => {
     const tierMaxGuests = Number.isFinite(parsedCap) ? parsedCap : null;
     const tierRemoveWatermark = session.metadata.tier_remove_watermark === '1';
 
-    // Mark paid and hold for review. A self-serve card payment does NOT make the
-    // event publicly live on its own — a Super Admin promotes it to 'active'
-    // (see migration 20260618000000). Guest-facing controllers require 'active'.
-    const { error: eventError } = await supabase
+    // SEC C5: Optimistic locking — only update if the event hasn't been paid yet.
+    // A concurrent webhook/verify call that already flipped is_paid=true will cause
+    // this update to return 0 rows, which we treat as "already processed".
+    const { data: updatedEvent, error: eventError } = await supabase
       .from('events')
       .update({ is_paid: true, status: 'pending_review', updated_at: new Date().toISOString() })
-      .eq('id', event_id);
+      .eq('id', event_id)
+      .eq('is_paid', false)
+      .select('id')
+      .maybeSingle();
+
     if (eventError) throw eventError;
+
+    // If no row was updated, a concurrent call already fulfilled this event.
+    if (!updatedEvent) {
+      return { ok: true, type, alreadyProcessed: true, eventId: event_id };
+    }
 
     // Persist the tier separately and best-effort: the tier_name/tier_max_guests
     // columns ship in migration 20260624000000. If it hasn't been applied yet we

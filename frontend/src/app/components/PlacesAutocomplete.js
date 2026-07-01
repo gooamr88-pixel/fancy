@@ -13,12 +13,24 @@ function loadGoogleMaps() {
   googleMapsLoadPromise = new Promise((resolve, reject) => {
     if (typeof window === 'undefined') return reject('SSR');
     if (window.google?.maps?.places) { googleMapsLoaded = true; resolve(); return; }
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.onload = () => { googleMapsLoaded = true; resolve(); };
-    script.onerror = () => reject('Failed to load Google Maps');
-    document.head.appendChild(script);
+    // Guard against duplicate script tags (e.g. HMR, back-navigation)
+    if (!document.querySelector('script[src*="maps.googleapis.com"]')) {
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+      script.async = true;
+      script.onload = () => { googleMapsLoaded = true; resolve(); };
+      script.onerror = () => reject('Failed to load Google Maps');
+      document.head.appendChild(script);
+    } else {
+      // Script tag exists but hasn't finished loading yet; poll for readiness
+      const interval = setInterval(() => {
+        if (window.google?.maps?.places) {
+          clearInterval(interval);
+          googleMapsLoaded = true;
+          resolve();
+        }
+      }, 100);
+    }
   });
   return googleMapsLoadPromise;
 }
@@ -29,6 +41,12 @@ export default function PlacesAutocomplete({ value, onChange, onPlaceSelect, pla
   const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
   const [mapsReady, setMapsReady] = useState(false);
+
+  // Store callbacks in refs to avoid stale closures in the Autocomplete listener
+  const onChangeRef = useRef(onChange);
+  const onPlaceSelectRef = useRef(onPlaceSelect);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  useEffect(() => { onPlaceSelectRef.current = onPlaceSelect; }, [onPlaceSelect]);
 
   // Load Google Maps script on mount
   useEffect(() => {
@@ -61,9 +79,9 @@ export default function PlacesAutocomplete({ value, onChange, onPlaceSelect, pla
           placeId: place.place_id || '',
         };
 
-        // Update the controlled input value
-        if (onChange) onChange(place.formatted_address || '');
-        if (onPlaceSelect) onPlaceSelect(placeData);
+        // Update the controlled input value (use refs to avoid stale closure)
+        if (onChangeRef.current) onChangeRef.current(place.formatted_address || '');
+        if (onPlaceSelectRef.current) onPlaceSelectRef.current(placeData);
       });
 
       autocompleteRef.current = ac;

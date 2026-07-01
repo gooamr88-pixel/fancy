@@ -30,7 +30,7 @@ async function getPlatformConfig({ force = false } = {}) {
 
   if (error || !data) throw (error || new Error('super_admin_config row not found'));
 
-  cached = { value: data, expires: Date.now() + TTL_MS };
+  cached = { value: data, expires: Date.now() + TTL_MS, cachedAt: Date.now() };
   return data;
 }
 

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { apiFetch } from '../utils/apiClient';
+import { apiFetch, logout as centralLogout } from '../utils/apiClient';
 
 export function useAuth() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -9,14 +9,18 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
     if (typeof window !== 'undefined') {
       const id = localStorage.getItem('org_id');
       const role = localStorage.getItem('user_role');
-      setOrgId(id);
-      setUserRole(role);
-      setIsLoggedIn(!!id);
-      setLoading(false);
+      if (isMounted) {
+        setOrgId(id);
+        setUserRole(role);
+        setIsLoggedIn(!!id);
+        setLoading(false);
+      }
     }
+    return () => { isMounted = false; };
   }, []);
 
   // Cross-tab sync
@@ -39,17 +43,12 @@ export function useAuth() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
+  // Delegate to the centralized logout (M19: eliminates duplicated cleanup logic)
   const logout = async () => {
-    try {
-      await apiFetch('/auth/logout', { method: 'POST' });
-    } catch (e) { /* ignore */ }
-    localStorage.removeItem('org_id');
-    localStorage.removeItem('user_role');
-    localStorage.removeItem('active_event_id');
     setIsLoggedIn(false);
     setOrgId(null);
     setUserRole(null);
-    window.location.href = '/login';
+    await centralLogout();
   };
 
   return { isLoggedIn, orgId, userRole, loading, logout };

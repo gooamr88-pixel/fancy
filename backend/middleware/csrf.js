@@ -19,10 +19,7 @@
  *
  * This mirrors the CSRF strategy used by frameworks like Django/Rails.
  */
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
-  .split(',')
-  .map((s) => s.trim().replace(/\/$/, ''))
-  .filter(Boolean);
+const { getAllowedOrigins } = require('../utils/publicUrl');
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -30,7 +27,7 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 function isAllowedOrigin(value) {
   try {
     const u = new URL(value);
-    return allowedOrigins.includes(`${u.protocol}//${u.host}`);
+    return getAllowedOrigins().includes(`${u.protocol}//${u.host}`);
   } catch {
     return false;
   }
@@ -54,4 +51,10 @@ function csrfOriginGuard(req, res, next) {
   next();
 }
 
-module.exports = { csrfOriginGuard, isAllowedOrigin, allowedOrigins };
+module.exports = {
+  csrfOriginGuard,
+  isAllowedOrigin,
+  get allowedOrigins() {
+    return getAllowedOrigins();
+  }
+};

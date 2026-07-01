@@ -296,7 +296,7 @@ const getDashboardData = async (req, res, next) => {
         action: activity.action,
         metadata: activity.metadata,
         created_at: activity.created_at,
-        guest_name: (activity.entity_type === 'rsvp' && activity.entity_id)
+        guest_name: (['rsvp', 'rsvp_party', 'check_in'].includes(activity.entity_type) && activity.entity_id)
           ? (rsvpNameMap[activity.entity_id] || null)
           : null
       }));

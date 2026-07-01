@@ -22,15 +22,51 @@ const { dispatch } = require('./emailService');
 const { getEventStats } = require('../utils/emailContext');
 const tokenService = require('./tokenService');
 const T = require('../utils/emailTemplates');
+const { getPublicBaseUrl } = require('../utils/publicUrl');
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
 const LIMIT = 250; // per-event guest cap per run (safety)
+const MAX_RETRIES = 3; // max retry attempts for failed email sends
+const RETRY_BASE_MS = 1000; // base delay for exponential backoff (1s, 2s, 4s)
 const nowISO = () => new Date().toISOString();
 const stamp = (table, id, col) => supabase.from(table).update({ [col]: nowISO() }).eq('id', id);
 
-const frontendBase = () =>
-  (process.env.FRONTEND_URL || 'https://fancyrsvp.com').split(',')[0].trim().replace(/\/$/, '');
+/**
+ * Wraps dispatch() with retry logic and exponential backoff.
+ * Retries up to MAX_RETRIES times on failure before giving up.
+ * Returns { sent: true } on success, { sent: false, error } after exhausting retries.
+ */
+async function dispatchWithRetry(payload) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await dispatch(payload);
+      if (res.sent) return res;
+      // dispatch returned but didn't send (e.g. dedup) — don't retry
+      if (res.deduplicated) return res;
+    } catch (err) {
+      if (attempt >= MAX_RETRIES) {
+        logger.error({ err, kind: payload.kind, ref: payload.ref, attempt }, '[email-scheduler] permanently failed after max retries');
+        return { sent: false, error: err.message || 'MAX_RETRIES_EXCEEDED' };
+      }
+      const delay = RETRY_BASE_MS * Math.pow(2, attempt);
+      logger.warn({ err, kind: payload.kind, ref: payload.ref, attempt, nextRetryMs: delay }, '[email-scheduler] dispatch failed, retrying');
+      await new Promise(resolve => setTimeout(resolve, delay));
+      continue;
+    }
+    // dispatch returned { sent: false } without throwing — retry
+    if (attempt >= MAX_RETRIES) {
+      logger.error({ kind: payload.kind, ref: payload.ref, attempt }, '[email-scheduler] permanently failed after max retries (send returned false)');
+      return { sent: false, error: 'MAX_RETRIES_EXCEEDED' };
+    }
+    const delay = RETRY_BASE_MS * Math.pow(2, attempt);
+    logger.warn({ kind: payload.kind, ref: payload.ref, attempt, nextRetryMs: delay }, '[email-scheduler] send returned false, retrying');
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+  return { sent: false, error: 'MAX_RETRIES_EXCEEDED' };
+}
+
+const frontendBase = () => getPublicBaseUrl();
 
 // Per-party "already sent?" stamps (reminder_sent_at etc.) were absorbed into the
 // invitations ledger's per-channel tracking; lifecycle reminders aren't an
@@ -62,7 +98,7 @@ async function jobRsvpReminders() {
       if (!email) continue;
       const r = { id: party.id, guest_name: party.label, email, response: party.response };
       const html = T.getRsvpReminderTemplate(r, ev, rsvpLinks(party.id, ev.id));
-      const res = await dispatch({ kind: 'rsvp_reminder', ref: `rsvp:${party.id}`, to: email, subject: `Reminder: please RSVP for ${ev.title}`, html, eventId: ev.id });
+      const res = await dispatchWithRetry({ kind: 'rsvp_reminder', ref: `rsvp:${party.id}`, to: email, subject: `Reminder: please RSVP for ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
     }
   }
@@ -90,7 +126,7 @@ async function jobEventReminders() {
       const r = { id: party.id, guest_name: party.label, email, party_size: (party.guests || []).length || 1 };
       const tableName = revealed ? (party.seating_assignments?.[0]?.tables?.table_name || null) : null;
       const html = T.getEventReminderTemplate(r, ev, { tableName });
-      const res = await dispatch({ kind: 'event_reminder', ref: `rsvp:${party.id}`, to: email, subject: `See you soon at ${ev.title}`, html, eventId: ev.id });
+      const res = await dispatchWithRetry({ kind: 'event_reminder', ref: `rsvp:${party.id}`, to: email, subject: `See you soon at ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
     }
   }
@@ -112,7 +148,7 @@ async function jobFinalReports() {
     if (org && org.email && orgEmailOk(ev)) {
       const stats = await getEventStats(ev.id);
       const html = T.getFinalHeadcountReportTemplate({ orgName: org.name, event: ev, stats });
-      const res = await dispatch({ kind: 'final_report', ref: `event:${ev.id}`, to: org.email, subject: `Final headcount: ${ev.title}`, html, eventId: ev.id });
+      const res = await dispatchWithRetry({ kind: 'final_report', ref: `event:${ev.id}`, to: org.email, subject: `Final headcount: ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
     }
     await stamp('events', ev.id, 'final_report_sent_at');
@@ -136,7 +172,7 @@ async function jobPostEvent() {
       if (org && org.email && orgEmailOk(ev)) {
         const stats = await getEventStats(ev.id);
         const html = T.getPostEventRecapTemplate({ orgName: org.name, event: ev, stats });
-        const res = await dispatch({ kind: 'recap', ref: `event:${ev.id}`, to: org.email, subject: `Recap: ${ev.title}`, html, eventId: ev.id });
+        const res = await dispatchWithRetry({ kind: 'recap', ref: `event:${ev.id}`, to: org.email, subject: `Recap: ${ev.title}`, html, eventId: ev.id });
         if (res.sent) sent++;
       }
       await stamp('events', ev.id, 'recap_sent_at');
@@ -149,7 +185,7 @@ async function jobPostEvent() {
       if (!email) continue;
       const r = { id: party.id, guest_name: party.label, email };
       const html = T.getPostEventThankYouTemplate(r, ev);
-      const res = await dispatch({ kind: 'thank_you', ref: `rsvp:${party.id}`, to: email, subject: `Thank you for celebrating ${ev.title}`, html, eventId: ev.id });
+      const res = await dispatchWithRetry({ kind: 'thank_you', ref: `rsvp:${party.id}`, to: email, subject: `Thank you for celebrating ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
     }
   }
@@ -169,7 +205,7 @@ async function jobPendingPayments() {
     const org = ev.organizations;
     if (org && org.email) {
       const html = T.getPendingPaymentReminderTemplate({ orgName: org.name, event: ev });
-      const res = await dispatch({ kind: 'pending_payment', ref: `event:${ev.id}`, to: org.email, subject: `Activate your event: ${ev.title}`, html, eventId: ev.id });
+      const res = await dispatchWithRetry({ kind: 'pending_payment', ref: `event:${ev.id}`, to: org.email, subject: `Activate your event: ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
     }
     await stamp('events', ev.id, 'payment_reminder_sent_at');

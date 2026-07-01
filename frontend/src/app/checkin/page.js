@@ -37,7 +37,7 @@ export default function CheckInPage() {
 
   useEffect(() => { if (typeof window !== 'undefined') { const orgId = localStorage.getItem('org_id'); const savedEventId = localStorage.getItem('active_event_id'); if (!orgId) { router.push('/login'); return; } if (savedEventId) setEventId(savedEventId); setAuthReady(true); setAuthChecked(true); } }, [router]);
 
-  useEffect(() => { if (!authReady) return; const fetchEvents = async () => { try { const res = await fetch(`${API_URL}/events`, { credentials: 'include' }); const data = await res.json(); if (data.success && data.events.length > 0) { setEvents(data.events); if (!eventId) setEventId(data.events[0].id); } else { if (!eventId) setEventId('demo-event'); } } catch (err) { if (!eventId) setEventId('demo-event'); } }; fetchEvents(); }, [authReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!authReady) return; const fetchEvents = async () => { try { const res = await fetch(`${API_URL}/events`, { credentials: 'include' }); const data = await res.json(); if (data.success && data.events.length > 0) { setEvents(data.events); if (!eventId) setEventId(data.events[0].id); } else { if (!eventId) { setError('Please select an event first. Go to the Dashboard to create or select an event.'); setLoading(false); } } } catch (err) { if (!eventId) { setError('Please select an event first. Go to the Dashboard to create or select an event.'); setLoading(false); } } }; fetchEvents(); }, [authReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCheckInSummary = useCallback(async () => {
     if (!eventId || !authReady) return;

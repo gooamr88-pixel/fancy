@@ -25,6 +25,7 @@ const SUB_BATCH = 10;        // concurrent sends within a slice
 const BATCH_PAUSE_MS = 1000; // pacing between sub-batches (~10 msg/s)
 const MAX_CAMPAIGNS_PER_TICK = 5;
 const STALE_SECONDS = 300;   // re-queue recipients stuck 'processing' this long
+const MAX_RECIPIENT_RETRIES = 3; // max retries per recipient before dead-lettering
 
 const nowISO = () => new Date().toISOString();
 
@@ -95,6 +96,7 @@ async function processCampaign(campaign) {
     if (!claimed || claimed.length === 0) break; // nothing left to do this tick
 
     await Promise.allSettled(claimed.map(async (r) => {
+      const retryCount = r.retry_count || 0;
       try {
         const { body, segments } = personalize(campaign.message_template, {
           slug: event.slug, guestName: r.guest_name, rsvpId: r.rsvp_id,
@@ -103,8 +105,20 @@ async function processCampaign(campaign) {
         const result = await sendRecipient({ eventId, phone: r.phone, body, segments, idemKey: r.idempotency_key, twilio, fromNumber });
         await applyRecipientResult(r, result);
       } catch (err) {
-        logger.warn({ err, recipientId: r.id }, '[sms-worker] recipient send errored');
-        await applyRecipientResult(r, { kind: 'failed', error: err.message || 'WORKER_ERROR' });
+        if (retryCount >= MAX_RECIPIENT_RETRIES) {
+          // Dead letter: permanently failed after max retries
+          logger.error({ recipientId: r.id, phone: r.phone, retryCount, err: err.message }, '[sms-worker] DLQ: recipient permanently failed after max retries');
+          await applyRecipientResult(r, { kind: 'failed', error: `DLQ: ${err.message || 'WORKER_ERROR'} (after ${retryCount} retries)` });
+        } else {
+          // Increment retry count and re-queue for next tick
+          logger.warn({ err, recipientId: r.id, retryCount }, '[sms-worker] recipient send errored, will retry');
+          await supabase.from('sms_campaign_recipients').update({
+            status: 'queued',
+            retry_count: retryCount + 1,
+            error: String(err.message || 'WORKER_ERROR').slice(0, 300),
+            updated_at: nowISO(),
+          }).eq('id', r.id);
+        }
       }
     }));
 

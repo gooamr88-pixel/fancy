@@ -10,7 +10,7 @@
 /** Normalize a raw email to lowercase + trimmed, or null if blank. */
 function normalizeEmail(raw) {
   if (raw === null || raw === undefined) return null;
-  const s = String(raw).trim().toLowerCase();
+  const s = String(raw).normalize('NFC').trim().toLowerCase();
   return s ? s : null;
 }
 

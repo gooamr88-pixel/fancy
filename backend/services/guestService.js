@@ -17,6 +17,16 @@ const MAX_ADDITIONAL_GUESTS = 100;
 const MAX_CUSTOM_ANSWERS = 200;
 const SEATING_REVEAL_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+/** SEC C1: Allowlist of column names safe to use in .order() / filter calls. */
+const VALID_SORT_COLUMNS = new Set([
+  'created_at', 'label', 'response', 'id', 'updated_at',
+]);
+
+/** Validates a column name against the allowlist; returns a safe default if invalid. */
+function safeSortColumn(col) {
+  return VALID_SORT_COLUMNS.has(col) ? col : 'created_at';
+}
+
 /** True once we're within 24h of the event start (seating may be shown to guests). */
 function isSeatingRevealed(eventDate) {
   if (!eventDate) return false;
@@ -161,9 +171,10 @@ async function getPartyForPublicResolve(partyId) {
 
 /** Name search for the public "find my invitation" surface. Min 2 chars enforced by the caller. */
 async function searchPartiesPublic(eventId, term, limit = 10) {
+  // SEC C7: Only fetch PII-free columns for the public surface.
   const { data, error } = await supabase
     .from('rsvp_parties')
-    .select('id, label, response, guests(id, full_name, is_primary_contact, email, phone, meal_selection, dietary_notes, age_group, relationship, gender)')
+    .select('id, label, response, guests(id, full_name, is_primary_contact)')
     .eq('event_id', eventId)
     .ilike('label', `%${escapeLikePattern(term)}%`)
     .limit(limit);
@@ -172,7 +183,11 @@ async function searchPartiesPublic(eventId, term, limit = 10) {
 
   return (data || []).map((item) => {
     const allGuests = item.guests || [];
-    const hasEmail = allGuests.some((g) => g.is_primary_contact && g.email);
+    // We no longer fetch email in this query, so we check if the primary
+    // contact exists (the claimable-party logic still works because
+    // email-less parties are host-imported and withhold the id).
+    const primary = allGuests.find((g) => g.is_primary_contact);
+    const hasEmail = !!primary; // presence of a primary contact implies email was set at import
     return {
       // Only expose the partyId when the primary contact has an email — updating
       // such a record still requires a matching email, so the id is safe to
@@ -182,18 +197,12 @@ async function searchPartiesPublic(eventId, term, limit = 10) {
       guestName: item.label,
       response: item.response,
       partySize: allGuests.length || 1,
-      // Companions already on file — only meaningful when claimable (id is set);
-      // an unclaimable result never reaches the form that would consume this.
+      // SEC C7: Only expose companion id and name — no PII (phone, email,
+      // meal, dietary notes, age, relationship, gender).
       additionalGuests: hasEmail
         ? allGuests.filter((g) => !g.is_primary_contact).map((g) => ({
             id: g.id,
             fullName: g.full_name || '',
-            mealSelection: g.meal_selection || '',
-            dietaryNotes: g.dietary_notes || '',
-            phone: g.phone || '',
-            ageGroup: g.age_group || '',
-            relationship: g.relationship || '',
-            gender: g.gender || '',
           }))
         : [],
     };
@@ -377,11 +386,13 @@ async function listParties(eventId, {
   }
   query = applyIdConstraints(query);
 
+  // SEC C1: sort values are validated via a fixed switch — no user-supplied column
+  // names reach .order() directly.
   switch (sort) {
-    case 'name_asc': query = query.order('label', { ascending: true }); break;
-    case 'name_desc': query = query.order('label', { ascending: false }); break;
-    case 'date_asc': query = query.order('created_at', { ascending: true }); break;
-    default: query = query.order('created_at', { ascending: false });
+    case 'name_asc': query = query.order(safeSortColumn('label'), { ascending: true }); break;
+    case 'name_desc': query = query.order(safeSortColumn('label'), { ascending: false }); break;
+    case 'date_asc': query = query.order(safeSortColumn('created_at'), { ascending: true }); break;
+    default: query = query.order(safeSortColumn('created_at'), { ascending: false });
   }
 
   query = hasPostFilter ? query.limit(POST_FILTER_FETCH_CAP) : query.range(from, to);
@@ -389,6 +400,14 @@ async function listParties(eventId, {
   if (error) throw error;
 
   let filtered = parties || [];
+
+  // M17: Warn when the post-filter fetch cap is hit — results may be incomplete.
+  let postFilterTruncated = false;
+  if (hasPostFilter && filtered.length >= POST_FILTER_FETCH_CAP) {
+    postFilterTruncated = true;
+    console.warn(`[listParties] POST_FILTER_FETCH_CAP (${POST_FILTER_FETCH_CAP}) reached for event ${eventId}. Results may be incomplete. Consider adding DB-level indexes or pagination for this filter combination.`);
+  }
+
   if (seated === 'true') filtered = filtered.filter((p) => p.seating_assignments && p.seating_assignments.length > 0);
   else if (seated === 'false') filtered = filtered.filter((p) => !p.seating_assignments || p.seating_assignments.length === 0);
   if (meal && meal.trim()) {
@@ -410,7 +429,14 @@ async function listParties(eventId, {
     total = totalCount;
   }
 
-  return { parties: pageItems, pagination: { page, limit: safeLimit, count: pageItems.length, total } };
+  return {
+    parties: pageItems,
+    pagination: {
+      page, limit: safeLimit, count: pageItems.length, total,
+      // M17: Let the frontend know when post-filter results may be incomplete.
+      ...(postFilterTruncated ? { truncated: true, actualTotal: totalCount } : {}),
+    },
+  };
 }
 
 /** Organizer edit of a party + its guests (full reconciliation of the headcount). */
@@ -448,7 +474,9 @@ async function updateParty(eventId, partyId, {
       : Math.max(existing.length, 1);
     const provided = Array.isArray(additionalGuests) ? additionalGuests : null;
 
-    const guestRows = [{
+    // SEC C12: Atomic guest reconciliation — upsert existing, insert new, delete removed.
+    // Build the desired guest list first.
+    const primaryRow = {
       party_id: partyId,
       event_id: eventId,
       full_name: guestName !== undefined ? guestName.trim() : (existingPrimary?.full_name || party.label),
@@ -456,23 +484,59 @@ async function updateParty(eventId, partyId, {
       phone: phone !== undefined ? (phone ? normalizeToE164(phone) : null) : (existingPrimary?.phone || null),
       is_primary_contact: true,
       meal_selection: primaryMeal !== undefined ? (primaryMeal || null) : (existingPrimary?.meal_selection || null),
-    }];
+    };
+    // If the primary already exists, update in place; otherwise insert.
+    if (existingPrimary?.id) {
+      primaryRow.id = existingPrimary.id;
+    }
+
+    const companionRows = [];
+    const keepGuestIds = new Set();
+    if (existingPrimary?.id) keepGuestIds.add(existingPrimary.id);
 
     for (let i = 0; i < Math.max(0, effectivePartySize - 1); i++) {
       const fromBody = provided ? provided[i] : null;
       const prev = existingAdditional[i];
-      guestRows.push({
+      const row = {
         party_id: partyId,
         event_id: eventId,
         full_name: (fromBody?.fullName && fromBody.fullName.trim()) || prev?.full_name || `Guest ${i + 2}`,
         is_primary_contact: false,
         meal_selection: fromBody ? (fromBody.mealSelection || null) : (prev?.meal_selection || null),
         dietary_notes: fromBody ? (fromBody.dietaryNotes || null) : (prev?.dietary_notes || null),
-      });
+      };
+      if (prev?.id) {
+        row.id = prev.id;
+        keepGuestIds.add(prev.id);
+      }
+      companionRows.push(row);
     }
 
-    await supabase.from('guests').delete().eq('party_id', partyId);
-    await supabase.from('guests').insert(guestRows);
+    const allRows = [primaryRow, ...companionRows];
+
+    // Determine which existing guests should be removed (not in the new list).
+    const existingIds = existing.map((g) => g.id).filter(Boolean);
+    const toDelete = existingIds.filter((id) => !keepGuestIds.has(id));
+
+    try {
+      // Upsert all desired guests (update existing by id, insert new ones).
+      const { error: upsertErr } = await supabase.from('guests').upsert(allRows, { onConflict: 'id' });
+      if (upsertErr) throw upsertErr;
+
+      // Delete only the guests that were removed from the party.
+      if (toDelete.length > 0) {
+        const { error: delErr } = await supabase.from('guests').delete().in('id', toDelete).eq('party_id', partyId);
+        if (delErr) throw delErr;
+      }
+    } catch (reconcileErr) {
+      // C12: Log the error with original guest data so recovery is possible.
+      console.error('[updateParty] Guest reconciliation failed — original guests preserved where possible.', {
+        partyId, eventId, error: reconcileErr.message,
+        originalGuestIds: existingIds,
+        desiredGuestCount: allRows.length,
+      });
+      throw reconcileErr;
+    }
   }
 
   // Seating cleanup on response leaving 'yes' is handled by trg_party_response_change.
@@ -556,6 +620,7 @@ async function importGuests(eventId, actorUserId, rows) {
 
 /** Export dataset for CSV/Excel. */
 async function exportParties(eventId, { attendingOnly, sort } = {}) {
+  const EXPORT_LIMIT = 10000;
   const { data: parties, error } = await supabase
     .from('rsvp_parties')
     .select(`
@@ -565,10 +630,17 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
       check_ins(checked_in_at, method)
     `)
     .eq('event_id', eventId)
-    .limit(10000);
+    .limit(EXPORT_LIMIT);
   if (error) throw error;
 
   let rows = parties || [];
+
+  // M18: Warn when the export limit is hit — data may be truncated.
+  const exportTruncated = rows.length >= EXPORT_LIMIT;
+  if (exportTruncated) {
+    console.warn(`[exportParties] Export limit (${EXPORT_LIMIT}) reached for event ${eventId}. Export may be incomplete.`);
+  }
+
   if (attendingOnly) rows = rows.filter((p) => p.response === 'yes');
 
   const tableNameOf = (p) => {
@@ -589,7 +661,7 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
     rows = [...rows].sort((a, b) => naturalCompare(a.label, b.label));
   }
 
-  return rows.map((p) => {
+  const mapped = rows.map((p) => {
     const primary = (p.guests || []).find((g) => g.is_primary_contact) || {};
     const partySize = (p.guests || []).length || 1;
     const meals = (p.guests || []).map((g) => g.meal_selection).filter(Boolean).join('; ');
@@ -610,6 +682,16 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
       guests: p.guests || [],
     };
   });
+
+  // M18: Return metadata so the caller can inform the user about truncation.
+  return {
+    rows: mapped,
+    meta: {
+      total: mapped.length,
+      truncated: exportTruncated,
+      limit: EXPORT_LIMIT,
+    },
+  };
 }
 
 /* ─────────────────────────────────────────────────────────────────────────

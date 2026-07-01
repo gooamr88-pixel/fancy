@@ -7,10 +7,24 @@ const COLORS = {
   gold: '#B8944F', white: '#FFFFFF',
 };
 
-export default function FeatureGate({ isPaid, feature, children, onUpgrade }) {
+/**
+ * Gates a feature based on the event's resolved tier features.
+ *
+ * Props:
+ *  - tierFeatures: string[] — feature keys the current tier grants (from event.tier_features)
+ *  - feature: string — the feature key to check (e.g., 'seating_map', 'add_guest_manual')
+ *  - isPaid: boolean — whether the event is paid (used for upgrade modal messaging)
+ *  - children: ReactNode — the content to show if the feature is available
+ *  - onUpgrade: () => void — callback when user clicks upgrade
+ */
+export default function FeatureGate({ tierFeatures, feature, isPaid, children, onUpgrade }) {
   const [showModal, setShowModal] = useState(false);
 
-  if (isPaid) {
+  // Check if the specific feature is included in the tier's granted features.
+  const features = Array.isArray(tierFeatures) ? tierFeatures : [];
+  const hasFeature = features.includes(feature);
+
+  if (hasFeature) {
     return children;
   }
 
@@ -60,6 +74,7 @@ export default function FeatureGate({ isPaid, feature, children, onUpgrade }) {
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         feature={feature}
+        isPaid={isPaid}
         onUpgrade={() => {
           setShowModal(false);
           if (onUpgrade) onUpgrade();

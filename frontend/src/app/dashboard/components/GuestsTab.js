@@ -222,7 +222,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
 });
 
 /* ── Main Component ── */
-export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onOpenSendInvitations, isPaid, onUpgrade }) {
+export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onOpenSendInvitations, isPaid, tierFeatures, onUpgrade }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
 
@@ -290,7 +290,7 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssi
           <p style={{ fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Manage your event's guest list, seating, and preferences</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <FeatureGate isPaid={isPaid} feature="add_guest" onUpgrade={onUpgrade}>
+          <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="add_guest_manual" onUpgrade={onUpgrade}>
           <button onClick={onOpenAddGuest} style={{
             padding: '9px 18px', background: COLORS.gold, color: COLORS.white, border: 'none',
             borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',
@@ -303,7 +303,7 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssi
             Add Guest
           </button>
           </FeatureGate>
-          <FeatureGate isPaid={isPaid} feature="import_guests" onUpgrade={onUpgrade}>
+          <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="import_guests_csv" onUpgrade={onUpgrade}>
           <button onClick={onOpenImport} style={{
             padding: '9px 18px', background: COLORS.white, color: COLORS.stone, border: `1px solid ${COLORS.border}`,
             borderRadius: '8px', fontSize: '12px', fontWeight: 700, fontFamily: 'var(--font-sans)',

@@ -69,19 +69,43 @@ async function refundEventPayment(payment, { actorId, reason, amountCents } = {}
       err.code = 'NOT_REFUNDABLE';
       throw err;
     }
-    const refund = await stripe.refunds.create({
-      payment_intent: payment.stripe_payment_intent_id,
-      amount: refundAmount, // this transaction's amount; always explicit
-      reason: 'requested_by_customer',
-      metadata: { event_id: payment.event_id, refunded_by: actorId || 'admin' },
-    }, {
-      // Dedupe retries (network failure / double-click) so the same logical refund
-      // can never issue two real Stripe refunds. Keyed on payment + cumulative
-      // total: a true retry reuses the original refund, while a further partial
-      // (which advances the running total) is allowed. Stripe keys expire after
-      // 24h, so legitimate later refunds are unaffected.
-      idempotencyKey: `refund_${payment.id}_${refundedTotal}`,
-    });
+
+    // Mark as refund_pending BEFORE calling Stripe so the DB is never in an
+    // inconsistent state if the process crashes mid-flight.
+    const previousStatus = payment.status;
+    const { error: pendingErr } = await supabase
+      .from('event_payments')
+      .update({ status: 'refund_pending', updated_at: new Date().toISOString() })
+      .eq('id', payment.id)
+      .eq('status', previousStatus);
+    if (pendingErr) throw pendingErr;
+
+    let refund;
+    try {
+      refund = await stripe.refunds.create({
+        payment_intent: payment.stripe_payment_intent_id,
+        amount: refundAmount, // this transaction's amount; always explicit
+        reason: 'requested_by_customer',
+        metadata: { event_id: payment.event_id, refunded_by: actorId || 'admin' },
+      }, {
+        // Dedupe retries (network failure / double-click) so the same logical refund
+        // can never issue two real Stripe refunds. Keyed on payment + cumulative
+        // total: a true retry reuses the original refund, while a further partial
+        // (which advances the running total) is allowed. Stripe keys expire after
+        // 24h, so legitimate later refunds are unaffected.
+        idempotencyKey: `refund_${payment.id}_${refundedTotal}`,
+      });
+    } catch (stripeErr) {
+      // Stripe call failed — revert to previous status so the DB isn't stuck
+      // in 'refund_pending'.
+      await supabase
+        .from('event_payments')
+        .update({ status: previousStatus, updated_at: new Date().toISOString() })
+        .eq('id', payment.id)
+        .eq('status', 'refund_pending');
+      logger.error({ err: stripeErr, paymentId: payment.id }, 'Stripe refund failed, reverted to previous status');
+      throw stripeErr;
+    }
     stripeRefundId = refund.id;
     logger.info({ paymentId: payment.id, stripeRefundId, refundAmount, refundedTotal }, 'Stripe refund created');
   }
@@ -99,7 +123,7 @@ async function refundEventPayment(payment, { actorId, reason, amountCents } = {}
       refund_reason: (reason || '').toString().slice(0, 500) || null,
     })
     .eq('id', payment.id)
-    .eq('status', 'completed'); // guard against double-processing
+    .in('status', ['completed', 'refund_pending']); // guard against double-processing
   if (updErr) throw updErr;
 
   // Full refund reverts the event to unpaid/paused (mirrors handleChargeRefunded).

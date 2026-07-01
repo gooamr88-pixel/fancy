@@ -15,6 +15,8 @@ const logger = require('../utils/logger');
  */
 
 const CACHE_TTL_MS = 60 * 1000;
+const MAX_CACHE_SIZE = 5000; // maximum number of cached entries
+const CACHE_SWEEP_INTERVAL_MS = 5 * 60 * 1000; // sweep expired entries every 5 minutes
 const cache = new Map(); // userId -> { value, expires }
 
 /**
@@ -89,6 +91,13 @@ async function getAccessContext(userId) {
   if (hit && hit.expires > Date.now()) return hit.value;
 
   const value = await loadAccessContext(userId);
+
+  // Evict the oldest entry if cache is at capacity
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+
   cache.set(userId, { value, expires: Date.now() + CACHE_TTL_MS });
   return value;
 }
@@ -102,6 +111,16 @@ function invalidate(userId) {
 function invalidateAll() {
   cache.clear();
 }
+
+/** Periodic sweep: removes expired entries from the cache. */
+function _sweepExpired() {
+  const now = Date.now();
+  for (const [key, entry] of cache) {
+    if (entry.expires <= now) cache.delete(key);
+  }
+}
+const _sweepTimer = setInterval(_sweepExpired, CACHE_SWEEP_INTERVAL_MS);
+if (_sweepTimer.unref) _sweepTimer.unref(); // don't keep the process alive
 
 /**
  * Whether a resolved context satisfies a permission key.
@@ -122,4 +141,5 @@ module.exports = {
   invalidateAll,
   hasPermission,
   CACHE_TTL_MS,
+  MAX_CACHE_SIZE,
 };

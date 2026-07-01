@@ -206,6 +206,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     };
   }, []);
 
+  // Sync HTML lang attribute with active language choice to support correct glyph-shaping/fonts
+  useEffect(() => {
+    if (typeof document !== 'undefined') document.documentElement.lang = lang;
+  }, [lang]);
+
   // Analytics
   const { trackEvent } = useGuestAnalytics(slug);
 
@@ -598,11 +603,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
 
   const isRTL = lang === 'ar';
-  // The root layout hardcodes lang="en"; keep <html lang> in sync with the
-  // guest's chosen language so the browser picks correct glyph-shaping/fonts.
-  useEffect(() => {
-    if (typeof document !== 'undefined') document.documentElement.lang = lang;
-  }, [lang]);
   const t = translations[lang];
   // Arabic translations: the DB has no dedicated title_ar / description_ar columns.
   // Organizers store Arabic overrides inside the template_data JSON object, or
