@@ -68,10 +68,99 @@ export default function StepPartyDetails({
   t, isRTL, attending,
   partySize, setPartySize, mealField, primaryMeal, setPrimaryMeal,
   additionalGuests, setAdditionalGuests, email, setEmail, phone, setPhone,
-  validationErrors, onBack, onContinue,
+  validationErrors, setValidationErrors, onBack, onContinue,
   maybeFollowUp, setMaybeFollowUp, declineReason, setDeclineReason,
-  guestName,
+  guestName, setGuestName,
 }) {
+  const mealOptions = isRTL && mealField?.options_ar ? mealField.options_ar : mealField?.options;
+
+  const renderHostDetailsCard = (includeMeal = false) => {
+    return (
+      <FadeInUp delay={0.18} y={15}>
+        <div style={{
+          position: 'relative',
+          padding: '1.5px',
+          borderRadius: '18px',
+          background: 'linear-gradient(135deg, #E7D4A8 0%, #B8944F 50%, #D7BE80 100%)',
+          boxShadow: '0 18px 40px -16px rgba(110,74,34,0.32)',
+        }}>
+          <div style={{
+            background: 'linear-gradient(180deg, #FFFCF6 0%, #F8F4EC 100%)',
+            borderRadius: '16.5px', padding: '20px',
+            display: 'flex', flexDirection: 'column', gap: '14px',
+          }}>
+            {/* Badge ribbon */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span aria-hidden style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: '36px', height: '36px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #D7BE80, #B8944F)',
+                  color: '#FFFFFF', fontSize: '18px', flexShrink: 0,
+                  boxShadow: '0 6px 14px rgba(184,148,79,0.45)',
+                }}>♛</span>
+                <div>
+                  <span style={{
+                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.18em',
+                    color: '#8A6D34', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)',
+                  }}>{t.host_badge}</span>
+                  <strong style={{
+                    fontSize: '17px', color: '#191B1E', display: 'block',
+                    fontFamily: 'var(--font-serif)', fontWeight: 600, lineHeight: 1.2,
+                  }}>{guestName || (isRTL ? 'صاحب الدعوة' : 'Invitee')}</strong>
+                </div>
+              </div>
+              <span style={{
+                fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px',
+                background: 'rgba(184,148,79,0.14)', color: '#8A6D34', whiteSpace: 'nowrap',
+                fontFamily: 'var(--font-sans)',
+              }}>{t.host_section_title}</span>
+            </div>
+
+            <p style={{ fontSize: '12px', color: '#77736A', margin: 0, lineHeight: 1.6 }}>
+              {t.host_subtitle}
+            </p>
+
+            <FormField label={t.enter_name} error={validationErrors.guestName}>
+              <input type="text" value={guestName} onChange={e => {
+                setGuestName(e.target.value);
+                if (validationErrors.guestName) {
+                  setValidationErrors(prev => { const n = { ...prev }; delete n.guestName; return n; });
+                }
+              }} placeholder={t.name_placeholder}
+                style={{ ...S.inputBase, ...(validationErrors.guestName ? { borderColor: '#ef4444' } : {}) }}
+                onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.guestName)} />
+            </FormField>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <FormField label={t.email_label} error={validationErrors.email}>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@email.com"
+                  style={{ ...S.inputBase, ...(validationErrors.email ? { borderColor: '#ef4444' } : {}) }}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
+              </FormField>
+              <FormField label={t.phone_label} error={validationErrors.phone}>
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000"
+                  style={{ ...S.inputBase, ...(validationErrors.phone ? { borderColor: '#ef4444' } : {}) }}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.phone)} />
+              </FormField>
+            </div>
+
+            {includeMeal && mealField && (
+              <FormField label={(isRTL && mealField.field_label_ar ? mealField.field_label_ar : mealField.field_label).replace('{name}', '')}>
+                <select value={primaryMeal} onChange={e => setPrimaryMeal(e.target.value)} style={{ ...S.inputBase, cursor: 'pointer' }}>
+                  <option value="">{t.meal_select_placeholder}</option>
+                  {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
+                </select>
+              </FormField>
+            )}
+          </div>
+        </div>
+      </FadeInUp>
+    );
+  };
+
   /* ─── attending = maybe ─── */
   if (attending === 'maybe') {
     return (
@@ -125,6 +214,8 @@ export default function StepPartyDetails({
             </StaggerItem>
           ))}
         </StaggerChildren>
+
+        {maybeFollowUp && renderHostDetailsCard(false)}
 
         {(onBack || onContinue) && (
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
@@ -185,6 +276,8 @@ export default function StepPartyDetails({
           ))}
         </StaggerChildren>
 
+        {declineReason && renderHostDetailsCard(false)}
+
         {(onBack || onContinue) && (
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
             {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
@@ -196,7 +289,6 @@ export default function StepPartyDetails({
   }
 
   /* ─── attending = yes ─── */
-  const mealOptions = isRTL && mealField?.options_ar ? mealField.options_ar : mealField?.options;
   const ageOptions = AGE_OPTIONS(t);
   const genderOptions = GENDER_OPTIONS(t);
   const relationshipOptions = RELATIONSHIP_OPTIONS(t);
@@ -219,78 +311,7 @@ export default function StepPartyDetails({
         <PartySizeStepper value={partySize} onChange={setPartySize} label={t.party_size_label} isRTL={isRTL} />
       </FadeInUp>
 
-      {/* ═══ HOST CARD ═══ */}
-      <FadeInUp delay={0.18} y={15}>
-        <div style={{
-          position: 'relative',
-          padding: '1.5px',
-          borderRadius: '18px',
-          background: 'linear-gradient(135deg, #E7D4A8 0%, #B8944F 50%, #D7BE80 100%)',
-          boxShadow: '0 18px 40px -16px rgba(110,74,34,0.32)',
-        }}>
-          <div style={{
-            background: 'linear-gradient(180deg, #FFFCF6 0%, #F8F4EC 100%)',
-            borderRadius: '16.5px', padding: '20px',
-            display: 'flex', flexDirection: 'column', gap: '14px',
-          }}>
-            {/* Badge ribbon */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span aria-hidden style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: '36px', height: '36px', borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #D7BE80, #B8944F)',
-                  color: '#FFFFFF', fontSize: '18px', flexShrink: 0,
-                  boxShadow: '0 6px 14px rgba(184,148,79,0.45)',
-                }}>♛</span>
-                <div>
-                  <span style={{
-                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.18em',
-                    color: '#8A6D34', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)',
-                  }}>{t.host_badge}</span>
-                  <strong style={{
-                    fontSize: '17px', color: '#191B1E', display: 'block',
-                    fontFamily: 'var(--font-serif)', fontWeight: 600, lineHeight: 1.2,
-                  }}>{guestName || (isRTL ? 'صاحب الدعوة' : 'Invitee')}</strong>
-                </div>
-              </div>
-              <span style={{
-                fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px',
-                background: 'rgba(184,148,79,0.14)', color: '#8A6D34', whiteSpace: 'nowrap',
-                fontFamily: 'var(--font-sans)',
-              }}>{t.host_section_title}</span>
-            </div>
-
-            <p style={{ fontSize: '12px', color: '#77736A', margin: 0, lineHeight: 1.6 }}>
-              {t.host_subtitle}
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <FormField label={t.email_label} error={validationErrors.email}>
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@email.com"
-                  style={{ ...S.inputBase, ...(validationErrors.email ? { borderColor: '#ef4444' } : {}) }}
-                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
-              </FormField>
-              <FormField label={t.phone_label} error={validationErrors.phone}>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000"
-                  style={{ ...S.inputBase, ...(validationErrors.phone ? { borderColor: '#ef4444' } : {}) }}
-                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.phone)} />
-              </FormField>
-            </div>
-
-            {mealField && (
-              <FormField label={(isRTL && mealField.field_label_ar ? mealField.field_label_ar : mealField.field_label).replace('{name}', '')}>
-                <select value={primaryMeal} onChange={e => setPrimaryMeal(e.target.value)} style={{ ...S.inputBase, cursor: 'pointer' }}>
-                  <option value="">{t.meal_select_placeholder}</option>
-                  {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
-                </select>
-              </FormField>
-            )}
-          </div>
-        </div>
-      </FadeInUp>
+      {renderHostDetailsCard(true)}
 
       {/* ═══ COMPANION CARDS ═══ */}
       {additionalGuests.length > 0 && (

@@ -36,7 +36,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   // either picked a search result or chosen to continue as a new guest —
   // resolving partyId here still matters for correct submission/dedup, it's
   // just no longer a full-page navigation.
-  const [identityConfirmed, setIdentityConfirmed] = useState(false);
+  const [identityConfirmed, setIdentityConfirmed] = useState(true);
   const [submitted, setSubmitted] = useState(false);
 
   const [guestName, setGuestName] = useState('');
@@ -419,43 +419,29 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
               />
             ) : (
               <>
-                <StepIdentify
-                  t={t} isRTL={isRTL}
-                  guestName={guestName} setGuestName={setGuestName}
-                  validationErrors={validationErrors} setValidationErrors={setValidationErrors}
-                  searchApi={searchApi} seatingApi={seatingApi} seatingRevealed={seatingRevealed}
-                  onSelectResult={handleSelectSearchResult} onContinueNew={handleContinueAsNew}
-                  showTableLookup={showTableLookup} setShowTableLookup={setShowTableLookup}
+                <StepAttendance
+                  t={t} isRTL={isRTL} guestName={guestName} attending={attending}
+                  onSelect={(val) => setAttending(val)}
                 />
 
-                {identityConfirmed && (
-                  <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-                    style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
-                    <StepAttendance
-                      t={t} isRTL={isRTL} guestName={guestName} attending={attending}
-                      onSelect={(val) => setAttending(val)}
-                    />
-                  </motion.div>
-                )}
-
-                {identityConfirmed && attending && (
+                {attending && (
                   <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
                     style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
                     <StepPartyDetails
                       t={t} isRTL={isRTL} attending={attending}
-                      guestName={guestName}
+                      guestName={guestName} setGuestName={setGuestName}
                       partySize={partySize} setPartySize={setPartySize}
                       mealField={mealField} primaryMeal={primaryMeal} setPrimaryMeal={setPrimaryMeal}
                       additionalGuests={additionalGuests} setAdditionalGuests={setAdditionalGuests}
                       email={email} setEmail={setEmail} phone={phone} setPhone={setPhone}
-                      validationErrors={validationErrors}
+                      validationErrors={validationErrors} setValidationErrors={setValidationErrors}
                       maybeFollowUp={maybeFollowUp} setMaybeFollowUp={setMaybeFollowUp}
                       declineReason={declineReason} setDeclineReason={setDeclineReason}
                     />
 
                     <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
                       <StepCustomQuestions
-                        t={t} isRTL={isRTL} fields={customQuestionFields}
+                        t={t} isRTL={isRTL} fields={attending === 'yes' ? customQuestionFields : []}
                         customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
                         additionalGuests={attending === 'yes' ? additionalGuests : []}
                         setCompanionAnswer={setCompanionAnswer}

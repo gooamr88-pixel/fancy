@@ -7,11 +7,15 @@ import { S } from '../styles';
 
 /** Step 2 — attending / maybe / declining. */
 export default function StepAttendance({ t, isRTL, guestName, attending, onSelect, onBack }) {
+  const attendingQuestion = guestName.trim()
+    ? t.attending_q.replace('{name}', guestName)
+    : (isRTL ? 'هل ستشرفنا بحضورك؟' : 'Will you be attending?');
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <FadeInUp y={15}>
         <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E', textAlign: 'center', lineHeight: 1.4 }}>
-          {t.attending_q.replace('{name}', guestName)}
+          {attendingQuestion}
         </h3>
       </FadeInUp>
 
