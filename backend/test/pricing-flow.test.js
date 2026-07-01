@@ -10,6 +10,7 @@
  *   3. Stripe is charged the DB-resolved price_cents — never a client-supplied price.
  */
 
+require('./helpers/env');
 const { test, before } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
@@ -21,7 +22,7 @@ const DUMMY_TIER = {
   name: 'Test VIP 2026',
   price_cents: 9950,
   max_guests: 1000,
-  features: ['Custom feature 1', 'Custom feature 2'],
+  features: ['seating_map', 'qr_checkin'],
   recommended: true,
   is_custom: false,
   price_label: '',
@@ -92,6 +93,12 @@ process.env.STRIPE_SECRET_KEY = 'sk_test_PROOF_FROM_ENV';
 process.env.FRONTEND_URL = 'https://app.fancyrsvp.test';
 
 injectAbsolute(path.join(backendDir, 'config', 'supabase.js'), { supabase: makeSupabaseMock() });
+injectAbsolute(path.join(backendDir, 'utils', 'configCache.js'), {
+  getPlatformConfig: async () => ({ pricing_tiers: PRICING_TIERS }),
+  invalidate: () => {},
+  CONFIG_ID: '00000000-0000-0000-0000-000000000000',
+  TTL_MS: 30000,
+});
 injectAbsolute(path.join(backendDir, 'utils', 'notificationService.js'), { sendEmailViaBrevo: async () => true });
 injectPackage('stripe', fakeStripeFactory);
 
@@ -121,7 +128,11 @@ before(async () => {
   publicHeaders = res.headers;
 
   // STEP 3 & 4 — select tier at event creation, checkout. Client body LIES about price.
-  const req = { params: { eventId: 'evt_1' }, body: { tierName: 'Test VIP 2026', price_cents: 1, unit_amount: 1, amount: 1 } };
+  const req = {
+    params: { eventId: 'evt_1' },
+    body: { tierName: 'Test VIP 2026', price_cents: 1, unit_amount: 1, amount: 1 },
+    headers: { origin: 'https://app.fancyrsvp.test' }
+  };
   const res2 = makeRes();
   await ctrl.createCheckoutSession(req, res2, next);
   checkoutBody = res2.body;
@@ -134,7 +145,8 @@ test('public endpoint returns the tier with exact price_cents', () => {
 });
 
 test('public endpoint returns the exact custom features in order', () => {
-  assert.deepEqual(publicTier.features, ['Custom feature 1', 'Custom feature 2']);
+  // getPublicPricing now converts feature keys to human-readable labels via the registry
+  assert.deepEqual(publicTier.features, ['Seating chart designer', 'QR code check-in']);
 });
 
 test('public endpoint preserves the recommended flag', () => {

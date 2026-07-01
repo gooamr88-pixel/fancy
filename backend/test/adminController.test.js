@@ -9,6 +9,15 @@ const { injectModule } = require('./helpers/inject');
 // adminController -> stripeRefundService -> require('stripe') at load.
 injectModule('stripe', () => ({ refunds: { create: async () => ({ id: 're_x' }) } }));
 
+injectModule('../../utils/configCache', {
+  getPlatformConfig: async () => ({
+    pricing_tiers: [
+      { name: 'Starter', max_guests: 50, remove_watermark: true }
+    ]
+  }),
+  invalidate: () => {}
+});
+
 const mock = createMockSupabase();
 injectModule('../../config/supabase', { supabase: mock.supabase });
 
@@ -56,7 +65,7 @@ test('updateEventAdmin sets manual_override when an admin force-marks an event p
     if (table === 'events' && op === 'update') { payload = p; return { data: { id: 'evt-1', title: 'X', status: 'active', is_paid: true } }; }
     return {};
   });
-  const { res } = await invoke(updateEventAdmin, mockReq({ params: { eventId: 'evt-1' }, body: { isPaid: true }, user: admin }));
+  const { res } = await invoke(updateEventAdmin, mockReq({ params: { eventId: 'evt-1' }, body: { isPaid: true, tierName: 'Starter', compReason: 'VIP complimentary' }, user: admin }));
   assert.equal(res.statusCode, 200);
   assert.equal(payload.is_paid, true);
   assert.equal(payload.manual_override, true); // audit trail that this was an admin override

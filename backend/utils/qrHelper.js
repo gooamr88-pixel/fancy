@@ -1,5 +1,8 @@
 const QRCode = require('qrcode');
+const jwt = require('jsonwebtoken');
 const logger = require('./logger');
+
+const QR_SECRET = process.env.QR_JWT_SECRET;
 
 /**
  * Generates a QR Code as a Data URL (base64 encoded image string).
@@ -40,7 +43,28 @@ const generateQRCodeBuffer = async (text) => {
   }
 };
 
+/**
+ * Signs a JWT ticket token containing the given payload fields.
+ */
+const generateTicketToken = (payload) => {
+  return jwt.sign({ ...payload }, QR_SECRET, { algorithm: 'HS256' });
+};
+
+/**
+ * Verifies a JWT ticket token. Returns the decoded payload on success.
+ * Throws an error matching /INVALID_QR_TICKET/ on any failure.
+ */
+const verifyTicketToken = (token) => {
+  try {
+    return jwt.verify(token, QR_SECRET, { algorithms: ['HS256'] });
+  } catch (_err) {
+    throw new Error('INVALID_QR_TICKET');
+  }
+};
+
 module.exports = {
   generateQRCodeDataURL,
-  generateQRCodeBuffer
+  generateQRCodeBuffer,
+  generateTicketToken,
+  verifyTicketToken
 };

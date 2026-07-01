@@ -128,16 +128,7 @@ const faqData = [
   },
 ];
 
-const comparisonFeatures = [
-  { feature: "Number of Guests", starter: "50", premium: "Unlimited", enterprise: "Unlimited" },
-  { feature: "Custom RSVP Forms", starter: "Basic", premium: "Advanced", enterprise: "Advanced + API" },
-  { feature: "Seating Charts", starter: "—", premium: "✓", enterprise: "✓" },
-  { feature: "Meal Tracking", starter: "—", premium: "✓", enterprise: "✓" },
-  { feature: "Analytics", starter: "Basic", premium: "Advanced", enterprise: "Custom" },
-  { feature: "Custom Branding", starter: "—", premium: "✓", enterprise: "White-label" },
-  { feature: "Integrations", starter: "2", premium: "All", enterprise: "All + Custom" },
-  { feature: "Support", starter: "Community", premium: "Priority", enterprise: "Dedicated" },
-];
+// Comparison features are now built dynamically from the loaded plans.
 
 function PricingCard({ plan }) {
   const [hovered, setHovered] = useState(false);
@@ -387,6 +378,7 @@ function FaqItem({ item, isOpen, onToggle }) {
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState(0);
   const [plans, setPlans] = useState(FALLBACK_PLANS);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -399,10 +391,29 @@ export default function PricingPage() {
         }
       } catch {
         // Keep the fallback plans on any network/parse error.
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Build dynamic comparison features from loaded plans
+  const comparisonFeatures = (() => {
+    const allFeatures = new Set();
+    for (const plan of plans) {
+      for (const f of (plan.features || [])) {
+        allFeatures.add(f);
+      }
+    }
+    return [...allFeatures].map(feature => {
+      const row = { feature };
+      for (const plan of plans) {
+        row[plan.name] = (plan.features || []).includes(feature) ? '✓' : '—';
+      }
+      return row;
+    });
+  })();
 
   return (
     <>
@@ -532,7 +543,7 @@ export default function PricingPage() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                  gridTemplateColumns: `2fr repeat(${plans.length}, 1fr)`,
                   padding: "20px 32px",
                   background: "#191B1E",
                 }}
@@ -540,20 +551,20 @@ export default function PricingPage() {
                 <div style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "1px", textTransform: "uppercase" }}>
                   Feature
                 </div>
-                {["Starter", "Premium", "Enterprise"].map((name) => (
+                {plans.map((plan) => (
                   <div
-                    key={name}
+                    key={plan.name}
                     style={{
                       fontFamily: "var(--font-sans)",
                       fontSize: "13px",
                       fontWeight: 700,
-                      color: name === "Premium" ? "#D7BE80" : "rgba(255,255,255,0.5)",
+                      color: plan.highlight ? "#D7BE80" : "rgba(255,255,255,0.5)",
                       letterSpacing: "1px",
                       textTransform: "uppercase",
                       textAlign: "center",
                     }}
                   >
-                    {name}
+                    {plan.name}
                   </div>
                 ))}
               </div>
@@ -564,7 +575,7 @@ export default function PricingPage() {
                   key={row.feature}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1fr 1fr",
+                    gridTemplateColumns: `2fr repeat(${plans.length}, 1fr)`,
                     padding: "16px 32px",
                     borderBottom: i < comparisonFeatures.length - 1 ? "1px solid #F0EBE2" : "none",
                     background: i % 2 === 0 ? "#FDFCF9" : "#FFFFFF",
@@ -573,20 +584,23 @@ export default function PricingPage() {
                   <div style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#191B1E", fontWeight: 500 }}>
                     {row.feature}
                   </div>
-                  {[row.starter, row.premium, row.enterprise].map((val, j) => (
-                    <div
-                      key={j}
-                      style={{
-                        fontFamily: "var(--font-sans)",
-                        fontSize: "14px",
-                        color: val === "—" ? "#CCCCCC" : val === "✓" ? "#B8944F" : "#5E5A52",
-                        textAlign: "center",
-                        fontWeight: val === "✓" ? 700 : 400,
-                      }}
-                    >
-                      {val}
-                    </div>
-                  ))}
+                  {plans.map((plan, j) => {
+                    const val = row[plan.name] || '—';
+                    return (
+                      <div
+                        key={j}
+                        style={{
+                          fontFamily: "var(--font-sans)",
+                          fontSize: "14px",
+                          color: val === "—" ? "#CCCCCC" : val === "✓" ? "#B8944F" : "#5E5A52",
+                          textAlign: "center",
+                          fontWeight: val === "✓" ? 700 : 400,
+                        }}
+                      >
+                        {val}
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -617,7 +631,7 @@ export default function PricingPage() {
                   lineHeight: 1.7,
                 }}
               >
-                Can't find what you're looking for? Contact our support team.
+                {"Can't find what you're looking for? Contact our support team."}
               </p>
             </div>
 

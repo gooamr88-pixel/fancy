@@ -1,6 +1,6 @@
 const express = require('express');
 const rsvpController = require('../controllers/rsvpController');
-const { requirePaidEvent } = require('../middleware/featureGate');
+const { requireFeature } = require('../middleware/featureGate');
 
 const router = express.Router({ mergeParams: true });
 
@@ -13,28 +13,28 @@ router.param('partyId', (req, res, next, value) => {
   next();
 });
 
-// Route to fetch the party list for an event
+// Route to fetch the party list for an event (free — read-only, always allowed)
 router.get('/', rsvpController.getRSVPs);
 
-// Route to manually add a guest (organizer)
-router.post('/', requirePaidEvent('add_guest'), rsvpController.addGuestManually);
+// Route to manually add a guest (organizer) — paid feature
+router.post('/', requireFeature('add_guest_manual'), rsvpController.addGuestManually);
 
-// Route to import guests via CSV upload
-router.post('/import', requirePaidEvent('import_guests'), rsvpController.importGuestsCSV);
+// Route to import guests via CSV upload — paid feature
+router.post('/import', requireFeature('import_guests_csv'), rsvpController.importGuestsCSV);
 
-// Route to fetch aggregated RSVP statistics for the dashboard cards
+// Route to fetch aggregated RSVP statistics for the dashboard cards (free)
 router.get('/stats', rsvpController.getRsvpStats);
 
-// Route to export guests to downloadable CSV stream
-router.get('/export', rsvpController.exportGuestsCSV);
+// Route to export guests to downloadable CSV stream — paid feature
+router.get('/export', requireFeature('guest_export_csv'), rsvpController.exportGuestsCSV);
 
-// Route to export guests to downloadable Excel stream
-router.get('/export-excel', rsvpController.exportGuestsExcel);
+// Route to export guests to downloadable Excel stream — paid feature
+router.get('/export-excel', requireFeature('guest_export_excel'), rsvpController.exportGuestsExcel);
 
-// Route to update a single party (organizer edit)
+// Route to update a single party (organizer edit — free, basic RSVP management)
 router.patch('/:partyId', rsvpController.updateRSVP);
 
-// Route to delete a single party
+// Route to delete a single party (free — basic management)
 router.delete('/:partyId', rsvpController.deleteRSVP);
 
 module.exports = router;

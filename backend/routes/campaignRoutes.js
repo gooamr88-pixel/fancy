@@ -2,12 +2,12 @@ const express = require('express');
 const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
 const { sendBulkSMSCampaign, getCampaignStatus, getCampaignHistory } = require('../controllers/campaignController');
-const { requirePaidEvent } = require('../middleware/featureGate');
+const { requireFeature } = require('../middleware/featureGate');
 
 const router = express.Router({ mergeParams: true });
 
 // Launch a bulk SMS campaign (sync for small lists, async-enqueued for large ones).
-router.post('/send-sms', requirePaidEvent('sms_campaigns'), [
+router.post('/send-sms', requireFeature('sms_campaigns'), [
   body('messageTemplate').isString().trim().notEmpty().withMessage('messageTemplate is required.')
     .isLength({ max: 1600 }).withMessage('messageTemplate exceeds the 1600-character limit.'),
   body('audience').optional().isIn(['pending', 'attending', 'maybe', 'declined', 'all'])

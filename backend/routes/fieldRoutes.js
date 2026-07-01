@@ -1,5 +1,6 @@
 const express = require('express');
 const { getFields, saveField, updateField, deleteField } = require('../controllers/fieldController');
+const { requireFeature } = require('../middleware/featureGate');
 
 const router = express.Router({ mergeParams: true });
 
@@ -11,14 +12,15 @@ router.param('fieldId', (req, res, next, value) => {
   }
   next();
 });
-// Custom RSVP questions (form_builder) are NOT payment-gated — the One-Page
-// Form already sits behind the pay-first wizard step, and gating field saves
-// again here blocked organizers stuck on a pending (unverified) manual
-// payment from building their form at all. Tables/seating, guest import, and
-// SMS campaigns remain payment-gated below (unchanged).
+
+// Reading existing fields is always allowed (the RSVP form needs them to render).
 router.get('/', getFields);
-router.post('/', saveField);
-router.patch('/:fieldId', updateField);
-router.delete('/:fieldId', deleteField);
+
+// Creating, editing, and deleting custom fields is a paid feature.
+// The One-Page Form itself sits behind the pay-first wizard step, but the
+// feature gate enforces the Custom RSVP Form Builder at the API level too.
+router.post('/', requireFeature('rsvp_custom_fields'), saveField);
+router.patch('/:fieldId', requireFeature('rsvp_custom_fields'), updateField);
+router.delete('/:fieldId', requireFeature('rsvp_custom_fields'), deleteField);
 
 module.exports = router;

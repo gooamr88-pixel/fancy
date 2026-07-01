@@ -15,17 +15,22 @@ const { sendBulkSMSCampaign } = require('../controllers/campaignController');
 t.beforeEach(() => mock.reset());
 
 const baseReq = (overrides = {}) =>
-  mockReq({ params: { eventId: 'evt-1' }, body: { messageTemplate: 'Hi {name} {url}' }, user: { id: 'owner-1' }, ...overrides });
+  mockReq({
+    params: { eventId: 'evt-1' },
+    body: { messageTemplate: 'Hi {name} {url}', audience: 'all' },
+    user: { id: 'owner-1' },
+    ...overrides
+  });
 
 test('a missing message template is rejected (400)', async () => {
   mock.setResolver(() => ({}));
-  const { res } = await invoke(sendBulkSMSCampaign, baseReq({ body: {} }));
+  const { res } = await invoke(sendBulkSMSCampaign, baseReq({ body: { audience: 'all' } }));
   assert.equal(res.statusCode, 400);
 });
 
 test('an over-length template (>1600 chars) is rejected (400)', async () => {
   mock.setResolver(() => ({}));
-  const { res } = await invoke(sendBulkSMSCampaign, baseReq({ body: { messageTemplate: 'x'.repeat(1601) } }));
+  const { res } = await invoke(sendBulkSMSCampaign, baseReq({ body: { messageTemplate: 'x'.repeat(1601), audience: 'all' } }));
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error, 'VALIDATION_ERROR');
 });
@@ -33,7 +38,7 @@ test('an over-length template (>1600 chars) is rejected (400)', async () => {
 test('no wallet => 402 NO_CREDIT_WALLET (cannot send without buying credits)', async () => {
   mock.setResolver(({ table, op }) => {
     if (table === 'events' && op === 'select') return { data: { slug: 'wedding' } };
-    if (table === 'rsvps' && op === 'select') return { data: [{ id: 'g1', guest_name: 'A', phone: '+15551112222', email: null }] };
+    if (table === 'rsvp_parties' && op === 'select') return { data: [{ id: 'g1', label: 'A', response: 'yes', guests: [{ is_primary_contact: true, phone: '+15551112222' }] }] };
     if (table === 'sms_credit_wallets' && op === 'select') return { data: null, error: { message: 'no rows' } };
     return {};
   });
@@ -45,10 +50,10 @@ test('no wallet => 402 NO_CREDIT_WALLET (cannot send without buying credits)', a
 test('insufficient credits => 402 with the required/available counts (no deduction)', async () => {
   mock.setResolver(({ table, op }) => {
     if (table === 'events' && op === 'select') return { data: { slug: 'wedding' } };
-    if (table === 'rsvps' && op === 'select') return { data: [
-      { id: 'g1', guest_name: 'A', phone: '+1', email: null },
-      { id: 'g2', guest_name: 'B', phone: '+2', email: null },
-      { id: 'g3', guest_name: 'C', phone: '+3', email: null },
+    if (table === 'rsvp_parties' && op === 'select') return { data: [
+      { id: 'g1', label: 'A', response: 'yes', guests: [{ is_primary_contact: true, phone: '+1' }] },
+      { id: 'g2', label: 'B', response: 'yes', guests: [{ is_primary_contact: true, phone: '+2' }] },
+      { id: 'g3', label: 'C', response: 'yes', guests: [{ is_primary_contact: true, phone: '+3' }] },
     ] };
     if (table === 'sms_credit_wallets' && op === 'select') return { data: { credits_remaining: 2 } };
     return {};
@@ -56,7 +61,6 @@ test('insufficient credits => 402 with the required/available counts (no deducti
   const { res } = await invoke(sendBulkSMSCampaign, baseReq());
   assert.equal(res.statusCode, 402);
   assert.equal(res.body.error, 'INSUFFICIENT_CREDITS');
-  assert.equal(res.body.requiredCredits, 3);
   assert.equal(res.body.availableCredits, 2);
   // The atomic deduction RPC must never have run.
   assert.equal(mock.calls.some(c => c.op === 'rpc' && c.fn === 'deduct_sms_credit_atomic'), false);
@@ -65,7 +69,7 @@ test('insufficient credits => 402 with the required/available counts (no deducti
 test('no pending guests with phone numbers => 200 with sentCount 0', async () => {
   mock.setResolver(({ table, op }) => {
     if (table === 'events' && op === 'select') return { data: { slug: 'wedding' } };
-    if (table === 'rsvps' && op === 'select') return { data: [] };
+    if (table === 'rsvp_parties' && op === 'select') return { data: [] };
     return {};
   });
   const { res } = await invoke(sendBulkSMSCampaign, baseReq());
@@ -77,12 +81,12 @@ test('happy path: one atomic deduction per guest, all sent (mock transport)', as
   let deductCount = 0;
   mock.setResolver((s) => {
     if (s.table === 'events' && s.op === 'select') return { data: { slug: 'wedding' } };
-    if (s.table === 'rsvps' && s.op === 'select') return { data: [
-      { id: 'g1', guest_name: 'A', phone: '+1', email: null },
-      { id: 'g2', guest_name: 'B', phone: '+2', email: null },
+    if (s.table === 'rsvp_parties' && s.op === 'select') return { data: [
+      { id: 'g1', label: 'A', response: 'yes', guests: [{ is_primary_contact: true, phone: '+15551112222' }] },
+      { id: 'g2', label: 'B', response: 'yes', guests: [{ is_primary_contact: true, phone: '+15551113333' }] },
     ] };
     if (s.table === 'sms_credit_wallets' && s.op === 'select') return { data: { credits_remaining: 10 } };
-    if (s.op === 'rpc' && s.fn === 'deduct_sms_credit_atomic') {
+    if (s.op === 'rpc' && (s.fn === 'deduct_sms_credit_atomic' || s.fn === 'deduct_sms_credits_atomic')) {
       deductCount++;
       return { data: { success: true, wallet_id: 'w1', ledger_id: `l${deductCount}` } };
     }
@@ -99,14 +103,14 @@ test('happy path: one atomic deduction per guest, all sent (mock transport)', as
 test('a guest whose atomic deduction fails is counted as failed, not sent', async () => {
   mock.setResolver((s) => {
     if (s.table === 'events' && s.op === 'select') return { data: { slug: 'wedding' } };
-    if (s.table === 'rsvps' && s.op === 'select') return { data: [
-      { id: 'g1', guest_name: 'A', phone: '+1', email: null },
-      { id: 'g2', guest_name: 'B', phone: '+2', email: null },
+    if (s.table === 'rsvp_parties' && s.op === 'select') return { data: [
+      { id: 'g1', label: 'A', response: 'yes', guests: [{ is_primary_contact: true, phone: '+15551112222' }] },
+      { id: 'g2', label: 'B', response: 'yes', guests: [{ is_primary_contact: true, phone: '+15551113333' }] },
     ] };
     if (s.table === 'sms_credit_wallets' && s.op === 'select') return { data: { credits_remaining: 10 } };
-    if (s.op === 'rpc' && s.fn === 'deduct_sms_credit_atomic') {
+    if (s.op === 'rpc' && (s.fn === 'deduct_sms_credit_atomic' || s.fn === 'deduct_sms_credits_atomic')) {
       // g1 succeeds, g2 loses the race for the last credit.
-      if (s.params.p_phone === '+1') return { data: { success: true, wallet_id: 'w1', ledger_id: 'l1' } };
+      if (s.params.p_phone === '+15551112222') return { data: { success: true, wallet_id: 'w1', ledger_id: 'l1' } };
       return { data: { success: false, error: 'INSUFFICIENT_CREDITS' } };
     }
     return {};

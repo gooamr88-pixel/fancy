@@ -216,8 +216,8 @@ const createCheckoutSession = async (req, res, next) => {
           product_data: {
             name: isUpgrade ? `Fancy RSVP - Upgrade to ${tier.name} License` : `Fancy RSVP - ${tier.name} License`,
             description: isUpgrade
-              ? `License for up to ${tier.max_guests} guests. Full price $${(tier.price_cents / 100).toFixed(2)}, credited $${(previousTier.price_cents / 100).toFixed(2)} already paid for ${previousTier.name}.`
-              : `License for up to ${tier.max_guests} guests`
+              ? `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests. Full price $${(tier.price_cents / 100).toFixed(2)}, credited $${(previousTier.price_cents / 100).toFixed(2)} already paid for ${previousTier.name}.`
+              : `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests`
           }
         },
         quantity: 1
@@ -618,7 +618,34 @@ const updatePricingConfig = async (req, res, next) => {
   const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct, manualPaymentMethods, landingStats } = req.body;
 
   const updates = {};
-  if (pricingTiers) updates.pricing_tiers = pricingTiers;
+  if (pricingTiers !== undefined) {
+    if (!Array.isArray(pricingTiers)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'pricingTiers must be an array.' });
+    }
+    if (pricingTiers.length > 20) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Maximum 20 pricing tiers allowed.' });
+    }
+    const { validateFeatureKeys } = require('../config/featureRegistry');
+    updates.pricing_tiers = pricingTiers
+      .filter(t => t && (t.name || '').toString().trim())
+      .map(t => {
+        const features = Array.isArray(t.features) ? t.features : [];
+        const { valid } = validateFeatureKeys(features);
+        return {
+          name: String(t.name).trim(),
+          price_cents: Number(t.price_cents) || 0,
+          max_guests: Number(t.max_guests) || 0,
+          max_events: Number(t.max_events) || 0,
+          remove_watermark: !!t.remove_watermark,
+          recommended: !!t.recommended,
+          is_custom: !!t.is_custom,
+          features: valid,
+          price_label: (t.price_label || '').toString().trim(),
+          cta_label: (t.cta_label || '').toString().trim(),
+          description: (t.description || '').toString().trim(),
+        };
+      });
+  }
   if (smsRateCentsPerCredit !== undefined) updates.sms_rate_cents_per_credit = smsRateCentsPerCredit;
   if (smsMarkupPercentage !== undefined) updates.sms_markup_percentage = smsMarkupPercentage;
   if (platformCommissionPct !== undefined) updates.platform_commission_pct = platformCommissionPct;
@@ -916,33 +943,31 @@ const getPendingPayments = async (req, res, next) => {
  */
 const getPublicPricing = async (req, res, next) => {
   try {
-    const { data: config, error } = await supabase
-      .from('super_admin_config')
-      .select('pricing_tiers')
-      .eq('id', '00000000-0000-0000-0000-000000000000')
-      .single();
-
-    if (error) throw error;
-
+    const config = await getPlatformConfig();
+    const { getFeatureByKey } = require('../config/featureRegistry');
     const tiers = Array.isArray(config?.pricing_tiers) ? config.pricing_tiers : [];
 
-    // Sanitize to public-safe fields only.
-    const publicTiers = tiers.map((t) => ({
-      name: String(t.name || ''),
-      price_cents: Number(t.price_cents) || 0,
-      max_guests: Number(t.max_guests) || 0,
-      features: Array.isArray(t.features) ? t.features.filter(f => (f || '').toString().trim()).map(f => f.toString().trim()) : [],
-      recommended: t.recommended === true,
-      is_custom: t.is_custom === true,
-      price_label: (t.price_label || '').toString().trim(),
-      cta_label: (t.cta_label || '').toString().trim(),
-      description: (t.description || '').toString().trim(),
-    }));
+    const publicTiers = tiers.map((t) => {
+      // Convert feature keys to human-readable labels for the public page.
+      const featureLabels = Array.isArray(t.features)
+        ? t.features
+            .map(key => { const feat = getFeatureByKey(key); return feat ? feat.label : null; })
+            .filter(Boolean)
+        : [];
+      return {
+        name: String(t.name || ''),
+        price_cents: Number(t.price_cents) || 0,
+        max_guests: Number(t.max_guests) || 0,
+        features: featureLabels,
+        recommended: t.recommended === true,
+        is_custom: t.is_custom === true,
+        price_label: (t.price_label || '').toString().trim(),
+        cta_label: (t.cta_label || '').toString().trim(),
+        description: (t.description || '').toString().trim(),
+      };
+    });
 
-    // Cache at the edge/CDN for a minute — pricing changes are infrequent and
-    // this endpoint is hit by every anonymous landing-page visitor.
     res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
-
     return res.json({
       success: true,
       tiers: publicTiers,

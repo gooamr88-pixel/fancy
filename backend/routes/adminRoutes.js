@@ -89,6 +89,21 @@ router.post('/payments/:paymentId/decline', requirePermission('payments.manage')
 // ── SMS credit wallets ──
 router.get('/sms-wallets', requirePermission('credits.view'), listSmsWallets);
 
+// ── Feature Registry (for the tier feature selector UI) ──
+router.get('/feature-registry', requirePermission('subscriptions.view'), (req, res) => {
+  const { PLATFORM_FEATURES, FEATURE_CATEGORIES, getFeaturesByCategory } = require('../config/featureRegistry');
+  const grouped = {};
+  for (const [cat, features] of getFeaturesByCategory()) {
+    grouped[cat] = features.map(f => ({ key: f.key, label: f.label, description: f.description, freeDefault: f.freeDefault }));
+  }
+  return res.json({
+    success: true,
+    categories: FEATURE_CATEGORIES,
+    features: grouped,
+    allFeatures: PLATFORM_FEATURES.map(f => ({ key: f.key, label: f.label, description: f.description, category: f.category, freeDefault: f.freeDefault })),
+  });
+});
+
 // ── Pricing configuration ──
 router.get('/pricing', requirePermission('subscriptions.view'), getPricingConfig);
 router.patch('/pricing', requirePermission('subscriptions.manage'), updatePricingConfig);

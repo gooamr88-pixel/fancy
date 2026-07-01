@@ -29,7 +29,7 @@ const { submitPublicRSVP } = require('../controllers/rsvpController');
 t.beforeEach(() => { mock.reset(); confirmCalls = []; emailCalls = []; });
 
 const req = (body) => mockReq({ params: { slug: 'wedding' }, body });
-const rpcResult = (data) => mock.setResolver((s) => (s.op === 'rpc' && s.fn === 'submit_rsvp' ? { data } : {}));
+const rpcResult = (data) => mock.setResolver((s) => (s.op === 'rpc' && s.fn === 'submit_rsvp_v2' ? { data } : {}));
 
 // ── Controller-side shape validation (no RPC should be issued) ──
 
@@ -91,13 +91,13 @@ test('an unknown / missing result code defaults to 400', async () => {
 
 test('a successful insert returns 201 with the new rsvpId and fires the confirmation email', async () => {
   rpcResult({
-    success: true, rsvp_id: 'rsvp-NEW', is_update: false, event_id: 'evt-1', event_title: 'Wedding',
+    success: true, rsvp_id: 'rsvp-NEW', party_id: 'rsvp-NEW', is_update: false, event_id: 'evt-1', event_title: 'Wedding',
     response: 'yes', party_size: 1, guest_email: 'a@x.com', notification_preferences: { email: false, whatsapp: false },
   });
   const { res } = await invoke(submitPublicRSVP, req({ guestName: 'Alice', email: 'a@x.com', response: 'yes', partySize: 1 }));
   assert.equal(res.statusCode, 201);
-  assert.equal(res.body.rsvpId, 'rsvp-NEW');
-  assert.match(res.body.message, /submitted/);
+  assert.equal(res.body.data.partyId, 'rsvp-NEW');
+  assert.match(res.body.data.message, /submitted/);
   assert.equal(confirmCalls.length, 1); // attending guest gets a confirmation email
 });
 
@@ -108,7 +108,7 @@ test('a successful update returns 201 with the "updated" message', async () => {
   });
   const { res } = await invoke(submitPublicRSVP, req({ rsvpId: 'rsvp-1', guestName: 'Alice', email: 'a@x.com', response: 'yes', partySize: 1 }));
   assert.equal(res.statusCode, 201);
-  assert.match(res.body.message, /updated/);
+  assert.match(res.body.data.message, /updated/);
 });
 
 test('a declined RSVP with an email sends the decline acknowledgement to the guest', async () => {
@@ -144,7 +144,7 @@ test('a "maybe" RSVP labels the organizer email "Maybe" (amber), never "Declined
   const html = orgEmail[2];
   assert.match(html, /Maybe/);
   assert.doesNotMatch(html, /Declined/);
-  assert.match(html, /#f59e0b/); // amber accent, not the red decline colour
+  assert.match(html, /#9A7B3F/); // gold accent, not the red decline colour
 });
 
 test('a DB-level RPC error is forwarded to the Express error handler', async () => {
