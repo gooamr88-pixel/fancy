@@ -87,20 +87,33 @@ const submitPublicRSVP = async (req, res, next) => {
       partyId: result.party_id, guestName, response: result.response, partySize: computedPartySize,
     });
 
-    // Confirmation / decline email (best-effort), using the context the RPC
-    // returned so the hot path makes no extra reads.
-    if (result.guest_email) {
-      if (result.response === 'yes') {
+    // Confirmation / decline email (best-effort)
+    if (result.response === 'yes') {
+      if (result.guest_email) {
         notificationService.sendConfirmationEmail(eventId, result.party_id)
           .catch((err) => logger.error({ err }, 'Confirmation email error'));
-      } else if (result.response === 'no') {
-        const declineHtml = getDeclineConfirmationTemplate(
-          { guest_name: guestName },
-          { title: result.event_title, event_date: result.event_date, slug: result.event_slug },
-        );
-        notificationService.sendEmailViaBrevo(result.guest_email, `Thank You – ${escapeHtml(result.event_title)}`, declineHtml)
-          .catch((err) => logger.error({ err }, 'Decline email error'));
       }
+      if (Array.isArray(sanitizedAdditional)) {
+        sanitizedAdditional.forEach((companion) => {
+          if (companion && companion.email && companion.email.trim()) {
+            notificationService.sendCompanionConfirmationEmail({
+              companionName: companion.fullName,
+              mainGuestName: guestName,
+              eventTitle: result.event_title,
+              eventDate: result.event_date,
+              eventSlug: result.event_slug,
+              companionEmail: companion.email.trim(),
+            }).catch((err) => logger.error({ err, companionEmail: companion.email }, 'Companion confirmation email error'));
+          }
+        });
+      }
+    } else if (result.response === 'no' && result.guest_email) {
+      const declineHtml = getDeclineConfirmationTemplate(
+        { guest_name: guestName },
+        { title: result.event_title, event_date: result.event_date, slug: result.event_slug },
+      );
+      notificationService.sendEmailViaBrevo(result.guest_email, `Thank You – ${escapeHtml(result.event_title)}`, declineHtml)
+        .catch((err) => logger.error({ err }, 'Decline email error'));
     }
 
     // Notify organizer of the new RSVP (best-effort).

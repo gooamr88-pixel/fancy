@@ -344,6 +344,31 @@ const getDeclineConfirmationTemplate = (rsvp, event) => {
   });
 };
 
+/** Email sent to a companion guest confirming they are attending with the primary guest. */
+const getCompanionRSVPConfirmationTemplate = (companionName, mainGuestName, event, eventUrl) => {
+  const formattedDate = formatEventDate(event.event_date);
+  const where = event.location_name || event.location_address || null;
+  const rows = [
+    ['Main Guest', escapeHtml(mainGuestName)],
+    ['Status', '<span style="color:' + BRAND.success + ';">Registered as Guest</span>', BRAND.success],
+  ];
+  if (formattedDate) rows.push(['Date', escapeHtml(formattedDate)]);
+  if (where) rows.push(['Where', escapeHtml(where)]);
+
+  return emailShell({
+    preheader: `You're registered for ${event.title}`,
+    eyebrow: 'Companion RSVP Confirmed',
+    heading: escapeHtml(event.title),
+    contentHtml: `
+      ${greeting(companionName)}
+      ${para(`<strong style="color:${BRAND.charcoal};">${escapeHtml(mainGuestName)}</strong> has confirmed their attendance and registered you as their guest for the event.`)}
+      ${dataTable(rows)}
+      ${para('We look forward to celebrating with you.', { mb: 16 })}
+      ${eventUrl ? button(eventUrl, 'View Event Details') : ''}
+    `,
+  });
+};
+
 /** Entry pass: QR ticket + table assignment. */
 const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName) => {
   const partySize = rsvp.party_size || 1;
@@ -712,6 +737,7 @@ module.exports = {
   // RSVP lifecycle
   getInvitationTemplate,
   getRSVPConfirmationTemplate,
+  getCompanionRSVPConfirmationTemplate,
   getDeclineConfirmationTemplate,
   getQRTicketTemplate,
   getRsvpReminderTemplate,

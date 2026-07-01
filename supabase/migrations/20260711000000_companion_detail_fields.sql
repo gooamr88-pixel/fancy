@@ -359,11 +359,12 @@ BEGIN
   -- client can't trip the CHECK constraint mid-submit and lose the row.
   IF p_response = 'yes' THEN
     INSERT INTO guests (
-      party_id, event_id, full_name, phone, is_primary_contact,
+      party_id, event_id, full_name, email, phone, is_primary_contact,
       meal_selection, dietary_notes, age_group, relationship, gender
     )
     SELECT
       v_party_id, v_event.id, g.elem ->> 'fullName',
+      NULLIF(lower(btrim(COALESCE(g.elem ->> 'email', ''))), ''),
       NULLIF(btrim(g.elem ->> 'phone'), ''),
       false,
       NULLIF(g.elem ->> 'mealSelection', ''),

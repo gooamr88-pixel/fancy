@@ -79,7 +79,27 @@ const sendConfirmationEmail = async (eventId, partyId) => {
   return sendEmailViaBrevo(primaryEmail, `RSVP Confirmed: ${party.events.title}`, emailHtml);
 };
 
+const sendCompanionConfirmationEmail = async ({
+  companionName,
+  mainGuestName,
+  eventTitle,
+  eventDate,
+  eventSlug,
+  companionEmail,
+}) => {
+  const { getCompanionRSVPConfirmationTemplate, buildGuestEventUrl } = require('./emailTemplates');
+  const eventUrl = buildGuestEventUrl(eventSlug);
+  const emailHtml = getCompanionRSVPConfirmationTemplate(
+    companionName,
+    mainGuestName,
+    { title: eventTitle, event_date: eventDate, slug: eventSlug },
+    eventUrl
+  );
+  return sendEmailViaBrevo(companionEmail, `You're registered for ${eventTitle}`, emailHtml);
+};
+
 module.exports = {
   sendEmailViaBrevo,
   sendConfirmationEmail,
+  sendCompanionConfirmationEmail,
 };

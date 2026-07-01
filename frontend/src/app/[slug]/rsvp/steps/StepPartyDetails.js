@@ -140,7 +140,7 @@ export default function StepPartyDetails({
                   style={{ ...S.inputBase, ...(validationErrors.email ? { borderColor: '#ef4444' } : {}) }}
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
               </FormField>
-              <FormField label={t.phone_label} error={validationErrors.phone}>
+              <FormField label={includeMeal ? t.phone_label : `${t.phone_label} ${isRTL ? '(اختياري)' : '(optional)'}`} error={validationErrors.phone}>
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000"
                   style={{ ...S.inputBase, ...(validationErrors.phone ? { borderColor: '#ef4444' } : {}) }}
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.phone)} />
@@ -289,7 +289,7 @@ export default function StepPartyDetails({
   }
 
   /* ─── attending = yes ─── */
-  const relationshipOptions = RELATIONSHIP_OPTIONS(t);
+
 
   const updateCompanion = (index, patch) => {
     setAdditionalGuests(prev => {
@@ -410,18 +410,16 @@ export default function StepPartyDetails({
                 </FormField>
               </div>
 
-              {/* Relationship + Phone row */}
+              {/* Email + Phone row */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <FormField label={t.relationship_label}>
-                  <select
-                    value={g.relationship || ''}
-                    onChange={e => updateCompanion(index, { relationship: e.target.value })}
-                    style={{ ...S.inputBase, cursor: 'pointer' }}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
-                  >
-                    <option value="">{t.select_placeholder}</option>
-                    {relationshipOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                <FormField label={t.email_label} error={validationErrors[`additionalGuest_email_${index}`]}>
+                  <input
+                    type="email" value={g.email || ''}
+                    onChange={e => updateCompanion(index, { email: e.target.value })}
+                    placeholder="name@email.com"
+                    style={{ ...S.inputBase, ...(validationErrors[`additionalGuest_email_${index}`] ? { borderColor: '#ef4444' } : {}) }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_email_${index}`])}
+                  />
                 </FormField>
                 <FormField label={t.companion_phone_label}>
                   <input

@@ -272,10 +272,24 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const handleSubmit = async () => {
     const errors = {};
     if (!guestName.trim()) errors.guestName = 'Name is required';
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Invalid email format';
-    // Phone is required so the host can reach the guest by SMS; normalize to E.164.
-    const normalizedPhone = normalizeToE164(phone);
-    if (!normalizedPhone) errors.phone = phone.trim() ? (t.phone_invalid || 'Enter a valid phone number') : (t.phone_required || 'Phone number is required');
+    if (!email || !email.trim()) {
+      errors.email = 'Email address is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Invalid email format';
+    }
+    
+    // Phone is required only if attending is 'yes'
+    const normalizedPhone = phone.trim() ? normalizeToE164(phone) : '';
+    if (attending === 'yes') {
+      if (!normalizedPhone) {
+        errors.phone = phone.trim() ? (t.phone_invalid || 'Enter a valid phone number') : (t.phone_required || 'Phone number is required');
+      }
+    } else {
+      if (phone.trim() && !normalizedPhone) {
+        errors.phone = t.phone_invalid || 'Enter a valid phone number';
+      }
+    }
+    
     if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
     if (attending === 'yes') {
       // These used to be gated by a per-section "Continue" button that's gone
@@ -283,6 +297,11 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       if (partySize > 1) {
         additionalGuests.forEach((g, index) => {
           if (!g.fullName || !g.fullName.trim()) errors[`additionalGuest_${index}`] = 'Name is required';
+          if (!g.email || !g.email.trim()) {
+            errors[`additionalGuest_email_${index}`] = 'Email is required';
+          } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email)) {
+            errors[`additionalGuest_email_${index}`] = 'Invalid email format';
+          }
         });
       }
       const requiredFields = customQuestionFields.filter(f => f.is_required);
