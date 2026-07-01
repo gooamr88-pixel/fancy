@@ -580,9 +580,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           <GuestEnvelopeReveal
             key="guest-reveal"
             event={event}
-            slug={slug}
-            guestRsvp={guestRsvp}
-            setGuestRsvp={setGuestRsvp}
             onComplete={handleRevealComplete}
             musicRef={musicRef}
           />
@@ -1449,17 +1446,19 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         </AnimatePresence>
 
         {/* ═══ FOOTER ═══ */}
-        <FadeInUp>
-          <div style={{
-            textAlign: 'center', padding: '48px 24px 32px',
-            borderTop: '1px solid rgba(232,226,214,0.4)',
-          }}>
-            <p style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)', fontWeight: 300, letterSpacing: '0.05em' }}>
-              {isRTL ? 'صُمم بعناية بواسطة' : 'Crafted with elegance by'}{' '}
-              <span style={{ fontWeight: 600, color: '#B8944F' }}>Fancy RSVP</span>
-            </p>
-          </div>
-        </FadeInUp>
+        {!event.tier_remove_watermark && (
+          <FadeInUp>
+            <div style={{
+              textAlign: 'center', padding: '48px 24px 32px',
+              borderTop: '1px solid rgba(232,226,214,0.4)',
+            }}>
+              <p style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)', fontWeight: 300, letterSpacing: '0.05em' }}>
+                {isRTL ? 'صُمم بعناية بواسطة' : 'Crafted with elegance by'}{' '}
+                <span style={{ fontWeight: 600, color: '#B8944F' }}>Fancy RSVP</span>
+              </p>
+            </div>
+          </FadeInUp>
+        )}
 
         {/* ═══ GLOBAL STYLES ═══ */}
         <style>{`

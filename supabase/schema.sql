@@ -1749,6 +1749,7 @@ CREATE TABLE public.event_payments (
     refund_reason text,
     tier_name text,
     tier_max_guests integer,
+    tier_remove_watermark boolean DEFAULT false NOT NULL,
     CONSTRAINT event_payments_payment_method_check CHECK ((payment_method = ANY (ARRAY['stripe'::text, 'cash_manual'::text]))),
     CONSTRAINT event_payments_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'completed'::text, 'failed'::text, 'refunded'::text])))
 );
@@ -1789,6 +1790,7 @@ CREATE TABLE public.events (
     qr_code_url text,
     tier_name text,
     tier_max_guests integer,
+    tier_remove_watermark boolean DEFAULT false NOT NULL,
     payment_reminder_sent_at timestamp with time zone,
     final_report_sent_at timestamp with time zone,
     recap_sent_at timestamp with time zone,
@@ -1929,27 +1931,6 @@ CREATE TABLE public.permissions (
     created_at timestamp with time zone DEFAULT now()
 );
 
--- Name: plans; Type: TABLE; Schema: public
-
-CREATE TABLE public.plans (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    key text NOT NULL,
-    name text NOT NULL,
-    description text,
-    price_cents integer DEFAULT 0 NOT NULL,
-    "interval" text DEFAULT 'one_time'::text NOT NULL,
-    currency text DEFAULT 'usd'::text NOT NULL,
-    features jsonb DEFAULT '[]'::jsonb NOT NULL,
-    max_guests integer,
-    max_events integer,
-    is_active boolean DEFAULT true NOT NULL,
-    sort_order integer DEFAULT 0 NOT NULL,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT plans_interval_check CHECK (("interval" = ANY (ARRAY['one_time'::text, 'monthly'::text, 'yearly'::text]))),
-    CONSTRAINT plans_price_cents_check CHECK ((price_cents >= 0))
-);
-
 -- Name: role_permissions; Type: TABLE; Schema: public
 
 CREATE TABLE public.role_permissions (
@@ -2066,22 +2047,6 @@ CREATE TABLE public.sms_credit_wallets (
     updated_at timestamp with time zone DEFAULT now(),
     CONSTRAINT sms_credit_wallets_credits_purchased_check CHECK ((credits_purchased >= 0)),
     CONSTRAINT sms_credit_wallets_credits_used_check CHECK ((credits_used >= 0))
-);
-
--- Name: subscriptions; Type: TABLE; Schema: public
-
-CREATE TABLE public.subscriptions (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    org_id uuid NOT NULL,
-    plan_id uuid,
-    status text DEFAULT 'active'::text NOT NULL,
-    current_period_start timestamp with time zone,
-    current_period_end timestamp with time zone,
-    stripe_subscription_id text,
-    cancel_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT subscriptions_status_check CHECK ((status = ANY (ARRAY['active'::text, 'past_due'::text, 'canceled'::text, 'trialing'::text])))
 );
 
 -- Name: super_admin_config; Type: TABLE; Schema: public
@@ -2271,16 +2236,6 @@ ALTER TABLE ONLY public.permissions
 ALTER TABLE ONLY public.permissions
     ADD CONSTRAINT permissions_pkey PRIMARY KEY (id);
 
--- Name: plans plans_key_key; Type: CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.plans
-    ADD CONSTRAINT plans_key_key UNIQUE (key);
-
--- Name: plans plans_pkey; Type: CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.plans
-    ADD CONSTRAINT plans_pkey PRIMARY KEY (id);
-
 -- Name: role_permissions role_permissions_pkey; Type: CONSTRAINT; Schema: public
 
 ALTER TABLE ONLY public.role_permissions
@@ -2360,16 +2315,6 @@ ALTER TABLE ONLY public.sms_credit_wallets
 
 ALTER TABLE ONLY public.sms_credit_wallets
     ADD CONSTRAINT sms_credit_wallets_pkey PRIMARY KEY (id);
-
--- Name: subscriptions subscriptions_pkey; Type: CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.subscriptions
-    ADD CONSTRAINT subscriptions_pkey PRIMARY KEY (id);
-
--- Name: subscriptions subscriptions_stripe_subscription_id_key; Type: CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.subscriptions
-    ADD CONSTRAINT subscriptions_stripe_subscription_id_key UNIQUE (stripe_subscription_id);
 
 -- Name: super_admin_config super_admin_config_pkey; Type: CONSTRAINT; Schema: public
 
@@ -2527,10 +2472,6 @@ CREATE INDEX idx_payment_disputes_created ON public.payment_disputes USING btree
 
 CREATE INDEX idx_payment_disputes_payment ON public.payment_disputes USING btree (payment_id);
 
--- Name: idx_plans_active; Type: INDEX; Schema: public
-
-CREATE INDEX idx_plans_active ON public.plans USING btree (is_active, sort_order);
-
 -- Name: idx_role_permissions_role; Type: INDEX; Schema: public
 
 CREATE INDEX idx_role_permissions_role ON public.role_permissions USING btree (role_id);
@@ -2615,10 +2556,6 @@ CREATE INDEX idx_sms_credit_ledger_sid ON public.sms_credit_ledger USING btree (
 
 CREATE UNIQUE INDEX idx_sms_credit_ledger_unique_purchase ON public.sms_credit_ledger USING btree (stripe_payment_intent_id) WHERE (transaction_type = 'purchase'::text);
 
--- Name: idx_subscriptions_org; Type: INDEX; Schema: public
-
-CREATE INDEX idx_subscriptions_org ON public.subscriptions USING btree (org_id);
-
 -- Name: idx_tables_event; Type: INDEX; Schema: public
 
 CREATE INDEX idx_tables_event ON public.tables USING btree (event_id);
@@ -2634,14 +2571,6 @@ CREATE UNIQUE INDEX uq_email_log_kind_ref ON public.email_log USING btree (kind,
 -- Name: credit_packages set_credit_packages_updated_at; Type: TRIGGER; Schema: public
 
 CREATE TRIGGER set_credit_packages_updated_at BEFORE UPDATE ON public.credit_packages FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
--- Name: plans set_plans_updated_at; Type: TRIGGER; Schema: public
-
-CREATE TRIGGER set_plans_updated_at BEFORE UPDATE ON public.plans FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
--- Name: subscriptions set_subscriptions_updated_at; Type: TRIGGER; Schema: public
-
-CREATE TRIGGER set_subscriptions_updated_at BEFORE UPDATE ON public.subscriptions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Name: custom_answers set_updated_at; Type: TRIGGER; Schema: public
 
@@ -2883,16 +2812,6 @@ ALTER TABLE ONLY public.sms_credit_ledger
 ALTER TABLE ONLY public.sms_credit_wallets
     ADD CONSTRAINT sms_credit_wallets_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
 
--- Name: subscriptions subscriptions_org_id_fkey; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.subscriptions
-    ADD CONSTRAINT subscriptions_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
-
--- Name: subscriptions subscriptions_plan_id_fkey; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.subscriptions
-    ADD CONSTRAINT subscriptions_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.plans(id) ON DELETE SET NULL;
-
 -- Name: tables tables_event_id_fkey; Type: FK CONSTRAINT; Schema: public
 
 ALTER TABLE ONLY public.tables
@@ -3120,10 +3039,6 @@ ALTER TABLE public.payment_disputes ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.permissions ENABLE ROW LEVEL SECURITY;
 
--- Name: plans; Type: ROW SECURITY; Schema: public
-
-ALTER TABLE public.plans ENABLE ROW LEVEL SECURITY;
-
 -- Name: role_permissions; Type: ROW SECURITY; Schema: public
 
 ALTER TABLE public.role_permissions ENABLE ROW LEVEL SECURITY;
@@ -3159,10 +3074,6 @@ ALTER TABLE public.sms_credit_ledger ENABLE ROW LEVEL SECURITY;
 -- Name: sms_credit_wallets; Type: ROW SECURITY; Schema: public
 
 ALTER TABLE public.sms_credit_wallets ENABLE ROW LEVEL SECURITY;
-
--- Name: subscriptions; Type: ROW SECURITY; Schema: public
-
-ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- Name: super_admin_config; Type: ROW SECURITY; Schema: public
 

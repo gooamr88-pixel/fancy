@@ -41,6 +41,7 @@ const fulfillCheckoutSession = async (session) => {
     const rawCap = session.metadata.tier_max_guests;
     const parsedCap = rawCap !== undefined && rawCap !== '' ? parseInt(rawCap, 10) : NaN;
     const tierMaxGuests = Number.isFinite(parsedCap) ? parsedCap : null;
+    const tierRemoveWatermark = session.metadata.tier_remove_watermark === '1';
 
     // Mark paid and hold for review. A self-serve card payment does NOT make the
     // event publicly live on its own — a Super Admin promotes it to 'active'
@@ -59,7 +60,7 @@ const fulfillCheckoutSession = async (session) => {
     if (tierName || tierMaxGuests !== null) {
       const { error: tierErr } = await supabase
         .from('events')
-        .update({ tier_name: tierName, tier_max_guests: tierMaxGuests })
+        .update({ tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark })
         .eq('id', event_id);
       if (tierErr) console.warn(`[fulfill] tier persistence skipped for event ${event_id} (run migration 20260624000000): ${tierErr.message}`);
     }

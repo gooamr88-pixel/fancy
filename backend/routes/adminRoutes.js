@@ -4,7 +4,6 @@ const { requirePermission, requireAdmin } = require('../middleware/permissions')
 const { manualCashApproval, updatePricingConfig, getPricingConfig, getPendingPayments } = require('../controllers/paymentController');
 const { getAdminEvents, deleteEvent } = require('../controllers/eventController');
 const rbacRoutes = require('./admin/rbacRoutes');
-const subscriptionRoutes = require('./admin/subscriptionRoutes');
 const creditRoutes = require('./admin/creditRoutes');
 const financeRoutes = require('./admin/financeRoutes');
 const userMgmtRoutes = require('./admin/userMgmtRoutes');
@@ -59,8 +58,7 @@ router.get('/me', requireAdmin, (req, res) => {
 // ── Role & permission management ──
 router.use('/rbac', rbacRoutes);
 
-// ── Phase 1: money — subscriptions/plans, credit packages, finance ──
-router.use('/subscriptions', subscriptionRoutes);
+// ── Phase 1: money — credit packages, finance ──
 router.use('/credits', creditRoutes);
 router.use('/finance', financeRoutes);
 

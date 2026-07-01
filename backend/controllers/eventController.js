@@ -25,6 +25,7 @@ async function withResolvedTier(event) {
 
   let tierName = event.tier_name || null;
   let tierMaxGuests = event.tier_max_guests;
+  let tierRemoveWatermark = !!event.tier_remove_watermark;
 
   // If both tier_name and tier_max_guests are already fully resolved, return immediately.
   if (tierName && tierMaxGuests !== null && tierMaxGuests !== undefined) {
@@ -38,6 +39,7 @@ async function withResolvedTier(event) {
   if (!tierName && completed) {
     tierName = completed.tier_name || null;
     tierMaxGuests = completed.tier_max_guests ?? null;
+    tierRemoveWatermark = !!completed.tier_remove_watermark;
   }
 
   // If still unresolved or guest limit is missing/null, lookup from the platform configuration
@@ -51,12 +53,14 @@ async function withResolvedTier(event) {
           const match = tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase());
           if (match) {
             tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
+            tierRemoveWatermark = !!match.remove_watermark;
           }
         } else if (completed && completed.amount_cents != null) {
           const match = tiers.find(t => Number(t.price_cents) === Number(completed.amount_cents));
           if (match) {
             tierName = match.name;
             tierMaxGuests = Number.isFinite(match.max_guests) ? match.max_guests : null;
+            tierRemoveWatermark = !!match.remove_watermark;
           }
         }
       } catch { /* config unavailable — leave the plan unresolved this time */ }
@@ -66,10 +70,10 @@ async function withResolvedTier(event) {
   if (!tierName) return event;
 
   // Self-heal: persist so future reads don't re-derive. Never block/fault the read.
-  supabase.from('events').update({ tier_name: tierName, tier_max_guests: tierMaxGuests }).eq('id', event.id)
+  supabase.from('events').update({ tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark }).eq('id', event.id)
     .then(() => {}, () => {});
 
-  return { ...event, tier_name: tierName, tier_max_guests: tierMaxGuests };
+  return { ...event, tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark };
 }
 
 /**
@@ -316,6 +320,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         is_paid,
         status,
         allow_guest_edits,
+        tier_remove_watermark,
         custom_form_fields(*)
       `)
       .eq('slug', slug)
