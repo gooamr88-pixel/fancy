@@ -712,3 +712,368 @@ export const inputBlur = (e, hasError) => {
   e.target.style.borderColor = hasError ? '#ef4444' : '#E8E2D6';
   e.target.style.boxShadow = 'none';
 };
+
+
+// ─── DressCodeVisualizer: Realistic 3D Dress Code Illustrations ───
+export function DressCodeVisualizer({ dressCodeText = '', isRTL = false }) {
+  const normalized = dressCodeText.toLowerCase();
+
+  // Determine dress code category
+  let category = 'formal'; // default fallback
+  if (normalized.includes('smart casual') || normalized.includes('كاجوال أنيق') || normalized.includes('سمارت كاجوال')) {
+    category = 'smart_casual';
+  } else if (normalized.includes('casual') || normalized.includes('كاجوال') || normalized.includes('غير رسمي')) {
+    category = 'casual';
+  } else if (normalized.includes('cocktail') || normalized.includes('كوكتيل')) {
+    category = 'cocktail';
+  } else if (normalized.includes('formal') || normalized.includes('black tie') || normalized.includes('رسمي') || normalized.includes('بدلة')) {
+    category = 'formal';
+  }
+
+  // Visual configuration for each category
+  const configs = {
+    formal: {
+      titleMen: isRTL ? 'ملابس الرجال (رسمي / بلاك تاي)' : 'Men (Formal / Black Tie)',
+      titleWomen: isRTL ? 'ملابس السيدات (رسمي / فستان سهرة)' : 'Women (Formal / Evening Gown)',
+      descMen: isRTL ? 'بدلة توكسيدو كاملة، قميص أبيض، وربطة عنق فراشة سوداء.' : 'Classic tuxedo, white wingtip shirt, and black bow tie.',
+      descWomen: isRTL ? 'فستان سهرة طويل أنيق مع إكسسوارات راقية.' : 'Floor-length evening gown, elegant jewelry, and heels.',
+      svgMen: (
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <defs>
+            <linearGradient id="tuxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#1E2022" />
+              <stop offset="50%" stopColor="#111215" />
+              <stop offset="100%" stopColor="#070809" />
+            </linearGradient>
+            <linearGradient id="lapelGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#2E3033" />
+              <stop offset="100%" stopColor="#0B0C0D" />
+            </linearGradient>
+            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#F5E3B5" />
+              <stop offset="50%" stopColor="#D5B066" />
+              <stop offset="100%" stopColor="#A8823B" />
+            </linearGradient>
+            <filter id="shadow3D" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="8" stdDeviation="6" floodOpacity="0.4" floodColor="#000" />
+            </filter>
+          </defs>
+          {/* Backdrop Suit */}
+          <path d="M20 80 C20 80, 50 20, 100 20 C150 20, 180 80, 180 80 L180 240 L20 240 Z" fill="url(#tuxGrad)" />
+          {/* White Shirt V-neck */}
+          <path d="M70 20 L130 20 L100 110 Z" fill="#FFFFFF" />
+          {/* Bow Tie */}
+          <g filter="url(#shadow3D)">
+            <path d="M75 35 L100 48 L75 60 Z" fill="#111" />
+            <path d="M125 35 L100 48 L125 60 Z" fill="#111" />
+            <circle cx="100" cy="48" r="8" fill="#1A1A1A" />
+            <circle cx="100" cy="48" r="4" fill="url(#goldGrad)" />
+          </g>
+          {/* Left Lapel */}
+          <path d="M20 80 L72 20 L100 125 L75 160 Z" fill="url(#lapelGrad)" filter="url(#shadow3D)" />
+          {/* Right Lapel */}
+          <path d="M180 80 L128 20 L100 125 L125 160 Z" fill="url(#lapelGrad)" filter="url(#shadow3D)" />
+          {/* Pocket Square */}
+          <path d="M45 110 L65 95 L55 115 Z" fill="#FFFFFF" />
+          <path d="M40 115 L50 100 L55 115 Z" fill="url(#goldGrad)" />
+          <rect x="38" y="114" width="32" height="4" rx="1" fill="#1A1A1A" />
+        </svg>
+      ),
+      svgWomen: (
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <defs>
+            <linearGradient id="gownGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#7A1D2B" />
+              <stop offset="50%" stopColor="#510A14" />
+              <stop offset="100%" stopColor="#300309" />
+            </linearGradient>
+            <linearGradient id="goldSilk" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#E3C485" />
+              <stop offset="50%" stopColor="#FDF1D6" />
+              <stop offset="100%" stopColor="#C49B45" />
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+          </defs>
+          {/* Shoulders / Skin Backdrop */}
+          <path d="M35 80 C35 45, 60 30, 100 30 C140 30, 165 45, 165 80 L165 140 L35 140 Z" fill="#FCEAD0" />
+          {/* Necklace */}
+          <path d="M65 52 Q100 80 135 52" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" filter="url(#glow)" />
+          <circle cx="100" cy="67" r="5" fill="url(#goldSilk)" filter="url(#glow)" />
+          {/* Gown Body */}
+          <path d="M40 85 C40 85, 70 95, 100 95 C130 95, 160 85, 160 85 L180 240 L20 240 Z" fill="url(#gownGrad)" />
+          {/* Sweetheart Neckline cut */}
+          <path d="M40 85 C55 65, 90 70, 100 82 C110 70, 145 65, 160 85 Z" fill="#FCEAD0" />
+          {/* Silk Waist Sash */}
+          <path d="M52 140 Q100 148 148 140 L152 155 Q100 163 48 155 Z" fill="url(#goldSilk)" />
+          {/* Fabric pleats / details */}
+          <path d="M75 160 L65 240" stroke="#42060F" strokeWidth="2" opacity="0.6" />
+          <path d="M100 162 L100 240" stroke="#42060F" strokeWidth="2" opacity="0.6" />
+          <path d="M125 160 L135 240" stroke="#42060F" strokeWidth="2" opacity="0.6" />
+        </svg>
+      )
+    },
+    smart_casual: {
+      titleMen: isRTL ? 'ملابس الرجال (كاجوال أنيق)' : 'Men (Smart Casual)',
+      titleWomen: isRTL ? 'ملابس السيدات (كاجوال أنيق)' : 'Women (Smart Casual)',
+      descMen: isRTL ? 'سترة (بليزر)، قميص أنيق بدون كرافتة، وبنطال تشينو.' : 'Tailored blazer, crisp collared shirt (no tie), chinos.',
+      descWomen: isRTL ? 'فستان متوسط الطول أنيق أو بلوزة راقية مع بنطال.' : 'Chic midi dress, elegant jumpsuit, or blouse and trousers.',
+      svgMen: (
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <defs>
+            <linearGradient id="blazerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#2A4365" />
+              <stop offset="100%" stopColor="#1A202C" />
+            </linearGradient>
+            <linearGradient id="blazerLapel" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#3182CE" />
+              <stop offset="100%" stopColor="#1A365D" />
+            </linearGradient>
+          </defs>
+          {/* Blazer */}
+          <path d="M20 80 C20 80, 50 25, 100 25 C150 25, 180 80, 180 80 L180 240 L20 240 Z" fill="url(#blazerGrad)" />
+          {/* Shirt */}
+          <path d="M68 25 L132 25 L100 120 Z" fill="#EBF8FF" />
+          {/* Inner shirt collar */}
+          <path d="M68 25 L100 65 L76 25 Z" fill="#FFFFFF" stroke="#E2E8F0" />
+          {/* Right collar flap */}
+          <path d="M132 25 L100 65 L124 25 Z" fill="#FFFFFF" stroke="#E2E8F0" />
+          {/* Blazer Lapels */}
+          <path d="M20 80 L68 25 L100 135 L75 170 Z" fill="url(#blazerLapel)" />
+          <path d="M180 80 L132 25 L100 135 L125 170 Z" fill="url(#blazerLapel)" />
+          {/* Pocket square (casual) */}
+          <path d="M42 112 L50 98 L58 112 Z" fill="#ED8936" />
+          <rect x="38" y="112" width="24" height="3" rx="1" fill="#1A202C" />
+        </svg>
+      ),
+      svgWomen: (
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <defs>
+            <linearGradient id="blouseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#F687B3" />
+              <stop offset="100%" stopColor="#D53F8C" />
+            </linearGradient>
+            <linearGradient id="skirtGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#4A5568" />
+              <stop offset="100%" stopColor="#2D3748" />
+            </linearGradient>
+          </defs>
+          {/* Body Skin */}
+          <path d="M35 80 C35 45, 60 30, 100 30 C140 30, 165 45, 165 80 L165 140 L35 140 Z" fill="#FCEAD0" />
+          {/* Blouse */}
+          <path d="M40 80 C40 80, 70 85, 100 85 C130 85, 160 80, 160 80 L155 160 L45 160 Z" fill="url(#blouseGrad)" />
+          {/* Collar/Neck cut */}
+          <path d="M80 30 C80 30, 100 65, 120 30 Z" fill="#FCEAD0" />
+          {/* Gold Belt */}
+          <rect x="42" y="156" width="116" height="8" rx="2" fill="#ECC94B" />
+          <circle cx="100" cy="160" r="8" fill="#ECC94B" stroke="#D69E2E" strokeWidth="2" />
+          {/* Skirt */}
+          <path d="M45 164 L30 240 L170 240 L155 164 Z" fill="url(#skirtGrad)" />
+        </svg>
+      )
+    },
+    casual: {
+      titleMen: isRTL ? 'ملابس الرجال (كاجوال / مريح)' : 'Men (Casual)',
+      titleWomen: isRTL ? 'ملابس السيدات (كاجوال / فستان صيفي)' : 'Women (Casual)',
+      descMen: isRTL ? 'قميص بولو أنيق أو قميص كتان مريح مع بنطال جينز.' : 'Polos, linen button-downs, or smart tees with jeans.',
+      descWomen: isRTL ? 'فستان صيفي خفيف أو ملابس كاجوال مريحة وجذابة.' : 'Sun dresses, casual skirts, or neat summer coordinates.',
+      svgMen: (
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <defs>
+            <linearGradient id="poloGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#319795" />
+              <stop offset="100%" stopColor="#234E52" />
+            </linearGradient>
+          </defs>
+          {/* Polo Body */}
+          <path d="M20 80 C20 80, 50 30, 100 30 C150 30, 180 80, 180 80 L180 240 L20 240 Z" fill="url(#poloGrad)" />
+          {/* Neck V-line */}
+          <path d="M85 30 L115 30 L100 95 Z" fill="#FCEAD0" />
+          {/* Left Collar Flap */}
+          <path d="M60 30 L100 70 L80 30 Z" fill="#2C7A7B" stroke="#234E52" />
+          {/* Right Collar Flap */}
+          <path d="M140 30 L100 70 L120 30 Z" fill="#2C7A7B" stroke="#234E52" />
+          {/* Buttons */}
+          <circle cx="100" cy="80" r="3" fill="#FFFFFF" />
+          <circle cx="100" cy="90" r="3" fill="#FFFFFF" />
+        </svg>
+      ),
+      svgWomen: (
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <defs>
+            <linearGradient id="casualDress" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ED8936" />
+              <stop offset="100%" stopColor="#C05621" />
+            </linearGradient>
+          </defs>
+          {/* Body Skin */}
+          <path d="M35 80 C35 45, 60 30, 100 30 C140 30, 165 45, 165 80 L165 140 L35 140 Z" fill="#FCEAD0" />
+          {/* Spaghetti Straps */}
+          <path d="M55 45 L58 90" stroke="#DD6B20" strokeWidth="3" />
+          <path d="M145 45 L142 90" stroke="#DD6B20" strokeWidth="3" />
+          {/* Sun Dress */}
+          <path d="M45 85 C45 85, 75 90, 100 90 C125 90, 155 85, 155 85 L175 240 L25 240 Z" fill="url(#casualDress)" />
+          {/* Neckline */}
+          <path d="M45 85 C60 75, 90 78, 100 85 C110 78, 140 75, 155 85 Z" fill="#FCEAD0" />
+        </svg>
+      )
+    },
+    cocktail: {
+      titleMen: isRTL ? 'ملابس الرجال (كوكتيل / شبه رسمي)' : 'Men (Cocktail)',
+      titleWomen: isRTL ? 'ملابس السيدات (فستان كوكتيل)' : 'Women (Cocktail)',
+      descMen: isRTL ? 'بدلة أنيقة مع قميص أبيض ورابطة عنق ملونة.' : 'Smart suit jacket, color tie, and leather dress shoes.',
+      descWomen: isRTL ? 'فستان كوكتيل قصير أو متوسط الطول جذاب.' : 'Elegant cocktail dress (midi/knee length) and heels.',
+      svgMen: (
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <defs>
+            <linearGradient id="suitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#2D3748" />
+              <stop offset="100%" stopColor="#1A202C" />
+            </linearGradient>
+            <linearGradient id="tieGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#E53E3E" />
+              <stop offset="100%" stopColor="#9B2C2C" />
+            </linearGradient>
+          </defs>
+          {/* Suit Jacket */}
+          <path d="M20 80 C20 80, 50 20, 100 20 C150 20, 180 80, 180 80 L180 240 L20 240 Z" fill="url(#suitGrad)" />
+          {/* White Shirt */}
+          <path d="M70 20 L130 20 L100 110 Z" fill="#FFFFFF" />
+          {/* Tie */}
+          <path d="M94 40 L106 40 L110 130 L100 150 L90 130 Z" fill="url(#tieGrad)" />
+          <path d="M92 38 L108 38 L104 46 L96 46 Z" fill="#C53030" />
+          {/* Lapels */}
+          <path d="M20 80 L70 20 L100 120 L75 155 Z" fill="#4A5568" />
+          <path d="M180 80 L130 20 L100 120 L125 155 Z" fill="#4A5568" />
+        </svg>
+      ),
+      svgWomen: (
+        <svg viewBox="0 0 200 240" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%' }}>
+          <defs>
+            <linearGradient id="cocktailGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#4A122C" />
+              <stop offset="50%" stopColor="#2D0B1B" />
+              <stop offset="100%" stopColor="#17030D" />
+            </linearGradient>
+          </defs>
+          {/* Body Skin */}
+          <path d="M35 80 C35 45, 60 30, 100 30 C140 30, 165 45, 165 80 L165 140 L35 140 Z" fill="#FCEAD0" />
+          {/* One-shoulder asymmetry */}
+          <path d="M35 80 C40 50, 75 75, 100 75 C125 75, 165 40, 165 80 Z" fill="url(#cocktailGrad)" />
+          {/* Cocktail Dress */}
+          <path d="M42 80 C42 80, 72 85, 100 85 C128 85, 158 80, 158 80 L170 220 C140 225, 100 225, 30 220 Z" fill="url(#cocktailGrad)" />
+          {/* Decorative drape */}
+          <path d="M38 100 Q100 130 162 100" stroke="#3D0F24" strokeWidth="3" opacity="0.5" />
+          <path d="M36 125 Q100 155 164 125" stroke="#3D0F24" strokeWidth="3" opacity="0.5" />
+        </svg>
+      )
+    }
+  };
+
+  const config = configs[category];
+
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+      gap: '20px',
+      marginTop: '20px',
+      perspective: '1000px'
+    }}>
+      {/* Men's Card */}
+      <motion.div
+        whileHover={{
+          scale: 1.02,
+          rotateY: -5,
+          rotateX: 5,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.15), 0 0 15px rgba(184, 148, 79, 0.15)'
+        }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        style={{
+          background: 'rgba(255, 255, 255, 0.8)',
+          border: '1px solid rgba(184, 148, 79, 0.25)',
+          borderRadius: '16px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          backdropFilter: 'blur(10px)',
+          transformStyle: 'preserve-3d',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.06)'
+        }}
+      >
+        <div style={{
+          width: '130px',
+          height: '150px',
+          background: 'rgba(0,0,0,0.03)',
+          borderRadius: '12px',
+          padding: '8px',
+          marginBottom: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: 'translateZ(20px)',
+          filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.1))'
+        }}>
+          {config.svgMen}
+        </div>
+        <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#191B1E', margin: '0 0 6px 0', fontFamily: 'var(--font-sans)', transform: 'translateZ(10px)' }}>
+          {config.titleMen}
+        </h4>
+        <p style={{ fontSize: '12px', color: '#77736A', margin: 0, lineHeight: '1.5', fontFamily: 'var(--font-sans)', transform: 'translateZ(5px)' }}>
+          {config.descMen}
+        </p>
+      </motion.div>
+
+      {/* Women's Card */}
+      <motion.div
+        whileHover={{
+          scale: 1.02,
+          rotateY: 5,
+          rotateX: 5,
+          boxShadow: '0 20px 40px rgba(0,0,0,0.15), 0 0 15px rgba(184, 148, 79, 0.15)'
+        }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        style={{
+          background: 'rgba(255, 255, 255, 0.8)',
+          border: '1px solid rgba(184, 148, 79, 0.25)',
+          borderRadius: '16px',
+          padding: '20px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          backdropFilter: 'blur(10px)',
+          transformStyle: 'preserve-3d',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.06)'
+        }}
+      >
+        <div style={{
+          width: '130px',
+          height: '150px',
+          background: 'rgba(0,0,0,0.03)',
+          borderRadius: '12px',
+          padding: '8px',
+          marginBottom: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: 'translateZ(20px)',
+          filter: 'drop-shadow(0 6px 12px rgba(0,0,0,0.1))'
+        }}>
+          {config.svgWomen}
+        </div>
+        <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#191B1E', margin: '0 0 6px 0', fontFamily: 'var(--font-sans)', transform: 'translateZ(10px)' }}>
+          {config.titleWomen}
+        </h4>
+        <p style={{ fontSize: '12px', color: '#77736A', margin: 0, lineHeight: '1.5', fontFamily: 'var(--font-sans)', transform: 'translateZ(5px)' }}>
+          {config.descWomen}
+        </p>
+      </motion.div>
+    </div>
+  );
+}
+

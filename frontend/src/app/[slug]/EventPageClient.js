@@ -26,6 +26,7 @@ import {
   GalleryLightbox,
   CalendarButton,
   ShareButton,
+  DressCodeVisualizer,
   inputStyle,
   inputFocus,
   inputBlur,
@@ -1066,17 +1067,19 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                               initial={{ height: 0, opacity: 0 }}
                               animate={{ height: 'auto', opacity: 1 }}
                               exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.3 }}
+                              transition={{ duration: 0.35, ease: 'easeInOut' }}
                               style={{ overflow: 'hidden' }}
                             >
-                              <span style={{ fontSize: '16px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '16px' }}>
+                              <span style={{ fontSize: '15px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '16px' }}>
                                 {localizedDressCode}
                               </span>
+                              {/* Beautiful 3D illustrated dress code guide */}
+                              <DressCodeVisualizer dressCodeText={event.dress_code} isRTL={isRTL} />
                             </motion.div>
                           )}
                         </AnimatePresence>
                         {!dressCodeExpanded && (
-                          <span style={{ fontSize: '16px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '12px' }}>
+                          <span style={{ fontSize: '15px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '12px' }}>
                             {localizedDressCode}
                           </span>
                         )}
