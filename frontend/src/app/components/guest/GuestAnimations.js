@@ -381,28 +381,51 @@ export function AnimatedText({ text, tag: Tag = 'h1', delay = 0, style = {}, cla
   const ref = useRef(null);
   const inView = useInView(ref, { once: true });
   const words = text.split(' ');
+  const hasArabic = /[\u0600-\u06FF]/.test(text);
 
   return (
     <Tag ref={ref} style={{ ...style, overflow: 'hidden' }} className={className} dir={dir}>
-      {words.map((word, wi) => (
-        <span key={wi} style={{ display: 'inline-block', marginInlineEnd: '0.3em' }} dir={dir}>
-          {word.split('').map((char, ci) => (
+      {words.map((word, wi) => {
+        if (hasArabic) {
+          // For Arabic, animate the entire word as a single block to preserve cursive connection
+          return (
             <motion.span
-              key={ci}
-              initial={{ opacity: 0, y: 40 }}
+              key={wi}
+              initial={{ opacity: 0, y: 30 }}
               animate={inView ? { opacity: 1, y: 0 } : {}}
               transition={{
                 duration: 0.5,
-                delay: delay + wi * 0.08 + ci * 0.03,
+                delay: delay + wi * 0.08,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              style={{ display: 'inline-block' }}
+              style={{ display: 'inline-block', marginInlineEnd: '0.3em' }}
+              dir={dir}
             >
-              {char}
+              {word}
             </motion.span>
-          ))}
-        </span>
-      ))}
+          );
+        }
+
+        return (
+          <span key={wi} style={{ display: 'inline-block', marginInlineEnd: '0.3em' }} dir={dir}>
+            {word.split('').map((char, ci) => (
+              <motion.span
+                key={ci}
+                initial={{ opacity: 0, y: 40 }}
+                animate={inView ? { opacity: 1, y: 0 } : {}}
+                transition={{
+                  duration: 0.5,
+                  delay: delay + wi * 0.08 + ci * 0.03,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                style={{ display: 'inline-block' }}
+              >
+                {char}
+              </motion.span>
+            ))}
+          </span>
+        );
+      })}
     </Tag>
   );
 }
