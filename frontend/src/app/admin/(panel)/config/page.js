@@ -616,20 +616,33 @@ export default function ConfigPage() {
         {/* Global Save Controls Container */}
         <div style={{
           position: 'sticky',
-          bottom: 0,
-          background: 'rgba(250, 250, 248, 0.9)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          padding: '16px 0',
-          borderTop: `1px solid ${T.border}`,
+          bottom: 24,
+          background: 'var(--admin-surface, #FFFFFF)',
+          border: `1px solid var(--admin-border, #E8E2D6)`,
+          borderRadius: '16px',
+          boxShadow: '0 16px 36px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.05)',
+          padding: '14px 24px',
           zIndex: 10,
           display: 'flex',
-          justifyContent: 'flex-end',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 40,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
         }}>
-          <Button type="submit" variant="primary" disabled={saving} style={{ padding: '12px 32px', fontSize: 14, fontWeight: 700 }}>
-            {saving ? 'Saving System Configuration...' : 'Save Configuration'}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--admin-text-900, #191B1E)', fontFamily: 'var(--font-sans)' }}>
+              System Configuration
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--admin-text-500, #77736A)', fontFamily: 'var(--font-sans)' }}>
+              Click save to apply modifications platform-wide.
+            </span>
+          </div>
+          <Button type="submit" variant="primary" disabled={saving} style={{ padding: '10px 24px', fontSize: 13, fontWeight: 700, borderRadius: '8px' }}>
+            {saving ? 'Saving...' : 'Save Configuration'}
           </Button>
         </div>
+
       </form>
     </div>
   );
