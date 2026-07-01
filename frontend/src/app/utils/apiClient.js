@@ -1,5 +1,6 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-const API_URL = `${API_BASE_URL}/api/v1`;
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+export const API_URL = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`;
+export const API_BASE_URL = API_URL.replace(/\/api\/v1$/, '');
 
 // Flag to prevent infinite 401 retry loops
 let isRefreshing = false;
