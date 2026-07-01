@@ -289,8 +289,6 @@ export default function StepPartyDetails({
   }
 
   /* ─── attending = yes ─── */
-  const ageOptions = AGE_OPTIONS(t);
-  const genderOptions = GENDER_OPTIONS(t);
   const relationshipOptions = RELATIONSHIP_OPTIONS(t);
 
   const updateCompanion = (index, patch) => {
@@ -409,32 +407,6 @@ export default function StepPartyDetails({
                     style={S.inputBase}
                     onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
                   />
-                </FormField>
-              </div>
-
-              {/* Age + Gender row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <FormField label={t.age_group_label}>
-                  <select
-                    value={g.ageGroup || ''}
-                    onChange={e => updateCompanion(index, { ageGroup: e.target.value })}
-                    style={{ ...S.inputBase, cursor: 'pointer' }}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
-                  >
-                    <option value="">{t.select_placeholder}</option>
-                    {ageOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </FormField>
-                <FormField label={t.gender_label}>
-                  <select
-                    value={g.gender || ''}
-                    onChange={e => updateCompanion(index, { gender: e.target.value })}
-                    style={{ ...S.inputBase, cursor: 'pointer' }}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
-                  >
-                    <option value="">{t.select_placeholder}</option>
-                    {genderOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
                 </FormField>
               </div>
 
