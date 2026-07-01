@@ -63,6 +63,22 @@ export function PremiumButton({
       bg: 'transparent', hoverBg: 'rgba(184, 148, 79, 0.08)', color: '#8A6D34',
       shadow: 'none', glow: 'none',
     },
+    'outline-light': {
+      bg: 'transparent', hoverBg: '#FFFFFF', color: '#FFFFFF', hoverColor: '#121212',
+      shadow: '0 8px 25px rgba(255, 255, 255, 0.2)', glow: 'none', border: '1.5px solid rgba(255, 255, 255, 0.5)',
+    },
+    'ghost-light': {
+      bg: 'transparent', hoverBg: 'rgba(255, 255, 255, 0.1)', color: 'rgba(255, 255, 255, 0.85)', hoverColor: '#FFFFFF',
+      shadow: 'none', glow: 'none',
+    },
+    'outline-gold': {
+      bg: 'transparent', hoverBg: '#D7BE80', color: '#D7BE80', hoverColor: '#121212',
+      shadow: '0 8px 25px rgba(215, 190, 128, 0.25)', glow: 'none', border: '1.5px solid rgba(215, 190, 128, 0.5)',
+    },
+    'ghost-gold': {
+      bg: 'transparent', hoverBg: 'rgba(215, 190, 128, 0.1)', color: '#D7BE80', hoverColor: '#FFFFFF',
+      shadow: 'none', glow: 'none',
+    },
   };
 
   const sizes = {
@@ -71,7 +87,7 @@ export function PremiumButton({
     lg: { padding: '18px 40px', fontSize: '16px' },
   };
 
-  const v = variants[variant];
+  const v = variants[variant] || variants.gold;
   const s = sizes[size];
 
   return (
@@ -450,7 +466,7 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }) {
 }
 
 // ─── CalendarButton: Add to Calendar ───
-export function CalendarButton({ event, isRTL = false, style = {} }) {
+export function CalendarButton({ event, isRTL = false, variant = 'outline', style = {}, buttonStyle = {} }) {
   const [open, setOpen] = useState(false);
 
   if (!event) return null;
@@ -495,7 +511,7 @@ export function CalendarButton({ event, isRTL = false, style = {} }) {
 
   return (
     <div style={{ position: 'relative', display: 'inline-block', ...style }}>
-      <MagneticButton variant="outline" size="sm" icon="📅" onClick={() => setOpen(!open)}>
+      <MagneticButton variant={variant} size="sm" icon="📅" onClick={() => setOpen(!open)} style={buttonStyle}>
         {isRTL ? 'أضف إلى التقويم' : 'Add to Calendar'}
       </MagneticButton>
       <AnimatePresence>
@@ -541,7 +557,7 @@ export function CalendarButton({ event, isRTL = false, style = {} }) {
 }
 
 // ─── ShareButton: Native Share API or fallback ───
-export function ShareButton({ title, text, url, isRTL = false, style = {} }) {
+export function ShareButton({ title, text, url, isRTL = false, variant = 'ghost', style = {} }) {
   const [copied, setCopied] = useState(false);
 
   const handleShare = async () => {
@@ -557,7 +573,7 @@ export function ShareButton({ title, text, url, isRTL = false, style = {} }) {
   };
 
   return (
-    <MagneticButton variant="ghost" size="sm" icon={copied ? '✓' : '🔗'} onClick={handleShare} style={style}>
+    <MagneticButton variant={variant} size="sm" icon={copied ? '✓' : '🔗'} onClick={handleShare} style={style}>
       {copied ? (isRTL ? 'تم النسخ!' : 'Link Copied!') : (isRTL ? 'مشاركة الدعوة' : 'Share Invitation')}
     </MagneticButton>
   );

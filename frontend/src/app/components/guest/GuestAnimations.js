@@ -377,15 +377,15 @@ export function GlowPulse({ children, color = '#B8944F', intensity = 0.3, classN
 }
 
 // ─── AnimatedText: Letter-by-letter stagger text entrance ───
-export function AnimatedText({ text, tag: Tag = 'h1', delay = 0, style = {}, className = '' }) {
+export function AnimatedText({ text, tag: Tag = 'h1', delay = 0, style = {}, className = '', dir = 'auto' }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true });
   const words = text.split(' ');
 
   return (
-    <Tag ref={ref} style={{ ...style, overflow: 'hidden' }} className={className}>
+    <Tag ref={ref} style={{ ...style, overflow: 'hidden' }} className={className} dir={dir}>
       {words.map((word, wi) => (
-        <span key={wi} style={{ display: 'inline-block', marginRight: '0.3em' }}>
+        <span key={wi} style={{ display: 'inline-block', marginInlineEnd: '0.3em' }} dir={dir}>
           {word.split('').map((char, ci) => (
             <motion.span
               key={ci}

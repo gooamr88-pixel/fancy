@@ -52,6 +52,25 @@ const INVITATION_PATTERN_BY_TEMPLATE = {
   custom: 'custom',
 };
 
+const templateLabels = {
+  en: {
+    wedding: 'wedding invitation',
+    engagement: 'engagement invitation',
+    birthday: 'birthday invitation',
+    gala: 'gala invitation',
+    corporate: 'corporate event',
+    party: 'party invitation'
+  },
+  ar: {
+    wedding: 'دعوة زفاف',
+    engagement: 'دعوة خطوبة',
+    birthday: 'دعوة عيد ميلاد',
+    gala: 'دعوة حفل عشاء',
+    corporate: 'فعالية رسمية',
+    party: 'دعوة حفلة'
+  }
+};
+
 function formatEventDateLine(event, isRTL) {
   if (!event?.event_date) return null;
   return new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
@@ -157,6 +176,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   }, []);
 
   const isWedding = event?.template_type === 'wedding';
+  const isRomantic = event?.template_type === 'wedding' || event?.template_type === 'engagement';
   const customColors = event?.custom_colors || {};
   const themeColor = customColors.primary || (isWedding ? '#B8944F' : '#191B1E');
 
@@ -185,6 +205,38 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const heroInView = useInView(heroRef, { amount: 0.1 });
   const rsvpCardInView = useInView(rsvpCardRef, { amount: 0.3 });
   const [showFloatingCTA, setShowFloatingCTA] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadCard = useCallback(async () => {
+    setDownloading(true);
+    try {
+      const { toPng } = await import('html-to-image');
+      const node = document.getElementById('invitation-card-capture');
+      if (!node) throw new Error('Card element not found');
+
+      // Wait a tiny moment to ensure fonts are fully layout-rendered
+      await new Promise(r => setTimeout(r, 100));
+
+      const dataUrl = await toPng(node, {
+        quality: 0.98,
+        pixelRatio: 2.5,
+        style: {
+          transform: 'scale(1)',
+          borderRadius: '0px',
+        },
+        cacheBust: true,
+      });
+
+      const link = document.createElement('a');
+      link.download = `${event?.title || 'invitation'}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('Failed to download invitation card:', error);
+    } finally {
+      setDownloading(false);
+    }
+  }, [event]);
 
   // Background music — the organizer's uploaded track. Browsers block audio
   // with sound until a real user gesture, so playback is only ever started
@@ -539,6 +591,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const t = translations[lang];
   const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
   const localizedDesc = isRTL && event.description_ar ? event.description_ar : event.description;
+  const isContentLTR = !(/[\u0600-\u06FF]/.test(localizedTitle || ''));
   const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
   const eventPassed = mounted && event.event_date && new Date(event.event_date) < new Date();
 
@@ -698,16 +751,29 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           }}>
             
             {/* Left/Top: Text Content */}
-            <div style={{ flex: '1 1 400px', textAlign: isRTL ? 'right' : 'left', display: 'flex', flexDirection: 'column', alignItems: isRTL ? 'flex-end' : 'flex-start' }}>
+            <div style={{ 
+              flex: '1 1 400px', 
+              textAlign: isContentLTR ? 'left' : 'right', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: isContentLTR ? 'flex-start' : 'flex-end' 
+            }} dir={isContentLTR ? 'ltr' : 'rtl'}>
               <FadeInUp delay={0.1} y={20}>
                 <span style={{
-                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '4px', color: '#D7BE80',
-                  fontWeight: 700, display: 'inline-block', marginBottom: '20px', fontFamily: 'var(--font-sans)',
-                  padding: '8px 24px', borderRadius: '100px',
-                  background: 'rgba(215,190,128,0.1)', border: '1px solid rgba(215,190,128,0.2)',
+                  fontSize: '11px', textTransform: 'uppercase', letterSpacing: '3px', color: '#D7BE80',
+                  fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '24px', fontFamily: 'var(--font-sans)',
+                  padding: '6px 20px', borderRadius: '100px',
+                  background: 'rgba(215,190,128,0.06)', border: '1px solid rgba(215,190,128,0.2)',
                   backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-                }}>
-                  {isRTL ? (event.template_type === 'wedding' ? 'بطاقة زفاف' : 'تفاصيل الفعالية') : `${event.template_type} invitation`}
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }} dir="auto">
+                  <span style={{
+                    width: '6px', height: '6px', borderRadius: '50%',
+                    background: '#D7BE80', display: 'inline-block',
+                    animation: 'pulseDot 2s infinite'
+                  }} />
+                  {templateLabels[lang]?.[event.template_type] || 
+                    (isRTL ? 'تفاصيل الفعالية' : `${event.template_type} invitation`)}
                 </span>
               </FadeInUp>
 
@@ -715,21 +781,31 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 text={localizedTitle}
                 tag="h1"
                 delay={0.2}
+                dir={isContentLTR ? 'ltr' : 'rtl'}
                 style={{
-                  fontSize: 'clamp(40px, 5vw, 56px)', fontWeight: isWedding ? 400 : 700, color: '#FFFFFF',
-                  letterSpacing: '0.5px', marginBottom: '24px',
-                  fontFamily: isWedding ? 'var(--font-serif)' : 'var(--font-sans)',
-                  lineHeight: 1.15, textShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                  fontSize: 'clamp(42px, 5.5vw, 64px)', 
+                  fontWeight: isRomantic ? 400 : 800, 
+                  color: '#FFFFFF',
+                  letterSpacing: isRomantic ? '0px' : '-0.5px', 
+                  marginBottom: '24px',
+                  fontFamily: isRomantic ? 'var(--font-serif)' : 'var(--font-sans)',
+                  lineHeight: 1.1, 
+                  textShadow: '0 4px 30px rgba(0,0,0,0.5)',
                 }}
                 className="ep-hero-title"
               />
 
               <FadeInUp delay={0.5} y={20}>
                 <p style={{
-                  color: 'rgba(255,255,255,0.85)',
-                  fontWeight: 300, fontSize: '16px', lineHeight: 1.8, marginBottom: '40px',
-                  maxWidth: '540px'
-                }}>
+                  color: 'rgba(255,255,255,0.8)',
+                  fontWeight: 300, 
+                  fontSize: '17px', 
+                  lineHeight: 1.85, 
+                  marginBottom: '40px',
+                  maxWidth: '560px',
+                  fontFamily: 'var(--font-sans)',
+                  textShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                }} dir={isContentLTR ? 'ltr' : 'rtl'}>
                   {localizedDesc}
                 </p>
               </FadeInUp>
@@ -739,23 +815,41 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   {/* Jump straight to the RSVP section — the most important action
                       on this page, surfaced from the very first screen instead of
                       making guests scroll past everything to find it. */}
-                  <GlowPulse color={themeColor} intensity={0.3}>
-                    <button
-                      type="button"
-                      onClick={scrollToRsvpSection}
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '8px',
-                        padding: '14px 32px', background: themeColor, color: '#FFFFFF',
-                        fontWeight: 700, fontSize: '14px', borderRadius: '12px',
-                        border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                        letterSpacing: '0.3px', whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {hasResponded ? (isRTL ? '✏️ تعديل ردّك' : '✏️ Update Response') : `✉️ ${t.rsvp_now}`}
-                    </button>
+                  <GlowPulse color={themeColor === '#191B1E' ? '#B8944F' : themeColor} intensity={0.35}>
+                    <MagneticButton>
+                      <motion.button
+                        type="button"
+                        onClick={scrollToRsvpSection}
+                        whileHover={{
+                          scale: 1.025,
+                          y: -2,
+                          backgroundColor: themeColor === '#191B1E' ? '#765C2B' : themeColor,
+                          boxShadow: themeColor === '#191B1E' 
+                            ? '0 8px 25px rgba(184, 148, 79, 0.4)' 
+                            : `0 8px 25px ${themeColor}60`
+                        }}
+                        whileTap={{ scale: 0.975 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '8px',
+                          padding: '14px 32px', 
+                          background: themeColor === '#191B1E' ? '#8A6D34' : themeColor, 
+                          color: '#FFFFFF',
+                          fontWeight: 700, fontSize: '14px', borderRadius: '12px',
+                          border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                          letterSpacing: '0.5px', whiteSpace: 'nowrap',
+                          boxShadow: themeColor === '#191B1E' 
+                            ? '0 8px 20px rgba(138, 109, 52, 0.3)' 
+                            : `0 8px 20px ${themeColor}30`,
+                          transition: 'background 0.2s, color 0.2s',
+                        }}
+                      >
+                        {hasResponded ? (isRTL ? '✏️ تعديل ردّك' : '✏️ Update Response') : `✉️ ${t.rsvp_now}`}
+                      </motion.button>
+                    </MagneticButton>
                   </GlowPulse>
-                  <CalendarButton event={event} isRTL={isRTL} />
-                  <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
+                  <CalendarButton event={event} isRTL={isRTL} variant="outline-gold" />
+                  <ShareButton title={event.title} text={event.description} isRTL={isRTL} variant="ghost-gold" />
                 </div>
               </FadeInUp>
             </div>
@@ -770,20 +864,29 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 perspective: '1000px'
               }}
             >
-              <div style={{
-                width: '100%', maxWidth: '420px', maxHeight: '600px',
-                aspectRatio: '4/5', position: 'relative',
-                borderRadius: '24px', overflow: 'hidden',
-                boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15)',
-                transformStyle: 'preserve-3d', background: 'rgba(0,0,0,0.2)'
-              }}>
+              <motion.div 
+                whileHover={{ 
+                  scale: 1.025, 
+                  y: -5,
+                  boxShadow: `0 45px 90px rgba(0,0,0,0.6), 0 0 30px ${themeColor === '#191B1E' ? 'rgba(184,148,79,0.25)' : themeColor + '2A'}, 0 0 0 1.5px rgba(255,255,255,0.25)`
+                }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                style={{
+                  width: '100%', maxWidth: '420px', maxHeight: '600px',
+                  aspectRatio: '4/5', position: 'relative',
+                  borderRadius: '24px', overflow: 'hidden',
+                  boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15)',
+                  transformStyle: 'preserve-3d', background: 'rgba(0,0,0,0.2)',
+                  cursor: 'pointer'
+                }}
+              >
                 <img 
                   src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'} 
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                   alt="Event Cover" 
                 />
                 <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 30%)' }} />
-              </div>
+              </motion.div>
             </motion.div>
           </div>
         </div>
@@ -794,14 +897,53 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           {/* ─── LEFT COLUMN: Details ─── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
-            {/* Digital Invitation Card — decorative artwork; RSVP now lives in its own section below */}
+            {/* Digital Invitation Card Showcase Frame */}
             <ScaleIn delay={0.05}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '100%', maxWidth: '280px', aspectRatio: '210 / 290',
-                  borderRadius: '14px', overflow: 'hidden',
-                  boxShadow: '0 20px 50px -16px rgba(25,27,30,0.28)',
-                }}>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '24px',
+                width: '100%',
+                padding: '32px 24px',
+                borderRadius: '24px',
+                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                boxShadow: '0 24px 50px -12px rgba(0, 0, 0, 0.25)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+              }}>
+                <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                  <span style={{
+                    fontSize: '11px', textTransform: 'uppercase', letterSpacing: '3px',
+                    color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '4px',
+                    fontFamily: 'var(--font-sans)',
+                  }}>
+                    {isRTL ? 'بطاقة الدعوة الرقمية' : 'Your Digital Invitation'}
+                  </span>
+                  <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
+                    {isRTL ? 'تصميم حصري ومخصص لك' : 'An exclusive design customized for you'}
+                  </span>
+                </div>
+
+                {/* Floating Card Container */}
+                <motion.div 
+                  whileHover={{ 
+                    scale: 1.035,
+                    y: -8,
+                    boxShadow: '0 35px 70px rgba(0,0,0,0.45), 0 0 30px rgba(215, 190, 128, 0.2)'
+                  }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  style={{
+                    width: '100%', maxWidth: '280px', aspectRatio: '210 / 290',
+                    borderRadius: '16px', overflow: 'hidden',
+                    boxShadow: '0 20px 45px rgba(0,0,0,0.3)',
+                    background: '#FAF8F5',
+                    cursor: 'pointer',
+                    position: 'relative'
+                  }}
+                  id="invitation-card-capture"
+                >
                   <InvitationCard
                     template={{ pattern: invitationPattern }}
                     theme={invitationTheme}
@@ -809,7 +951,54 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     config={invitationPattern === 'custom' ? event.template_data : undefined}
                     data={invitationData}
                   />
-                </div>
+                </motion.div>
+
+                {/* Download Button */}
+                <motion.button
+                  type="button"
+                  onClick={handleDownloadCard}
+                  disabled={downloading}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '12px 28px',
+                    background: 'rgba(215, 190, 128, 0.08)',
+                    border: '1.5px solid rgba(215, 190, 128, 0.4)',
+                    borderRadius: '12px',
+                    color: '#D7BE80',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: downloading ? 'not-allowed' : 'pointer',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'all 0.2s',
+                    marginTop: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    width: '100%',
+                    maxWidth: '240px',
+                    justifyContent: 'center',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#D7BE80'; e.currentTarget.style.color = '#121212'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(215, 190, 128, 0.08)'; e.currentTarget.style.color = '#D7BE80'; }}
+                >
+                  {downloading ? (
+                    <>
+                      <div style={{
+                        width: '16px', height: '16px', border: '2px solid transparent',
+                        borderTop: '2px solid currentColor', borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite',
+                      }} />
+                      <span>{isRTL ? 'جاري التحميل...' : 'Downloading...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '1.2em' }}>📥</span>
+                      <span>{isRTL ? 'تحميل بطاقة الدعوة' : 'Download Invitation'}</span>
+                    </>
+                  )}
+                </motion.button>
               </div>
             </ScaleIn>
 
@@ -1463,6 +1652,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
         {/* ═══ GLOBAL STYLES ═══ */}
         <style>{`
+          @keyframes pulseDot {
+            0% { transform: scale(0.85); opacity: 0.5; box-shadow: 0 0 0 0 rgba(215,190,128,0.7); }
+            70% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 6px rgba(215,190,128,0); }
+            100% { transform: scale(0.85); opacity: 0.5; box-shadow: 0 0 0 0 rgba(215,190,128,0); }
+          }
           @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
