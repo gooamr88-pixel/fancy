@@ -336,13 +336,14 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
     deep: "#3a2a14",
   };
 
-  const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));
-  const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
-
   /* DB-driven invitation artwork (stored per-event in template_data). When the
      organizer has uploaded their exact seal / background, we render that art
      pixel-for-pixel; otherwise we fall back to the rich generated vector. */
   const td = event?.template_data || {};
+
+  const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));
+  const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
+
   const sealImg = td.seal_image_url || null;
   const sealGoldImg = td.seal_image_gold_url || sealImg;
   const bgImg = td.invitation_bg_url || null;
