@@ -6,6 +6,7 @@ import { FadeInUp, StaggerChildren, StaggerItem, ShimmerPlaceholder } from '../.
 import { PremiumButton, FormField, inputFocus, inputBlur } from '../../../components/guest/GuestUI';
 import { S } from '../styles';
 import SeatingResultPanel from './SeatingResultPanel';
+import PremiumEnvelopeIcon from '../../../components/guest/PremiumEnvelopeIcon';
 
 /** Step 1 — find your invitation by name, or "Already RSVP'd? Find your table". */
 export default function StepIdentify({
@@ -21,7 +22,7 @@ export default function StepIdentify({
 
       <FadeInUp delay={0.1} y={20}>
         <div style={{ textAlign: 'center', marginBottom: '4px' }}>
-          <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>💌</span>
+          <PremiumEnvelopeIcon />
           <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500, color: '#191B1E', lineHeight: 1.5 }}>
             {isRTL ? 'يسعدنا دعوتك للاحتفال معنا' : 'We would be honored by your presence'}
           </h3>
