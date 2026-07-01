@@ -489,9 +489,44 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         </div>
 
         <div style={fieldGroupStyle}>
+          <label style={labelStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              🌐 Arabic Title <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional — shown when guest switches to Arabic)</span>
+            </span>
+          </label>
+          <input
+            value={templateData.title_ar || ''}
+            onChange={(e) => { setTemplateData(prev => ({ ...prev, title_ar: e.target.value })); setSuccess(false); }}
+            placeholder="عنوان الفعالية بالعربي"
+            dir="rtl"
+            style={{ ...inputStyle, fontFamily: "'Noto Sans Arabic', 'Segoe UI', sans-serif" }}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+          />
+        </div>
+
+        <div style={fieldGroupStyle}>
           <label style={labelStyle}>Description</label>
           <textarea value={form.description} onChange={handleChange('description')} rows={3}
             placeholder="Tell guests about your event…" style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+          />
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              🌐 Arabic Description <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
+            </span>
+          </label>
+          <textarea
+            value={templateData.description_ar || ''}
+            onChange={(e) => { setTemplateData(prev => ({ ...prev, description_ar: e.target.value })); setSuccess(false); }}
+            placeholder="وصف الفعالية بالعربي"
+            rows={3}
+            dir="rtl"
+            style={{ ...inputStyle, resize: 'vertical', minHeight: '80px', fontFamily: "'Noto Sans Arabic', 'Segoe UI', sans-serif" }}
             onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
             onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
           />
@@ -717,6 +752,23 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Dress Code</label>
           <input value={form.dress_code} onChange={handleChange('dress_code')} placeholder="Black Tie, Cocktail, Casual…" style={inputStyle}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+          />
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              🌐 Arabic Dress Code <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
+            </span>
+          </label>
+          <input
+            value={templateData.dress_code_ar || ''}
+            onChange={(e) => { setTemplateData(prev => ({ ...prev, dress_code_ar: e.target.value })); setSuccess(false); }}
+            placeholder="ملابس رسمية، كاجوال..."
+            dir="rtl"
+            style={{ ...inputStyle, fontFamily: "'Noto Sans Arabic', 'Segoe UI', sans-serif" }}
             onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
             onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
           />

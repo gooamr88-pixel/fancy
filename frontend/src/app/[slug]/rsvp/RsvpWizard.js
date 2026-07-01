@@ -202,7 +202,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     document.documentElement.dir = rtl ? 'rtl' : 'ltr';
   }, [lang]);
 
-  const localizedTitle = isRTL && event?.title_ar ? event.title_ar : (event?.title || '');
+  const localizedTitle = isRTL && (event?.title_ar || event?.template_data?.title_ar) ? (event?.title_ar || event?.template_data?.title_ar) : (event?.title || '');
   const coverImage = event?.cover_image_url;
   // The seating chart (table search + personal map) is hidden until 24h before the event.
   const seatingRevealed = event?.event_date ? isSeatingRevealed(event.event_date) : false;

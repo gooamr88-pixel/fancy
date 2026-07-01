@@ -88,7 +88,9 @@ function buildInvitationCardData(event, isRTL) {
   const venueAddress = event?.location_address || null;
   const venueLine = [venueName, venueAddress].filter(Boolean).join(' · ') || null;
   const dateLine = formatEventDateLine(event, isRTL);
-  const dressCode = (isRTL && event?.dress_code_ar) || event?.dress_code || null;
+  const dressCode = (isRTL && td.dress_code_ar) || event?.dress_code || null;
+  // Arabic title override (stored in template_data by EventSettings)
+  const titleAr = td.title_ar || null;
 
   switch (event?.template_type) {
     case 'wedding': {
@@ -98,7 +100,8 @@ function buildInvitationCardData(event, isRTL) {
       // reception_time into the same template_data column — read both shapes.
       const a = td.groom_name || td.partner1Name || td.partner1;
       const b = td.bride_name || td.partner2Name || td.partner2;
-      const names = a && b ? `${a} & ${b}` : (event?.title || null);
+      const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
+      const names = (isRTL && titleAr) ? titleAr : namesEn;
       const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
       const ceremonyLine = td.ceremony_time || td.ceremonyLocation || null;
       const receptionLine = td.reception_time || td.receptionLocation || null;
@@ -107,16 +110,19 @@ function buildInvitationCardData(event, isRTL) {
     case 'engagement': {
       const a = td.partner1Name || td.partner1;
       const b = td.partner2Name || td.partner2;
-      const names = a && b ? `${a} & ${b}` : (event?.title || null);
+      const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
+      const names = (isRTL && titleAr) ? titleAr : namesEn;
       return { names, dateLine, venueLine, dressCode };
     }
     case 'corporate': {
-      const headline = event?.title || null;
+      const headlineEn = event?.title || null;
+      const headline = (isRTL && titleAr) ? titleAr : headlineEn;
       const eyebrow = td.company_name || td.companyName || td.company || null;
       return { headline, eyebrow, dateLine };
     }
     case 'birthday': {
-      const headline = td.birthdayPersonName || td.celebrant || event?.title || null;
+      const headlineEn = td.birthdayPersonName || td.celebrant || event?.title || null;
+      const headline = (isRTL && titleAr) ? titleAr : headlineEn;
       const subtitle = td.theme || td.partyTheme || null;
       const replyBy = event?.rsvp_deadline
         ? `Kindly reply by ${new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`
@@ -124,13 +130,17 @@ function buildInvitationCardData(event, isRTL) {
       return { headline, subtitle, dateLine, venueLine, replyBy };
     }
     case 'gala': {
-      const headline = event?.title || null;
+      const headlineEn = event?.title || null;
+      const headline = (isRTL && titleAr) ? titleAr : headlineEn;
       const honoree = td.honorees || td.honoree || null;
       const eyebrow = honoree ? `Honoring ${honoree}` : null;
       return { headline, eyebrow, dateLine, venueLine };
     }
-    default:
-      return { names: event?.title || null, dateLine, venueLine, dressCode };
+    default: {
+      const namesEn = event?.title || null;
+      const names = (isRTL && titleAr) ? titleAr : namesEn;
+      return { names, dateLine, venueLine, dressCode };
+    }
   }
 }
 
@@ -155,11 +165,14 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Per-guest invitation token. Unlocks private events and lets the RSVP form pre-fill.
   const invitationRsvpId = searchParams?.get('party_id') || null;
   const invitationGuestId = searchParams?.get('g') || null;
-  // Same identity priority as the RSVP wizard (partyId → guestId → device-remembered
-  // id): a guest who already responded via a tokenless public link has no id in this
-  // URL, but the wizard wrote one to localStorage on submit — read it back here so a
-  // repeat visit recognizes them instead of showing a fresh "RSVP Now" prompt.
-  const deviceRememberedId = rememberedId(serverSlug);
+  // Defer localStorage read to after mount to avoid React hydration mismatch
+  // (#418): on the server, rememberedId() returns null (no window), but on the
+  // client it may return a stored UUID — producing different HTML trees.
+  const [deviceRememberedId, setDeviceRememberedId] = useState(null);
+  useEffect(() => {
+    const id = rememberedId(serverSlug);
+    if (id) setDeviceRememberedId(id);
+  }, [serverSlug]);
   const effectiveRsvpId = invitationRsvpId || invitationGuestId || deviceRememberedId;
 
   const [slug, setSlug] = useState(serverSlug || '');
@@ -198,6 +211,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Gallery lightbox
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [cardLightboxOpen, setCardLightboxOpen] = useState(false);
 
   // Floating CTA visibility
   const heroRef = useRef(null);
@@ -589,10 +603,17 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     if (typeof document !== 'undefined') document.documentElement.lang = lang;
   }, [lang]);
   const t = translations[lang];
-  const localizedTitle = isRTL && event.title_ar ? event.title_ar : event.title;
-  const localizedDesc = isRTL && event.description_ar ? event.description_ar : event.description;
+  // Arabic translations: the DB has no dedicated title_ar / description_ar columns.
+  // Organizers store Arabic overrides inside the template_data JSON object, or
+  // as top-level event fields if they were injected (e.g. demo data). Check both.
+  const td = event.template_data || {};
+  const titleAr = event.title_ar || td.title_ar || null;
+  const descAr  = event.description_ar || td.description_ar || null;
+  const dressAr = event.dress_code_ar || td.dress_code_ar || null;
+  const localizedTitle = isRTL && titleAr ? titleAr : event.title;
+  const localizedDesc = isRTL && descAr ? descAr : event.description;
   const isContentLTR = !(/[\u0600-\u06FF]/.test(localizedTitle || ''));
-  const localizedDressCode = isRTL && event.dress_code_ar ? event.dress_code_ar : event.dress_code;
+  const localizedDressCode = isRTL && dressAr ? dressAr : event.dress_code;
   const eventPassed = mounted && event.event_date && new Date(event.event_date) < new Date();
 
   // Digital invitation card — same artwork the organizer previewed in
@@ -813,36 +834,16 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                       on this page, surfaced from the very first screen instead of
                       making guests scroll past everything to find it. */}
                   <GlowPulse color={themeColor === '#191B1E' ? '#B8944F' : themeColor} intensity={0.35}>
-                    <MagneticButton>
-                      <motion.button
-                        type="button"
-                        onClick={scrollToRsvpSection}
-                        whileHover={{
-                          scale: 1.025,
-                          y: -2,
-                          backgroundColor: themeColor === '#191B1E' ? '#765C2B' : themeColor,
-                          boxShadow: themeColor === '#191B1E' 
-                            ? '0 8px 25px rgba(184, 148, 79, 0.4)' 
-                            : `0 8px 25px ${themeColor}60`
-                        }}
-                        whileTap={{ scale: 0.975 }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '8px',
-                          padding: '14px 32px', 
-                          background: themeColor === '#191B1E' ? '#8A6D34' : themeColor, 
-                          color: '#FFFFFF',
-                          fontWeight: 700, fontSize: '14px', borderRadius: '12px',
-                          border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          letterSpacing: '0.5px', whiteSpace: 'nowrap',
-                          boxShadow: themeColor === '#191B1E' 
-                            ? '0 8px 20px rgba(138, 109, 52, 0.3)' 
-                            : `0 8px 20px ${themeColor}30`,
-                          transition: 'background 0.2s, color 0.2s',
-                        }}
-                      >
-                        {hasResponded ? (isRTL ? '✏️ تعديل ردّك' : '✏️ Update Response') : `✉️ ${t.rsvp_now}`}
-                      </motion.button>
+                    <MagneticButton
+                      variant={themeColor === '#191B1E' ? 'gold' : 'gold'}
+                      onClick={scrollToRsvpSection}
+                      style={themeColor !== '#191B1E' ? {
+                        background: themeColor,
+                        color: '#FFFFFF',
+                        boxShadow: `0 8px 25px ${themeColor}4D`
+                      } : {}}
+                    >
+                      {hasResponded ? (isRTL ? '✏️ تعديل ردّك' : '✏️ Update Response') : `✉️ ${t.rsvp_now}`}
                     </MagneticButton>
                   </GlowPulse>
                   <CalendarButton event={event} isRTL={isRTL} variant="outline-gold" />
@@ -925,6 +926,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
                 {/* Floating Card Container */}
                 <motion.div 
+                  onClick={() => setCardLightboxOpen(true)}
                   whileHover={{ 
                     scale: 1.035,
                     y: -8,
@@ -1565,6 +1567,117 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   initialIndex={lightboxIndex}
                   onClose={() => setLightboxOpen(false)}
                 />
+              )}
+            </AnimatePresence>
+
+            {/* Fullscreen Card Lightbox */}
+            <AnimatePresence>
+              {cardLightboxOpen && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setCardLightboxOpen(false)}
+                  style={{
+                    position: 'fixed', inset: 0, zIndex: 1000,
+                    background: 'rgba(20,22,25,0.92)',
+                    backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '24px', cursor: 'zoom-out'
+                  }}
+                >
+                  {/* Close Button */}
+                  <button 
+                    onClick={() => setCardLightboxOpen(false)}
+                    style={{
+                      position: 'absolute', top: '24px', right: '24px',
+                      background: 'rgba(255,255,255,0.1)', border: 'none',
+                      width: '44px', height: '44px', borderRadius: '50%',
+                      color: '#FFFFFF', fontSize: '20px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'background 0.2s', zIndex: 1010
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                  >
+                    ✕
+                  </button>
+
+                  {/* Large Card Container */}
+                  <motion.div 
+                    initial={{ scale: 0.9, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.9, y: 20 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                    onClick={e => e.stopPropagation()} // prevent closing when clicking the card itself
+                    style={{
+                      width: '100%', maxWidth: '420px', aspectRatio: '210 / 290',
+                      borderRadius: '20px', overflow: 'hidden',
+                      boxShadow: '0 30px 90px rgba(0,0,0,0.6), 0 0 50px rgba(215, 190, 128, 0.15)',
+                      background: '#FAF8F5',
+                      cursor: 'default',
+                      position: 'relative'
+                    }}
+                  >
+                    <InvitationCard
+                      template={{ pattern: invitationPattern }}
+                      theme={invitationTheme}
+                      guestName={invitationGuestName}
+                      config={invitationPattern === 'custom' ? event.template_data : undefined}
+                      data={invitationData}
+                    />
+                  </motion.div>
+
+                  {/* Plaque actions under the card */}
+                  <div 
+                    onClick={e => e.stopPropagation()}
+                    style={{ marginTop: '24px', display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' }}
+                  >
+                    <button
+                      type="button"
+                      onClick={handleDownloadCard}
+                      disabled={downloading}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '8px',
+                        padding: '12px 28px', background: '#D7BE80', color: '#121212',
+                        border: 'none', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
+                        cursor: downloading ? 'not-allowed' : 'pointer',
+                        fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
+                        boxShadow: '0 8px 25px rgba(215, 190, 128, 0.3)'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#FFFFFF'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#D7BE80'}
+                    >
+                      {downloading ? (
+                        <>
+                          <div style={{
+                            width: '14px', height: '14px', border: '2px solid transparent',
+                            borderTop: '2px solid currentColor', borderRadius: '50%',
+                            animation: 'spin 0.8s linear infinite',
+                          }} />
+                          <span>{isRTL ? 'جاري التحميل...' : 'Downloading...'}</span>
+                        </>
+                      ) : (
+                        <span>📥 {isRTL ? 'تحميل الكارت' : 'Download Card'}</span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setCardLightboxOpen(false)}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '8px',
+                        padding: '12px 28px', background: 'transparent', color: '#FFFFFF',
+                        border: '1.5px solid rgba(255,255,255,0.4)', borderRadius: '12px', fontSize: '13px', fontWeight: 700,
+                        cursor: 'pointer', fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {isRTL ? 'إغلاق' : 'Close'}
+                    </button>
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>

@@ -108,7 +108,7 @@ function deriveIdentity(event, lang) {
   let full;
   if (a && b) full = `${a} & ${b}`;
   else if (a) full = a;
-  else full = (lang === "ar" && event?.title_ar) ? event.title_ar : (event?.title || "");
+  else full = (lang === "ar" && (event?.title_ar || td.title_ar)) ? (event?.title_ar || td.title_ar) : (event?.title || "");
 
   // Seal centrepiece — organizer override (`template_data.seal_text`) wins, so an
   // Arabic event can show its exact calligraphic name (e.g. حسن). Otherwise we
@@ -116,7 +116,7 @@ function deriveIdentity(event, lang) {
   // word, a Latin event as a refined monogram.
   let sealText = (td.seal_text || "").trim();
   if (!sealText) {
-    const arabicSource = [a, b, event?.title_ar, event?.title].find((s) => isArabic(s));
+    const arabicSource = [a, b, event?.title_ar, td.title_ar, event?.title].find((s) => isArabic(s));
     if (arabicSource) {
       sealText = arabicSource.trim().split(/\s+/).filter(Boolean)[0] || arabicSource.trim();
     } else if (a && b) {
@@ -336,7 +336,7 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
     deep: "#3a2a14",
   };
 
-  const hasArabic = !!(event?.title_ar || isArabic(event?.title));
+  const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
 
   /* DB-driven invitation artwork (stored per-event in template_data). When the
@@ -365,8 +365,9 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
   }[lang];
 
   const isRTL = lang === "ar";
-  const displayTitle = isRTL && event?.title_ar ? event.title_ar : event?.title;
-  const displayName = isRTL && event?.title_ar && !event?.template_data?.groom_name ? event.title_ar : identity.full;
+  const arTitle = event?.title_ar || td.title_ar;
+  const displayTitle = isRTL && arTitle ? arTitle : event?.title;
+  const displayName = isRTL && arTitle && !event?.template_data?.groom_name ? arTitle : identity.full;
   const dateStr = event?.event_date
     ? new Date(event.event_date).toLocaleDateString(isRTL ? "ar-EG" : "en-US", {
         weekday: "long", day: "numeric", month: "long", year: "numeric",
