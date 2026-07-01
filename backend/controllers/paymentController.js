@@ -166,6 +166,26 @@ const createCheckoutSession = async (req, res, next) => {
         message: `'${tier.name}' is not more expensive than your current plan ('${previousTier.name}'). Choose a higher tier to upgrade.`
       });
     }
+
+    // Per-tier event cap: a tier's max_events (0/null = unlimited) limits how many of
+    // this org's OTHER paid events may already be on that same tier.
+    if (Number(tier.max_events) > 0) {
+      const { count } = await supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', eventData.org_id)
+        .eq('is_paid', true)
+        .ilike('tier_name', tier.name)
+        .neq('id', eventId);
+      if ((count || 0) >= tier.max_events) {
+        return res.status(409).json({
+          success: false,
+          error: 'TIER_LIMIT_REACHED',
+          message: `You've reached the maximum number of events (${tier.max_events}) allowed on the '${tier.name}' plan.`
+        });
+      }
+    }
+
     const chargeAmountCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
 
     let customerId = eventData.organizations?.stripe_customer_id;
@@ -206,6 +226,7 @@ const createCheckoutSession = async (req, res, next) => {
         event_id: eventId,
         tier_name: tier.name,
         tier_max_guests: tier.max_guests != null ? String(tier.max_guests) : '',
+        tier_remove_watermark: tier.remove_watermark ? '1' : '0',
         type: 'event_fee',
         is_upgrade: isUpgrade ? '1' : '0',
         previous_tier_name: isUpgrade ? previousTier.name : '',
@@ -477,7 +498,7 @@ const manualCashApproval = async (req, res, next) => {
     // 1. Check if there is an existing pending cash_manual payment record
     const { data: pendingPayment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, amount_cents, stripe_checkout_session_id, reference_number, tier_name, tier_max_guests')
+      .select('id, amount_cents, stripe_checkout_session_id, reference_number, tier_name, tier_max_guests, tier_remove_watermark')
       .eq('event_id', eventId)
       .eq('payment_method', 'cash_manual')
       .eq('status', 'pending')
@@ -525,6 +546,7 @@ const manualCashApproval = async (req, res, next) => {
           status: 'active',
           tier_name: pendingPayment[0].tier_name || null,
           tier_max_guests: pendingPayment[0].tier_max_guests ?? null,
+          tier_remove_watermark: !!pendingPayment[0].tier_remove_watermark,
           updated_at: new Date().toISOString()
         })
         .eq('id', eventId);
@@ -734,7 +756,7 @@ const initiateManualPayment = async (req, res, next) => {
     // never disagree on what an upgrade costs.
     const { data: eventRow } = await supabase
       .from('events')
-      .select('is_paid, tier_name')
+      .select('is_paid, tier_name, org_id')
       .eq('id', eventId)
       .single();
     let previousTier = null;
@@ -749,6 +771,25 @@ const initiateManualPayment = async (req, res, next) => {
         message: `'${tier.name}' is not more expensive than your current plan ('${previousTier.name}'). Choose a higher tier to upgrade.`
       });
     }
+
+    // Per-tier event cap — mirrors the same check in createCheckoutSession.
+    if (Number(tier.max_events) > 0 && eventRow?.org_id) {
+      const { count } = await supabase
+        .from('events')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', eventRow.org_id)
+        .eq('is_paid', true)
+        .ilike('tier_name', tier.name)
+        .neq('id', eventId);
+      if ((count || 0) >= tier.max_events) {
+        return res.status(409).json({
+          success: false,
+          error: 'TIER_LIMIT_REACHED',
+          message: `You've reached the maximum number of events (${tier.max_events}) allowed on the '${tier.name}' plan.`
+        });
+      }
+    }
+
     const chargeAmountCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
 
     // 2. If a pending cash payment already exists, REFRESH it to the currently
@@ -767,6 +808,7 @@ const initiateManualPayment = async (req, res, next) => {
         amount_cents: chargeAmountCents,
         tier_name: tier.name,
         tier_max_guests: tierMaxGuests,
+        tier_remove_watermark: !!tier.remove_watermark,
       };
       if (methodLabel !== undefined) patch.manual_method = (methodLabel || '').toString().slice(0, 200);
       if (payerReference !== undefined) patch.payer_reference = (payerReference || '').toString().slice(0, 300);
@@ -804,6 +846,7 @@ const initiateManualPayment = async (req, res, next) => {
         currency: 'usd',
         tier_name: tier.name,
         tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
+        tier_remove_watermark: !!tier.remove_watermark,
         manual_method: methodLabel ? methodLabel.toString().slice(0, 200) : null,
         payer_reference: payerReference ? payerReference.toString().slice(0, 300) : null
       })

@@ -466,6 +466,7 @@ const updateEventAdmin = async (req, res, next) => {
       updates.manual_override = true;
       updates.tier_name = tier.name;
       updates.tier_max_guests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
+      updates.tier_remove_watermark = !!tier.remove_watermark;
       updates.comp_reason = compReason.trim();
     } else {
       // Revoking removes the granted tier/reason too — a real Stripe/cash payment
@@ -473,6 +474,7 @@ const updateEventAdmin = async (req, res, next) => {
       updates.manual_override = false;
       updates.tier_name = null;
       updates.tier_max_guests = null;
+      updates.tier_remove_watermark = false;
       updates.comp_reason = null;
     }
   }

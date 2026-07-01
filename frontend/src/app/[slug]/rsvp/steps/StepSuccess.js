@@ -50,6 +50,7 @@ export default function StepSuccess({
               qrData={partyId ? `fancy-rsvp:${slug}:${partyId}` : null}
               themeColor={themeColor}
               isRTL={isRTL}
+              removeWatermark={!!event?.tier_remove_watermark}
             />
           </FadeInUp>
 
@@ -125,6 +126,7 @@ export default function StepSuccess({
               qrData={partyId ? `fancy-rsvp:${slug}:${partyId}` : null}
               themeColor={themeColor}
               isRTL={isRTL}
+              removeWatermark={!!event?.tier_remove_watermark}
             />
           </FadeInUp>
 

@@ -73,7 +73,7 @@ export default function ConfigPage() {
   const addTier = () => {
     setPricingTiers(prev => [
       ...prev,
-      { name: 'New Tier', price_cents: 1900, max_guests: 100, recommended: false, is_custom: false, features: [] }
+      { name: 'New Tier', price_cents: 1900, max_guests: 100, max_events: 0, remove_watermark: false, recommended: false, is_custom: false, features: [] }
     ]);
   };
 
@@ -154,7 +154,7 @@ export default function ConfigPage() {
                   <Field label="Max Guests (0 = unlimited)"><input type="number" value={tier.max_guests} onChange={e => handleTierChange(idx, 'max_guests', e.target.value)} style={inputStyle} /></Field>
                   <Button variant="danger" onClick={() => removeTier(idx)}>✕</Button>
                 </div>
-                
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                   <Field label="Display Price Label (e.g. Custom)"><input value={tier.price_label || ''} onChange={e => handleTierChange(idx, 'price_label', e.target.value)} placeholder="auto from price" style={inputStyle} /></Field>
                   <Field label="CTA Button Label"><input value={tier.cta_label || ''} onChange={e => handleTierChange(idx, 'cta_label', e.target.value)} placeholder="Get Started" style={inputStyle} /></Field>
@@ -164,12 +164,19 @@ export default function ConfigPage() {
                   <Field label="Description"><input value={tier.description || ''} onChange={e => handleTierChange(idx, 'description', e.target.value)} style={inputStyle} /></Field>
                 </div>
 
-                <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+                <div style={{ marginBottom: 12 }}>
+                  <Field label="Max Events on this tier (0 = unlimited)"><input type="number" min="0" value={tier.max_events ?? ''} onChange={e => handleTierChange(idx, 'max_events', e.target.value)} placeholder="unlimited" style={inputStyle} /></Field>
+                </div>
+
+                <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.text700, cursor: 'pointer' }}>
                     <input type="checkbox" checked={tier.recommended === true} onChange={e => handleTierChange(idx, 'recommended', e.target.checked)} /> ⭐ Most Popular
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.text700, cursor: 'pointer' }}>
                     <input type="checkbox" checked={tier.is_custom === true} onChange={e => handleTierChange(idx, 'is_custom', e.target.checked)} /> Contact Sales / Custom Price
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.text700, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={tier.remove_watermark === true} onChange={e => handleTierChange(idx, 'remove_watermark', e.target.checked)} /> Remove Watermark
                   </label>
                 </div>
 

@@ -37,7 +37,7 @@ function Perforation({ isRTL }) {
 export default function GuestPassCard({
   guestName, eventTitle, eventDate, eventLocation,
   tableName, response = 'yes', qrData, themeColor = '#B8944F',
-  isRTL = false, onDownload,
+  isRTL = false, onDownload, removeWatermark = false,
 }) {
   const [qrImageUrl, setQrImageUrl] = useState(null);
   const [flipped, setFlipped] = useState(false);
@@ -148,9 +148,11 @@ export default function GuestPassCard({
     ctx.fillStyle = '#0E0F10';
     ctx.fillText(statusText, 58, 379);
 
-    ctx.fillStyle = 'rgba(255,255,255,0.22)';
-    ctx.font = '400 11px sans-serif';
-    ctx.fillText('Powered by Fancy RSVP', 44, h - 24);
+    if (!removeWatermark) {
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.font = '400 11px sans-serif';
+      ctx.fillText('Powered by Fancy RSVP', 44, h - 24);
+    }
 
     // Right section — QR stub
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -189,7 +191,7 @@ export default function GuestPassCard({
     }
 
     if (onDownload) onDownload();
-  }, [eventTitle, dateFormatted, dateShort, timeFormatted, eventLocation, guestName, tableName, response, themeColor, qrImageUrl, onDownload]);
+  }, [eventTitle, dateFormatted, dateShort, timeFormatted, eventLocation, guestName, tableName, response, themeColor, qrImageUrl, onDownload, removeWatermark]);
 
   return (
     <div style={{ perspective: '1400px', maxWidth: '480px', width: '100%', margin: '0 auto' }}>
@@ -362,8 +364,10 @@ export default function GuestPassCard({
               ? 'يُرجى إبراز رمز QR عند الوصول لتسجيل دخولك بسلاسة. هذه التذكرة شخصية وغير قابلة للتحويل.'
               : 'Present this QR at the entrance for a seamless check-in. This pass is personal and non-transferable.'}
           </p>
-          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px' }}>Fancy RSVP</span>
+          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: removeWatermark ? 'flex-end' : 'space-between' }}>
+            {!removeWatermark && (
+              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px' }}>Fancy RSVP</span>
+            )}
             <span style={{ fontSize: '10px', color: themeColor, fontWeight: 700 }}>
               {isRTL ? '↺ اضغط للعودة' : '↺ Tap to flip back'}
             </span>
