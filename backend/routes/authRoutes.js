@@ -38,7 +38,9 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
   body('name').trim().notEmpty().withMessage('Your name is required'),
-  body('orgName').trim().notEmpty().isLength({ max: 200 }).withMessage('Organization name is required (max 200 chars)'),
+  // Organization name is optional — the controller falls back to the person's name
+  // (mirroring the Google sign-up flow). Validate length only when a value is present.
+  body('orgName').optional({ values: 'falsy' }).trim().isLength({ max: 200 }).withMessage('Organization name must be 200 characters or fewer'),
   validate
 ], authController.register);
 

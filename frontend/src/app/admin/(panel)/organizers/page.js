@@ -3,16 +3,17 @@
 import { useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import useAdminList from '../../_hooks/useAdminList';
+import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
-
-const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { money } from '../../_lib/format';
 
 export default function OrganizersPage() {
   const { showAlert, showConfirm, showToast } = useAlert();
+  const { can } = usePermissions();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [selectedOrg, setSelectedOrg] = useState(null);
@@ -49,6 +50,7 @@ export default function OrganizersPage() {
   };
 
   const handleImpersonate = async (ownerUserId) => {
+    if (!await showConfirm('You will be logged in as this organizer, with full access to their account. Continue?', 'Impersonate Organizer', 'warning')) return;
     setImpersonating(true);
     try {
       const res = await adminApi.post(`/organizers/${ownerUserId}/impersonate`);
@@ -166,32 +168,38 @@ export default function OrganizersPage() {
                 </div>
               )}
 
-              <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <Button
-                  variant="primary"
-                  disabled={impersonating}
-                  onClick={() => handleImpersonate(selectedOrg.ownerUserId)}
-                >
-                  {impersonating ? 'Redirection session active…' : '👤 Impersonate Organizer'}
-                </Button>
+              {(can('organizers.impersonate') || can('organizers.manage')) && (
+                <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {can('organizers.impersonate') && (
+                    <Button
+                      variant="primary"
+                      disabled={impersonating}
+                      onClick={() => handleImpersonate(selectedOrg.ownerUserId)}
+                    >
+                      {impersonating ? 'Redirection session active…' : '👤 Impersonate Organizer'}
+                    </Button>
+                  )}
 
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <Button
-                    variant="default"
-                    onClick={() => handleResetPassword(selectedOrg.ownerUserId)}
-                  >
-                    🔑 Reset Password
-                  </Button>
+                  {can('organizers.manage') && (
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <Button
+                        variant="default"
+                        onClick={() => handleResetPassword(selectedOrg.ownerUserId)}
+                      >
+                        🔑 Reset Password
+                      </Button>
 
-                  <Button
-                    variant={orgDetails?.status === 'banned' ? 'primary' : 'danger'}
-                    disabled={changingStatus}
-                    onClick={() => handleToggleSuspend(selectedOrg.ownerUserId, orgDetails?.status)}
-                  >
-                    {changingStatus ? 'Updating…' : orgDetails?.status === 'banned' ? '🔓 Reactivate Account' : '🚫 Suspend Account'}
-                  </Button>
+                      <Button
+                        variant={orgDetails?.status === 'banned' ? 'primary' : 'danger'}
+                        disabled={changingStatus}
+                        onClick={() => handleToggleSuspend(selectedOrg.ownerUserId, orgDetails?.status)}
+                      >
+                        {changingStatus ? 'Updating…' : orgDetails?.status === 'banned' ? '🔓 Reactivate Account' : '🚫 Suspend Account'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
                 <Button variant="ghost" onClick={closeDetail}>Close</Button>

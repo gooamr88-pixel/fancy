@@ -179,6 +179,7 @@ export default function DashboardPage() {
   const [qrModalTab, setQrModalTab] = useState('qr');
   const [copyTooltip, setCopyTooltip] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [forcePasswordReset, setForcePasswordReset] = useState(false);
 
 
   const [events, setEvents] = useState([]);
@@ -201,10 +202,12 @@ export default function DashboardPage() {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     const saved = params.get('saved');
+    const forceReset = params.get('forceReset');
     if (tab) setActiveTab(tab);
     if (saved === 'draft') toast.success('Draft saved — finish it any time from Drafts.');
-    if (tab || saved) {
-      params.delete('tab'); params.delete('saved');
+    if (forceReset === '1') setForcePasswordReset(true);
+    if (tab || saved || forceReset) {
+      params.delete('tab'); params.delete('saved'); params.delete('forceReset');
       const qs = params.toString();
       window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
     }
@@ -925,7 +928,7 @@ export default function DashboardPage() {
         <div className="content-container" style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
 
           {activeTab === 'profile' ? (
-            <OrganizerProfile events={events} />
+            <OrganizerProfile events={events} forcePasswordReset={forcePasswordReset} onPasswordReset={() => setForcePasswordReset(false)} />
           ) : activeTab === 'settings' ? (
             <EventSettings eventId={eventId} event={activeEvent} onEventUpdated={(updated) => {
               setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, ...updated } : ev));

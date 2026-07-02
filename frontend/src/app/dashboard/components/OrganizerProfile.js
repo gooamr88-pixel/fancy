@@ -54,7 +54,7 @@ function getDeviceIcon(label = '') {
   );
 }
 
-export default function OrganizerProfile({ events = [] }) {
+export default function OrganizerProfile({ events = [], forcePasswordReset = false, onPasswordReset }) {
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState({
     name: '',
@@ -222,6 +222,7 @@ export default function OrganizerProfile({ events = [] }) {
       toast.success(profile?.hasPassword ? 'Password changed successfully.' : 'Password created successfully.');
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setProfile(prev => ({ ...prev, hasPassword: true }));
+      onPasswordReset?.();
     } catch (err) {
       toast.error(err.message || 'Failed to change password.');
     } finally {
@@ -463,6 +464,16 @@ export default function OrganizerProfile({ events = [] }) {
           </span>
         </h3>
         <form onSubmit={handleChangePassword}>
+          {forcePasswordReset && (
+            <div style={{
+              display: 'flex', gap: '12px', background: '#FDF6E9', border: '1px solid #EFDFB8',
+              borderRadius: '8px', padding: '14px 16px', marginBottom: '18px', alignItems: 'flex-start'
+            }}>
+              <div style={{ fontSize: '13px', color: '#8A6416', fontFamily: 'var(--font-sans)', lineHeight: 1.4 }}>
+                An admin reset your password. Please set a new one below to finish securing your account.
+              </div>
+            </div>
+          )}
           {!profile?.hasPassword && (
             <div style={{
               display: 'flex', gap: '12px', background: '#F0F4F8', border: '1px solid #D0E0F0',

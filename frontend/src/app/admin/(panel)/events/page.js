@@ -9,8 +9,7 @@ import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
-
-const money = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { money } from '../../_lib/format';
 
 export default function EventsPage() {
   const { showAlert, showConfirm } = useAlert();
@@ -48,6 +47,7 @@ export default function EventsPage() {
   }, []);
 
   const handleStatusChange = async (eventId, status) => {
+    if (!await showConfirm(`Change this event's status to "${status}"?`, 'Update Status', 'warning')) return;
     setBusyId(eventId);
     try {
       await adminApi.patch(`/events/${eventId}`, { status });

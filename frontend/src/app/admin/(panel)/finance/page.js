@@ -3,14 +3,16 @@
 import { useEffect, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import StatCard from '../../_components/StatCard';
+import { PageLoading } from '../../_components/Spinner';
 import { T, card } from '../../_components/theme';
+import { money } from '../../_lib/format';
 
 /**
  * Financial Command Center (Master Plan §22). Reads GET /admin/finance/summary
  * (backed by the mv_daily_revenue rollup) and renders gross/net/refunded/profit
  * KPIs, a daily net bar chart, and a simple forecast.
  */
-const fmt = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+const fmt = (cents) => money(cents, 0);
 
 const ICONS = {
   gross: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>,
@@ -40,7 +42,7 @@ export default function FinancePage() {
     return () => { ignore = true; };
   }, []);
 
-  if (loading) return <p style={{ color: T.text500 }}>Loading financials…</p>;
+  if (loading) return <PageLoading label="Loading financials…" />;
   if (error) return <p style={{ color: T.danger }}>{error}</p>;
   if (!fin) return <p style={{ color: T.text500 }}>No financial data.</p>;
 
@@ -51,7 +53,7 @@ export default function FinancePage() {
   return (
     <div>
       <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0 }}>Financial Command Center</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Financial Command Center</h1>
         <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>
           {fin.range?.from} → {fin.range?.to}
         </p>

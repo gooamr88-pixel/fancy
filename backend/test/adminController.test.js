@@ -25,7 +25,7 @@ const { grantSmsCredits, updateEventAdmin, declineManualPayment, setUserRole } =
 
 t.beforeEach(() => mock.reset());
 
-const admin = { id: 'admin-1' };
+const admin = { id: 'admin-1', access: { isSuperAdmin: true } };
 
 // ── grantSmsCredits ──
 

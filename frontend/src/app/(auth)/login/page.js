@@ -40,7 +40,7 @@ export default function LoginPage() {
       if (data.success) {
         localStorage.setItem('org_id', data.organization.id);
         localStorage.setItem('user_role', data.user.role);
-        router.push('/dashboard');
+        router.push(data.user.mustResetPassword ? '/dashboard?tab=profile&forceReset=1' : '/dashboard');
       } else {
         setToast({ message: data.message || 'Login failed. Please try again.', kind: 'error' });
       }

@@ -8,13 +8,14 @@ import DataTable from '../../_components/DataTable';
 import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
+import { money as fmt } from '../../_lib/format';
+import { Field } from '../../_components/Field';
 
 /**
  * Credit Management (Master Plan §10). Two surfaces:
  *  1. Credit package catalog (sms / email / qr) — full CRUD + enable/disable.
  *  2. Live SMS wallet overview with complimentary credit grants per event.
  */
-const fmt = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const TYPE_LABEL = { sms: 'SMS', email: 'Email', qr: 'QR' };
 const EMPTY_PKG = { type: 'sms', name: '', credits: '', bonusCredits: '0', price: '', currency: 'usd', sortOrder: '0', isActive: true };
 
@@ -22,7 +23,7 @@ export default function CreditsPage() {
   return (
     <div>
       <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0 }}>Credit Management</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Credit Management</h1>
         <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Sell credit bundles and grant complimentary credits.</p>
       </header>
       <PackageCatalog />
@@ -274,11 +275,3 @@ const inputStyle = {
   outline: 'none',
 };
 
-function Field({ label, children }) {
-  return (
-    <label style={{ display: 'block', marginBottom: 4 }}>
-      <span style={{ display: 'block', fontSize: 11, color: T.text400, fontWeight: 600, marginBottom: 4 }}>{label}</span>
-      {children}
-    </label>
-  );
-}

@@ -7,6 +7,7 @@ const { escapeHtml, getEmailVerificationTemplate, getPasswordResetTemplate, getO
 const { setAuthCookie, clearAuthCookie, COOKIE_NAME } = require('../middleware/auth');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { newJti, recordSession, revokeByJti, revokeAllForUser, recordLogin } = require('../services/sessionService');
+const { getAccessContext } = require('../services/rbacService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -194,12 +195,6 @@ const register = async (req, res, next) => {
       if (orgError) throw orgError;
     }
 
-    // Create user role profile (upsert in case of re-registration)
-    const { error: roleError } = await supabase
-      .from('user_roles')
-      .upsert({ user_id: userId, role: 'organizer' }, { onConflict: 'user_id' });
-    if (roleError) throw roleError;
-
     // Dispatch verification email via Brevo (premium centralized template)
     const emailHtml = getEmailVerificationTemplate(name, otp);
 
@@ -340,7 +335,7 @@ const login = async (req, res, next) => {
     // Resolve organization by email
     const { data: orgs } = await supabase
       .from('organizations')
-      .select('id, owner_user_id, name, email, phone, password_hash, failed_login_attempts, lockout_until, email_verified')
+      .select('id, owner_user_id, name, email, phone, password_hash, failed_login_attempts, lockout_until, email_verified, must_reset_password')
       .eq('email', normalizedEmail)
       .limit(1);
 
@@ -412,30 +407,10 @@ const login = async (req, res, next) => {
 
     const userId = org.owner_user_id;
 
-    // Resolve user role — check both the legacy user_roles table AND the new
-    // RBAC model (admin_users → admin_user_roles → roles) so that RBAC-assigned
-    // super admins are correctly detected.
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .single();
-
-    let role = roleData?.role || 'organizer';
-
-    // If the legacy table says 'organizer', check the RBAC model for a super_admin role.
-    if (role !== 'super_admin') {
-      const { data: adminRow } = await supabase
-        .from('admin_users')
-        .select('id, status, admin_user_roles(roles(key))')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .maybeSingle();
-      if (adminRow) {
-        const roleKeys = (adminRow.admin_user_roles || []).map(aur => aur.roles?.key).filter(Boolean);
-        if (roleKeys.includes('super_admin')) role = 'super_admin';
-      }
-    }
+    // Resolve role from the RBAC tables (admin_users → admin_user_roles →
+    // roles) — the single source of truth for admin access.
+    const access = await getAccessContext(userId);
+    const role = access.isSuperAdmin ? 'super_admin' : 'organizer';
 
     // Issue httpOnly auth cookie + server-side session
     await issueAuthCookie(req, res, { id: userId, email: normalizedEmail, role });
@@ -444,7 +419,7 @@ const login = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Login successful.',
-      user: { id: userId, email: normalizedEmail, name: org.name, role },
+      user: { id: userId, email: normalizedEmail, name: org.name, role, mustResetPassword: !!org.must_reset_password },
       organization: {
         id: org.id,
         owner_user_id: org.owner_user_id,
@@ -838,7 +813,7 @@ const changePassword = async (req, res, next) => {
 
     const { error: updateError } = await supabase
       .from('organizations')
-      .update({ password_hash: newHash })
+      .update({ password_hash: newHash, must_reset_password: false })
       .eq('id', org.id);
 
     if (updateError) throw updateError;
@@ -958,18 +933,9 @@ const googleAuth = async (req, res, next) => {
 
     const userId = org.owner_user_id;
 
-    // Ensure the role profile exists (covers both new and legacy accounts)
-    await supabase
-      .from('user_roles')
-      .upsert({ user_id: userId, role: 'organizer' }, { onConflict: 'user_id' });
-
-    // Resolve the role
-    const { data: roleData } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .single();
-    const role = roleData?.role || 'organizer';
+    // Resolve role from the RBAC tables — same source of truth as password login.
+    const access = await getAccessContext(userId);
+    const role = access.isSuperAdmin ? 'super_admin' : 'organizer';
 
     // Issue auth cookie
     await issueAuthCookie(req, res, { id: userId, email: email, role });

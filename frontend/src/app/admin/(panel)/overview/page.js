@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import StatCard from '../../_components/StatCard';
 import DataTable from '../../_components/DataTable';
+import { PageLoading } from '../../_components/Spinner';
 import { T, card } from '../../_components/theme';
+import { money as fmtMoney } from '../../_lib/format';
 
 /**
  * Executive Overview (Master Plan §1) rebuilt on the new shell + primitives.
@@ -12,7 +14,6 @@ import { T, card } from '../../_components/theme';
  * recent activity feed. This is the first section migrated into the (panel)
  * shell, proving the foundation end-to-end.
  */
-const fmtMoney = (cents) => `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const ICONS = {
   gross: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>,
@@ -43,7 +44,7 @@ export default function OverviewPage() {
     return () => { ignore = true; };
   }, []);
 
-  if (loading) return <p style={{ color: T.text500 }}>Loading overview…</p>;
+  if (loading) return <PageLoading label="Loading overview…" />;
   if (error) return <p style={{ color: T.danger }}>{error}</p>;
   if (!ov) return <p style={{ color: T.text500 }}>No data available.</p>;
 

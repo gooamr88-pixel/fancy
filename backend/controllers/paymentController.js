@@ -185,6 +185,54 @@ const createCheckoutSession = async (req, res, next) => {
 
     const chargeAmountCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
 
+    // A genuinely free tier (price_cents <= 0, fresh purchase only — an upgrade
+    // can never land here since NOT_AN_UPGRADE above already requires a strictly
+    // higher price) skips Stripe entirely: activate the tier the same way
+    // fulfillCheckoutSession does for a real payment, just with a $0 record.
+    if (!isUpgrade && chargeAmountCents <= 0) {
+      const { data: updatedEvent, error: activateError } = await supabase
+        .from('events')
+        .update({
+          is_paid: true,
+          status: 'pending_review',
+          tier_name: tier.name,
+          tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
+          tier_remove_watermark: !!tier.remove_watermark,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', eventId)
+        .eq('is_paid', false)
+        .select('id')
+        .maybeSingle();
+      if (activateError) throw activateError;
+
+      if (updatedEvent) {
+        await supabase.from('event_payments').insert({
+          event_id: eventId,
+          amount_cents: 0,
+          currency: 'usd',
+          status: 'completed',
+          payment_method: 'free_tier',
+          tier_name: tier.name,
+          tier_max_guests: Number.isFinite(tier.max_guests) ? tier.max_guests : null,
+          tier_remove_watermark: !!tier.remove_watermark,
+          completed_at: new Date().toISOString(),
+        });
+        await supabase.from('activity_logs').insert({
+          event_id: eventId,
+          action: 'event_payment_completed',
+          entity_type: 'event_payment',
+          metadata: { amount_cents: 0, tier_name: tier.name, free_tier: true },
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        activated: true,
+        message: `'${tier.name}' is a free plan — activated without payment.`,
+      });
+    }
+
     let customerId = eventData.organizations?.stripe_customer_id;
     if (!customerId) {
       // Create Stripe customer

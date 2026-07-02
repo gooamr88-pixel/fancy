@@ -6,7 +6,7 @@ const { refundEventPayment } = require('../services/stripeRefundService');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getEventLiveTemplate, getPublicBaseUrl } = require('../utils/emailTemplates');
 const { getPlatformConfig } = require('../utils/configCache');
-const { applyAdminRoles } = require('./admin/rbacController');
+const { applyAdminRoles, isForbiddenSelfDemotion } = require('./admin/rbacController');
 
 const VALID_ROLES = ['organizer', 'super_admin'];
 const VALID_EVENT_STATUSES = ['draft', 'pending_review', 'active', 'paused', 'completed'];
@@ -102,7 +102,7 @@ const setUserRole = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'INVALID_ROLE', message: `role must be one of: ${VALID_ROLES.join(', ')}.` });
   }
   // Prevent a super admin from demoting themselves (avoids accidental lockout).
-  if (userId === req.user.id && role !== 'super_admin') {
+  if (isForbiddenSelfDemotion(req, userId, role === 'super_admin' ? ['super_admin'] : [])) {
     return res.status(400).json({
       success: false,
       error: 'SELF_DEMOTION_FORBIDDEN',
@@ -111,21 +111,11 @@ const setUserRole = async (req, res, next) => {
   }
 
   try {
-    // Write to the live RBAC tables the access check actually reads — the
-    // legacy user_roles upsert alone left super_admin grants from this
-    // endpoint with no real effect (the cause of the original lockout).
+    // Write to the live RBAC tables — the only place the access check reads.
     await applyAdminRoles(userId, role === 'super_admin' ? ['super_admin'] : []);
 
-    const { data, error } = await supabase
-      .from('user_roles')
-      .upsert({ user_id: userId, role }, { onConflict: 'user_id' })
-      .select()
-      .single();
-
-    if (error) throw error;
-
     await logAdminAction(req, { action: 'rbac.legacy_set_role', entityType: 'admin_user', entityId: userId, after: { role } });
-    return res.json({ success: true, message: 'User role updated successfully.', userRole: data });
+    return res.json({ success: true, message: 'User role updated successfully.', userRole: { user_id: userId, role } });
   } catch (err) {
     next(err);
   }
@@ -419,6 +409,13 @@ const declineManualPayment = async (req, res, next) => {
       entity_id: paymentId,
       metadata: { amount_cents: payment.amount_cents, reason },
     });
+    await logAdminAction(req, {
+      action: 'payment.decline',
+      entityType: 'event_payment',
+      entityId: paymentId,
+      after: { amount_cents: payment.amount_cents },
+      metadata: { reason: reason || null },
+    });
 
     return res.json({ success: true, message: 'Payment declined — money was not received.' });
   } catch (err) {
@@ -517,6 +514,13 @@ const updateEventAdmin = async (req, res, next) => {
       entity_id: eventId,
       metadata: updates,
     });
+    await logAdminAction(req, {
+      action: 'event.admin_update',
+      entityType: 'event',
+      entityId: eventId,
+      before: prior ? { status: prior.status } : undefined,
+      after: updates,
+    });
 
     // Notify the organizer the first time their event is promoted to live.
     if (updates.status === 'active' && prior && prior.status !== 'active') {
@@ -576,6 +580,12 @@ const grantSmsCredits = async (req, res, next) => {
       action: 'sms_credits_granted',
       entity_type: 'sms_wallet',
       metadata: { credit_count: credits, complimentary: true },
+    });
+    await logAdminAction(req, {
+      action: 'sms_credits.grant',
+      entityType: 'sms_wallet',
+      entityId: eventId,
+      after: { credit_count: credits },
     });
 
     return res.json({ success: true, message: `Granted ${credits} complimentary SMS credits.` });

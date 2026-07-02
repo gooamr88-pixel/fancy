@@ -1,4 +1,5 @@
 const { supabase } = require('../../config/supabase');
+const { CONFIG_ID } = require('../../utils/configCache');
 
 /**
  * Financial Command Center (Master Plan §22). Reads the mv_daily_revenue rollup
@@ -28,7 +29,7 @@ const getFinancialSummary = async (req, res, next) => {
         .gte('day', fromStr)
         .lte('day', toStr)
         .order('day', { ascending: true }),
-      supabase.from('super_admin_config').select('platform_commission_pct').eq('id', '00000000-0000-0000-0000-000000000000').maybeSingle(),
+      supabase.from('super_admin_config').select('platform_commission_pct').eq('id', CONFIG_ID).maybeSingle(),
     ]);
     if (error) throw error;
 

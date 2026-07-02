@@ -12,6 +12,7 @@ import { findMealField } from './styles';
 import { usePartySearch } from './hooks/usePartySearch';
 import { useSeatingLookup } from './hooks/useSeatingLookup';
 import { FloatingParticles } from '../../components/guest/GuestAnimations';
+import TurnstileWidget, { turnstileEnabled } from '../../components/guest/TurnstileWidget';
 import StepIdentify from './steps/StepIdentify';
 import StepAttendance from './steps/StepAttendance';
 import StepPartyDetails from './steps/StepPartyDetails';
@@ -57,6 +58,12 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const [maybeFollowUp, setMaybeFollowUp] = useState(null);
   const [declineReason, setDeclineReason] = useState(null);
   const [showTableLookup, setShowTableLookup] = useState(false);
+
+  // Cloudflare Turnstile: only active when NEXT_PUBLIC_TURNSTILE_SITEKEY is set,
+  // mirroring the backend gate. The solved token rides along in the submit body
+  // as `captchaToken`; the ref lets us request a fresh one after a failed submit.
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const turnstileRef = useRef(null);
 
   const searchApi = usePartySearch(slug);
   const seatingApi = useSeatingLookup(slug);
@@ -312,6 +319,10 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       });
     }
     if (attending === 'maybe' && !maybeFollowUp) errors.maybeFollowUp = 'Please select a follow-up timeframe';
+    // Bot check — only enforced when Turnstile is configured (matches the backend).
+    if (turnstileEnabled && !captchaToken) {
+      errors.captcha = t.captcha_required || (isRTL ? 'يرجى إكمال التحقق الأمني.' : 'Please complete the security check.');
+    }
     if (Object.keys(errors).length > 0) { setValidationErrors(errors); return; }
     setValidationErrors({});
     setSubmitting(true);
@@ -328,10 +339,15 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       customAnswers: Object.keys(customAnswers).map(fieldId => ({ fieldId, value: customAnswers[fieldId] })),
       decline_reason: attending === 'no' ? declineReason : undefined,
       maybe_confirm_by: attending === 'maybe' ? maybeFollowUp : undefined,
+      ...(captchaToken ? { captchaToken } : {}),
     };
 
     const r = await doSubmit({ url: `/public/events/${slug}/rsvp`, body, reconcileId: partyId });
     setSubmitting(false);
+    if (!r.ok) {
+      // Turnstile tokens are single-use — force a fresh challenge before any retry.
+      if (turnstileEnabled) { turnstileRef.current?.reset(); setCaptchaToken(null); }
+    }
     if (r.ok) {
       const resolvedId = r.data?.partyId || partyId;
       if (resolvedId) {
@@ -457,6 +473,22 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                       maybeFollowUp={maybeFollowUp} setMaybeFollowUp={setMaybeFollowUp}
                       declineReason={declineReason} setDeclineReason={setDeclineReason}
                     />
+
+                    {turnstileEnabled && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                        <TurnstileWidget
+                          ref={turnstileRef}
+                          onVerify={(token) => {
+                            setCaptchaToken(token);
+                            setValidationErrors(prev => { const n = { ...prev }; delete n.captcha; return n; });
+                          }}
+                          onExpire={() => setCaptchaToken(null)}
+                        />
+                        {validationErrors.captcha && (
+                          <span style={{ fontSize: '12px', color: '#ef4444' }}>{validationErrors.captcha}</span>
+                        )}
+                      </div>
+                    )}
 
                     <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
                       <StepCustomQuestions

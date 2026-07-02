@@ -54,7 +54,7 @@ export default function AdminShell({ children }) {
   return (
     <AlertProvider>
       <div style={{ display: 'flex', minHeight: '100dvh', background: T.bg, color: T.text900, fontFamily: 'var(--font-sans)' }}>
-        <Sidebar can={can} open={sidebarOpen} onNavigate={() => {}} onLogout={() => setShowLogoutModal(true)} />
+        <Sidebar can={can} open={sidebarOpen} onNavigate={() => {}} onLogout={() => setShowLogoutModal(true)} onClose={() => setSidebarOpen(false)} />
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {/* Topbar */}
@@ -132,7 +132,7 @@ export default function AdminShell({ children }) {
 
 function Centered({ children }) {
   return (
-    <div style={{ minHeight: '100dvh', background: T.bg, colorScheme: 'dark', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div style={{ minHeight: '100dvh', background: T.bg, colorScheme: 'light', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       {children}
     </div>
   );

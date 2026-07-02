@@ -6,15 +6,20 @@ import adminApi from '../../_lib/adminApi';
 import { T, card } from '../../_components/theme';
 import { Button } from '../../_components/Modal';
 import { useAlert } from '../../_components/AlertContext';
+import { Field } from '../../_components/Field';
+import { PageLoading } from '../../_components/Spinner';
 
 // ── Toggle Switch component ──
-function Toggle({ checked, onChange }) {
+function Toggle({ checked, onChange, disabled }) {
   return (
     <motion.button
       type="button"
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       style={{
-        width: 40, height: 22, borderRadius: 11, border: 'none', padding: 2, cursor: 'pointer',
+        width: 40, height: 22, borderRadius: 11, border: 'none', padding: 2,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
         background: checked ? T.primary : T.border,
         display: 'flex', alignItems: 'center',
         justifyContent: checked ? 'flex-end' : 'flex-start',
@@ -124,16 +129,21 @@ function FeatureSelector({ tierFeatures, registry, onChange }) {
                           background: featureSet.has(feat.key) ? 'rgba(184, 148, 79, 0.05)' : 'rgba(0,0,0,0.01)',
                           border: `1px solid ${featureSet.has(feat.key) ? 'rgba(184, 148, 79, 0.15)' : 'transparent'}`,
                           transition: 'all 0.15s',
+                          opacity: feat.builtIn === false ? 0.6 : 1,
                         }}>
                           <Toggle
                             checked={featureSet.has(feat.key)}
                             onChange={() => toggleFeature(feat.key)}
+                            disabled={feat.builtIn === false}
                           />
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text900, display: 'flex', alignItems: 'center', gap: 6 }}>
                               {feat.label}
                               {feat.freeDefault && (
                                 <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: T.successSoft, color: T.success, textTransform: 'uppercase' }}>Free</span>
+                              )}
+                              {feat.builtIn === false && (
+                                <span title="This capability isn't built yet — toggling it here has no effect on access." style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: T.warningSoft, color: T.warning, textTransform: 'uppercase' }}>Not built yet</span>
                               )}
                             </div>
                             <div style={{ fontSize: 11, color: T.text500, marginTop: 1, lineHeight: 1.3 }}>{feat.description}</div>
@@ -280,7 +290,7 @@ export default function ConfigPage() {
     transition: 'all 0.2s ease',
   });
 
-  if (loading) return <p style={{ color: T.text500 }}>Loading configuration...</p>;
+  if (loading) return <PageLoading label="Loading configuration…" />;
   if (error) return <p style={{ color: T.danger }}>{error}</p>;
 
   const currentTier = pricingTiers[selectedTierIdx];
@@ -648,14 +658,6 @@ export default function ConfigPage() {
   );
 }
 
-function Field({ label, children }) {
-  return (
-    <label style={{ display: 'block', width: '100%' }}>
-      <span style={{ display: 'block', fontSize: 11, color: T.text500, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>{label}</span>
-      {children}
-    </label>
-  );
-}
 
 const inputStyle = {
   width: '100%',

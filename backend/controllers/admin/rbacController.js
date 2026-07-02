@@ -8,6 +8,16 @@ const { invalidate } = require('../../services/rbacService');
  * assignment of admin roles to users. All mutations are audit-logged.
  */
 
+/**
+ * Guards against a super admin locking themselves out by stripping their own
+ * super_admin role. Shared by setAdminRoles below and the legacy
+ * setUserRole endpoint (adminController.js).
+ * @returns {boolean} true if the change is a forbidden self-demotion
+ */
+function isForbiddenSelfDemotion(req, userId, roleKeys) {
+  return userId === req.user.id && !roleKeys.includes('super_admin') && !!req.user.access?.isSuperAdmin;
+}
+
 /** GET /api/v1/admin/rbac/permissions — the full permission catalog, grouped. */
 const listPermissions = async (req, res, next) => {
   try {
@@ -110,7 +120,11 @@ const setRolePermissions = async (req, res, next) => {
       if (insErr) throw insErr;
     }
 
-    invalidateAllAdmins(); // role change affects every admin holding it
+    // Only admins holding this role are affected — refresh just their cached context.
+    const { data: holders } = await supabase
+      .from('admin_user_roles').select('admin_users(user_id)').eq('role_id', roleId);
+    (holders || []).forEach((h) => { if (h.admin_users?.user_id) invalidate(h.admin_users.user_id); });
+
     await logAdminAction(req, {
       action: 'rbac.role.set_permissions',
       entityType: 'role',
@@ -209,7 +223,7 @@ const setAdminRoles = async (req, res, next) => {
   }
 
   // Guard against self-lockout: a super_admin cannot strip their own super_admin role.
-  if (userId === req.user.id && !roleKeys.includes('super_admin') && req.user.access?.isSuperAdmin) {
+  if (isForbiddenSelfDemotion(req, userId, roleKeys)) {
     return res.status(400).json({
       success: false,
       error: 'SELF_DEMOTION_FORBIDDEN',
@@ -234,11 +248,6 @@ const setAdminRoles = async (req, res, next) => {
   }
 };
 
-// Role-permission edits can affect many admins at once; clear the whole cache.
-function invalidateAllAdmins() {
-  require('../../services/rbacService').invalidateAll();
-}
-
 module.exports = {
   listPermissions,
   listRoles,
@@ -247,4 +256,5 @@ module.exports = {
   listAdminUsers,
   setAdminRoles,
   applyAdminRoles,
+  isForbiddenSelfDemotion,
 };

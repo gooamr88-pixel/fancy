@@ -12,6 +12,12 @@ const { broadcast } = require('../utils/realtime');
 const { sendOk, sendFail, sendRpcFailure } = require('../utils/responseEnvelope');
 
 /**
+ * True if `err` is the tier_max_guests cap trigger raised by the DB
+ * (migration 004_tier_guest_cap_trigger.sql) rather than an unrelated failure.
+ */
+const isGuestLimitError = (err) => err?.code === 'P0001' && /GUEST_LIMIT_REACHED/.test(err.message || '');
+
+/**
  * Handles guest RSVP form submissions (insert or update).
  * All gating/validation/dedup/child-row writes happen atomically inside the
  * submit_rsvp_v2() RPC (see GuestService) — this handler only validates cheap
@@ -37,6 +43,32 @@ const submitPublicRSVP = async (req, res, next) => {
   }
   if (Array.isArray(customAnswers) && customAnswers.length > guestService.MAX_CUSTOM_ANSWERS) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Too many custom answers submitted.' });
+  }
+
+  // Defense in depth: the frontend only shows an "Update my response" action
+  // when the event's allow_guest_edits is on (useRsvpResolver.js) — nothing
+  // stops a direct API call otherwise. Reject an edit to an already-answered
+  // party server-side too, regardless of whether submit_rsvp_v2 also checks
+  // this internally. A first-time response (party.response still 'pending',
+  // or no partyId at all) is never blocked by this.
+  if (partyId) {
+    const { data: existingParty } = await supabase
+      .from('rsvp_parties')
+      .select('response, events(slug, allow_guest_edits)')
+      .eq('id', partyId)
+      .maybeSingle();
+
+    if (
+      existingParty?.events?.slug === slug &&
+      ['yes', 'no', 'maybe'].includes(existingParty.response) &&
+      !existingParty.events?.allow_guest_edits
+    ) {
+      return sendFail(res, {
+        status: 403,
+        error: 'RESPONSE_EDITS_DISABLED',
+        message: 'The organizer has disabled changes to RSVPs after submission. Please contact them directly to update your response.',
+      });
+    }
   }
 
   if (response === 'yes') {
@@ -148,6 +180,9 @@ const submitPublicRSVP = async (req, res, next) => {
 
     return sendOk(res, { partyId: result.party_id, message: result.is_update ? 'RSVP updated successfully.' : 'RSVP submitted successfully.' }, { status: 201 });
   } catch (err) {
+    if (isGuestLimitError(err)) {
+      return sendFail(res, { status: 409, error: 'GUEST_LIMIT_REACHED', message: 'This event has reached its plan\'s guest limit. Contact the organizer.' });
+    }
     next(err);
   }
 };
@@ -328,7 +363,8 @@ const exportGuestsCSV = async (req, res, next) => {
   const sort = ['name', 'table'].includes(req.query.sort) ? req.query.sort : null;
 
   try {
-    const rows = await guestService.exportParties(eventId, { attendingOnly, sort });
+    // exportParties returns { rows, meta } — the row array plus a truncation flag.
+    const { rows, meta } = await guestService.exportParties(eventId, { attendingOnly, sort });
     const headers = ['guest_name', 'email', 'phone', 'response', 'party_size', 'table_name', 'meal_selections', 'checked_in', 'checked_in_at', 'check_in_method', 'notes'];
     const csvContent = generateCSV(headers, rows, (item) => [
       item.guest_name, item.email, item.phone, item.response, item.party_size,
@@ -338,6 +374,8 @@ const exportGuestsCSV = async (req, res, next) => {
     const csvName = `event-${eventId}-${attendingOnly ? 'attending' : 'rsvps'}${sort ? '-by-' + sort : ''}.csv`;
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=${csvName}`);
+    // Signal partial exports so the client can warn the organizer their file is capped.
+    if (meta?.truncated) res.setHeader('X-Export-Truncated', String(meta.limit));
     return res.send(csvContent);
   } catch (err) {
     next(err);
@@ -354,7 +392,8 @@ const exportGuestsExcel = async (req, res, next) => {
   const sort = ['name', 'table'].includes(req.query.sort) ? req.query.sort : null;
 
   try {
-    const rows = await guestService.exportParties(eventId, { attendingOnly, sort });
+    // exportParties returns { rows, meta } — the row array plus a truncation flag.
+    const { rows, meta } = await guestService.exportParties(eventId, { attendingOnly, sort });
 
     const { data: tables, error: tablesError } = await supabase.from('tables').select('*').eq('event_id', eventId);
     if (tablesError) throw tablesError;
@@ -377,6 +416,8 @@ const exportGuestsExcel = async (req, res, next) => {
     const xlsxName = `event-${eventId}-${attendingOnly ? 'attending' : 'rsvps'}${sort ? '-by-' + sort : ''}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=${xlsxName}`);
+    // Signal partial exports so the client can warn the organizer their file is capped.
+    if (meta?.truncated) res.setHeader('X-Export-Truncated', String(meta.limit));
     return res.send(excelBuffer);
   } catch (err) {
     next(err);
@@ -456,6 +497,9 @@ const addGuestManually = async (req, res, next) => {
     broadcast(eventId, 'rsvp_submitted', { partyId: result.party_id, guestName: guestName.trim(), response: guestResponse });
     return sendOk(res, { message: 'Guest added successfully.', partyId: result.party_id, guestId: result.guest_id }, { status: 201 });
   } catch (err) {
+    if (isGuestLimitError(err)) {
+      return sendFail(res, { status: 409, error: 'GUEST_LIMIT_REACHED', message: 'This event has reached its plan\'s guest limit. Upgrade the plan to add more guests.' });
+    }
     next(err);
   }
 };
@@ -625,12 +669,25 @@ const respondViaToken = async (req, res, next) => {
 
   try {
     const { data: event, error: eventError } = await supabase
-      .from('events').select('id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences')
+      .from('events').select('id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences, allow_guest_edits')
       .eq('id', payload.eventId).single();
     if (eventError || !event) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
     if (!isEventLiveForGuests(event)) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
     if (event.rsvp_deadline && new Date() > new Date(event.rsvp_deadline)) {
       return sendFail(res, { status: 400, error: 'DEADLINE_PASSED', message: 'The RSVP deadline for this event has passed.' });
+    }
+
+    // Defense in depth — same rule as submitPublicRSVP: block an edit to an
+    // already-answered party when the organizer has turned edits off. A
+    // first-time response (still 'pending') is never blocked.
+    const { data: existingParty } = await supabase
+      .from('rsvp_parties').select('response').eq('id', payload.partyId).maybeSingle();
+    if (existingParty && ['yes', 'no', 'maybe'].includes(existingParty.response) && !event.allow_guest_edits) {
+      return sendFail(res, {
+        status: 403,
+        error: 'RESPONSE_EDITS_DISABLED',
+        message: 'The organizer has disabled changes to RSVPs after submission. Please contact them directly to update your response.',
+      });
     }
 
     let computedPartySize;
@@ -664,6 +721,9 @@ const respondViaToken = async (req, res, next) => {
 
     return sendOk(res, { message: 'Your response has been recorded.', response: mapped, guestName, eventSlug: event.slug, partyId: payload.partyId });
   } catch (err) {
+    if (isGuestLimitError(err)) {
+      return sendFail(res, { status: 409, error: 'GUEST_LIMIT_REACHED', message: 'This event has reached its plan\'s guest limit. Contact the organizer.' });
+    }
     next(err);
   }
 };

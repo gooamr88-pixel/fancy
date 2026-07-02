@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import adminApi from '../../_lib/adminApi';
+import useAdminList from '../../_hooks/useAdminList';
+import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import { Button } from '../../_components/Modal';
 import { T } from '../../_components/theme';
@@ -13,54 +15,23 @@ import { useAlert } from '../../_components/AlertContext';
  */
 export default function SecurityPage() {
   const { showAlert } = useAlert();
+  const { can } = usePermissions();
   const [tab, setTab] = useState('sessions');
-  const [sessions, setSessions] = useState({ rows: [], pagination: null, page: 1, loading: true });
-  const [events, setEvents] = useState({ rows: [], pagination: null, page: 1, loading: true });
-  const [logins, setLogins] = useState({ rows: [], pagination: null, page: 1, loading: true });
   const [busy, setBusy] = useState(false);
 
-  const loadSessions = useCallback(async (page = 1) => {
-    setSessions((s) => ({ ...s, loading: true }));
-    const res = await adminApi.get('/security/sessions', { page, limit: 25 });
-    setSessions({ rows: res?.sessions || [], pagination: res?.pagination || null, page, loading: false });
-  }, []);
-  const loadEvents = useCallback(async (page = 1) => {
-    setEvents((s) => ({ ...s, loading: true }));
-    const res = await adminApi.get('/security/events', { page, limit: 25 });
-    setEvents({ rows: res?.events || [], pagination: res?.pagination || null, page, loading: false });
-  }, []);
-  const loadLogins = useCallback(async (page = 1) => {
-    setLogins((s) => ({ ...s, loading: true }));
-    const res = await adminApi.get('/security/login-history', { page, limit: 25 });
-    setLogins({ rows: res?.history || [], pagination: res?.pagination || null, page, loading: false });
-  }, []);
+  const [sessionsPage, setSessionsPage] = useState(1);
+  const [eventsPage, setEventsPage] = useState(1);
+  const [loginsPage, setLoginsPage] = useState(1);
 
-  useEffect(() => {
-    let ignore = false;
-    (async () => {
-      try {
-        const [s, e, l] = await Promise.all([
-          adminApi.get('/security/sessions', { page: 1, limit: 25 }),
-          adminApi.get('/security/events', { page: 1, limit: 25 }),
-          adminApi.get('/security/login-history', { page: 1, limit: 25 }),
-        ]);
-        if (!ignore) {
-          setSessions({ rows: s?.sessions || [], pagination: s?.pagination || null, page: 1, loading: false });
-          setEvents({ rows: e?.events || [], pagination: e?.pagination || null, page: 1, loading: false });
-          setLogins({ rows: l?.history || [], pagination: l?.pagination || null, page: 1, loading: false });
-        }
-      } catch {
-        if (!ignore) setSessions((st) => ({ ...st, loading: false }));
-      }
-    })();
-    return () => { ignore = true; };
-  }, []);
+  const sessions = useAdminList('/security/sessions', { page: sessionsPage, limit: 25 }, (r) => r?.sessions || []);
+  const events = useAdminList('/security/events', { page: eventsPage, limit: 25 }, (r) => r?.events || []);
+  const logins = useAdminList('/security/login-history', { page: loginsPage, limit: 25 }, (r) => r?.history || []);
 
   const revoke = async (sessionId) => {
     setBusy(true);
     try {
       await adminApi.post(`/security/sessions/${sessionId}/revoke`);
-      await loadSessions(sessions.page);
+      sessions.reload();
     } catch (err) {
       await showAlert(err.message || 'Revoke failed', 'Error', 'error');
     } finally {
@@ -77,7 +48,7 @@ export default function SecurityPage() {
   return (
     <div>
       <header style={{ marginBottom: 16 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0 }}>Security Center</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Security Center</h1>
         <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Sessions, anomalies and login monitoring.</p>
       </header>
 
@@ -87,24 +58,26 @@ export default function SecurityPage() {
         ))}
       </div>
 
-      {tab === 'sessions' && (
+      {tab === 'sessions' && (<>
+        {sessions.error && <p style={{ color: T.danger, fontSize: 13 }}>{sessions.error}</p>}
         <DataTable
           loading={sessions.loading} rows={sessions.rows} rowKey={(r) => r.id}
-          pagination={sessions.pagination} onPageChange={loadSessions}
+          pagination={sessions.pagination} onPageChange={setSessionsPage}
           columns={[
             { key: 'ownerEmail', header: 'User', render: (r) => r.ownerEmail || r.user_id },
             { key: 'device_label', header: 'Device', render: (r) => r.device_label || r.user_agent || '—' },
             { key: 'ip', header: 'IP' },
             { key: 'last_seen_at', header: 'Last seen', render: (r) => new Date(r.last_seen_at || r.created_at).toLocaleString() },
-            { key: 'actions', header: '', align: 'right', render: (r) => <Button variant="ghost" disabled={busy} onClick={() => revoke(r.id)}>Revoke</Button> },
+            ...(can('security.manage') ? [{ key: 'actions', header: '', align: 'right', render: (r) => <Button variant="ghost" disabled={busy} onClick={() => revoke(r.id)}>Revoke</Button> }] : []),
           ]}
         />
-      )}
+      </>)}
 
-      {tab === 'events' && (
+      {tab === 'events' && (<>
+        {events.error && <p style={{ color: T.danger, fontSize: 13 }}>{events.error}</p>}
         <DataTable
           loading={events.loading} rows={events.rows} rowKey={(r) => r.id}
-          pagination={events.pagination} onPageChange={loadEvents}
+          pagination={events.pagination} onPageChange={setEventsPage}
           emptyText="No security events recorded."
           columns={[
             { key: 'type', header: 'Type', render: (r) => <span style={{ fontFamily: 'monospace' }}>{r.type}</span> },
@@ -113,12 +86,13 @@ export default function SecurityPage() {
             { key: 'created_at', header: 'When', render: (r) => new Date(r.created_at).toLocaleString() },
           ]}
         />
-      )}
+      </>)}
 
-      {tab === 'logins' && (
+      {tab === 'logins' && (<>
+        {logins.error && <p style={{ color: T.danger, fontSize: 13 }}>{logins.error}</p>}
         <DataTable
           loading={logins.loading} rows={logins.rows} rowKey={(r) => r.id}
-          pagination={logins.pagination} onPageChange={loadLogins}
+          pagination={logins.pagination} onPageChange={setLoginsPage}
           columns={[
             { key: 'success', header: 'Result', render: (r) => <span style={{ color: r.success ? T.success : T.danger, fontWeight: 700 }}>{r.success ? 'Success' : 'Failed'}</span> },
             { key: 'email', header: 'Email' },
@@ -127,7 +101,7 @@ export default function SecurityPage() {
             { key: 'created_at', header: 'When', render: (r) => new Date(r.created_at).toLocaleString() },
           ]}
         />
-      )}
+      </>)}
     </div>
   );
 }

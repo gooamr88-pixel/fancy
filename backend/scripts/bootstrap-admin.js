@@ -8,7 +8,6 @@
  *  2. Ensures a 'super_admin' role exists in the `roles` table.
  *  3. Upserts an `admin_users` row linked to the org's owner_user_id.
  *  4. Assigns the super_admin role via `admin_user_roles`.
- *  5. Upserts a `user_roles` row so the legacy check also works.
  *
  * Safe to run multiple times — uses upserts.
  */
@@ -69,16 +68,6 @@ const { supabase } = require('../config/supabase');
     .insert({ admin_user_id: adminRow.id, role_id: role.id });
   if (linkErr) { console.error('❌ admin_user_roles insert failed:', linkErr.message); process.exit(1); }
   console.log(`✅ Assigned super_admin role`);
-
-  // 5. Legacy user_roles table
-  const { error: legacyErr } = await supabase
-    .from('user_roles')
-    .upsert({ user_id: userId, role: 'super_admin' }, { onConflict: 'user_id' });
-  if (!legacyErr) {
-    console.log(`✅ Legacy user_roles updated`);
-  } else {
-    console.log(`⚠️  Legacy user_roles upsert skipped (table may not exist): ${legacyErr.message}`);
-  }
 
   console.log(`\n🎉 Done! "${org.name}" (${email}) is now a Super Admin.`);
   console.log(`   Log out → log back in → you should see the "Super Admin" button.\n`);

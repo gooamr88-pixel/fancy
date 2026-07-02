@@ -10,22 +10,13 @@
  * the whole reason those RPCs exist.
  */
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 const { normalizeEmail, escapeLikePattern } = require('../utils/normalize');
 const { normalizeToE164 } = require('../utils/phone');
 
 const MAX_ADDITIONAL_GUESTS = 100;
 const MAX_CUSTOM_ANSWERS = 200;
 const SEATING_REVEAL_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-/** SEC C1: Allowlist of column names safe to use in .order() / filter calls. */
-const VALID_SORT_COLUMNS = new Set([
-  'created_at', 'label', 'response', 'id', 'updated_at',
-]);
-
-/** Validates a column name against the allowlist; returns a safe default if invalid. */
-function safeSortColumn(col) {
-  return VALID_SORT_COLUMNS.has(col) ? col : 'created_at';
-}
 
 /** True once we're within 24h of the event start (seating may be shown to guests). */
 function isSeatingRevealed(eventDate) {
@@ -307,135 +298,50 @@ async function getPartySeatingMap(eventId, partyId) {
 
 /**
  * Lists parties for an event with server-side filtering + pagination.
- * The seated/meal/custom-answer filters live on related tables, so we
- * resolve them to a set of allowed party ids BEFORE paging — filtering
- * the already-paged result (the pre-rebuild approach) produced short or
- * empty pages and a misleading total.
+ *
+ * All filtering (response, name search, seated/unseated, meal, custom-answer),
+ * ordering, paging, AND the exact total happen inside the get_event_parties RPC
+ * in ONE round trip. The previous implementation resolved the cross-table filters
+ * by pulling id-sets into Node, intersecting them here, then re-querying with a
+ * (potentially enormous) `.in('id', [...])`; an earlier version even capped the
+ * post-filtered set at 5,000 rows, so large filtered events reported short pages
+ * and wrong totals. The RPC returns the SAME nested shape the old PostgREST embed
+ * did (see migration 20260713000000), so the frontend mapping is unchanged.
  */
 async function listParties(eventId, {
   response, search, seated, sort, meal, customFieldId, customFieldValue, page = 1, limit = 50,
 } = {}) {
   const safeLimit = Math.min(limit, 100);
-  const from = (page - 1) * safeLimit;
-  const to = from + safeLimit - 1;
+  const offset = (page - 1) * safeLimit;
 
-  const hasPostFilter = seated === 'true' || seated === 'false' || !!(meal && meal.trim()) || !!customFieldId;
-  const POST_FILTER_FETCH_CAP = 5000;
+  // Validate the discriminated inputs here so only known-safe values reach the RPC.
+  const validResponse = response && ['yes', 'no', 'maybe', 'pending', 'waitlist'].includes(response) ? response : null;
+  const validSeated = seated === 'true' || seated === 'false' ? seated : null;
+  const validSort = ['name_asc', 'name_desc', 'date_asc'].includes(sort) ? sort : null;
+  // Pre-escape the search term so a guest-typed %/_ can't act as an ILIKE wildcard
+  // (the RPC only adds the match-anywhere %…%). Mirrors the old .ilike() escaping.
+  const searchTerm = search && search.trim() ? escapeLikePattern(search.trim()) : null;
 
-  const idSets = [];
-  let excludeSeatedIds = null;
-
-  if (seated === 'true' || seated === 'false') {
-    const { data: seatRows, error: seatErr } = await supabase
-      .from('seating_assignments').select('party_id').eq('event_id', eventId);
-    if (seatErr) throw seatErr;
-    const seatedIds = new Set((seatRows || []).map((r) => r.party_id));
-    if (seated === 'true') idSets.push(seatedIds);
-    else excludeSeatedIds = seatedIds;
-  }
-
-  if (meal && meal.trim()) {
-    const { data: mealRows, error: mealErr } = await supabase
-      .from('guests').select('party_id, rsvp_parties!inner(event_id)')
-      .eq('rsvp_parties.event_id', eventId).eq('meal_selection', meal.trim());
-    if (mealErr) throw mealErr;
-    idSets.push(new Set((mealRows || []).map((r) => r.party_id)));
-  }
-
-  if (customFieldId) {
-    const { data: caRows, error: caErr } = await supabase
-      .from('custom_answers').select('party_id, answer_value, rsvp_parties!inner(event_id)')
-      .eq('rsvp_parties.event_id', eventId).eq('field_id', customFieldId);
-    if (caErr) throw caErr;
-    let matching = caRows || [];
-    if (customFieldValue) {
-      const want = String(customFieldValue).trim().toLowerCase();
-      matching = matching.filter((a) => String(a.answer_value).trim().toLowerCase() === want);
-    }
-    idSets.push(new Set(matching.map((r) => r.party_id)));
-  }
-
-  let allowedIds = null;
-  if (idSets.length > 0) {
-    allowedIds = idSets.reduce((acc, s) => (acc === null ? s : new Set([...acc].filter((x) => s.has(x)))), null);
-  }
-  if (excludeSeatedIds && allowedIds) {
-    allowedIds = new Set([...allowedIds].filter((x) => !excludeSeatedIds.has(x)));
-  }
-
-  if (allowedIds && allowedIds.size === 0) {
-    return { parties: [], pagination: { page, limit: safeLimit, count: 0, total: 0 } };
-  }
-
-  const applyIdConstraints = (q) => {
-    if (allowedIds) return q.in('id', [...allowedIds]);
-    if (excludeSeatedIds && excludeSeatedIds.size > 0) {
-      return q.not('id', 'in', `(${[...excludeSeatedIds].join(',')})`);
-    }
-    return q;
-  };
-
-  const select = '*, guests(*), custom_answers(*), seating_assignments(id, table_id, tables(table_name)), invitations(channel, status)';
-  let query = supabase.from('rsvp_parties').select(select, { count: 'exact' }).eq('event_id', eventId);
-
-  if (response && ['yes', 'no', 'maybe', 'pending', 'waitlist'].includes(response)) {
-    query = query.eq('response', response);
-  }
-  if (search && search.trim()) {
-    query = query.ilike('label', `%${escapeLikePattern(search.trim())}%`);
-  }
-  query = applyIdConstraints(query);
-
-  // SEC C1: sort values are validated via a fixed switch — no user-supplied column
-  // names reach .order() directly.
-  switch (sort) {
-    case 'name_asc': query = query.order(safeSortColumn('label'), { ascending: true }); break;
-    case 'name_desc': query = query.order(safeSortColumn('label'), { ascending: false }); break;
-    case 'date_asc': query = query.order(safeSortColumn('created_at'), { ascending: true }); break;
-    default: query = query.order(safeSortColumn('created_at'), { ascending: false });
-  }
-
-  query = hasPostFilter ? query.limit(POST_FILTER_FETCH_CAP) : query.range(from, to);
-  const { data: parties, error, count: totalCount } = await query;
+  const { data, error } = await supabase.rpc('get_event_parties', {
+    p_event_id: eventId,
+    p_response: validResponse,
+    p_search: searchTerm,
+    p_seated: validSeated,
+    p_meal: meal && meal.trim() ? meal.trim() : null,
+    p_custom_field_id: customFieldId || null,
+    p_custom_field_value: customFieldValue != null && String(customFieldValue).trim() ? String(customFieldValue).trim() : null,
+    p_sort: validSort,
+    p_limit: safeLimit,
+    p_offset: offset,
+  });
   if (error) throw error;
 
-  let filtered = parties || [];
-
-  // M17: Warn when the post-filter fetch cap is hit — results may be incomplete.
-  let postFilterTruncated = false;
-  if (hasPostFilter && filtered.length >= POST_FILTER_FETCH_CAP) {
-    postFilterTruncated = true;
-    console.warn(`[listParties] POST_FILTER_FETCH_CAP (${POST_FILTER_FETCH_CAP}) reached for event ${eventId}. Results may be incomplete. Consider adding DB-level indexes or pagination for this filter combination.`);
-  }
-
-  if (seated === 'true') filtered = filtered.filter((p) => p.seating_assignments && p.seating_assignments.length > 0);
-  else if (seated === 'false') filtered = filtered.filter((p) => !p.seating_assignments || p.seating_assignments.length === 0);
-  if (meal && meal.trim()) {
-    filtered = filtered.filter((p) => (p.guests || []).some((g) => g.meal_selection === meal.trim()));
-  }
-  if (customFieldId) {
-    filtered = filtered.filter((p) => (p.custom_answers || []).some((a) =>
-      a.field_id === customFieldId &&
-      (!customFieldValue || String(a.answer_value).trim().toLowerCase() === String(customFieldValue).trim().toLowerCase())
-    ));
-  }
-
-  let pageItems, total;
-  if (hasPostFilter) {
-    total = filtered.length;
-    pageItems = filtered.slice(from, to + 1);
-  } else {
-    pageItems = filtered;
-    total = totalCount;
-  }
+  const parties = (data && data.parties) || [];
+  const total = data && Number.isFinite(Number(data.total)) ? Number(data.total) : 0;
 
   return {
-    parties: pageItems,
-    pagination: {
-      page, limit: safeLimit, count: pageItems.length, total,
-      // M17: Let the frontend know when post-filter results may be incomplete.
-      ...(postFilterTruncated ? { truncated: true, actualTotal: totalCount } : {}),
-    },
+    parties,
+    pagination: { page, limit: safeLimit, count: parties.length, total },
   };
 }
 
@@ -530,11 +436,10 @@ async function updateParty(eventId, partyId, {
       }
     } catch (reconcileErr) {
       // C12: Log the error with original guest data so recovery is possible.
-      console.error('[updateParty] Guest reconciliation failed — original guests preserved where possible.', {
-        partyId, eventId, error: reconcileErr.message,
-        originalGuestIds: existingIds,
-        desiredGuestCount: allRows.length,
-      });
+      logger.error({
+        err: reconcileErr, partyId, eventId,
+        originalGuestIds: existingIds, desiredGuestCount: allRows.length,
+      }, '[updateParty] guest reconciliation failed — original guests preserved where possible');
       throw reconcileErr;
     }
   }
@@ -609,6 +514,8 @@ async function importGuests(eventId, actorUserId, rows) {
         imported.push({ id: r.value.guest_id, guest_name: row.guest_name });
       } else if (r.status === 'fulfilled' && r.value?.error === 'DUPLICATE_GUEST') {
         skippedExisting++;
+      } else if (r.status === 'rejected' && r.reason?.code === 'P0001' && /GUEST_LIMIT_REACHED/.test(r.reason.message || '')) {
+        errors.push({ guest_name: row.guest_name, error: 'GUEST_LIMIT_REACHED — this event\'s plan guest limit has been reached.' });
       } else {
         errors.push({ guest_name: row.guest_name, error: r.status === 'fulfilled' ? r.value?.message : String(r.reason) });
       }
@@ -638,7 +545,7 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
   // M18: Warn when the export limit is hit — data may be truncated.
   const exportTruncated = rows.length >= EXPORT_LIMIT;
   if (exportTruncated) {
-    console.warn(`[exportParties] Export limit (${EXPORT_LIMIT}) reached for event ${eventId}. Export may be incomplete.`);
+    logger.warn({ eventId, limit: EXPORT_LIMIT }, '[exportParties] export limit reached — export may be incomplete');
   }
 
   if (attendingOnly) rows = rows.filter((p) => p.response === 'yes');

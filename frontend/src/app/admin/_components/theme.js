@@ -1,12 +1,11 @@
 /**
- * Professional dark design tokens for the Super Admin Control Center shell.
+ * Design tokens for the Super Admin Control Center shell.
  * Every admin section/component reads these tokens (no hardcoded colors), so the
  * whole dashboard re-themes from this single file. Kept as a plain token object
  * to match the codebase's inline-style convention.
  *
- * Palette: deep slate surfaces, soft de-saturated text, vivid accents tuned for
- * legibility on dark backgrounds, and translucent "soft" accents for badges/active
- * states so they sit correctly on any dark surface.
+ * Palette: light ivory/champagne surfaces, warm gold accents, and translucent
+ * "soft" tints for badges/active states so they sit correctly on any light surface.
  */
 export const T = {
   // Surfaces (app bg → cards → raised/hover)

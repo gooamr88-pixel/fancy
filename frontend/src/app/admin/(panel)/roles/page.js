@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import adminApi from '../../_lib/adminApi';
+import usePermissions from '../../_hooks/usePermissions';
 import Modal, { Button } from '../../_components/Modal';
+import DataTable from '../../_components/DataTable';
+import { PageLoading } from '../../_components/Spinner';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 
@@ -13,6 +16,7 @@ import { useAlert } from '../../_components/AlertContext';
  */
 export default function RolesPage() {
   const { showAlert } = useAlert();
+  const { can } = usePermissions();
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [admins, setAdmins] = useState([]);
@@ -73,7 +77,7 @@ export default function RolesPage() {
     }
   };
 
-  if (loading) return <p style={{ color: T.text500 }}>Loading roles…</p>;
+  if (loading) return <PageLoading label="Loading roles…" />;
   if (error) return <p style={{ color: T.danger }}>{error}</p>;
 
   // Group permissions for the editor.
@@ -102,32 +106,24 @@ export default function RolesPage() {
               <span style={{ fontSize: 12, color: T.text700, fontWeight: 600 }}>
                 {role.key === 'super_admin' ? 'All permissions' : `${role.permissions.length} permissions`}
               </span>
-              {role.key !== 'super_admin' && <Button variant="ghost" onClick={() => openEdit(role)}>Edit</Button>}
+              {role.key !== 'super_admin' && can('rbac.manage') && <Button variant="ghost" onClick={() => openEdit(role)}>Edit</Button>}
             </div>
           </div>
         ))}
       </div>
 
       <h2 style={{ fontSize: 16, fontWeight: 700, color: T.text900, margin: '0 0 12px' }}>Admin users</h2>
-      <div style={{ ...card, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead><tr style={{ background: T.surfaceAlt, borderBottom: `1px solid ${T.border}` }}>
-            {['Name', 'Email', 'Roles', 'Status'].map((h) => <th key={h} style={{ padding: '11px 18px', textAlign: 'left', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', color: T.text500 }}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {admins.length === 0 ? (
-              <tr><td colSpan={4} style={{ padding: 28, textAlign: 'center', color: T.text400 }}>No admin users.</td></tr>
-            ) : admins.map((a) => (
-              <tr key={a.id} style={{ borderBottom: `1px solid ${T.border}` }}>
-                <td style={{ padding: '12px 18px' }}>{a.name || '—'}</td>
-                <td style={{ padding: '12px 18px', color: T.text500 }}>{a.email || '—'}</td>
-                <td style={{ padding: '12px 18px' }}>{(a.roles || []).map((r) => r.name).join(', ') || '—'}</td>
-                <td style={{ padding: '12px 18px' }}>{a.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        rows={admins}
+        rowKey={(a) => a.id}
+        emptyText="No admin users."
+        columns={[
+          { key: 'name', header: 'Name', render: (a) => a.name || '—' },
+          { key: 'email', header: 'Email', render: (a) => <span style={{ color: T.text500 }}>{a.email || '—'}</span> },
+          { key: 'roles', header: 'Roles', render: (a) => (a.roles || []).map((r) => r.name).join(', ') || '—' },
+          { key: 'status', header: 'Status', render: (a) => a.status },
+        ]}
+      />
 
       <Modal
         open={!!editing}

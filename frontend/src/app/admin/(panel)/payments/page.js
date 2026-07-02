@@ -9,14 +9,14 @@ import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
+import { money as fmt } from '../../_lib/format';
+import { Row, Field } from '../../_components/Field';
 
 /**
  * Payment Center (Master Plan §9). Platform-wide payment ledger with status /
  * method filters, REAL Stripe refunds (full or partial), manual-payment approve
  * / decline, and a disputes view. All mutating actions are permission-gated.
  */
-const fmt = (cents) =>
-  `$${((cents || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const METHOD_LABEL = { stripe: 'Card (Stripe)', cash_manual: 'Manual / Cash' };
 
@@ -299,20 +299,3 @@ function Select({ value, onChange, options, label }) {
   );
 }
 
-function Row({ label, children }) {
-  return (
-    <div style={{ display: 'flex', gap: 12, padding: '5px 0' }}>
-      <span style={{ width: 96, color: T.text400, fontSize: 12 }}>{label}</span>
-      <span style={{ flex: 1 }}>{children}</span>
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label style={{ display: 'block', marginBottom: 4 }}>
-      <span style={{ display: 'block', fontSize: 11, color: T.text400, fontWeight: 600, marginBottom: 4 }}>{label}</span>
-      {children}
-    </label>
-  );
-}

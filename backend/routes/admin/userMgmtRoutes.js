@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { requirePermission } = require('../../middleware/permissions');
 const {
   getUserDetail,
@@ -12,6 +13,17 @@ const {
 // requireAuth is applied by the parent admin router.
 const router = express.Router();
 
+// Caps the blast radius if an admin token is compromised — these two actions
+// (issuing a temp password, minting an impersonation session) are the most
+// sensitive mutations in the admin surface.
+const sensitiveActionLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many attempts. Please try again after a minute.' },
+});
+
 // ── Users (§4) ──
 router.get('/users/:userId', requirePermission('users.view'), getUserDetail);
 router.patch('/users/:userId/status', requirePermission('users.manage'), setUserStatus);
@@ -21,7 +33,7 @@ router.post('/users/:userId/sessions/:sessionId/revoke', requirePermission('user
 // ── Organizers (§5) ──
 router.get('/organizers/:userId', requirePermission('organizers.view'), getUserDetail);
 router.patch('/organizers/:userId/status', requirePermission('organizers.manage'), setUserStatus);
-router.post('/organizers/:userId/reset-password', requirePermission('organizers.manage'), resetOrganizerPassword);
-router.post('/organizers/:userId/impersonate', requirePermission('organizers.impersonate'), impersonateOrganizer);
+router.post('/organizers/:userId/reset-password', sensitiveActionLimiter, requirePermission('organizers.manage'), resetOrganizerPassword);
+router.post('/organizers/:userId/impersonate', sensitiveActionLimiter, requirePermission('organizers.impersonate'), impersonateOrganizer);
 
 module.exports = router;

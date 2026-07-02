@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import useAdminList from '../../_hooks/useAdminList';
+import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
 import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
+import { Row } from '../../_components/Field';
 
 /**
  * User Management (Master Plan §4): paginated list with search, lifecycle
@@ -16,6 +18,7 @@ import { useAlert } from '../../_components/AlertContext';
  */
 export default function UsersPage() {
   const { showAlert, showPrompt, showConfirm } = useAlert();
+  const { can } = usePermissions();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [detail, setDetail] = useState(null);
@@ -117,11 +120,11 @@ export default function UsersPage() {
       <Modal open={!!detail} title={u ? (u.name || u.email) : 'User'} onClose={() => setDetail(null)} width={640}
         footer={u && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {!u.isAdmin && <Button variant="primary" disabled={busy} onClick={() => setSuperAdmin(u.userId, true)}>Make Super Admin</Button>}
-            {u.isAdmin && <Button variant="ghost" disabled={busy} onClick={() => setSuperAdmin(u.userId, false)}>Remove Admin Access</Button>}
-            {u.status !== 'active' && <Button variant="primary" disabled={busy} onClick={() => changeStatus(u.userId, 'active')}>Restore</Button>}
-            {u.status === 'active' && <Button variant="warning" disabled={busy} onClick={() => changeStatus(u.userId, 'suspended')}>Suspend</Button>}
-            {u.status !== 'banned' && <Button variant="danger" disabled={busy} onClick={() => changeStatus(u.userId, 'banned')}>Ban</Button>}
+            {can('rbac.manage') && !u.isAdmin && <Button variant="primary" disabled={busy} onClick={() => setSuperAdmin(u.userId, true)}>Make Super Admin</Button>}
+            {can('rbac.manage') && u.isAdmin && <Button variant="ghost" disabled={busy} onClick={() => setSuperAdmin(u.userId, false)}>Remove Admin Access</Button>}
+            {can('users.manage') && u.status !== 'active' && <Button variant="primary" disabled={busy} onClick={() => changeStatus(u.userId, 'active')}>Restore</Button>}
+            {can('users.manage') && u.status === 'active' && <Button variant="warning" disabled={busy} onClick={() => changeStatus(u.userId, 'suspended')}>Suspend</Button>}
+            {can('users.manage') && u.status !== 'banned' && <Button variant="danger" disabled={busy} onClick={() => changeStatus(u.userId, 'banned')}>Ban</Button>}
           </div>
         )}
       >
@@ -146,7 +149,7 @@ export default function UsersPage() {
                   <div style={{ fontSize: 12.5 }}>{s.device_label || s.user_agent || 'Unknown device'}</div>
                   <div style={{ fontSize: 11, color: T.text400 }}>{s.ip} · {new Date(s.created_at).toLocaleString()}</div>
                 </div>
-                <Button variant="ghost" disabled={busy} onClick={() => revokeSession(u.userId, s.id)}>Revoke</Button>
+                {can('users.sessions') && <Button variant="ghost" disabled={busy} onClick={() => revokeSession(u.userId, s.id)}>Revoke</Button>}
               </div>
             ))}
 
@@ -162,15 +165,6 @@ export default function UsersPage() {
           </div>
         )}
       </Modal>
-    </div>
-  );
-}
-
-function Row({ label, children }) {
-  return (
-    <div style={{ display: 'flex', gap: 12, padding: '5px 0' }}>
-      <span style={{ width: 90, color: T.text400, fontSize: 12 }}>{label}</span>
-      <span style={{ flex: 1 }}>{children}</span>
     </div>
   );
 }

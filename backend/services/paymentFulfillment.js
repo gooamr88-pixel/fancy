@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getStripePaymentReceiptTemplate } = require('../utils/emailTemplates');
 
@@ -71,7 +72,7 @@ const fulfillCheckoutSession = async (session) => {
         .from('events')
         .update({ tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark })
         .eq('id', event_id);
-      if (tierErr) console.warn(`[fulfill] tier persistence skipped for event ${event_id} (run migration 20260624000000): ${tierErr.message}`);
+      if (tierErr) logger.warn({ err: tierErr, eventId: event_id }, '[fulfill] tier persistence skipped (run migration 20260624000000)');
     }
 
     // Record the payment.
@@ -105,7 +106,7 @@ const fulfillCheckoutSession = async (session) => {
         metadata: { amount_cents: session.amount_total },
       });
     } catch (e) {
-      console.warn(`[fulfill] activity_log skipped for event ${event_id}: ${e.message}`);
+      logger.warn({ err: e, eventId: event_id }, '[fulfill] activity_log skipped');
     }
 
     // Email the organizer a card-payment receipt (best-effort — never block/fault
@@ -128,7 +129,7 @@ const fulfillCheckoutSession = async (session) => {
         await sendEmailViaBrevo(orgEmail, `Payment Received — ${ev.title || 'Your Event'}`, html);
       }
     } catch (e) {
-      console.warn(`[fulfill] receipt email skipped for event ${event_id}: ${e.message}`);
+      logger.warn({ err: e, eventId: event_id }, '[fulfill] receipt email skipped');
     }
 
     return { ok: true, type, alreadyProcessed: false, eventId: event_id };
@@ -162,7 +163,7 @@ const fulfillCheckoutSession = async (session) => {
           metadata: { credit_count: creditCount },
         });
       } catch (e) {
-        console.warn(`[fulfill] activity_log skipped for sms purchase ${event_id}: ${e.message}`);
+        logger.warn({ err: e, eventId: event_id }, '[fulfill] activity_log skipped for sms purchase');
       }
     }
 

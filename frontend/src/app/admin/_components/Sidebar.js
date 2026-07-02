@@ -42,10 +42,12 @@ const ICONS = {
  * Items the current admin cannot access are hidden; sections not yet built are
  * shown disabled with a "soon" tag.
  */
-export default function Sidebar({ can, open, onNavigate, onLogout }) {
+export default function Sidebar({ can, open, onNavigate, onLogout, onClose }) {
   const pathname = usePathname();
 
   return (
+    <>
+    {open && <div className="sidebar-backdrop" onClick={onClose} />}
     <nav
       style={{
         width: 256,
@@ -140,13 +142,16 @@ export default function Sidebar({ can, open, onNavigate, onLogout }) {
                     {inner}
                   </Link>
                 ) : (
-                  <div
+                  <button
                     key={it.key}
-                    style={{ ...baseStyle, color: 'rgba(255,255,255,0.25)', cursor: 'not-allowed' }}
+                    type="button"
+                    disabled
+                    aria-disabled="true"
                     title="Coming soon"
+                    style={{ ...baseStyle, color: 'rgba(255,255,255,0.25)', cursor: 'not-allowed', background: 'transparent', border: 'none', width: '100%', textAlign: 'left', font: 'inherit' }}
                   >
                     {inner}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -246,7 +251,25 @@ export default function Sidebar({ can, open, onNavigate, onLogout }) {
           transform: scale(1.05);
           background: rgba(239, 68, 68, 0.15) !important;
         }
+        .sidebar-backdrop { display: none; }
+        @media (max-width: 900px) {
+          nav[data-admin-sidebar] {
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 200;
+          }
+          .sidebar-backdrop {
+            display: block;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 150;
+          }
+        }
       `}</style>
     </nav>
+    </>
   );
 }

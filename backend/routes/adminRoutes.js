@@ -3,6 +3,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requirePermission, requireAdmin } = require('../middleware/permissions');
 const { manualCashApproval, updatePricingConfig, getPricingConfig, getPendingPayments } = require('../controllers/paymentController');
 const { getAdminEvents, deleteEvent } = require('../controllers/eventController');
+const { PLATFORM_FEATURES, FEATURE_CATEGORIES, getFeaturesByCategory } = require('../config/featureRegistry');
 const rbacRoutes = require('./admin/rbacRoutes');
 const creditRoutes = require('./admin/creditRoutes');
 const financeRoutes = require('./admin/financeRoutes');
@@ -91,16 +92,15 @@ router.get('/sms-wallets', requirePermission('credits.view'), listSmsWallets);
 
 // ── Feature Registry (for the tier feature selector UI) ──
 router.get('/feature-registry', requirePermission('subscriptions.view'), (req, res) => {
-  const { PLATFORM_FEATURES, FEATURE_CATEGORIES, getFeaturesByCategory } = require('../config/featureRegistry');
   const grouped = {};
   for (const [cat, features] of getFeaturesByCategory()) {
-    grouped[cat] = features.map(f => ({ key: f.key, label: f.label, description: f.description, freeDefault: f.freeDefault }));
+    grouped[cat] = features.map(f => ({ key: f.key, label: f.label, description: f.description, freeDefault: f.freeDefault, builtIn: f.builtIn !== false }));
   }
   return res.json({
     success: true,
     categories: FEATURE_CATEGORIES,
     features: grouped,
-    allFeatures: PLATFORM_FEATURES.map(f => ({ key: f.key, label: f.label, description: f.description, category: f.category, freeDefault: f.freeDefault })),
+    allFeatures: PLATFORM_FEATURES.map(f => ({ key: f.key, label: f.label, description: f.description, category: f.category, freeDefault: f.freeDefault, builtIn: f.builtIn !== false })),
   });
 });
 

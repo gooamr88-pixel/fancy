@@ -1,9 +1,14 @@
 const QRCode = require('qrcode');
-const jwt = require('jsonwebtoken');
 const logger = require('./logger');
 
-const QR_SECRET = process.env.QR_JWT_SECRET;
-if (!QR_SECRET) throw new Error('FATAL: QR_JWT_SECRET environment variable is required');
+/**
+ * QR image rendering only. Signing/verifying QR check-in tickets lives in
+ * services/tokenService.js, which signs AND verifies an explicit `purpose`
+ * discriminator so a token minted for one purpose can never be replayed as
+ * another. The old generateTicketToken/verifyTicketToken helpers were removed
+ * because verifyTicketToken accepted ANY token signed with QR_JWT_SECRET,
+ * regardless of purpose — the exact cross-token replay gap tokenService closes.
+ */
 
 /**
  * Generates a QR Code as a Data URL (base64 encoded image string).
@@ -44,28 +49,7 @@ const generateQRCodeBuffer = async (text) => {
   }
 };
 
-/**
- * Signs a JWT ticket token containing the given payload fields.
- */
-const generateTicketToken = (payload) => {
-  return jwt.sign({ ...payload }, QR_SECRET, { algorithm: 'HS256' });
-};
-
-/**
- * Verifies a JWT ticket token. Returns the decoded payload on success.
- * Throws an error matching /INVALID_QR_TICKET/ on any failure.
- */
-const verifyTicketToken = (token) => {
-  try {
-    return jwt.verify(token, QR_SECRET, { algorithms: ['HS256'] });
-  } catch (_err) {
-    throw new Error('INVALID_QR_TICKET');
-  }
-};
-
 module.exports = {
   generateQRCodeDataURL,
   generateQRCodeBuffer,
-  generateTicketToken,
-  verifyTicketToken
 };

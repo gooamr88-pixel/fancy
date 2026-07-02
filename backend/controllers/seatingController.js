@@ -21,27 +21,12 @@ const assignSeat = async (req, res, next) => {
   }
 
   try {
-    // Validate seat capacity before assignment
-    if (!force) {
-      const [{ data: table }, { data: assignments }] = await Promise.all([
-        supabase.from('tables').select('max_capacity').eq('id', tableId).eq('event_id', eventId).single(),
-        supabase.from('seating_assignments').select('rsvps(party_size)').eq('table_id', tableId).eq('event_id', eventId),
-      ]);
-      if (table && table.max_capacity != null) {
-        const { data: party } = await supabase.from('rsvp_parties').select('guests(id)').eq('id', rsvpId).single();
-        const partySize = (party?.guests || []).length || 1;
-        const occupied = (assignments || []).reduce((sum, a) => sum + (a.rsvps?.party_size || 0), 0);
-        if (occupied + partySize > table.max_capacity) {
-          return res.status(400).json({
-            success: false,
-            error: 'TABLE_OVER_CAPACITY',
-            message: `This table is at capacity (${occupied}/${table.max_capacity} seats occupied). Cannot seat party of ${partySize}.`,
-          });
-        }
-      }
-    }
-
-    // Call the postgres atomic seating function
+    // Capacity is enforced authoritatively — and atomically — inside the assign_seat
+    // RPC, which computes live occupancy from guest counts and returns
+    // CAPACITY_EXCEEDED unless p_force is set. A JS pre-check here would be both
+    // non-atomic (TOCTOU between the check and the insert) and, since the guest-model
+    // rebuild removed the `rsvps` table the old check read, silently always-zero — so
+    // the RPC is the single source of truth for capacity.
     const { data, error } = await supabase.rpc('assign_seat', {
       p_event_id: eventId,
       p_party_id: rsvpId,

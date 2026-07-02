@@ -303,6 +303,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
   const [chosenMethod, setChosenMethod] = useState('');
   const [payerRef, setPayerRef] = useState('');
   const [pendingRef, setPendingRef] = useState(null);
+  const [activatedFree, setActivatedFree] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
 
@@ -359,7 +360,11 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
         method: 'POST',
         body: JSON.stringify({ eventId, tierName: selectedTier.name, returnPath: '/dashboard' })
       });
-      if (res.checkoutUrl) {
+      if (res.activated) {
+        // Free ($0) tier — activated synchronously server-side, no Stripe round-trip.
+        setActivatedFree(true);
+        setTimeout(() => window.location.reload(), 1200);
+      } else if (res.checkoutUrl) {
         window.location.href = res.checkoutUrl;
       } else {
         throw new Error('No checkout URL returned.');
@@ -418,6 +423,18 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
           </div>
         ))}
         <div style={{ ...skel('100%', 44, 22), marginTop: '4px' }} />
+      </div>
+    );
+  }
+
+  if (activatedFree) {
+    return (
+      <div style={{ padding: '20px 24px', background: 'rgba(59,155,109,0.06)', border: '1px solid rgba(59,155,109,0.25)', borderRadius: '12px', textAlign: 'center' }}>
+        <span style={{ fontSize: '32px' }}>✓</span>
+        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: C.charcoal, margin: '8px 0 4px' }}>Plan Activated</h4>
+        <p style={{ fontSize: '12px', color: C.stone, lineHeight: 1.5, margin: 0, fontFamily: 'var(--font-sans)' }}>
+          Your free plan is now active. Refreshing…
+        </p>
       </div>
     );
   }

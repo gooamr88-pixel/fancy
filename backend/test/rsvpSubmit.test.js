@@ -56,6 +56,46 @@ test('an additional guest without a name is rejected (400, no RPC)', async () =>
   assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
 });
 
+// ── Defense-in-depth: allow_guest_edits (edits disabled at the API layer, not just hidden in the UI) ──
+
+const partyLookup = (response, allowGuestEdits) => (s) =>
+  s.table === 'rsvp_parties' && s.terminal === 'maybeSingle'
+    ? { data: { response, events: { slug: 'wedding', allow_guest_edits: allowGuestEdits } } }
+    : {};
+
+test('editing an already-answered party is rejected (403, no RPC) when the organizer disabled edits', async () => {
+  mock.setResolver(partyLookup('yes', false));
+  const { res } = await invoke(submitPublicRSVP, req({ partyId: 'party-1', guestName: 'A', email: 'a@x.com', response: 'no' }));
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.error, 'RESPONSE_EDITS_DISABLED');
+  assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
+});
+
+test('editing an already-answered party proceeds to the RPC when the organizer allows edits', async () => {
+  mock.setResolver((s) => {
+    if (s.table === 'rsvp_parties' && s.terminal === 'maybeSingle') {
+      return { data: { response: 'yes', events: { slug: 'wedding', allow_guest_edits: true } } };
+    }
+    if (s.op === 'rpc' && s.fn === 'submit_rsvp_v2') return { data: { success: true, party_id: 'party-1', response: 'no' } };
+    return {};
+  });
+  const { res } = await invoke(submitPublicRSVP, req({ partyId: 'party-1', guestName: 'A', email: 'a@x.com', response: 'no' }));
+  assert.equal(res.statusCode, 201);
+  assert.equal(mock.calls.some(c => c.op === 'rpc'), true);
+});
+
+test('a first-time response (party still pending) is never blocked, regardless of allow_guest_edits', async () => {
+  mock.setResolver((s) => {
+    if (s.table === 'rsvp_parties' && s.terminal === 'maybeSingle') {
+      return { data: { response: 'pending', events: { slug: 'wedding', allow_guest_edits: false } } };
+    }
+    if (s.op === 'rpc' && s.fn === 'submit_rsvp_v2') return { data: { success: true, party_id: 'party-1', response: 'yes' } };
+    return {};
+  });
+  const { res } = await invoke(submitPublicRSVP, req({ partyId: 'party-1', guestName: 'A', email: 'a@x.com', response: 'yes', partySize: 1 }));
+  assert.equal(res.statusCode, 201);
+});
+
 // ── RPC result code → HTTP status mapping ──
 
 const codeCases = [

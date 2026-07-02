@@ -24,101 +24,93 @@ t.beforeEach(() => { mock.reset(); });
 
 const listReq = (query) => mockReq({ params: { eventId: 'evt-1' }, query, user: { id: 'owner-1' } });
 
-/** The terminal select against the rsvp_parties table (the paginated list query). */
-const rsvpListCall = () => mock.calls.find(c => c.table === 'rsvp_parties' && c.op === 'select');
+/** The single get_event_parties RPC invocation. */
+const rpcCall = () => mock.calls.find(c => c.op === 'rpc' && c.fn === 'get_event_parties');
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Regression: cross-table filters must constrain the PAGED + COUNTED query, not
-// post-filter an already-fetched page (which produced short pages + wrong totals).
+// H1 refactor: listParties delegates ALL filtering + pagination + counting to the
+// get_event_parties RPC in a single round trip. These tests lock the JS→RPC
+// contract — safe param mapping/validation in, and the { total, parties } envelope
+// out — replacing the old JS id-set pre-queries and 5,000-row post-filter cap.
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('no cross-table filters → passthrough, no related-table pre-queries, total is the DB count', async () => {
+test('delegates to the get_event_parties RPC (one round trip) and passes the DB total through', async () => {
   mock.setResolver((s) => {
-    if (s.table === 'rsvp_parties' && s.op === 'select') {
-      return { data: [{ id: 'r1' }, { id: 'r2' }], count: 2 };
+    if (s.op === 'rpc' && s.fn === 'get_event_parties') {
+      return { data: { total: 2, parties: [{ id: 'r1' }, { id: 'r2' }] } };
     }
     return {};
   });
 
-  const { res } = await invoke(getRSVPs, listReq({}));
+  const { res } = await invoke(getRSVPs, listReq({ page: '1', limit: '50' }));
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.data.rsvps.length, 2);
   assert.equal(res.body.meta.pagination.total, 2);
-  // No seating/meal/custom pre-query when those filters are absent.
-  assert.equal(mock.calls.some(c => c.table === 'seating_assignments'), false);
-  assert.equal(mock.calls.some(c => c.table === 'guests'), false);
-  // The list query is NOT id-constrained.
-  assert.equal(rsvpListCall().filters.in, undefined);
+  assert.equal(res.body.meta.pagination.count, 2);
+  // Exactly one DB call, and it's the RPC — no seating/guests/custom_answers scans.
+  assert.equal(mock.calls.length, 1);
+  assert.equal(rpcCall().params.p_event_id, 'evt-1');
+  assert.equal(rpcCall().params.p_limit, 50);
+  assert.equal(rpcCall().params.p_offset, 0);
 });
 
-test('seated=true constrains the list query to seated ids and reports the filtered total', async () => {
+test('an empty page still reports the DB total (accurate pagination past the last page)', async () => {
   mock.setResolver((s) => {
-    if (s.table === 'seating_assignments' && s.op === 'select') {
-      return { data: [{ party_id: 'r1' }, { party_id: 'r3' }] };
-    }
-    if (s.table === 'rsvp_parties' && s.op === 'select') {
-      return { data: [
-        { id: 'r1', seating_assignments: [{ id: 'sa-1' }] },
-        { id: 'r3', seating_assignments: [{ id: 'sa-3' }] }
-      ], count: 2 };
-    }
+    // Page 9 is past the end, but the RPC's jsonb still carries the true total.
+    if (s.op === 'rpc' && s.fn === 'get_event_parties') return { data: { total: 120, parties: [] } };
     return {};
   });
 
-  const { res } = await invoke(getRSVPs, listReq({ seated: 'true' }));
-  assert.equal(res.statusCode, 200);
-  const inFilter = rsvpListCall().filters.in.find(([col]) => col === 'id');
-  assert.deepEqual(new Set(inFilter[1]), new Set(['r1', 'r3']));
-  // total reflects the constrained count, not an unfiltered page length.
-  assert.equal(res.body.meta.pagination.total, 2);
-});
-
-test('seated=true with no seated guests short-circuits to an empty page (total 0, no list query)', async () => {
-  mock.setResolver((s) => {
-    if (s.table === 'seating_assignments' && s.op === 'select') return { data: [] };
-    return {};
-  });
-
-  const { res } = await invoke(getRSVPs, listReq({ seated: 'true' }));
+  const { res } = await invoke(getRSVPs, listReq({ page: '9', limit: '50' }));
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.data.rsvps.length, 0);
-  assert.equal(res.body.meta.pagination.total, 0);
-  // No point querying rsvp_parties when nothing can match.
-  assert.equal(rsvpListCall(), undefined);
+  assert.equal(res.body.meta.pagination.total, 120);
+  assert.equal(rpcCall().params.p_offset, 400); // (9-1)*50
 });
 
-test('seated=false excludes seated ids via NOT IN', async () => {
-  mock.setResolver((s) => {
-    if (s.table === 'seating_assignments' && s.op === 'select') return { data: [{ party_id: 'r1' }] };
-    if (s.table === 'rsvp_parties' && s.op === 'select') return { data: [{ id: 'r2' }], count: 1 };
-    return {};
-  });
+test('valid filters map straight onto RPC params', async () => {
+  mock.setResolver((s) => (s.op === 'rpc' ? { data: { total: 0, parties: [] } } : {}));
 
-  const { res } = await invoke(getRSVPs, listReq({ seated: 'false' }));
-  assert.equal(res.statusCode, 200);
-  const notFilter = (rsvpListCall().filters.not || []).find(([col, op]) => col === 'id' && op === 'in');
-  assert.ok(notFilter, 'expected a NOT id IN (...) constraint');
-  assert.equal(notFilter[2], '(r1)');
-  assert.equal(res.body.meta.pagination.total, 1);
+  await invoke(getRSVPs, listReq({
+    response: 'yes', seated: 'true', meal: 'Chicken',
+    customFieldId: 'field-9', customFieldValue: 'Vegan', sort: 'name_asc',
+  }));
+
+  const p = rpcCall().params;
+  assert.equal(p.p_response, 'yes');
+  assert.equal(p.p_seated, 'true');
+  assert.equal(p.p_meal, 'Chicken');
+  assert.equal(p.p_custom_field_id, 'field-9');
+  assert.equal(p.p_custom_field_value, 'Vegan');
+  assert.equal(p.p_sort, 'name_asc');
 });
 
-test('meal filter resolves matching rsvp ids and intersects with seated=true', async () => {
-  mock.setResolver((s) => {
-    if (s.table === 'seating_assignments' && s.op === 'select') {
-      return { data: [{ party_id: 'r1' }, { party_id: 'r2' }] }; // seated: r1, r2
-    }
-    if (s.table === 'guests' && s.op === 'select') {
-      return { data: [{ party_id: 'r2' }, { party_id: 'r9' }] }; // chose this meal: r2, r9
-    }
-    if (s.table === 'rsvp_parties' && s.op === 'select') {
-      return { data: [{ id: 'r2', seating_assignments: [{ id: 'sa-2' }], guests: [{ meal_selection: 'Chicken' }] }], count: 1 };
-    }
-    return {};
-  });
+test('unknown response / seated / sort values are nulled out before hitting the RPC', async () => {
+  mock.setResolver((s) => (s.op === 'rpc' ? { data: { total: 0, parties: [] } } : {}));
 
-  const { res } = await invoke(getRSVPs, listReq({ seated: 'true', meal: 'Chicken' }));
-  assert.equal(res.statusCode, 200);
-  // Intersection of {r1,r2} and {r2,r9} is {r2}.
-  const inFilter = rsvpListCall().filters.in.find(([col]) => col === 'id');
-  assert.deepEqual(inFilter[1], ['r2']);
+  await invoke(getRSVPs, listReq({ response: 'DROP TABLE', seated: 'banana', sort: 'label; --' }));
+
+  const p = rpcCall().params;
+  assert.equal(p.p_response, null);
+  assert.equal(p.p_seated, null);
+  assert.equal(p.p_sort, null);
+});
+
+test('a %/_ in the search term is escaped so it cannot act as an ILIKE wildcard', async () => {
+  mock.setResolver((s) => (s.op === 'rpc' ? { data: { total: 0, parties: [] } } : {}));
+
+  await invoke(getRSVPs, listReq({ search: '50%_off' }));
+
+  // escapeLikePattern backslash-escapes % and _ ; the RPC adds the surrounding %…%.
+  assert.equal(rpcCall().params.p_search, '50\\%\\_off');
+});
+
+test('limit is capped at 100 and drives the RPC offset', async () => {
+  mock.setResolver((s) => (s.op === 'rpc' ? { data: { total: 0, parties: [] } } : {}));
+
+  await invoke(getRSVPs, listReq({ page: '3', limit: '999' }));
+
+  const p = rpcCall().params;
+  assert.equal(p.p_limit, 100);   // clamped
+  assert.equal(p.p_offset, 200);  // (3-1)*100
 });

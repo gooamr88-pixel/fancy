@@ -72,7 +72,7 @@ export default function Modal({ open, title, onClose, children, footer, width = 
   );
 }
 
-export function Button({ onClick, children, variant = 'default', disabled, type = 'button' }) {
+export function Button({ onClick, children, variant = 'default', disabled, type = 'button', style, className, ...rest }) {
   const styles = {
     default: { background: T.surface, color: T.text700, border: `1px solid ${T.border}` },
     primary: { background: T.primary, color: '#FFFFFF', border: `1px solid ${T.primary}`, fontWeight: 800 },
@@ -86,7 +86,8 @@ export function Button({ onClick, children, variant = 'default', disabled, type 
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`admin-btn admin-btn-${variant}`}
+      className={`admin-btn admin-btn-${variant}${className ? ` ${className}` : ''}`}
+      {...rest}
       style={{
         ...styles,
         padding: '9px 18px',
@@ -100,6 +101,7 @@ export function Button({ onClick, children, variant = 'default', disabled, type 
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
+        ...style,
       }}
     >
       {children}
@@ -107,7 +109,7 @@ export function Button({ onClick, children, variant = 'default', disabled, type 
   );
 }
 
-export function StatusBadge({ status }) {
+export function StatusBadge({ status, label }) {
   const map = {
     // Lifecycle / health
     active: { bg: T.successSoft, fg: T.success, border: 'rgba(16, 185, 129, 0.2)' },
@@ -141,7 +143,7 @@ export function StatusBadge({ status }) {
         display: 'inline-block',
       }}
     >
-      {(status || '—').toString().replace(/_/g, ' ')}
+      {label || (status || '—').toString().replace(/_/g, ' ')}
     </span>
   );
 }

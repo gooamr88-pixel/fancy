@@ -169,7 +169,7 @@ const resetOrganizerPassword = async (req, res, next) => {
 
     const { error: updErr } = await supabase
       .from('organizations')
-      .update({ password_hash: passwordHash, failed_login_attempts: 0, lockout_until: null })
+      .update({ password_hash: passwordHash, failed_login_attempts: 0, lockout_until: null, must_reset_password: true })
       .eq('owner_user_id', userId);
     if (updErr) throw updErr;
 

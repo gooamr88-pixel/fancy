@@ -948,7 +948,17 @@ export default function CreateEventWizard() {
         body: JSON.stringify({ eventId, tierName: selectedTierName }),
       });
       const data = await res.json();
-      if (!res.ok || !data.checkoutUrl) throw new Error(data.message || 'Could not start checkout.');
+      if (!res.ok || (!data.checkoutUrl && !data.activated)) throw new Error(data.message || 'Could not start checkout.');
+
+      // A free ($0) tier is activated synchronously server-side — no Stripe
+      // round-trip needed, so just show the success state directly.
+      if (data.activated) {
+        setPaymentConfirmed(true);
+        setPaymentNotice(data.message || 'Your plan is now active.');
+        setPayProcessing(false);
+        return;
+      }
+
       // The card flow leaves the SPA — stash just enough to resume the wizard on
       // return (the full event draft already lives server-side from the Configure
       // step). See the resume effect above.

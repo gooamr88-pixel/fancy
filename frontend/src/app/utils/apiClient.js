@@ -2,9 +2,6 @@ const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/
 export const API_URL = rawApiUrl.endsWith('/api/v1') ? rawApiUrl : `${rawApiUrl}/api/v1`;
 export const API_BASE_URL = API_URL.replace(/\/api\/v1$/, '');
 
-// Flag to prevent infinite 401 retry loops
-let isRefreshing = false;
-
 export async function apiFetch(path, options = {}) {
   const url = `${API_URL}${path}`;
   const headers = {
@@ -38,30 +35,14 @@ export async function apiFetch(path, options = {}) {
       const onAuthPage = typeof window !== 'undefined' && authPaths.includes(window.location.pathname);
 
       if (typeof window !== 'undefined' && !onAuthPage) {
-        // Attempt session refresh before giving up (prevents unnecessary logouts
-        // when the access token expired but the refresh token is still valid).
-        if (!isRefreshing && !options._isRetry) {
-          isRefreshing = true;
-          try {
-            const { supabase } = await import('./supabaseClient');
-            const { error } = await supabase.auth.refreshSession();
-            isRefreshing = false;
-            if (!error) {
-              // Retry the original request once after successful refresh
-              return apiFetch(path, { ...options, _isRetry: true });
-            }
-          } catch {
-            isRefreshing = false;
-          }
-        }
-
-        // Refresh failed or already retried — clear local state and redirect
-        isRefreshing = false;
-        // Clear local metadata (non-sensitive display data)
+        // Auth is a backend-issued httpOnly JWT (fancy_session) with a fixed 24h
+        // expiry and no refresh-token exchange — this app never establishes a
+        // Supabase Auth session, so there is nothing to refresh. A 401 here means
+        // the cookie is missing or expired: clear local display state and send the
+        // user to log in again.
         localStorage.removeItem('org_id');
         localStorage.removeItem('user_role');
         localStorage.removeItem('active_event_id');
-        // Redirect to login — the server already invalidated the cookie
         window.location.href = '/login';
         return; // Don't throw — we're redirecting
       }

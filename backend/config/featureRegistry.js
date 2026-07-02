@@ -7,6 +7,11 @@
  * tooltip), a category (for UI grouping), and a freeDefault flag indicating
  * whether the feature is available on unpaid / free-tier events.
  *
+ * `builtIn: false` marks a feature that exists only as a pricing-page bullet —
+ * no route mounts `requireFeature()` for it yet, so toggling it per-tier has
+ * no real effect on access. Ship the capability + mount the gate, then flip
+ * this to true (or remove the flag; it defaults to true).
+ *
  * Adding a new feature:
  *   1. Add an entry here.
  *   2. Mount `requireFeature('your_key')` on the relevant route(s).
@@ -34,29 +39,29 @@ const PLATFORM_FEATURES = [
   { key: 'sms_campaigns',        label: 'SMS campaign tools',            description: 'Send bulk SMS campaigns to guest segments with credit-based billing.',               category: 'Campaigns & SMS',   freeDefault: false },
 
   // ── Branding ──
-  { key: 'custom_branding',      label: 'Custom themes & branding',     description: 'Apply custom colors, logos, and themes to your RSVP pages.',                         category: 'Branding',          freeDefault: false },
+  { key: 'custom_branding',      label: 'Custom themes & branding',     description: 'Apply custom colors, logos, and themes to your RSVP pages.',                         category: 'Branding',          freeDefault: false, builtIn: false },
   { key: 'remove_watermark',     label: 'Remove Fancy watermark',       description: 'Remove the "Powered by Fancy RSVP" branding from guest-facing pages.',               category: 'Branding',          freeDefault: false },
-  { key: 'white_label',          label: 'White-label solution',         description: 'Full white-label: custom domain, branding, and zero Fancy references.',              category: 'Branding',          freeDefault: false },
+  { key: 'white_label',          label: 'White-label solution',         description: 'Full white-label: custom domain, branding, and zero Fancy references.',              category: 'Branding',          freeDefault: false, builtIn: false },
 
   // ── Analytics ──
   { key: 'analytics_basic',      label: 'Basic analytics dashboard',    description: 'View RSVP counts, response rates, and basic event metrics.',                        category: 'Analytics',         freeDefault: true },
-  { key: 'analytics_advanced',   label: 'Real-time analytics & reports',description: 'Advanced charts, real-time tracking, guest demographics, and PDF reports.',          category: 'Analytics',         freeDefault: false },
+  { key: 'analytics_advanced',   label: 'Real-time analytics & reports',description: 'Advanced charts, real-time tracking, guest demographics, and PDF reports.',          category: 'Analytics',         freeDefault: false, builtIn: false },
 
   // ── Notifications ──
   { key: 'email_notifications',  label: 'Email notifications',          description: 'Automatic email confirmations and reminders for guests.',                            category: 'Notifications',    freeDefault: true },
 
   // ── Support ──
   { key: 'support_community',    label: 'Community support',            description: 'Access to community forums and knowledge-base articles.',                            category: 'Support',           freeDefault: true },
-  { key: 'support_priority',     label: 'Priority email & chat support',description: 'Faster response times via dedicated email and live chat channels.',                  category: 'Support',           freeDefault: false },
-  { key: 'support_dedicated',    label: 'Dedicated account manager',    description: 'A named account manager for onboarding, strategy, and escalations.',                 category: 'Support',           freeDefault: false },
+  { key: 'support_priority',     label: 'Priority email & chat support',description: 'Faster response times via dedicated email and live chat channels.',                  category: 'Support',           freeDefault: false, builtIn: false },
+  { key: 'support_dedicated',    label: 'Dedicated account manager',    description: 'A named account manager for onboarding, strategy, and escalations.',                 category: 'Support',           freeDefault: false, builtIn: false },
 
   // ── Integrations ──
-  { key: 'all_integrations',     label: 'All integrations',             description: 'Access every available third-party integration.',                                    category: 'Integrations',      freeDefault: false },
-  { key: 'custom_api',           label: 'Custom integrations & API',    description: 'Build custom integrations using the Fancy RSVP developer API.',                      category: 'Integrations',      freeDefault: false },
+  { key: 'all_integrations',     label: 'All integrations',             description: 'Access every available third-party integration.',                                    category: 'Integrations',      freeDefault: false, builtIn: false },
+  { key: 'custom_api',           label: 'Custom integrations & API',    description: 'Build custom integrations using the Fancy RSVP developer API.',                      category: 'Integrations',      freeDefault: false, builtIn: false },
 
   // ── Security ──
-  { key: 'sso_team_mgmt',        label: 'SSO & team management',        description: 'Single Sign-On (SAML/OIDC) and multi-user team roles.',                              category: 'Security',          freeDefault: false },
-  { key: 'advanced_security',    label: 'Advanced security & compliance',description: 'Audit logs, IP allowlisting, data-residency controls, and SOC 2 readiness.',       category: 'Security',          freeDefault: false },
+  { key: 'sso_team_mgmt',        label: 'SSO & team management',        description: 'Single Sign-On (SAML/OIDC) and multi-user team roles.',                              category: 'Security',          freeDefault: false, builtIn: false },
+  { key: 'advanced_security',    label: 'Advanced security & compliance',description: 'Audit logs, IP allowlisting, data-residency controls, and SOC 2 readiness.',       category: 'Security',          freeDefault: false, builtIn: false },
 ];
 
 // ── Derived lookups (computed once at require-time) ──

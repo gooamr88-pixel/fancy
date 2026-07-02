@@ -13,16 +13,18 @@ import { T } from '../../_components/theme';
 export default function AuditPage() {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
-  const { rows, pagination, loading } = useAdminList('/audit', { page, limit: 30, q }, (res) => res?.logs || res?.data || []);
+  const { rows, pagination, loading, error } = useAdminList('/audit', { page, limit: 30, q }, (res) => res?.logs || res?.data || []);
 
   return (
     <div>
       <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0 }}>Audit Logs</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Audit Logs</h1>
         <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Every administrative action, with device context.</p>
       </header>
 
       <FilterBar onSearch={(val) => { setPage(1); setQ(val); }} placeholder="Search action…" />
+
+      {error && <p style={{ color: T.danger, fontSize: 13 }}>{error}</p>}
 
       <DataTable
         loading={loading}

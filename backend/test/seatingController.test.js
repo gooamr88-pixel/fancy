@@ -98,6 +98,25 @@ test('assignSeat forwards the force-override flag to the RPC (deliberate overboo
   assert.equal(params.p_table_id, 't1');
 });
 
+test('assignSeat (non-force) delegates capacity to the RPC — no JS pre-check queries', async () => {
+  // Regression guard for the removed, broken pre-check: it read the deleted `rsvps`
+  // table (occupied always computed as 0) and duplicated the atomic RPC's capacity
+  // logic non-atomically. The controller must now touch the DB exactly once — the
+  // assign_seat RPC — with no tables/seating_assignments/rsvp_parties pre-queries.
+  mock.setResolver((s) => {
+    if (s.op === 'rpc' && s.fn === 'assign_seat') return { data: { success: true, seats_remaining: 4 } };
+    return {};
+  });
+  const { res } = await invoke(assignSeat, seatReq({ rsvpId: 'r1', tableId: 't1' })); // force omitted => false
+  assert.equal(res.statusCode, 200);
+  assert.equal(mock.calls.some(c => c.table === 'tables'), false);
+  assert.equal(mock.calls.some(c => c.table === 'seating_assignments'), false);
+  assert.equal(mock.calls.some(c => c.table === 'rsvp_parties'), false);
+  const rpcCalls = mock.calls.filter(c => c.op === 'rpc');
+  assert.equal(rpcCalls.length, 1);
+  assert.equal(rpcCalls[0].fn, 'assign_seat');
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // reassignSeat
 // ─────────────────────────────────────────────────────────────────────────────
