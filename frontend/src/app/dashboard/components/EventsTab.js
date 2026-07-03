@@ -669,10 +669,13 @@ function CurrentPlanBlock({ eventId, event }) {
     else setHasUpgrades(true);
   }, [event.tier_name]);
 
-  // Manual payment receipt data for approved cash payments.
-  const manualPayment = (event.event_payments || []).find(
-    p => p.payment_method === 'cash_manual' && p.status === 'completed'
-  );
+  // Manual payment receipt data for approved cash payments. An event can have
+  // more than one completed cash_manual row (the original payment, then a later
+  // upgrade) — take the most recently completed one, not just the first match,
+  // or the receipt keeps showing the old plan's price after an upgrade.
+  const manualPayment = (event.event_payments || [])
+    .filter(p => p.payment_method === 'cash_manual' && p.status === 'completed')
+    .sort((a, b) => new Date(b.completed_at || b.created_at || 0) - new Date(a.completed_at || a.created_at || 0))[0];
 
   return (
     <div style={{

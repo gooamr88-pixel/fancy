@@ -36,7 +36,7 @@ export default function StagePayment({
   tiers, manualMethods = [], selectedTierName, onSelectTier,
   onPayStripe, onPayManual, manualRef,
   processing, error, onContinue, onBack, onSkip,
-  paymentConfirmed = false, paymentNotice = '', verifying = false,
+  paymentConfirmed = false, paymentNotice = '', verifying = false, onRecheckPayment,
   isPaid = false, currentTierName = '', currentTierMaxGuests = null,
   stripeEnabled = true,
 }) {
@@ -175,8 +175,22 @@ export default function StagePayment({
           background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.25)',
           borderRadius: 12, padding: '14px 18px', marginBottom: 20,
           fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal, fontWeight: 600, lineHeight: 1.6,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
         }}>
-          {paymentNotice}
+          <span>{paymentNotice}</span>
+          {/* Previously the only way to re-check was leaving and re-entering this
+              step (which itself only re-fetched on [step, eventId] — see the
+              wizard's tier-load effect). If the webhook is delayed, offer an
+              explicit re-check without navigating away. */}
+          {onRecheckPayment && (
+            <button type="button" onClick={onRecheckPayment} style={{
+              border: `1px solid ${C.gold}`, background: C.white, color: C.gold, borderRadius: 8,
+              padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              whiteSpace: 'nowrap',
+            }}>
+              Check again
+            </button>
+          )}
         </div>
       )}
 

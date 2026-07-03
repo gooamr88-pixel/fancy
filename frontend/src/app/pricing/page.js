@@ -107,24 +107,24 @@ const FALLBACK_PLANS = [
 
 const faqData = [
   {
-    question: "Can I switch plans at any time?",
-    answer: "Absolutely. You can upgrade or downgrade your plan at any time. When upgrading, you'll get immediate access to new features. When downgrading, your current features remain active until the end of your billing cycle.",
+    question: "How does billing work?",
+    answer: "Each plan is a one-time fee per event, not a recurring subscription — pick the plan that fits that event's guest count and features, pay once, and it's active for that event.",
   },
   {
-    question: "Is there a free trial for Premium?",
-    answer: "Yes! Every Premium plan comes with a 14-day free trial. No credit card required. You'll have full access to all Premium features during the trial period.",
+    question: "Can I upgrade an event to a higher plan later?",
+    answer: "Yes — from your event's payment settings you can upgrade to a higher tier at any time. You're only charged the difference between your current plan and the new one, and the upgrade takes effect immediately.",
   },
   {
     question: "What payment methods do you accept?",
-    answer: "We accept all major credit and debit cards (Visa, Mastercard, American Express), as well as PayPal. Enterprise customers can pay via invoice with NET 30 terms.",
+    answer: "We accept all major credit and debit cards via Stripe. If card payments aren't available for your account, manual/bank-transfer payment methods configured by our team are offered as an alternative.",
   },
   {
     question: "Can I get a refund if I'm not satisfied?",
-    answer: "We offer a 30-day money-back guarantee on all paid plans. If you're not completely satisfied, contact our support team for a full refund — no questions asked.",
+    answer: "Reach out to our support team and we'll review your situation — refunds are handled case-by-case rather than automatically.",
   },
   {
-    question: "Do you offer discounts for nonprofits?",
-    answer: "Yes! We offer a 50% discount for verified nonprofit organizations. Contact our sales team with your organization details and we'll set up your discounted account.",
+    question: "Do you offer custom pricing for nonprofits or large organizations?",
+    answer: "Contact our sales team with your organization's details — we review nonprofit and high-volume requests individually rather than through a fixed discount.",
   },
 ];
 

@@ -22,6 +22,11 @@ const RESP = {
 export default function QuickConfirm({ event, guest, intendedResponse, isRTL, submit, submitting, context }) {
   const [selected, setSelected] = useState(intendedResponse || guest?.response || 'yes');
   const [partySize, setPartySize] = useState(guest?.party_size || 1);
+  // Name-only companion list — QuickConfirm stays a one-click surface, so it
+  // doesn't collect email/phone/meal per companion the way the full public
+  // wizard does; without this, growing the party here left every extra
+  // member as a permanent anonymous "Guest 2"/"Guest 3" placeholder.
+  const [companionNames, setCompanionNames] = useState([]);
   const [done, setDone] = useState(false);
   const [finalResponse, setFinalResponse] = useState(null);
 
@@ -29,10 +34,23 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
     ? new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
     : null;
 
+  const handlePartySizeChange = (size) => {
+    setPartySize(size);
+    const wanted = Math.max(size - 1, 0);
+    setCompanionNames((prev) => {
+      if (wanted === prev.length) return prev;
+      if (wanted < prev.length) return prev.slice(0, wanted);
+      return [...prev, ...Array.from({ length: wanted - prev.length }, () => '')];
+    });
+  };
+
   const handleConfirm = async () => {
+    const additionalGuests = selected === 'yes' && partySize > 1
+      ? companionNames.slice(0, partySize - 1).map((fullName) => ({ fullName }))
+      : [];
     const r = await submit({
       url: '/public/rsvp/respond',
-      body: { token: context.token, response: selected, partySize: selected === 'yes' ? partySize : 1 },
+      body: { token: context.token, response: selected, partySize: selected === 'yes' ? partySize : 1, additionalGuests },
       reconcileId: guest?.id,
     });
     // A LOCKED/closed/full result is handled centrally by the engine (it swaps to the
@@ -111,7 +129,23 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
       <AnimatePresence mode="wait">
         {selected === 'yes' && (
           <motion.div key="ps" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.35 }} style={{ overflow: 'hidden', marginBottom: '20px' }}>
-            <ScaleIn><PartySizeStepper value={partySize} onChange={setPartySize} min={1} max={20} label={isRTL ? 'إجمالي عدد الأفراد (شاملاً نفسك)' : 'Total party size (including you)'} isRTL={isRTL} /></ScaleIn>
+            <ScaleIn><PartySizeStepper value={partySize} onChange={handlePartySizeChange} min={1} max={20} label={isRTL ? 'إجمالي عدد الأفراد (شاملاً نفسك)' : 'Total party size (including you)'} isRTL={isRTL} /></ScaleIn>
+            {partySize > 1 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '14px' }}>
+                {companionNames.slice(0, partySize - 1).map((name, i) => (
+                  <input
+                    key={i}
+                    value={name}
+                    onChange={(e) => setCompanionNames((prev) => prev.map((n, idx) => (idx === i ? e.target.value : n)))}
+                    placeholder={isRTL ? `اسم الضيف ${i + 2} (اختياري)` : `Guest ${i + 2} name (optional)`}
+                    style={{
+                      padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(184,148,79,0.25)',
+                      fontSize: '14px', fontFamily: 'inherit', outline: 'none', background: 'rgba(255,255,255,0.6)',
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

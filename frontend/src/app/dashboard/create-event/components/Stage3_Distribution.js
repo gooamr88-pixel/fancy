@@ -14,14 +14,31 @@ const C = {
 
 const CREDIT_PACKS = [50, 100, 250, 500];
 
+// Mirrors backend/utils/pricing.js's computeSmsChargeCents (kept in sync
+// manually since frontend/ and backend/ aren't set up to share code across
+// the app boundary) — an ESTIMATE only, so the organizer sees a price before
+// redirecting to Stripe instead of finding out only on Stripe's own page,
+// unlike every other paid action in this wizard. The actual charge is always
+// computed authoritatively server-side at checkout-session creation.
+const SMS_VOLUME_DISCOUNT_THRESHOLD = 500;
+const SMS_VOLUME_DISCOUNT_RATE = 0.875;
+function estimateSmsChargeCents(unitPriceCents, creditCount, markupPct = 0) {
+  if (!Number.isFinite(unitPriceCents) || !Number.isFinite(creditCount) || creditCount <= 0) return null;
+  let total = unitPriceCents * creditCount * (1 + (Number(markupPct) || 0) / 100);
+  if (creditCount >= SMS_VOLUME_DISCOUNT_THRESHOLD) total *= SMS_VOLUME_DISCOUNT_RATE;
+  return Math.max(0, Math.round(total));
+}
+
 export default function Stage3_Distribution({
   slug, distributionMethods, onMethodToggle,
   smsTemplate, setSmsTemplate,
   smsCredits, smsCreditsLoading, onRefreshCredits, onBuyCredits, buyingCredits, creditError,
+  smsRateCentsPerCredit = null, smsMarkupPercentage = 0,
   onSubmit, onBack, submitting, error, smsEnabled = true,
 }) {
   const [copied, setCopied] = useState(false);
   const [creditQty, setCreditQty] = useState(100);
+  const estimatedCents = estimateSmsChargeCents(smsRateCentsPerCredit, creditQty, smsMarkupPercentage);
   const eventUrl = `fancyrsvp.com/${slug || 'your-event'}`;
   // Segment-accurate counter: Arabic/emoji switch the body to Unicode (70-char
   // segments vs 160), so the per-segment cap and credit cost change with content.
@@ -352,7 +369,9 @@ export default function Stage3_Distribution({
                                 fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
                                 cursor: (buyingCredits || creditQty < 50) ? 'not-allowed' : 'pointer',
                               }}>
-                              {buyingCredits ? 'Opening checkout…' : `Buy ${creditQty >= 50 ? creditQty : ''} Credits`}
+                              {buyingCredits
+                                ? 'Opening checkout…'
+                                : `Buy ${creditQty >= 50 ? creditQty : ''} Credits${estimatedCents != null ? ` — ~$${(estimatedCents / 100).toFixed(2)}` : ''}`}
                             </button>
                             <p style={{ fontSize: 10, color: C.stone, fontFamily: 'var(--font-sans)', margin: '8px 0 0', lineHeight: 1.5 }}>
                               {creditQty < 50 ? 'Minimum purchase is 50 credits.' : "Checkout opens in a new tab — finish there, then come back here and your balance updates automatically."}

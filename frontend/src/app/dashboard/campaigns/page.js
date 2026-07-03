@@ -38,6 +38,10 @@ export default function CampaignsPage() {
 
   const [authChecked, setAuthChecked] = useState(false);
   const [eventId, setEventId] = useState('');
+  // null = loading, true/false once known. sms_campaigns is a gated feature
+  // key (see UpgradeModal.FEATURE_TITLES) but this page never actually
+  // checked it — any organizer could open the composer regardless of plan.
+  const [hasCampaignFeature, setHasCampaignFeature] = useState(null);
   const [purchaseNotice, setPurchaseNotice] = useState('');
   const [purchaseSuccess, setPurchaseSuccess] = useState(false);
   const purchaseHandledRef = useRef(false);
@@ -193,6 +197,22 @@ export default function CampaignsPage() {
     if (!eventId) return;
     loadCampaignData();
   }, [loadCampaignData, eventId]);
+
+  // Feature-gate check: fetch the event's resolved tier once we know eventId.
+  useEffect(() => {
+    if (!eventId) return;
+    fetch(`${apiUrl}/events/${eventId}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (data?.event) {
+          const features = Array.isArray(data.event.tier_features) ? data.event.tier_features : [];
+          setHasCampaignFeature(!!data.event.manual_override || features.includes('sms_campaigns'));
+        } else {
+          setHasCampaignFeature(false);
+        }
+      })
+      .catch(() => setHasCampaignFeature(false));
+  }, [apiUrl, eventId]);
 
   // Keep the wallet live when the user returns from the checkout tab we opened
   // (the purchase completes in that tab; this is the opener). Mirrors the wizard.
@@ -374,6 +394,31 @@ export default function CampaignsPage() {
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
           >
             Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (hasCampaignFeature === false) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ maxWidth: 480, width: '100%', textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: '64px 32px', borderRadius: '20px', boxShadow: '0 8px 40px rgba(0,0,0,0.06)' }}>
+          <div style={{ width: 72, height: 72, borderRadius: '50%', margin: '0 auto 24px', background: 'linear-gradient(135deg, rgba(215,190,128,0.15) 0%, rgba(184,148,79,0.15) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+          </div>
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: C.charcoal, margin: 0 }}>SMS Campaigns</h2>
+          <p style={{ fontSize: '14px', color: C.stone, maxWidth: 340, margin: '12px auto 0', lineHeight: 1.7 }}>
+            Send bulk SMS invitations and reminders to your guests. This feature isn't included in your current plan.
+          </p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            style={{
+              marginTop: 32, padding: '14px 36px', background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+              color: C.white, border: 'none', borderRadius: '30px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            View Plans &amp; Upgrade →
           </button>
         </div>
       </div>

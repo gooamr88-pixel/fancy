@@ -5,41 +5,14 @@ import { motion } from 'framer-motion';
 import SeatingMiniMap from '../SeatingMiniMap';
 import SeatingMapFullscreen from '../SeatingMapFullscreen';
 
-const AGE_LABEL = {
-  en: { adult: 'Adult', teen: 'Teen', child: 'Child', infant: 'Infant' },
-  ar: { adult: 'بالغ', teen: 'مراهق', child: 'طفل', infant: 'رضيع' },
-};
-const GENDER_LABEL = {
-  en: { male: 'Male', female: 'Female' },
-  ar: { male: 'ذكر', female: 'أنثى' },
-};
-const RELATIONSHIP_LABEL = {
-  en: {
-    spouse: 'Spouse', parent: 'Parent', child: 'Son / daughter', sibling: 'Sibling',
-    relative: 'Relative', friend: 'Friend', colleague: 'Colleague', other: 'Other',
-  },
-  ar: {
-    spouse: 'زوج/زوجة', parent: 'والد/والدة', child: 'ابن/ابنة', sibling: 'أخ/أخت',
-    relative: 'قريب', friend: 'صديق', colleague: 'زميل', other: 'أخرى',
-  },
-};
-
-function readableTag(value, dict, lang) {
-  if (!value) return null;
-  const key = String(value).toLowerCase();
-  return dict[lang]?.[key] || value;
-}
-
 /**
  * Shows the guest's table + a highlighted map + the companions THEY brought.
  * Distinguishes the host (gold-bordered card with crown) from companions and
- * surfaces the detailed fields each one entered (age, relationship, gender,
- * meal, dietary notes). Deliberately never lists other parties seated at the
- * same table.
+ * surfaces their meal/dietary notes. Deliberately never lists other parties
+ * seated at the same table.
  */
 export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
   const [fullscreen, setFullscreen] = useState(false);
-  const lang = isRTL ? 'ar' : 'en';
 
   if (loading) {
     return (
@@ -166,9 +139,6 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
           </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {companions.map((p, i) => {
-              const ageTag = readableTag(p.ageGroup, AGE_LABEL, lang);
-              const genderTag = readableTag(p.gender, GENDER_LABEL, lang);
-              const relTag = readableTag(p.relationship, RELATIONSHIP_LABEL, lang);
               return (
                 <div key={i} style={{
                   background: '#FFFFFF', border: '1px solid #F0ECE3', borderRadius: '10px',
@@ -187,9 +157,6 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
                       {p.name}
                     </span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                      {relTag && <Tag color="rose">{relTag}</Tag>}
-                      {ageTag && <Tag color="sky">{ageTag}</Tag>}
-                      {genderTag && <Tag color="muted">{genderTag}</Tag>}
                       {p.meal && <Tag color="gold">🍽️ {p.meal}</Tag>}
                       {p.dietaryNotes && <Tag color="muted" dim>⚠ {p.dietaryNotes}</Tag>}
                     </div>

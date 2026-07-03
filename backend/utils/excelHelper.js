@@ -24,6 +24,7 @@ const generateExcelExport = async (rsvps, tables, checkIns) => {
     { header: 'Phone', key: 'phone', width: 18 },
     { header: 'Response', key: 'response', width: 12 },
     { header: 'Party Size', key: 'party_size', width: 12 },
+    { header: 'Side', key: 'side', width: 14 },
     { header: 'Assigned Table', key: 'table_name', width: 20 },
     { header: 'Primary Meal Selection', key: 'primary_meal', width: 25 },
     { header: 'Notes', key: 'notes', width: 30 }
@@ -51,6 +52,7 @@ const generateExcelExport = async (rsvps, tables, checkIns) => {
       phone: sanitizeCsvValue(r.phone) || 'N/A',
       response: r.response,
       party_size: r.party_size,
+      side: sanitizeCsvValue(r.side) || '',
       table_name: sanitizeCsvValue(tableName),
       primary_meal: sanitizeCsvValue(primaryMeal),
       notes: sanitizeCsvValue(r.notes) || ''

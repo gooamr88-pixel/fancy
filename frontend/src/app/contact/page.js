@@ -209,17 +209,38 @@ export default function ContactPage() {
     message: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [focusedField, setFocusedField] = useState(null);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
-    setFormData({ name: "", email: "", subject: "", message: "" });
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+      const res = await fetch(`${apiUrl}/public/contact`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || "Could not send your message. Please try again.");
+      }
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 4000);
+      setFormData({ name: "", email: "", subject: "", message: "" });
+    } catch (err) {
+      setSubmitError(err.message || "Could not send your message. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inputStyle = (field) => ({
@@ -382,7 +403,23 @@ export default function ContactPage() {
                     <path d="M6 10L9 13L14 7" stroke="#FFFFFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   <span style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#B8944F", fontWeight: 600 }}>
-                    Message sent successfully! We'll be in touch soon.
+                    Message sent successfully! We&apos;ll be in touch soon.
+                  </span>
+                </div>
+              )}
+
+              {submitError && (
+                <div
+                  style={{
+                    padding: "16px 20px",
+                    background: "rgba(196, 94, 94, 0.06)",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(196, 94, 94, 0.35)",
+                    marginBottom: "24px",
+                  }}
+                >
+                  <span style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#C45E5E", fontWeight: 600 }}>
+                    {submitError}
                   </span>
                 </div>
               )}
@@ -474,6 +511,7 @@ export default function ContactPage() {
                 <button
                   type="submit"
                   className="btn-gold"
+                  disabled={submitting}
                   style={{
                     width: "100%",
                     padding: "16px",
@@ -481,9 +519,11 @@ export default function ContactPage() {
                     fontWeight: 700,
                     borderRadius: "10px",
                     letterSpacing: "0.3px",
+                    opacity: submitting ? 0.7 : 1,
+                    cursor: submitting ? "default" : "pointer",
                   }}
                 >
-                  {submitted ? "✓ Sent!" : "Send Message"}
+                  {submitted ? "✓ Sent!" : submitting ? "Sending…" : "Send Message"}
                 </button>
               </form>
             </div>

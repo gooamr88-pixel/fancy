@@ -1,12 +1,22 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { T } from './theme';
 import Sidebar from './Sidebar';
 import usePermissions from '../_hooks/usePermissions';
 import { logout } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
 import { AlertProvider } from './AlertContext';
+import { NAV_GROUPS } from './nav';
+
+// Flat pathname -> required permission map, derived once from the same nav
+// model the sidebar uses to decide what's visible.
+const PERM_BY_PATH = NAV_GROUPS.flatMap((g) => g.items).reduce((map, item) => {
+  map[item.href] = item.perm;
+  return map;
+}, {});
 
 /**
  * The Super Admin Control Center shell (Foundation F3): permission-gated sidebar
@@ -19,6 +29,7 @@ export default function AdminShell({ children }) {
   const { me, loading, error, can, isSuperAdmin } = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const pathname = usePathname();
 
   if (loading) {
     return (
@@ -46,6 +57,31 @@ export default function AdminShell({ children }) {
           <a href="/dashboard" style={{ display: 'inline-block', background: T.primary, color: '#FFFFFF', padding: '10px 24px', borderRadius: T.radiusSm, fontSize: 13, fontWeight: 700, textDecoration: 'none', transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
             Return to Dashboard
           </a>
+        </div>
+      </Centered>
+    );
+  }
+
+  // Sidebar only hides links the admin can't reach — it never stopped a direct
+  // URL visit (bookmark, typed address, or a permission revoked mid-session)
+  // from rendering the page anyway, which then just broke on its own data
+  // fetch. Block on the specific permission the current route needs before
+  // rendering its content, same as the "not an admin at all" case above.
+  const requiredPerm = PERM_BY_PATH[pathname];
+  if (requiredPerm && !isSuperAdmin && !can(requiredPerm)) {
+    return (
+      <Centered>
+        <div style={{ textAlign: 'center', maxWidth: 400, background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '40px 32px', boxShadow: T.shadowMd }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20, color: T.primary }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: T.text900, margin: '0 0 12px', fontFamily: 'var(--font-serif)' }}>Access Restricted</h2>
+          <p style={{ fontSize: 14, color: T.text500, margin: '0 0 24px', lineHeight: 1.6 }}>
+            Your role doesn&apos;t include permission to view this section. Ask another admin to grant it if you need access.
+          </p>
+          <Link href="/admin/overview" style={{ display: 'inline-block', background: T.primary, color: '#FFFFFF', padding: '10px 24px', borderRadius: T.radiusSm, fontSize: 13, fontWeight: 700, textDecoration: 'none', transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+            Back to Overview
+          </Link>
         </div>
       </Centered>
     );

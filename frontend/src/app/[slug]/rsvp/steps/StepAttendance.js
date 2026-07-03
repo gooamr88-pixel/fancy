@@ -19,7 +19,11 @@ export default function StepAttendance({ t, isRTL, guestName, attending, onSelec
         </h3>
       </FadeInUp>
 
-      <StaggerChildren staggerDelay={0.1}>
+      <StaggerChildren
+        staggerDelay={0.1}
+        className="attendance-cards-grid"
+        style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}
+      >
         {['yes', 'maybe', 'no'].map(type => (
           <StaggerItem key={type}>
             <AttendanceCard type={type} selected={attending} onClick={onSelect} isRTL={isRTL} />

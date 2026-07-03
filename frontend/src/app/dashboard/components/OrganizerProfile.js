@@ -207,7 +207,14 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (profile?.hasPassword && !passwordForm.currentPassword) { toast.error('Current password is required.'); return; }
-    if (passwordForm.newPassword.length < 8) { toast.error('New password must be at least 8 characters.'); return; }
+    // Mirrors the server's actual rule (backend/controllers/authController.js
+    // passwordRegex) — previously only checked length, so a password like
+    // "aaaaaaaa" passed here and only failed after a round trip to the server
+    // with a generic error, giving no indication which rule was missing.
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(passwordForm.newPassword)) {
+      toast.error('Password must be at least 8 characters with uppercase, lowercase, and a number.');
+      return;
+    }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) { toast.error('Passwords do not match.'); return; }
 
     setChangingPassword(true);
@@ -365,13 +372,26 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
 
         <div className="profile-row-grid" style={rowStyle}>
           <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Logo / Avatar URL</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input value={form.logo_url} onChange={handleChange('logo_url')} placeholder="https://example.com/logo.png" 
-                style={{ ...inputStyle, flex: 1 }}
-                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-                onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-              />
+            <label style={labelStyle}>Logo / Avatar</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Previously there was no way to see what was actually uploaded (or
+                  fix a bad crop/wrong file) before saving — just a toast saying
+                  "Logo uploaded successfully." with no visual confirmation. */}
+              {form.logo_url && (
+                <div style={{ position: 'relative', width: '44px', height: '44px', flexShrink: 0 }}>
+                  <img src={form.logo_url} alt="Logo preview" style={{
+                    width: '44px', height: '44px', borderRadius: '8px', objectFit: 'cover',
+                    border: `1px solid ${COLORS.border}`, display: 'block',
+                  }} onError={(e) => { e.target.style.display = 'none'; }} />
+                  <button type="button" onClick={() => setForm(prev => ({ ...prev, logo_url: '' }))}
+                    title="Remove logo"
+                    style={{
+                      position: 'absolute', top: -6, right: -6, width: '18px', height: '18px', borderRadius: '50%',
+                      border: 'none', background: 'rgba(25,27,30,0.75)', color: COLORS.white, cursor: 'pointer',
+                      fontSize: '11px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>×</button>
+                </div>
+              )}
               <input type="file" accept="image/*" onChange={handleLogoUpload} disabled={logoUploading} style={{ display: 'none' }} id="logo-upload-input" />
               <label htmlFor="logo-upload-input" style={{
                 padding: '10px 20px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
@@ -383,7 +403,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
               onMouseLeave={(e) => { if (!logoUploading) { e.currentTarget.style.background = COLORS.white; e.currentTarget.style.borderColor = COLORS.border; } }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                {logoUploading ? 'Uploading…' : 'Upload'}
+                {logoUploading ? 'Uploading…' : form.logo_url ? 'Replace' : 'Upload'}
               </label>
             </div>
           </div>

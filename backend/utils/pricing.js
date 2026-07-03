@@ -30,7 +30,10 @@ function computeSmsChargeCents({ unitPriceCents, creditCount, markupPct = 0 }) {
   if (creditCount >= VOLUME_DISCOUNT_THRESHOLD) {
     total *= VOLUME_DISCOUNT_RATE;
   }
-  return Math.round(total);
+  // Defense-in-depth: updatePricingConfig validates these inputs at save time,
+  // but a stale/malformed config row (or a future caller that skips that
+  // validation) should never be able to hand Stripe a negative unit_amount.
+  return Math.max(0, Math.round(total));
 }
 
 module.exports = {

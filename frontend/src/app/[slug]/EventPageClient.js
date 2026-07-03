@@ -346,7 +346,16 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         if (res.status === 402) { setNotLive(true); setLoading(false); return; }
-        if (res.status === 401 && data.requiresPassword) { setPasswordRequired(true); setLoading(false); return; }
+        if (res.status === 401 && data.requiresPassword) {
+          setPasswordRequired(true);
+          // Only a genuinely wrong password (one was actually submitted this
+          // attempt) should show the "Incorrect password" message — the
+          // initial page load also hits this branch with no password sent
+          // yet, and that's just "prompt for password", not an error.
+          if (password) setError('WRONG_PASSWORD');
+          setLoading(false);
+          return;
+        }
         if (res.status === 403 && data.error === 'EVENT_UNDER_REVIEW') { setUnderReview(true); setLoading(false); return; }
         if (res.status === 403 && data.error === 'EVENT_PRIVATE') { setIsPrivate(true); setLoading(false); return; }
         // INV-1: a paused/completed ("closed") event — distinct from not-found.
@@ -1695,7 +1704,14 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             language toggle — both already happened above on this same page). */}
         <div id="rsvp-section" style={{ padding: '0 24px 64px' }}>
           <RsvpExperience context={{ kind: 'slug', slug, guestId: invitationGuestId, partyId: invitationRsvpId }} lang={lang}>
-            {(api) => <RsvpWizard {...api} embedded lang={lang} />}
+            {(api) => (
+              <RsvpWizard
+                {...api}
+                embedded
+                lang={lang}
+                onGuestIdentified={(g) => setGuestRsvp((prev) => ({ ...(prev || {}), ...g }))}
+              />
+            )}
           </RsvpExperience>
         </div>
 

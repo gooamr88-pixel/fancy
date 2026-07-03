@@ -6,6 +6,11 @@ import { apiFetch } from '../../utils/apiClient';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 import Toast from '../../components/Toast';
 
+// Mirrors the backend's passwordRegex (authController.js) so weak passwords are
+// caught before the round trip instead of only after a WEAK_PASSWORD rejection.
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+const PASSWORD_HINT = 'At least 8 characters, with an uppercase letter, a lowercase letter, and a number.';
+
 const EyeIcon = ({ show }) => show ? (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#77736A" strokeWidth="1.5"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" strokeLinecap="round" strokeLinejoin="round"/><line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round"/></svg>
 ) : (
@@ -107,8 +112,8 @@ export default function ForgotPasswordPage() {
       setToast({ message: 'The passwords you entered do not match.', kind: 'error' });
       return;
     }
-    if (newPassword.length < 8) {
-      setToast({ message: 'Your new password must be at least 8 characters long.', kind: 'error' });
+    if (!PASSWORD_REGEX.test(newPassword)) {
+      setToast({ message: `Your new password must meet the requirements below. ${PASSWORD_HINT}`, kind: 'error' });
       return;
     }
     setSubmitting(true); setToast(null);
@@ -261,6 +266,7 @@ export default function ForgotPasswordPage() {
                       <EyeIcon show={showNewPassword} />
                     </button>
                   </div>
+                  <p className="auth-field-hint">{PASSWORD_HINT}</p>
                 </div>
 
                 <div className="auth-field">
@@ -407,6 +413,7 @@ export default function ForgotPasswordPage() {
         .auth-password-wrapper .auth-input { padding-right: 48px; }
         .auth-eye-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; display: flex; opacity: 0.6; transition: opacity 0.2s; }
         .auth-eye-btn:hover { opacity: 1; }
+        .auth-field-hint { font-size: 11.5px; color: #99938A; margin: 6px 0 0; line-height: 1.4; }
 
         /* ── Button ── */
         .auth-submit-btn {

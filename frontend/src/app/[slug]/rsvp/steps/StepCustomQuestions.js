@@ -10,30 +10,38 @@ const INPUT_TYPE_FOR = { email: 'email', phone: 'tel', url: 'url', number: 'numb
 
 /** Step 4 — organizer-configured custom questions + the free-text note. */
 export default function StepCustomQuestions({
-  t, isRTL, fields, customAnswers, setAnswer, toggleMultiAnswer,
+  t, isRTL, fields, companionFields = [], customAnswers, setAnswer, toggleMultiAnswer,
   additionalGuests = [], setCompanionAnswer, toggleCompanionMultiAnswer,
   notes, setNotes, validationErrors, submitting, onBack, onSubmit,
 }) {
 
-  /* Renders a set of custom question fields for a given answers object and handlers. */
-  const renderFields = (answers, onSetAnswer, onToggleMulti, keyPrefix) => (
-    fields.map(field => {
-      const label = isRTL && field.field_label_ar ? field.field_label_ar : field.field_label;
-      const opts = isRTL && field.options_ar ? field.options_ar : field.options;
+  /* Renders a set of custom question fields for a given answers object and handlers.
+     `fieldSet` lets the companion section render guest-scoped questions (with
+     real required/error wiring) instead of always repeating the party-scoped
+     `fields` with required hardcoded to false. */
+  const renderFields = (fieldSet, answers, onSetAnswer, onToggleMulti, keyPrefix, errorPrefix) => (
+    fieldSet.map(field => {
+      // NOTE: custom questions have no Arabic-translation mechanism today
+      // (custom_form_fields has no field_label_ar/options_ar column) — always
+      // show them exactly as the organizer typed them.
+      const label = field.field_label;
+      const opts = field.options;
       const value = (answers || {})[field.id] || '';
       const fieldKey = `${keyPrefix}_${field.id}`;
+      const error = errorPrefix ? validationErrors[`${errorPrefix}_field_${field.id}`] : null;
+      const errorStyle = error ? { borderColor: '#ef4444' } : {};
 
       return (
         <StaggerItem key={fieldKey}>
-          <FormField label={label} required={false}>
+          <FormField label={label} required={field.is_required} error={error}>
             {['text', 'email', 'phone', 'url', 'number', 'date'].includes(field.field_type) && (
               <input
                 type={INPUT_TYPE_FOR[field.field_type] || 'text'}
                 value={value}
                 onChange={e => onSetAnswer(field.id, e.target.value)}
-                style={{ ...S.inputBase }}
+                style={{ ...S.inputBase, ...errorStyle }}
                 onFocus={e => inputFocus(e)}
-                onBlur={e => inputBlur(e)}
+                onBlur={e => inputBlur(e, !!error)}
               />
             )}
             {field.field_type === 'textarea' && (
@@ -41,13 +49,13 @@ export default function StepCustomQuestions({
                 value={value}
                 onChange={e => onSetAnswer(field.id, e.target.value)}
                 rows={3}
-                style={{ ...S.inputBase, resize: 'vertical', minHeight: '80px' }}
+                style={{ ...S.inputBase, ...errorStyle, resize: 'vertical', minHeight: '80px' }}
                 onFocus={e => inputFocus(e)}
-                onBlur={e => inputBlur(e)}
+                onBlur={e => inputBlur(e, !!error)}
               />
             )}
             {field.field_type === 'select' && (
-              <select value={value} onChange={e => onSetAnswer(field.id, e.target.value)} style={{ ...S.inputBase, cursor: 'pointer' }}>
+              <select value={value} onChange={e => onSetAnswer(field.id, e.target.value)} style={{ ...S.inputBase, ...errorStyle, cursor: 'pointer' }}>
                 <option value="">{t.meal_select_placeholder}</option>
                 {opts?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
               </select>
@@ -97,8 +105,8 @@ export default function StepCustomQuestions({
 
           <StaggerChildren staggerDelay={0.08}>
             {fields.map(field => {
-              const label = isRTL && field.field_label_ar ? field.field_label_ar : field.field_label;
-              const opts = isRTL && field.options_ar ? field.options_ar : field.options;
+              const label = field.field_label;
+              const opts = field.options;
               const error = validationErrors[`field_${field.id}`];
               const errorStyle = error ? { borderColor: '#ef4444' } : {};
               const value = customAnswers[field.id] || '';
@@ -169,8 +177,8 @@ export default function StepCustomQuestions({
         </>
       )}
 
-      {/* ═══ Companion custom questions ═══ */}
-      {fields.length > 0 && additionalGuests.length > 0 && additionalGuests.map((guest, gIdx) => (
+      {/* ═══ Companion custom questions (guest-scoped only) ═══ */}
+      {companionFields.length > 0 && additionalGuests.length > 0 && additionalGuests.map((guest, gIdx) => (
         <FadeInUp key={guest.id || gIdx} y={12} delay={0.1 * (gIdx + 1)}>
           <div style={{
             border: '1px solid #F0ECE3', borderRadius: '14px', padding: '18px 16px',
@@ -185,9 +193,11 @@ export default function StepCustomQuestions({
             </h4>
             <StaggerChildren staggerDelay={0.06}>
               {renderFields(
+                companionFields,
                 guest.customAnswers,
                 (fieldId, value) => setCompanionAnswer(gIdx, fieldId, value),
                 (fieldId, opt) => toggleCompanionMultiAnswer(gIdx, fieldId, opt),
+                `companion_${gIdx}`,
                 `companion_${gIdx}`,
               )}
             </StaggerChildren>

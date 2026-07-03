@@ -12,10 +12,27 @@ const { broadcast } = require('../utils/realtime');
 const { sendOk, sendFail, sendRpcFailure } = require('../utils/responseEnvelope');
 
 /**
- * True if `err` is the tier_max_guests cap trigger raised by the DB
- * (migration 004_tier_guest_cap_trigger.sql) rather than an unrelated failure.
+ * True if `err` is a raised (not returned-as-jsonb) GUEST_LIMIT_REACHED
+ * failure — currently only possible from submit_rsvp_v2's unique_violation
+ * exception paths surfacing a P0001; most guest-cap checks (add_guest_to_party,
+ * update_party_response) return `{ success: false, code/error: 'GUEST_LIMIT_REACHED' }`
+ * as normal jsonb instead, handled via sendRpcFailure/result.success checks.
  */
 const isGuestLimitError = (err) => err?.code === 'P0001' && /GUEST_LIMIT_REACHED/.test(err.message || '');
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Normalizes a CSV/XLSX "side" cell to 'partner1'/'partner2', accepting the
+ * friendly wedding synonyms organizers are more likely to type than the
+ * neutral storage values. Anything else (including blank) is dropped.
+ */
+const normalizeSideCsvValue = (raw) => {
+  const v = String(raw || '').trim().toLowerCase();
+  if (['partner1', 'side1', 'groom', 'groom\'s side', 'groom side'].includes(v)) return 'partner1';
+  if (['partner2', 'side2', 'bride', 'bride\'s side', 'bride side'].includes(v)) return 'partner2';
+  return null;
+};
 
 /**
  * Handles guest RSVP form submissions (insert or update).
@@ -27,15 +44,34 @@ const isGuestLimitError = (err) => err?.code === 'P0001' && /GUEST_LIMIT_REACHED
  */
 const submitPublicRSVP = async (req, res, next) => {
   const { slug } = req.params;
-  const { partyId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, customAnswers, decline_reason, maybe_confirm_by } = req.body;
+  const { partyId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, customAnswers, decline_reason, maybe_confirm_by, side, smsConsent } = req.body;
 
-  const normalizedPhone = phone && String(phone).trim() ? normalizeToE164(phone) : null;
-  if (phone && String(phone).trim() && !normalizedPhone) {
+  if (!phone || !String(phone).trim()) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'A phone number is required.' });
+  }
+  const normalizedPhone = normalizeToE164(phone);
+  if (!normalizedPhone) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
+  }
+  // TCPA/A2P 10DLC: since a phone number is mandatory on this endpoint, so is
+  // affirmative SMS consent — enforced server-side too, not just by the
+  // wizard's UI, so a direct API call can't bypass the opt-in.
+  if (!smsConsent) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Please confirm you agree to receive SMS updates about this event.' });
   }
 
   if (!guestName || !response) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'guestName and response are required.' });
+  }
+  if (!email || !String(email).trim()) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'An email address is required.' });
+  }
+  if (!EMAIL_RE.test(String(email).trim())) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid email address.' });
+  }
+
+  if (side !== undefined && side !== null && side !== '' && !['partner1', 'partner2'].includes(side)) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'side must be partner1 or partner2.' });
   }
 
   if (Array.isArray(additionalGuests) && additionalGuests.length > guestService.MAX_ADDITIONAL_GUESTS) {
@@ -82,14 +118,19 @@ const submitPublicRSVP = async (req, res, next) => {
         if (!g || !g.fullName || !g.fullName.trim()) {
           return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Guest #${idx + 2} must have a valid full name.` });
         }
+        if (!g.email || !String(g.email).trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email)) {
+          return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Guest #${idx + 2} must have a valid email address.` });
+        }
+        if (!g.phone || !normalizeToE164(g.phone)) {
+          return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Guest #${idx + 2} must have a valid phone number.` });
+        }
       }
     }
   }
 
   // Soft-normalise each companion's phone to E.164 if it parses; if not, drop
   // the raw value rather than persist mixed formats that break the organizer's
-  // search/dedup later. age_group + gender are validated again by the RPC's
-  // CHECK constraints, so out-of-vocab values come back as NULL on insert.
+  // search/dedup later.
   const sanitizedAdditional = Array.isArray(additionalGuests)
     ? additionalGuests.map((g) => {
         if (!g) return g;
@@ -106,6 +147,8 @@ const submitPublicRSVP = async (req, res, next) => {
       additionalGuests: sanitizedAdditional,
       customAnswers: Array.isArray(customAnswers) ? customAnswers : [],
       declineReason: decline_reason, maybeConfirmBy: maybe_confirm_by,
+      side: side || null,
+      smsConsent: !!smsConsent,
     });
 
     if (!result || result.success === false) {
@@ -158,6 +201,7 @@ const submitPublicRSVP = async (req, res, next) => {
       if (isEmailPref && result.org_email) {
         const orgEmailHtml = getNewRsvpOrganizerTemplate({
           eventTitle: result.event_title, guestName, response: result.response, partySize: computedPartySize, email,
+          side: result.side, eventType: result.event_type,
         });
         notificationService.sendEmailViaBrevo(result.org_email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`, orgEmailHtml)
           .catch((err) => logger.error({ err }, 'Failed to notify organizer via email'));
@@ -301,6 +345,7 @@ const importGuestsCSV = async (req, res, next) => {
             phone: rowObj.phone || '',
             notes: rowObj.notes || rowObj.note || '',
             party_size: rowObj.party_size || '',
+            side: rowObj.side || '',
           };
           if (mappedRow.guest_name) parsedRows.push(mappedRow);
         });
@@ -336,6 +381,7 @@ const importGuestsCSV = async (req, res, next) => {
         phone: normalizeToE164(row.phone),
         notes: row.notes || null,
         party_size: Number.isInteger(parsedSize) && parsedSize > 0 ? Math.min(parsedSize, 20) : 1,
+        side: normalizeSideCsvValue(row.side),
       });
     }
 
@@ -365,9 +411,9 @@ const exportGuestsCSV = async (req, res, next) => {
   try {
     // exportParties returns { rows, meta } — the row array plus a truncation flag.
     const { rows, meta } = await guestService.exportParties(eventId, { attendingOnly, sort });
-    const headers = ['guest_name', 'email', 'phone', 'response', 'party_size', 'table_name', 'meal_selections', 'checked_in', 'checked_in_at', 'check_in_method', 'notes'];
+    const headers = ['guest_name', 'email', 'phone', 'response', 'party_size', 'side', 'table_name', 'meal_selections', 'checked_in', 'checked_in_at', 'check_in_method', 'notes'];
     const csvContent = generateCSV(headers, rows, (item) => [
-      item.guest_name, item.email, item.phone, item.response, item.party_size,
+      item.guest_name, item.email, item.phone, item.response, item.party_size, item.side,
       item.table_name, item.meal_selections, item.checked_in, item.checked_in_at, item.check_in_method, item.notes,
     ]);
 
@@ -405,7 +451,7 @@ const exportGuestsExcel = async (req, res, next) => {
     // Shape rows the way generateExcelExport expects (mirrors the pre-rebuild rsvp shape).
     const guestRows = rows.map((r) => ({
       guest_name: r.guest_name, email: r.email, phone: r.phone, response: r.response,
-      party_size: r.party_size, notes: r.notes,
+      party_size: r.party_size, notes: r.notes, side: r.side,
       rsvp_guests: (r.guests || []).map((g) => ({ meal_selection: g.meal_selection, is_primary: g.is_primary_contact })),
       seating_assignments: r.table_name ? [{ tables: { table_name: r.table_name } }] : [],
     }));
@@ -444,7 +490,7 @@ const deleteRSVP = async (req, res, next) => {
  */
 const updateRSVP = async (req, res, next) => {
   const { eventId, partyId } = req.params;
-  const { guestName, email, phone, response, partySize, notes, primaryGuestMeal, additionalGuests } = req.body;
+  const { guestName, email, phone, response, partySize, notes, primaryGuestMeal, additionalGuests, side } = req.body;
 
   try {
     if (response !== undefined && !['yes', 'no', 'maybe', 'pending', 'waitlist'].includes(response)) {
@@ -459,9 +505,26 @@ const updateRSVP = async (req, res, next) => {
     if (phone !== undefined && phone && String(phone).trim() && !normalizeToE164(phone)) {
       return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
     }
+    if (email !== undefined && email && String(email).trim() && !EMAIL_RE.test(String(email).trim())) {
+      return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid email address.' });
+    }
+    if (side !== undefined && side !== null && side !== '' && !['partner1', 'partner2'].includes(side)) {
+      return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'side must be partner1 or partner2.' });
+    }
+    if (Array.isArray(additionalGuests)) {
+      for (let idx = 0; idx < additionalGuests.length; idx++) {
+        const g = additionalGuests[idx];
+        if (g && g.email !== undefined && g.email && String(g.email).trim() && !EMAIL_RE.test(String(g.email).trim())) {
+          return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Guest #${idx + 2} must have a valid email address.` });
+        }
+        if (g && g.phone !== undefined && g.phone && String(g.phone).trim() && !normalizeToE164(g.phone)) {
+          return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Guest #${idx + 2} must have a valid phone number.` });
+        }
+      }
+    }
 
     const party = await guestService.updateParty(eventId, partyId, {
-      guestName, email, phone, response, partySize, notes, primaryMeal: primaryGuestMeal, additionalGuests,
+      guestName, email, phone, response, partySize, notes, primaryMeal: primaryGuestMeal, additionalGuests, side,
     });
     if (!party) return sendFail(res, { status: 404, error: 'RSVP_NOT_FOUND' });
 
@@ -478,18 +541,26 @@ const updateRSVP = async (req, res, next) => {
  */
 const addGuestManually = async (req, res, next) => {
   const { eventId } = req.params;
-  const { guestName, email, phone, response, partyId, partySize, notes } = req.body;
+  const { guestName, email, phone, response, partyId, partySize, notes, side, primaryGuestMeal } = req.body;
 
   if (!guestName || !guestName.trim()) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'guestName is required.' });
   }
+  if (email !== undefined && email && String(email).trim() && !EMAIL_RE.test(String(email).trim())) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid email address.' });
+  }
+  if (phone !== undefined && phone && String(phone).trim() && !normalizeToE164(phone)) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
+  }
   const guestResponse = response && ['yes', 'no', 'maybe', 'pending', 'waitlist'].includes(response) ? response : 'pending';
+  const guestSide = ['partner1', 'partner2'].includes(side) ? side : null;
 
   try {
     const result = await guestService.addGuest({
       eventId, actorUserId: req.user?.id, fullName: guestName.trim(),
       phone: phone ? normalizeToE164(phone) : null, email: normalizeEmail(email), partyId, response: guestResponse,
-      partySize: partySize ? parseInt(partySize, 10) : 1, notes: notes ? String(notes).trim() : null,
+      partySize: partySize ? parseInt(partySize, 10) : 1, notes: notes ? String(notes).trim() : null, side: guestSide,
+      primaryMeal: primaryGuestMeal ? String(primaryGuestMeal).trim() : null,
     });
 
     if (!result || result.success === false) return sendRpcFailure(res, result);
@@ -604,7 +675,7 @@ const getRsvpInvite = async (req, res, next) => {
   try {
     const { data: party, error } = await supabase
       .from('rsvp_parties')
-      .select('id, label, response, guests(id, full_name, is_primary_contact, meal_selection, dietary_notes, phone, age_group, relationship, gender), events!inner(id, title, event_date, slug, location_name, location_address, is_paid, status, rsvp_deadline)')
+      .select('id, label, response, guests(id, full_name, is_primary_contact, meal_selection, dietary_notes, phone), events!inner(id, title, event_date, slug, location_name, location_address, is_paid, status, rsvp_deadline)')
       .eq('id', payload.partyId)
       .eq('event_id', payload.eventId)
       .single();
@@ -620,21 +691,20 @@ const getRsvpInvite = async (req, res, next) => {
     // Companions already on file pre-fill the confirmation form instead of asking the
     // responder to retype every member of their own party from a blank field.
     const companions = allGuests.filter((g) => !g.is_primary_contact);
+    const primary = allGuests.find((g) => g.is_primary_contact);
 
     return sendOk(res, {
       intendedResponse: payload.response ? tokenService.mapIntentToResponse(payload.response) : null,
       deadlinePassed,
       guest: {
         id: party.id, guest_name: party.label, party_size: allGuests.length || 1, response: party.response,
+        primary_meal: primary?.meal_selection || null,
         additionalGuests: companions.map((g) => ({
           id: g.id,
           fullName: g.full_name || '',
           mealSelection: g.meal_selection || '',
           dietaryNotes: g.dietary_notes || '',
           phone: g.phone || '',
-          ageGroup: g.age_group || '',
-          relationship: g.relationship || '',
-          gender: g.gender || '',
         })),
       },
       event: { title: event.title, event_date: event.event_date, slug: event.slug, location: event.location_name || event.location_address || null },
@@ -652,7 +722,7 @@ const getRsvpInvite = async (req, res, next) => {
  * POST /api/v1/public/rsvp/respond
  */
 const respondViaToken = async (req, res, next) => {
-  const { token, response: bodyResponse, partySize } = req.body || {};
+  const { token, response: bodyResponse, partySize, additionalGuests } = req.body || {};
   if (!token) return sendFail(res, { status: 400, error: 'TOKEN_REQUIRED' });
 
   let payload;
@@ -691,13 +761,20 @@ const respondViaToken = async (req, res, next) => {
     }
 
     let computedPartySize;
+    let sanitizedAdditional;
     if (mapped === 'yes') {
       const size = parseInt(partySize);
       computedPartySize = (!isNaN(size) && size >= 1 && size <= 20) ? size : undefined;
+      // Name-only (no email/phone/meal) — QuickConfirm is deliberately a
+      // minimal one-click surface, unlike the full public wizard.
+      sanitizedAdditional = Array.isArray(additionalGuests)
+        ? additionalGuests.slice(0, 19).map((g) => ({ fullName: g && g.fullName ? String(g.fullName).trim().slice(0, 200) : '' }))
+        : [];
     }
 
     const result = await guestService.respondToInvite({
-      eventId: event.id, partyId: payload.partyId, response: mapped, partySize: computedPartySize, actor: 'guest', source: 'email',
+      eventId: event.id, partyId: payload.partyId, response: mapped, partySize: computedPartySize,
+      additionalGuests: sanitizedAdditional, actor: 'guest', source: 'email',
     });
 
     if (!result || result.success === false) return sendRpcFailure(res, result, 409);

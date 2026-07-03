@@ -8,12 +8,11 @@ import { normalizeToE164 } from '../../utils/phone';
 import { publicApiFetch } from '../../utils/publicApi';
 import { useGuestAnalytics, useRsvpFunnelTracking, useAbandonmentTracking } from '../../utils/useGuestAnalytics';
 import { isSeatingRevealed } from '../../utils/seating';
+import { splitName } from '../../utils/nameFields';
 import { findMealField } from './styles';
-import { usePartySearch } from './hooks/usePartySearch';
 import { useSeatingLookup } from './hooks/useSeatingLookup';
 import { FloatingParticles } from '../../components/guest/GuestAnimations';
 import TurnstileWidget, { turnstileEnabled } from '../../components/guest/TurnstileWidget';
-import StepIdentify from './steps/StepIdentify';
 import StepAttendance from './steps/StepAttendance';
 import StepPartyDetails from './steps/StepPartyDetails';
 import StepCustomQuestions from './steps/StepCustomQuestions';
@@ -27,17 +26,12 @@ import StepSuccess from './steps/StepSuccess';
  * questions -> submit) instead of step-by-step navigation; this shell owns the
  * form's local state and validation, the actual per-section UI lives in ./steps/*.
  */
-export default function RsvpWizard({ event, guest, context, submit: doSubmit, rememberGuest, embedded = false, lang: langProp }) {
+export default function RsvpWizard({ event, guest, context, submit: doSubmit, rememberGuest, embedded = false, lang: langProp, onGuestIdentified }) {
   const slug = context?.slug || event?.slug;
   const searchParams = useSearchParams();
   const langParam = langProp || searchParams.get('lang') || 'en';
 
   const [lang, setLang] = useState(langParam);
-  // identityConfirmed gates revealing the rest of the page once the guest has
-  // either picked a search result or chosen to continue as a new guest —
-  // resolving partyId here still matters for correct submission/dedup, it's
-  // just no longer a full-page navigation.
-  const [identityConfirmed, setIdentityConfirmed] = useState(true);
   const [submitted, setSubmitted] = useState(false);
 
   const [guestName, setGuestName] = useState('');
@@ -49,6 +43,8 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const [customAnswers, setCustomAnswers] = useState({});
   const [notes, setNotes] = useState('');
   const [primaryMeal, setPrimaryMeal] = useState('');
+  const [side, setSide] = useState('');
+  const [smsConsent, setSmsConsent] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [partyId, setPartyId] = useState(null);
@@ -65,30 +61,17 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const [captchaToken, setCaptchaToken] = useState(null);
   const turnstileRef = useRef(null);
 
-  const searchApi = usePartySearch(slug);
   const seatingApi = useSeatingLookup(slug);
 
   /* ═══ Analytics ═══
      The funnel/abandonment trackers just want a numeric "how far along" signal —
      derive it from the page's reveal state instead of a navigable step index. */
-  const analyticsStep = submitted ? 5 : (attending ? 3 : (identityConfirmed ? 2 : 1));
+  const analyticsStep = submitted ? 5 : (attending ? 3 : 2);
   const { trackEvent } = useGuestAnalytics(slug);
   useRsvpFunnelTracking(slug, analyticsStep);
   useAbandonmentTracking(slug, analyticsStep, submitted);
 
   useEffect(() => { trackEvent('rsvp_started'); }, [trackEvent]);
-
-  // When the form is pre-filled programmatically (from an invitation token), we must
-  // NOT let the name-change reset below wipe the resolved partyId — otherwise the
-  // submission would create a duplicate record instead of updating the invited party.
-  const skipNameResetRef = useRef(false);
-
-  useEffect(() => {
-    if (skipNameResetRef.current) { skipNameResetRef.current = false; return; }
-    searchApi.reset();
-    setPartyId(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guestName]);
 
   const [prevLangParam, setPrevLangParam] = useState(langParam);
   if (langParam !== prevLangParam) { setPrevLangParam(langParam); setLang(langParam); }
@@ -101,7 +84,6 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
      the name-search step. Resolution / lock / status now live in the engine. */
   useEffect(() => {
     if (!guest) return;
-    skipNameResetRef.current = true;
     // Synchronizing local form state to the engine-resolved `guest` prop, which
     // only becomes available asynchronously — this is the prop-to-state sync
     // case the rule's "subscribe to external updates" carve-out is for.
@@ -111,6 +93,11 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (guest.email) setEmail(guest.email);
     if (guest.phone) setPhone(guest.phone);
     if (guest.party_size) setPartySize(guest.party_size);
+    // BUG FIX: the primary guest's own meal choice was never pre-filled here
+    // (only companions' were, via additionalGuests below), so reopening an
+    // editable RSVP silently reset the host's meal picker to blank — and
+    // resubmitting overwrote their saved meal_selection with NULL.
+    if (guest.primary_meal) setPrimaryMeal(guest.primary_meal);
     // Pre-fill companions already on file (e.g. entered by the organizer during guest
     // import) so the form asks the responder to confirm/edit each real person instead
     // of generating blank "Guest 2", "Guest 3" fields that silently discard their names.
@@ -118,11 +105,13 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       setAdditionalGuests(guest.additionalGuests.map(g => ({
         id: g.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '',
-        phone: g.phone || '', ageGroup: g.ageGroup || '', relationship: g.relationship || '', gender: g.gender || '',
+        phone: g.phone || '',
         customAnswers: {},
       })));
     }
     if (guest.notes) setNotes(guest.notes);
+    if (guest.side) setSide(guest.side);
+    if (guest.sms_consent) setSmsConsent(true);
     if (['yes', 'no', 'maybe'].includes(guest.response)) setAttending(guest.response);
     setIdentityConfirmed(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,13 +135,16 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   /* ═══ Lightweight table fetch (post-submit success screen) ═══
      Unlike the engine's resolution this never locks the view — it only fills in the
      table name (if seating has been revealed) for the celebratory pass card. */
-  const fetchAssignedTable = async (id) => {
+  const fetchAssignedTable = async (id, attempt = 0) => {
     if (!id) return;
     try {
       const data = await publicApiFetch(`/public/rsvp/guest/${id}`);
       if (data.guest?.table_name) setAssignedTableName(data.guest.table_name);
     } catch (err) {
       console.error('Table fetch failed:', err);
+      // One quiet retry — a transient network blip right after submit shouldn't
+      // permanently hide the table name from the success screen.
+      if (attempt === 0) setTimeout(() => fetchAssignedTable(id, 1), 1500);
     }
   };
 
@@ -173,29 +165,36 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     }
   }, [event]);
 
-  /* ═══ Sync additional guests with party size ═══ */
+  /* ═══ Sync additional guests with party size ═══
+     Only ever GROWS the underlying array — never truncates it. A guest who taps
+     the party-size stepper down (e.g. to fix a typo) and back up used to lose
+     every companion's already-typed name/email/meal, because this effect
+     `splice`d the array down to the new size and regrowth only ever pushed
+     fresh blank entries. Trimming for render/submit now happens separately
+     (see additionalGuests.slice below and in handleSubmit), so a transient dip
+     in party size no longer discards data — it reappears when size goes back up. */
   useEffect(() => {
     const size = parseInt(partySize) || 1;
-    // Deriving the additionalGuests array length from partySize — kept as an
-    // effect (not render-time derivation) because it must preserve each
-    // existing guest's already-typed name/meal fields across resizes.
+    const diff = Math.max(size - 1, 0);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (size <= 1) { setAdditionalGuests([]); return; }
-    const diff = size - 1;
     setAdditionalGuests(prev => {
+      if (diff <= prev.length) return prev;
       const copy = [...prev];
-      if (copy.length < diff) {
-        while (copy.length < diff)
-          copy.push({
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-            fullName: '', mealSelection: '', dietaryNotes: '',
-            phone: '', ageGroup: '', relationship: '', gender: '',
-            customAnswers: {},
-          });
-      } else if (copy.length > diff) { copy.splice(diff); }
+      while (copy.length < diff)
+        copy.push({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          fullName: '', mealSelection: '', dietaryNotes: '',
+          phone: '',
+          customAnswers: {},
+        });
       return copy;
     });
   }, [partySize]);
+
+  // The visible/submittable slice of additionalGuests — always exactly
+  // partySize-1 entries, even though the underlying state array may hold more
+  // (preserved from a larger party size the guest dialed back from).
+  const visibleAdditionalGuests = additionalGuests.slice(0, Math.max((parseInt(partySize) || 1) - 1, 0));
 
   const themeColor = '#B8944F';
   const isRTL = lang === 'ar';
@@ -220,6 +219,10 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const allCustomFields = event?.custom_form_fields || [];
   const mealField = findMealField(allCustomFields);
   const customQuestionFields = mealField ? allCustomFields.filter(f => f.id !== mealField.id) : allCustomFields;
+  // scope === 'guest' fields are asked once per companion (e.g. dietary needs);
+  // everything else is party-scoped and asked once for the whole party.
+  const partyScopedFields = customQuestionFields.filter(f => f.scope !== 'guest');
+  const guestScopedFields = customQuestionFields.filter(f => f.scope === 'guest');
 
   const setAnswer = (fieldId, value) => {
     setCustomAnswers(prev => ({ ...prev, [fieldId]: value }));
@@ -254,65 +257,78 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     });
   };
 
-  const handleSelectSearchResult = (result) => {
-    setPartyId(result.id);
-    setGuestName(result.guestName);
-    if (result.partySize) setPartySize(result.partySize);
-    // Pre-fill companions already on file — same reasoning as the token/party_id
-    // prefill effect above: avoid blanking out names the organizer already entered.
-    if (Array.isArray(result.additionalGuests) && result.additionalGuests.length > 0) {
-      setAdditionalGuests(result.additionalGuests.map(g => ({
-        id: g.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-        fullName: g.fullName || '', mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '',
-        phone: g.phone || '', ageGroup: g.ageGroup || '', relationship: g.relationship || '', gender: g.gender || '',
-        customAnswers: {},
-      })));
-    }
-    setIdentityConfirmed(true);
-  };
-  const handleContinueAsNew = () => { setPartyId(null); setIdentityConfirmed(true); };
-
   /* ═══ Submit Handler — delegates to the engine's idempotent submit ═══
      Validation stays local; idempotency, lost-response reconciliation, the
      DUPLICATE_RSVP -> lock transition and the CLOSED / GUEST_LIMIT toasts are all
      owned by the engine. We react only to a clean success here. */
   const handleSubmit = async () => {
     const errors = {};
-    if (!guestName.trim()) errors.guestName = 'Name is required';
+    const { title: hTitle, first: hFirst, last: hLast } = splitName(guestName);
+    if (!hTitle) errors.guestNameTitle = 'Title is required';
+    if (!hFirst.trim()) errors.guestNameFirst = 'First name is required';
+    if (!hLast.trim()) errors.guestNameLast = 'Last name is required';
     if (!email || !email.trim()) {
       errors.email = 'Email address is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errors.email = 'Invalid email format';
     }
-    
-    // Phone is required only if attending is 'yes'
+
+    // Phone is required regardless of attendance.
     const normalizedPhone = phone.trim() ? normalizeToE164(phone) : '';
-    if (attending === 'yes') {
-      if (!normalizedPhone) {
-        errors.phone = phone.trim() ? (t.phone_invalid || 'Enter a valid phone number') : (t.phone_required || 'Phone number is required');
-      }
-    } else {
-      if (phone.trim() && !normalizedPhone) {
-        errors.phone = t.phone_invalid || 'Enter a valid phone number';
-      }
+    if (!normalizedPhone) {
+      errors.phone = phone.trim() ? (t.phone_invalid || 'Enter a valid phone number') : (t.phone_required || 'Phone number is required');
     }
-    
+    // TCPA/A2P 10DLC: a phone number is being collected, so affirmative SMS
+    // consent must be captured too — mirrored server-side (rsvpController.js).
+    if (!smsConsent) {
+      errors.smsConsent = isRTL
+        ? 'يرجى الموافقة على تلقي رسائل نصية بخصوص هذه الفعالية للمتابعة.'
+        : 'Please agree to receive SMS updates about this event to continue.';
+    }
+
     if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
     if (attending === 'yes') {
+      // Meal requiredness was previously enforced ONLY by the backend RPC, and
+      // only when it happened to find the field by a hardcoded key — the
+      // frontend never checked this at all, so a guest could submit with every
+      // meal picker left blank whenever that lookup missed (see mealField.js).
+      if (mealField?.is_required && (!primaryMeal || !primaryMeal.trim())) {
+        errors.primaryMeal = 'Meal selection is required';
+      }
       // These used to be gated by a per-section "Continue" button that's gone
       // now everything lives on one page — enforce them at submit instead.
       if (partySize > 1) {
-        additionalGuests.forEach((g, index) => {
-          if (!g.fullName || !g.fullName.trim()) errors[`additionalGuest_${index}`] = 'Name is required';
+        visibleAdditionalGuests.forEach((g, index) => {
+          const { title: cTitle, first: cFirst, last: cLast } = splitName(g.fullName);
+          if (!cTitle) errors[`additionalGuest_title_${index}`] = 'Title is required';
+          if (!cFirst.trim()) errors[`additionalGuest_${index}`] = 'First name is required';
+          if (!cLast.trim()) errors[`additionalGuest_last_${index}`] = 'Last name is required';
           if (!g.email || !g.email.trim()) {
             errors[`additionalGuest_email_${index}`] = 'Email is required';
           } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email)) {
             errors[`additionalGuest_email_${index}`] = 'Invalid email format';
           }
+          const normalizedCompanionPhone = g.phone && g.phone.trim() ? normalizeToE164(g.phone) : '';
+          if (!normalizedCompanionPhone) {
+            errors[`additionalGuest_phone_${index}`] = g.phone && g.phone.trim() ? 'Enter a valid phone number' : 'Phone number is required';
+          }
+          if (mealField?.is_required && (!g.mealSelection || !g.mealSelection.trim())) {
+            errors[`additionalGuest_meal_${index}`] = 'Meal selection is required';
+          }
+          // Guest-scoped required custom questions (e.g. dietary needs) — these
+          // were previously never checked for companions at all: the UI showed
+          // them with required={false} and nothing validated them here, so an
+          // organizer's "required" question could be silently skipped for
+          // every companion.
+          guestScopedFields.filter(f => f.is_required).forEach(field => {
+            const val = (g.customAnswers || {})[field.id];
+            if (!val || !val.toString().trim()) {
+              errors[`companion_${index}_field_${field.id}`] = `${field.field_label} is required for Guest #${index + 2}`;
+            }
+          });
         });
       }
-      const requiredFields = customQuestionFields.filter(f => f.is_required);
-      requiredFields.forEach(field => {
+      partyScopedFields.filter(f => f.is_required).forEach(field => {
         if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
           errors[`field_${field.id}`] = `${field.field_label} is required`;
         }
@@ -335,10 +351,12 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       partyId, guestName, email, phone: normalizedPhone, response: attending,
       partySize: attending === 'yes' ? partySize : 1,
       notes: enrichedNotes, primaryGuestMeal: primaryMeal,
-      additionalGuests: attending === 'yes' ? additionalGuests.map(g => ({ ...g, customAnswers: g.customAnswers || {} })) : [],
+      additionalGuests: attending === 'yes' ? visibleAdditionalGuests.map(g => ({ ...g, customAnswers: g.customAnswers || {} })) : [],
       customAnswers: Object.keys(customAnswers).map(fieldId => ({ fieldId, value: customAnswers[fieldId] })),
       decline_reason: attending === 'no' ? declineReason : undefined,
       maybe_confirm_by: attending === 'maybe' ? maybeFollowUp : undefined,
+      side: event?.track_guest_side ? (side || undefined) : undefined,
+      smsConsent,
       ...(captchaToken ? { captchaToken } : {}),
     };
 
@@ -355,6 +373,12 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
         rememberGuest(slug, resolvedId);
         if (attending === 'yes') fetchAssignedTable(resolvedId);
       }
+      // Tell the host page (EventPageClient) the guest's real name — its own
+      // invitation greeting/envelope is fetched once on page load and has no
+      // way to know a name was just typed in and submitted here, so without
+      // this it keeps showing the generic "Esteemed Guest" placeholder until
+      // the page is reloaded.
+      onGuestIdentified?.({ id: resolvedId, guest_name: guestName, response: attending });
       setSubmitted(true);
     }
     // r.reason === 'LOCKED' -> engine has already swapped to the locked card.
@@ -467,11 +491,15 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                       guestName={guestName} setGuestName={setGuestName}
                       partySize={partySize} setPartySize={setPartySize}
                       mealField={mealField} primaryMeal={primaryMeal} setPrimaryMeal={setPrimaryMeal}
-                      additionalGuests={additionalGuests} setAdditionalGuests={setAdditionalGuests}
+                      additionalGuests={visibleAdditionalGuests} setAdditionalGuests={setAdditionalGuests}
                       email={email} setEmail={setEmail} phone={phone} setPhone={setPhone}
                       validationErrors={validationErrors} setValidationErrors={setValidationErrors}
                       maybeFollowUp={maybeFollowUp} setMaybeFollowUp={setMaybeFollowUp}
                       declineReason={declineReason} setDeclineReason={setDeclineReason}
+                      side={side} setSide={setSide}
+                      showSidePicker={!!event?.track_guest_side}
+                      isWedding={event?.event_type === 'wedding'}
+                      smsConsent={smsConsent} setSmsConsent={setSmsConsent}
                     />
 
                     {turnstileEnabled && (
@@ -492,9 +520,10 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
 
                     <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
                       <StepCustomQuestions
-                        t={t} isRTL={isRTL} fields={attending === 'yes' ? customQuestionFields : []}
+                        t={t} isRTL={isRTL} fields={attending === 'yes' ? partyScopedFields : []}
+                        companionFields={attending === 'yes' ? guestScopedFields : []}
                         customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
-                        additionalGuests={attending === 'yes' ? additionalGuests : []}
+                        additionalGuests={attending === 'yes' ? visibleAdditionalGuests : []}
                         setCompanionAnswer={setCompanionAnswer}
                         toggleCompanionMultiAnswer={toggleCompanionMultiAnswer}
                         notes={notes} setNotes={setNotes} validationErrors={validationErrors}

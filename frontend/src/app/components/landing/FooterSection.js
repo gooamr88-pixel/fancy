@@ -90,6 +90,32 @@ export default function FooterSection() {
   const [btnHovered, setBtnHovered] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
+  const [subscribeError, setSubscribeError] = useState('');
+
+  const handleSubscribe = async () => {
+    if (subscribing || subscribed || !emailValue || !emailValue.includes('@')) return;
+    setSubscribing(true);
+    setSubscribeError('');
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      const res = await fetch(`${apiUrl}/public/newsletter-subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailValue }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || 'Subscription failed. Please try again.');
+      }
+      setSubscribed(true);
+      setEmailValue('');
+    } catch (err) {
+      setSubscribeError(err.message || 'Subscription failed. Please try again.');
+    } finally {
+      setSubscribing(false);
+    }
+  };
 
   return (
     <footer
@@ -222,6 +248,7 @@ export default function FooterSection() {
                 onChange={(e) => setEmailValue(e.target.value)}
                 onFocus={() => setEmailFocused(true)}
                 onBlur={() => setEmailFocused(false)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSubscribe(); }}
                 style={{
                   flex: 1,
                   padding: '10px 14px',
@@ -239,13 +266,8 @@ export default function FooterSection() {
               <button
                 onMouseEnter={() => setBtnHovered(true)}
                 onMouseLeave={() => setBtnHovered(false)}
-                onClick={() => {
-                  if (emailValue && emailValue.includes('@')) {
-                    setSubscribed(true);
-                    setEmailValue('');
-                  }
-                }}
-                disabled={subscribed}
+                onClick={handleSubscribe}
+                disabled={subscribed || subscribing}
                 style={{
                   padding: '10px 18px',
                   borderRadius: '8px',
@@ -259,7 +281,8 @@ export default function FooterSection() {
                   fontFamily: 'var(--font-sans)',
                   fontSize: '13px',
                   fontWeight: '600',
-                  cursor: subscribed ? 'default' : 'pointer',
+                  cursor: (subscribed || subscribing) ? 'default' : 'pointer',
+                  opacity: subscribing ? 0.7 : 1,
                   transition: 'all 0.25s ease',
                   whiteSpace: 'nowrap',
                   boxShadow: btnHovered
@@ -267,9 +290,22 @@ export default function FooterSection() {
                     : '0 2px 8px rgba(184, 148, 79, 0.2)',
                 }}
               >
-                {subscribed ? '✓ Subscribed' : 'Subscribe'}
+                {subscribed ? '✓ Subscribed' : subscribing ? 'Subscribing…' : 'Subscribe'}
               </button>
             </div>
+            {subscribeError && (
+              <p
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '12px',
+                  color: '#E88F8F',
+                  marginTop: '8px',
+                  marginBottom: 0,
+                }}
+              >
+                {subscribeError}
+              </p>
+            )}
           </div>
         </div>
 

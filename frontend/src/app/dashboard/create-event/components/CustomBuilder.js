@@ -207,7 +207,6 @@ export default function CustomBuilder({ config, onChange }) {
       <div>
         <label style={labelStyle}>Cover Image (optional)</label>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <input style={{ ...inputStyle, flex: 1 }} value={config.coverImageUrl || ''} onChange={e => onChange({ coverImageUrl: e.target.value })} placeholder="https://…/cover.jpg" />
           <label style={{
             display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
             padding: '7px 10px', borderRadius: 8, border: '1px solid #B8944F', color: '#B8944F',
@@ -229,10 +228,8 @@ export default function CustomBuilder({ config, onChange }) {
                 const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
                 onChange({ coverImageUrl: publicUrl });
               } catch (err) {
-                console.error('Cover upload failed, using base64:', err);
-                const reader = new FileReader();
-                reader.onload = (ev) => onChange({ coverImageUrl: ev.target.result });
-                reader.readAsDataURL(file);
+                console.error('Cover upload failed:', err);
+                toast.error('Cover image upload failed. Please try again.');
               }
             }} />
           </label>

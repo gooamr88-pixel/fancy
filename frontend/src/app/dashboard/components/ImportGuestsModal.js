@@ -24,7 +24,7 @@ function parseCSVRows(text) {
   });
 }
 
-export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportComplete }) {
+export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onImportComplete }) {
   const [fileContent, setFileContent] = useState('');
   const [fileName, setFileName] = useState('');
   const [preview, setPreview] = useState([]);
@@ -79,8 +79,8 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
         }
         const base64 = btoa(binary);
         setFileContent(base64);
-        setTotalRows(0); // Cannot count easily client-side
-        setPreview([]); // No preview for Excel files
+        setTotalRows(0); // Cannot count/preview an .xlsx binary client-side without a parser library
+        setPreview([]);
       };
       reader.onerror = () => setError('Failed to read file');
       reader.readAsArrayBuffer(file);
@@ -126,6 +126,12 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
     fontSize: '10px', fontWeight: 700, color: COLORS.stone, textTransform: 'uppercase',
     letterSpacing: '0.08em', fontFamily: 'var(--font-sans)',
   };
+
+  const isWedding = event?.event_type === 'wedding';
+  const sideHint = event?.track_guest_side
+    ? (isWedding ? 'side (optional — groom/bride)' : "side (optional — partner1/partner2)")
+    : 'side (optional — partner1/partner2 or groom/bride)';
+  const isXlsxSelected = fileName.toLowerCase().endsWith('.xlsx');
 
   return (
     <div
@@ -201,9 +207,24 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
                 </p>
               )}
               {result.errors && result.errors.length > 0 && (
-                <p style={{ fontSize: '12px', color: '#C45E5E', marginTop: '8px', fontFamily: 'var(--font-sans)' }}>
-                  {result.errors.length} row(s) had errors
-                </p>
+                <div style={{ marginTop: '12px', textAlign: 'left' }}>
+                  <p style={{ fontSize: '12px', color: '#C45E5E', fontFamily: 'var(--font-sans)', fontWeight: 600, marginBottom: '6px' }}>
+                    {result.errors.length} row{result.errors.length === 1 ? '' : 's'} failed to import:
+                  </p>
+                  <div style={{
+                    maxHeight: '160px', overflowY: 'auto', borderRadius: '8px', border: '1px solid #FECACA', background: '#FEF2F2',
+                  }}>
+                    {result.errors.map((e, i) => (
+                      <div key={i} style={{
+                        padding: '8px 12px', fontSize: '12px', fontFamily: 'var(--font-sans)',
+                        borderBottom: i < result.errors.length - 1 ? '1px solid #FECACA' : 'none',
+                      }}>
+                        <strong style={{ color: COLORS.charcoal }}>{e.guest_name || 'Unnamed row'}: </strong>
+                        <span style={{ color: '#C45E5E' }}>{e.error || 'Unknown error'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
               <p style={{ fontSize: '13px', color: COLORS.stone, marginTop: '16px', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
                 Ready to invite them? Send personalized SMS invitations now, or share your link / QR code from the dashboard.
@@ -273,11 +294,23 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, onImportCo
                       Drop your CSV or Excel file here or <span style={{ color: COLORS.gold, fontWeight: 600 }}>browse</span>
                     </p>
                     <p style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: 0 }}>
-                      Accepts .csv or .xlsx files · Columns: guest_name, email, phone, party_size, notes
+                      Accepts .csv or .xlsx files · Columns: guest_name, email, phone, party_size, notes, {sideHint}
                     </p>
                   </div>
                 )}
               </div>
+
+              {/* Excel files can't be parsed/previewed client-side without adding a
+                  parser dependency — say so plainly instead of showing nothing,
+                  so it doesn't look broken next to the CSV path's live preview. */}
+              {isXlsxSelected && preview.length === 0 && (
+                <div style={{
+                  marginTop: '16px', padding: '10px 14px', borderRadius: '8px', background: COLORS.softBg,
+                  border: `1px solid ${COLORS.border}`, color: COLORS.stone, fontSize: '12px', fontFamily: 'var(--font-sans)',
+                }}>
+                  A row-by-row preview isn't available for Excel files. Your data will be validated when you click Import — for a live preview before importing, save the file as .csv instead.
+                </div>
+              )}
 
               {/* Preview */}
               {preview.length > 0 && (

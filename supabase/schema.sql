@@ -1,18 +1,31 @@
 -- ============================================================================
 -- Fancy RSVP — Database Schema (generated reference snapshot)
 --
--- SOURCE OF TRUTH: supabase/migrations/*.sql
+-- SOURCE OF TRUTH: supabase/migrations/*.sql AND backend/migrations/*.sql
 --
 -- This file is a human-readable snapshot of the FINAL schema produced by
--- applying every migration in order (through
--- 20260710000000_submit_rsvp_custom_answer_validation). It is NOT executed at
--- deploy time — the migrations are. Regenerate it whenever migrations change:
+-- applying every migration in order, through:
+--   supabase/migrations/20260719000000_marketing_forms.sql
+--   backend/migrations/006_guest_cap_response_update_trigger.sql
+-- It is NOT executed at deploy time — the migrations are. Regenerate it
+-- whenever migrations change:
 --   apply all migrations to a clean Postgres, then
 --   pg_dump --schema-only --schema=public --no-owner --no-comments
 --
 -- Guest model: rsvp_parties + guests, keyed by party_id. The legacy
 -- rsvps / rsvp_id guest model was rebuilt in
 -- 20260705000000_guest_experience_rebuild and no longer exists.
+--
+-- NOTE ON STRUCTURE: everything up to the "SCHEMA public; Type: ACL" section
+-- near the end of this file is a genuine pg_dump-style snapshot current
+-- through 20260712000000_tier_watermark_and_limits.sql. Everything AFTER that
+-- marker was appended by hand (not re-dumped) to bring the snapshot fully
+-- current through 20260719 + the backend/migrations/*.sql triggers — each
+-- appended block is self-contained (CREATE TABLE/COLUMN IF NOT EXISTS, or
+-- DROP FUNCTION IF EXISTS + CREATE FUNCTION for signature changes), so running
+-- this entire file top-to-bottom against a blank database still produces the
+-- exact correct final state. Fold these into the dumped section proper the
+-- next time this file is regenerated from a live database.
 -- ============================================================================
 
 -- Function bodies reference tables created further down in this file; disable
@@ -3091,3 +3104,1446 @@ ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 -- Name: SCHEMA public; Type: ACL; Schema: -
 
 REVOKE USAGE ON SCHEMA public FROM PUBLIC;
+
+-- ============================================================================
+-- APPENDED — brings the snapshot above (current through 20260712) fully
+-- current through supabase/migrations/20260719000000_marketing_forms.sql and
+-- backend/migrations/006_guest_cap_response_update_trigger.sql. See the file
+-- header for why this is appended rather than merged in place.
+-- ============================================================================
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- backend/migrations/002_guest_analytics.sql, as it exists TODAY — its
+-- original body created this table keyed to the legacy `rsvps` table, which
+-- 20260705000000_guest_experience_rebuild.sql later dropped, re-keying this
+-- table's rsvp_id column to party_id (see that migration's section 11). That
+-- migration also DROPPED guest_reminders entirely (absorbed into
+-- `invitations`), so it is intentionally not recreated here.
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.guest_analytics (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    event_id UUID NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+    party_id UUID REFERENCES public.rsvp_parties(id) ON DELETE SET NULL,
+    session_id TEXT,
+    event_type TEXT NOT NULL,
+    metadata JSONB DEFAULT '{}',
+    user_agent TEXT,
+    ip_hash TEXT,
+    referrer TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_guest_analytics_event_id ON public.guest_analytics(event_id);
+CREATE INDEX IF NOT EXISTS idx_guest_analytics_event_type ON public.guest_analytics(event_type);
+CREATE INDEX IF NOT EXISTS idx_guest_analytics_created_at ON public.guest_analytics(created_at);
+CREATE INDEX IF NOT EXISTS idx_guest_analytics_session ON public.guest_analytics(session_id);
+
+ALTER TABLE public.guest_analytics ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "service_role_full_access_analytics" ON public.guest_analytics;
+CREATE POLICY "service_role_full_access_analytics" ON public.guest_analytics FOR ALL USING (true) WITH CHECK (true);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- backend/migrations/003_must_reset_password.sql
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE public.organizations
+  ADD COLUMN IF NOT EXISTS must_reset_password BOOLEAN NOT NULL DEFAULT false;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- backend/migrations/004, 005, 006 — tier_max_guests enforcement triggers.
+-- 006 is the final, consolidated form of the counting rule (declines free
+-- their slot); 004's trigger-creation statements are still needed since 006
+-- only re-pointed the function bodies, not the CREATE TRIGGER calls.
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.count_reserved_guests(p_event_id UUID, p_exclude_party_id UUID DEFAULT NULL)
+RETURNS INTEGER AS $$
+DECLARE
+  v_count INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO v_count
+  FROM guests g
+  LEFT JOIN rsvp_parties p ON p.id = g.party_id
+  WHERE g.event_id = p_event_id
+    AND (p_exclude_party_id IS NULL OR g.party_id IS DISTINCT FROM p_exclude_party_id)
+    AND COALESCE(p.response, 'pending') <> 'no';
+  RETURN v_count;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION public.enforce_tier_guest_cap()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_cap INTEGER;
+  v_count INTEGER;
+BEGIN
+  SELECT tier_max_guests INTO v_cap FROM events WHERE id = NEW.event_id;
+  IF v_cap IS NULL OR v_cap <= 0 THEN
+    RETURN NEW;
+  END IF;
+
+  v_count := count_reserved_guests(NEW.event_id);
+
+  IF v_count + 1 > v_cap THEN
+    RAISE EXCEPTION 'GUEST_LIMIT_REACHED: This event''s plan allows up to % guests (currently %, declines excluded).', v_cap, v_count
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_enforce_tier_guest_cap ON public.guests;
+CREATE TRIGGER trg_enforce_tier_guest_cap
+  BEFORE INSERT ON public.guests
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_tier_guest_cap();
+
+CREATE OR REPLACE FUNCTION public.enforce_tier_guest_cap_on_response_update()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_cap INTEGER;
+  v_count INTEGER;
+  v_party_guest_count INTEGER;
+BEGIN
+  IF OLD.response IS DISTINCT FROM 'no' OR NEW.response = 'no' THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT tier_max_guests INTO v_cap FROM events WHERE id = NEW.event_id;
+  IF v_cap IS NULL OR v_cap <= 0 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COUNT(*) INTO v_party_guest_count FROM guests WHERE party_id = NEW.id;
+  v_count := count_reserved_guests(NEW.event_id, NEW.id);
+
+  IF v_count + v_party_guest_count > v_cap THEN
+    RAISE EXCEPTION 'GUEST_LIMIT_REACHED: This event''s plan allows up to % guests (currently %, declines excluded).', v_cap, v_count
+      USING ERRCODE = 'P0001';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_enforce_tier_guest_cap_on_response_update ON public.rsvp_parties;
+CREATE TRIGGER trg_enforce_tier_guest_cap_on_response_update
+  BEFORE UPDATE OF response ON public.rsvp_parties
+  FOR EACH ROW
+  EXECUTE FUNCTION public.enforce_tier_guest_cap_on_response_update();
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260713000000_get_event_parties_rpc.sql
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.get_event_parties(
+  p_event_id           UUID,
+  p_response           TEXT DEFAULT NULL,
+  p_search             TEXT DEFAULT NULL,
+  p_seated             TEXT DEFAULT NULL,
+  p_meal               TEXT DEFAULT NULL,
+  p_custom_field_id    UUID DEFAULT NULL,
+  p_custom_field_value TEXT DEFAULT NULL,
+  p_sort               TEXT DEFAULT NULL,
+  p_limit              INT  DEFAULT 50,
+  p_offset             INT  DEFAULT 0
+)
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH filtered AS (
+    SELECT p.id, p.label, p.created_at
+    FROM rsvp_parties p
+    WHERE p.event_id = p_event_id
+      AND (p_response IS NULL OR p.response::text = p_response)
+      AND (p_search IS NULL OR p.label ILIKE '%' || p_search || '%')
+      AND (
+        p_seated IS NULL
+        OR (p_seated = 'true'  AND     EXISTS (SELECT 1 FROM seating_assignments sa WHERE sa.party_id = p.id AND sa.event_id = p_event_id))
+        OR (p_seated = 'false' AND NOT EXISTS (SELECT 1 FROM seating_assignments sa WHERE sa.party_id = p.id AND sa.event_id = p_event_id))
+      )
+      AND (
+        p_meal IS NULL
+        OR EXISTS (SELECT 1 FROM guests g WHERE g.party_id = p.id AND g.meal_selection = p_meal)
+      )
+      AND (
+        p_custom_field_id IS NULL
+        OR EXISTS (
+          SELECT 1 FROM custom_answers ca
+          WHERE ca.party_id = p.id
+            AND ca.field_id = p_custom_field_id
+            AND (
+              p_custom_field_value IS NULL
+              OR lower(btrim(ca.answer_value #>> '{}')) = lower(btrim(p_custom_field_value))
+            )
+        )
+      )
+  ),
+  page AS (
+    SELECT f.id,
+           row_number() OVER (
+             ORDER BY
+               CASE WHEN p_sort = 'name_asc'  THEN f.label      END ASC  NULLS LAST,
+               CASE WHEN p_sort = 'name_desc' THEN f.label      END DESC NULLS LAST,
+               CASE WHEN p_sort = 'date_asc'  THEN f.created_at END ASC,
+               CASE WHEN p_sort IS NULL OR p_sort NOT IN ('name_asc', 'name_desc', 'date_asc')
+                    THEN f.created_at END DESC
+           ) AS rn
+    FROM filtered f
+    ORDER BY rn
+    LIMIT  GREATEST(p_limit, 0)
+    OFFSET GREATEST(p_offset, 0)
+  )
+  SELECT jsonb_build_object(
+    'total', (SELECT count(*) FROM filtered),
+    'parties', COALESCE((
+      SELECT jsonb_agg(party_json ORDER BY rn)
+      FROM (
+        SELECT
+          pg.rn,
+          to_jsonb(p)
+            || jsonb_build_object(
+                 'guests', COALESCE((
+                   SELECT jsonb_agg(to_jsonb(g) ORDER BY g.is_primary_contact DESC, g.id)
+                   FROM guests g WHERE g.party_id = p.id
+                 ), '[]'::jsonb),
+                 'custom_answers', COALESCE((
+                   SELECT jsonb_agg(to_jsonb(ca) ORDER BY ca.created_at, ca.id)
+                   FROM custom_answers ca WHERE ca.party_id = p.id
+                 ), '[]'::jsonb),
+                 'seating_assignments', COALESCE((
+                   SELECT jsonb_agg(jsonb_build_object(
+                            'id', sa.id,
+                            'table_id', sa.table_id,
+                            'tables', CASE WHEN t.id IS NULL THEN NULL
+                                      ELSE jsonb_build_object('table_name', t.table_name) END)
+                          ORDER BY sa.assigned_at, sa.id)
+                   FROM seating_assignments sa
+                   LEFT JOIN tables t ON t.id = sa.table_id
+                   WHERE sa.party_id = p.id AND sa.event_id = p_event_id
+                 ), '[]'::jsonb),
+                 'invitations', COALESCE((
+                   SELECT jsonb_agg(jsonb_build_object('channel', i.channel, 'status', i.status)
+                          ORDER BY i.created_at, i.id)
+                   FROM invitations i WHERE i.party_id = p.id
+                 ), '[]'::jsonb)
+               ) AS party_json
+        FROM page pg
+        JOIN rsvp_parties p ON p.id = pg.id
+      ) x
+    ), '[]'::jsonb)
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.get_event_parties(UUID, TEXT, TEXT, TEXT, TEXT, UUID, TEXT, TEXT, INT, INT) FROM anon, authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260714000000_guest_side_tagging.sql
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE public.rsvp_parties ADD COLUMN IF NOT EXISTS side TEXT;
+
+ALTER TABLE public.rsvp_parties DROP CONSTRAINT IF EXISTS rsvp_parties_side_check;
+ALTER TABLE public.rsvp_parties ADD CONSTRAINT rsvp_parties_side_check
+  CHECK (side IS NULL OR side IN ('partner1', 'partner2'));
+
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS track_guest_side BOOLEAN NOT NULL DEFAULT false;
+
+CREATE INDEX IF NOT EXISTS idx_rsvp_parties_event_side ON public.rsvp_parties(event_id, side);
+
+ALTER TABLE public.custom_form_fields ADD COLUMN IF NOT EXISTS is_meal_field BOOLEAN NOT NULL DEFAULT false;
+
+WITH ranked AS (
+  SELECT id, event_id,
+         ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY created_at ASC) AS rn
+  FROM public.custom_form_fields
+  WHERE lower(field_key) IN ('meal_selection', 'meal', 'meal_choice', 'meal_preference', 'meal_option')
+    AND field_type IN ('select', 'radio')
+)
+UPDATE public.custom_form_fields f
+SET is_meal_field = true
+FROM ranked
+WHERE f.id = ranked.id AND ranked.rn = 1;
+
+DROP INDEX IF EXISTS public.idx_custom_form_fields_one_meal_per_event;
+CREATE UNIQUE INDEX idx_custom_form_fields_one_meal_per_event
+  ON public.custom_form_fields(event_id) WHERE is_meal_field = true;
+
+DROP FUNCTION IF EXISTS public.add_guest_to_party(UUID, UUID, TEXT, UUID, TEXT, TEXT, TEXT);
+
+CREATE FUNCTION public.add_guest_to_party(
+  p_event_id  UUID,
+  p_actor     UUID,
+  p_full_name TEXT,
+  p_party_id  UUID DEFAULT NULL,
+  p_phone     TEXT DEFAULT NULL,
+  p_email     TEXT DEFAULT NULL,
+  p_response  TEXT DEFAULT 'pending',
+  p_side      TEXT DEFAULT NULL
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_party_id   UUID;
+  v_guest_id   UUID;
+  v_is_primary BOOLEAN;
+  v_created_party BOOLEAN := false;
+  v_event      events%ROWTYPE;
+  v_committed  INTEGER;
+BEGIN
+  IF NOT public._is_event_authorized(p_event_id, p_actor) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'UNAUTHORIZED', 'message', 'You are not authorized to manage guests for this event.');
+  END IF;
+
+  IF p_party_id IS NULL AND NULLIF(btrim(COALESCE(p_phone, '')), '') IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'VALIDATION_ERROR', 'message', 'A phone number is required for the primary contact.');
+  END IF;
+
+  IF p_response IN ('yes', 'maybe') THEN
+    SELECT * INTO v_event FROM events WHERE id = p_event_id;
+    IF FOUND AND v_event.slug <> 'demo' AND COALESCE(v_event.tier_max_guests, 0) > 0 THEN
+      PERFORM pg_advisory_xact_lock(hashtext('rsvp_submit:' || p_event_id::text));
+      SELECT COALESCE(SUM(gc.cnt), 0) INTO v_committed
+      FROM rsvp_parties p
+      JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = p.id) gc ON true
+      WHERE p.event_id = p_event_id AND p.response IN ('yes', 'maybe');
+      IF v_committed + 1 > v_event.tier_max_guests THEN
+        RETURN jsonb_build_object('success', false, 'error', 'GUEST_LIMIT_REACHED',
+          'message', 'This event has reached its plan''s guest limit.');
+      END IF;
+    END IF;
+  END IF;
+
+  IF p_party_id IS NULL THEN
+    INSERT INTO rsvp_parties (event_id, label, response, response_source, side)
+    VALUES (p_event_id, p_full_name, p_response::rsvp_response_type, 'manual',
+            CASE WHEN p_side IN ('partner1', 'partner2') THEN p_side END)
+    RETURNING id INTO v_party_id;
+    v_is_primary := true;
+    v_created_party := true;
+  ELSE
+    SELECT id INTO v_party_id FROM rsvp_parties WHERE id = p_party_id AND event_id = p_event_id;
+    IF v_party_id IS NULL THEN
+      RETURN jsonb_build_object('success', false, 'error', 'RSVP_NOT_FOUND', 'message', 'Party not found.');
+    END IF;
+    v_is_primary := false;
+  END IF;
+
+  BEGIN
+    INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact)
+    VALUES (v_party_id, p_event_id, p_full_name, NULLIF(lower(btrim(COALESCE(p_email, ''))), ''), p_phone, v_is_primary)
+    RETURNING id INTO v_guest_id;
+  EXCEPTION WHEN unique_violation THEN
+    IF v_created_party THEN
+      DELETE FROM rsvp_parties WHERE id = v_party_id;
+    END IF;
+    RETURN jsonb_build_object('success', false, 'error', 'DUPLICATE_GUEST', 'message', 'A guest with this email or phone already exists for this event.');
+  END;
+
+  INSERT INTO activity_logs (event_id, actor_id, action, entity_type, entity_id, metadata)
+  VALUES (p_event_id, p_actor, 'guest_added_manually', 'guest', v_guest_id,
+          jsonb_build_object('party_id', v_party_id, 'full_name', p_full_name));
+
+  RETURN jsonb_build_object('success', true, 'party_id', v_party_id, 'guest_id', v_guest_id);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.add_guest_to_party(UUID, UUID, TEXT, UUID, TEXT, TEXT, TEXT, TEXT) FROM anon, authenticated;
+
+DROP FUNCTION IF EXISTS public.submit_rsvp_v2(TEXT, UUID, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, JSONB, JSONB, TEXT, TEXT);
+
+CREATE FUNCTION public.submit_rsvp_v2(p_slug text, p_party_id uuid, p_guest_name text, p_email text, p_phone text, p_response text, p_party_size integer, p_notes text, p_primary_meal text, p_additional_guests jsonb, p_custom_answers jsonb, p_decline_reason text, p_maybe_confirm_by text, p_side text DEFAULT NULL) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  v_event           events%ROWTYPE;
+  v_is_demo         BOOLEAN;
+  v_party_size      INTEGER;
+  v_norm_email      TEXT;
+  v_existing_email  TEXT;
+  v_existing_resp   rsvp_response_type;
+  v_party_id        UUID;
+  v_is_update       BOOLEAN := false;
+  v_decline_reason  TEXT;
+  v_maybe_confirm   TEXT;
+  v_meal_options    JSONB;
+  v_meal_required   BOOLEAN;
+  v_has_meal_field  BOOLEAN := false;
+  v_opt_count       INTEGER := 0;
+  v_meal            TEXT;
+  v_g               JSONB;
+  v_a               JSONB;
+  v_bad_field_id    TEXT;
+  i                 INTEGER;
+  v_committed       INTEGER;
+  v_org_email       TEXT;
+  v_org_name        TEXT;
+  v_org_phone       TEXT;
+  v_side            TEXT;
+  v_companion_email TEXT;
+  v_field           RECORD;
+  v_party_answer    TEXT;
+  v_companion_answer TEXT;
+  v_new_guest_id    UUID;
+BEGIN
+  SELECT * INTO v_event FROM events WHERE slug = p_slug;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_NOT_FOUND', 'message', 'Event not found.');
+  END IF;
+
+  v_is_demo := (v_event.slug = 'demo');
+  v_side := CASE WHEN p_side IN ('partner1', 'partner2') THEN p_side END;
+
+  PERFORM pg_advisory_xact_lock(hashtext('rsvp_submit:' || v_event.id::text));
+
+  IF NOT v_is_demo AND NOT COALESCE(v_event.is_paid, false) THEN
+    RETURN jsonb_build_object('success', false, 'code', 'PAYMENT_REQUIRED',
+      'message', 'This event page is inactive because payment has not been completed.');
+  END IF;
+
+  IF NOT v_is_demo AND v_event.status = 'pending_review' THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_UNDER_REVIEW',
+      'message', 'This event is awaiting review and is not accepting RSVPs yet.');
+  END IF;
+
+  IF NOT v_is_demo AND v_event.status <> 'active' THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_CLOSED',
+      'message', 'This event is no longer accepting RSVPs.');
+  END IF;
+
+  IF v_event.rsvp_deadline IS NOT NULL AND now() > v_event.rsvp_deadline THEN
+    RETURN jsonb_build_object('success', false, 'code', 'DEADLINE_PASSED',
+      'message', 'The RSVP deadline for this event has passed.');
+  END IF;
+
+  v_party_size := CASE WHEN p_response = 'yes' THEN COALESCE(p_party_size, 1) ELSE 1 END;
+  IF v_party_size < 1 OR v_party_size > 20 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'partySize must be between 1 and 20.');
+  END IF;
+
+  IF jsonb_typeof(p_additional_guests) = 'array' AND jsonb_array_length(p_additional_guests) > 100 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'Too many additional guests submitted.');
+  END IF;
+  IF jsonb_typeof(p_custom_answers) = 'array' AND jsonb_array_length(p_custom_answers) > 200 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'Too many custom answers submitted.');
+  END IF;
+
+  IF p_response = 'yes' AND jsonb_typeof(p_custom_answers) = 'array' THEN
+    FOR v_a IN SELECT * FROM jsonb_array_elements(p_custom_answers) LOOP
+      v_bad_field_id := v_a ->> 'fieldId';
+      IF COALESCE(v_bad_field_id, '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+          'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM custom_form_fields f WHERE f.id = v_bad_field_id::uuid AND f.event_id = v_event.id) THEN
+        RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+          'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+      END IF;
+    END LOOP;
+  END IF;
+
+  IF p_response = 'yes' AND v_party_size > 1 AND jsonb_typeof(p_additional_guests) = 'array' THEN
+    FOR i IN 0..(v_party_size - 2) LOOP
+      v_g := p_additional_guests -> i;
+      IF jsonb_typeof(v_g -> 'customAnswers') = 'object' THEN
+        FOR v_bad_field_id IN SELECT jsonb_object_keys(v_g -> 'customAnswers') LOOP
+          IF COALESCE(v_bad_field_id, '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+            RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+              'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM custom_form_fields f WHERE f.id = v_bad_field_id::uuid AND f.event_id = v_event.id) THEN
+            RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+              'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+          END IF;
+        END LOOP;
+      END IF;
+    END LOOP;
+  END IF;
+
+  IF p_response = 'yes' THEN
+    FOR v_field IN
+      SELECT id, scope, field_label FROM custom_form_fields
+      WHERE event_id = v_event.id AND is_required = true AND is_meal_field = false
+    LOOP
+      IF v_field.scope = 'guest' THEN
+        IF v_party_size > 1 THEN
+          FOR i IN 0..(v_party_size - 2) LOOP
+            v_g := p_additional_guests -> i;
+            v_companion_answer := NULLIF(btrim(COALESCE((v_g -> 'customAnswers') ->> v_field.id::text, '')), '');
+            IF v_companion_answer IS NULL THEN
+              RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_REQUIRED',
+                'message', format('"%s" is required for Guest #%s.', v_field.field_label, i + 2));
+            END IF;
+          END LOOP;
+        END IF;
+      ELSE
+        v_party_answer := NULL;
+        IF jsonb_typeof(p_custom_answers) = 'array' THEN
+          FOR v_a IN SELECT * FROM jsonb_array_elements(p_custom_answers) LOOP
+            IF (v_a ->> 'fieldId')::uuid = v_field.id THEN
+              v_party_answer := NULLIF(btrim(COALESCE(v_a ->> 'value', '')), '');
+              EXIT;
+            END IF;
+          END LOOP;
+        END IF;
+        IF v_party_answer IS NULL THEN
+          RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_REQUIRED',
+            'message', format('"%s" is required.', v_field.field_label));
+        END IF;
+      END IF;
+    END LOOP;
+  END IF;
+
+  v_norm_email := NULLIF(lower(btrim(COALESCE(p_email, ''))), '');
+  v_decline_reason := CASE WHEN p_response = 'no'    THEN NULLIF(p_decline_reason, '')   ELSE NULL END;
+  v_maybe_confirm  := CASE WHEN p_response = 'maybe' THEN NULLIF(p_maybe_confirm_by, '') ELSE NULL END;
+
+  IF p_response = 'yes' THEN
+    SELECT options, COALESCE(is_required, false)
+      INTO v_meal_options, v_meal_required
+      FROM custom_form_fields
+     WHERE event_id = v_event.id AND is_meal_field = true
+     LIMIT 1;
+    v_has_meal_field := FOUND;
+
+    IF v_has_meal_field THEN
+      v_opt_count := jsonb_array_length(COALESCE(v_meal_options, '[]'::jsonb));
+
+      IF v_opt_count > 0 OR v_meal_required THEN
+        IF v_meal_required AND NULLIF(btrim(COALESCE(p_primary_meal, '')), '') IS NULL THEN
+          RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
+            'message', 'Meal selection is required for the primary guest.');
+        END IF;
+        IF NULLIF(p_primary_meal, '') IS NOT NULL AND v_opt_count > 0
+           AND NOT (v_meal_options ? p_primary_meal) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'MEAL_INVALID',
+            'message', format('Meal selection ''%s'' is invalid.', p_primary_meal));
+        END IF;
+
+        IF v_party_size > 1 THEN
+          FOR i IN 0..(v_party_size - 2) LOOP
+            v_g := p_additional_guests -> i;
+            v_meal := NULLIF(btrim(COALESCE(v_g ->> 'mealSelection', '')), '');
+            IF v_meal_required AND v_meal IS NULL THEN
+              RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
+                'message', format('Meal selection is required for Guest #%s.', i + 2));
+            END IF;
+            IF v_meal IS NOT NULL AND v_opt_count > 0 AND NOT (v_meal_options ? v_meal) THEN
+              RETURN jsonb_build_object('success', false, 'code', 'MEAL_INVALID',
+                'message', format('Meal selection ''%s'' for Guest #%s is invalid.', v_meal, i + 2));
+            END IF;
+          END LOOP;
+        END IF;
+      END IF;
+    END IF;
+  END IF;
+
+  IF NOT v_is_demo AND COALESCE(v_event.tier_max_guests, 0) > 0 AND p_response IN ('yes', 'maybe') THEN
+    SELECT COALESCE(SUM(gc.cnt), 0) INTO v_committed
+    FROM rsvp_parties p
+    JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = p.id) gc ON true
+    WHERE p.event_id = v_event.id
+      AND p.response IN ('yes', 'maybe')
+      AND (p_party_id IS NULL OR p.id <> p_party_id);
+    IF v_committed + v_party_size > v_event.tier_max_guests THEN
+      RETURN jsonb_build_object('success', false, 'code', 'GUEST_LIMIT_REACHED',
+        'message', 'This event has reached its guest limit. Please contact the host.');
+    END IF;
+  END IF;
+
+  IF p_party_id IS NOT NULL THEN
+    SELECT response INTO v_existing_resp FROM rsvp_parties WHERE id = p_party_id AND event_id = v_event.id;
+    IF NOT FOUND THEN
+      RETURN jsonb_build_object('success', false, 'code', 'RSVP_NOT_FOUND', 'message', 'The RSVP record was not found.');
+    END IF;
+
+    SELECT email INTO v_existing_email FROM guests WHERE party_id = p_party_id AND is_primary_contact = true;
+
+    IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+      RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+        'message', 'You have already responded to this invitation.');
+    END IF;
+
+    IF NULLIF(v_existing_email, '') IS NOT NULL THEN
+      IF v_norm_email IS NULL OR lower(v_existing_email) <> v_norm_email THEN
+        RETURN jsonb_build_object('success', false, 'code', 'RSVP_OWNERSHIP_FAILED',
+          'message', 'Email does not match the original RSVP submission. You cannot modify this RSVP.');
+      END IF;
+    END IF;
+
+    UPDATE rsvp_parties SET
+      label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+      decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+      response_source = 'web_form', responded_at = now(), updated_at = now(),
+      side = COALESCE(v_side, side)
+    WHERE id = p_party_id AND event_id = v_event.id;
+
+    v_party_id := p_party_id;
+    v_is_update := true;
+
+    DELETE FROM guests WHERE party_id = v_party_id;
+    DELETE FROM custom_answers WHERE party_id = v_party_id;
+
+    INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+    VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+            CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+  ELSE
+    IF v_norm_email IS NOT NULL THEN
+      SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
+        WHERE p.event_id = v_event.id AND g.is_primary_contact AND lower(g.email) = v_norm_email AND p.response <> 'no'
+        LIMIT 1;
+      IF v_party_id IS NOT NULL THEN
+        IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+            'message', 'You have already responded to this invitation.');
+        END IF;
+        UPDATE rsvp_parties SET
+          label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+          decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+          response_source = 'web_form', responded_at = now(), updated_at = now(),
+          side = COALESCE(v_side, side)
+        WHERE id = v_party_id AND event_id = v_event.id;
+        v_is_update := true;
+        DELETE FROM guests WHERE party_id = v_party_id;
+        DELETE FROM custom_answers WHERE party_id = v_party_id;
+        IF p_response = 'no' THEN
+          DELETE FROM seating_assignments WHERE party_id = v_party_id;
+        END IF;
+      END IF;
+    END IF;
+
+    IF v_party_id IS NULL AND p_phone IS NOT NULL AND btrim(p_phone) <> '' THEN
+      SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
+        WHERE p.event_id = v_event.id AND g.is_primary_contact AND g.phone = p_phone AND p.response <> 'no'
+        LIMIT 1;
+      IF v_party_id IS NOT NULL THEN
+        IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+            'message', 'You have already responded to this invitation.');
+        END IF;
+        UPDATE rsvp_parties SET
+          label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+          decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+          response_source = 'web_form', responded_at = now(), updated_at = now(),
+          side = COALESCE(v_side, side)
+        WHERE id = v_party_id AND event_id = v_event.id;
+        v_is_update := true;
+        DELETE FROM guests WHERE party_id = v_party_id;
+        DELETE FROM custom_answers WHERE party_id = v_party_id;
+        IF p_response = 'no' THEN
+          DELETE FROM seating_assignments WHERE party_id = v_party_id;
+        END IF;
+      END IF;
+    END IF;
+
+    IF v_party_id IS NULL THEN
+      INSERT INTO rsvp_parties (event_id, label, response, notes, decline_reason, maybe_confirm_by, response_source, responded_at, side)
+      VALUES (v_event.id, p_guest_name, p_response::rsvp_response_type, p_notes, v_decline_reason, v_maybe_confirm, 'web_form', now(), v_side)
+      RETURNING id INTO v_party_id;
+
+      BEGIN
+        INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+        VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+                CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+      EXCEPTION WHEN unique_violation THEN
+        DELETE FROM rsvp_parties WHERE id = v_party_id;
+        RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+          'message', 'An RSVP with this email or phone already exists for this event.');
+      END;
+    ELSE
+      INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+      VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+              CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+    END IF;
+  END IF;
+
+  IF p_response = 'yes' THEN
+    FOR v_g, i IN
+      SELECT g.elem, g.ord
+      FROM jsonb_array_elements(COALESCE(p_additional_guests, '[]'::jsonb)) WITH ORDINALITY AS g(elem, ord)
+      WHERE COALESCE(btrim(g.elem ->> 'fullName'), '') <> ''
+        AND g.ord <= GREATEST(v_party_size - 1, 0)
+    LOOP
+      v_companion_email := NULLIF(lower(btrim(COALESCE(v_g ->> 'email', ''))), '');
+      BEGIN
+        INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
+        VALUES (
+          v_party_id, v_event.id, v_g ->> 'fullName', v_companion_email,
+          NULLIF(btrim(v_g ->> 'phone'), ''), false,
+          NULLIF(v_g ->> 'mealSelection', ''), NULLIF(v_g ->> 'dietaryNotes', '')
+        ) RETURNING id INTO v_new_guest_id;
+      EXCEPTION WHEN unique_violation THEN
+        BEGIN
+          INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
+          VALUES (
+            v_party_id, v_event.id, v_g ->> 'fullName', NULL,
+            NULLIF(btrim(v_g ->> 'phone'), ''), false,
+            NULLIF(v_g ->> 'mealSelection', ''), NULLIF(v_g ->> 'dietaryNotes', '')
+          ) RETURNING id INTO v_new_guest_id;
+        EXCEPTION WHEN unique_violation THEN
+          INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
+          VALUES (
+            v_party_id, v_event.id, v_g ->> 'fullName', NULL, NULL, false,
+            NULLIF(v_g ->> 'mealSelection', ''), NULLIF(v_g ->> 'dietaryNotes', '')
+          ) RETURNING id INTO v_new_guest_id;
+        END;
+      END;
+
+      IF jsonb_typeof(v_g -> 'customAnswers') = 'object' THEN
+        INSERT INTO custom_answers (party_id, guest_id, field_id, answer_value)
+        SELECT v_party_id, v_new_guest_id, ca.key::uuid, to_jsonb(ca.value)
+        FROM jsonb_each_text(v_g -> 'customAnswers') AS ca(key, value)
+        WHERE NULLIF(btrim(ca.value), '') IS NOT NULL;
+      END IF;
+    END LOOP;
+
+    INSERT INTO custom_answers (party_id, field_id, answer_value)
+    SELECT v_party_id, (a.elem ->> 'fieldId')::uuid, a.elem -> 'value'
+    FROM jsonb_array_elements(COALESCE(p_custom_answers, '[]'::jsonb)) WITH ORDINALITY AS a(elem, ord)
+    WHERE a.ord <= 50;
+  END IF;
+
+  INSERT INTO activity_logs (event_id, action, entity_type, entity_id, metadata)
+  VALUES (v_event.id, 'rsvp_submitted', 'rsvp_party', v_party_id,
+          jsonb_build_object('guest_name', p_guest_name, 'response', p_response, 'party_size', v_party_size));
+
+  SELECT email, name, phone INTO v_org_email, v_org_name, v_org_phone
+  FROM organizations WHERE id = v_event.org_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'party_id', v_party_id,
+    'is_update', v_is_update,
+    'event_id', v_event.id,
+    'event_title', v_event.title,
+    'event_date', v_event.event_date,
+    'event_slug', v_event.slug,
+    'response', p_response,
+    'party_size', v_party_size,
+    'guest_email', v_norm_email,
+    'notification_preferences', v_event.notification_preferences,
+    'org_email', v_org_email,
+    'org_name', v_org_name,
+    'org_phone', v_org_phone,
+    'event_type', v_event.event_type,
+    'side', (SELECT side FROM rsvp_parties WHERE id = v_party_id)
+  );
+END;
+$_$;
+
+REVOKE ALL ON FUNCTION public.submit_rsvp_v2(TEXT, UUID, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, JSONB, JSONB, TEXT, TEXT, TEXT) FROM anon, authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260715000000_remove_companion_detail_fields.sql
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE public.guests DROP CONSTRAINT IF EXISTS guests_age_group_check;
+ALTER TABLE public.guests DROP CONSTRAINT IF EXISTS guests_gender_check;
+ALTER TABLE public.guests DROP CONSTRAINT IF EXISTS guests_relationship_length_check;
+
+ALTER TABLE public.guests
+  DROP COLUMN IF EXISTS age_group,
+  DROP COLUMN IF EXISTS relationship,
+  DROP COLUMN IF EXISTS gender;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260716000000_update_party_response_guest_cap.sql
+-- ─────────────────────────────────────────────────────────────────────────
+DROP FUNCTION IF EXISTS public.update_party_response(UUID, UUID, TEXT, INTEGER, TEXT, TEXT);
+
+CREATE FUNCTION public.update_party_response(
+  p_event_id    UUID,
+  p_party_id    UUID,
+  p_response    TEXT,
+  p_party_size  INTEGER DEFAULT NULL,
+  p_actor       TEXT DEFAULT 'guest',
+  p_source      TEXT DEFAULT NULL,
+  p_additional_guests JSONB DEFAULT '[]'::jsonb
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_existing_resp rsvp_response_type;
+  v_current_count INTEGER;
+  v_target_size   INTEGER;
+  v_event         events%ROWTYPE;
+  v_committed     INTEGER;
+BEGIN
+  SELECT * INTO v_event FROM events WHERE id = p_event_id;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_NOT_FOUND', 'message', 'Event not found.');
+  END IF;
+
+  SELECT response INTO v_existing_resp FROM rsvp_parties WHERE id = p_party_id AND event_id = p_event_id;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'code', 'RSVP_NOT_FOUND', 'message', 'The RSVP record was not found.');
+  END IF;
+
+  IF p_actor = 'guest' AND v_existing_resp IN ('yes', 'no', 'maybe') THEN
+    RETURN jsonb_build_object('success', false, 'code', 'ALREADY_RESPONDED',
+      'message', 'You have already responded to this invitation.');
+  END IF;
+
+  IF p_response IN ('yes', 'maybe') AND v_event.slug <> 'demo' AND COALESCE(v_event.tier_max_guests, 0) > 0 THEN
+    PERFORM pg_advisory_xact_lock(hashtext('rsvp_submit:' || p_event_id::text));
+    SELECT COUNT(*) INTO v_current_count FROM guests WHERE party_id = p_party_id;
+    v_target_size := CASE WHEN p_party_size IS NOT NULL
+      THEN LEAST(GREATEST(p_party_size, 1), 20)
+      ELSE GREATEST(v_current_count, 1)
+    END;
+    SELECT COALESCE(SUM(gc.cnt), 0) INTO v_committed
+    FROM rsvp_parties p
+    JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = p.id) gc ON true
+    WHERE p.event_id = p_event_id AND p.response IN ('yes', 'maybe') AND p.id <> p_party_id;
+    IF v_committed + v_target_size > v_event.tier_max_guests THEN
+      RETURN jsonb_build_object('success', false, 'code', 'GUEST_LIMIT_REACHED',
+        'message', 'This event has reached its guest limit. Please contact the host.');
+    END IF;
+  END IF;
+
+  UPDATE rsvp_parties SET
+    response = p_response::rsvp_response_type,
+    response_source = COALESCE(p_source, response_source),
+    responded_at = now(),
+    updated_at = now()
+  WHERE id = p_party_id AND event_id = p_event_id;
+
+  IF p_response = 'yes' AND p_party_size IS NOT NULL THEN
+    v_target_size := LEAST(GREATEST(p_party_size, 1), 20);
+    SELECT COUNT(*) INTO v_current_count FROM guests WHERE party_id = p_party_id;
+
+    IF v_target_size > v_current_count THEN
+      INSERT INTO guests (party_id, event_id, full_name, is_primary_contact)
+      SELECT p_party_id, p_event_id,
+             COALESCE(NULLIF(btrim(g.elem ->> 'fullName'), ''), 'Guest ' || gs),
+             false
+      FROM generate_series(v_current_count + 1, v_target_size) gs
+      LEFT JOIN LATERAL (
+        SELECT elem FROM jsonb_array_elements(COALESCE(p_additional_guests, '[]'::jsonb)) WITH ORDINALITY AS a(elem, ord)
+        WHERE a.ord = gs - v_current_count
+      ) g ON true;
+    ELSIF v_target_size < v_current_count THEN
+      DELETE FROM guests WHERE id IN (
+        SELECT id FROM guests
+        WHERE party_id = p_party_id AND is_primary_contact = false
+        ORDER BY created_at DESC
+        LIMIT (v_current_count - v_target_size)
+      );
+    END IF;
+  END IF;
+
+  INSERT INTO activity_logs (event_id, action, entity_type, entity_id, metadata)
+  VALUES (p_event_id, 'rsvp_responded_via_token', 'rsvp_party', p_party_id,
+          jsonb_build_object('response', p_response, 'actor', p_actor));
+
+  RETURN jsonb_build_object('success', true, 'party_id', p_party_id, 'response', p_response);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_party_response(UUID, UUID, TEXT, INTEGER, TEXT, TEXT, JSONB) FROM anon, authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260717000000_admin_revenue_consistency_fix.sql
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE public.sms_credit_ledger ADD COLUMN IF NOT EXISTS amount_cents INTEGER;
+
+DROP FUNCTION IF EXISTS public.record_sms_purchase(UUID, INTEGER, TEXT);
+
+CREATE FUNCTION public.record_sms_purchase(
+  p_event_id        UUID,
+  p_credits         INTEGER,
+  p_payment_intent  TEXT,
+  p_amount_cents    INTEGER DEFAULT NULL
+) RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_wallet_id UUID;
+BEGIN
+  IF p_credits IS NULL OR p_credits <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'INVALID_CREDITS');
+  END IF;
+
+  INSERT INTO sms_credit_wallets (event_id, credits_purchased, credits_used)
+  VALUES (p_event_id, 0, 0)
+  ON CONFLICT (event_id) DO NOTHING;
+
+  SELECT id INTO v_wallet_id FROM sms_credit_wallets WHERE event_id = p_event_id;
+  IF v_wallet_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'WALLET_NOT_FOUND');
+  END IF;
+
+  BEGIN
+    INSERT INTO sms_credit_ledger (wallet_id, event_id, transaction_type, credits, stripe_payment_intent_id, amount_cents)
+    VALUES (v_wallet_id, p_event_id, 'purchase', p_credits, p_payment_intent, p_amount_cents);
+  EXCEPTION WHEN unique_violation THEN
+    RETURN jsonb_build_object('success', true, 'already_processed', true);
+  END;
+
+  UPDATE sms_credit_wallets
+  SET credits_purchased = credits_purchased + p_credits,
+      updated_at = now()
+  WHERE id = v_wallet_id;
+
+  RETURN jsonb_build_object('success', true, 'already_processed', false);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.record_sms_purchase(UUID, INTEGER, TEXT, INTEGER) FROM anon, authenticated;
+
+DROP MATERIALIZED VIEW IF EXISTS mv_daily_revenue CASCADE;
+
+CREATE MATERIALIZED VIEW mv_daily_revenue AS
+WITH combined AS (
+  SELECT
+    date_trunc('day', COALESCE(completed_at, created_at))::date AS day,
+    amount_cents,
+    CASE
+      WHEN refunded_at IS NOT NULL THEN COALESCE(refund_amount_cents, 0)
+      WHEN status = 'refunded'     THEN COALESCE(refund_amount_cents, amount_cents)
+      ELSE 0
+    END AS refunded_cents,
+    (status IN ('completed', 'refunded')) AS counts
+  FROM event_payments
+  UNION ALL
+  SELECT
+    date_trunc('day', created_at)::date AS day,
+    COALESCE(amount_cents, 0) AS amount_cents,
+    0 AS refunded_cents,
+    true AS counts
+  FROM sms_credit_ledger
+  WHERE transaction_type = 'purchase'
+)
+SELECT
+  day,
+  COALESCE(sum(amount_cents) FILTER (WHERE counts), 0) AS gross_cents,
+  COALESCE(sum(refunded_cents), 0) AS refunded_cents,
+  COALESCE(sum(amount_cents) FILTER (WHERE counts), 0) - COALESCE(sum(refunded_cents), 0) AS net_cents,
+  count(*) FILTER (WHERE counts) AS payment_count
+FROM combined
+GROUP BY 1;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_daily_revenue_day ON mv_daily_revenue(day);
+
+CREATE OR REPLACE FUNCTION get_executive_overview()
+RETURNS jsonb
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT jsonb_build_object(
+    'events', (
+      SELECT jsonb_build_object(
+        'total',  count(*),
+        'paid',   count(*) FILTER (WHERE is_paid),
+        'unpaid', count(*) FILTER (WHERE NOT is_paid),
+        'byStatus', jsonb_build_object(
+          'draft',          count(*) FILTER (WHERE status = 'draft'),
+          'pending_review', count(*) FILTER (WHERE status = 'pending_review'),
+          'active',         count(*) FILTER (WHERE status = 'active'),
+          'paused',         count(*) FILTER (WHERE status = 'paused'),
+          'completed',      count(*) FILTER (WHERE status = 'completed')
+        )
+      ) FROM events
+    ),
+    'organizations', (SELECT count(*) FROM organizations),
+    'rsvps', (
+      SELECT jsonb_build_object(
+        'total',            (SELECT count(*) FROM rsvp_parties),
+        'attendingParties', (SELECT count(*) FROM rsvp_parties WHERE response = 'yes'),
+        'attendingGuests',  (SELECT COALESCE(count(*), 0) FROM guests g JOIN rsvp_parties p ON p.id = g.party_id WHERE p.response = 'yes'),
+        'declined',         (SELECT count(*) FROM rsvp_parties WHERE response = 'no'),
+        'pending',          (SELECT count(*) FROM rsvp_parties WHERE response NOT IN ('yes', 'no'))
+      )
+    ),
+    'checkIns', (SELECT count(*) FROM check_ins),
+    'revenue', jsonb_build_object(
+      'grossCents', (
+        (SELECT COALESCE(sum(amount_cents), 0) FROM event_payments WHERE status IN ('completed', 'refunded'))
+        + (SELECT COALESCE(sum(amount_cents), 0) FROM sms_credit_ledger WHERE transaction_type = 'purchase')
+      ),
+      'pendingCents', (SELECT COALESCE(sum(amount_cents), 0) FROM event_payments WHERE status = 'pending'),
+      'refundedCents', (
+        SELECT COALESCE(sum(
+          CASE
+            WHEN refunded_at IS NOT NULL THEN COALESCE(refund_amount_cents, 0)
+            WHEN status = 'refunded'     THEN COALESCE(refund_amount_cents, amount_cents)
+            ELSE 0
+          END
+        ), 0)
+        FROM event_payments
+      ),
+      'byMonth', (
+        SELECT COALESCE(jsonb_object_agg(m, cents), '{}'::jsonb)
+        FROM (
+          SELECT to_char(month, 'YYYY-MM') AS m, sum(cents) AS cents
+          FROM (
+            SELECT date_trunc('month', COALESCE(completed_at, created_at)) AS month, amount_cents AS cents
+            FROM event_payments
+            WHERE status IN ('completed', 'refunded')
+              AND COALESCE(completed_at, created_at) >= (now() - interval '12 months')
+            UNION ALL
+            SELECT date_trunc('month', created_at) AS month, COALESCE(amount_cents, 0) AS cents
+            FROM sms_credit_ledger
+            WHERE transaction_type = 'purchase'
+              AND created_at >= (now() - interval '12 months')
+          ) monthly
+          GROUP BY 1
+        ) t
+      )
+    ),
+    'sms', (
+      SELECT jsonb_build_object(
+        'purchased', COALESCE(sum(credits_purchased), 0),
+        'used',      COALESCE(sum(credits_used), 0),
+        'remaining', COALESCE(sum(credits_purchased), 0) - COALESCE(sum(credits_used), 0)
+      ) FROM sms_credit_wallets
+    ),
+    'recentActivity', (
+      SELECT COALESCE(jsonb_agg(a ORDER BY a."createdAt" DESC), '[]'::jsonb)
+      FROM (
+        SELECT al.id,
+               al.action,
+               al.entity_type AS "entityType",
+               al.created_at  AS "createdAt",
+               e.title        AS "eventTitle"
+        FROM activity_logs al
+        LEFT JOIN events e ON e.id = al.event_id
+        ORDER BY al.created_at DESC
+        LIMIT 12
+      ) a
+    )
+  );
+$$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260718000000_rsvp_sms_consent.sql
+-- Re-supersedes submit_rsvp_v2 above (adds p_sms_consent) — the DROP here
+-- targets the 14-arg version this same file created above.
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE public.rsvp_parties ADD COLUMN IF NOT EXISTS sms_consent BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.rsvp_parties ADD COLUMN IF NOT EXISTS sms_consent_at TIMESTAMPTZ;
+
+DROP FUNCTION IF EXISTS public.submit_rsvp_v2(TEXT, UUID, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, JSONB, JSONB, TEXT, TEXT, TEXT);
+
+CREATE FUNCTION public.submit_rsvp_v2(p_slug text, p_party_id uuid, p_guest_name text, p_email text, p_phone text, p_response text, p_party_size integer, p_notes text, p_primary_meal text, p_additional_guests jsonb, p_custom_answers jsonb, p_decline_reason text, p_maybe_confirm_by text, p_side text DEFAULT NULL, p_sms_consent boolean DEFAULT false) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $_$
+DECLARE
+  v_event           events%ROWTYPE;
+  v_is_demo         BOOLEAN;
+  v_party_size      INTEGER;
+  v_norm_email      TEXT;
+  v_existing_email  TEXT;
+  v_existing_resp   rsvp_response_type;
+  v_party_id        UUID;
+  v_is_update       BOOLEAN := false;
+  v_decline_reason  TEXT;
+  v_maybe_confirm   TEXT;
+  v_meal_options    JSONB;
+  v_meal_required   BOOLEAN;
+  v_has_meal_field  BOOLEAN := false;
+  v_opt_count       INTEGER := 0;
+  v_meal            TEXT;
+  v_g               JSONB;
+  v_a               JSONB;
+  v_bad_field_id    TEXT;
+  i                 INTEGER;
+  v_committed       INTEGER;
+  v_org_email       TEXT;
+  v_org_name        TEXT;
+  v_org_phone       TEXT;
+  v_side            TEXT;
+  v_companion_email TEXT;
+  v_field           RECORD;
+  v_party_answer    TEXT;
+  v_companion_answer TEXT;
+  v_new_guest_id    UUID;
+BEGIN
+  SELECT * INTO v_event FROM events WHERE slug = p_slug;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_NOT_FOUND', 'message', 'Event not found.');
+  END IF;
+
+  v_is_demo := (v_event.slug = 'demo');
+  v_side := CASE WHEN p_side IN ('partner1', 'partner2') THEN p_side END;
+
+  PERFORM pg_advisory_xact_lock(hashtext('rsvp_submit:' || v_event.id::text));
+
+  IF NOT v_is_demo AND NOT COALESCE(v_event.is_paid, false) THEN
+    RETURN jsonb_build_object('success', false, 'code', 'PAYMENT_REQUIRED',
+      'message', 'This event page is inactive because payment has not been completed.');
+  END IF;
+
+  IF NOT v_is_demo AND v_event.status = 'pending_review' THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_UNDER_REVIEW',
+      'message', 'This event is awaiting review and is not accepting RSVPs yet.');
+  END IF;
+
+  IF NOT v_is_demo AND v_event.status <> 'active' THEN
+    RETURN jsonb_build_object('success', false, 'code', 'EVENT_CLOSED',
+      'message', 'This event is no longer accepting RSVPs.');
+  END IF;
+
+  IF v_event.rsvp_deadline IS NOT NULL AND now() > v_event.rsvp_deadline THEN
+    RETURN jsonb_build_object('success', false, 'code', 'DEADLINE_PASSED',
+      'message', 'The RSVP deadline for this event has passed.');
+  END IF;
+
+  v_party_size := CASE WHEN p_response = 'yes' THEN COALESCE(p_party_size, 1) ELSE 1 END;
+  IF v_party_size < 1 OR v_party_size > 20 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'partySize must be between 1 and 20.');
+  END IF;
+
+  IF jsonb_typeof(p_additional_guests) = 'array' AND jsonb_array_length(p_additional_guests) > 100 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'Too many additional guests submitted.');
+  END IF;
+  IF jsonb_typeof(p_custom_answers) = 'array' AND jsonb_array_length(p_custom_answers) > 200 THEN
+    RETURN jsonb_build_object('success', false, 'code', 'VALIDATION_ERROR',
+      'message', 'Too many custom answers submitted.');
+  END IF;
+
+  IF p_response = 'yes' AND jsonb_typeof(p_custom_answers) = 'array' THEN
+    FOR v_a IN SELECT * FROM jsonb_array_elements(p_custom_answers) LOOP
+      v_bad_field_id := v_a ->> 'fieldId';
+      IF COALESCE(v_bad_field_id, '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+          'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+      END IF;
+      IF NOT EXISTS (SELECT 1 FROM custom_form_fields f WHERE f.id = v_bad_field_id::uuid AND f.event_id = v_event.id) THEN
+        RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+          'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+      END IF;
+    END LOOP;
+  END IF;
+
+  IF p_response = 'yes' AND v_party_size > 1 AND jsonb_typeof(p_additional_guests) = 'array' THEN
+    FOR i IN 0..(v_party_size - 2) LOOP
+      v_g := p_additional_guests -> i;
+      IF jsonb_typeof(v_g -> 'customAnswers') = 'object' THEN
+        FOR v_bad_field_id IN SELECT jsonb_object_keys(v_g -> 'customAnswers') LOOP
+          IF COALESCE(v_bad_field_id, '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+            RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+              'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM custom_form_fields f WHERE f.id = v_bad_field_id::uuid AND f.event_id = v_event.id) THEN
+            RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_INVALID',
+              'message', 'One of your answers could not be matched to a question on this form. Please refresh the page and try again.');
+          END IF;
+        END LOOP;
+      END IF;
+    END LOOP;
+  END IF;
+
+  IF p_response = 'yes' THEN
+    FOR v_field IN
+      SELECT id, scope, field_label FROM custom_form_fields
+      WHERE event_id = v_event.id AND is_required = true AND is_meal_field = false
+    LOOP
+      IF v_field.scope = 'guest' THEN
+        IF v_party_size > 1 THEN
+          FOR i IN 0..(v_party_size - 2) LOOP
+            v_g := p_additional_guests -> i;
+            v_companion_answer := NULLIF(btrim(COALESCE((v_g -> 'customAnswers') ->> v_field.id::text, '')), '');
+            IF v_companion_answer IS NULL THEN
+              RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_REQUIRED',
+                'message', format('"%s" is required for Guest #%s.', v_field.field_label, i + 2));
+            END IF;
+          END LOOP;
+        END IF;
+      ELSE
+        v_party_answer := NULL;
+        IF jsonb_typeof(p_custom_answers) = 'array' THEN
+          FOR v_a IN SELECT * FROM jsonb_array_elements(p_custom_answers) LOOP
+            IF (v_a ->> 'fieldId')::uuid = v_field.id THEN
+              v_party_answer := NULLIF(btrim(COALESCE(v_a ->> 'value', '')), '');
+              EXIT;
+            END IF;
+          END LOOP;
+        END IF;
+        IF v_party_answer IS NULL THEN
+          RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_REQUIRED',
+            'message', format('"%s" is required.', v_field.field_label));
+        END IF;
+      END IF;
+    END LOOP;
+  END IF;
+
+  v_norm_email := NULLIF(lower(btrim(COALESCE(p_email, ''))), '');
+  v_decline_reason := CASE WHEN p_response = 'no'    THEN NULLIF(p_decline_reason, '')   ELSE NULL END;
+  v_maybe_confirm  := CASE WHEN p_response = 'maybe' THEN NULLIF(p_maybe_confirm_by, '') ELSE NULL END;
+
+  IF p_response = 'yes' THEN
+    SELECT options, COALESCE(is_required, false)
+      INTO v_meal_options, v_meal_required
+      FROM custom_form_fields
+     WHERE event_id = v_event.id AND is_meal_field = true
+     LIMIT 1;
+    v_has_meal_field := FOUND;
+
+    IF v_has_meal_field THEN
+      v_opt_count := jsonb_array_length(COALESCE(v_meal_options, '[]'::jsonb));
+
+      IF v_opt_count > 0 OR v_meal_required THEN
+        IF v_meal_required AND NULLIF(btrim(COALESCE(p_primary_meal, '')), '') IS NULL THEN
+          RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
+            'message', 'Meal selection is required for the primary guest.');
+        END IF;
+        IF NULLIF(p_primary_meal, '') IS NOT NULL AND v_opt_count > 0
+           AND NOT (v_meal_options ? p_primary_meal) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'MEAL_INVALID',
+            'message', format('Meal selection ''%s'' is invalid.', p_primary_meal));
+        END IF;
+
+        IF v_party_size > 1 THEN
+          FOR i IN 0..(v_party_size - 2) LOOP
+            v_g := p_additional_guests -> i;
+            v_meal := NULLIF(btrim(COALESCE(v_g ->> 'mealSelection', '')), '');
+            IF v_meal_required AND v_meal IS NULL THEN
+              RETURN jsonb_build_object('success', false, 'code', 'MEAL_REQUIRED',
+                'message', format('Meal selection is required for Guest #%s.', i + 2));
+            END IF;
+            IF v_meal IS NOT NULL AND v_opt_count > 0 AND NOT (v_meal_options ? v_meal) THEN
+              RETURN jsonb_build_object('success', false, 'code', 'MEAL_INVALID',
+                'message', format('Meal selection ''%s'' for Guest #%s is invalid.', v_meal, i + 2));
+            END IF;
+          END LOOP;
+        END IF;
+      END IF;
+    END IF;
+  END IF;
+
+  IF NOT v_is_demo AND COALESCE(v_event.tier_max_guests, 0) > 0 AND p_response IN ('yes', 'maybe') THEN
+    SELECT COALESCE(SUM(gc.cnt), 0) INTO v_committed
+    FROM rsvp_parties p
+    JOIN LATERAL (SELECT COUNT(*) AS cnt FROM guests g WHERE g.party_id = p.id) gc ON true
+    WHERE p.event_id = v_event.id
+      AND p.response IN ('yes', 'maybe')
+      AND (p_party_id IS NULL OR p.id <> p_party_id);
+    IF v_committed + v_party_size > v_event.tier_max_guests THEN
+      RETURN jsonb_build_object('success', false, 'code', 'GUEST_LIMIT_REACHED',
+        'message', 'This event has reached its guest limit. Please contact the host.');
+    END IF;
+  END IF;
+
+  IF p_party_id IS NOT NULL THEN
+    SELECT response INTO v_existing_resp FROM rsvp_parties WHERE id = p_party_id AND event_id = v_event.id;
+    IF NOT FOUND THEN
+      RETURN jsonb_build_object('success', false, 'code', 'RSVP_NOT_FOUND', 'message', 'The RSVP record was not found.');
+    END IF;
+
+    SELECT email INTO v_existing_email FROM guests WHERE party_id = p_party_id AND is_primary_contact = true;
+
+    IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+      RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+        'message', 'You have already responded to this invitation.');
+    END IF;
+
+    IF NULLIF(v_existing_email, '') IS NOT NULL THEN
+      IF v_norm_email IS NULL OR lower(v_existing_email) <> v_norm_email THEN
+        RETURN jsonb_build_object('success', false, 'code', 'RSVP_OWNERSHIP_FAILED',
+          'message', 'Email does not match the original RSVP submission. You cannot modify this RSVP.');
+      END IF;
+    END IF;
+
+    UPDATE rsvp_parties SET
+      label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+      decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+      response_source = 'web_form', responded_at = now(), updated_at = now(),
+      side = COALESCE(v_side, side),
+      sms_consent = p_sms_consent, sms_consent_at = now()
+    WHERE id = p_party_id AND event_id = v_event.id;
+
+    v_party_id := p_party_id;
+    v_is_update := true;
+
+    DELETE FROM guests WHERE party_id = v_party_id;
+    DELETE FROM custom_answers WHERE party_id = v_party_id;
+
+    INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+    VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+            CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+  ELSE
+    IF v_norm_email IS NOT NULL THEN
+      SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
+        WHERE p.event_id = v_event.id AND g.is_primary_contact AND lower(g.email) = v_norm_email AND p.response <> 'no'
+        LIMIT 1;
+      IF v_party_id IS NOT NULL THEN
+        IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+            'message', 'You have already responded to this invitation.');
+        END IF;
+        UPDATE rsvp_parties SET
+          label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+          decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+          response_source = 'web_form', responded_at = now(), updated_at = now(),
+          side = COALESCE(v_side, side),
+          sms_consent = p_sms_consent, sms_consent_at = now()
+        WHERE id = v_party_id AND event_id = v_event.id;
+        v_is_update := true;
+        DELETE FROM guests WHERE party_id = v_party_id;
+        DELETE FROM custom_answers WHERE party_id = v_party_id;
+        IF p_response = 'no' THEN
+          DELETE FROM seating_assignments WHERE party_id = v_party_id;
+        END IF;
+      END IF;
+    END IF;
+
+    IF v_party_id IS NULL AND p_phone IS NOT NULL AND btrim(p_phone) <> '' THEN
+      SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
+        WHERE p.event_id = v_event.id AND g.is_primary_contact AND g.phone = p_phone AND p.response <> 'no'
+        LIMIT 1;
+      IF v_party_id IS NOT NULL THEN
+        IF v_existing_resp IN ('yes', 'no', 'maybe') AND NOT COALESCE(v_event.allow_guest_edits, false) THEN
+          RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+            'message', 'You have already responded to this invitation.');
+        END IF;
+        UPDATE rsvp_parties SET
+          label = p_guest_name, response = p_response::rsvp_response_type, notes = p_notes,
+          decline_reason = v_decline_reason, maybe_confirm_by = v_maybe_confirm,
+          response_source = 'web_form', responded_at = now(), updated_at = now(),
+          side = COALESCE(v_side, side),
+          sms_consent = p_sms_consent, sms_consent_at = now()
+        WHERE id = v_party_id AND event_id = v_event.id;
+        v_is_update := true;
+        DELETE FROM guests WHERE party_id = v_party_id;
+        DELETE FROM custom_answers WHERE party_id = v_party_id;
+        IF p_response = 'no' THEN
+          DELETE FROM seating_assignments WHERE party_id = v_party_id;
+        END IF;
+      END IF;
+    END IF;
+
+    IF v_party_id IS NULL THEN
+      INSERT INTO rsvp_parties (event_id, label, response, notes, decline_reason, maybe_confirm_by, response_source, responded_at, side, sms_consent, sms_consent_at)
+      VALUES (v_event.id, p_guest_name, p_response::rsvp_response_type, p_notes, v_decline_reason, v_maybe_confirm, 'web_form', now(), v_side, p_sms_consent, now())
+      RETURNING id INTO v_party_id;
+
+      BEGIN
+        INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+        VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+                CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+      EXCEPTION WHEN unique_violation THEN
+        DELETE FROM rsvp_parties WHERE id = v_party_id;
+        RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
+          'message', 'An RSVP with this email or phone already exists for this event.');
+      END;
+    ELSE
+      INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+      VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
+              CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+    END IF;
+  END IF;
+
+  IF p_response = 'yes' THEN
+    FOR v_g, i IN
+      SELECT g.elem, g.ord
+      FROM jsonb_array_elements(COALESCE(p_additional_guests, '[]'::jsonb)) WITH ORDINALITY AS g(elem, ord)
+      WHERE COALESCE(btrim(g.elem ->> 'fullName'), '') <> ''
+        AND g.ord <= GREATEST(v_party_size - 1, 0)
+    LOOP
+      v_companion_email := NULLIF(lower(btrim(COALESCE(v_g ->> 'email', ''))), '');
+      BEGIN
+        INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
+        VALUES (
+          v_party_id, v_event.id, v_g ->> 'fullName', v_companion_email,
+          NULLIF(btrim(v_g ->> 'phone'), ''), false,
+          NULLIF(v_g ->> 'mealSelection', ''), NULLIF(v_g ->> 'dietaryNotes', '')
+        ) RETURNING id INTO v_new_guest_id;
+      EXCEPTION WHEN unique_violation THEN
+        BEGIN
+          INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
+          VALUES (
+            v_party_id, v_event.id, v_g ->> 'fullName', NULL,
+            NULLIF(btrim(v_g ->> 'phone'), ''), false,
+            NULLIF(v_g ->> 'mealSelection', ''), NULLIF(v_g ->> 'dietaryNotes', '')
+          ) RETURNING id INTO v_new_guest_id;
+        EXCEPTION WHEN unique_violation THEN
+          INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
+          VALUES (
+            v_party_id, v_event.id, v_g ->> 'fullName', NULL, NULL, false,
+            NULLIF(v_g ->> 'mealSelection', ''), NULLIF(v_g ->> 'dietaryNotes', '')
+          ) RETURNING id INTO v_new_guest_id;
+        END;
+      END;
+
+      IF jsonb_typeof(v_g -> 'customAnswers') = 'object' THEN
+        INSERT INTO custom_answers (party_id, guest_id, field_id, answer_value)
+        SELECT v_party_id, v_new_guest_id, ca.key::uuid, to_jsonb(ca.value)
+        FROM jsonb_each_text(v_g -> 'customAnswers') AS ca(key, value)
+        WHERE NULLIF(btrim(ca.value), '') IS NOT NULL;
+      END IF;
+    END LOOP;
+
+    INSERT INTO custom_answers (party_id, field_id, answer_value)
+    SELECT v_party_id, (a.elem ->> 'fieldId')::uuid, a.elem -> 'value'
+    FROM jsonb_array_elements(COALESCE(p_custom_answers, '[]'::jsonb)) WITH ORDINALITY AS a(elem, ord)
+    WHERE a.ord <= 50;
+  END IF;
+
+  INSERT INTO activity_logs (event_id, action, entity_type, entity_id, metadata)
+  VALUES (v_event.id, 'rsvp_submitted', 'rsvp_party', v_party_id,
+          jsonb_build_object('guest_name', p_guest_name, 'response', p_response, 'party_size', v_party_size));
+
+  SELECT email, name, phone INTO v_org_email, v_org_name, v_org_phone
+  FROM organizations WHERE id = v_event.org_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'party_id', v_party_id,
+    'is_update', v_is_update,
+    'event_id', v_event.id,
+    'event_title', v_event.title,
+    'event_date', v_event.event_date,
+    'event_slug', v_event.slug,
+    'response', p_response,
+    'party_size', v_party_size,
+    'guest_email', v_norm_email,
+    'notification_preferences', v_event.notification_preferences,
+    'org_email', v_org_email,
+    'org_name', v_org_name,
+    'org_phone', v_org_phone,
+    'event_type', v_event.event_type,
+    'side', (SELECT side FROM rsvp_parties WHERE id = v_party_id),
+    'sms_consent', (SELECT sms_consent FROM rsvp_parties WHERE id = v_party_id)
+  );
+END;
+$_$;
+
+REVOKE ALL ON FUNCTION public.submit_rsvp_v2(TEXT, UUID, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, JSONB, JSONB, TEXT, TEXT, TEXT, BOOLEAN) FROM anon, authenticated;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260719000000_marketing_forms.sql
+-- ─────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.newsletter_subscribers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL UNIQUE,
+  source TEXT NOT NULL DEFAULT 'footer',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  unsubscribed_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS public.contact_submissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  message TEXT NOT NULL,
+  ip TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON public.contact_submissions(created_at DESC);

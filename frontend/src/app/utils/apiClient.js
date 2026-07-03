@@ -121,8 +121,8 @@ export async function logout() {
   localStorage.removeItem('org_id');
   localStorage.removeItem('user_role');
   localStorage.removeItem('active_event_id');
-  document.cookie = 'fancy_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; Secure; SameSite=None;';
+  // The session cookie is httpOnly — only the server can clear it, which the
+  // /auth/logout call above already did. A client-side `document.cookie =`
+  // assignment here can never touch it (JS has no access to httpOnly cookies).
   window.location.href = '/login';
 }
-
-export { API_URL };

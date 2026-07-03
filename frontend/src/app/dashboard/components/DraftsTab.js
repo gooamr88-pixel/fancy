@@ -31,10 +31,20 @@ const getPendingPayment = (ev) => {
 
 /* ═══ Confirmation Modal for Draft Deletion ═══ */
 function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
+  // Typed confirmation only when a payment is on the line — EventSettings'
+  // Danger Zone requires typing the exact event title before deleting a real
+  // event, but this modal only ever required a single click, even for a
+  // draft with a pending manual payment reference tied to it. A plain empty
+  // draft stays a quick single-click delete (proportionate, not annoying).
+  // Reset via remount (the parent keys this component on the target event's
+  // id) rather than an effect that syncs state to a prop change.
+  const [confirmText, setConfirmText] = useState('');
+
   if (!isOpen || !event) return null;
   const pendingPay = getPendingPayment(event);
   const hasPendingPayment = !!pendingPay;
   const title = event.title || 'Untitled event';
+  const confirmDisabled = isDeleting || (hasPendingPayment && confirmText.trim() !== title);
 
   return (
     <div
@@ -111,6 +121,24 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
           </div>
         )}
 
+        {hasPendingPayment && (
+          <div style={{ margin: '16px 28px 0' }}>
+            <label style={{ display: 'block', fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+              Type &ldquo;{title}&rdquo; to confirm
+            </label>
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder={title}
+              style={{
+                width: '100%', height: 40, padding: '0 12px', borderRadius: 8,
+                border: `1px solid ${C.border}`, fontFamily: 'var(--font-sans)', fontSize: 13,
+                color: C.charcoal, outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        )}
+
         {/* Actions */}
         <div style={{
           display: 'flex', gap: 10, padding: '24px 28px 28px',
@@ -131,18 +159,18 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
           >Cancel</button>
           <button
             onClick={onConfirm}
-            disabled={isDeleting}
+            disabled={confirmDisabled}
             style={{
               flex: 1, height: 44, borderRadius: 10,
-              border: 'none', background: isDeleting ? 'rgba(196,94,94,0.5)' : C.danger,
+              border: 'none', background: confirmDisabled ? 'rgba(196,94,94,0.5)' : C.danger,
               color: C.white, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
-              cursor: isDeleting ? 'not-allowed' : 'pointer',
+              cursor: confirmDisabled ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               transition: 'all 0.2s',
-              boxShadow: isDeleting ? 'none' : '0 4px 14px rgba(196,94,94,0.25)',
+              boxShadow: confirmDisabled ? 'none' : '0 4px 14px rgba(196,94,94,0.25)',
             }}
-            onMouseEnter={e => { if (!isDeleting) e.currentTarget.style.background = '#b34545'; }}
-            onMouseLeave={e => { if (!isDeleting) e.currentTarget.style.background = C.danger; }}
+            onMouseEnter={e => { if (!confirmDisabled) e.currentTarget.style.background = '#b34545'; }}
+            onMouseLeave={e => { if (!confirmDisabled) e.currentTarget.style.background = C.danger; }}
           >
             {isDeleting && (
               <span style={{
@@ -280,8 +308,11 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
         </div>
       )}
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal — keyed on the target event so its internal
+          confirmText state resets via remount when a different draft is
+          targeted, instead of an effect syncing state to a prop change. */}
       <ConfirmDeleteModal
+        key={confirmEvent?.id || 'none'}
         isOpen={!!confirmEvent}
         onClose={() => setConfirmEvent(null)}
         onConfirm={handleConfirmDelete}

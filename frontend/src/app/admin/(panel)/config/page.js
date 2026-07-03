@@ -164,7 +164,7 @@ function FeatureSelector({ tierFeatures, registry, onChange }) {
 
 // ── Main Page ──
 export default function ConfigPage() {
-  const { showAlert } = useAlert();
+  const { showAlert, showConfirm } = useAlert();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -238,8 +238,15 @@ export default function ConfigPage() {
     setSelectedTierIdx(pricingTiers.length);
   };
 
-  const removeTier = (idx) => {
+  const removeTier = async (idx) => {
     if (pricingTiers.length <= 1) return;
+    const tier = pricingTiers[idx];
+    const ok = await showConfirm(
+      `Delete the "${tier?.name || 'this'}" tier? This takes effect once you save, and any event already on this tier keeps its previously-granted limits but the tier itself will no longer exist to select or reference.`,
+      'Delete Pricing Tier',
+      'danger'
+    );
+    if (!ok) return;
     setPricingTiers(prev => prev.filter((_, i) => i !== idx));
     setSelectedTierIdx(prev => Math.max(0, prev - 1));
   };
@@ -257,7 +264,14 @@ export default function ConfigPage() {
     ]);
   };
 
-  const removeMethod = (idx) => {
+  const removeMethod = async (idx) => {
+    const m = manualMethods[idx];
+    const ok = await showConfirm(
+      `Remove the "${m?.label || 'this'}" payment method? Organizers will no longer see it as an option at checkout once you save.`,
+      'Remove Payment Method',
+      'warning'
+    );
+    if (!ok) return;
     setManualMethods(prev => prev.filter((_, i) => i !== idx));
   };
 
@@ -271,7 +285,14 @@ export default function ConfigPage() {
     setLandingStats(prev => [...prev, { label: 'New Stat', target: 0, suffix: '+', decimals: 0 }]);
   };
 
-  const removeStat = (idx) => {
+  const removeStat = async (idx) => {
+    const s = landingStats[idx];
+    const ok = await showConfirm(
+      `Remove the "${s?.label || 'this'}" stat counter from the landing page once you save?`,
+      'Remove Stat Counter',
+      'warning'
+    );
+    if (!ok) return;
     setLandingStats(prev => prev.filter((_, i) => i !== idx));
   };
 

@@ -133,9 +133,10 @@ function GuestRow({ guest, selected, onToggle, channel }) {
         fontFamily: 'var(--font-sans)', textTransform: 'uppercase', flexShrink: 0,
       }}>{(guest.response || 'pending').toUpperCase()}</span>
 
-      {/* Already-sent indicator */}
-      {guest.invitation_sent && channel === 'email' && (
-        <span title="Invitation already sent" style={{
+      {/* Already-sent indicator — channel-specific (a guest emailed but never
+          texted must still show as unsent on the SMS tab, and vice versa). */}
+      {((channel === 'email' && guest.invitation_sent_email) || (channel === 'sms' && guest.invitation_sent_sms)) && (
+        <span title={`${channel === 'email' ? 'Email' : 'SMS'} invitation already sent`} style={{
           fontSize: '10px', color: COLORS.success, fontWeight: 700,
         }}>✓ Sent</span>
       )}
@@ -152,13 +153,18 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
 
+  // Channel-specific "already invited" check — a guest emailed but never
+  // texted (or vice versa) must still count as uninvited on the other
+  // channel's tab, not disappear from its default "Not Invited" filter.
+  const wasInvitedOnChannel = useCallback((r) => channel === 'email' ? !!r.invitation_sent_email : !!r.invitation_sent_sms, [channel]);
+
   // Filter guests based on channel availability, audience filter, and search query
   const filteredGuests = useMemo(() => {
     return rsvps.filter(r => {
       const hasContact = channel === 'email'
         ? (r.email && r.email !== '-')
         : (r.phone && r.phone !== '-');
-      
+
       // Search match
       const q = searchQuery.toLowerCase();
       const matchesSearch = !q ||
@@ -170,7 +176,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
 
       // Audience filter
       switch (audienceFilter) {
-        case 'uninvited': return hasContact && !r.invitation_sent;
+        case 'uninvited': return hasContact && !wasInvitedOnChannel(r);
         case 'attending': return hasContact && isAccepted(r.response);
         case 'pending': return hasContact && !isAccepted(r.response) && !isDeclined(r.response) && !isMaybe(r.response);
         case 'maybe': return hasContact && isMaybe(r.response);
@@ -179,21 +185,21 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         default: return true; // 'all' - show everyone
       }
     });
-  }, [rsvps, channel, audienceFilter, searchQuery]);
+  }, [rsvps, channel, audienceFilter, searchQuery, wasInvitedOnChannel]);
 
   // Counts for filter chips
   const counts = useMemo(() => {
     const hasContact = (r) => channel === 'email' ? (r.email && r.email !== '-') : (r.phone && r.phone !== '-');
     return {
       all: rsvps.length,
-      uninvited: rsvps.filter(r => hasContact(r) && !r.invitation_sent).length,
+      uninvited: rsvps.filter(r => hasContact(r) && !wasInvitedOnChannel(r)).length,
       attending: rsvps.filter(r => hasContact(r) && isAccepted(r.response)).length,
       pending: rsvps.filter(r => hasContact(r) && !isAccepted(r.response) && !isDeclined(r.response) && !isMaybe(r.response)).length,
       maybe: rsvps.filter(r => hasContact(r) && isMaybe(r.response)).length,
       declined: rsvps.filter(r => hasContact(r) && isDeclined(r.response)).length,
       no_contact: rsvps.filter(r => !hasContact(r)).length,
     };
-  }, [rsvps, channel]);
+  }, [rsvps, channel, wasInvitedOnChannel]);
 
   // Email/SMS counts
   const emailCount = useMemo(() => rsvps.filter(r => r.email && r.email !== '-').length, [rsvps]);
@@ -446,6 +452,22 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
                 <><strong>⏳ Event not live yet</strong> — {result.message}</>
               ) : (
                 <><strong>Error:</strong> {result.message}</>
+              )}
+              {/* Per-recipient failures were computed server-side (email/qr
+                  channels) but never surfaced — the organizer only ever saw an
+                  aggregate "X failed" count with no way to know which guests to
+                  follow up with manually. */}
+              {Array.isArray(result.failures) && result.failures.length > 0 && (
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: `1px solid ${tone.bd}` }}>
+                  {result.failures.map((f, i) => {
+                    const guest = rsvps.find(r => r.id === f.partyId);
+                    return (
+                      <div key={f.partyId || i} style={{ fontSize: '11px', marginTop: i === 0 ? 0 : '2px' }}>
+                        <strong>{guest?.guest_name || 'Unknown guest'}:</strong> {f.reason || 'Unknown error'}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           );

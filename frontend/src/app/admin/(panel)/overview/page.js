@@ -28,13 +28,18 @@ export default function OverviewPage() {
   const [ov, setOv] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Bumped by the refresh button — this page previously only ever loaded once
+  // on mount, with no way to pull the latest KPIs (e.g. revenue right after
+  // approving a cash payment elsewhere) without a full page reload.
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let ignore = false;
     (async () => {
+      setLoading(true);
       try {
         const res = await adminApi.get('/overview');
-        if (!ignore) setOv(res?.overview || null);
+        if (!ignore) { setOv(res?.overview || null); setError(null); }
       } catch (err) {
         if (!ignore) setError(err.message || 'Failed to load overview');
       } finally {
@@ -42,7 +47,7 @@ export default function OverviewPage() {
       }
     })();
     return () => { ignore = true; };
-  }, []);
+  }, [nonce]);
 
   if (loading) return <PageLoading label="Loading overview…" />;
   if (error) return <p style={{ color: T.danger }}>{error}</p>;
@@ -52,9 +57,23 @@ export default function OverviewPage() {
 
   return (
     <div>
-      <header style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Executive Overview</h1>
-        <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Platform-wide health at a glance.</p>
+      <header style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Executive Overview</h1>
+          <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Platform-wide health at a glance.</p>
+        </div>
+        <button
+          onClick={() => setNonce((n) => n + 1)}
+          disabled={loading}
+          style={{
+            padding: '7px 14px', border: `1px solid ${T.border}`, borderRadius: T.radiusSm,
+            background: T.surfaceAlt, color: T.text700, fontSize: 12.5, fontWeight: 700,
+            cursor: loading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <span style={{ display: 'inline-block', animation: loading ? 'spin 1s linear infinite' : 'none' }}>↻</span>
+          Refresh
+        </button>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 24 }}>
@@ -84,7 +103,7 @@ export default function OverviewPage() {
                 const percent = (t.cents / maxTrend) * 100;
                 return (
                   <div key={t.month} className="chart-col" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, height: '100%', justifyContent: 'flex-end' }}>
-                    <span style={{ fontSize: '10px', color: T.text900, fontWeight: 800, opacity: 0, transition: 'opacity 0.2s', marginBottom: '2px', background: 'rgba(0,0,0,0.8)', padding: '2px 6px', borderRadius: '4px', border: `1px solid ${T.border}`, whiteSpace: 'nowrap' }} className="chart-val">
+                    <span style={{ fontSize: '10px', color: T.text900, fontWeight: 800, opacity: 0, transition: 'opacity 0.2s', marginBottom: '2px', background: T.surface, padding: '2px 6px', borderRadius: '4px', border: `1px solid ${T.border}`, boxShadow: T.shadow, whiteSpace: 'nowrap' }} className="chart-val">
                       {t.cents ? fmtMoney(t.cents).replace('.00', '') : '$0'}
                     </span>
                     <div

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { apiFetch, logout as centralLogout } from '../utils/apiClient';
+import { API_URL, logout as centralLogout } from '../utils/apiClient';
 
 export function useAuth() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -9,18 +9,48 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let isMounted = true;
-    if (typeof window !== 'undefined') {
+    let ignore = false;
+    if (typeof window === 'undefined') return;
+
+    // localStorage.org_id alone can go stale — the httpOnly session cookie it
+    // was set alongside may have since expired or been revoked (by an admin,
+    // or its 24h natural expiry), which previously left public marketing pages
+    // (Navbar, CTASection) showing "Dashboard / Log Out" for a dead session
+    // until the visitor clicked through and got bounced by the protected page.
+    // Uses a plain fetch (not apiFetch) — apiFetch's 401 handler force-redirects
+    // to /login on any non-auth page, which must never happen to an anonymous
+    // visitor browsing a public marketing page.
+    (async () => {
       const id = localStorage.getItem('org_id');
-      const role = localStorage.getItem('user_role');
-      if (isMounted) {
-        setOrgId(id);
-        setUserRole(role);
-        setIsLoggedIn(!!id);
-        setLoading(false);
+      if (!id) { setLoading(false); return; }
+      try {
+        const res = await fetch(`${API_URL}/auth/profile`, { credentials: 'include' });
+        if (ignore) return;
+        if (res.ok) {
+          setOrgId(id);
+          setUserRole(localStorage.getItem('user_role'));
+          setIsLoggedIn(true);
+        } else {
+          localStorage.removeItem('org_id');
+          localStorage.removeItem('user_role');
+          setOrgId(null);
+          setUserRole(null);
+          setIsLoggedIn(false);
+        }
+      } catch {
+        // Network hiccup — don't punish the visitor for a transient failure;
+        // keep showing the locally-cached logged-in state.
+        if (!ignore) {
+          setOrgId(id);
+          setUserRole(localStorage.getItem('user_role'));
+          setIsLoggedIn(true);
+        }
+      } finally {
+        if (!ignore) setLoading(false);
       }
-    }
-    return () => { isMounted = false; };
+    })();
+
+    return () => { ignore = true; };
   }, []);
 
   // Cross-tab sync

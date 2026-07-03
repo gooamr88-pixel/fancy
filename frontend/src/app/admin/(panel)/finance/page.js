@@ -73,20 +73,29 @@ export default function FinancePage() {
           <p style={{ color: T.text400, fontSize: 13 }}>No revenue recorded in this window.</p>
         ) : (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160, overflowX: 'auto' }}>
-            {series.map((s) => (
-              <div
-                key={s.day}
-                title={`${s.day}: ${fmt(s.net_cents)}`}
-                style={{
-                  flex: '1 0 8px',
-                  minWidth: 8,
-                  height: `${Math.max(2, ((s.net_cents || 0) / maxNet) * 150)}px`,
-                  background: T.primary,
-                  opacity: 0.85,
-                  borderRadius: '4px 4px 0 0',
-                }}
-              />
-            ))}
+            {series.map((s) => {
+              const net = s.net_cents || 0;
+              // A day with more refunds than gross has negative net — flooring that
+              // straight into the same height formula used to still draw a small
+              // gold bar, visually implying revenue on a day that was actually a
+              // net loss. Render those as a distinct (red) minimum-height marker.
+              const isNegative = net < 0;
+              const heightPx = isNegative ? 2 : Math.max(2, (net / maxNet) * 150);
+              return (
+                <div
+                  key={s.day}
+                  title={`${s.day}: ${fmt(net)}`}
+                  style={{
+                    flex: '1 0 8px',
+                    minWidth: 8,
+                    height: `${heightPx}px`,
+                    background: isNegative ? T.danger : T.primary,
+                    opacity: 0.85,
+                    borderRadius: '4px 4px 0 0',
+                  }}
+                />
+              );
+            })}
           </div>
         )}
       </div>

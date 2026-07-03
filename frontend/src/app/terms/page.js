@@ -59,8 +59,22 @@ const sections = [
     ],
   },
   {
+    id: "sms-terms",
+    title: "5. SMS Messaging Terms & Conditions",
+    content: [
+      "If you (as an event host) or your guests send or receive text messages through the Service, the following additional terms apply and are incorporated into these Terms of Service and our Privacy Policy.",
+      "**Program Description:** Fancy RSVP's SMS feature allows event hosts to send transactional and informational text messages to their own guests, including RSVP confirmations, event updates, reminders, and check-in instructions. This is not a marketing or promotional messaging service. Hosts may not use it to send unsolicited advertising, political messaging, debt collection, or any content unrelated to the specific event the recipient was invited to.",
+      "**Host Consent Obligations:** If you upload, import, or otherwise add a guest's phone number to the Service rather than having the guest submit it themselves, you represent and warrant that: (a) you have obtained that guest's prior express consent to receive text messages about your event before adding their number; (b) you will honor any opt-out request immediately and will not re-add that guest's number to any future messaging list without obtaining fresh consent; and (c) you are solely responsible for your own compliance with the TCPA, CTIA guidelines, and any applicable state-level telemarketing and texting laws with respect to numbers you supply. You agree to indemnify and hold harmless Fancy RSVP, Inc. from any claim, fine, or penalty arising from your failure to obtain proper consent for a phone number you provided.",
+      "**No Sale or Sharing of Mobile Data:** Consistent with our Privacy Policy, Fancy RSVP will never sell, rent, license, trade, or share any mobile phone number, opt-in record, or consent data collected through the SMS feature with any third party or affiliate for marketing or promotional purposes. This commitment cannot be waived or modified by any other provision of these Terms.",
+      "**Message Frequency & Charges:** Message frequency varies by event and is generally limited to confirmations, reminders, and day-of logistics — typically 1–5 messages per event per guest. Message and data rates may apply. Neither Fancy RSVP nor the event host is responsible for charges imposed by a guest's wireless carrier.",
+      "**Opt-Out and Help:** Any recipient may opt out at any time by replying **STOP**, **UNSUBSCRIBE**, **CANCEL**, **END**, or **QUIT**, and may request assistance by replying **HELP**. Fancy RSVP processes all opt-out requests promptly and will not permit an event host to re-message an opted-out number. These rights cannot be waived by any agreement between a host and a guest.",
+      "**Platform Enforcement:** We reserve the right to suspend or terminate any account, event, or campaign that we determine, in our sole discretion, violates this SMS policy, generates an unacceptable spam-complaint rate, or otherwise risks our standing with wireless carriers or messaging infrastructure providers. We may require re-verification of consent records before resuming SMS delivery for an affected account.",
+      "**No Guarantee of Delivery:** SMS delivery depends on third-party wireless carriers and is not guaranteed. Fancy RSVP is not liable for delayed, undelivered, or misdirected messages caused by carrier filtering, network conditions, or incorrect contact information supplied by the host.",
+    ],
+  },
+  {
     id: "intellectual-property",
-    title: "5. Intellectual Property",
+    title: "6. Intellectual Property",
     content: [
       "The intellectual property rights related to the Service are allocated as follows:",
       "**Our Property:** The Service, including its design, code, features, templates, graphics, documentation, and branding (collectively, \"Platform IP\"), is owned by Fancy RSVP Inc. and protected by copyright, trademark, and other intellectual property laws. You may not copy, modify, distribute, or create derivative works of our Platform IP without express written permission.",
@@ -72,7 +86,7 @@ const sections = [
   },
   {
     id: "payment-terms",
-    title: "6. Payment Terms",
+    title: "7. Payment Terms",
     content: [
       "If you subscribe to a paid plan, the following payment terms apply:",
       "**Pricing:** Prices for our subscription plans are listed on our pricing page and are subject to change. We will notify you at least 30 days before any price increase takes effect. The new price will apply at your next billing cycle after the notice period.",
@@ -86,7 +100,7 @@ const sections = [
   },
   {
     id: "limitation-liability",
-    title: "7. Limitation of Liability",
+    title: "8. Limitation of Liability",
     content: [
       "To the maximum extent permitted by applicable law:",
       "**Disclaimer of Warranties:** The Service is provided \"as is\" and \"as available\" without warranties of any kind, whether express, implied, statutory, or otherwise. We disclaim all warranties, including implied warranties of merchantability, fitness for a particular purpose, title, and non-infringement.",
@@ -98,7 +112,7 @@ const sections = [
   },
   {
     id: "termination",
-    title: "8. Termination",
+    title: "9. Termination",
     content: [
       "Either party may terminate this agreement under the following conditions:",
       "**By You:** You may close your account at any time through your account settings or by contacting support@fancyrsvp.com. Upon closure, you will retain access to your account until the end of your current billing period. After that, your data will be retained for 30 days (grace period) before permanent deletion.",
@@ -110,7 +124,7 @@ const sections = [
   },
   {
     id: "governing-law",
-    title: "9. Governing Law",
+    title: "10. Governing Law",
     content: [
       "These Terms shall be governed by and construed in accordance with the laws of the State of New York, United States, without regard to its conflict of law principles.",
       "**Dispute Resolution:** Before initiating formal proceedings, both parties agree to attempt to resolve disputes through good-faith negotiation for a period of at least 30 days. You may contact us at legal@fancyrsvp.com to initiate this process.",
@@ -122,7 +136,7 @@ const sections = [
   },
   {
     id: "contact-information",
-    title: "10. Contact Information",
+    title: "11. Contact Information",
     content: [
       "If you have questions about these Terms of Service, please contact us through any of the following channels:",
       "**Email:** legal@fancyrsvp.com",
@@ -260,7 +274,7 @@ export default function TermsOfService() {
               fontWeight: 600,
             }}
           >
-            Last Updated: June 1, 2026
+            Last Updated: July 3, 2026
           </p>
         </section>
 

@@ -4,11 +4,50 @@ const { generateQRCodeDataURL } = require('../utils/qrHelper');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
 const { getPlatformConfig } = require('../utils/configCache');
-const { hashEventPassword, verifyEventPassword } = require('../utils/eventPassword');
+const { hashEventPassword, verifyEventPassword, isHashedEventPassword } = require('../utils/eventPassword');
 const logger = require('../utils/logger');
 
 /** Strict UUID matcher — used to validate invitation tokens before querying. */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
+const CUSTOM_COLOR_KEYS = ['primary', 'secondary', 'accent', 'background'];
+// Mirrors the public event page's sanitizeFontName() charset (frontend/src/app/[slug]/EventPageClient.js)
+// — that function already strips this client-side before interpolating the font
+// name into a raw <style> block, but nothing previously stopped an arbitrary
+// string from being persisted in the first place.
+const FONT_NAME_REGEX = /^[a-zA-Z0-9 -]{1,60}$/;
+const CUSTOM_FONT_KEYS = ['heading', 'body'];
+
+/**
+ * Validates the shape of custom_colors/custom_fonts before they're persisted.
+ * Returns an error message string, or null if valid.
+ */
+function validateCustomTheme(customColors, customFonts) {
+  if (customColors !== undefined && customColors !== null) {
+    if (typeof customColors !== 'object' || Array.isArray(customColors)) {
+      return 'customColors must be an object.';
+    }
+    for (const key of CUSTOM_COLOR_KEYS) {
+      const val = customColors[key];
+      if (val !== undefined && val !== null && val !== '' && !HEX_COLOR_REGEX.test(val)) {
+        return `customColors.${key} must be a valid hex color (e.g. #B8944F).`;
+      }
+    }
+  }
+  if (customFonts !== undefined && customFonts !== null) {
+    if (typeof customFonts !== 'object' || Array.isArray(customFonts)) {
+      return 'customFonts must be an object.';
+    }
+    for (const key of CUSTOM_FONT_KEYS) {
+      const val = customFonts[key];
+      if (val !== undefined && val !== null && val !== '' && !FONT_NAME_REGEX.test(val)) {
+        return `customFonts.${key} contains invalid characters or is too long.`;
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * Back-fills the purchased tier ("current plan") onto a paid event that predates
@@ -20,11 +59,23 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * forget, idempotent) so every surface — events list, wizard, public page — agrees.
  * Requires event_payments to be embedded on the event (the list/detail queries do).
  */
-async function withResolvedTier(event) {
-  if (!event || !event.is_paid) {
+async function withResolvedTier(rawEvent) {
+  if (!rawEvent) return rawEvent;
+
+  // Never leak the access_password hash to the client. Both organizer-facing
+  // GET endpoints (getEvent, getEvents) route every event through this
+  // function, so masking it here once covers both. Previously the raw scrypt
+  // hash was sent to the frontend, which pre-filled it into the settings form
+  // and resubmitted it verbatim on every save — updateEvent then re-hashed
+  // that hash, silently replacing the real guest password with an unusable
+  // hash-of-a-hash and locking guests out with no visible error.
+  const { access_password, ...eventWithoutPassword } = rawEvent;
+  const event = { ...eventWithoutPassword, has_access_password: !!access_password };
+
+  if (!event.is_paid) {
     // Unpaid events get only the free-tier features.
     const { FREE_TIER_FEATURES } = require('../config/featureRegistry');
-    return event ? { ...event, tier_features: [...FREE_TIER_FEATURES] } : event;
+    return { ...event, tier_features: [...FREE_TIER_FEATURES] };
   }
 
   let tierName = event.tier_name || null;
@@ -32,8 +83,15 @@ async function withResolvedTier(event) {
   let tierRemoveWatermark = !!event.tier_remove_watermark;
   let tierFeatures = [];
 
+  // Same bug class fixed elsewhere in this codebase (EventsTab's manual-payment
+  // receipt picker): PostgREST doesn't guarantee event_payments embed order, so
+  // picking the first array match instead of sorting by date could resolve an
+  // event's "current plan" from an OLDER completed payment (e.g. the original
+  // purchase) instead of a later upgrade's payment.
   const payments = Array.isArray(event.event_payments) ? event.event_payments : [];
-  const completed = payments.find(p => p && p.status === 'completed') || payments[0];
+  const sortedPayments = [...payments].sort((a, b) =>
+    new Date(b?.completed_at || b?.created_at || 0) - new Date(a?.completed_at || a?.created_at || 0));
+  const completed = sortedPayments.find(p => p && p.status === 'completed') || sortedPayments[0];
 
   // If we don't have a tierName, try resolving from the completed payment
   if (!tierName && completed) {
@@ -101,7 +159,7 @@ const createEvent = async (req, res, next) => {
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword,
     coverImageUrl, galleryUrls, customColors, customFonts, templateData,
-    eventType, backgroundMusicUrl, notificationPreferences, allowGuestEdits
+    eventType, backgroundMusicUrl, notificationPreferences, allowGuestEdits, trackGuestSide
   } = req.body;
 
   if (!templateType) {
@@ -129,6 +187,11 @@ const createEvent = async (req, res, next) => {
         message: 'Slug must contain only lowercase alphanumeric characters and single dashes.'
       });
     }
+  }
+
+  const themeError = validateCustomTheme(customColors, customFonts);
+  if (themeError) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: themeError });
   }
 
   try {
@@ -199,6 +262,7 @@ const createEvent = async (req, res, next) => {
       background_music_url: backgroundMusicUrl || null,
       notification_preferences: { email: notificationPreferences?.email !== false, whatsapp: false },
       allow_guest_edits: !!allowGuestEdits,
+      track_guest_side: !!trackGuestSide,
       status: 'draft',
       is_paid: false
     };
@@ -351,6 +415,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         is_paid,
         status,
         allow_guest_edits,
+        track_guest_side,
         tier_remove_watermark,
         custom_form_fields(*)
       `)
@@ -411,7 +476,7 @@ const getPublicEventBySlug = async (req, res, next) => {
     if (invitationPartyId && UUID_REGEX.test(invitationPartyId)) {
       const { data: partyRecord } = await supabase
         .from('rsvp_parties')
-        .select('id, label, response, notes, guests(id, full_name, is_primary_contact, email, phone, meal_selection, dietary_notes)')
+        .select('id, label, response, notes, side, guests(id, full_name, is_primary_contact, email, phone, meal_selection, dietary_notes)')
         .eq('id', invitationPartyId)
         .eq('event_id', event.id)
         .maybeSingle();
@@ -425,7 +490,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         guestRsvp = {
           id: partyRecord.id, guest_name: partyRecord.label, email: primary.email || null, phone: primary.phone || null,
           response: partyRecord.response, party_size: allGuests.length || 1, notes: partyRecord.notes,
-          primary_meal: primary.meal_selection || null,
+          primary_meal: primary.meal_selection || null, side: partyRecord.side || null,
           additionalGuests: companions.map((g) => ({
             id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
           })),
@@ -516,7 +581,8 @@ const updateEvent = async (req, res, next) => {
     'event_type',
     'background_music_url',
     'notification_preferences',
-    'allow_guest_edits'
+    'allow_guest_edits',
+    'track_guest_side'
   ];
 
   // Status transitions the organizer may request:
@@ -565,8 +631,19 @@ const updateEvent = async (req, res, next) => {
   }
 
   // SEC-9: never persist a plaintext access password. Hash a supplied value; an
-  // empty value clears protection.
+  // empty value clears protection. Defense-in-depth: getEvent/getEvents now mask
+  // the hash from the client entirely (see withResolvedTier), but if a stored
+  // hash ever reaches this endpoint verbatim regardless, re-hashing it would
+  // silently replace the real password with an unusable hash-of-a-hash — reject
+  // instead of corrupting it.
   if (filteredUpdates.access_password !== undefined) {
+    if (filteredUpdates.access_password && isHashedEventPassword(filteredUpdates.access_password)) {
+      return res.status(400).json({
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: 'Invalid access password value.',
+      });
+    }
     filteredUpdates.access_password = filteredUpdates.access_password
       ? await hashEventPassword(filteredUpdates.access_password)
       : null;
@@ -581,6 +658,39 @@ const updateEvent = async (req, res, next) => {
         error: 'INVALID_SLUG',
         message: 'Slug must contain only lowercase alphanumeric characters and single dashes.'
       });
+    }
+  }
+
+  const themeError = validateCustomTheme(filteredUpdates.custom_colors, filteredUpdates.custom_fonts);
+  if (themeError) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: themeError });
+  }
+
+  // Date ordering: end date must be after the start date, and the RSVP
+  // deadline must not be after the event itself. Previously unchecked
+  // anywhere (client or server) — an event could be saved ending before it
+  // started, or with a deadline weeks after the event happened.
+  if (filteredUpdates.event_end_date !== undefined || filteredUpdates.rsvp_deadline !== undefined) {
+    let effectiveEventDate = filteredUpdates.event_date;
+    if (effectiveEventDate === undefined) {
+      const { data: current } = await supabase.from('events').select('event_date').eq('id', eventId).single();
+      effectiveEventDate = current?.event_date;
+    }
+    if (effectiveEventDate) {
+      if (filteredUpdates.event_end_date && new Date(filteredUpdates.event_end_date) < new Date(effectiveEventDate)) {
+        return res.status(400).json({
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'The event end date must be after the start date.'
+        });
+      }
+      if (filteredUpdates.rsvp_deadline && new Date(filteredUpdates.rsvp_deadline) > new Date(effectiveEventDate)) {
+        return res.status(400).json({
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'The RSVP deadline must be on or before the event date.'
+        });
+      }
     }
   }
 
@@ -619,7 +729,20 @@ const updateEvent = async (req, res, next) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // The pre-check above (line ~650) has a TOCTOU race — two concurrent PATCHes
+      // to the same new slug can both pass the check and only one wins at the DB's
+      // unique constraint. Convert that into the same friendly SLUG_TAKEN response
+      // instead of letting it fall through as a raw 500.
+      if (filteredUpdates.slug && (error.code === '23505' || (error.message || '').includes('duplicate key'))) {
+        return res.status(409).json({
+          success: false,
+          error: 'SLUG_TAKEN',
+          message: 'This event URL slug is already taken by another event.'
+        });
+      }
+      throw error;
+    }
 
     // Notify confirmed/maybe guests if a LIVE event's date or venue actually moved
     // (best-effort, non-blocking; itself gated by EMAIL_AUTOMATION_ENABLED).

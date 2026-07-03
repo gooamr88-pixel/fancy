@@ -2,6 +2,7 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getStripePaymentReceiptTemplate } = require('../utils/emailTemplates');
+const { getPlatformConfig } = require('../utils/configCache');
 
 /**
  * Single source of truth for fulfilling a completed Stripe Checkout Session.
@@ -43,36 +44,109 @@ const fulfillCheckoutSession = async (session) => {
     const parsedCap = rawCap !== undefined && rawCap !== '' ? parseInt(rawCap, 10) : NaN;
     const tierMaxGuests = Number.isFinite(parsedCap) ? parsedCap : null;
     const tierRemoveWatermark = session.metadata.tier_remove_watermark === '1';
+    const isUpgrade = session.metadata.is_upgrade === '1';
 
-    // SEC C5: Optimistic locking — only update if the event hasn't been paid yet.
-    // A concurrent webhook/verify call that already flipped is_paid=true will cause
-    // this update to return 0 rows, which we treat as "already processed".
-    const { data: updatedEvent, error: eventError } = await supabase
-      .from('events')
-      .update({ is_paid: true, status: 'pending_review', updated_at: new Date().toISOString() })
-      .eq('id', event_id)
-      .eq('is_paid', false)
-      .select('id')
-      .maybeSingle();
+    // BIZ-2: re-check the tier's max_events cap authoritatively HERE, not just
+    // at checkout-session creation (createCheckoutSession). The cap check
+    // there and this write happen minutes apart across a Stripe redirect/
+    // webhook — two concurrent checkouts for the same org (two tabs, a
+    // double-click, or an upgrade racing a second event's fresh purchase) can
+    // both pass that earlier check and both land here, silently exceeding the
+    // org's plan cap. If exceeded now, take the money (already charged — a
+    // refund needs a human decision) but do NOT activate the tier; flag it
+    // for manual reconciliation instead of silently over-provisioning.
+    let tierCapExceeded = false;
+    if (tierName) {
+      const { data: eventOrg } = await supabase.from('events').select('org_id').eq('id', event_id).maybeSingle();
+      if (eventOrg?.org_id) {
+        try {
+          const adminConfig = await getPlatformConfig();
+          const tier = adminConfig.pricing_tiers.find((t) => t.name.toLowerCase() === tierName.toLowerCase());
+          if (tier && Number(tier.max_events) > 0) {
+            const { count } = await supabase
+              .from('events')
+              .select('id', { count: 'exact', head: true })
+              .eq('org_id', eventOrg.org_id)
+              .eq('is_paid', true)
+              .ilike('tier_name', tier.name)
+              .neq('id', event_id);
+            if ((count || 0) >= tier.max_events) tierCapExceeded = true;
+          }
+        } catch (e) {
+          logger.warn({ err: e, eventId: event_id }, '[fulfill] tier cap re-check skipped (config fetch failed)');
+        }
+      }
+    }
+
+    // SEC C5: Optimistic locking — only meaningful for a FIRST-TIME payment's
+    // false->true transition. It used to run unconditionally, which meant an
+    // UPGRADE (is_paid already true before this checkout even started) could
+    // never match `.eq('is_paid', false)` — the UPDATE always affected 0 rows,
+    // so every upgrade was silently treated as "already processed": Stripe
+    // charged the card, but the new tier/guest-cap was never applied and no
+    // event_payments row further below was ever reached. An upgrade also must
+    // NOT reset `status` back to 'pending_review' — that would bounce an
+    // already-live, already-approved event back into admin review on every
+    // upgrade, hiding it from guests until someone re-approves it.
+    const eventUpdate = { is_paid: true, updated_at: new Date().toISOString() };
+    if (!isUpgrade) eventUpdate.status = 'pending_review';
+
+    let eventQuery = supabase.from('events').update(eventUpdate).eq('id', event_id);
+    if (!isUpgrade) eventQuery = eventQuery.eq('is_paid', false);
+    const { data: updatedEvent, error: eventError } = await eventQuery.select('id').maybeSingle();
 
     if (eventError) throw eventError;
 
-    // If no row was updated, a concurrent call already fulfilled this event.
+    // If no row was updated, a concurrent call already fulfilled this event
+    // (only reachable for a first-time payment now that the guard is
+    // conditional — an upgrade always targets `.eq('id', event_id)` alone).
     if (!updatedEvent) {
       return { ok: true, type, alreadyProcessed: true, eventId: event_id };
     }
 
-    // Persist the tier separately and best-effort: the tier_name/tier_max_guests
-    // columns ship in migration 20260624000000. If it hasn't been applied yet we
-    // must NOT fail (and make Stripe retry) the already-committed activation — so
-    // this write is isolated and its error is only logged. Apply the migration to
-    // make the "Current Plan" panel light up.
-    if (tierName || tierMaxGuests !== null) {
+    // The org's own cap on this tier was exceeded by the time we got here (see
+    // the BIZ-2 re-check above) — the payment is still recorded below (money
+    // was already charged; refunding needs a human decision), but the tier is
+    // deliberately NOT applied, so the org can't silently end up with more
+    // events on this tier than their plan allows.
+    if (tierCapExceeded) {
+      logger.error({ eventId: event_id, tierName, sessionId: session.id },
+        '[fulfill] TIER CAP EXCEEDED — payment charged but tier NOT applied, needs manual reconciliation');
+      try {
+        await supabase.from('activity_logs').insert({
+          event_id,
+          action: 'tier_cap_exceeded',
+          entity_type: 'event_payment',
+          metadata: { tier_name: tierName, session_id: session.id },
+        });
+      } catch (e) {
+        logger.warn({ err: e, eventId: event_id }, '[fulfill] activity_log skipped for tier_cap_exceeded');
+      }
+    } else if (tierName || tierMaxGuests !== null) {
+      // Persist the tier separately and best-effort: the tier_name/tier_max_guests
+      // columns ship in migration 20260624000000. If it hasn't been applied yet we
+      // must NOT fail (and make Stripe retry) the already-committed activation — so
+      // this write is isolated. Its error is logged at `error` (not `warn`) and
+      // recorded in activity_logs — a customer has been charged with no tier/guest
+      // cap applied, which needs an operator's attention, not a log line nobody
+      // reads. Apply the migration to make the "Current Plan" panel light up.
       const { error: tierErr } = await supabase
         .from('events')
         .update({ tier_name: tierName, tier_max_guests: tierMaxGuests, tier_remove_watermark: tierRemoveWatermark })
         .eq('id', event_id);
-      if (tierErr) logger.warn({ err: tierErr, eventId: event_id }, '[fulfill] tier persistence skipped (run migration 20260624000000)');
+      if (tierErr) {
+        logger.error({ err: tierErr, eventId: event_id }, '[fulfill] TIER PERSISTENCE FAILED — customer charged but tier/guest-cap not applied (run migration 20260624000000)');
+        try {
+          await supabase.from('activity_logs').insert({
+            event_id,
+            action: 'tier_persistence_failed',
+            entity_type: 'event_payment',
+            metadata: { tier_name: tierName, tier_max_guests: tierMaxGuests, error: tierErr.message },
+          });
+        } catch (e) {
+          logger.warn({ err: e, eventId: event_id }, '[fulfill] activity_log skipped for tier_persistence_failed');
+        }
+      }
     }
 
     // Record the payment.
@@ -143,10 +217,14 @@ const fulfillCheckoutSession = async (session) => {
 
     // Single transactional RPC: ensures wallet, writes the idempotency ledger row,
     // and credits the wallet atomically. Duplicate delivery → already_processed.
+    // p_amount_cents is stored on the ledger row so this revenue stream shows up
+    // in admin revenue totals (previously invisible — sms_credit_ledger never
+    // recorded a dollar amount at all).
     const { data: purchaseResult, error: purchaseError } = await supabase.rpc('record_sms_purchase', {
       p_event_id: event_id,
       p_credits: creditCount,
       p_payment_intent: session.payment_intent,
+      p_amount_cents: session.amount_total ?? null,
     });
 
     if (purchaseError) throw purchaseError;
@@ -282,14 +360,16 @@ const handleDisputeEvent = async (dispute) => {
 
   // Link to the originating payment via the charge's payment_intent when present.
   let paymentId = null;
+  let eventId = null;
   const paymentIntentId = dispute.payment_intent;
   if (paymentIntentId) {
     const { data: payment } = await supabase
       .from('event_payments')
-      .select('id')
+      .select('id, event_id')
       .eq('stripe_payment_intent_id', paymentIntentId)
       .maybeSingle();
     paymentId = payment?.id || null;
+    eventId = payment?.event_id || null;
   }
 
   const row = {
@@ -311,7 +391,32 @@ const handleDisputeEvent = async (dispute) => {
     .upsert(row, { onConflict: 'stripe_dispute_id' });
   if (error) throw error;
 
-  return { ok: true, disputeId: dispute.id, paymentId };
+  // A dispute previously only got recorded here with NO effect on the event —
+  // it stayed fully live/active while money was potentially being clawed back.
+  // Pause it as soon as a dispute opens (mirrors the full-refund behavior in
+  // handleChargeRefunded); a 'lost' dispute additionally reverts is_paid, since
+  // that's a confirmed loss of the funds, same as a refund.
+  if (eventId) {
+    const activeDisputeStatuses = ['warning_needs_response', 'needs_response', 'under_review', 'warning_under_review'];
+    if (dispute.status === 'lost') {
+      const { error: evtErr } = await supabase
+        .from('events')
+        .update({ is_paid: false, status: 'paused', updated_at: new Date().toISOString() })
+        .eq('id', eventId);
+      if (evtErr) throw evtErr;
+    } else if (activeDisputeStatuses.includes(dispute.status)) {
+      const { error: evtErr } = await supabase
+        .from('events')
+        .update({ status: 'paused', updated_at: new Date().toISOString() })
+        .eq('id', eventId);
+      if (evtErr) throw evtErr;
+    }
+    // 'won' / 'warning_closed': leave the event as-is — no automatic resume,
+    // since an admin should confirm before un-pausing (mirrors manual review
+    // elsewhere in this codebase rather than auto-reactivating).
+  }
+
+  return { ok: true, disputeId: dispute.id, paymentId, eventId };
 };
 
 module.exports = { fulfillCheckoutSession, handleChargeRefunded, handleDisputeEvent };

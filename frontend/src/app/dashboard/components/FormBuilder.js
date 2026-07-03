@@ -23,6 +23,12 @@ export default function FormBuilder({ eventId }) {
   const [type, setType] = useState('text');
   const [optionsString, setOptionsString] = useState('');
   const [isRequired, setIsRequired] = useState(false);
+  // 'party' (asked once, e.g. "will you need a hotel room?") vs 'guest' (asked
+  // per companion, e.g. "T-shirt size"). The backend/RSVP wizard have fully
+  // supported this distinction since the guest-side-tagging work, but this UI
+  // never exposed a way to actually set it — every question silently defaulted
+  // to 'party', so a per-guest question could never be asked of each companion.
+  const [scope, setScope] = useState('party');
   const [editingId, setEditingId] = useState(null); // null = add mode; a field id = editing that field
   // True when the open form is the dedicated meal-options shortcut — locks the field
   // key to MEAL_FIELD_KEY so the guest RSVP wizard's findMealField() picks it up.
@@ -59,13 +65,14 @@ export default function FormBuilder({ eventId }) {
 
   const resetForm = () => {
     setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false);
-    setEditingId(null); setIsMealField(false); setShowAddForm(false);
+    setEditingId(null); setIsMealField(false); setScope('party'); setShowAddForm(false);
   };
 
   const startAdd = () => {
     setEditingId(null);
     setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false);
     setIsMealField(false);
+    setScope('party');
     setShowAddForm(true);
   };
 
@@ -92,6 +99,7 @@ export default function FormBuilder({ eventId }) {
     setOptionsString(Array.isArray(f.options) ? f.options.join(', ') : '');
     setIsRequired(!!f.is_required);
     setIsMealField(!!findMealField([f]));
+    setScope(f.scope === 'guest' ? 'guest' : 'party');
     setShowAddForm(true);
   };
 
@@ -114,12 +122,12 @@ export default function FormBuilder({ eventId }) {
           credentials: 'include',
           // The field key is immutable — only sent when creating.
           body: JSON.stringify(isEdit
-            ? { fieldLabel: label, fieldType: type, options, isRequired }
-            : { fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length }),
+            ? { fieldLabel: label, fieldType: type, options, isRequired, scope }
+            : { fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length, isMealField, scope }),
         }
       );
-      if (!res.ok) throw new Error(isEdit ? 'Failed to update field' : 'Failed to create field');
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || (isEdit ? 'Failed to update field' : 'Failed to create field'));
       if (data.success) { resetForm(); loadFields(); toast.success(isEdit ? 'Question updated.' : 'Question added.'); }
     } catch (err) { toast.error(err.message); } finally { setLoading(false); }
   };
@@ -241,6 +249,34 @@ export default function FormBuilder({ eventId }) {
             </div>
           </div>
 
+          {/* Meal options already have their own dedicated per-companion picker
+              (see the guest RSVP wizard) — scope only applies to generic
+              custom questions. */}
+          {!isMealField && (
+            <div>
+              <label style={labelStyle}>Who answers this?</label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {[
+                  { value: 'party', label: 'Once per party', hint: 'e.g. "Will you need a hotel room?"' },
+                  { value: 'guest', label: 'Once per guest', hint: 'e.g. "T-shirt size"' },
+                ].map((opt) => (
+                  <label key={opt.value} style={{
+                    flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', padding: '8px 12px',
+                    border: `1px solid ${scope === opt.value ? '#B8944F' : '#E8E2D6'}`,
+                    background: scope === opt.value ? 'rgba(184,148,79,0.06)' : '#FFFFFF',
+                    borderRadius: '8px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#191B1E' }}>
+                      <input type="radio" name="field-scope" checked={scope === opt.value} onChange={() => setScope(opt.value)} style={{ accentColor: '#B8944F' }} />
+                      {opt.label}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#A09A91', marginLeft: '20px' }}>{opt.hint}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {TYPES_WITH_OPTIONS.includes(type) && (
             <div>
               <label style={labelStyle}>{isMealField ? 'Meal Choices (Comma-separated)' : 'Choice Options (Comma-separated)'}</label>
@@ -268,6 +304,9 @@ export default function FormBuilder({ eventId }) {
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>{f.field_label}</span>
                   {f.is_required && (
                     <span style={{ fontSize: '9px', background: 'rgba(184,148,79,0.1)', color: '#B8944F', border: '1px solid rgba(184,148,79,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Required</span>
+                  )}
+                  {f.scope === 'guest' && !findMealField([f]) && (
+                    <span style={{ fontSize: '9px', background: 'rgba(99,102,241,0.1)', color: '#6366F1', border: '1px solid rgba(99,102,241,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Per Guest</span>
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '10px', color: '#A09A91', fontWeight: 500, fontFamily: 'monospace' }}>

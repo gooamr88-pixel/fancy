@@ -22,7 +22,7 @@ const faqs = [
   {
     question: 'Is there a limit on the number of guests?',
     answer:
-      'Our Starter plan supports up to 50 guests per event. Premium handles up to 300 guests with SMS capabilities, and Enterprise offers unlimited guests with dedicated support.',
+      'Our Starter plan supports up to 50 guests per event. Premium handles up to 500 guests with SMS capabilities, and Enterprise offers unlimited guests with dedicated support. See the Pricing section above for the exact, current limits on each plan.',
   },
   {
     question: 'Can guests update their RSVP after submitting?',

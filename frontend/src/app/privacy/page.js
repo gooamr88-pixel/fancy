@@ -38,20 +38,35 @@ const sections = [
     ],
   },
   {
+    id: "sms-communications",
+    title: "3. SMS/Text Messaging Communications & Consent",
+    content: [
+      "Fancy RSVP offers SMS text messaging as an optional communication channel to help event hosts keep their guests informed. This section describes exactly what phone number data we collect, why we collect it, how consent is obtained, and your rights under U.S. telecommunications law, including the Telephone Consumer Protection Act (TCPA) and CTIA Messaging Principles and Best Practices.",
+      "**Purpose of Collection:** We collect mobile phone numbers solely to deliver event-related transactional and informational text messages, including: (a) RSVP confirmation receipts, (b) event date, time, or venue change alerts, (c) event reminders and countdown notifications, (d) day-of check-in and logistics instructions, and (e) responses to a guest's own inquiries submitted through the platform. **We do not use phone numbers collected through our SMS program to send marketing, promotional, or advertising messages of any kind, and we do not use this data for any purpose other than the event-related communications described here, unless you provide separate, explicit opt-in consent for such use.**",
+      "**How Consent Is Collected (Opt-In):** A phone number can only enter our system in one of two ways, both of which require affirmative consent: (a) a guest voluntarily submits their own phone number directly through our public RSVP form and affirmatively confirms they agree to receive text messages related to that specific event from Fancy RSVP on behalf of the event host; or (b) an event host (organizer) manually enters or imports a guest's phone number into the platform, in which case our Terms of Service contractually require the host to represent and warrant that they already obtained that guest's prior express consent to be contacted by text message about the event before uploading it. Fancy RSVP does not purchase, rent, scrape, or otherwise acquire phone numbers from any third-party list, data broker, or lead-generation source.",
+      "**No Sharing or Selling of Mobile Information:** Fancy RSVP will NEVER share, sell, rent, license, trade, or otherwise disclose mobile phone numbers, SMS opt-in status, or any consent records collected through our text messaging program to any third party or affiliate for their own marketing or promotional purposes, under any circumstances. This prohibition applies regardless of any other provision of this Policy governing general data sharing, described in Section 4 below. The only parties who ever receive mobile number data are: (i) the specific event host who added or received the guest's number, solely to manage their own event, and (ii) our SMS delivery infrastructure provider (currently Twilio, Inc.), which processes the number strictly as a data processor to technically transmit the message on our behalf and is contractually prohibited from using it for any other purpose. Mobile opt-in data and consent records are never used for cross-context behavioral advertising, never used to build marketing lists, and never \"sold\" within the meaning of the CCPA/CPRA.",
+      "**Message Frequency:** Message frequency varies depending on the number and timing of events you are invited to or are hosting. A typical guest can expect approximately 1–5 messages per event (for example, one confirmation, one or two reminders, and a day-of message). **Message and data rates may apply** depending on your mobile carrier plan. Fancy RSVP is not responsible for any charges imposed by your wireless carrier.",
+      "**Opt-Out (STOP) Rights:** You may withdraw consent and stop receiving text messages from Fancy RSVP at any time by replying **STOP**, **UNSUBSCRIBE**, **CANCEL**, **END**, or **QUIT** to any message you receive from us. You will receive one final confirmation message acknowledging the request, and no further messages will be sent to that number unless you re-subscribe with a new opt-in. The associated event host will be notified that you can no longer be reached by text and may contact you through another method you've provided, such as email.",
+      "**Help and Support (HELP):** Reply **HELP** to any text message you receive from us at any time, or contact our support team directly at support@fancyrsvp.com or +1 (888) 274-RSVP, and we will provide assistance or opt-out instructions.",
+      "**Carrier Disclaimer:** Wireless carriers are not liable for delayed or undelivered messages. Text messaging may not be available on all carriers or in all coverage areas. Supported carriers include, but are not limited to, AT&T, T-Mobile, Verizon Wireless, U.S. Cellular, and their respective affiliates and roaming partners, none of which are responsible for the content of messages sent through the platform.",
+      "**Retention of Consent Records:** We retain a timestamped record of each phone number's opt-in method, the consent language presented at the time, and its opt-out status for as long as required to demonstrate TCPA/CTIA compliance, and in any case for no less than four (4) years from the date consent was captured or withdrawn.",
+    ],
+  },
+  {
     id: "data-sharing",
-    title: "3. Data Sharing and Disclosure",
+    title: "4. Data Sharing and Disclosure",
     content: [
       "We do not sell, rent, or trade your personal information to third parties for their marketing purposes. We may share your information in the following limited circumstances:",
-      "**Service Providers:** We work with trusted third-party companies that perform services on our behalf, including cloud hosting (AWS), email delivery (SendGrid), payment processing (Stripe), and analytics (Mixpanel). These providers are contractually bound to protect your data and use it only as directed.",
+      "**Service Providers:** We work with trusted third-party companies that perform services on our behalf, including cloud hosting (AWS), email delivery (SendGrid), SMS delivery (Twilio), payment processing (Stripe), and analytics (Mixpanel). These providers are contractually bound to protect your data and use it only as directed. As described in Section 3 above, our SMS delivery provider is contractually barred from using mobile numbers or consent records for its own marketing purposes.",
       "**With Your Consent:** We may share your information when you explicitly authorize us to do so, such as when you choose to integrate with third-party applications or share event details publicly.",
       "**Event Guests:** When guests RSVP to your event, they can see the event details you've published. Hosts can see guest responses and contact information as part of their event management.",
       "**Legal Requirements:** We may disclose your information if required by law, subpoena, court order, or other legal process, or if we believe in good faith that disclosure is necessary to protect our rights, your safety, or the safety of others.",
-      "**Business Transfers:** In the event of a merger, acquisition, or sale of assets, your information may be transferred as part of the transaction. We will notify you of any such change and any choices you may have regarding your information.",
+      "**Business Transfers:** In the event of a merger, acquisition, or sale of assets, your information may be transferred as part of the transaction. We will notify you of any such change and any choices you may have regarding your information. Mobile opt-in data specifically remains subject to the no-sale/no-share commitment in Section 3 regardless of any business transfer.",
     ],
   },
   {
     id: "data-security",
-    title: "4. Data Security",
+    title: "5. Data Security",
     content: [
       "We take the security of your data seriously and implement industry-standard measures to protect it:",
       "**Encryption:** All data is encrypted in transit using TLS 1.3 and at rest using AES-256 encryption. Sensitive fields such as payment tokens receive additional encryption layers.",
@@ -64,7 +79,7 @@ const sections = [
   },
   {
     id: "cookies",
-    title: "5. Cookies and Tracking",
+    title: "6. Cookies and Tracking",
     content: [
       "We use cookies and similar tracking technologies to enhance your experience and gather analytics:",
       "**Essential Cookies:** Required for the platform to function properly, including authentication tokens, session management, and security features. These cannot be disabled.",
@@ -76,7 +91,7 @@ const sections = [
   },
   {
     id: "your-rights",
-    title: "6. Your Rights (GDPR / CCPA)",
+    title: "7. Your Rights (GDPR / CCPA)",
     content: [
       "Depending on your location, you may have the following rights regarding your personal data:",
       "**Right to Access:** You can request a copy of the personal data we hold about you. We will provide this in a commonly used, machine-readable format within 30 days.",
@@ -91,7 +106,7 @@ const sections = [
   },
   {
     id: "data-retention",
-    title: "7. Data Retention",
+    title: "8. Data Retention",
     content: [
       "We retain your personal data only for as long as necessary to fulfill the purposes described in this policy:",
       "**Active Accounts:** Your account data and event information are retained for the duration of your account's active status, plus a 30-day grace period after account closure.",
@@ -103,7 +118,7 @@ const sections = [
   },
   {
     id: "childrens-privacy",
-    title: "8. Children's Privacy",
+    title: "9. Children's Privacy",
     content: [
       "Fancy RSVP is not intended for use by children under the age of 16. We do not knowingly collect personal information from children under 16 years of age.",
       "If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately at privacy@fancyrsvp.com. We will take prompt steps to delete such information from our systems.",
@@ -112,7 +127,7 @@ const sections = [
   },
   {
     id: "changes",
-    title: "9. Changes to This Policy",
+    title: "10. Changes to This Policy",
     content: [
       "We may update this Privacy Policy from time to time to reflect changes in our practices, technology, legal requirements, or other factors. When we make changes:",
       "**Notification:** We will notify you of material changes via email and/or a prominent notice on our platform at least 14 days before the changes take effect.",
@@ -123,7 +138,7 @@ const sections = [
   },
   {
     id: "contact-us",
-    title: "10. Contact Us",
+    title: "11. Contact Us",
     content: [
       "If you have any questions, concerns, or requests related to this Privacy Policy or our data practices, please contact us through any of the following channels:",
       "**Email:** privacy@fancyrsvp.com",
@@ -260,7 +275,7 @@ export default function PrivacyPolicy() {
               fontWeight: 600,
             }}
           >
-            Last Updated: June 1, 2026
+            Last Updated: July 3, 2026
           </p>
         </section>
 

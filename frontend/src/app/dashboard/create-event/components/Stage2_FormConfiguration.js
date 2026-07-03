@@ -140,6 +140,7 @@ export default function Stage2_FormConfiguration({
   description, setDescription,
   eventDate, setEventDate,
   eventEndDate, setEventEndDate,
+  locationName, setLocationName,
   locationAddress, setLocationAddress,
   onPlaceSelect,
   templateData, setTemplateData,
@@ -148,19 +149,19 @@ export default function Stage2_FormConfiguration({
   dressCode, setDressCode,
   rsvpDeadline, setRsvpDeadline,
   privacyMode, setPrivacyMode,
-  accessPassword, setAccessPassword,
+  accessPassword, setAccessPassword, hasAccessPassword = false,
   notificationEmail, setNotificationEmail,
   allowGuestEdits, setAllowGuestEdits,
+  trackGuestSide, setTrackGuestSide,
   coverImageUrl, setCoverImageUrl, onCoverImageUpload, coverImageUploading,
   backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
-  galleryUrls = [], onGalleryUpload, galleryUploading, onAddGalleryUrl, onRemoveGalleryUrl,
+  galleryUrls = [], onGalleryUpload, galleryUploading, onRemoveGalleryUrl,
   customFields, onFieldsChange,
   onNext, onBack, onSaveDraft, savingDraft,
 }) {
   const tpl = templates.find(t => t.key === templateType) || templates[0];
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
-  const [galleryInput, setGalleryInput] = useState('');
   const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading || sealUploading || invitationBgUploading);
 
   return (
@@ -241,15 +242,22 @@ export default function Stage2_FormConfiguration({
             </Field>
           </div>
 
-          <Field label="Venue">
-            <PlacesAutocomplete
-              value={locationAddress}
-              onChange={setLocationAddress}
-              onPlaceSelect={onPlaceSelect}
-              placeholder="Search venue or address…"
-              style={iStyle}
-            />
-          </Field>
+          <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Field label="Venue">
+              <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)}
+                placeholder="Grand Ballroom" style={iStyle}
+                onFocus={onFocus} onBlur={onBlur} />
+            </Field>
+            <Field label="Address">
+              <PlacesAutocomplete
+                value={locationAddress}
+                onChange={setLocationAddress}
+                onPlaceSelect={onPlaceSelect}
+                placeholder="Search venue or address…"
+                style={iStyle}
+              />
+            </Field>
+          </div>
         </Section>
 
         {/* ═══ Section B: Template-Specific ═══ */}
@@ -485,7 +493,7 @@ export default function Stage2_FormConfiguration({
                 <Field label="Access Passcode">
                   <input type="text" value={accessPassword}
                     onChange={e => setAccessPassword(e.target.value)}
-                    placeholder="Enter access passcode"
+                    placeholder={hasAccessPassword ? 'Passcode is set — leave blank to keep it' : 'Enter access passcode'}
                     style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
               </motion.div>
@@ -529,12 +537,22 @@ export default function Stage2_FormConfiguration({
             </label>
           </Field>
 
+          <Field label="Guest Segmentation">
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={trackGuestSide}
+                onChange={e => setTrackGuestSide(e.target.checked)}
+                style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
+              <span>
+                {templateType === 'wedding' ? "Tag guests as Groom's Side / Bride's Side" : "Tag guests as Partner 1's Side / Partner 2's Side"}
+                <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
+                  Lets you and your guests mark which side of the party they belong to. Off by default — no extra field appears anywhere until you turn this on.
+                </span>
+              </span>
+            </label>
+          </Field>
+
           <Field label="Cover Image">
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="url" value={coverImageUrl}
-                onChange={e => setCoverImageUrl(e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                style={{ ...iStyle, flex: 1 }} onFocus={onFocus} onBlur={onBlur} />
               <label style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, cursor: coverImageUploading ? 'wait' : 'pointer',
                 padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, color: C.gold,
@@ -613,10 +631,6 @@ export default function Stage2_FormConfiguration({
 
           <Field label="Background Music (optional)">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <input type="url" value={backgroundMusicUrl || ''}
-                onChange={e => setBackgroundMusicUrl(e.target.value)}
-                placeholder="https://example.com/song.mp3"
-                style={{ ...iStyle, flex: '1 1 240px' }} onFocus={onFocus} onBlur={onBlur} />
               <label style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, cursor: musicUploading ? 'wait' : 'pointer',
                 padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, color: C.gold,
@@ -676,15 +690,6 @@ export default function Stage2_FormConfiguration({
 
           <Field label="Photo Gallery (optional)">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <input type="url" value={galleryInput}
-                onChange={e => setGalleryInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); onAddGalleryUrl?.(galleryInput); setGalleryInput(''); } }}
-                placeholder="https://example.com/photo.jpg"
-                style={{ ...iStyle, flex: '1 1 220px' }} onFocus={onFocus} onBlur={onBlur} />
-              <button type="button" onClick={() => { onAddGalleryUrl?.(galleryInput); setGalleryInput(''); }}
-                style={{ padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, background: C.white, color: C.gold, fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                + Add
-              </button>
               <label style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, cursor: galleryUploading ? 'wait' : 'pointer',
                 padding: '10px 16px', borderRadius: 8, border: `1px solid ${C.gold}`, color: C.gold,

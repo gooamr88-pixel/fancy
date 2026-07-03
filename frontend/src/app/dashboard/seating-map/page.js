@@ -208,6 +208,7 @@ export default function SeatingMapPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [eventIsPaid, setEventIsPaid] = useState(null); // null = loading, true/false = known
+  const [hasSeatingFeature, setHasSeatingFeature] = useState(null); // null = loading, true/false = known
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [elements, setElements] = useState([]);          // tables + zones
@@ -256,7 +257,7 @@ export default function SeatingMapPage() {
   const [containerSize, setContainerSize] = useState({ w: 900, h: 560 });
   const [dragPos, setDragPos] = useState(null);          // { id, x, y } during element move
   const dragPosRef = useRef(null);                       // mirrors dragPos for pointerup closure
-  const [selectedIds, setSelectedIds] = useState(() => new Set()); // multi-select (Select All + group move)
+  const [selectedIds, setSelectedIds] = useState(() => new Set()); // multi-select (Select All, Ctrl/Cmd/Shift-click, + group move)
   const [groupDragPos, setGroupDragPos] = useState(null); // Map id -> {x,y} during group move
   const groupDragPosRef = useRef(null);                  // mirrors groupDragPos for pointerup closure
   const [dragOverId, setDragOverId] = useState(null);
@@ -279,10 +280,22 @@ export default function SeatingMapPage() {
     fetch(`${API_URL}/events/${ev}`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
-        if (data?.event) setEventIsPaid(!!data.event.is_paid || !!data.event.manual_override);
-        else setEventIsPaid(false);
+        if (data?.event) {
+          setEventIsPaid(!!data.event.is_paid || !!data.event.manual_override);
+          // is_paid alone used to be the whole gate here — a paid organizer on a
+          // tier that excludes seating_map could still reach this page directly
+          // (the dashboard's "Seating" tab correctly checked tier_features via
+          // FeatureGate, but this standalone page and the tab's own content did
+          // not). manual_override bypasses the tier check entirely, same as the
+          // dashboard tab.
+          const features = Array.isArray(data.event.tier_features) ? data.event.tier_features : [];
+          setHasSeatingFeature(!!data.event.manual_override || features.includes('seating_map'));
+        } else {
+          setEventIsPaid(false);
+          setHasSeatingFeature(false);
+        }
       })
-      .catch(() => setEventIsPaid(false));
+      .catch(() => { setEventIsPaid(false); setHasSeatingFeature(false); });
   }, [router]);
 
   /* ── keep refs in sync ── */
@@ -457,6 +470,20 @@ export default function SeatingMapPage() {
   const onElementPointerDown = useCallback((e, id) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+
+    // Ctrl/Cmd/Shift-click toggles this one element in or out of the
+    // multi-selection, so specific elements can be picked instead of only
+    // using "Select All". This is a discrete pick, not a drag.
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      setSelectedId(null);
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      return;
+    }
 
     // Dragging an element that's part of an active multi-selection moves the
     // whole group together, preserving everyone's relative position.
@@ -1061,9 +1088,9 @@ export default function SeatingMapPage() {
     );
   }
 
-  /* ── Payment gate: locked state for unpaid events ── */
+  /* ── Payment gate: locked state for unpaid events / a tier without seating_map ── */
   if (!authChecked) return null;
-  if (eventIsPaid === false) {
+  if (eventIsPaid === false || hasSeatingFeature === false) {
     return (
       <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans)' }}>
         <div style={{
@@ -1203,7 +1230,7 @@ export default function SeatingMapPage() {
                 <button onClick={selectAll} disabled={elements.length === 0} style={{
                   ...btn, background: C.white, border: `1px solid ${C.border}`, color: elements.length === 0 ? C.border : C.charcoal, padding: '6px 12px',
                   cursor: elements.length === 0 ? 'not-allowed' : 'pointer',
-                }} title="Select every table & zone — drag any one to move them all together">
+                }} title="Select every table & zone — drag any one to move them all together. Ctrl/Cmd/Shift-click individual elements on the canvas to select only those.">
                   Select All
                 </button>
               )}
@@ -1268,7 +1295,7 @@ export default function SeatingMapPage() {
               </div>
             )}
           </div>
-          <p style={{ fontSize: 11, color: C.stone, textAlign: 'center' }}>Scroll to zoom · drag the background to pan · drag a guest onto a table to seat them.</p>
+          <p style={{ fontSize: 11, color: C.stone, textAlign: 'center' }}>Scroll to zoom · drag the background to pan · drag a guest onto a table to seat them · Ctrl/Cmd/Shift-click elements to select specific ones.</p>
         </div>
 
         {/* ── Right: inspector ── */}
@@ -1278,7 +1305,7 @@ export default function SeatingMapPage() {
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
               <p style={{ fontSize: 12, color: C.stone, maxWidth: 180 }}>
                 {selectedIds.size > 0
-                  ? `${selectedIds.size} elements selected. Drag any one of them on the canvas to move the whole group together.`
+                  ? `${selectedIds.size} element${selectedIds.size > 1 ? 's' : ''} selected. Drag any one of them on the canvas to move the whole group together.`
                   : 'Select an element on the canvas to edit it.'}
               </p>
             </div>

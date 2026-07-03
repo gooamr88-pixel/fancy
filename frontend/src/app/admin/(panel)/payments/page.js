@@ -132,6 +132,7 @@ function PaymentsLedger() {
         rowKey={(r) => r.id}
         pagination={pagination}
         onPageChange={setPage}
+        onRefresh={reload}
         emptyText="No payments match these filters."
         columns={[
           {
@@ -219,7 +220,7 @@ function PaymentsLedger() {
 
 function DisputesList() {
   const [page, setPage] = useState(1);
-  const { rows, pagination, loading, error } = useAdminList(
+  const { rows, pagination, loading, error, reload } = useAdminList(
     '/payments/disputes',
     { page, limit: 25 },
     (res) => res?.data || res?.disputes || []
@@ -234,6 +235,7 @@ function DisputesList() {
         rowKey={(r) => r.id}
         pagination={pagination}
         onPageChange={setPage}
+        onRefresh={reload}
         emptyText="No disputes recorded."
         columns={[
           { key: 'event', header: 'Event', render: (r) => r.event_payments?.events?.title || '—' },

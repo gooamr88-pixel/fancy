@@ -186,6 +186,7 @@ export default function EventsPage() {
         rowKey={(r) => r.id}
         pagination={pagination}
         onPageChange={setPage}
+        onRefresh={reload}
         columns={[
           {
             key: 'title', header: 'Event', render: (r) => (
@@ -242,7 +243,7 @@ export default function EventsPage() {
                     <Button variant="primary" disabled={busy} onClick={() => handleStatusChange(r.id, 'active')}>Approve &amp; Go Live</Button>
                   )}
                   {!r.is_paid && can('payments.manage') && (
-                    <Button variant="primary" disabled={busy} onClick={() => setApproval({ event: r, amountCents: pending ? pending.amount_cents : 7900 })}>Approve Cash</Button>
+                    <Button variant="primary" disabled={busy} onClick={() => setApproval({ event: r, amountCents: pending ? pending.amount_cents : 0 })}>Approve Cash</Button>
                   )}
                   {r.is_paid
                     ? can('events.manage') && <Button variant="ghost" disabled={busy} onClick={() => handleUnpay(r.id)}>Revoke</Button>
@@ -277,7 +278,13 @@ export default function EventsPage() {
               <span style={{ display: 'block', fontSize: 11, color: T.text400, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase' }}>Approved Amount (cents)</span>
               <input type="number" required value={approval.amountCents} onChange={e => setApproval(a => ({ ...a, amountCents: e.target.value }))}
                 style={{ width: '100%', padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, background: T.surfaceAlt, color: T.text900, outline: 'none' }} />
-              <span style={{ fontSize: '11px', color: T.text400, marginTop: 4, display: 'block' }}>e.g. 7900 = $79.00</span>
+              <span style={{ fontSize: '11px', color: T.text400, marginTop: 4, display: 'block' }}>
+                {/* Previously defaulted to a hardcoded 7900 ($79.00) when there was
+                    no pending manual-payment record to read the real amount from —
+                    an admin who didn't double-check could approve the wrong amount
+                    for whatever tier the organizer actually agreed to pay for. */}
+                Enter the exact amount received, in cents (e.g. 7900 = $79.00). Verify this against the tier the organizer agreed to pay for.
+              </span>
             </label>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: 12 }}>

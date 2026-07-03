@@ -140,6 +140,10 @@ const requireAuth = async (req, res, next) => {
       jti: decoded.jti || null,
       access,
       isSuperAdmin: access.isSuperAdmin, // backward-compat mirror for existing controllers
+      // Set only on a token minted by admin/userMgmtController.js's impersonateOrganizer —
+      // holds the impersonating admin's user id so the app can show a "you are
+      // impersonating" indicator and offer a way back (see authController.stopImpersonating).
+      imp: decoded.imp || null,
     };
 
     next();

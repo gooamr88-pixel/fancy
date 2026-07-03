@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * Lightweight toast notification, styled to match the Fancy RSVP auth theme.
@@ -22,13 +22,20 @@ export default function Toast({ toast, onClose, duration }) {
   const kind = toast?.kind === 'success' ? 'success' : 'error';
   const autoMs = duration ?? (kind === 'success' ? 3500 : 6000);
 
+  // Callers pass a fresh inline `onClose` on every render (e.g. `() =>
+  // setToast(null)`), so keeping it out of the timer effect's deps via a ref
+  // avoids re-arming the dismiss timer on every unrelated re-render (typing in
+  // a form field, etc.) — which previously reset the countdown constantly and
+  // could keep a toast on screen indefinitely while the user kept interacting.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   useEffect(() => {
     if (!toast || autoMs <= 0) return undefined;
-    const timer = setTimeout(onClose, autoMs);
+    const timer = setTimeout(() => onCloseRef.current(), autoMs);
     return () => clearTimeout(timer);
-    // Re-arm the timer whenever a new toast is shown; include toast.id to reset
-    // the timer when a new toast arrives before the previous one dismissed.
-  }, [toast?.id, toast, autoMs, onClose]);
+    // Re-arm only when a genuinely new toast object is shown, not on every render.
+  }, [toast, autoMs]);
 
   if (!toast) return null;
 

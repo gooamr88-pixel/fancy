@@ -16,6 +16,11 @@ import { T, card } from './theme';
  *   onPageChange?: (page:number)=>void,
  *   title?: string,
  *   actions?: React.ReactNode,
+ *   onRefresh?: () => void,  // renders a "↻ Refresh" button — most admin list
+ *                            // views only ever refetch after an action (approve/
+ *                            // delete) or a page change, with no way to manually
+ *                            // pull the latest data (e.g. after another admin's
+ *                            // change, or a webhook landing) without a full reload.
  * }} props
  */
 export default function DataTable({
@@ -28,13 +33,31 @@ export default function DataTable({
   onPageChange,
   title,
   actions,
+  onRefresh,
 }) {
   return (
     <div style={{ ...card, overflow: 'hidden' }}>
-      {(title || actions) && (
+      {(title || actions || onRefresh) && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '20px 24px', borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
           {title && <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>{title}</h3>}
-          {actions}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+            {actions}
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                disabled={loading}
+                title="Refresh"
+                style={{
+                  padding: '7px 14px', border: `1px solid ${T.border}`, borderRadius: T.radiusSm,
+                  background: T.surfaceAlt, color: T.text700, fontSize: 12.5, fontWeight: 700,
+                  cursor: loading ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <span style={{ display: 'inline-block', animation: loading ? 'spin 1s linear infinite' : 'none' }}>↻</span>
+                Refresh
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -101,7 +124,7 @@ export default function DataTable({
       )}
       <style jsx global>{`
         .admin-row:hover {
-          background-color: rgba(255, 255, 255, 0.02);
+          background-color: ${T.surfaceAlt};
         }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>

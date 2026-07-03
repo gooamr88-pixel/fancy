@@ -579,8 +579,10 @@ const manualCashApproval = async (req, res, next) => {
 
     let paymentId;
     let refNumber;
+    let tierName = null;
 
     if (pendingPayment && pendingPayment.length > 0) {
+      tierName = pendingPayment[0].tier_name || null;
       // Update the pending payment
       const { data: updatedPayment, error: updateErr } = await supabase
         .from('event_payments')
@@ -669,7 +671,7 @@ const manualCashApproval = async (req, res, next) => {
       const orgName = eventData.organizations.name || 'Organizer';
       const eventTitle = eventData.title;
 
-      const emailHtml = getCashPaymentApprovedTemplate(orgName, eventTitle, refNumber || `CASH-${paymentId.slice(0, 6).toUpperCase()}`, amountCents);
+      const emailHtml = getCashPaymentApprovedTemplate(orgName, eventTitle, refNumber || `CASH-${paymentId.slice(0, 6).toUpperCase()}`, amountCents, tierName);
       await sendEmailViaBrevo(orgEmail, `Payment Approved & Event Activated: ${eventTitle}`, emailHtml);
     }
 
@@ -719,9 +721,32 @@ const updatePricingConfig = async (req, res, next) => {
         };
       });
   }
-  if (smsRateCentsPerCredit !== undefined) updates.sms_rate_cents_per_credit = smsRateCentsPerCredit;
-  if (smsMarkupPercentage !== undefined) updates.sms_markup_percentage = smsMarkupPercentage;
-  if (platformCommissionPct !== undefined) updates.platform_commission_pct = platformCommissionPct;
+  // A bad value here breaks Stripe checkout for every organizer at once (a
+  // negative/zero unit_amount is rejected by Stripe) rather than being caught
+  // at config-save time — validate ranges up front instead of trusting the
+  // admin form.
+  if (smsRateCentsPerCredit !== undefined) {
+    const rate = Number(smsRateCentsPerCredit);
+    if (!Number.isFinite(rate) || rate < 0) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'smsRateCentsPerCredit must be a non-negative number.' });
+    }
+    updates.sms_rate_cents_per_credit = rate;
+  }
+  if (smsMarkupPercentage !== undefined) {
+    const markup = Number(smsMarkupPercentage);
+    // markup <= -100 would make the (1 + markup/100) multiplier <= 0.
+    if (!Number.isFinite(markup) || markup <= -100) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'smsMarkupPercentage must be a number greater than -100.' });
+    }
+    updates.sms_markup_percentage = markup;
+  }
+  if (platformCommissionPct !== undefined) {
+    const commission = Number(platformCommissionPct);
+    if (!Number.isFinite(commission) || commission < 0 || commission > 100) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'platformCommissionPct must be a number between 0 and 100.' });
+    }
+    updates.platform_commission_pct = commission;
+  }
   if (landingStats !== undefined) {
     if (!Array.isArray(landingStats)) {
       return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'landingStats must be an array.' });

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
+import { MEAL_FIELD_KEYS } from '../../utils/mealField';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -79,6 +80,18 @@ const TEMPLATES = [
   },
 ];
 
+/* Each template type owns a distinct slice of templateData — used by
+   handleTemplateSelect to drop a previous type's fields (e.g. wedding's
+   loveStory) when the organizer switches to a type that doesn't use them,
+   instead of silently carrying them over into the new type's submission. */
+const TEMPLATE_TYPE_FIELD_KEYS = {
+  wedding: ['partner1', 'partner2', 'loveStory', 'ceremonyLocation', 'receptionLocation', 'giftRegistry', 'accommodations'],
+  engagement: ['partner1', 'partner2', 'proposalStory', 'giftRegistry'],
+  corporate: ['company', 'agenda', 'speakers', 'sponsors'],
+  birthday: ['celebrant', 'age', 'partyTheme'],
+  gala: ['honoree', 'program', 'sponsorPackages'],
+};
+
 /* Defaults for the guided Custom builder (Template #3). */
 const DEFAULT_CUSTOM_CONFIG = {
   headingFont: 'serif',          // serif | sans | script
@@ -145,6 +158,8 @@ export default function CreateEventWizard() {
   const [eventId, setEventId] = useState(null);
   const [pricingTiers, setPricingTiers] = useState([]);
   const [manualMethods, setManualMethods] = useState([]);
+  const [smsRateCentsPerCredit, setSmsRateCentsPerCredit] = useState(null);
+  const [smsMarkupPercentage, setSmsMarkupPercentage] = useState(0);
   // Which paid integrations are live right now (server-driven). Default OFF so the
   // UI is manual-first until the backend reports card/SMS are enabled.
   const [features, setFeatures] = useState({ stripeEnabled: false, smsEnabled: false });
@@ -156,6 +171,11 @@ export default function CreateEventWizard() {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false); // verified paid
   const [paymentNotice, setPaymentNotice] = useState('');          // banner text
   const [verifyingPayment, setVerifyingPayment] = useState(false);
+  // Kept around (the URL's own session_id param gets stripped right after the
+  // resume effect reads it) so a "Check again" button can re-verify without a
+  // page reload if the webhook is slow and the synchronous verify above came
+  // back "still processing".
+  const [pendingSessionId, setPendingSessionId] = useState('');
   // Current plan: populated when the event is already paid (shows the locked
   // "Current Plan" panel + upgrade option instead of the tier picker).
   const [eventIsPaid, setEventIsPaid] = useState(false);
@@ -193,8 +213,13 @@ export default function CreateEventWizard() {
   const [rsvpDeadline, setRsvpDeadline] = useState('');
   const [privacyMode, setPrivacyMode] = useState('private');
   const [accessPassword, setAccessPassword] = useState('');
+  // Display-only — the server never sends the stored password hash back (see
+  // eventController.withResolvedTier), so this tells the UI a password is
+  // already configured even though the (always-blank) field can't show it.
+  const [hasAccessPassword, setHasAccessPassword] = useState(false);
   const [notificationEmail, setNotificationEmail] = useState(true);
   const [allowGuestEdits, setAllowGuestEdits] = useState(false);
+  const [trackGuestSide, setTrackGuestSide] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [coverImageUploading, setCoverImageUploading] = useState(false);
   const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('');
@@ -212,6 +237,11 @@ export default function CreateEventWizard() {
 
   /* ─── Custom Form Fields (Stage 2 builder) ─── */
   const [customFields, setCustomFields] = useState([]);
+  // Snapshot of the fields as they existed on the server at draft-resume time —
+  // handleSubmit diffs the live customFields against this to know which
+  // already-persisted fields were edited or removed during this session (only
+  // brand-new fields used to be sent, silently dropping edits/deletes on resume).
+  const originalFieldsRef = useRef([]);
 
   /* ─── Distribution Methods (Stage 3) ─── */
   const [distributionMethods, setDistributionMethods] = useState({
@@ -277,9 +307,11 @@ export default function CreateEventWizard() {
         setDressCode(ev.dress_code || '');
         setRsvpDeadline(dt(ev.rsvp_deadline));
         setPrivacyMode(ev.privacy_mode || 'private');
-        setAccessPassword(ev.access_password || '');
+        setAccessPassword('');
+        setHasAccessPassword(!!ev.has_access_password);
         setNotificationEmail(ev.notification_preferences?.email !== false);
         setAllowGuestEdits(!!ev.allow_guest_edits);
+        setTrackGuestSide(!!ev.track_guest_side);
         setCoverImageUrl(ev.cover_image_url || '');
         setGalleryUrls(Array.isArray(ev.gallery_urls) ? ev.gallery_urls : []);
         setBackgroundMusicUrl(ev.background_music_url || '');
@@ -296,7 +328,7 @@ export default function CreateEventWizard() {
           const fieldsRes = await fetch(`${apiUrl}/events/${ev.id}/fields`, { credentials: 'include' });
           const fieldsData = await fieldsRes.json();
           if (fieldsRes.ok && Array.isArray(fieldsData?.fields)) {
-            setCustomFields(fieldsData.fields.map((f) => ({
+            const hydratedFields = fieldsData.fields.map((f) => ({
               id: f.id,
               key: f.field_key,
               label: f.field_label,
@@ -305,7 +337,9 @@ export default function CreateEventWizard() {
               isRequired: !!f.is_required,
               sortOrder: f.sort_order ?? 0,
               savedToServer: true,
-            })));
+            }));
+            setCustomFields(hydratedFields);
+            originalFieldsRef.current = hydratedFields;
           }
         } catch { /* non-fatal — organizer can re-add fields */ }
 
@@ -328,6 +362,33 @@ export default function CreateEventWizard() {
       } catch { /* non-fatal — organizer can start fresh */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiUrl]);
+
+  /* Re-verifiable on demand (a "Check again" button) as well as on the initial
+     redirect below — pulled out so both call sites share one implementation.
+     Defined before the resume effect below so that effect can call it
+     directly without a ref-indirection workaround. */
+  const verifyPaymentSession = useCallback(async (sessionId) => {
+    if (!sessionId) return;
+    setVerifyingPayment(true);
+    setPayProcessing(true);
+    try {
+      const res = await fetch(`${apiUrl}/payments/verify?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.success && data.paid) {
+        setPaymentConfirmed(true);
+        setPaymentNotice('Payment received — your event is now under review. It goes live to guests once approved; you can keep setting it up in the meantime.');
+      } else if (data.success && !data.paid) {
+        setPaymentNotice('Payment is still processing. It will be confirmed automatically once it clears.');
+      } else {
+        setPaymentNotice(data.message || 'We could not confirm the payment yet. It will be confirmed automatically shortly.');
+      }
+    } catch {
+      setPaymentNotice('We could not reach the server to confirm payment. It will be confirmed automatically shortly.');
+    } finally {
+      setVerifyingPayment(false);
+      setPayProcessing(false);
+    }
   }, [apiUrl]);
 
   /* ═══ Resume after returning from Stripe Checkout (card flow) ═══
@@ -372,29 +433,14 @@ export default function CreateEventWizard() {
       return;
     }
 
-    setVerifyingPayment(true);
-    setPayProcessing(true);
-    (async () => {
-      try {
-        const res = await fetch(`${apiUrl}/payments/verify?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'include' });
-        const data = await res.json();
-        if (data.success && data.paid) {
-          setPaymentConfirmed(true);
-          setPaymentNotice('Payment received — your event is now under review. It goes live to guests once approved; you can keep setting it up in the meantime.');
-        } else if (data.success && !data.paid) {
-          setPaymentNotice('Payment is still processing. It will be confirmed automatically once it clears.');
-        } else {
-          setPaymentNotice(data.message || 'We could not confirm the payment yet. It will be confirmed automatically shortly.');
-        }
-      } catch {
-        setPaymentNotice('We could not reach the server to confirm payment. It will be confirmed automatically shortly.');
-      } finally {
-        setVerifyingPayment(false);
-        setPayProcessing(false);
-      }
-    })();
+    setPendingSessionId(sessionId);
+    verifyPaymentSession(sessionId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiUrl]);
+
+  const handleRecheckPayment = useCallback(() => {
+    if (pendingSessionId) verifyPaymentSession(pendingSessionId);
+  }, [pendingSessionId, verifyPaymentSession]);
 
   /* ═══ Fetch platform pricing tiers (for the payment step) ═══ */
   useEffect(() => {
@@ -411,13 +457,23 @@ export default function CreateEventWizard() {
           if (firstBillable) setSelectedTierName(prev => prev || firstBillable.name);
           setManualMethods((data.config.manual_payment_methods || []).filter(m => m && m.is_active !== false));
           if (data.features) setFeatures(data.features);
+          // For the SMS credit-buy button's price preview (Stage3_Distribution) —
+          // that button previously redirected to Stripe Checkout with no price
+          // shown at all, unlike every other paid action in this wizard.
+          if (Number.isFinite(data.config.sms_rate_cents_per_credit)) setSmsRateCentsPerCredit(data.config.sms_rate_cents_per_credit);
+          if (Number.isFinite(data.config.sms_markup_percentage)) setSmsMarkupPercentage(data.config.sms_markup_percentage);
         }
       } catch { /* non-fatal — payment step shows a skip option */ }
     })();
     return () => { cancelled = true; };
   }, [apiUrl]);
 
-  /* ═══ Load paid status + current plan when entering the Payment step ═══ */
+  /* ═══ Load paid status + current plan when entering the Payment step ═══
+     Also re-runs when `paymentConfirmed` flips true — a successful UPGRADE
+     verified above (line ~385) used to leave this stale: the "Current Plan"
+     panel kept showing the pre-upgrade tier name/guest cap/price until the
+     organizer left and re-entered this step, since this effect only ever
+     depended on [step, eventId, apiUrl]. */
   useEffect(() => {
     // Payment is wizard step index 1 (Templates, Payment, Configure, …).
     if (step !== 1 || !eventId) return;
@@ -435,7 +491,7 @@ export default function CreateEventWizard() {
       } catch { /* non-fatal — falls back to the tier picker */ }
     })();
     return () => { cancelled = true; };
-  }, [step, eventId, apiUrl]);
+  }, [step, eventId, apiUrl, paymentConfirmed]);
 
   /* ═══ Sync preset colors → customColors ═══ */
   useEffect(() => {
@@ -530,6 +586,15 @@ export default function CreateEventWizard() {
   /* ═══ Template selection handlers ═══ */
   const handleTemplateSelect = useCallback((key) => {
     setTemplateType(key);
+    const keepKeys = new Set(TEMPLATE_TYPE_FIELD_KEYS[key] || []);
+    const otherTypeKeys = new Set(Object.values(TEMPLATE_TYPE_FIELD_KEYS).flat());
+    setTemplateData((d) => {
+      const next = {};
+      for (const [k, v] of Object.entries(d)) {
+        if (!otherTypeKeys.has(k) || keepKeys.has(k)) next[k] = v;
+      }
+      return next;
+    });
   }, []);
 
   const handlePresetSelect = useCallback((tplKey, presetIdx) => {
@@ -565,7 +630,7 @@ export default function CreateEventWizard() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      toast.error('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File exceeds 8MB. Please use a smaller file.');
       return;
     }
     setCoverImageUploading(true);
@@ -581,7 +646,7 @@ export default function CreateEventWizard() {
       setCoverImageUrl(publicUrl);
     } catch (err) {
       console.error('Cover image upload failed:', err);
-      toast.error('Cover image upload failed. Please try again or paste an external URL instead.');
+      toast.error('Cover image upload failed. Please try again.');
     } finally {
       setCoverImageUploading(false);
     }
@@ -592,7 +657,7 @@ export default function CreateEventWizard() {
   const uploadInvitationAsset = useCallback(async (file, folder, tdKey, setBusy) => {
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      toast.error('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File exceeds 8MB. Please use a smaller file.');
       return;
     }
     setBusy(true);
@@ -608,7 +673,7 @@ export default function CreateEventWizard() {
       setTemplateData((d) => ({ ...d, [tdKey]: publicUrl }));
     } catch (err) {
       console.error('Invitation asset upload failed:', err);
-      toast.error('File upload failed. Please try again or paste an external URL instead.');
+      toast.error('File upload failed. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -627,7 +692,7 @@ export default function CreateEventWizard() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      toast.error('File exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File exceeds 8MB. Please use a smaller file.');
       return;
     }
     setMusicUploading(true);
@@ -643,7 +708,7 @@ export default function CreateEventWizard() {
       setBackgroundMusicUrl(publicUrl);
     } catch (err) {
       console.error('Music upload failed:', err);
-      toast.error('Music upload failed. Please try again or paste an external URL instead.');
+      toast.error('Music upload failed. Please try again.');
     } finally {
       setMusicUploading(false);
     }
@@ -671,15 +736,10 @@ export default function CreateEventWizard() {
         setGalleryUrls(prev => [...prev, publicUrl]);
       } catch (err) {
         console.error('Gallery upload failed:', err);
-        toast.error(`"${file.name}" could not be uploaded. Please try again or paste an external URL.`);
+        toast.error(`"${file.name}" could not be uploaded. Please try again.`);
       }
     }
     setGalleryUploading(false);
-  }, []);
-
-  const addGalleryUrl = useCallback((url) => {
-    const trimmed = (url || '').trim();
-    if (trimmed) setGalleryUrls(prev => [...prev, trimmed]);
   }, []);
 
   const removeGalleryUrl = useCallback((index) => {
@@ -741,7 +801,11 @@ export default function CreateEventWizard() {
     dressCode: dressCode || undefined,
     rsvpDeadline: rsvpDeadline || undefined,
     privacyMode,
-    accessPassword: privacyMode === 'password' ? accessPassword : undefined,
+    // Blank while still in 'password' mode means "keep the existing password"
+    // (the field always starts blank — the server never sends the hash back —
+    // so treating blank as "clear it" would wipe an already-configured
+    // password the moment the organizer touched any other field).
+    accessPassword: privacyMode === 'password' ? (accessPassword.trim() || undefined) : undefined,
     coverImageUrl: sanitizeUrl(coverImageUrl) || undefined,
     galleryUrls: galleryUrls.length > 0 ? galleryUrls.filter(u => !u.startsWith('data:')) : undefined,
     customColors,
@@ -750,12 +814,13 @@ export default function CreateEventWizard() {
     backgroundMusicUrl: sanitizeUrl(backgroundMusicUrl) || '',
     notificationPreferences: { email: notificationEmail, whatsapp: false },
     allowGuestEdits,
+    trackGuestSide,
   }), [
     slug, templateType, title, description, eventDate, eventEndDate,
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword, coverImageUrl,
     galleryUrls, customColors, buildTemplateData, backgroundMusicUrl, sanitizeUrl,
-    notificationEmail, allowGuestEdits,
+    notificationEmail, allowGuestEdits, trackGuestSide,
   ]);
 
   /* ═══ Create the draft event (first time) or update it (on revisits) ═══ */
@@ -771,7 +836,7 @@ export default function CreateEventWizard() {
       const data = res.status === 413 ? {} : await res.json();
       if (!res.ok) {
         if (res.status === 413) {
-          throw new Error('Your media files are too large to save. Please use external URLs (paste a link) for large images or music instead of uploading files directly.');
+          throw new Error('Your media files are too large to save. Please use smaller images or a shorter audio file.');
         }
         if (data.error === 'SLUG_TAKEN') {
           setSlugStatus('taken');
@@ -806,7 +871,11 @@ export default function CreateEventWizard() {
         dress_code: dressCode || null,
         rsvp_deadline: rsvpDeadline || null,
         privacy_mode: privacyMode,
-        access_password: privacyMode === 'password' ? accessPassword : null,
+        // Blank while still in 'password' mode → omit the key (JSON.stringify
+        // drops undefined-valued properties) so the backend leaves the existing
+        // password untouched; switching away from 'password' mode explicitly
+        // clears it, matching the original behavior.
+        access_password: privacyMode === 'password' ? (accessPassword.trim() || undefined) : null,
         cover_image_url: coverImageUrl || null,
         gallery_urls: galleryUrls,
         background_music_url: backgroundMusicUrl || null,
@@ -815,12 +884,13 @@ export default function CreateEventWizard() {
         event_type: templateType,
         notification_preferences: { email: notificationEmail, whatsapp: false },
         allow_guest_edits: allowGuestEdits,
+        track_guest_side: trackGuestSide,
       }),
     });
     const data = res.status === 413 ? {} : await res.json();
     if (!res.ok) {
       if (res.status === 413) {
-        throw new Error('Your media files are too large to save. Please use external URLs (paste a link) for large images or music instead of uploading files directly.');
+        throw new Error('Your media files are too large to save. Please use smaller images or a shorter audio file.');
       }
       if (data.error === 'SLUG_TAKEN') {
         setSlugStatus('taken');
@@ -836,7 +906,7 @@ export default function CreateEventWizard() {
     eventDate, eventEndDate, locationName, locationAddress, locationLat, locationLng,
     locationPlaceId, dressCode, rsvpDeadline, privacyMode, accessPassword,
     coverImageUrl, galleryUrls, customColors, buildTemplateData, backgroundMusicUrl,
-    notificationEmail, allowGuestEdits,
+    notificationEmail, allowGuestEdits, trackGuestSide,
   ]);
 
   /* ═══ Advance from Templates → create the placeholder draft, then go to Payment ═══
@@ -885,9 +955,10 @@ export default function CreateEventWizard() {
     const hasBase64Media =
       (coverImageUrl && coverImageUrl.startsWith('data:')) ||
       (backgroundMusicUrl && backgroundMusicUrl.startsWith('data:')) ||
-      galleryUrls.some(u => u.startsWith('data:'));
+      galleryUrls.some(u => u.startsWith('data:')) ||
+      (templateType === 'custom' && customConfig.coverImageUrl && customConfig.coverImageUrl.startsWith('data:'));
     if (hasBase64Media) {
-      setError('Some uploaded files could not be saved to storage. Please re-upload them or paste external URLs before continuing.');
+      setError('Some uploaded files could not be saved to storage. Please re-upload them before continuing.');
       return;
     }
     setSubmitting(true);
@@ -899,14 +970,14 @@ export default function CreateEventWizard() {
       if (err.code === 'SLUG_TAKEN') {
         setError('This event URL is already taken. Please choose a different slug.');
       } else if (err.message && err.message.includes('too large')) {
-        setError('Your event data is too large to save. Please use smaller images or paste external URLs for your media.');
+        setError('Your event data is too large to save. Please use smaller images for your media.');
       } else {
         setError(err.message || 'Could not save your event. Please try again.');
       }
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, title, slug, eventDate, slugStatus, musicUploading, coverImageUploading, galleryUploading, sealUploading, invitationBgUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, ensureDraftEvent, goNext]);
+  }, [submitting, title, slug, eventDate, slugStatus, musicUploading, coverImageUploading, galleryUploading, sealUploading, invitationBgUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, templateType, customConfig, ensureDraftEvent, goNext]);
 
   /* ═══ Save the event as a draft and exit to the dashboard Drafts section ═══
      Persists everything entered so far (creates the draft if needed, else PATCHes)
@@ -937,7 +1008,11 @@ export default function CreateEventWizard() {
 
   /* ═══ Payment handlers ═══ */
   const handlePayStripe = useCallback(async () => {
-    if (!eventId || !selectedTierName) return;
+    // Re-entrancy guard: relying solely on the button's `disabled` attribute
+    // left a window for a fast double-click (before React re-renders) to fire
+    // two POSTs to create-checkout — risking two Stripe sessions. Mirrors the
+    // explicit guard already in handleBuyCredits below.
+    if (!eventId || !selectedTierName || payProcessing) return;
     setPayProcessing(true);
     setPayError('');
     try {
@@ -970,10 +1045,11 @@ export default function CreateEventWizard() {
       setPayError(err.message || 'Payment could not be started.');
       setPayProcessing(false);
     }
-  }, [apiUrl, eventId, selectedTierName, slug]);
+  }, [apiUrl, eventId, selectedTierName, slug, payProcessing]);
 
   const handlePayManual = useCallback(async (methodLabel = '', payerReference = '') => {
-    if (!eventId || !selectedTierName) return;
+    // Same re-entrancy guard as handlePayStripe above.
+    if (!eventId || !selectedTierName || payProcessing) return;
     setPayProcessing(true);
     setPayError('');
     try {
@@ -991,7 +1067,7 @@ export default function CreateEventWizard() {
     } finally {
       setPayProcessing(false);
     }
-  }, [apiUrl, eventId, selectedTierName]);
+  }, [apiUrl, eventId, selectedTierName, payProcessing]);
 
   /* ═══ SMS credit balance + top-up (distribution step) ═══ */
   const fetchSmsCredits = useCallback(async () => {
@@ -1070,11 +1146,31 @@ export default function CreateEventWizard() {
         }
       }
 
-      /* ─── 2. Batch-save custom form fields (skip ones already persisted on resume) ─── */
-      const unsavedFields = customFields.filter((field) => !field.savedToServer);
-      if (id && unsavedFields.length > 0) {
+      /* ─── 2. Sync custom form fields: create new ones, PATCH edited ones, ───
+             ─── DELETE ones removed since resuming a draft ───────────────── */
+      if (id) {
+        const originalById = new Map(originalFieldsRef.current.map((f) => [f.id, f]));
+        const currentSavedIds = new Set(customFields.filter((f) => f.savedToServer).map((f) => f.id));
+
+        const newFields = customFields.filter((field) => !field.savedToServer);
+        const editedFields = customFields.filter((field) => {
+          if (!field.savedToServer) return false;
+          const orig = originalById.get(field.id);
+          if (!orig) return false;
+          return (
+            orig.label !== field.label ||
+            orig.type !== field.type ||
+            !!orig.isRequired !== !!field.isRequired ||
+            JSON.stringify(orig.options || []) !== JSON.stringify(field.options || [])
+          );
+        });
+        const deletedFieldIds = originalFieldsRef.current
+          .map((f) => f.id)
+          .filter((fid) => !currentSavedIds.has(fid));
+
         const failedLabels = [];
-        const fieldPromises = unsavedFields.map((field, idx) =>
+
+        const createPromises = newFields.map((field, idx) =>
           fetch(`${apiUrl}/events/${id}/fields`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1086,6 +1182,7 @@ export default function CreateEventWizard() {
               options: field.options || [],
               isRequired: field.isRequired,
               sortOrder: idx,
+              isMealField: MEAL_FIELD_KEYS.includes((field.key || '').toLowerCase()) && ['select', 'radio'].includes(field.type),
             }),
           }).then((res) => {
             if (!res.ok) failedLabels.push(field.label);
@@ -1094,7 +1191,36 @@ export default function CreateEventWizard() {
           })
         );
 
-        await Promise.allSettled(fieldPromises);
+        const updatePromises = editedFields.map((field) =>
+          fetch(`${apiUrl}/events/${id}/fields/${field.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              fieldLabel: field.label,
+              fieldType: field.type,
+              options: field.options || [],
+              isRequired: field.isRequired,
+            }),
+          }).then((res) => {
+            if (!res.ok) failedLabels.push(field.label);
+          }).catch(() => {
+            failedLabels.push(field.label);
+          })
+        );
+
+        const deletePromises = deletedFieldIds.map((fieldId) =>
+          fetch(`${apiUrl}/events/${id}/fields/${fieldId}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          }).then((res) => {
+            if (!res.ok) failedLabels.push('a removed question');
+          }).catch(() => {
+            failedLabels.push('a removed question');
+          })
+        );
+
+        await Promise.allSettled([...createPromises, ...updatePromises, ...deletePromises]);
 
         if (failedLabels.length > 0) {
           setError(`These custom questions could not be saved: ${failedLabels.join(', ')}. Please try again before leaving this page.`);
@@ -1182,6 +1308,7 @@ export default function CreateEventWizard() {
               paymentConfirmed={paymentConfirmed}
               paymentNotice={paymentNotice}
               verifying={verifyingPayment}
+              onRecheckPayment={pendingSessionId ? handleRecheckPayment : undefined}
               onContinue={goNext}
               onBack={goBack}
               isPaid={eventIsPaid}
@@ -1211,6 +1338,7 @@ export default function CreateEventWizard() {
               description={description} setDescription={setDescription}
               eventDate={eventDate} setEventDate={setEventDate}
               eventEndDate={eventEndDate} setEventEndDate={setEventEndDate}
+              locationName={locationName} setLocationName={setLocationName}
               locationAddress={locationAddress} setLocationAddress={setLocationAddress}
               onPlaceSelect={handlePlaceSelect}
               templateData={templateData} setTemplateData={setTemplateData}
@@ -1219,15 +1347,16 @@ export default function CreateEventWizard() {
               dressCode={dressCode} setDressCode={setDressCode}
               rsvpDeadline={rsvpDeadline} setRsvpDeadline={setRsvpDeadline}
               privacyMode={privacyMode} setPrivacyMode={setPrivacyMode}
-              accessPassword={accessPassword} setAccessPassword={setAccessPassword}
+              accessPassword={accessPassword} setAccessPassword={setAccessPassword} hasAccessPassword={hasAccessPassword}
               notificationEmail={notificationEmail} setNotificationEmail={setNotificationEmail}
               allowGuestEdits={allowGuestEdits} setAllowGuestEdits={setAllowGuestEdits}
+              trackGuestSide={trackGuestSide} setTrackGuestSide={setTrackGuestSide}
               coverImageUrl={coverImageUrl} setCoverImageUrl={setCoverImageUrl}
               onCoverImageUpload={handleCoverImageUpload} coverImageUploading={coverImageUploading}
               backgroundMusicUrl={backgroundMusicUrl} setBackgroundMusicUrl={setBackgroundMusicUrl}
               onMusicUpload={handleMusicUpload} musicUploading={musicUploading}
               galleryUrls={galleryUrls} onGalleryUpload={handleGalleryUpload}
-              galleryUploading={galleryUploading} onAddGalleryUrl={addGalleryUrl} onRemoveGalleryUrl={removeGalleryUrl}
+              galleryUploading={galleryUploading} onRemoveGalleryUrl={removeGalleryUrl}
               customFields={customFields} onFieldsChange={setCustomFields}
               onNext={handleConfigureNext} onBack={goBack}
               onSaveDraft={handleSaveDraft} savingDraft={savingDraft}
@@ -1275,6 +1404,8 @@ export default function CreateEventWizard() {
               buyingCredits={buyingCredits}
               creditError={creditError}
               smsEnabled={features.smsEnabled}
+              smsRateCentsPerCredit={smsRateCentsPerCredit}
+              smsMarkupPercentage={smsMarkupPercentage}
               onSubmit={handleSubmit}
               onBack={goBack}
               submitting={submitting}

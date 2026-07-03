@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { logout } from '../utils/apiClient';
 import LogoutModal from '../components/LogoutModal';
+import FeatureGate from '../dashboard/components/FeatureGate';
+import ImpersonationBanner from '../components/ImpersonationBanner';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -29,7 +31,23 @@ export default function CheckInPage() {
   const [cameraActive, setCameraActive] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  // Check-in is very often run on a tablet/phone at the venue over spotty wifi.
+  // This page previously had zero connectivity awareness — a dropped
+  // connection just surfaced as a generic "Could not connect" error with no
+  // indication of whether the check-in silently succeeded server-side before
+  // the response was lost, and staff had to blindly re-tap (risking a
+  // duplicate-check-in race).
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
   const router = useRouter();
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
+  }, []);
 
   useEffect(() => { if (showConfirmOverlay) { const timer = setTimeout(() => setShowConfirmOverlay(false), 3200); return () => clearTimeout(timer); } }, [showConfirmOverlay]);
 
@@ -50,10 +68,29 @@ export default function CheckInPage() {
 
   useEffect(() => { if (!eventId || !authReady) return; if (!searchQuery.trim()) { setSearchResults([]); return; } const delaySearch = setTimeout(async () => { try { const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${encodeURIComponent(searchQuery)}`, { credentials: 'include' }); const data = await res.json(); if (data.success) setSearchResults(data.data?.results || []); } catch (err) { /* search failed silently */ } }, 300); return () => clearTimeout(delaySearch); }, [searchQuery, eventId, authReady]);
 
+  // A dropped connection at the venue previously meant an immediate hard
+  // failure with no way to know whether the check-in landed server-side
+  // before the response was lost. One quiet automatic retry (matching the
+  // pattern used elsewhere in this codebase for transient blips) smooths over
+  // a brief blip instead of forcing staff to guess and re-tap, which risked
+  // racing the ALREADY_CHECKED_IN guard.
+  const fetchWithRetry = async (url, options, attempt = 0) => {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        return fetchWithRetry(url, options, 1);
+      }
+      throw err;
+    }
+  };
+
   const handleManualCheckIn = async (partyId) => {
     if (!authReady) return;
+    if (!isOnline) { setOverlayData({ type: 'error', message: 'No internet connection. Reconnect and try again.' }); setShowConfirmOverlay(true); return; }
     try {
-      const res = await fetch(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ partyId, checkedInBy: 'Tablet Front-Desk' }) });
+      const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ partyId, checkedInBy: 'Tablet Front-Desk' }) });
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Check-in failed');
       if (data.success) {
         const result = data.data;
@@ -63,13 +100,23 @@ export default function CheckInPage() {
         setOverlayData({ type: 'success', guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, message: 'Guest arrival verified. Welcome to the event!' });
         setShowConfirmOverlay(true);
       }
-    } catch (err) { setOverlayData({ type: 'error', message: err.message }); setShowConfirmOverlay(true); }
+    } catch (err) {
+      const message = err.message === 'Failed to fetch' || !navigator.onLine
+        ? 'Connection lost. If this guest was actually checked in, re-searching will show them as already arrived.'
+        : err.message;
+      setOverlayData({ type: 'error', message }); setShowConfirmOverlay(true);
+    }
   };
 
   const handleQRScan = useCallback(async (scannedToken) => {
     if (!scannedToken) return;
+    if (!isOnline) {
+      const msg = 'No internet connection. Reconnect and try again.';
+      setScanStatus({ type: 'error', message: msg }); setOverlayData({ type: 'error', message: msg }); setShowConfirmOverlay(true);
+      return;
+    }
     try {
-      const res = await fetch(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token: scannedToken, checkedInBy: 'Kiosk Camera' }) });
+      const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token: scannedToken, checkedInBy: 'Kiosk Camera' }) });
       const data = await res.json();
       if (!res.ok) { setScanStatus({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setOverlayData({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setShowConfirmOverlay(true); return; }
       if (data.success) {
@@ -80,14 +127,22 @@ export default function CheckInPage() {
         setOverlayData({ type: 'success', guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, message: 'QR Ticket credentials verified successfully!' });
         setShowConfirmOverlay(true);
       }
-    } catch (err) { setScanStatus({ type: 'error', message: 'Could not connect to scanner backend service.' }); setOverlayData({ type: 'error', message: 'Could not connect to scanner backend service.' }); setShowConfirmOverlay(true); }
-  }, [eventId, fetchCheckInSummary]);
+    } catch (err) {
+      const message = err.message === 'Failed to fetch' || !navigator.onLine
+        ? 'Connection lost while verifying. If this guest was actually checked in, re-scanning will show them as already arrived.'
+        : 'Could not connect to scanner backend service.';
+      setScanStatus({ type: 'error', message }); setOverlayData({ type: 'error', message }); setShowConfirmOverlay(true);
+    }
+  }, [eventId, fetchCheckInSummary, isOnline]);
 
   const handleQRScanSubmit = async (e) => { e.preventDefault(); if (!qrTokenInput.trim()) return; await handleQRScan(qrTokenInput); setQrTokenInput(''); };
 
   useEffect(() => { let html5QrcodeScanner; if (cameraActive) { import('html5-qrcode').then((module) => { const Html5QrcodeScanner = module.Html5QrcodeScanner; html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: { width: 250, height: 250 }, rememberLastUsedCamera: true }, false); html5QrcodeScanner.render(async (decodedText) => { await handleQRScan(decodedText); setCameraActive(false); }, () => {}); }).catch(err => console.error("Failed to load html5-qrcode:", err)); } return () => { if (html5QrcodeScanner) html5QrcodeScanner.clear().catch(err => console.error("Failed to clear scanner:", err)); }; }, [cameraActive, handleQRScan]);
 
   const cardStyle = { background: C.white, border: `1px solid ${C.border}`, padding: '24px', borderRadius: '12px' };
+  const activeEvent = events.find(ev => ev.id === eventId) || null;
+  const tierFeatures = activeEvent?.tier_features;
+  const eventIsPaid = !!activeEvent?.is_paid;
 
   if (!authChecked || loading) {
     return (
@@ -114,7 +169,19 @@ export default function CheckInPage() {
   }
 
   return (
+    <>
+    <ImpersonationBanner />
     <div style={{ minHeight: '100vh', background: '#FAFAF8', color: C.charcoal, padding: '32px', fontFamily: 'var(--font-sans)' }}>
+
+      {!isOnline && (
+        <div style={{
+          maxWidth: '1200px', margin: '0 auto 16px', padding: '10px 16px', borderRadius: '10px',
+          background: 'rgba(196,94,94,0.08)', border: '1px solid rgba(196,94,94,0.2)', color: '#C45E5E',
+          fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px',
+        }}>
+          <span>📡</span> No internet connection — check-ins and QR scans won&apos;t work until you&apos;re back online.
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', borderBottom: `1px solid ${C.border}`, paddingBottom: '24px', marginBottom: '32px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
@@ -219,12 +286,15 @@ export default function CheckInPage() {
                       <span>⚠️</span> This guest has no table assignment. They will be checked in as a walk-in.
                     </div>
                   )}
-                  <button onClick={() => handleManualCheckIn(selectedGuest.id)}
-                    style={{ width: '100%', padding: '16px', background: C.gold, borderRadius: '10px', fontWeight: 700, fontSize: '15px', border: 'none', cursor: 'pointer', color: C.white, fontFamily: 'var(--font-sans)', transition: 'all 0.3s' }}
-                    onMouseEnter={e => e.target.style.background = C.goldHover}
-                    onMouseLeave={e => e.target.style.background = C.gold}>
-                    {selectedGuest.tableName === 'Unassigned' ? `Walk-In Check-In (${selectedGuest.partySize} guests)` : `Confirm Check-In (${selectedGuest.partySize} guests)`}
-                  </button>
+                  <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="manual_checkin" onUpgrade={() => router.push('/dashboard')} wrapperStyle={{ display: 'flex', width: '100%' }}>
+                    <button onClick={() => handleManualCheckIn(selectedGuest.id)} disabled={!isOnline}
+                      title={!isOnline ? 'No internet connection' : undefined}
+                      style={{ width: '100%', padding: '16px', background: isOnline ? C.gold : C.border, borderRadius: '10px', fontWeight: 700, fontSize: '15px', border: 'none', cursor: isOnline ? 'pointer' : 'not-allowed', color: C.white, fontFamily: 'var(--font-sans)', transition: 'all 0.3s' }}
+                      onMouseEnter={e => { if (isOnline) e.target.style.background = C.goldHover; }}
+                      onMouseLeave={e => { if (isOnline) e.target.style.background = C.gold; }}>
+                      {!isOnline ? 'Offline — cannot check in' : selectedGuest.tableName === 'Unassigned' ? `Walk-In Check-In (${selectedGuest.partySize} guests)` : `Confirm Check-In (${selectedGuest.partySize} guests)`}
+                    </button>
+                  </FeatureGate>
                 </>
               )}
             </div>
@@ -234,10 +304,12 @@ export default function CheckInPage() {
           <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500 }}>QR Ticket Validation</h3>
             <p style={{ fontSize: '12px', color: C.stone, lineHeight: 1.6 }}>Verify credentials using device camera scanning or token string submission below.</p>
-            <button type="button" onClick={() => setCameraActive(!cameraActive)}
-              style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: cameraActive ? '#C45E5E' : C.gold, color: C.white, transition: 'all 0.3s' }}>
-              {cameraActive ? '🛑 Stop Camera Scanner' : '📷 Open Camera Scanner'}
-            </button>
+            <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')} wrapperStyle={{ display: 'flex', width: '100%' }}>
+              <button type="button" onClick={() => setCameraActive(!cameraActive)}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: cameraActive ? '#C45E5E' : C.gold, color: C.white, transition: 'all 0.3s' }}>
+                {cameraActive ? '🛑 Stop Camera Scanner' : '📷 Open Camera Scanner'}
+              </button>
+            </FeatureGate>
             {cameraActive && (
               <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px', display: 'flex', justifyContent: 'center' }}>
                 <div id="qr-reader" style={{ width: '100%', maxWidth: '360px', borderRadius: '8px', overflow: 'hidden' }} />
@@ -246,7 +318,10 @@ export default function CheckInPage() {
             <form onSubmit={handleQRScanSubmit} style={{ display: 'flex', gap: '10px', paddingTop: '8px' }}>
               <input type="text" value={qrTokenInput} onChange={e => setQrTokenInput(e.target.value)} placeholder="Or paste signed JWT token here..."
                 style={{ ...inputStyle, flex: 1 }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-              <button type="submit" style={{ padding: '12px 24px', background: C.gold, color: C.white, border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Verify</button>
+              <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')}>
+                <button type="submit" disabled={!isOnline} title={!isOnline ? 'No internet connection' : undefined}
+                  style={{ padding: '12px 24px', background: isOnline ? C.gold : C.border, color: C.white, border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: isOnline ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)' }}>Verify</button>
+              </FeatureGate>
             </form>
             {scanStatus && (
               <div style={{ padding: '16px', borderRadius: '10px', border: `1px solid ${scanStatus.type === 'success' ? 'rgba(184,148,79,0.2)' : 'rgba(196,94,94,0.15)'}`, background: scanStatus.type === 'success' ? 'rgba(184,148,79,0.06)' : 'rgba(196,94,94,0.04)', color: scanStatus.type === 'success' ? C.gold : '#C45E5E', fontSize: '13px' }}>
@@ -334,5 +409,6 @@ export default function CheckInPage() {
       `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
+    </>
   );
 }

@@ -421,8 +421,16 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName) => {
    ORGANIZER NOTIFICATIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/** "Groom's/Bride's Side" for weddings, "Partner 1/2's Side" otherwise — null if unset/invalid. */
+const sideLabel = (side, eventType) => {
+  if (side !== 'partner1' && side !== 'partner2') return null;
+  const isWedding = eventType === 'wedding';
+  if (side === 'partner1') return isWedding ? "Groom's Side" : "Partner 1's Side";
+  return isWedding ? "Bride's Side" : "Partner 2's Side";
+};
+
 /** Alerts the organizer that a guest just submitted an RSVP. */
-const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySize, email }) => {
+const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySize, email, side, eventType }) => {
   const r = responseMeta(response);
   const verb = response === 'yes' || response === 'accepted'
     ? 'accepted'
@@ -433,6 +441,8 @@ const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySiz
     ['Party Size', `${size} ${size === 1 ? 'Guest' : 'Guests'}`],
   ];
   if (email) rows.push(['Email', escapeHtml(email)]);
+  const sLabel = sideLabel(side, eventType);
+  if (sLabel) rows.push(['Side', escapeHtml(sLabel)]);
 
   return emailShell({
     preheader: `${guestName} ${verb} — ${eventTitle}`,
@@ -453,24 +463,31 @@ const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySiz
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /** Receipt for an offline / cash payment that a Super Admin approved (event activated). */
-const getCashPaymentApprovedTemplate = (orgName, eventTitle, refNumber, amountCents) => emailShell({
-  preheader: `Payment approved — ${eventTitle} is now active`,
-  eyebrow: 'Payment approved',
-  accent: BRAND.success,
-  heading: 'Your event is active',
-  contentHtml: `
-    ${greeting(orgName)}
-    ${para('Your offline payment has been verified and approved. Your event page is now live and online.')}
-    ${dataTable([
-      ['Event', escapeHtml(eventTitle)],
-      ['Reference', `<span style="font-family:'Courier New', monospace;">${escapeHtml(refNumber)}</span>`],
-      ['Amount Paid', money(amountCents), BRAND.gold],
-      ['Status', 'Active · Online', BRAND.success],
-    ])}
-    ${button(`${getPublicBaseUrl()}/dashboard`, 'Go to Dashboard')}
-    ${para('You can now manage guests, customize your form, set up tables and distribute invitation links.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
-  `,
-});
+const getCashPaymentApprovedTemplate = (orgName, eventTitle, refNumber, amountCents, tierName = null) => {
+  // Mirrors getStripePaymentReceiptTemplate below — the cash-payment receipt
+  // previously omitted the Plan row entirely, so a cash-paying organizer's
+  // receipt email never showed which tier they'd bought (the equivalent card
+  // receipt did).
+  const rows = [['Event', escapeHtml(eventTitle)]];
+  if (tierName) rows.push(['Plan', escapeHtml(tierName)]);
+  rows.push(['Reference', `<span style="font-family:'Courier New', monospace;">${escapeHtml(refNumber)}</span>`]);
+  rows.push(['Amount Paid', money(amountCents), BRAND.gold]);
+  rows.push(['Status', 'Active · Online', BRAND.success]);
+
+  return emailShell({
+    preheader: `Payment approved — ${eventTitle} is now active`,
+    eyebrow: 'Payment approved',
+    accent: BRAND.success,
+    heading: 'Your event is active',
+    contentHtml: `
+      ${greeting(orgName)}
+      ${para('Your offline payment has been verified and approved. Your event page is now live and online.')}
+      ${dataTable(rows)}
+      ${button(`${getPublicBaseUrl()}/dashboard`, 'Go to Dashboard')}
+      ${para('You can now manage guests, customize your form, set up tables and distribute invitation links.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+    `,
+  });
+};
 
 /** Receipt for a successful Stripe (card) payment — event then enters review. */
 const getStripePaymentReceiptTemplate = ({ orgName, eventTitle, amountCents, tierName, referenceNumber }) => {

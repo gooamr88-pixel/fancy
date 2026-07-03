@@ -1,14 +1,19 @@
 'use client';
 
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, useCallback, memo } from 'react';
+import { toast } from '../../utils/toast';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { findMealField } from '../../utils/mealField';
 import FeatureGate from './FeatureGate';
+import EditGuestModal from './EditGuestModal';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
   champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8',
 };
+
+const PAGE_SIZE = 20;
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 /* ── Stat Mini Card ── */
 function StatMini({ icon, value, label, accent }) {
@@ -35,7 +40,7 @@ function StatMini({ icon, value, label, accent }) {
 }
 
 /* ── Guest Card ── */
-const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, customFields }) {
+const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, customFields, event, onEdit, onDelete, deleting }) {
   const [expanded, setExpanded] = useState(false);
   const yes = isAccepted(guest.response);
   const no = isDeclined(guest.response);
@@ -88,12 +93,43 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
           <span style={{ fontWeight: 700, fontSize: '14px', color: COLORS.charcoal, fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {guest.guest_name}
           </span>
-          <span style={{
-            padding: '2px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: 700, flexShrink: 0,
-            background: yes ? 'rgba(184,148,79,0.1)' : no ? 'rgba(196,94,94,0.08)' : maybe ? 'rgba(99,102,241,0.1)' : 'rgba(119,115,106,0.1)',
-            color: accentColor, fontFamily: 'var(--font-sans)', textTransform: 'uppercase',
-          }}>
-            {(guest.response || 'pending').toUpperCase()}
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            {event?.track_guest_side && guest.side && (
+              <span style={{
+                padding: '2px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: 700,
+                background: 'rgba(99,102,241,0.1)', color: '#6366F1', fontFamily: 'var(--font-sans)',
+              }}>
+                {event?.event_type === 'wedding'
+                  ? (guest.side === 'partner1' ? "Groom's Side" : "Bride's Side")
+                  : (guest.side === 'partner1' ? "Partner 1's Side" : "Partner 2's Side")}
+              </span>
+            )}
+            <span style={{
+              padding: '2px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: 700,
+              background: yes ? 'rgba(184,148,79,0.1)' : no ? 'rgba(196,94,94,0.08)' : maybe ? 'rgba(99,102,241,0.1)' : 'rgba(119,115,106,0.1)',
+              color: accentColor, fontFamily: 'var(--font-sans)', textTransform: 'uppercase',
+            }}>
+              {(guest.response || 'pending').toUpperCase()}
+            </span>
+            <button onClick={() => onEdit(guest)} title="Edit guest" style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px',
+              borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', color: COLORS.stone,
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background = COLORS.ivory; e.currentTarget.style.color = COLORS.gold; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+            </button>
+            <button onClick={() => onDelete(guest.id)} title="Delete guest" disabled={deleting} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px',
+              borderRadius: '6px', border: 'none', background: 'transparent', cursor: deleting ? 'wait' : 'pointer',
+              color: COLORS.stone, opacity: deleting ? 0.4 : 1,
+            }}
+              onMouseEnter={e => { if (!deleting) { e.currentTarget.style.background = 'rgba(196,94,94,0.08)'; e.currentTarget.style.color = '#C45E5E'; } }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+            </button>
           </span>
         </div>
 
@@ -222,9 +258,27 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
 });
 
 /* ── Main Component ── */
-export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onOpenSendInvitations, isPaid, tierFeatures, onUpgrade }) {
+export default function GuestsTab({ rsvps, tables, customFields, eventId, event, onAssignTable, onRefresh, onOpenAddGuest, onOpenImport, onOpenSendInvitations, isPaid, tierFeatures, onUpgrade }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const [editingGuest, setEditingGuest] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const handleDeleteGuest = useCallback(async (guestId) => {
+    if (!window.confirm('Are you sure you want to delete this guest? This action cannot be undone.')) return;
+    setDeletingId(guestId);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/${guestId}`, { method: 'DELETE', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) throw new Error(data.message || 'Delete failed');
+      onRefresh?.();
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete this guest. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
+  }, [eventId, onRefresh]);
 
   const counts = useMemo(() => {
     const total = rsvps.reduce((sum, r) => sum + (r.party_size || 1), 0);
@@ -262,6 +316,13 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssi
       }
     });
   }, [rsvps, search, filter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Clamp rather than reset-via-effect: keeps this correct even when the list
+  // shrinks out from under the current page (e.g. a delete or a data reload)
+  // without a setState-in-effect render cascade.
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   if (!eventId) {
     return (
@@ -356,13 +417,13 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssi
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLORS.stone} strokeWidth="2" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input
             type="text" placeholder="Search by name or email..." value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
             style={{ ...inputStyle, width: '100%', paddingLeft: '34px' }}
             onFocus={e => { e.target.style.borderColor = COLORS.gold; }}
             onBlur={e => { e.target.style.borderColor = COLORS.border; }}
           />
         </div>
-        <select value={filter} onChange={e => setFilter(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+        <select value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, cursor: 'pointer' }}>
           <option value="all">All Guests</option>
           <option value="attending">Accepted</option>
           <option value="declined">Declined</option>
@@ -385,12 +446,46 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, onAssi
           </p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-          {filtered.map(guest => (
-            <GuestCard key={guest.id} guest={guest} tables={tables} onAssignTable={onAssignTable} customFields={customFields} />
-          ))}
-        </div>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+            {paginated.map(guest => (
+              <GuestCard
+                key={guest.id} guest={guest} tables={tables} onAssignTable={onAssignTable}
+                customFields={customFields} event={event}
+                onEdit={setEditingGuest} onDelete={handleDeleteGuest} deleting={deletingId === guest.id}
+              />
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1} style={{
+                padding: '6px 12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                color: safePage === 1 ? COLORS.border : COLORS.charcoal, fontSize: '12px', fontFamily: 'var(--font-sans)',
+                cursor: safePage === 1 ? 'default' : 'pointer',
+              }}>‹ Prev</button>
+              <span style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)', padding: '0 8px' }}>
+                Page {safePage} of {totalPages}
+              </span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} style={{
+                padding: '6px 12px', borderRadius: '6px', border: `1px solid ${COLORS.border}`, background: COLORS.white,
+                color: safePage === totalPages ? COLORS.border : COLORS.charcoal, fontSize: '12px', fontFamily: 'var(--font-sans)',
+                cursor: safePage === totalPages ? 'default' : 'pointer',
+              }}>Next ›</button>
+            </div>
+          )}
+        </>
       )}
+
+      <EditGuestModal
+        isOpen={!!editingGuest}
+        onClose={() => setEditingGuest(null)}
+        eventId={eventId}
+        event={event}
+        customFields={customFields}
+        rsvp={editingGuest}
+        onGuestUpdated={onRefresh}
+      />
     </div>
   );
 }

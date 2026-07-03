@@ -2,24 +2,26 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { normalizeToE164 } from '../../utils/phone';
+import { findMealField } from '../../utils/mealField';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
   champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8',
 };
 
-export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }) {
+export default function AddGuestModal({ isOpen, onClose, eventId, event, customFields, onGuestAdded }) {
   const [formData, setFormData] = useState({
-    guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '',
+    guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const nameRef = useRef(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+  const mealField = findMealField(customFields);
 
   useEffect(() => {
     if (isOpen) {
-      setFormData({ guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '' });
+      setFormData({ guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '' });
       setError('');
       setLoading(false);
       setTimeout(() => nameRef.current?.focus(), 120);
@@ -59,6 +61,8 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
           partySize: parseInt(formData.party_size, 10),
           response: formData.response,
           notes: formData.notes.trim() || undefined,
+          side: formData.side || undefined,
+          primaryGuestMeal: formData.meal || undefined,
         }),
       });
       const data = await res.json();
@@ -178,6 +182,29 @@ export default function AddGuestModal({ isOpen, onClose, eventId, onGuestAdded }
                 </select>
               </div>
             </div>
+
+            {/* Side (Groom's/Bride's, only when the event tracks it) */}
+            {event?.track_guest_side && (
+              <div>
+                <label style={labelStyle}>{event?.event_type === 'wedding' ? 'Side' : "Partner's Side"}</label>
+                <select value={formData.side} onChange={handleChange('side')} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">Not set</option>
+                  <option value="partner1">{event?.event_type === 'wedding' ? "Groom's Side" : "Partner 1's Side"}</option>
+                  <option value="partner2">{event?.event_type === 'wedding' ? "Bride's Side" : "Partner 2's Side"}</option>
+                </select>
+              </div>
+            )}
+
+            {/* Meal (only when the event has a configured meal field) */}
+            {mealField && (
+              <div>
+                <label style={labelStyle}>{mealField.field_label}{mealField.is_required ? ' *' : ''}</label>
+                <select value={formData.meal} onChange={handleChange('meal')} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">Not set</option>
+                  {(mealField.options || []).map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+            )}
 
             {/* Notes */}
             <div>

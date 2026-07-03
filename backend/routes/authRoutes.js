@@ -32,6 +32,18 @@ const passwordResetLimiter = rateLimit({
   message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many password reset attempts. Please try again later.' },
 });
 
+// Defense-in-depth alongside the per-account otp_attempts cap in the controller
+// (which is what actually stops a single account's code from being brute-forced) —
+// this just brings verify-registration in line with every other sensitive auth
+// route, all of which already have an IP-level limiter.
+const otpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many verification attempts. Please try again later.' },
+});
+
 // Register new organizer (creates unverified account + sends OTP): POST /api/v1/auth/register
 router.post('/register', [
   signupLimiter,
@@ -46,6 +58,7 @@ router.post('/register', [
 
 // Verify registration OTP (activates account + issues auth cookie): POST /api/v1/auth/verify-registration
 router.post('/verify-registration', [
+  otpVerifyLimiter,
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('otp').isLength({ min: 6, max: 6 }).isNumeric().withMessage('Valid 6-digit OTP is required'),
   validate
@@ -61,6 +74,10 @@ router.post('/login', [
 
 // Logout (clears auth cookie): POST /api/v1/auth/logout
 router.post('/logout', authController.logout);
+
+// Ends an active admin impersonation session, restoring the admin's own session:
+// POST /api/v1/auth/stop-impersonating
+router.post('/stop-impersonating', requireAuth, authController.stopImpersonating);
 
 // Google OAuth (unified — logs in existing users, creates new ones): POST /api/v1/auth/google
 router.post('/google', [

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import adminApi from '../../_lib/adminApi';
 import useAdminList from '../../_hooks/useAdminList';
 import usePermissions from '../../_hooks/usePermissions';
@@ -119,6 +120,16 @@ function PackageCatalog() {
         {manage && <Button variant="primary" onClick={openNew}>+ New package</Button>}
       </div>
 
+      {/* These packages are a display/catalog concept only — the actual price an
+          organizer is charged for SMS credits is always computed live from the
+          Rate + Markup settings (with a volume discount at 500+), never from a
+          package's price_cents here. Editing/creating a package below has NO
+          effect on what's actually charged. */}
+      <div style={{ ...card, padding: '10px 14px', marginBottom: 14, background: T.primarySoft, fontSize: 12, color: T.text700, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span>⚠️ These packages do not drive real pricing — organizers are charged from the SMS Rate + Markup settings, computed live per purchase.</span>
+        <Link href="/admin/config" style={{ color: T.primary, fontWeight: 700, textDecoration: 'none' }}>Go to Pricing Settings →</Link>
+      </div>
+
       {error && <p style={{ color: T.danger }}>{error}</p>}
       {loading ? (
         <p style={{ color: T.text500 }}>Loading packages…</p>
@@ -224,6 +235,7 @@ function SmsWallets() {
         rowKey={(r) => r.event_id}
         pagination={pagination}
         onPageChange={setPage}
+        onRefresh={reload}
         emptyText="No SMS wallets yet."
         columns={[
           {

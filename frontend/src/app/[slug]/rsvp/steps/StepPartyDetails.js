@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FadeInUp, StaggerChildren, StaggerItem } from '../../../components/guest/GuestAnimations';
 import { PremiumButton, PartySizeStepper, FormField, inputFocus, inputBlur } from '../../../components/guest/GuestUI';
 import { S } from '../styles';
+import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
 
 const MAYBE_OPTIONS = [
   { value: '24 Hours', icon: '⚡', labelEn: 'Within 24 Hours', labelAr: 'خلال ٢٤ ساعة', subEn: "I'll know very soon", subAr: 'سأعلمكم قريباً جداً' },
@@ -19,50 +20,6 @@ const DECLINE_REASONS = [
   { value: 'Other', icon: '💭', labelEn: 'Other Reasons', labelAr: 'أسباب أخرى' },
 ];
 
-const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Dr', 'Child'];
-const KNOWN_TITLES = new Set(['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Child', 'Mr', 'Mrs', 'Ms', 'Dr']);
-
-const AGE_OPTIONS = (t) => [
-  { value: 'adult',  label: t.age_adult  },
-  { value: 'teen',   label: t.age_teen   },
-  { value: 'child',  label: t.age_child  },
-  { value: 'infant', label: t.age_infant },
-];
-
-const GENDER_OPTIONS = (t) => [
-  { value: 'male',   label: t.gender_male   },
-  { value: 'female', label: t.gender_female },
-];
-
-const RELATIONSHIP_OPTIONS = (t) => [
-  { value: 'spouse',    label: t.relationship_spouse    },
-  { value: 'parent',    label: t.relationship_parent    },
-  { value: 'child',     label: t.relationship_child     },
-  { value: 'sibling',   label: t.relationship_sibling   },
-  { value: 'relative',  label: t.relationship_relative  },
-  { value: 'friend',    label: t.relationship_friend    },
-  { value: 'colleague', label: t.relationship_colleague },
-  { value: 'other',     label: t.relationship_other     },
-];
-
-/** Parse "Title. First Last" / "Title First Last" / "First Last" into 3 parts. */
-function splitName(fullName) {
-  const parts = (fullName || '').split(' ').filter(Boolean);
-  if (parts.length === 0) return { title: '', first: '', last: '' };
-  const head = parts[0];
-  const isTitle = KNOWN_TITLES.has(head);
-  if (isTitle) {
-    const t = head.endsWith('.') ? head : head + '.';
-    return { title: t === 'Child.' ? 'Child' : t, first: parts[1] || '', last: parts.slice(2).join(' ') };
-  }
-  return { title: '', first: parts[0] || '', last: parts.slice(1).join(' ') };
-}
-
-function joinName(title, first, last) {
-  const t = title ? `${title} ` : '';
-  return `${t}${first} ${last}`.replace(/\s+/g, ' ').trim();
-}
-
 /** Step 3 (attending=yes: party details) / 3B (maybe: follow-up) / 3C (no: decline reason). */
 export default function StepPartyDetails({
   t, isRTL, attending,
@@ -71,8 +28,13 @@ export default function StepPartyDetails({
   validationErrors, setValidationErrors, onBack, onContinue,
   maybeFollowUp, setMaybeFollowUp, declineReason, setDeclineReason,
   guestName, setGuestName,
+  side, setSide, showSidePicker, isWedding,
+  smsConsent, setSmsConsent,
 }) {
-  const mealOptions = isRTL && mealField?.options_ar ? mealField.options_ar : mealField?.options;
+  // NOTE: organizer-authored meal options have no Arabic-translation mechanism
+  // today (custom_form_fields has no options_ar column) — always show the
+  // options exactly as the organizer typed them, regardless of guest language.
+  const mealOptions = mealField?.options;
 
   const renderHostDetailsCard = (includeMeal = false) => {
     return (
@@ -123,16 +85,52 @@ export default function StepPartyDetails({
               {t.host_subtitle}
             </p>
 
-            <FormField label={t.enter_name} error={validationErrors.guestName}>
-              <input type="text" value={guestName} onChange={e => {
-                setGuestName(e.target.value);
-                if (validationErrors.guestName) {
-                  setValidationErrors(prev => { const n = { ...prev }; delete n.guestName; return n; });
+            {(() => {
+              const { title: hTitle, first: hFirst, last: hLast } = splitName(guestName);
+              const setHostName = (newTitle, newFirst, newLast) => {
+                setGuestName(joinName(newTitle, newFirst, newLast));
+                if (validationErrors.guestNameTitle || validationErrors.guestNameFirst || validationErrors.guestNameLast) {
+                  setValidationErrors(prev => {
+                    const n = { ...prev };
+                    delete n.guestNameTitle; delete n.guestNameFirst; delete n.guestNameLast;
+                    return n;
+                  });
                 }
-              }} placeholder={t.name_placeholder}
-                style={{ ...S.inputBase, ...(validationErrors.guestName ? { borderColor: '#ef4444' } : {}) }}
-                onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.guestName)} />
-            </FormField>
+              };
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px' }}>
+                  <FormField label={isRTL ? 'اللقب' : 'Title'} error={validationErrors.guestNameTitle}>
+                    <select
+                      value={hTitle.replace('.', '')}
+                      onChange={e => setHostName(e.target.value ? e.target.value + '.' : '', hFirst, hLast)}
+                      style={{ ...S.inputBase, cursor: 'pointer', padding: '14px 8px', ...(validationErrors.guestNameTitle ? { borderColor: '#ef4444' } : {}) }}
+                      onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.guestNameTitle)}
+                    >
+                      <option value="">-</option>
+                      {TITLE_OPTIONS.map(tt => <option key={tt} value={tt}>{tt === 'Child' ? 'Child' : tt + '.'}</option>)}
+                    </select>
+                  </FormField>
+                  <FormField label={isRTL ? 'الاسم الأول' : 'First Name'} error={validationErrors.guestNameFirst}>
+                    <input
+                      type="text" value={hFirst}
+                      onChange={e => setHostName(hTitle, e.target.value, hLast)}
+                      placeholder={isRTL ? 'الاسم الأول' : 'First Name'}
+                      style={{ ...S.inputBase, ...(validationErrors.guestNameFirst ? { borderColor: '#ef4444' } : {}) }}
+                      onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.guestNameFirst)}
+                    />
+                  </FormField>
+                  <FormField label={isRTL ? 'اسم العائلة' : 'Last Name'} error={validationErrors.guestNameLast}>
+                    <input
+                      type="text" value={hLast}
+                      onChange={e => setHostName(hTitle, hFirst, e.target.value)}
+                      placeholder={isRTL ? 'اسم العائلة' : 'Family Name'}
+                      style={{ ...S.inputBase, ...(validationErrors.guestNameLast ? { borderColor: '#ef4444' } : {}) }}
+                      onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.guestNameLast)}
+                    />
+                  </FormField>
+                </div>
+              );
+            })()}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <FormField label={t.email_label} error={validationErrors.email}>
@@ -140,16 +138,79 @@ export default function StepPartyDetails({
                   style={{ ...S.inputBase, ...(validationErrors.email ? { borderColor: '#ef4444' } : {}) }}
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
               </FormField>
-              <FormField label={includeMeal ? t.phone_label : `${t.phone_label} ${isRTL ? '(اختياري)' : '(optional)'}`} error={validationErrors.phone}>
+              <FormField label={t.phone_label} error={validationErrors.phone}>
                 <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000"
                   style={{ ...S.inputBase, ...(validationErrors.phone ? { borderColor: '#ef4444' } : {}) }}
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.phone)} />
               </FormField>
             </div>
 
+            {/* SMS opt-in consent — required whenever a phone number is collected
+                (TCPA / Twilio A2P 10DLC). The checked state is persisted to
+                rsvp_parties.sms_consent as a timestamped compliance record. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: '10px',
+                padding: '12px 14px', borderRadius: '12px',
+                background: validationErrors.smsConsent ? 'rgba(239,68,68,0.05)' : 'rgba(184,148,79,0.05)',
+                border: `1px solid ${validationErrors.smsConsent ? '#ef4444' : 'rgba(184,148,79,0.25)'}`,
+                transition: 'all 0.2s ease',
+              }}>
+                <input
+                  type="checkbox"
+                  id="sms-consent-checkbox"
+                  checked={smsConsent}
+                  onChange={e => {
+                    setSmsConsent(e.target.checked);
+                    if (validationErrors.smsConsent) {
+                      setValidationErrors(prev => { const n = { ...prev }; delete n.smsConsent; return n; });
+                    }
+                  }}
+                  style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: '#B8944F', cursor: 'pointer', flexShrink: 0 }}
+                />
+                <label htmlFor="sms-consent-checkbox" style={{ fontSize: '12px', color: '#5E5A52', lineHeight: 1.6, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {isRTL ? (
+                    <>
+                      أوافق على تلقي رسائل نصية (SMS) بخصوص هذه الفعالية من Fancy RSVP. يختلف عدد الرسائل حسب الفعالية، وقد تُطبّق رسوم الرسائل والبيانات من مشغّل شبكتك. أرسل STOP لإلغاء الاشتراك في أي وقت. راجع{' '}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#B8944F', fontWeight: 600, textDecoration: 'underline' }}>سياسة الخصوصية</a>
+                      {' '}و{' '}
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#B8944F', fontWeight: 600, textDecoration: 'underline' }}>شروط الخدمة</a>.
+                    </>
+                  ) : (
+                    <>
+                      I agree to receive text messages about this event from Fancy RSVP. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out at any time. See our{' '}
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#B8944F', fontWeight: 600, textDecoration: 'underline' }}>Privacy Policy</a>
+                      {' '}and{' '}
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#B8944F', fontWeight: 600, textDecoration: 'underline' }}>Terms of Service</a>.
+                    </>
+                  )}
+                </label>
+              </div>
+              {validationErrors.smsConsent && (
+                <span style={{ fontSize: '11px', color: '#ef4444', fontFamily: 'var(--font-sans)', paddingLeft: '2px' }}>{validationErrors.smsConsent}</span>
+              )}
+            </div>
+
+            {showSidePicker && (
+              <FormField label={isWedding ? (isRTL ? 'جانب الاحتفال' : "Which side are you celebrating with?") : (isRTL ? 'الجانب' : "Which partner's side?")}>
+                <select value={side} onChange={e => setSide(e.target.value)} style={{ ...S.inputBase, cursor: 'pointer' }}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}>
+                  <option value="">{isRTL ? 'غير محدد' : 'Not sure / prefer not to say'}</option>
+                  <option value="partner1">{isWedding ? (isRTL ? 'جانب العريس' : "Groom's Side") : (isRTL ? 'جانب الشريك الأول' : "Partner 1's Side")}</option>
+                  <option value="partner2">{isWedding ? (isRTL ? 'جانب العروس' : "Bride's Side") : (isRTL ? 'جانب الشريك الثاني' : "Partner 2's Side")}</option>
+                </select>
+              </FormField>
+            )}
+
             {includeMeal && mealField && (
-              <FormField label={(isRTL && mealField.field_label_ar ? mealField.field_label_ar : mealField.field_label).replace('{name}', '')}>
-                <select value={primaryMeal} onChange={e => setPrimaryMeal(e.target.value)} style={{ ...S.inputBase, cursor: 'pointer' }}>
+              <FormField label={mealField.field_label.replace('{name}', '').replace(/\s{2,}/g, ' ').trim()} error={validationErrors.primaryMeal}>
+                <select value={primaryMeal} onChange={e => {
+                  setPrimaryMeal(e.target.value);
+                  if (validationErrors.primaryMeal) {
+                    setValidationErrors(prev => { const n = { ...prev }; delete n.primaryMeal; return n; });
+                  }
+                }} style={{ ...S.inputBase, cursor: 'pointer', ...(validationErrors.primaryMeal ? { borderColor: '#ef4444' } : {}) }}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.primaryMeal)}>
                   <option value="">{t.meal_select_placeholder}</option>
                   {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
                 </select>
@@ -379,12 +440,12 @@ export default function StepPartyDetails({
 
               {/* Name row */}
               <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px' }}>
-                <FormField label={isRTL ? 'اللقب' : 'Title'}>
+                <FormField label={isRTL ? 'اللقب' : 'Title'} error={validationErrors[`additionalGuest_title_${index}`]}>
                   <select
                     value={title.replace('.', '')}
                     onChange={e => setName(e.target.value ? e.target.value + '.' : '', first, last)}
-                    style={{ ...S.inputBase, cursor: 'pointer', padding: '14px 8px' }}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                    style={{ ...S.inputBase, cursor: 'pointer', padding: '14px 8px', ...(validationErrors[`additionalGuest_title_${index}`] ? { borderColor: '#ef4444' } : {}) }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_title_${index}`])}
                   >
                     <option value="">-</option>
                     {TITLE_OPTIONS.map(tt => <option key={tt} value={tt}>{tt === 'Child' ? 'Child' : tt + '.'}</option>)}
@@ -399,13 +460,13 @@ export default function StepPartyDetails({
                     onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, hasError)}
                   />
                 </FormField>
-                <FormField label={isRTL ? 'اسم العائلة' : 'Last Name'}>
+                <FormField label={isRTL ? 'اسم العائلة' : 'Last Name'} error={validationErrors[`additionalGuest_last_${index}`]}>
                   <input
                     type="text" value={last}
                     onChange={e => setName(title, first, e.target.value)}
                     placeholder={isRTL ? 'اسم العائلة' : 'Family Name'}
-                    style={S.inputBase}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                    style={{ ...S.inputBase, ...(validationErrors[`additionalGuest_last_${index}`] ? { borderColor: '#ef4444' } : {}) }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_last_${index}`])}
                   />
                 </FormField>
               </div>
@@ -421,24 +482,29 @@ export default function StepPartyDetails({
                     onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_email_${index}`])}
                   />
                 </FormField>
-                <FormField label={t.companion_phone_label}>
+                <FormField label={t.companion_phone_label} error={validationErrors[`additionalGuest_phone_${index}`]}>
                   <input
                     type="tel" value={g.phone || ''}
                     onChange={e => updateCompanion(index, { phone: e.target.value })}
                     placeholder="+1 (555) 000-0000"
-                    style={S.inputBase}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                    style={{ ...S.inputBase, ...(validationErrors[`additionalGuest_phone_${index}`] ? { borderColor: '#ef4444' } : {}) }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_phone_${index}`])}
                   />
                 </FormField>
               </div>
 
               {mealField && (
-                <FormField label={t.guest_meal_label}>
+                <FormField label={t.guest_meal_label} error={validationErrors[`additionalGuest_meal_${index}`]}>
                   <select
                     value={g.mealSelection}
-                    onChange={e => updateCompanion(index, { mealSelection: e.target.value })}
-                    style={{ ...S.inputBase, cursor: 'pointer' }}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                    onChange={e => {
+                      updateCompanion(index, { mealSelection: e.target.value });
+                      if (validationErrors[`additionalGuest_meal_${index}`]) {
+                        setValidationErrors(prev => { const n = { ...prev }; delete n[`additionalGuest_meal_${index}`]; return n; });
+                      }
+                    }}
+                    style={{ ...S.inputBase, cursor: 'pointer', ...(validationErrors[`additionalGuest_meal_${index}`] ? { borderColor: '#ef4444' } : {}) }}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_meal_${index}`])}
                   >
                     <option value="">{t.meal_select_placeholder}</option>
                     {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}

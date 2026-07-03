@@ -8,11 +8,18 @@ const COLORS = {
 };
 
 const FEATURE_TITLES = {
-  add_guest: 'Guest Management',
-  import_guests: 'Guest Import',
+  // Keys must match the exact `feature` prop values passed to <FeatureGate>
+  // (GuestsTab.js, dashboard/page.js, checkin/page.js) — these two previously
+  // didn't match their real call sites (add_guest_manual/import_guests_csv),
+  // so the two most commonly triggered gates silently fell back to the
+  // generic "Unlock Premium Feature" title instead of a specific one.
+  add_guest_manual: 'Guest Management',
+  import_guests_csv: 'Guest Import',
   seating_map: 'Seating Map',
   form_builder: 'Form Builder',
   sms_campaigns: 'SMS Campaigns',
+  qr_checkin: 'QR Code Check-In',
+  manual_checkin: 'Manual Check-In',
 };
 
 const FEATURE_LIST = [

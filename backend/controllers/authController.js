@@ -90,6 +90,20 @@ const verifyPassword = async (password, storedHash, orgEmail) => {
 };
 
 /**
+ * SEC: timing-safe existence check. Computed once (lazily) so that a login
+ * attempt against a non-existent email pays the same ~600k-iteration PBKDF2
+ * cost as a real password check against an existing account, instead of
+ * returning near-instantly. Without this, an attacker can fingerprint which
+ * emails have accounts purely by response time — the generic "Invalid email
+ * or password" message defeats text-based enumeration, but not timing-based.
+ */
+let dummyHashPromise = null;
+const getDummyHash = () => {
+  if (!dummyHashPromise) dummyHashPromise = hashPassword(crypto.randomBytes(32).toString('hex'));
+  return dummyHashPromise;
+};
+
+/**
  * Generates a signed JWT (with a unique `jti`), attaches it as an httpOnly
  * cookie, and records a server-side session so it can later be revoked
  * (Master Plan §4/§19). Best-effort session write never blocks the auth flow.
@@ -374,7 +388,14 @@ const login = async (req, res, next) => {
       });
     }
 
-    if (!org || !(await verifyPassword(password, org.password_hash, normalizedEmail))) {
+    // By this point `org` either doesn't exist, or exists with a password_hash
+    // (the email-not-verified/lockout/google-only cases above already returned).
+    // Always pay the same PBKDF2 cost either way — see getDummyHash() above.
+    const passwordOk = org
+      ? await verifyPassword(password, org.password_hash, normalizedEmail)
+      : await verifyPassword(password, await getDummyHash(), null);
+
+    if (!org || !passwordOk) {
       // Increment failed attempts if org exists
       if (org) {
         const attempts = (org.failed_login_attempts || 0) + 1;
@@ -694,11 +715,23 @@ const getProfile = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'NOT_FOUND', message: 'Profile not found' });
     }
 
+    // Surface an active impersonation session (see stopImpersonating below) so
+    // the organizer-facing app can show a persistent indicator + a way back,
+    // instead of an admin silently browsing as this account with no reminder.
+    let impersonatorEmail = null;
+    if (req.user.imp) {
+      const { data: impOrg } = await supabase
+        .from('organizations').select('email').eq('owner_user_id', req.user.imp).maybeSingle();
+      impersonatorEmail = impOrg?.email || null;
+    }
+
     const profileData = {
       ...org,
       hasPassword: !!org.password_hash,
       role: req.user.role || 'organizer',
       isSuperAdmin: !!req.user.isSuperAdmin,
+      impersonating: !!req.user.imp,
+      impersonatorEmail,
     };
     delete profileData.password_hash;
 
@@ -961,6 +994,42 @@ const googleAuth = async (req, res, next) => {
   }
 };
 
+/**
+ * Ends the current admin impersonation session and restores the impersonating
+ * admin's own session — the counterpart to admin/userMgmtController.js's
+ * impersonateOrganizer. Trusts the `imp` claim because it can only ever have
+ * been set by that already-permission-checked endpoint; re-validates the
+ * impersonator still holds admin access before restoring them (they may have
+ * been demoted/banned while the impersonation was live).
+ * POST /api/v1/auth/stop-impersonating
+ */
+const stopImpersonating = async (req, res, next) => {
+  const impersonatorId = req.user.imp;
+  if (!impersonatorId) {
+    return res.status(400).json({ success: false, error: 'NOT_IMPERSONATING', message: 'You are not currently impersonating anyone.' });
+  }
+  try {
+    // Revoke the impersonation session so the token that led here can't be replayed.
+    if (req.user.jti) await revokeByJti(req.user.jti);
+
+    const access = await getAccessContext(impersonatorId);
+    if (!access.isAdmin) {
+      clearAuthCookie(res);
+      return res.status(403).json({ success: false, error: 'ADMIN_ACCESS_REVOKED', message: 'Your admin access has been revoked. Please log in again.' });
+    }
+
+    const { data: adminOrg } = await supabase
+      .from('organizations').select('email').eq('owner_user_id', impersonatorId).maybeSingle();
+    const role = access.isSuperAdmin ? 'super_admin' : 'organizer';
+
+    await issueAuthCookie(req, res, { id: impersonatorId, email: adminOrg?.email || null, role });
+
+    return res.json({ success: true, message: 'Returned to your admin account.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const getSessions = async (req, res, next) => {
   try {
     const { data: sessions, error } = await supabase
@@ -1036,6 +1105,7 @@ module.exports = {
   updateProfile,
   changePassword,
   googleAuth,
+  stopImpersonating,
   getSessions,
   revokeSession,
   // Exposed for admin tooling (Master Plan §5 — admin-initiated password reset).

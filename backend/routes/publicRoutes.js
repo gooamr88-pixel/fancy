@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { body, param, query } = require('express-validator');
 const validate = require('../middleware/validate');
 const { getPublicEventBySlug } = require('../controllers/eventController');
@@ -6,11 +7,22 @@ const { submitPublicRSVP, searchPublicGuests, verifyPublicSeating, getGuestById,
 const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
 const { handleSmsStatusCallback } = require('../controllers/campaignController');
+const { subscribeNewsletter, submitContactForm } = require('../controllers/marketingController');
 const { verifyTurnstile } = require('../middleware/captcha');
 const { generateQRCodeBuffer } = require('../utils/qrHelper');
 const { getPlatformConfig } = require('../utils/configCache');
 
 const router = express.Router();
+
+// Anonymous marketing forms — capped generously above normal human use, just
+// enough to stop scripted spam without penalizing a legitimate visitor.
+const marketingFormLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many submissions. Please try again later.' },
+});
 
 // Twilio SMS delivery-status webhook (signature-verified inside the handler).
 // Public + unauthenticated by design; reconciles + auto-refunds failed deliveries.
@@ -28,6 +40,23 @@ router.get('/landing-stats', async (req, res) => {
     return res.status(200).json({ success: false, stats: [] });
   }
 });
+
+// Footer newsletter signup
+router.post('/newsletter-subscribe', [
+  marketingFormLimiter,
+  body('email').isEmail().normalizeEmail().withMessage('A valid email is required'),
+  validate
+], subscribeNewsletter);
+
+// Contact page form
+router.post('/contact', [
+  marketingFormLimiter,
+  body('name').trim().notEmpty().isLength({ max: 200 }).withMessage('Name is required'),
+  body('email').isEmail().normalizeEmail().withMessage('A valid email is required'),
+  body('subject').trim().notEmpty().isLength({ max: 200 }).withMessage('Subject is required'),
+  body('message').trim().notEmpty().isLength({ max: 5000 }).withMessage('Message is required'),
+  validate
+], submitContactForm);
 
 // Public event-by-slug fetch
 router.get('/events/:slug', getPublicEventBySlug);
@@ -85,6 +114,7 @@ router.post('/events/:slug/rsvp', [
   body('partySize').optional().isInt({ min: 1, max: 20 }).withMessage('Party size must be between 1 and 20'),
   body('decline_reason').optional({ values: 'falsy' }).trim().isLength({ max: 100 }).withMessage('Decline reason too long'),
   body('maybe_confirm_by').optional({ values: 'falsy' }).trim().isIn(['24h', '3d', '1w', '']).withMessage('Invalid follow-up duration'),
+  body('side').optional({ values: 'falsy' }).isIn(['partner1', 'partner2']).withMessage('Invalid side'),
   validate
 ], verifyTurnstile, submitPublicRSVP);
 

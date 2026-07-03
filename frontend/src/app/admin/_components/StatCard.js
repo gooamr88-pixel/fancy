@@ -28,7 +28,7 @@ export default function StatCard({ label, value, sub, accent, icon }) {
             width: 32,
             height: 32,
             borderRadius: '50%',
-            background: 'rgba(255, 255, 255, 0.02)',
+            background: T.surfaceAlt,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -42,12 +42,12 @@ export default function StatCard({ label, value, sub, accent, icon }) {
         {value}
       </div>
       {sub && <div style={{ fontSize: 11.5, color: T.text500, marginTop: 8, fontWeight: 500 }}>{sub}</div>}
-      
+
       <style jsx global>{`
         .admin-stat-card:hover {
           transform: translateY(-3px);
-          border-color: rgba(197, 168, 107, 0.3) !important;
-          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(197, 168, 107, 0.05) !important;
+          border-color: ${T.borderStrong} !important;
+          box-shadow: ${T.shadowMd} !important;
         }
       `}</style>
     </div>

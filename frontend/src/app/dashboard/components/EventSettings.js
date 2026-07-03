@@ -76,7 +76,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     event_type: 'wedding',
     notification_email: true,
     notification_whatsapp: false,
-    allow_guest_edits: false
+    allow_guest_edits: false,
+    track_guest_side: false
   });
   // Key names mirror the create-event wizard's Stage2_FormConfiguration (the
   // canonical writer of these fields) so the digital card never has to guess
@@ -92,12 +93,15 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  // Display-only — whether a password is already set, so the (always-blank)
+  // input can show "Password is set — leave blank to keep it" instead of
+  // looking like no password exists at all.
+  const [hasAccessPassword, setHasAccessPassword] = useState(false);
   const [statusLoading, setStatusLoading] = useState('');
   const [confirmComplete, setConfirmComplete] = useState(false);
   const [musicUploading, setMusicUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
-  const [galleryInput, setGalleryInput] = useState('');
   const [sealUploading, setSealUploading] = useState(false);
   const [invitationBgUploading, setInvitationBgUploading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -110,7 +114,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     if (!file) return;
 
     if (file.size > 8 * 1024 * 1024) {
-      toast.error("File size exceeds 8MB. Please use a smaller file or paste an external URL.");
+      toast.error("File size exceeds 8MB. Please use a smaller file.");
       return;
     }
 
@@ -144,9 +148,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     } catch (err) {
       console.error("Storage upload failed, falling back to base64 encoding:", err);
       // base64 inflates the payload by ~33%; the API server rejects bodies over 5MB.
-      // Keep the embedded data URL safely under that limit, otherwise require an external URL.
+      // Keep the embedded data URL safely under that limit.
       if (file.size > 3.5 * 1024 * 1024) {
-        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
+        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file.");
         setMusicUploading(false);
         return;
       }
@@ -157,7 +161,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         setMusicUploading(false);
       };
       reader.onerror = () => {
-        toast.error("Failed to read the audio file. Please try again or paste an external URL.");
+        toast.error("Failed to read the audio file. Please try again.");
         setMusicUploading(false);
       };
       reader.readAsDataURL(file);
@@ -170,7 +174,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
-      toast.error('File size exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File size exceeds 8MB. Please use a smaller file.');
       return;
     }
     setCoverUploading(true);
@@ -191,7 +195,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     } catch (err) {
       console.error('Cover image upload failed, falling back to base64:', err);
       if (file.size > 3.5 * 1024 * 1024) {
-        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
+        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file.");
         setCoverUploading(false);
         return;
       }
@@ -202,7 +206,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         setCoverUploading(false);
       };
       reader.onerror = () => {
-        toast.error('Failed to read the image file. Please try again or paste an external URL.');
+        toast.error('Failed to read the image file. Please try again.');
         setCoverUploading(false);
       };
       reader.readAsDataURL(file);
@@ -216,7 +220,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
      at ~3.5MB) so a misconfigured bucket never silently loses the upload. */
   const uploadFile = async (file, folder) => {
     if (file.size > 8 * 1024 * 1024) {
-      toast.error('File size exceeds 8MB. Please use a smaller file or paste an external URL.');
+      toast.error('File size exceeds 8MB. Please use a smaller file.');
       return null;
     }
     try {
@@ -233,13 +237,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     } catch (err) {
       console.error(`${folder} upload failed, falling back to base64:`, err);
       if (file.size > 3.5 * 1024 * 1024) {
-        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file or paste an external URL.");
+        toast.error("Couldn't upload to storage, and this file is too large to embed directly (max ~3.5MB). Please use a smaller file.");
         return null;
       }
       return await new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (ev) => resolve(ev.target.result);
-        reader.onerror = () => { toast.error('Failed to read the file. Please try again or paste an external URL.'); resolve(null); };
+        reader.onerror = () => { toast.error('Failed to read the file. Please try again.'); resolve(null); };
         reader.readAsDataURL(file);
       });
     }
@@ -257,13 +261,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       }
     }
     setGalleryUploading(false);
-  };
-
-  const addGalleryUrl = (url) => {
-    const trimmed = (url || '').trim();
-    if (!trimmed) return;
-    setForm(prev => ({ ...prev, gallery_urls: [...prev.gallery_urls, trimmed] }));
-    setSuccess(false);
   };
 
   const removeGalleryUrl = (index) => {
@@ -303,7 +300,12 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         location_place_id: event.location_place_id || '',
         rsvp_deadline: toLocalDateString(event.rsvp_deadline),
         privacy_mode: event.privacy_mode || 'public',
-        access_password: event.access_password || '',
+        // The server no longer sends the stored password hash at all (see
+        // withResolvedTier) — this always starts blank. Pre-filling it with the
+        // raw hash used to mean every settings save re-submitted that hash as if
+        // it were a new plaintext password, which the backend then re-hashed —
+        // silently corrupting the real guest password on every unrelated save.
+        access_password: '',
         dress_code: event.dress_code || '',
         cover_image_url: event.cover_image_url || '',
         primary_color: event.primary_color || '#B8944F',
@@ -314,8 +316,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         event_type: event.event_type || 'wedding',
         notification_email: event.notification_preferences?.email !== false,
         notification_whatsapp: !!event.notification_preferences?.whatsapp,
-        allow_guest_edits: !!event.allow_guest_edits
+        allow_guest_edits: !!event.allow_guest_edits,
+        track_guest_side: !!event.track_guest_side
       });
+      setHasAccessPassword(!!event.has_access_password);
       setTemplateData({
         // Fall back to the legacy bride_name/groom_name/ceremony_time/reception_time
         // keys for events saved before this rename, so existing data still loads.
@@ -348,6 +352,17 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   };
 
   const handleSave = async () => {
+    // Validate date ordering up front — previously an event could be saved
+    // with an end date before its start date, or an RSVP deadline after the
+    // event itself, with no warning anywhere (client or server).
+    if (form.event_end_date && form.event_date && new Date(form.event_end_date) < new Date(form.event_date)) {
+      setError('The end date/time must be after the start date/time.');
+      return;
+    }
+    if (form.rsvp_deadline && form.event_date && new Date(form.rsvp_deadline) > new Date(form.event_date)) {
+      setError('The RSVP deadline must be on or before the event date.');
+      return;
+    }
     setSaving(true); setError(''); setSuccess(false);
     try {
       const body = { ...form };
@@ -355,7 +370,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       if (body.event_date) body.event_date = new Date(body.event_date).toISOString();
       if (body.event_end_date) body.event_end_date = new Date(body.event_end_date).toISOString();
       if (body.rsvp_deadline) body.rsvp_deadline = new Date(body.rsvp_deadline).toISOString();
-      if (body.privacy_mode !== 'password') delete body.access_password;
+      // access_password now always starts blank (the server never sends the
+      // stored hash back — see withResolvedTier), so only include it when the
+      // organizer actually typed a new one; otherwise omit it entirely so
+      // updateEvent leaves the existing password untouched. Previously this
+      // only checked privacy_mode, so a password-protected event resubmitted
+      // whatever was pre-filled (the raw hash) on every unrelated save.
+      if (body.privacy_mode !== 'password' || !body.access_password.trim()) delete body.access_password;
 
       // Pack custom fonts
       body.custom_fonts = {
@@ -400,7 +421,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   };
 
   const handleStatusChange = async (newStatus) => {
+    // Both this and handleSave render into the same success/error banners
+    // below — without clearing them here, a stale "Settings saved
+    // successfully" (or a stale error) from an earlier Save could keep
+    // showing while a status change is in flight or just completed.
     setStatusLoading(newStatus);
+    setError('');
+    setSuccess(false);
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}`, {
         method: 'PATCH',
@@ -411,6 +438,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to update status');
       onEventUpdated?.(data.event || data);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -732,10 +761,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Access Password</label>
               <input value={form.access_password} onChange={handleChange('access_password')} type="text"
-                placeholder="Enter password" style={inputStyle}
+                placeholder={hasAccessPassword ? 'Password is set — leave blank to keep it' : 'Enter password'}
+                style={inputStyle}
                 onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
                 onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
               />
+              {!hasAccessPassword && !form.access_password.trim() && (
+                <p style={{ fontSize: '11px', color: COLORS.stone, marginTop: '6px' }}>No password set yet — guests won&apos;t be able to access this event until you set one.</p>
+              )}
             </div>
           )}
         </div>
@@ -792,18 +825,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Cover Image</label>
-          <input value={form.cover_image_url} onChange={handleChange('cover_image_url')} type="url"
-            placeholder="https://example.com/image.jpg" style={inputStyle}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-          />
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-            <span style={{ flex: 1, borderTop: `1px dashed ${COLORS.border}` }} />
-            <span style={{ fontSize: '11px', color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.05em' }}>or upload file</span>
-            <span style={{ flex: 1, borderTop: `1px dashed ${COLORS.border}` }} />
-          </div>
-
           <div
             onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.background = 'rgba(184,148,79,0.04)'; }}
             onDragLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.softBg; }}
@@ -876,18 +897,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Photo Gallery</label>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <input
-              type="url" value={galleryInput} onChange={(e) => setGalleryInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addGalleryUrl(galleryInput); setGalleryInput(''); } }}
-              placeholder="https://example.com/photo.jpg"
-              style={{ ...inputStyle, flex: '1 1 220px' }}
-              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-            />
-            <button type="button" onClick={() => { addGalleryUrl(galleryInput); setGalleryInput(''); }}
-              style={{ padding: '10px 16px', borderRadius: '8px', border: `1px solid ${COLORS.gold}`, background: COLORS.white, color: COLORS.gold, fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              + Add
-            </button>
             <label style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: galleryUploading ? 'wait' : 'pointer',
               padding: '10px 16px', borderRadius: '8px', border: `1px solid ${COLORS.gold}`, color: COLORS.gold,
@@ -949,22 +958,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Background Music</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <input
-              value={form.background_music_url || ''}
-              onChange={(e) => { setForm(prev => ({ ...prev, background_music_url: e.target.value })); setSuccess(false); }}
-              type="url"
-              placeholder="Paste audio URL (https://example.com/music.mp3)"
-              style={inputStyle}
-              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-            />
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ flex: 1, borderTop: `1px dashed ${COLORS.border}` }} />
-              <span style={{ fontSize: '11px', color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.05em' }}>or upload file</span>
-              <span style={{ flex: 1, borderTop: `1px dashed ${COLORS.border}` }} />
-            </div>
-
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <input
                 type="file"
@@ -1026,7 +1019,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             )}
           </div>
           <span style={{ fontSize: '11px', color: COLORS.stone, display: 'block', marginTop: '6px' }}>
-            Provide a direct audio file URL (.mp3 or .ogg) or upload an audio file to play ambient music on the public event page.
+            Upload an audio file (.mp3 or .ogg) to play ambient music on the public event page.
           </span>
         </div>
       </div>
@@ -1125,6 +1118,21 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               Allow guests to change their response after submitting
               <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
                 When on, a guest can reopen and update their RSVP from their invitation link until the RSVP deadline. When off, responses are locked and any change must go through you.
+              </span>
+            </span>
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={form.track_guest_side}
+              onChange={(e) => { setForm(prev => ({ ...prev, track_guest_side: e.target.checked })); setSuccess(false); }}
+              style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: 'pointer' }}
+            />
+            <span>
+              {form.event_type === 'wedding' ? "Tag guests as Groom's Side / Bride's Side" : "Tag guests as Partner 1's Side / Partner 2's Side"}
+              <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
+                When on, you and your guests can mark which side of the celebration they belong to — shown on guest cards and in RSVP emails.
               </span>
             </span>
           </label>

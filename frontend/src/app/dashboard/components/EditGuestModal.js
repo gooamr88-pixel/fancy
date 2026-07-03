@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { normalizeToE164 } from '../../utils/phone';
+import { findMealField } from '../../utils/mealField';
 
 /** Normalize legacy response values to the canonical set the backend accepts. */
 function normalizeResponse(response) {
@@ -29,14 +30,16 @@ const COLORS = {
  * Uses the existing PATCH /events/:eventId/rsvps/:rsvpId endpoint (updateRSVP),
  * which expects camelCase fields.
  */
-export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuestUpdated }) {
+export default function EditGuestModal({ isOpen, onClose, eventId, event, customFields, rsvp, onGuestUpdated }) {
   const [formData, setFormData] = useState({
-    guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '',
+    guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '',
   });
+  const [companions, setCompanions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const nameRef = useRef(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+  const mealField = findMealField(customFields);
 
   useEffect(() => {
     if (isOpen && rsvp) {
@@ -47,7 +50,22 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
         party_size: rsvp.party_size || 1,
         response: normalizeResponse(rsvp.response),
         notes: rsvp.notes || '',
+        side: rsvp.side || '',
+        meal: rsvp.primary_meal || '',
       });
+      // Real companion rows the organizer can now edit directly (previously
+      // only a party-size number existed — extra companions were permanent
+      // "Guest 2"-style placeholders with no email/phone/name fix-up path).
+      const existingCompanions = (rsvp.guests || [])
+        .filter((g) => !g.is_primary_contact)
+        .map((g) => ({
+          id: g.id,
+          fullName: g.full_name || '',
+          email: cleanContact(g.email),
+          phone: cleanContact(g.phone),
+          mealSelection: g.meal_selection || '',
+        }));
+      setCompanions(existingCompanions);
       setError('');
       setLoading(false);
       setTimeout(() => nameRef.current?.focus(), 120);
@@ -58,6 +76,23 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
 
   const handleChange = (field) => (e) => setFormData(prev => ({ ...prev, [field]: e.target.value }));
 
+  const handlePartySizeChange = (e) => {
+    const size = parseInt(e.target.value, 10);
+    setFormData(prev => ({ ...prev, party_size: size }));
+    setCompanions((prev) => {
+      const wanted = Math.max(size - 1, 0);
+      if (wanted === prev.length) return prev;
+      if (wanted < prev.length) return prev.slice(0, wanted);
+      const extra = Array.from({ length: wanted - prev.length }, () => ({ id: null, fullName: '', email: '', phone: '', mealSelection: '' }));
+      return [...prev, ...extra];
+    });
+  };
+
+  const handleCompanionChange = (idx, field) => (e) => {
+    const value = e.target.value;
+    setCompanions((prev) => prev.map((c, i) => (i === idx ? { ...c, [field]: value } : c)));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.guest_name.trim()) { setError('Guest name is required.'); return; }
@@ -67,6 +102,36 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
       normalizedPhone = normalizeToE164(formData.phone);
       if (!normalizedPhone) { setError('Enter a valid phone number (e.g. +1 555 123 4567), or leave it blank.'); return; }
     }
+    // Don't let a saved contact detail vanish without the organizer noticing —
+    // Add Guest requires email/phone up front, so silently wiping them here
+    // (a stray backspace, an accidental blur) was an easy way to lose them.
+    if (rsvp.email && rsvp.email !== '-' && !formData.email.trim()) {
+      if (!window.confirm("This guest already has an email on file. Save with the email removed?")) return;
+    }
+    if (rsvp.phone && rsvp.phone !== '-' && !formData.phone.trim()) {
+      if (!window.confirm("This guest already has a phone number on file. Save with the phone removed?")) return;
+    }
+
+    const companionPayload = [];
+    for (let i = 0; i < companions.length; i++) {
+      const c = companions[i];
+      let companionPhone = '';
+      if ((c.phone || '').trim()) {
+        companionPhone = normalizeToE164(c.phone);
+        if (!companionPhone) { setError(`Enter a valid phone number for Guest #${i + 2}, or leave it blank.`); return; }
+      }
+      if ((c.email || '').trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) {
+        setError(`Enter a valid email address for Guest #${i + 2}, or leave it blank.`);
+        return;
+      }
+      companionPayload.push({
+        fullName: (c.fullName || '').trim() || `Guest ${i + 2}`,
+        email: c.email ? c.email.trim() : '',
+        phone: companionPhone,
+        mealSelection: c.mealSelection || '',
+      });
+    }
+
     setLoading(true);
     setError('');
     try {
@@ -81,6 +146,9 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
           partySize: parseInt(formData.party_size, 10),
           response: formData.response,
           notes: formData.notes.trim(),
+          side: formData.side || '',
+          primaryGuestMeal: formData.meal || '',
+          additionalGuests: companionPayload,
         }),
       });
       const data = await res.json();
@@ -182,7 +250,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={labelStyle}>Party Size</label>
-                <select value={formData.party_size} onChange={handleChange('party_size')} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <select value={formData.party_size} onChange={handlePartySizeChange} style={{ ...inputStyle, cursor: 'pointer' }}>
                   {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
                     <option key={n} value={n}>{n} {n === 1 ? 'guest' : 'guests'}</option>
                   ))}
@@ -198,6 +266,55 @@ export default function EditGuestModal({ isOpen, onClose, eventId, rsvp, onGuest
                 </select>
               </div>
             </div>
+
+            {event?.track_guest_side && (
+              <div>
+                <label style={labelStyle}>{event?.event_type === 'wedding' ? 'Side' : "Partner's Side"}</label>
+                <select value={formData.side} onChange={handleChange('side')} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">Not set</option>
+                  <option value="partner1">{event?.event_type === 'wedding' ? "Groom's Side" : "Partner 1's Side"}</option>
+                  <option value="partner2">{event?.event_type === 'wedding' ? "Bride's Side" : "Partner 2's Side"}</option>
+                </select>
+              </div>
+            )}
+
+            {mealField && (
+              <div>
+                <label style={labelStyle}>{mealField.field_label}{mealField.is_required ? ' *' : ''}</label>
+                <select value={formData.meal} onChange={handleChange('meal')} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">Not set</option>
+                  {(mealField.options || []).map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+            )}
+
+            {companions.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <label style={labelStyle}>Additional Guests</label>
+                {companions.map((c, idx) => (
+                  <div key={c.id || idx} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px',
+                    padding: '10px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, background: COLORS.softBg,
+                  }}>
+                    <input value={c.fullName} onChange={handleCompanionChange(idx, 'fullName')}
+                      placeholder={`Guest ${idx + 2} name`} style={inputStyle}
+                      onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                      onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+                    />
+                    <input value={c.email} onChange={handleCompanionChange(idx, 'email')} type="email"
+                      placeholder="Email (optional)" style={inputStyle}
+                      onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                      onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+                    />
+                    <input value={c.phone} onChange={handleCompanionChange(idx, 'phone')} type="tel"
+                      placeholder="Phone (optional)" style={inputStyle}
+                      onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                      onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div>
               <label style={labelStyle}>Notes</label>

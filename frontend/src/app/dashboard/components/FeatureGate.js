@@ -16,8 +16,11 @@ const COLORS = {
  *  - isPaid: boolean — whether the event is paid (used for upgrade modal messaging)
  *  - children: ReactNode — the content to show if the feature is available
  *  - onUpgrade: () => void — callback when user clicks upgrade
+ *  - wrapperStyle: object — override the locked-state wrapper's inline style
+ *    (defaults to a shrink-wrapped inline-flex; pass e.g. { display: 'flex', width: '100%' }
+ *    for full-width children like block-level buttons)
  */
-export default function FeatureGate({ tierFeatures, feature, isPaid, children, onUpgrade }) {
+export default function FeatureGate({ tierFeatures, feature, isPaid, children, onUpgrade, wrapperStyle }) {
   const [showModal, setShowModal] = useState(false);
 
   // Check if the specific feature is included in the tier's granted features.
@@ -41,6 +44,7 @@ export default function FeatureGate({ tierFeatures, feature, isPaid, children, o
           display: 'inline-flex',
           cursor: 'pointer',
           opacity: 0.85,
+          ...wrapperStyle,
         }}
       >
         {/* Lock badge */}

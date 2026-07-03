@@ -7,6 +7,11 @@ import { apiFetch } from '../../utils/apiClient';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 import Toast from '../../components/Toast';
 
+// Mirrors the backend's passwordRegex (authController.js) so weak passwords are
+// caught before the round trip instead of only after a WEAK_PASSWORD rejection.
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+const PASSWORD_HINT = 'At least 8 characters, with an uppercase letter, a lowercase letter, and a number.';
+
 const EyeIcon = ({ show }) => show ? (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#77736A" strokeWidth="1.5"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" strokeLinecap="round" strokeLinejoin="round"/><line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round"/></svg>
 ) : (
@@ -31,8 +36,27 @@ export default function RegisterPage() {
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
   const [verifying, setVerifying] = useState(false);
   const otpRefs = useRef([]);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resending, setResending] = useState(false);
+  const cooldownRef = useRef(null);
 
   const router = useRouter();
+
+  // Cleanup cooldown interval on unmount
+  useEffect(() => {
+    return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
+  }, []);
+
+  const startResendCooldown = () => {
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    setResendCooldown(60);
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) { clearInterval(cooldownRef.current); cooldownRef.current = null; return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,8 +64,8 @@ export default function RegisterPage() {
       setToast({ message: 'Please fill in all fields to create your account.', kind: 'error' });
       return;
     }
-    if (password.length < 8) {
-      setToast({ message: 'Your password must be at least 8 characters long.', kind: 'error' });
+    if (!PASSWORD_REGEX.test(password)) {
+      setToast({ message: `Your password must meet the requirements below. ${PASSWORD_HINT}`, kind: 'error' });
       return;
     }
 
@@ -57,6 +81,7 @@ export default function RegisterPage() {
 
       if (data.success && data.requiresVerification) {
         setOtpStep(true);
+        startResendCooldown();
       } else if (data.success) {
         // Success but no verification needed — store session data before redirect
         if (data.organization?.id) localStorage.setItem('org_id', data.organization.id);
@@ -70,6 +95,43 @@ export default function RegisterPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Re-registering while unverified issues a fresh OTP (see authController.register) —
+  // reuses the same endpoint as the initial submit rather than a separate resend route.
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || resending) return;
+    setResending(true);
+    setToast(null);
+    try {
+      const name = `${firstName.trim()} ${lastName.trim()}`.trim();
+      const data = await apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ name, orgName, email, password })
+      });
+      if (data.success) {
+        setOtpValues(['', '', '', '', '', '']);
+        startResendCooldown();
+        setToast({ message: 'A new verification code has been sent to your email.', kind: 'success' });
+        otpRefs.current[0]?.focus();
+      } else {
+        setToast({ message: data.message || 'Failed to resend code. Please try again.', kind: 'error' });
+      }
+    } catch (err) {
+      setToast({ message: getAuthErrorMessage(err, 'Failed to resend code. Please try again.'), kind: 'error' });
+    } finally {
+      setResending(false);
+    }
+  };
+
+  // Lets the organizer fix a mistyped email (previously the only way back was
+  // an undocumented full page refresh) — form fields are left intact.
+  const handleBackToForm = () => {
+    setOtpStep(false);
+    setOtpValues(['', '', '', '', '', '']);
+    setToast(null);
+    if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
+    setResendCooldown(0);
   };
 
   // Load Google Sign-In on mount
@@ -295,13 +357,17 @@ export default function RegisterPage() {
               </button>
             </form>
 
-            <p className="otp-resend">
-              Didn't receive the code?{' '}
-              <button type="button" className="otp-retry-btn"
-                onClick={() => { setOtpValues(['', '', '', '', '', '']); setToast(null); otpRefs.current[0]?.focus(); }}>
-                Clear & Retry
+            <div className="otp-footer-row">
+              <button type="button" className="otp-back-btn" onClick={handleBackToForm}>← Back</button>
+              <button
+                type="button"
+                className="otp-retry-btn"
+                onClick={handleResendOtp}
+                disabled={resendCooldown > 0 || resending}
+              >
+                {resending ? 'Sending...' : resendCooldown > 0 ? `Resend Code (${resendCooldown}s)` : 'Resend Code'}
               </button>
-            </p>
+            </div>
           </div>
         </div>
 
@@ -329,15 +395,25 @@ export default function RegisterPage() {
             border-color: #B8944F; background: #FFFFFF;
             box-shadow: 0 0 0 3px rgba(184,148,79,0.08);
           }
-          .otp-resend {
-            color: #77736A; font-size: 13px; text-align: center; margin-top: 24px;
+          .otp-footer-row {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 24px; padding-top: 20px; border-top: 1px solid #E8E2D6;
+            font-size: 13px;
           }
+          .otp-back-btn {
+            background: none; border: none; color: #77736A; font-weight: 600;
+            cursor: pointer; font-family: var(--font-sans); font-size: 13px;
+            transition: color 0.2s; padding: 0;
+          }
+          .otp-back-btn:hover { color: #191B1E; }
           .otp-retry-btn {
-            color: #B8944F; font-weight: 700; background: none; border: none;
-            cursor: pointer; font-size: 13px; font-family: inherit;
-            transition: color 0.2s;
+            background: none; border: 1px solid rgba(184,148,79,0.3);
+            color: #B8944F; font-weight: 600; cursor: pointer;
+            font-family: var(--font-sans); font-size: 13px;
+            transition: all 0.2s; padding: 8px 16px; border-radius: 8px;
           }
-          .otp-retry-btn:hover { color: #a6833f; }
+          .otp-retry-btn:hover:not(:disabled) { background: rgba(184,148,79,0.08); border-color: #B8944F; }
+          .otp-retry-btn:disabled { opacity: 0.5; cursor: not-allowed; color: #999; border-color: rgba(184,148,79,0.15); }
           @media (max-width: 640px) {
             .otp-input { width: 44px; height: 52px; font-size: 20px; }
           }
@@ -449,6 +525,7 @@ export default function RegisterPage() {
                   <EyeIcon show={showPassword} />
                 </button>
               </div>
+              <p className="auth-field-hint">{PASSWORD_HINT}</p>
             </div>
 
             <button type="submit" disabled={submitting} className="auth-submit-btn">
@@ -554,6 +631,7 @@ const sharedStyles = `
   .auth-password-wrapper .auth-input { padding-right: 48px; }
   .auth-eye-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; display: flex; opacity: 0.6; transition: opacity 0.2s; }
   .auth-eye-btn:hover { opacity: 1; }
+  .auth-field-hint { font-size: 11.5px; color: #99938A; margin: 6px 0 0; line-height: 1.4; }
   .auth-submit-btn {
     width: 100%; padding: 16px;
     background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);

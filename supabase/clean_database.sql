@@ -8,8 +8,18 @@
 -- Usage:  psql -f clean_database.sql
 --    or:  paste into Supabase SQL Editor
 --
--- Last updated: 2026-06-27 — synced with migration
--- 20260705000000_guest_experience_rebuild + backend 002_guest_analytics.
+-- Last updated: 2026-07-19 — synced with the full table set in
+-- supabase/schema.sql (through supabase/migrations/20260719000000_
+-- marketing_forms.sql + backend/migrations/006_guest_cap_response_update_
+-- trigger.sql). Every entry below is IF-EXISTS guarded, so this is safe to
+-- run against any database regardless of exactly which migrations it has.
+--
+-- Removed from the truncate list (tables that no longer exist, dropped by
+-- later migrations — kept here as a note so nobody re-adds them by mistake):
+--   'guest_reminders'  — dropped by 20260705000000_guest_experience_rebuild
+--                        (absorbed into `invitations`).
+--   'plans', 'subscriptions' — dropped by 20260712000000_tier_watermark_and_
+--                        limits (superseded by super_admin_config.pricing_tiers).
 -- ═══════════════════════════════════════════════════════════
 
 BEGIN;
@@ -29,7 +39,6 @@ DECLARE
         'sms_campaigns',
         'email_log',
         'guest_analytics',
-        'guest_reminders',
         'admin_audit_logs',
         'security_events',
         'login_history',
@@ -43,8 +52,6 @@ DECLARE
         'user_roles',
         'payment_disputes',
         'event_payments',
-        'subscriptions',
-        'plans',
         'credit_packages',
         'sms_credit_ledger',
         'sms_credit_wallets',
@@ -60,6 +67,8 @@ DECLARE
         'activity_logs',
         'events',
         'organizations',
+        'newsletter_subscribers',
+        'contact_submissions',
         'super_admin_config'
     ];
 BEGIN
@@ -84,9 +93,9 @@ BEGIN
         VALUES (
             '00000000-0000-0000-0000-000000000000',
             '[
-                {"name": "Essential", "price_cents": 7900, "max_guests": 100},
-                {"name": "Premium", "price_cents": 14900, "max_guests": 300},
-                {"name": "Enterprise", "price_cents": 24900, "max_guests": 1000}
+                {"name": "Essential", "price_cents": 7900, "max_guests": 100, "max_events": 0, "remove_watermark": false, "recommended": false, "is_custom": false, "features": []},
+                {"name": "Premium", "price_cents": 14900, "max_guests": 300, "max_events": 0, "remove_watermark": true, "recommended": true, "is_custom": false, "features": []},
+                {"name": "Enterprise", "price_cents": 24900, "max_guests": 1000, "max_events": 0, "remove_watermark": true, "recommended": false, "is_custom": false, "features": []}
             ]'::jsonb,
             8,
             40.0,
@@ -216,57 +225,47 @@ BEGIN
     END IF;
 END $$;
 
--- ─── Reseed: plans from pricing_tiers ───
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'plans'
-    ) AND EXISTS (
-        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'super_admin_config'
-    ) THEN
-        INSERT INTO plans (key, name, price_cents, max_guests, sort_order, "interval")
-        SELECT
-            lower(regexp_replace(tier->>'name', '[^a-zA-Z0-9]+', '_', 'g')) AS key,
-            tier->>'name'                                                    AS name,
-            COALESCE((tier->>'price_cents')::int, 0)                         AS price_cents,
-            (tier->>'max_guests')::int                                       AS max_guests,
-            ord                                                              AS sort_order,
-            'one_time'
-        FROM super_admin_config sac,
-             LATERAL jsonb_array_elements(sac.pricing_tiers) WITH ORDINALITY AS arr(tier, ord)
-        WHERE sac.id = '00000000-0000-0000-0000-000000000000'
-        ON CONFLICT (key) DO NOTHING;
-    END IF;
-END $$;
-
 -- ─── Recreate materialized view ───
+-- Matches the definition from supabase/migrations/20260717000000_admin_
+-- revenue_consistency_fix.sql (folds in SMS credit purchases alongside event
+-- fees) — an earlier version of this file recreated the pre-20260717
+-- definition here, which would silently downgrade an already-migrated
+-- database's view back to the old gross/refund logic on every clean run.
 DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'event_payments'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sms_credit_ledger'
     ) THEN
-        -- Recreate materialized view
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_revenue AS
-        SELECT
-          date_trunc('day', COALESCE(ep.completed_at, ep.created_at))::date AS day,
-          COALESCE(SUM(ep.amount_cents) FILTER (WHERE ep.status IN ('completed', 'refunded')), 0) AS gross_cents,
-          COALESCE(SUM(
+        WITH combined AS (
+          SELECT
+            date_trunc('day', COALESCE(completed_at, created_at))::date AS day,
+            amount_cents,
             CASE
-              WHEN ep.refunded_at IS NOT NULL THEN COALESCE(ep.refund_amount_cents, 0)
-              WHEN ep.status = 'refunded'     THEN COALESCE(ep.refund_amount_cents, ep.amount_cents)
+              WHEN refunded_at IS NOT NULL THEN COALESCE(refund_amount_cents, 0)
+              WHEN status = 'refunded'     THEN COALESCE(refund_amount_cents, amount_cents)
               ELSE 0
-            END
-          ), 0) AS refunded_cents,
-          COALESCE(SUM(ep.amount_cents) FILTER (WHERE ep.status IN ('completed', 'refunded')), 0)
-            - COALESCE(SUM(
-                CASE
-                  WHEN ep.refunded_at IS NOT NULL THEN COALESCE(ep.refund_amount_cents, 0)
-                  WHEN ep.status = 'refunded'     THEN COALESCE(ep.refund_amount_cents, ep.amount_cents)
-                  ELSE 0
-                END
-              ), 0) AS net_cents,
-          COUNT(*) FILTER (WHERE ep.status IN ('completed', 'refunded')) AS payment_count
-        FROM event_payments ep
+            END AS refunded_cents,
+            (status IN ('completed', 'refunded')) AS counts
+          FROM event_payments
+          UNION ALL
+          SELECT
+            date_trunc('day', created_at)::date AS day,
+            COALESCE(amount_cents, 0) AS amount_cents,
+            0 AS refunded_cents,
+            true AS counts
+          FROM sms_credit_ledger
+          WHERE transaction_type = 'purchase'
+        )
+        SELECT
+          day,
+          COALESCE(sum(amount_cents) FILTER (WHERE counts), 0) AS gross_cents,
+          COALESCE(sum(refunded_cents), 0) AS refunded_cents,
+          COALESCE(sum(amount_cents) FILTER (WHERE counts), 0) - COALESCE(sum(refunded_cents), 0) AS net_cents,
+          count(*) FILTER (WHERE counts) AS payment_count
+        FROM combined
         GROUP BY 1;
 
         -- Unique index on the grouping key is required for REFRESH ... CONCURRENTLY

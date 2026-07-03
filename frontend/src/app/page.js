@@ -39,7 +39,12 @@ const jsonLd = {
   url: 'https://fancyrsvp.com',
   logo: 'https://fancyrsvp.com/logo.png',
   description: 'The all-in-one RSVP and guest management platform for weddings and special events.',
-  sameAs: [],
+  sameAs: [
+    'https://twitter.com/fancyrsvp',
+    'https://instagram.com/fancyrsvp',
+    'https://linkedin.com/company/fancyrsvp',
+    'https://facebook.com/fancyrsvp',
+  ],
 };
 
 export default function Home() {

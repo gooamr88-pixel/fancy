@@ -151,7 +151,7 @@ const SummaryCard = React.memo(function SummaryCard({ count, label, accent }) {
 });
 
 /* ── main component ──────────────────────────────────────────── */
-export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
+export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onRefresh }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
@@ -222,6 +222,7 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('CSV export error:', err);
+      toast.error('Failed to export CSV. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -245,6 +246,7 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Excel export error:', err);
+      toast.error('Failed to export Excel file. Please try again.');
     } finally {
       setExportingExcel(false);
     }
@@ -286,6 +288,7 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
       onRefresh?.();
     } catch (err) {
       console.error('Delete RSVP error:', err);
+      toast.error('Failed to delete this RSVP. Please try again.');
     } finally {
       setDeletingId(null);
     }
@@ -524,6 +527,8 @@ export default function RSVPsTab({ rsvps = [], eventId, onRefresh }) {
         isOpen={!!editingGuest}
         onClose={() => setEditingGuest(null)}
         eventId={eventId}
+        event={event}
+        customFields={customFields}
         rsvp={editingGuest}
         onGuestUpdated={onRefresh}
       />

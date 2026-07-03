@@ -1,11 +1,11 @@
 'use client';
 import { toast } from '../utils/toast';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
-import { logout } from '../utils/apiClient';
+import { logout, apiFetch } from '../utils/apiClient';
 import LogoutModal from '../components/LogoutModal';
 import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
 import StatMetricsCard from './components/StatMetricsCard';
@@ -205,7 +205,11 @@ export default function DashboardPage() {
     const forceReset = params.get('forceReset');
     if (tab) setActiveTab(tab);
     if (saved === 'draft') toast.success('Draft saved — finish it any time from Drafts.');
-    if (forceReset === '1') setForcePasswordReset(true);
+    // forcePasswordReset only ever renders inside OrganizerProfile, which only
+    // mounts when activeTab === 'profile' (default tab is 'overview') — without
+    // this, a user linked in via ?forceReset=1 never actually saw the prompt
+    // unless they happened to click into Profile themselves.
+    if (forceReset === '1') { setForcePasswordReset(true); setActiveTab('profile'); }
     if (tab || saved || forceReset) {
       params.delete('tab'); params.delete('saved'); params.delete('forceReset');
       const qs = params.toString();
@@ -213,13 +217,17 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (!authChecked) return;
-    const fetchEvents = async () => {
-      try {
-        const res = await fetch(`${apiUrl}/events`, { credentials: 'include' });
-        const data = await res.json();
-        if (data.success && data.events.length > 0) {
+  // Pulled out to a stable callback (not just an inline effect function) so the
+  // "Retry Connection" screen's button can call it directly — previously that
+  // button always called loadDashboardData(), which immediately no-ops when
+  // eventId is empty, so a fetchEvents-stage outage left Retry as a permanent
+  // no-op with zero feedback.
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await apiFetch('/events');
+      if (data.success) {
+        if (data.events.length > 0) {
           setEvents(data.events);
           // Prefer the event passed back from a Stripe return (?event=…) or the last
           // active event, so the user lands on the section they were working in —
@@ -229,12 +237,33 @@ export default function DashboardPage() {
           const storedId = localStorage.getItem('active_event_id');
           const preferred = [returnedId, storedId].find(id => id && data.events.some(e => e.id === id));
           setEventId(preferred || data.events[0].id);
+          setError(null);
+        } else {
+          // Genuinely zero events (new account) — a normal empty state, not a
+          // failure, so this must NOT show the "Backend Connection Error" screen.
+          setEvents([]);
+          setEventId('');
+          setError(null);
+          setLoading(false);
         }
-        else { setEventId(''); setLoading(false); }
-      } catch (err) { setEventId(''); setLoading(false); }
-    };
+        return true;
+      }
+      // Same failure class as loadDashboardData below — previously this branch
+      // silently showed an empty-events UI with no indication anything failed.
+      setError(data.message || 'Could not connect to backend server. Make sure the backend server is running on port 5000.');
+      setLoading(false);
+      return false;
+    } catch (err) {
+      setError('Could not connect to backend server. Make sure the backend server is running on port 5000.');
+      setLoading(false);
+      return false;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked) return;
     fetchEvents();
-  }, [authChecked, apiUrl]);
+  }, [authChecked, fetchEvents]);
 
   useEffect(() => {
     if (eventId && typeof window !== 'undefined') localStorage.setItem('active_event_id', eventId);
@@ -260,39 +289,48 @@ export default function DashboardPage() {
     if (payment === 'success' && sessionId) {
       // Confirm the payment synchronously, THEN re-fetch events so the UI
       // reflects the updated is_paid / tier state (the webhook remains the backstop).
+      // Reuses the shared fetchEvents() (rather than duplicating the fetch here)
+      // so this path gets the same session-expiry handling and unified error
+      // state as every other event load — `returnedId` was already persisted to
+      // localStorage above, so fetchEvents' own preference logic still picks it.
       (async () => {
         try {
-          await fetch(`${apiUrl}/payments/verify?session_id=${encodeURIComponent(sessionId)}`, { credentials: 'include' });
+          await apiFetch(`/payments/verify?session_id=${encodeURIComponent(sessionId)}`);
         } catch { /* non-fatal — the webhook will reconcile the event status */ }
-        // Re-fetch events to pick up the updated is_paid and tier data.
-        try {
-          const res = await fetch(`${apiUrl}/events`, { credentials: 'include' });
-          const data = await res.json();
-          if (data.success && data.events?.length > 0) {
-            setEvents(data.events);
-            const preferred = returnedId && data.events.some(e => e.id === returnedId) ? returnedId : data.events[0].id;
-            setEventId(preferred);
-            toast.success('Payment confirmed successfully!');
-          }
-        } catch { /* main fetchEvents will cover on next mount */ }
+        const ok = await fetchEvents();
+        if (ok) toast.success('Payment confirmed successfully!');
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiUrl]);
+  }, [fetchEvents]);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // "Latest request wins" guard: switching events quickly, or a 20s realtime
+  // poll (useRealtimeRSVPs) overlapping a manual switch, could previously let
+  // an OLDER, slower response land after a newer one and silently overwrite
+  // the correct data with stale data — there was no cancellation of any kind.
+  // Bumped and checked inside this same callback (not via a separate
+  // ref-syncing effect) so a stale call's results are simply discarded.
+  const loadRequestIdRef = useRef(0);
+
   const loadDashboardData = useCallback(async () => {
     if (!eventId) return;
+    const requestId = ++loadRequestIdRef.current;
+    setLoading(true);
     try {
 
       const [statsResult, tablesResult, rsvpsResult, fieldsResult, profileResult] = await Promise.allSettled([
-        fetch(`${apiUrl}/events/${eventId}/stats`, { credentials: 'include' }).then(r => r.json()),
-        fetch(`${apiUrl}/events/${eventId}/tables`, { credentials: 'include' }).then(r => r.json()),
-        fetch(`${apiUrl}/events/${eventId}/rsvps`, { credentials: 'include' }).then(r => r.json()),
-        fetch(`${apiUrl}/events/${eventId}/fields`, { credentials: 'include' }).then(r => r.json()),
-        fetch(`${apiUrl}/auth/profile`, { credentials: 'include' }).then(r => r.json()),
+        apiFetch(`/events/${eventId}/stats`),
+        apiFetch(`/events/${eventId}/tables`),
+        apiFetch(`/events/${eventId}/rsvps`),
+        apiFetch(`/events/${eventId}/fields`),
+        apiFetch('/auth/profile'),
       ]);
+
+      // A newer load already started while these were in flight — applying
+      // this response now would overwrite the newer (correct) data on screen.
+      if (loadRequestIdRef.current !== requestId) return;
 
       const statsData = statsResult.status === 'fulfilled' ? statsResult.value : null;
       const tablesData = tablesResult.status === 'fulfilled' ? tablesResult.value : null;
@@ -315,18 +353,34 @@ export default function DashboardPage() {
           const assignedTableId = r.seating_assignments && r.seating_assignments.length > 0 ? r.seating_assignments[0].table_id : '';
           const party = r.guests || [];
           const primary = party.find(g => g.is_primary_contact) || party[0] || {};
-          const guestMeals = party.map(g => g.meal_selection).filter(Boolean).join(', ') || '-';
-          const wasInvited = (r.invitations || []).some(i => ['sent', 'delivered', 'opened', 'responded'].includes(i.status));
+          // Name-attributed so a party of 2+ with different meals is legible
+          // ("John: Chicken, Guest 2: Fish") instead of an ambiguous
+          // comma-joined blob with no way to tell whose meal is whose.
+          const guestMeals = party.filter(g => g.meal_selection)
+            .map(g => `${g.full_name}: ${g.meal_selection}`).join(', ') || '-';
+          // Channel-specific — previously a single flag conflated all channels,
+          // so a guest only ever emailed would silently disappear from the
+          // SMS tab's default "Not Invited" filter (and vice versa), meaning
+          // an organizer relying on that filter could permanently miss
+          // sending them the other channel.
+          const invitedSentStatuses = ['sent', 'delivered', 'opened', 'responded'];
+          const invitations = r.invitations || [];
+          const wasInvitedEmail = invitations.some(i => i.channel === 'email' && invitedSentStatuses.includes(i.status));
+          const wasInvitedSms = invitations.some(i => i.channel === 'sms' && invitedSentStatuses.includes(i.status));
           return {
             id: r.id, guest_name: r.label, party_size: party.length || 1, response: r.response,
             email: primary.email || '-', phone: primary.phone || '-', tableId: assignedTableId, meal: guestMeals,
-            invitation_sent: wasInvited,
+            primary_meal: primary.meal_selection || null,
+            invitation_sent: wasInvitedEmail || wasInvitedSms,
+            invitation_sent_email: wasInvitedEmail,
+            invitation_sent_sms: wasInvitedSms,
             // Full per-companion details so the organizer sees everyone in the party.
             guests: party,
             // Custom-question answers (e.g. song requests, dietary preferences) the
             // party head answered during RSVP — labels resolved against customFields.
             customAnswers: r.custom_answers || [],
             notes: r.notes || '',
+            side: r.side || null,
             timestamp: r.created_at || null
           };
         });
@@ -334,9 +388,12 @@ export default function DashboardPage() {
       }
       setError(null);
     } catch (err) {
+      if (loadRequestIdRef.current !== requestId) return;
       setError('Could not connect to backend server. Make sure the backend server is running on port 5000.');
-    } finally { setLoading(false); }
-  }, [apiUrl, eventId]);
+    } finally {
+      if (loadRequestIdRef.current === requestId) setLoading(false);
+    }
+  }, [eventId]);
 
   useEffect(() => { if (!eventId) return; loadDashboardData(); }, [loadDashboardData, eventId]);
 
@@ -344,56 +401,44 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!newTableName.trim() || !eventId) return;
     try {
-      const res = await fetch(`${apiUrl}/events/${eventId}/tables`, {
+      const data = await apiFetch(`/events/${eventId}/tables`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ tableName: newTableName, maxCapacity: parseInt(newTableCapacity) })
       });
-      if (!res.ok) throw new Error('Failed to create table');
-      const data = await res.json();
       if (data.success) { setNewTableName(''); setNewTableCapacity(10); loadDashboardData(); }
     } catch (err) { toast.error(err.message); }
-  }, [apiUrl, eventId, newTableName, newTableCapacity, loadDashboardData]);
+  }, [eventId, newTableName, newTableCapacity, loadDashboardData]);
 
   const handleUpdateTable = useCallback(async (tableId, updates) => {
     if (!eventId) return;
     try {
-      const res = await fetch(`${apiUrl}/events/${eventId}/tables/${tableId}`, {
+      const data = await apiFetch(`/events/${eventId}/tables/${tableId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(updates)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to update table');
       if (data.success) {
         loadDashboardData();
       }
     } catch (err) {
       toast.error(err.message);
     }
-  }, [apiUrl, eventId, loadDashboardData]);
+  }, [eventId, loadDashboardData]);
 
   const handleAssignTable = useCallback(async (rsvpId, targetTableId) => {
     const guest = rsvps.find(g => g.id === rsvpId);
     if (!guest || !eventId) return;
     const oldTableId = guest.tableId;
     try {
-      let res;
-      const headers = { 'Content-Type': 'application/json' };
       if (!oldTableId) {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/assign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, tableId: targetTableId }) });
+        await apiFetch(`/events/${eventId}/seating/assign`, { method: 'POST', body: JSON.stringify({ rsvpId, tableId: targetTableId }) });
       } else if (!targetTableId) {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/unassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId }) });
+        await apiFetch(`/events/${eventId}/seating/unassign`, { method: 'POST', body: JSON.stringify({ rsvpId }) });
       } else {
-        res = await fetch(`${apiUrl}/events/${eventId}/seating/reassign`, { method: 'POST', headers, credentials: 'include', body: JSON.stringify({ rsvpId, newTableId: targetTableId }) });
+        await apiFetch(`/events/${eventId}/seating/reassign`, { method: 'POST', body: JSON.stringify({ rsvpId, newTableId: targetTableId }) });
       }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Seat assignment failed');
       loadDashboardData();
     } catch (err) { toast.error(err.message); }
-  }, [apiUrl, eventId, rsvps, loadDashboardData]);
+  }, [eventId, rsvps, loadDashboardData]);
 
   useRealtimeRSVPs(eventId, loadDashboardData);
 
@@ -409,7 +454,10 @@ export default function DashboardPage() {
           <span style={{ fontSize: '48px' }}>🔌</span>
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#C45E5E', marginTop: '12px' }}>Backend Connection Error</h2>
           <p style={{ color: COLORS.stone, marginTop: '12px', fontSize: '13px', lineHeight: 1.7, fontWeight: 300 }}>{error}</p>
-          <button onClick={() => { setLoading(true); loadDashboardData(); }} id="retry-connection-btn"
+          {/* Retry re-runs whichever load actually failed — previously this always
+              called loadDashboardData(), which no-ops when eventId is still empty
+              (a fetchEvents-stage outage), making Retry a permanent dead click. */}
+          <button onClick={() => { eventId ? loadDashboardData() : fetchEvents(); }} id="retry-connection-btn"
             style={{ marginTop: '24px', padding: '12px 28px', background: COLORS.gold, color: COLORS.white, border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             Retry Connection
           </button>
@@ -888,9 +936,7 @@ export default function DashboardPage() {
                   <button
                     onClick={async () => {
                       try {
-                        const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/export`, { credentials: 'include' });
-                        if (!res.ok) throw new Error('Export failed');
-                        const blob = await res.blob();
+                        const blob = await apiFetch(`/events/${eventId}/rsvps/export`);
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url; a.download = 'guest-list.csv'; a.click();
@@ -941,7 +987,15 @@ export default function DashboardPage() {
               setActiveTab('overview');
             }} />
           ) : activeTab === 'form-builder' ? (
-            <FormBuilder eventId={eventId} />
+            <FeatureGate
+              tierFeatures={activeEvent?.tier_features}
+              feature="form_builder"
+              isPaid={!!activeEvent?.is_paid || !!activeEvent?.manual_override}
+              onUpgrade={() => setActiveTab('events')}
+              wrapperStyle={{ display: 'flex', width: '100%' }}
+            >
+              <FormBuilder eventId={eventId} />
+            </FeatureGate>
           ) : activeTab === 'events' ? (
             <EventsTab
               events={events}
@@ -958,13 +1012,14 @@ export default function DashboardPage() {
           ) : activeTab === 'share' ? (
             <ShareTab event={activeEvent} />
           ) : activeTab === 'rsvps' ? (
-            <RSVPsTab rsvps={rsvps} eventId={eventId} onRefresh={loadDashboardData} />
+            <RSVPsTab rsvps={rsvps} eventId={eventId} event={activeEvent} customFields={customFields} onRefresh={loadDashboardData} />
           ) : activeTab === 'guests' ? (
             <GuestsTab
               rsvps={rsvps}
               tables={tables}
               customFields={customFields}
               eventId={eventId}
+              event={activeEvent}
               onAssignTable={handleAssignTable}
               onRefresh={loadDashboardData}
               onOpenAddGuest={() => setShowAddGuestModal(true)}
@@ -976,74 +1031,37 @@ export default function DashboardPage() {
             />
           ) : activeTab === 'seating' ? (
             /* ═══ SEATING TAB ═══ */
-            activeEvent?.is_paid || activeEvent?.manual_override ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {eventId && (<>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
-                  <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} onUpdateTable={handleUpdateTable} />
-                  <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <Link href="/dashboard/seating-map" style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '8px',
-                    padding: '10px 24px', background: COLORS.gold, color: COLORS.white, borderRadius: '8px',
-                    fontSize: '13px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
-                  }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-                    Open Full Seating Map
-                  </Link>
-                </div>
-              </>)}
-              {!eventId && (
-                <div style={{ textAlign: 'center', padding: '48px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }}>
-                  <p style={{ color: COLORS.stone, fontSize: '14px', fontStyle: 'italic' }}>Select or create an event first to manage seating.</p>
-                </div>
-              )}
-            </div>
-            ) : (
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              padding: '64px 24px', background: COLORS.white, border: `1px solid ${COLORS.border}`,
-              borderRadius: '16px', textAlign: 'center', position: 'relative', overflow: 'hidden',
-            }}>
-              {/* Decorative blurred background elements */}
-              <div style={{ position: 'absolute', inset: 0, opacity: 0.06, pointerEvents: 'none' }}>
-                <div style={{ position: 'absolute', top: '20%', left: '15%', width: 80, height: 80, borderRadius: '50%', border: `2px solid ${COLORS.gold}` }} />
-                <div style={{ position: 'absolute', top: '40%', left: '55%', width: 120, height: 60, borderRadius: '8px', border: `2px solid ${COLORS.gold}` }} />
-                <div style={{ position: 'absolute', top: '60%', left: '30%', width: 60, height: 60, borderRadius: '50%', border: `2px solid ${COLORS.gold}` }} />
-                <div style={{ position: 'absolute', top: '25%', left: '75%', width: 90, height: 90, borderRadius: '50%', border: `2px solid ${COLORS.gold}` }} />
+            <FeatureGate
+              tierFeatures={activeEvent?.tier_features}
+              feature="seating_map"
+              isPaid={!!activeEvent?.is_paid || !!activeEvent?.manual_override}
+              onUpgrade={() => setActiveTab('events')}
+              wrapperStyle={{ display: 'flex', width: '100%' }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
+                {eventId && (<>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
+                    <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} onUpdateTable={handleUpdateTable} />
+                    <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <Link href="/dashboard/seating-map" style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '8px',
+                      padding: '10px 24px', background: COLORS.gold, color: COLORS.white, borderRadius: '8px',
+                      fontSize: '13px', fontWeight: 700, textDecoration: 'none', fontFamily: 'var(--font-sans)',
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                      Open Full Seating Map
+                    </Link>
+                  </div>
+                </>)}
+                {!eventId && (
+                  <div style={{ textAlign: 'center', padding: '48px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }}>
+                    <p style={{ color: COLORS.stone, fontSize: '14px', fontStyle: 'italic' }}>Select or create an event first to manage seating.</p>
+                  </div>
+                )}
               </div>
-              <div style={{
-                width: 64, height: 64, borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(215,190,128,0.15) 0%, rgba(184,148,79,0.15) 100%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-              }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2"/>
-                  <path d="M7 11V7a5 5 0 0110 0v4"/>
-                </svg>
-              </div>
-              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: COLORS.charcoal, margin: 0 }}>Seating Map</h3>
-              <p style={{ fontSize: '13px', color: COLORS.stone, maxWidth: 360, lineHeight: 1.7, marginTop: 8 }}>
-                Design your venue layout with an interactive drag-and-drop seating map. Complete your event payment to unlock this feature.
-              </p>
-              <button
-                onClick={() => setActiveTab('events')}
-                style={{
-                  marginTop: 24, padding: '12px 32px',
-                  background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
-                  color: COLORS.white, border: 'none', borderRadius: '30px',
-                  fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-                  cursor: 'pointer', boxShadow: '0 4px 15px rgba(184,148,79,0.25)',
-                  transition: 'all 0.3s ease',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(184,148,79,0.4)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(184,148,79,0.25)'; }}
-              >
-                Complete Payment &amp; Activate →
-              </button>
-            </div>
-            )
+            </FeatureGate>
           ) : (
             /* ═══ OVERVIEW TAB (default) ═══ */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -1060,12 +1078,15 @@ export default function DashboardPage() {
         isOpen={showAddGuestModal}
         onClose={() => setShowAddGuestModal(false)}
         eventId={eventId}
+        event={activeEvent}
+        customFields={customFields}
         onGuestAdded={loadDashboardData}
       />
       <ImportGuestsModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         eventId={eventId}
+        event={activeEvent}
         onImportComplete={loadDashboardData}
       />
       <SendInvitationModal

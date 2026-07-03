@@ -46,7 +46,7 @@ function naturalCompare(a, b) {
 /** Public RSVP form submission (insert or update). Mirrors submit_rsvp_v2's contract 1:1. */
 async function submitPublicRsvp({
   slug, partyId, guestName, email, phone, response, partySize, notes,
-  primaryMeal, additionalGuests, customAnswers, declineReason, maybeConfirmBy,
+  primaryMeal, additionalGuests, customAnswers, declineReason, maybeConfirmBy, side, smsConsent,
 }) {
   const { data, error } = await supabase.rpc('submit_rsvp_v2', {
     p_slug: slug,
@@ -62,13 +62,15 @@ async function submitPublicRsvp({
     p_custom_answers: Array.isArray(customAnswers) ? customAnswers : [],
     p_decline_reason: declineReason || null,
     p_maybe_confirm_by: maybeConfirmBy || null,
+    p_side: side || null,
+    p_sms_consent: !!smsConsent,
   });
   if (error) throw error;
   return data;
 }
 
 /** One-click email-button response (the token flow). */
-async function respondToInvite({ eventId, partyId, response, partySize, actor = 'guest', source = 'email' }) {
+async function respondToInvite({ eventId, partyId, response, partySize, additionalGuests, actor = 'guest', source = 'email' }) {
   const { data, error } = await supabase.rpc('update_party_response', {
     p_event_id: eventId,
     p_party_id: partyId,
@@ -76,21 +78,57 @@ async function respondToInvite({ eventId, partyId, response, partySize, actor = 
     p_party_size: partySize ?? null,
     p_actor: actor,
     p_source: source,
+    p_additional_guests: Array.isArray(additionalGuests) ? additionalGuests : [],
   });
   if (error) throw error;
   return data;
 }
 
 /**
+ * Best-effort (non-atomic — see caller) check of the paid tier's guest cap
+ * before adding `additionalCount` more committed (yes/maybe) guests. Mirrors
+ * the tier_max_guests logic enforced atomically inside submit_rsvp_v2 and
+ * add_guest_to_party, but this JS-side guard is needed for the extra-
+ * companions bulk insert below, which happens as a second round-trip after
+ * add_guest_to_party's own single-row RPC check and isn't covered by it.
+ */
+async function checkGuestCapacity(eventId, response, additionalCount) {
+  if (!['yes', 'maybe'].includes(response) || additionalCount <= 0) return { ok: true };
+  const { data: event } = await supabase.from('events').select('tier_max_guests, slug').eq('id', eventId).single();
+  if (!event || event.slug === 'demo' || !event.tier_max_guests) return { ok: true };
+
+  const { data: parties } = await supabase
+    .from('rsvp_parties')
+    .select('id, guests(id)')
+    .eq('event_id', eventId)
+    .in('response', ['yes', 'maybe']);
+  const committed = (parties || []).reduce((sum, p) => sum + ((p.guests || []).length || 1), 0);
+  if (committed + additionalCount > event.tier_max_guests) return { ok: false };
+  return { ok: true };
+}
+
+/**
  * Organizer manually adds a guest — a new party (primary contact) or a companion
  * to an existing one. When partySize > 1 on a fresh party, the extra companions
  * are inserted directly (same reconciliation pattern as updateParty) since
- * add_guest_to_party only ever creates one person per call.
+ * add_guest_to_party only ever creates one person per call. Companion count is
+ * driven purely by partySize regardless of `response` — matching updateParty,
+ * so the same "party size" concept behaves identically from Add vs Edit.
  */
 async function addGuest({
   eventId, actorUserId, fullName, phone, partyId = null, email = null, response = 'pending',
-  partySize = 1, notes = null,
+  partySize = 1, notes = null, side = null, primaryMeal = null,
 }) {
+  const isNewParty = !partyId;
+  const extraCount = isNewParty ? Math.min(Math.max(partySize, 1), MAX_ADDITIONAL_GUESTS) - 1 : 0;
+
+  if (extraCount > 0) {
+    const capacity = await checkGuestCapacity(eventId, response, extraCount);
+    if (!capacity.ok) {
+      return { success: false, error: 'GUEST_LIMIT_REACHED', message: "This event has reached its plan's guest limit." };
+    }
+  }
+
   const { data, error } = await supabase.rpc('add_guest_to_party', {
     p_event_id: eventId,
     p_actor: actorUserId,
@@ -99,23 +137,32 @@ async function addGuest({
     p_phone: phone || null,
     p_email: email || null,
     p_response: response,
+    p_side: side || null,
   });
   if (error) throw error;
   if (!data || data.success === false) return data;
 
-  const isNewParty = !partyId;
-  if (isNewParty && (notes || partySize > 1)) {
+  // add_guest_to_party has no meal parameter (meal_selection didn't exist when it
+  // was written) — set it with a follow-up update on the guest row it just created
+  // rather than threading a new RPC arg through for one field.
+  if (primaryMeal && data.guest_id) {
+    const { error: mealErr } = await supabase.from('guests').update({ meal_selection: primaryMeal }).eq('id', data.guest_id);
+    if (mealErr) logger.error({ err: mealErr, guestId: data.guest_id }, '[addGuest] failed to set primary meal_selection');
+  }
+
+  if (isNewParty && (notes || extraCount > 0)) {
     const updates = {};
     if (notes) updates.notes = notes;
     if (Object.keys(updates).length > 0) {
-      await supabase.from('rsvp_parties').update(updates).eq('id', data.party_id);
+      const { error: notesErr } = await supabase.from('rsvp_parties').update(updates).eq('id', data.party_id);
+      if (notesErr) logger.error({ err: notesErr, partyId: data.party_id }, '[addGuest] failed to save party notes');
     }
-    const extraCount = Math.min(Math.max(partySize, 1), MAX_ADDITIONAL_GUESTS) - 1;
     if (extraCount > 0) {
       const companions = Array.from({ length: extraCount }, (_, i) => ({
         party_id: data.party_id, event_id: eventId, full_name: `Guest ${i + 2}`, is_primary_contact: false,
       }));
-      await supabase.from('guests').insert(companions);
+      const { error: companionsErr } = await supabase.from('guests').insert(companions);
+      if (companionsErr) logger.error({ err: companionsErr, partyId: data.party_id }, '[addGuest] failed to insert placeholder companions');
     }
   }
   return data;
@@ -189,7 +236,7 @@ async function searchPartiesPublic(eventId, term, limit = 10) {
       response: item.response,
       partySize: allGuests.length || 1,
       // SEC C7: Only expose companion id and name — no PII (phone, email,
-      // meal, dietary notes, age, relationship, gender).
+      // meal, dietary notes).
       additionalGuests: hasEmail
         ? allGuests.filter((g) => !g.is_primary_contact).map((g) => ({
             id: g.id,
@@ -211,11 +258,10 @@ async function searchPartiesPublic(eventId, term, limit = 10) {
  * who exists or which factor was wrong.
  */
 /**
- * Public seating response shape — host first, then companions, with the new
- * detail fields (age, relationship, gender, dietary notes) so the result panel
- * can distinguish the inviter from their guests. Phone is deliberately omitted
- * — the panel never needs it and we don't want to echo PII back over a guest-
- * facing endpoint.
+ * Public seating response shape — host first, then companions, with meal/
+ * dietary notes so the result panel can distinguish the inviter from their
+ * guests. Phone is deliberately omitted — the panel never needs it and we
+ * don't want to echo PII back over a guest-facing endpoint.
  */
 function shapeSeatingParty(partyRow) {
   const assignment = Array.isArray(partyRow.seating_assignments)
@@ -229,9 +275,6 @@ function shapeSeatingParty(partyRow) {
       name: g.full_name,
       meal: g.meal_selection || null,
       isHost: !!g.is_primary_contact,
-      ageGroup: g.age_group || null,
-      relationship: g.relationship || null,
-      gender: g.gender || null,
       dietaryNotes: g.dietary_notes || null,
     }))
     .filter((g) => g.name);
@@ -255,7 +298,7 @@ async function verifyGuestSeating(eventId, name, phoneLast4) {
     .select(`
       id, label, response,
       seating_assignments(table_id, tables(table_name)),
-      guests(full_name, is_primary_contact, meal_selection, phone, age_group, relationship, gender, dietary_notes)
+      guests(full_name, is_primary_contact, meal_selection, phone, dietary_notes)
     `)
     .eq('event_id', eventId)
     .eq('response', 'yes')
@@ -282,7 +325,7 @@ async function getPartySeatingMap(eventId, partyId) {
     .select(`
       id, label, response,
       seating_assignments(table_id, tables(table_name)),
-      guests(full_name, is_primary_contact, meal_selection, age_group, relationship, gender, dietary_notes)
+      guests(full_name, is_primary_contact, meal_selection, dietary_notes)
     `)
     .eq('id', partyId)
     .eq('event_id', eventId)
@@ -347,12 +390,13 @@ async function listParties(eventId, {
 
 /** Organizer edit of a party + its guests (full reconciliation of the headcount). */
 async function updateParty(eventId, partyId, {
-  guestName, email, phone, response, partySize, notes, primaryMeal, additionalGuests,
+  guestName, email, phone, response, partySize, notes, primaryMeal, additionalGuests, side,
 }) {
   const updates = {};
   if (guestName !== undefined) updates.label = guestName.trim();
   if (response !== undefined) updates.response = response;
   if (notes !== undefined) updates.notes = notes;
+  if (side !== undefined) updates.side = side || null;
 
   const { data: party, error } = await supabase
     .from('rsvp_parties')
@@ -365,13 +409,16 @@ async function updateParty(eventId, partyId, {
   if (error) throw error;
   if (!party) return null;
 
-  // Reconcile guests whenever party_size, name/contact, or guest detail changed.
-  const effectiveResponse = updates.response !== undefined ? updates.response : party.response;
+  // Reconcile guests whenever party_size, name/contact, or guest detail
+  // changed — regardless of `response`, matching addGuest (which creates
+  // companions purely from partySize with no response gate). Previously this
+  // was gated on effectiveResponse === 'yes', so editing a Maybe/Pending/No
+  // guest's party size silently did nothing.
   const guestDetailProvided = additionalGuests !== undefined || primaryMeal !== undefined
     || guestName !== undefined || email !== undefined || phone !== undefined;
   const partySizeProvided = partySize !== undefined;
 
-  if (effectiveResponse === 'yes' && (guestDetailProvided || partySizeProvided)) {
+  if (guestDetailProvided || partySizeProvided) {
     const existing = party.guests || [];
     const existingPrimary = existing.find((g) => g.is_primary_contact);
     const existingAdditional = existing.filter((g) => !g.is_primary_contact);
@@ -408,6 +455,8 @@ async function updateParty(eventId, partyId, {
         event_id: eventId,
         full_name: (fromBody?.fullName && fromBody.fullName.trim()) || prev?.full_name || `Guest ${i + 2}`,
         is_primary_contact: false,
+        email: fromBody && fromBody.email !== undefined ? (normalizeEmail(fromBody.email) || null) : (prev?.email || null),
+        phone: fromBody && fromBody.phone !== undefined ? (fromBody.phone ? normalizeToE164(fromBody.phone) : null) : (prev?.phone || null),
         meal_selection: fromBody ? (fromBody.mealSelection || null) : (prev?.meal_selection || null),
         dietary_notes: fromBody ? (fromBody.dietaryNotes || null) : (prev?.dietary_notes || null),
       };
@@ -506,6 +555,7 @@ async function importGuests(eventId, actorUserId, rows) {
       response: 'pending',
       partySize: row.party_size || 1,
       notes: row.notes || null,
+      side: row.side || null,
     })));
 
     results.forEach((r, idx) => {
@@ -531,7 +581,7 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
   const { data: parties, error } = await supabase
     .from('rsvp_parties')
     .select(`
-      id, label, response, notes,
+      id, label, response, notes, side,
       guests(full_name, email, phone, is_primary_contact, meal_selection),
       seating_assignments(table_id, tables(table_name)),
       check_ins(checked_in_at, method)
@@ -571,7 +621,11 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
   const mapped = rows.map((p) => {
     const primary = (p.guests || []).find((g) => g.is_primary_contact) || {};
     const partySize = (p.guests || []).length || 1;
-    const meals = (p.guests || []).map((g) => g.meal_selection).filter(Boolean).join('; ');
+    // Name-attributed so a party with different meals per person is legible in
+    // the export ("John: Chicken; Guest 2: Fish") instead of an ambiguous
+    // semicolon-joined blob with no way to tell whose meal is whose.
+    const meals = (p.guests || []).filter((g) => g.meal_selection)
+      .map((g) => `${g.full_name}: ${g.meal_selection}`).join('; ');
     const tableName = tableNameOf(p);
     const checkIns = p.check_ins || [];
     return {
@@ -580,6 +634,7 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
       phone: primary.phone || '',
       response: p.response,
       party_size: partySize,
+      side: p.side || '',
       table_name: tableName,
       meal_selections: meals,
       checked_in: checkIns.length > 0 ? 'Yes' : 'No',
@@ -631,14 +686,44 @@ async function checkInParty(eventId, partyId, { method, checkedInBy = null } = {
     .filter((g) => !alreadyIn.has(g.id))
     .map((g) => ({ event_id: eventId, guest_id: g.id, party_id: partyId, method, checked_in_by: checkedInBy }));
 
-  const { data: inserted, error } = await supabase.from('check_ins').insert(toInsert).select('id, guest_id, checked_in_at');
-  if (error) throw error;
+  let inserted;
+  try {
+    const { data, error } = await supabase.from('check_ins').insert(toInsert).select('id, guest_id, checked_in_at');
+    if (error) throw error;
+    inserted = data;
+  } catch (err) {
+    // A concurrent check-in (double-tap on a flaky venue connection, or a
+    // client-side retry after a lost response) can race the read-then-insert
+    // above: both calls see "not yet checked in" before either commits, and
+    // the loser's INSERT then hits check_ins' UNIQUE(event_id, guest_id) and
+    // previously surfaced as a raw unhandled 500 instead of the same friendly
+    // ALREADY_CHECKED_IN this function already returns for the non-racy case.
+    if (err.code === '23505' || /duplicate key/i.test(err.message || '')) {
+      const { data: recheck, error: recheckErr } = await supabase
+        .from('check_ins').select('guest_id, checked_in_at').eq('event_id', eventId).in('guest_id', guests.map((g) => g.id));
+      if (recheckErr) throw recheckErr;
+      const nowIn = new Set((recheck || []).map((e) => e.guest_id));
+      if (nowIn.size === guests.length) {
+        return { success: false, error: 'ALREADY_CHECKED_IN', checkedInAt: recheck[0]?.checked_in_at, totalGuests: guests.length };
+      }
+      // A mix of newly-checked-in (by the winning concurrent call) and still-
+      // outstanding guests — retry with only what's actually still missing.
+      const retryInsert = guests
+        .filter((g) => !nowIn.has(g.id))
+        .map((g) => ({ event_id: eventId, guest_id: g.id, party_id: partyId, method, checked_in_by: checkedInBy }));
+      const { data: retryData, error: retryErr } = await supabase.from('check_ins').insert(retryInsert).select('id, guest_id, checked_in_at');
+      if (retryErr) throw retryErr;
+      inserted = retryData;
+    } else {
+      throw err;
+    }
+  }
 
   return {
     success: true,
     checkedInCount: inserted.length,
     totalGuests: guests.length,
-    alreadyCheckedIn: alreadyIn.size,
+    alreadyCheckedIn: guests.length - inserted.length,
     checkedInAt: inserted[0]?.checked_in_at,
   };
 }

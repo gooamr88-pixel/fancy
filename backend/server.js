@@ -50,6 +50,15 @@ const server = app.listen(PORT, () => {
   } catch (err) {
     logger.warn({ err }, 'Revenue rollup refresher failed to start (non-fatal)');
   }
+
+  // Abandoned draft cleanup — removes never-paid 'draft' events untouched for
+  // DRAFT_EXPIRY_DAYS (default 30). On by default; single-leader + idempotent
+  // (see draftCleanup). Disable with DRAFT_CLEANUP_ENABLED=false.
+  try {
+    require('./services/draftCleanup').start();
+  } catch (err) {
+    logger.warn({ err }, 'Draft cleanup failed to start (non-fatal)');
+  }
 });
 
 // Handle graceful shutdown
@@ -58,6 +67,7 @@ function gracefulShutdown(signal) {
   try { require('./services/emailScheduler').stop(); } catch { /* ignore */ }
   try { require('./services/smsCampaignWorker').stop(); } catch { /* ignore */ }
   try { require('./services/revenueRollup').stop(); } catch { /* ignore */ }
+  try { require('./services/draftCleanup').stop(); } catch { /* ignore */ }
   server.close(() => {
     logger.info('HTTP server closed — all connections drained');
     process.exit(0);
