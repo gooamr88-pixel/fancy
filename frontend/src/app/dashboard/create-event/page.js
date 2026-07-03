@@ -67,6 +67,19 @@ const TEMPLATES = [
     fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   {
+    key: 'tuscany', label: 'Tuscan Vineyard', icon: '🕊️', tier: 'Wedding',
+    tagline: 'Romantic · Countryside',
+    desc: 'A softly romantic countryside invitation — parchment tones, an olive wax seal, and a hand-lettered feel for garden and villa weddings.',
+    presets: [
+      { name: 'Olive Grove', primary: '#6B7A4F', secondary: '#C9B896', accent: '#6B7A4F', background: '#F8F3E6' },
+      { name: 'Terracotta Dusk', primary: '#A15C3E', secondary: '#E3C9A8', accent: '#A15C3E', background: '#FBF4EA' },
+      { name: 'Sage & Cream', primary: '#8A9A6E', secondary: '#EFE8D3', accent: '#8A9A6E', background: '#FCFAF3' },
+      { name: 'Burgundy Romance', primary: '#6B1E2E', secondary: '#E8C7CE', accent: '#6B1E2E', background: '#FBF3F2' },
+    ],
+    specs: ['Wax Seal Reveal', 'Parchment Card', 'Hand-Lettered Script', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
     key: 'custom', label: 'Custom Canvas', icon: '✨', tier: 'Build your own',
     tagline: 'Fully editable',
     desc: 'Start from a clean slate and design your own page — colors, typography, background, cover image, CTA and sections, all updating live as you build.',
@@ -810,7 +823,10 @@ export default function CreateEventWizard() {
     galleryUrls: galleryUrls.length > 0 ? galleryUrls.filter(u => !u.startsWith('data:')) : undefined,
     customColors,
     templateData: buildTemplateData(),
-    eventType: templateType,
+    // Tuscan Vineyard is a visual variant of a wedding, not a distinct event
+    // category — every event_type-gated behavior elsewhere (Groom's/Bride's
+    // Side labels, meal selection, guest-side tracking) should treat it as one.
+    eventType: templateType === 'tuscany' ? 'wedding' : templateType,
     backgroundMusicUrl: sanitizeUrl(backgroundMusicUrl) || '',
     notificationPreferences: { email: notificationEmail, whatsapp: false },
     allowGuestEdits,
@@ -881,7 +897,7 @@ export default function CreateEventWizard() {
         background_music_url: backgroundMusicUrl || null,
         custom_colors: customColors,
         template_data: buildTemplateData() || {},
-        event_type: templateType,
+        event_type: templateType === 'tuscany' ? 'wedding' : templateType,
         notification_preferences: { email: notificationEmail, whatsapp: false },
         allow_guest_edits: allowGuestEdits,
         track_guest_side: trackGuestSide,

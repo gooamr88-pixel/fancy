@@ -6,6 +6,7 @@ import PlacesAutocomplete from '../../components/PlacesAutocomplete';
 import FontPicker from './FontPicker';
 import { supabase } from '../../utils/supabaseClient';
 import { DressCodeVisualizer } from '../../components/guest/GuestUI';
+import { extractYouTubeId } from '../../utils/youtube';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -1008,18 +1009,38 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               )}
             </div>
 
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '2px 0' }}>
+              <div style={{ flex: 1, height: 1, background: COLORS.border }} />
+              <span style={{ fontSize: '11px', color: COLORS.stone, fontWeight: 600 }}>or</span>
+              <div style={{ flex: 1, height: 1, background: COLORS.border }} />
+            </div>
+            <input
+              type="url"
+              value={form.background_music_url || ''}
+              onChange={e => setForm(prev => ({ ...prev, background_music_url: e.target.value }))}
+              placeholder="Paste a YouTube link (e.g. https://youtu.be/…)"
+              style={inputStyle}
+            />
+
             {form.background_music_url && (
-              <div style={{ marginTop: '4px' }}>
-                <audio 
-                  src={form.background_music_url} 
-                  controls 
-                  style={{ width: '100%', height: '36px', borderRadius: '8px' }} 
-                />
-              </div>
+              extractYouTubeId(form.background_music_url) ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: COLORS.softBg, border: `1px solid ${COLORS.border}` }}>
+                  <span style={{ fontSize: '16px' }}>▶️</span>
+                  <span style={{ fontSize: '12px', color: COLORS.charcoal, flex: 1 }}>YouTube song linked — guests tap the music icon to play it</span>
+                </div>
+              ) : (
+                <div style={{ marginTop: '4px' }}>
+                  <audio
+                    src={form.background_music_url}
+                    controls
+                    style={{ width: '100%', height: '36px', borderRadius: '8px' }}
+                  />
+                </div>
+              )
             )}
           </div>
           <span style={{ fontSize: '11px', color: COLORS.stone, display: 'block', marginTop: '6px' }}>
-            Upload an audio file (.mp3 or .ogg) to play ambient music on the public event page.
+            Upload an audio file, or paste a YouTube link, to play music on the public event page.
           </span>
         </div>
       </div>

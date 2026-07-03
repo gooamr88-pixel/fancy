@@ -720,6 +720,110 @@ export default function InvitationCard({ template, theme, guestName, config, dat
       );
 
     /* ──────────────────────────────────────────────────────────
+       TUSCANY — Tuscan Vineyard · Romantic countryside stationery
+       Cream parchment, olive frame, checkerboard accent patch,
+       swan wax seal, script names — vintage Italian keepsake feel
+       ────────────────────────────────────────────────────────── */
+    case "tuscany": {
+      // A real cover photo (the couple's own engagement shot) upgrades the card
+      // to a "Save the Date" photo layout — the illustrated wax-seal version
+      // below is the fallback for organizers who haven't uploaded one yet.
+      if (d.coverImageUrl) {
+        return (
+          <div
+            className="w-full h-full flex flex-col select-none relative overflow-hidden rounded font-serif"
+            style={{ background: accentColor }}
+          >
+            <div className="w-full relative shrink-0" style={{ height: "58%" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={d.coverImageUrl} alt="" className="w-full h-full object-cover" />
+              <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${accentColor} 2%, transparent 40%)` }} />
+              <div
+                className="absolute rounded-full flex items-center justify-center"
+                style={{ bottom: -16, left: "50%", transform: "translateX(-50%)", width: 32, height: 32, background: "#FFFFFF", border: `1.5px solid ${accentColor}`, boxShadow: "0 4px 10px rgba(0,0,0,0.25)" }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 15 Q4 9 8.5 8 Q11 7.5 11 10 Q11 6.5 14.5 6.5 Q19 6.5 19 11 Q19 16 12 19 Q6.5 16.5 4 15Z" fill={accentColor} opacity="0.85" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-4 pt-4 pb-3 gap-1.5" style={{ color: "#FBF6EC" }}>
+              <span className="text-[7px] uppercase tracking-[3.5px] font-sans font-semibold" style={{ color: `${lightAccentColor}` }}>Save the Date</span>
+              <span className="font-script text-[22px] leading-tight" style={{ color: "#FBF6EC" }}>{d.names || "Lujain & Omar"}</span>
+              <div className="w-8 h-px my-0.5" style={{ background: `${lightAccentColor}80` }} />
+              <span className="text-[8px] font-bold tracking-[1.5px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY · 24 OCTOBER 2026"}</span>
+              {d.venueLine && <span className="text-[7px] italic opacity-80">{d.venueLine}</span>}
+              <div className="mt-auto pt-2 flex flex-col items-center gap-0.5" style={{ borderTop: `1px solid ${lightAccentColor}30`, width: "100%" }}>
+                <span className="text-[6px] uppercase tracking-[2px] font-sans opacity-60">Kindly reply for</span>
+                <span className="font-script text-base" style={{ color: lightAccentColor }}>{name}</span>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div
+          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
+          style={{
+            background: "linear-gradient(165deg, #F8F3E6 0%, #F1EAD6 40%, #E9E0C6 75%, #F2ECDA 100%)",
+            color: accentColor,
+            padding: "16px 16px 12px",
+          }}
+        >
+          {/* Outer + inner hairline frame — pressed-stationery feel */}
+          <div className="absolute pointer-events-none" style={{ inset: 6, border: `1px solid ${accentColor}35` }} />
+          <div className="absolute pointer-events-none" style={{ inset: 9, border: `0.5px solid ${accentColor}18` }} />
+
+          {/* Diamond checkerboard accent patch — top-right corner */}
+          <div
+            className="absolute pointer-events-none grid grid-cols-2 grid-rows-2"
+            style={{ top: 14, right: 14, width: 22, height: 22, transform: "rotate(45deg)", border: `1px solid ${accentColor}60`, opacity: 0.7 }}
+          >
+            <div style={{ background: accentColor }} />
+            <div style={{ background: "transparent" }} />
+            <div style={{ background: "transparent" }} />
+            <div style={{ background: accentColor }} />
+          </div>
+
+          {/* Wax seal — two swans forming a heart, monogram beneath */}
+          <div className="relative z-10 flex flex-col items-center mt-2 gap-1.5">
+            <div
+              className="rounded-full flex items-center justify-center"
+              style={{ width: 38, height: 38, background: `${accentColor}12`, border: `1.5px solid ${accentColor}`, boxShadow: `inset 0 0 6px ${accentColor}35` }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M4 15 Q4 9 8.5 8 Q11 7.5 11 10 Q11 6.5 14.5 6.5 Q19 6.5 19 11 Q19 16 12 19 Q6.5 16.5 4 15Z" fill={accentColor} opacity="0.78" />
+              </svg>
+            </div>
+            <span className="text-[6px] uppercase tracking-[3px] font-sans font-semibold" style={{ color: `${accentColor}95` }}>{d.monogram || "L & O"}</span>
+          </div>
+
+          {/* Main content */}
+          <div className="flex flex-col items-center text-center relative z-10 gap-1.5 px-2 my-auto">
+            <span className="text-[6.5px] tracking-[2.5px] font-sans uppercase" style={{ color: `${accentColor}85` }}>Together with their families</span>
+            <span className="font-script text-[27px] leading-tight mt-0.5" style={{ color: accentColor }}>{d.names || "Lujain & Omar"}</span>
+            <svg width="66" height="9" viewBox="0 0 66 9" style={{ opacity: 0.55 }}>
+              <path d="M0 4.5 Q16 0 33 4.5 Q50 9 66 4.5" fill="none" stroke={accentColor} strokeWidth="0.7" />
+              <circle cx="33" cy="4.5" r="1.2" fill={accentColor} opacity="0.5" />
+            </svg>
+            <span className="text-[7px] tracking-wide font-sans leading-relaxed max-w-[92%]" style={{ color: `${accentColor}CC` }}>
+              {d.eyebrowLine || "kindly invite you to celebrate their wedding"}
+            </span>
+            <span className="text-[9px] font-bold tracking-[1.5px] mt-1" style={{ color: accentColor }}>{d.dateLine || "SATURDAY · 24 OCTOBER 2026"}</span>
+            <span className="text-[7.5px] italic" style={{ color: `${accentColor}99` }}>{d.venueLine || "Villa Almasa · Cairo"}</span>
+          </div>
+
+          {/* Guest name */}
+          <div className="flex flex-col items-center gap-0.5 relative z-10 mb-1">
+            <span className="text-[6px] uppercase tracking-[2px] font-sans" style={{ color: `${accentColor}70` }}>Kindly reply for</span>
+            <span className="font-script text-lg" style={{ color: accentColor }}>{name}</span>
+          </div>
+        </div>
+      );
+    }
+
+    /* ──────────────────────────────────────────────────────────
        DEFAULT — Clean fallback card
        ────────────────────────────────────────────────────────── */
     default:

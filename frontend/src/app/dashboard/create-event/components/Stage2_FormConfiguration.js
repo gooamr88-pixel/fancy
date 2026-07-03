@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import PlacesAutocomplete from '../../../../app/components/PlacesAutocomplete';
 import InlineFormBuilder from './InlineFormBuilder';
 import { DressCodeVisualizer } from '../../../components/guest/GuestUI';
+import { extractYouTubeId } from '../../../utils/youtube';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -263,7 +264,7 @@ export default function Stage2_FormConfiguration({
         {/* ═══ Section B: Template-Specific ═══ */}
         {templateType !== 'custom' && (
           <Section title={`${tpl.icon} ${tpl.label} Details`} icon="🎨">
-            {templateType === 'wedding' && (
+            {(templateType === 'wedding' || templateType === 'tuscany') && (
               <>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <Field label="Partner 1 Name">
@@ -543,7 +544,7 @@ export default function Stage2_FormConfiguration({
                 onChange={e => setTrackGuestSide(e.target.checked)}
                 style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
               <span>
-                {templateType === 'wedding' ? "Tag guests as Groom's Side / Bride's Side" : "Tag guests as Partner 1's Side / Partner 2's Side"}
+                {(templateType === 'wedding' || templateType === 'tuscany') ? "Tag guests as Groom's Side / Bride's Side" : "Tag guests as Partner 1's Side / Partner 2's Side"}
                 <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
                   Lets you and your guests mark which side of the party they belong to. Off by default — no extra field appears anywhere until you turn this on.
                 </span>
@@ -679,12 +680,36 @@ export default function Stage2_FormConfiguration({
               </div>
               <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)', marginTop: 4, display: 'block' }}>MP3, OGG, WAV • Max 8MB</span>
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '12px 0' }}>
+              <div style={{ flex: 1, height: 1, background: C.border }} />
+              <span style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', fontWeight: 600 }}>or</span>
+              <div style={{ flex: 1, height: 1, background: C.border }} />
+            </div>
+            <input
+              type="url" value={backgroundMusicUrl || ''}
+              onChange={e => setBackgroundMusicUrl(e.target.value)}
+              placeholder="Paste a YouTube link (e.g. https://youtu.be/…)"
+              style={iStyle} onFocus={onFocus} onBlur={onBlur}
+            />
+
             {backgroundMusicUrl && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                <audio controls src={backgroundMusicUrl} style={{ flex: 1, height: 36 }} />
-                <button type="button" onClick={() => setBackgroundMusicUrl('')}
-                  style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
-              </div>
+              extractYouTubeId(backgroundMusicUrl) ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: C.softBg, border: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 16 }}>▶️</span>
+                  <span style={{ fontSize: 12, color: C.charcoal, fontFamily: 'var(--font-sans)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    YouTube song linked — guests tap the music icon to play it
+                  </span>
+                  <button type="button" onClick={() => setBackgroundMusicUrl('')}
+                    style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                  <audio controls src={backgroundMusicUrl} style={{ flex: 1, height: 36 }} />
+                  <button type="button" onClick={() => setBackgroundMusicUrl('')}
+                    style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
+                </div>
+              )
             )}
           </Field>
 

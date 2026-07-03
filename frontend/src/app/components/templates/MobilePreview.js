@@ -92,6 +92,12 @@ function getSceneStyles(pattern) {
         overlay: "radial-gradient(ellipse at 50% 40%, rgba(139,115,85,0.05) 0%, transparent 50%)",
         vignette: "radial-gradient(120% 80% at 50% 38%, transparent 35%, rgba(80,65,45,0.18) 100%)",
       };
+    case "tuscany": // Tuscan Vineyard — hazy olive parchment
+      return {
+        background: "linear-gradient(170deg, #EFE9D6 0%, #E4DEC4 25%, #DAD3B4 50%, #E4DEC4 75%, #EAE4D0 100%)",
+        overlay: "radial-gradient(ellipse at 50% 38%, rgba(107,122,79,0.08) 0%, transparent 55%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 32%, rgba(60,66,42,0.20) 100%)",
+      };
     default: // Default — warm cream (same as custom)
       return {
         background: "linear-gradient(170deg, #F2ECE2 0%, #EBE5DA 25%, #E5DFD4 50%, #EBE5DA 75%, #EEE8DE 100%)",

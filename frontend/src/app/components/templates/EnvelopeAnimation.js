@@ -143,6 +143,16 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
                     <stop offset="40%" stopColor="#800020" /><stop offset="60%" stopColor="#E89FB0" />
                     <stop offset="80%" stopColor="#3A080F" /><stop offset="100%" stopColor="#800020" />
                   </linearGradient>
+                  <linearGradient id="oliveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#3E4A2C" /><stop offset="20%" stopColor="#DCE2C8" />
+                    <stop offset="40%" stopColor="#6B7A4F" /><stop offset="60%" stopColor="#C9B896" />
+                    <stop offset="80%" stopColor="#2E3720" /><stop offset="100%" stopColor="#6B7A4F" />
+                  </linearGradient>
+                  <linearGradient id="terracottaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#5C3122" /><stop offset="20%" stopColor="#F0DAC4" />
+                    <stop offset="40%" stopColor="#A15C3E" /><stop offset="60%" stopColor="#E3C9A8" />
+                    <stop offset="80%" stopColor="#422217" /><stop offset="100%" stopColor="#A15C3E" />
+                  </linearGradient>
                 </defs>
               </svg>
             </div>

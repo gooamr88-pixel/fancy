@@ -6,7 +6,7 @@ import FooterSection from "../components/landing/FooterSection";
 import MobilePreview from "../components/templates/MobilePreview";
 import { motion, AnimatePresence } from "framer-motion";
 
-const categories = ["All", "Classic", "Modern", "Rustic", "Luxury", "Minimal", "Floral"];
+const categories = ["All", "Classic", "Modern", "Rustic", "Luxury", "Minimal", "Floral", "Vineyard"];
 
 const themeColors = [
   { 
@@ -86,6 +86,14 @@ const templates = [
     gradient: "linear-gradient(135deg, #FDE1D3 0%, #E8B4B8 30%, #D4A0A7 60%, #F3D1DC 100%)",
     accent: "#8B4A6B",
     pattern: "floral",
+  },
+  {
+    name: "Tuscan Vineyard",
+    category: "Vineyard",
+    description: "Parchment tones, an olive wax seal, and hand-lettered script for garden and villa weddings under the Italian sun.",
+    gradient: "linear-gradient(135deg, #F8F3E6 0%, #E9E0C6 30%, #C9B896 60%, #6B7A4F 100%)",
+    accent: "#6B7A4F",
+    pattern: "tuscany",
   },
 ];
 
@@ -373,6 +381,57 @@ function TemplatePreview({ template }) {
           </div>
 
           <span style={{ fontSize: "5px", color: "#D7BE80", fontWeight: "bold" }}>OCTOBER 24, 2026</span>
+        </div>
+      );
+
+    case "tuscany":
+      return (
+        <div style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: "75%",
+          height: "78%",
+          background: "linear-gradient(160deg, #F8F3E6 0%, #F1EAD6 45%, #E9E0C6 100%)",
+          borderRadius: "6px",
+          border: `1px solid ${accent}45`,
+          padding: "10px",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: "0 6px 16px rgba(107,122,79,0.06)",
+          fontFamily: "var(--font-serif)"
+        }}>
+          {/* Diamond checkerboard accent */}
+          <div style={{
+            position: "absolute", top: "6px", right: "6px", width: "10px", height: "10px",
+            transform: "rotate(45deg)", border: `0.5px solid ${accent}70`, opacity: 0.7,
+            display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr",
+          }}>
+            <div style={{ background: accent }} /><div />
+            <div /><div style={{ background: accent }} />
+          </div>
+
+          <div style={{
+            width: "16px", height: "16px", borderRadius: "50%", marginTop: "3px",
+            border: `1px solid ${accent}`, background: `${accent}10`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <span style={{ fontSize: "5px", fontFamily: "var(--font-sans)", fontWeight: 700, color: accent }}>L&amp;O</span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+            <span style={{ fontSize: "4.5px", fontFamily: "var(--font-sans)", letterSpacing: "1.5px", color: `${accent}CC`, textTransform: "uppercase" }}>Together with their families</span>
+            <span style={{ fontFamily: "var(--font-script)", fontSize: "18px", color: accent, lineHeight: 1.1, marginTop: "2px" }}>Lujain &amp; Omar</span>
+            <span style={{ fontSize: "5px", fontWeight: "bold", color: accent, marginTop: "3px", letterSpacing: "0.5px" }}>24 OCTOBER 2026</span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1px", width: "100%" }}>
+            <div style={{ width: "15px", height: "1px", background: `${accent}50` }} />
+            <span style={{ fontSize: "4.5px", fontFamily: "var(--font-sans)", fontStyle: "italic", color: "#8B8272" }}>VILLA ALMASA</span>
+          </div>
         </div>
       );
 

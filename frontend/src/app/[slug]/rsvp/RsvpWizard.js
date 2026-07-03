@@ -196,7 +196,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   // (preserved from a larger party size the guest dialed back from).
   const visibleAdditionalGuests = additionalGuests.slice(0, Math.max((parseInt(partySize) || 1) - 1, 0));
 
-  const themeColor = '#B8944F';
+  const themeColor = event?.custom_colors?.primary || '#B8944F';
   const isRTL = lang === 'ar';
   const t = translations[lang];
 

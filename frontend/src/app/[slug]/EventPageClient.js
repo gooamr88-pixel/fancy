@@ -6,6 +6,7 @@ import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
+import { extractYouTubeId } from '../utils/youtube';
 import {
   FadeInUp,
   StaggerChildren,
@@ -51,6 +52,7 @@ const INVITATION_PATTERN_BY_TEMPLATE = {
   birthday: 'floral',
   gala: 'minimal',
   custom: 'custom',
+  tuscany: 'tuscany',
 };
 
 const templateLabels = {
@@ -60,7 +62,8 @@ const templateLabels = {
     birthday: 'birthday invitation',
     gala: 'gala invitation',
     corporate: 'corporate event',
-    party: 'party invitation'
+    party: 'party invitation',
+    tuscany: 'wedding invitation',
   },
   ar: {
     wedding: 'دعوة زفاف',
@@ -68,7 +71,8 @@ const templateLabels = {
     birthday: 'دعوة عيد ميلاد',
     gala: 'دعوة حفل عشاء',
     corporate: 'فعالية رسمية',
-    party: 'دعوة حفلة'
+    party: 'دعوة حفلة',
+    tuscany: 'دعوة زفاف',
   }
 };
 
@@ -94,7 +98,8 @@ function buildInvitationCardData(event, isRTL) {
   const titleAr = td.title_ar || null;
 
   switch (event?.template_type) {
-    case 'wedding': {
+    case 'wedding':
+    case 'tuscany': {
       // The organizer's create-event wizard (Stage2_FormConfiguration) writes
       // partner1/partner2 + ceremonyLocation/receptionLocation; the post-creation
       // edit page (EventSettings) writes bride_name/groom_name + ceremony_time/
@@ -106,7 +111,11 @@ function buildInvitationCardData(event, isRTL) {
       const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
       const ceremonyLine = td.ceremony_time || td.ceremonyLocation || null;
       const receptionLine = td.reception_time || td.receptionLocation || null;
-      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine };
+      // Tuscan Vineyard's "Save the Date" layout upgrades to a real photo
+      // once the organizer has uploaded a cover image; other wedding patterns
+      // ignore this field.
+      const coverImageUrl = event?.template_type === 'tuscany' ? (event?.cover_image_url || null) : undefined;
+      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, coverImageUrl };
     }
     case 'engagement': {
       const a = td.partner1Name || td.partner1;
@@ -189,8 +198,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     setMounted(true);
   }, []);
 
-  const isWedding = event?.template_type === 'wedding';
-  const isRomantic = event?.template_type === 'wedding' || event?.template_type === 'engagement';
+  const isWedding = event?.template_type === 'wedding' || event?.template_type === 'tuscany';
+  const isRomantic = isWedding || event?.template_type === 'engagement';
   const customColors = event?.custom_colors || {};
   const themeColor = customColors.primary || (isWedding ? '#B8944F' : '#191B1E');
 
@@ -258,10 +267,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     }
   }, [event]);
 
-  // Background music — the organizer's uploaded track. Browsers block audio
-  // with sound until a real user gesture, so playback is only ever started
-  // from inside a click handler (the envelope seal tap, or this toggle) —
-  // never automatically on mount.
+  // Background music — the organizer's uploaded track, OR a pasted YouTube
+  // link (played through a hidden IFrame Player instead of an <audio> tag).
+  // Browsers block audio with sound until a real user gesture, so playback is
+  // only ever started from inside a click handler (the envelope seal tap, or
+  // this toggle) — never automatically on mount.
   const musicRef = useRef(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const toggleMusic = useCallback(() => {
@@ -270,6 +280,56 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     if (el.paused) el.play().catch((err) => console.error('Background music playback failed:', err));
     else el.pause();
   }, []);
+
+  // ── YouTube-backed music: wraps the IFrame Player API in the same
+  //    { paused, play(), pause() } shape as an <audio> element, so the
+  //    envelope-reveal tap and the toggle button above don't need to care
+  //    which backend is actually playing. ──
+  const ytPlayerElRef = useRef(null);
+  const ytPlayerRef = useRef(null);
+  const youtubeMusicId = extractYouTubeId(event?.background_music_url);
+  useEffect(() => {
+    if (!youtubeMusicId) return undefined;
+    let cancelled = false;
+
+    const createPlayer = () => {
+      if (cancelled || !ytPlayerElRef.current || !window.YT?.Player) return;
+      const player = new window.YT.Player(ytPlayerElRef.current, {
+        videoId: youtubeMusicId,
+        playerVars: { autoplay: 0, controls: 0, loop: 1, playlist: youtubeMusicId },
+        events: {
+          onReady: () => {
+            ytPlayerRef.current = player;
+            musicRef.current = {
+              get paused() { return player.getPlayerState?.() !== 1; },
+              play: () => { player.playVideo(); return Promise.resolve(); },
+              pause: () => player.pauseVideo(),
+            };
+          },
+          onStateChange: (e) => setMusicPlaying(e.data === 1),
+        },
+      });
+    };
+
+    if (window.YT?.Player) {
+      createPlayer();
+    } else {
+      const previousCallback = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { previousCallback?.(); createPlayer(); };
+      if (!document.getElementById('youtube-iframe-api')) {
+        const tag = document.createElement('script');
+        tag.id = 'youtube-iframe-api';
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(tag);
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      try { ytPlayerRef.current?.destroy?.(); } catch { /* already torn down */ }
+      musicRef.current = null;
+    };
+  }, [youtubeMusicId]);
 
   // Dress code expand
   const [dressCodeExpanded, setDressCodeExpanded] = useState(false);
@@ -669,7 +729,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           />
         )}
       </AnimatePresence>
-      {event.background_music_url && (
+      {youtubeMusicId ? (
+        <div aria-hidden style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+          <div ref={ytPlayerElRef} />
+        </div>
+      ) : event.background_music_url && (
         <audio
           ref={musicRef}
           src={event.background_music_url}
@@ -1141,8 +1205,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 TEMPLATE-SPECIFIC SECTIONS
                 ═══════════════════════════════════════════ */}
 
-            {/* ─── WEDDING (one consolidated "Our Story" panel) ─── */}
-            {event.template_type === 'wedding' && event.template_data && (
+            {/* ─── WEDDING (one consolidated "Our Story" panel) — also covers the ─── */}
+            {/* ─── Tuscan Vineyard template, a visual variant of a wedding ─── */}
+            {isWedding && event.template_data && (
               <FadeInUp delay={0.15}>
                 <GlassmorphismCard bg="rgba(255,255,255,0.92)" border="rgba(232,226,214,0.6)">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

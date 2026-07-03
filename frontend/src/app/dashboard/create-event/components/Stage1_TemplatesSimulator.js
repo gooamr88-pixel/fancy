@@ -28,6 +28,7 @@ const TEMPLATE_PREVIEW_MAP = {
   birthday:   { name: 'Garden Party',     pattern: 'floral',  accent: '#E88FAC' },
   gala:       { name: 'Pure & Simple',    pattern: 'minimal', accent: '#C5A059' },
   custom:     { name: 'Woodland Romance', pattern: 'organic', accent: '#8B7355' },
+  tuscany:    { name: 'Tuscan Vineyard',  pattern: 'tuscany', accent: '#6B7A4F' },
 };
 
 /* ═══ Envelope lining gradient mapping ═══ */
@@ -37,6 +38,9 @@ function getLiningGradId(templateKey, presetIndex) {
   }
   if (templateKey === 'gala') {
     return ['goldGrad', 'burgundyGrad', 'goldGrad'][presetIndex] || 'goldGrad';
+  }
+  if (templateKey === 'tuscany') {
+    return ['oliveGrad', 'terracottaGrad', 'oliveGrad', 'burgundyGrad'][presetIndex] || 'oliveGrad';
   }
   return 'goldGrad';
 }
