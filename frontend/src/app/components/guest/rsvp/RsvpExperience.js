@@ -204,6 +204,8 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
       eventTitle={engine.event.title}
       isRTL={isRTL}
       themeColor={engine.event?.custom_colors?.primary || '#B8944F'}
+      secondaryColor={engine.event?.custom_colors?.secondary || null}
+      pattern={engine.event?.template_type}
       onOpen={closeEnvelope}
     />
   ) : null;

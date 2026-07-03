@@ -828,29 +828,26 @@ export default function InvitationCard({ template, theme, guestName, config, dat
        ────────────────────────────────────────────────────────── */
     case "marrakesh":
       return (
-        <div
-          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
-          style={{ background: "linear-gradient(165deg, #1B2A4A 0%, #223257 50%, #182440 100%)", color: "#F3E7D3", padding: "14px 14px 12px" }}
-        >
-          {[{ top: 8, left: 8 }, { top: 8, right: 8 }, { bottom: 8, left: 8 }, { bottom: 8, right: 8 }].map((pos, i) => (
-            <svg key={i} width="18" height="18" viewBox="0 0 18 18" className="absolute pointer-events-none" style={{ ...pos, opacity: 0.5 }}>
-              <path d="M9 0 L11 6 L18 6 L12.5 10 L14.5 18 L9 13.5 L3.5 18 L5.5 10 L0 6 L7 6 Z" fill="none" stroke={lightAccentColor} strokeWidth="0.6" />
-            </svg>
-          ))}
-          <div className="absolute pointer-events-none" style={{ inset: 16, border: `1px solid ${lightAccentColor}35`, borderRadius: "50% 50% 6px 6px / 30% 30% 6px 6px" }} />
-          <span className="text-[7px] uppercase tracking-[4px] font-sans mt-3 relative z-10" style={{ color: `${lightAccentColor}CC` }}>An Evening Under the Stars</span>
-          <div className="flex flex-col items-center text-center my-auto gap-1.5 relative z-10 px-2">
-            <span className="font-script text-[26px] leading-tight" style={{ color: lightAccentColor }}>{d.names || "Layla & Karim"}</span>
-            <svg width="80" height="10" viewBox="0 0 80 10" style={{ opacity: 0.55 }}>
-              <path d="M0 5 L20 5 M60 5 L80 5" stroke={lightAccentColor} strokeWidth="0.6" />
-              <path d="M30 5 L40 0 L50 5 L40 10 Z" fill="none" stroke={lightAccentColor} strokeWidth="0.6" />
-            </svg>
-            <span className="text-[8.5px] font-bold tracking-[1.5px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY · 24 OCTOBER 2026"}</span>
-            <span className="text-[7.5px] italic opacity-70">{d.venueLine || "Riad Al Fassia · Marrakesh"}</span>
+        <div className="w-full h-full flex select-none relative overflow-hidden font-serif" style={{ background: "linear-gradient(165deg, #1B2A4A 0%, #182440 100%)", color: "#F3E7D3" }}>
+          {/* Left third — keyhole-arch monogram panel (asymmetric, not centered) */}
+          <div className="w-[34%] flex flex-col items-center justify-center relative shrink-0" style={{ background: "rgba(217,169,78,0.08)", borderInlineEnd: `1px solid ${lightAccentColor}30` }}>
+            <div className="absolute" style={{ inset: 10, border: `1px solid ${lightAccentColor}35`, borderRadius: "50% 50% 4px 4px / 30% 30% 4px 4px" }} />
+            {[{ top: 4, left: 4 }, { bottom: 4, right: 4 }].map((pos, i) => (
+              <svg key={i} width="14" height="14" viewBox="0 0 18 18" className="absolute pointer-events-none" style={{ ...pos, opacity: 0.5 }}>
+                <path d="M9 0 L11 6 L18 6 L12.5 10 L14.5 18 L9 13.5 L3.5 18 L5.5 10 L0 6 L7 6 Z" fill="none" stroke={lightAccentColor} strokeWidth="0.6" />
+              </svg>
+            ))}
+            <span className="text-[13px] font-sans font-bold relative z-10" style={{ color: lightAccentColor }}>{d.monogram || "L&K"}</span>
           </div>
-          <div className="flex flex-col items-center gap-0.5 relative z-10 mb-2">
-            <span className="text-[6px] uppercase tracking-[2px] font-sans opacity-50">Reserved for</span>
-            <span className="font-script text-lg" style={{ color: lightAccentColor }}>{name}</span>
+          {/* Right two-thirds — left-aligned content block */}
+          <div className="flex-1 flex flex-col justify-between p-3">
+            <span className="text-[6.5px] uppercase tracking-[3px] font-sans" style={{ color: `${lightAccentColor}CC` }}>An Evening Under the Stars</span>
+            <div className="flex flex-col gap-1">
+              <span className="font-script text-[19px] leading-tight" style={{ color: lightAccentColor }}>{d.names || "Layla & Karim"}</span>
+              <span className="text-[7.5px] font-bold tracking-[1px]">{d.dateLine || "SATURDAY · 24 OCTOBER 2026"}</span>
+              <span className="text-[6.5px] italic opacity-70">{d.venueLine || "Riad Al Fassia · Marrakesh"}</span>
+            </div>
+            <span className="text-[5.5px] uppercase tracking-[2px] opacity-55">Reserved for {name}</span>
           </div>
         </div>
       );
@@ -896,22 +893,26 @@ export default function InvitationCard({ template, theme, guestName, config, dat
        ────────────────────────────────────────────────────────── */
     case "nordic":
       return (
-        <div
-          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-sans"
-          style={{ background: "#EFF3F5", color: "#33495D", padding: "18px 16px" }}
-        >
-          <span className="text-[7px] uppercase tracking-[4px] mt-2" style={{ color: "#7C93A3" }}>Together Forever</span>
-          <div className="flex flex-col items-center text-center gap-2 my-auto">
-            <span className="font-serif text-[22px] font-light tracking-tight">{d.names || "Lujain & Omar"}</span>
-            <svg width="30" height="26" viewBox="0 0 30 26" style={{ opacity: 0.6 }}>
-              <path d="M15 2 L15 24 M15 2 L8 9 M15 2 L22 9 M15 10 L9 16 M15 10 L21 16 M15 18 L10 23 M15 18 L20 23" stroke={accentColor} strokeWidth="1" fill="none" />
-            </svg>
-            <span className="text-[9px] font-semibold tracking-[1.5px]">{d.dateLine || "24.10.2026"}</span>
-            <span className="text-[7.5px] opacity-60">{d.venueLine || "Fjordhus · Oslo"}</span>
+        <div className="w-full h-full flex select-none relative overflow-hidden font-sans" style={{ background: "#EFF3F5", color: "#33495D" }}>
+          {/* Boarding-pass layout: main zone + perforated stub, not a centered stack */}
+          <div className="flex-1 flex flex-col justify-between p-3 pl-4">
+            <span className="text-[6.5px] uppercase tracking-[3px]" style={{ color: "#7C93A3" }}>Together Forever</span>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-serif text-[18px] font-light tracking-tight leading-tight">{d.names || "Lujain & Omar"}</span>
+              <span className="text-[8px] font-semibold tracking-[1px]">{d.dateLine || "24.10.2026"}</span>
+              <span className="text-[7px] opacity-60">{d.venueLine || "Fjordhus · Oslo"}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[5.5px] uppercase tracking-[2px] opacity-45">Reserved for</span>
+              <span className="text-[10px] font-serif italic">{name}</span>
+            </div>
           </div>
-          <div className="flex flex-col items-center gap-0.5 pb-1">
-            <span className="text-[6px] uppercase tracking-[2px] opacity-50">Reserved for</span>
-            <span className="font-serif text-sm italic">{name}</span>
+          <div style={{ borderInlineStart: "1.5px dashed #B7C4CC" }} />
+          <div className="flex flex-col items-center justify-center gap-2" style={{ width: "26%", background: "#E4EBEE" }}>
+            <svg width="14" height="18" viewBox="0 0 30 26" style={{ opacity: 0.55 }}>
+              <path d="M15 2 L15 24 M15 2 L8 9 M15 2 L22 9 M15 10 L9 16 M15 10 L21 16" stroke={accentColor} strokeWidth="1.3" fill="none" />
+            </svg>
+            <span className="text-[6px] font-bold tracking-[2px]" style={{ writingMode: "vertical-rl", color: `${accentColor}90` }}>WINTER · 2026</span>
           </div>
         </div>
       );
@@ -921,28 +922,24 @@ export default function InvitationCard({ template, theme, guestName, config, dat
        ────────────────────────────────────────────────────────── */
     case "havana":
       return (
-        <div
-          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
-          style={{ background: "linear-gradient(165deg, #FF9A6C 0%, #FF7A59 35%, #2EC4B6 100%)", color: "#FFF8ED", padding: "14px" }}
-        >
-          <svg className="absolute bottom-0 left-0 pointer-events-none" width="70" height="60" viewBox="0 0 70 60" style={{ opacity: 0.28 }}>
-            <path d="M5 60 Q8 40 20 30 Q10 28 2 20 Q14 22 22 28 Q18 16 22 6 Q26 18 24 30 Q34 22 44 20 Q34 28 26 32 Q20 40 18 60Z" fill="#0B3B36" />
-          </svg>
-          <svg className="absolute bottom-0 right-0 pointer-events-none" width="70" height="60" viewBox="0 0 70 60" style={{ opacity: 0.22, transform: "scaleX(-1)" }}>
-            <path d="M5 60 Q8 40 20 30 Q10 28 2 20 Q14 22 22 28 Q18 16 22 6 Q26 18 24 30 Q34 22 44 20 Q34 28 26 32 Q20 40 18 60Z" fill="#0B3B36" />
-          </svg>
-          <div className="absolute flex items-center justify-center" style={{ top: 8, right: 8, width: 26, height: 26, borderRadius: "50%", border: "1.5px dashed rgba(255,248,237,0.7)" }}>
-            <span className="text-[10px]">☀️</span>
+        <div className="w-full h-full flex select-none relative overflow-hidden font-serif" style={{ background: "#FFF8ED" }}>
+          {/* Postcard split: vivid photo panel + cream text panel with a postmark */}
+          <div className="w-[40%] relative shrink-0" style={{ background: "linear-gradient(165deg, #FF9A6C 0%, #FF7A59 45%, #2EC4B6 100%)" }}>
+            <svg className="absolute bottom-0 left-0 pointer-events-none" width="60" height="55" viewBox="0 0 70 60" style={{ opacity: 0.32 }}>
+              <path d="M5 60 Q8 40 20 30 Q10 28 2 20 Q14 22 22 28 Q18 16 22 6 Q26 18 24 30 Q34 22 44 20 Q34 28 26 32 Q20 40 18 60Z" fill="#0B3B36" />
+            </svg>
+            <span className="absolute top-2 left-2 text-[10px]">☀️</span>
           </div>
-          <span className="text-[7px] uppercase tracking-[3.5px] mt-3 font-sans font-semibold relative z-10" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.15)" }}>Fiesta de Amor</span>
-          <div className="flex flex-col items-center text-center my-auto gap-1.5 relative z-10">
-            <span className="font-script text-[30px] leading-tight" style={{ textShadow: "0 2px 6px rgba(0,0,0,0.2)" }}>{d.names || "Lujain & Omar"}</span>
-            <span className="text-[9px] font-bold tracking-[1.5px]">{d.dateLine || "SATURDAY · OCTOBER 24, 2026"}</span>
-            <span className="text-[7.5px] italic opacity-90">{d.venueLine || "Casa de la Playa · Havana"}</span>
-          </div>
-          <div className="flex flex-col items-center gap-0.5 relative z-10 mb-2">
-            <span className="text-[6px] uppercase tracking-[2px] font-sans opacity-75">Reserved for</span>
-            <span className="font-script text-lg">{name}</span>
+          <div className="flex-1 flex flex-col justify-between p-3" style={{ color: "#7A3B2E" }}>
+            <span className="text-[6.5px] uppercase tracking-[3px] font-sans font-semibold opacity-70">Fiesta de Amor</span>
+            <div className="flex flex-col gap-1">
+              <span className="font-script text-[20px] leading-tight" style={{ color: "#E8623D" }}>{d.names || "Lujain & Omar"}</span>
+              <span className="text-[8px] font-bold tracking-[1px]">{d.dateLine || "OCT 24, 2026"}</span>
+              <span className="text-[7px] italic opacity-70">{d.venueLine || "Casa de la Playa · Havana"}</span>
+            </div>
+            <div className="self-end flex flex-col items-center justify-center rounded-full" style={{ width: 34, height: 34, border: "1.5px dashed rgba(232,98,61,0.5)" }}>
+              <span className="text-[5px] font-sans font-bold text-center leading-none" style={{ color: "#E8623D" }}>RSVP<br />{(name || "GUEST").split(" ")[0]}</span>
+            </div>
           </div>
         </div>
       );
@@ -985,53 +982,44 @@ export default function InvitationCard({ template, theme, guestName, config, dat
     /* ──────────────────────────────────────────────────────────
        ROSE ATELIER — Modern French chic, ribbon & script
        ────────────────────────────────────────────────────────── */
-    case "roseAtelier":
+    case "roseAtelier": {
+      // A tall minimal "perfume label" — small-caps type, no cursive script,
+      // to read distinctly from the other centered/script-name treatments.
+      const namesParts = (d.names || "Lujain & Omar").split(" & ");
       return (
-        <div
-          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
-          style={{ background: "linear-gradient(165deg, #FBF6F2 0%, #F7EBE6 60%, #F3E2DC 100%)", color: "#8A5A5F", padding: "16px 16px 12px" }}
-        >
-          <svg width="34" height="20" viewBox="0 0 34 20" className="mt-2" style={{ opacity: 0.7 }}>
+        <div className="w-full h-full flex flex-col items-center justify-center select-none relative overflow-hidden font-serif" style={{ background: "linear-gradient(180deg, #FBF6F2 0%, #F7EBE6 100%)", color: "#8A5A5F", padding: "20px 18px" }}>
+          <svg width="26" height="16" viewBox="0 0 34 20" style={{ opacity: 0.65, marginBottom: 14 }}>
             <path d="M17 10 C10 0 0 4 8 10 C0 16 10 20 17 10 C24 20 34 16 26 10 C34 4 24 0 17 10Z" fill="none" stroke={accentColor} strokeWidth="0.6" />
           </svg>
-          <div className="flex flex-col items-center text-center my-auto gap-1.5">
-            <span className="text-[6.5px] uppercase tracking-[4px]" style={{ color: `${accentColor}99` }}>Le Mariage De</span>
-            <span className="font-script text-[26px]" style={{ color: accentColor }}>{d.names || "Lujain & Omar"}</span>
-            <span className="text-[8.5px] tracking-[2px] uppercase mt-1">{d.dateLine || "24 Octobre 2026"}</span>
-            <span className="text-[7.5px] italic opacity-70">{d.venueLine || "Château de Fleurs · Paris"}</span>
-          </div>
-          <div className="flex flex-col items-center gap-0.5 mb-1">
-            <span className="text-[6px] uppercase tracking-[2px] opacity-60">Au nom de</span>
-            <span className="font-script text-lg" style={{ color: accentColor }}>{name}</span>
-          </div>
+          <span className="text-[7px] uppercase tracking-[5px]" style={{ color: `${accentColor}90` }}>Le Mariage De</span>
+          <span className="text-[15px] tracking-[3px] uppercase mt-3 leading-relaxed text-center">{namesParts[0]}{namesParts[1] ? <><br />&amp; {namesParts[1]}</> : null}</span>
+          <div className="w-8 h-px my-3" style={{ background: accentColor, opacity: 0.4 }} />
+          <span className="text-[8px] tracking-[2px] uppercase">{d.dateLine || "24 Octobre 2026"}</span>
+          <span className="text-[7px] italic opacity-60 mt-1">{d.venueLine || "Château de Fleurs · Paris"}</span>
+          <span className="text-[6px] uppercase tracking-[2px] opacity-50 mt-auto pt-4">Au nom de {name}</span>
         </div>
       );
+    }
 
     /* ──────────────────────────────────────────────────────────
        ORCHID — Midnight Orchid · Moody botanical luxury
        ────────────────────────────────────────────────────────── */
     case "orchid":
       return (
-        <div
-          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
-          style={{ background: "linear-gradient(170deg, #1B1023 0%, #24132E 55%, #180D20 100%)", color: "#EADCF0", padding: "14px" }}
-        >
-          <svg className="absolute top-0 left-0 pointer-events-none" width="50" height="180" viewBox="0 0 50 180" style={{ opacity: 0.35 }}>
-            <path d="M10 0 Q0 40 14 80 Q4 110 16 150 Q8 165 18 180" fill="none" stroke={lightAccentColor} strokeWidth="0.8" />
-            {[30, 75, 140].map((y, i) => (
-              <ellipse key={i} cx={i % 2 === 0 ? 20 : 8} cy={y} rx="8" ry="5" fill={lightAccentColor} opacity="0.4" transform={`rotate(${i * 35} ${i % 2 === 0 ? 20 : 8} ${y})`} />
+        <div className="w-full h-full flex flex-col justify-end select-none relative overflow-hidden font-serif" style={{ background: "linear-gradient(170deg, #1B1023 0%, #24132E 55%, #180D20 100%)", color: "#EADCF0", padding: "16px" }}>
+          {/* Bottom-anchored, asymmetric — the vine runs diagonally along the right edge */}
+          <svg className="absolute top-0 right-0 pointer-events-none" width="60" height="200" viewBox="0 0 60 200" style={{ opacity: 0.4 }}>
+            <path d="M52 0 Q60 50 42 90 Q56 120 40 160 Q50 180 38 200" fill="none" stroke={lightAccentColor} strokeWidth="0.8" />
+            {[40, 100, 150].map((y, i) => (
+              <ellipse key={i} cx={i % 2 === 0 ? 47 : 34} cy={y} rx="9" ry="6" fill={lightAccentColor} opacity="0.4" transform={`rotate(${i * 40} ${i % 2 === 0 ? 47 : 34} ${y})`} />
             ))}
           </svg>
-          <span className="text-[7px] uppercase tracking-[4px] mt-3 relative z-10" style={{ color: `${lightAccentColor}CC` }}>An Intimate Evening</span>
-          <div className="flex flex-col items-center text-center my-auto gap-1.5 relative z-10 px-3">
-            <span className="font-script text-[27px]" style={{ color: lightAccentColor }}>{d.names || "Lujain & Omar"}</span>
-            <span className="text-[8.5px] font-bold tracking-[1.5px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY · OCTOBER 24, 2026"}</span>
-            <span className="text-[7.5px] italic opacity-70">{d.venueLine || "The Orchid House · London"}</span>
-          </div>
-          <div className="flex flex-col items-center gap-0.5 relative z-10 mb-2">
-            <span className="text-[6px] uppercase tracking-[2px] opacity-50">Reserved for</span>
-            <span className="font-script text-lg" style={{ color: lightAccentColor }}>{name}</span>
-          </div>
+          <span className="text-[6.5px] uppercase tracking-[4px] relative z-10 mb-2" style={{ color: `${lightAccentColor}AA` }}>An Intimate Evening</span>
+          <span className="font-script text-[23px] leading-tight relative z-10 max-w-[75%]" style={{ color: lightAccentColor }}>{d.names || "Lujain & Omar"}</span>
+          <span className="text-[8px] font-bold tracking-[1.5px] mt-2 relative z-10" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY · OCTOBER 24, 2026"}</span>
+          <span className="text-[7px] italic opacity-65 relative z-10">{d.venueLine || "The Orchid House · London"}</span>
+          <div className="w-full h-px my-2.5 relative z-10" style={{ background: `${lightAccentColor}30` }} />
+          <span className="text-[6px] uppercase tracking-[2px] opacity-50 relative z-10 pb-1">Reserved for {name}</span>
         </div>
       );
 
@@ -1040,31 +1028,25 @@ export default function InvitationCard({ template, theme, guestName, config, dat
        ────────────────────────────────────────────────────────── */
     case "clay":
       return (
-        <div
-          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
-          style={{ background: "linear-gradient(165deg, #EDE0CB 0%, #E6D5B8 100%)", color: "#7A4A32", padding: "14px" }}
-        >
-          <svg width="36" height="36" viewBox="0 0 36 36" className="mt-2" style={{ opacity: 0.6 }}>
-            <circle cx="18" cy="18" r="6" fill="none" stroke={accentColor} strokeWidth="1" />
-            {Array.from({ length: 12 }).map((_, i) => {
-              const a = (i * 30) * Math.PI / 180;
-              const x1 = 18 + 9 * Math.cos(a), y1 = 18 + 9 * Math.sin(a), x2 = 18 + 16 * Math.cos(a), y2 = 18 + 16 * Math.sin(a);
-              return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={accentColor} strokeWidth="0.8" />;
-            })}
-          </svg>
-          <div className="flex flex-col items-center text-center my-auto gap-1.5">
-            <span className="text-[6.5px] uppercase tracking-[3px]" style={{ color: `${accentColor}90` }}>Together Under the Sun</span>
-            <span className="font-script text-[27px]" style={{ color: accentColor }}>{d.names || "Lujain & Omar"}</span>
-            <div className="flex items-center gap-1.5">
-              {[0, 1, 2, 3, 4].map(i => <span key={i} className="w-1 h-1 rounded-full" style={{ background: `${accentColor}70` }} />)}
+        <div className="w-full h-full flex flex-col items-center justify-center select-none relative overflow-hidden font-serif" style={{ background: "linear-gradient(165deg, #EDE0CB 0%, #E6D5B8 100%)", color: "#7A4A32", padding: "14px" }}>
+          {/* Sun-medallion centerpiece — names live INSIDE the sunburst, not below it */}
+          <div className="relative flex items-center justify-center" style={{ width: 116, height: 116 }}>
+            <svg width="116" height="116" viewBox="0 0 116 116" className="absolute inset-0">
+              <circle cx="58" cy="58" r="40" fill="none" stroke={accentColor} strokeWidth="1" opacity="0.5" />
+              {Array.from({ length: 16 }).map((_, i) => {
+                const a = (i * 22.5) * Math.PI / 180;
+                const x1 = 58 + 42 * Math.cos(a), y1 = 58 + 42 * Math.sin(a), x2 = 58 + 52 * Math.cos(a), y2 = 58 + 52 * Math.sin(a);
+                return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke={accentColor} strokeWidth="1" opacity="0.55" />;
+              })}
+            </svg>
+            <div className="flex flex-col items-center text-center relative z-10 px-2">
+              <span className="font-script text-[17px] leading-tight" style={{ color: accentColor }}>{d.names || "Lujain & Omar"}</span>
+              <span className="text-[7px] font-bold tracking-[1px] mt-1">{d.dateLine || "OCT 24"}</span>
             </div>
-            <span className="text-[8.5px] font-bold tracking-[1.5px] mt-1">{d.dateLine || "SATURDAY · OCTOBER 24, 2026"}</span>
-            <span className="text-[7.5px] italic opacity-70">{d.venueLine || "Desert Rose Ranch · Marrakesh"}</span>
           </div>
-          <div className="flex flex-col items-center gap-0.5 mb-2">
-            <span className="text-[6px] uppercase tracking-[2px] opacity-60">Reserved for</span>
-            <span className="font-script text-lg" style={{ color: accentColor }}>{name}</span>
-          </div>
+          <span className="text-[6.5px] uppercase tracking-[3px] mt-3" style={{ color: `${accentColor}90` }}>Together Under the Sun</span>
+          <span className="text-[7px] italic opacity-70 mt-1">{d.venueLine || "Desert Rose Ranch · Marrakesh"}</span>
+          <span className="text-[6px] uppercase tracking-[2px] opacity-55 mt-3">Reserved for {name}</span>
         </div>
       );
 
@@ -1073,25 +1055,24 @@ export default function InvitationCard({ template, theme, guestName, config, dat
        ────────────────────────────────────────────────────────── */
     case "alpine":
       return (
-        <div
-          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
-          style={{ background: "linear-gradient(165deg, #22392F 0%, #1B2E25 100%)", color: "#F5F1E6", padding: "14px" }}
-        >
-          {[{ top: 8, left: 8 }, { top: 8, right: 8 }].map((pos, i) => (
-            <svg key={i} width="20" height="24" viewBox="0 0 20 24" className="absolute pointer-events-none" style={{ ...pos, opacity: 0.5 }}>
-              <path d="M10 0 L4 10 H8 L2 18 H8 L8 24 M10 0 L16 10 H12 L18 18 H12 L12 24" fill="none" stroke={lightAccentColor} strokeWidth="0.8" />
+        <div className="w-full h-full flex flex-col items-center justify-between select-none relative overflow-hidden font-serif" style={{ background: "linear-gradient(165deg, #22392F 0%, #1B2E25 100%)", color: "#F5F1E6", padding: "14px" }}>
+          <span className="text-[6.5px] uppercase tracking-[3px] mt-1" style={{ color: `${lightAccentColor}CC` }}>A Winter Celebration</span>
+          {/* Cottage-window frame with draping pine boughs — a framed portrait, not a corner-bracketed stack */}
+          <div className="relative flex items-center justify-center my-1" style={{ width: 98, height: 108 }}>
+            <div className="absolute inset-0" style={{ border: `1.5px solid ${lightAccentColor}70`, borderRadius: "50% 50% 8px 8px / 35% 35% 8px 8px" }} />
+            <svg className="absolute -top-3 -left-3" width="44" height="38" viewBox="0 0 20 24" style={{ opacity: 0.6 }}>
+              <path d="M10 0 L4 10 H8 L2 18 H8 L8 24 M10 0 L16 10 H12 L18 18 H12 L12 24" fill="none" stroke={lightAccentColor} strokeWidth="0.9" />
             </svg>
-          ))}
-          <span className="text-[7px] uppercase tracking-[3.5px] mt-3 relative z-10" style={{ color: `${lightAccentColor}CC` }}>A Winter Celebration</span>
-          <div className="flex flex-col items-center text-center my-auto gap-1.5 relative z-10">
-            <span className="font-script text-[26px]" style={{ color: lightAccentColor }}>{d.names || "Lujain & Omar"}</span>
-            <span className="text-[8.5px] font-bold tracking-[1.5px]">{d.dateLine || "SATURDAY · DECEMBER 12, 2026"}</span>
-            <span className="text-[7.5px] italic opacity-75">{d.venueLine || "Pine Ridge Lodge · Aspen"}</span>
+            <svg className="absolute -top-3 -right-3 scale-x-[-1]" width="44" height="38" viewBox="0 0 20 24" style={{ opacity: 0.6 }}>
+              <path d="M10 0 L4 10 H8 L2 18 H8 L8 24 M10 0 L16 10 H12 L18 18 H12 L12 24" fill="none" stroke={lightAccentColor} strokeWidth="0.9" />
+            </svg>
+            <div className="flex flex-col items-center text-center px-3 relative z-10">
+              <span className="font-script text-[19px]" style={{ color: lightAccentColor }}>{d.names || "Lujain & Omar"}</span>
+              <span className="text-[7px] font-bold tracking-[1px] mt-1">{d.dateLine || "DEC 12, 2026"}</span>
+            </div>
           </div>
-          <div className="flex flex-col items-center gap-0.5 relative z-10 mb-2">
-            <span className="text-[6px] uppercase tracking-[2px] opacity-55">Reserved for</span>
-            <span className="font-script text-lg" style={{ color: lightAccentColor }}>{name}</span>
-          </div>
+          <span className="text-[7px] italic opacity-70">{d.venueLine || "Pine Ridge Lodge · Aspen"}</span>
+          <span className="text-[6px] uppercase tracking-[2px] opacity-55 mb-1">Reserved for {name}</span>
         </div>
       );
 
@@ -1100,30 +1081,20 @@ export default function InvitationCard({ template, theme, guestName, config, dat
        ────────────────────────────────────────────────────────── */
     case "coastal":
       return (
-        <div
-          className="w-full h-full flex flex-col items-center justify-between rounded select-none relative overflow-hidden font-serif"
-          style={{ background: "linear-gradient(165deg, #E8F3EF 0%, #E8DCC3 100%)", color: "#2B5F5A", padding: "14px" }}
-        >
-          <svg width="90%" height="14" viewBox="0 0 100 14" className="mt-2" style={{ opacity: 0.5 }} preserveAspectRatio="none">
-            <path d="M0 8 Q12 0 25 8 T50 8 T75 8 T100 8" fill="none" stroke={accentColor} strokeWidth="1" />
-          </svg>
-          <div className="flex flex-col items-center text-center my-auto gap-1.5">
-            <span className="text-[6.5px] uppercase tracking-[3.5px]" style={{ color: `${accentColor}90` }}>Two Souls, One Shore</span>
-            <span className="font-script text-[27px]" style={{ color: accentColor }}>{d.names || "Lujain & Omar"}</span>
-            <svg width="36" height="14" viewBox="0 0 36 14" style={{ opacity: 0.6 }}>
-              <circle cx="18" cy="7" r="5" fill="none" stroke={accentColor} strokeWidth="0.8" />
-              <path d="M4 7 H13 M23 7 H32" stroke={accentColor} strokeWidth="0.8" />
-            </svg>
-            <span className="text-[8.5px] font-bold tracking-[1.5px]">{d.dateLine || "SATURDAY · JUNE 20, 2026"}</span>
-            <span className="text-[7.5px] italic opacity-70">{d.venueLine || "Driftwood Point · Cape Cod"}</span>
+        <div className="w-full h-full flex flex-col items-center justify-between select-none relative overflow-hidden font-serif" style={{ background: "linear-gradient(165deg, #E8F3EF 0%, #E8DCC3 100%)", color: "#2B5F5A", padding: "14px" }}>
+          <span className="text-[6.5px] uppercase tracking-[3px] mt-1" style={{ color: `${accentColor}90` }}>Two Souls, One Shore</span>
+          {/* Porthole window — a ring frame, not a corner motif */}
+          <div className="relative flex items-center justify-center my-1 rounded-full" style={{ width: 100, height: 100, border: `4px solid ${accentColor}22`, boxShadow: `inset 0 0 0 2px ${accentColor}` }}>
+            <div className="flex flex-col items-center text-center px-2">
+              <span className="font-script text-[17px]" style={{ color: accentColor }}>{d.names || "Lujain & Omar"}</span>
+              <span className="text-[7px] font-bold tracking-[1px] mt-1">{d.dateLine || "JUNE 20, 2026"}</span>
+            </div>
           </div>
-          <div className="flex flex-col items-center gap-0.5 mb-2">
-            <span className="text-[6px] uppercase tracking-[2px] opacity-55">Reserved for</span>
-            <span className="font-script text-lg" style={{ color: accentColor }}>{name}</span>
-          </div>
-          <svg width="90%" height="14" viewBox="0 0 100 14" className="mb-1" style={{ opacity: 0.5 }} preserveAspectRatio="none">
-            <path d="M0 8 Q12 16 25 8 T50 8 T75 8 T100 8" fill="none" stroke={accentColor} strokeWidth="1" />
+          <span className="text-[7px] italic opacity-70">{d.venueLine || "Driftwood Point · Cape Cod"}</span>
+          <svg width="90%" height="12" viewBox="0 0 100 12" style={{ opacity: 0.55 }} preserveAspectRatio="none">
+            <path d="M0 6 Q12 0 25 6 T50 6 T75 6 T100 6" fill="none" stroke={accentColor} strokeWidth="1" />
           </svg>
+          <span className="text-[6px] uppercase tracking-[2px] opacity-55 mb-1">Reserved for {name}</span>
         </div>
       );
 

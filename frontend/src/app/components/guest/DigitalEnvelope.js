@@ -21,22 +21,36 @@
  *     onAnimationComplete fires onOpen() to unmount this overlay.
  */
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
+import { lighten, darken } from '../../utils/color';
+import { getCelebrationPreset } from '../../utils/patternCelebration';
+import { playSealOpen } from '../../utils/sound';
+import { buzz } from './GuestUI';
+import { FloatingParticles, ConfettiExplosion } from './GuestAnimations';
 
-/* ═══ Warm luxury palette (Ivory · Champagne · Bronze · radiant Gold) ═══ */
-const C = {
-  ivory: '#F8F4EC',
-  ivoryDeep: '#EFE6D4',
-  champagne: '#E7D4A8',
-  champagneLt: '#F4E6C2',
-  bronze: '#B8944F',
-  bronzeDeep: '#6E4A22',
-  bronzeShadow: '#3E2810',
-  gold: '#FFC23C',
-  goldBright: '#FFE08A',
-  white: '#FFFCEF',
-};
+/* ═══ Palette derivation — every event gets its OWN "molten seal" palette,
+   built from its actual theme colors instead of one fixed warm gold. The
+   ignite sequence (medallion, god-rays, molten glow) stays identical in
+   structure; only the color story changes, so a Nordic Frost event opens
+   into icy silver-blue light while a Midnight Orchid event opens into
+   gilded plum, instead of every event sharing the same bronze wax seal. ═══*/
+function derivePalette(primary, secondary) {
+  const p = primary || '#B8944F';
+  const s = secondary || lighten(p, 0.35);
+  return {
+    ivory: lighten(s, 0.86),
+    ivoryDeep: lighten(s, 0.74),
+    champagne: lighten(s, 0.3),
+    champagneLt: lighten(s, 0.55),
+    bronze: p,
+    bronzeDeep: darken(p, 0.55),
+    bronzeShadow: darken(p, 0.75),
+    gold: lighten(p, 0.15),
+    goldBright: lighten(p, 0.42),
+    white: '#FFFCEF',
+  };
+}
 
 /* Static spoke geometry → deterministic, no hydration mismatch. */
 const RAY_MASK = 'radial-gradient(circle, transparent 16%, #000 30%, #000 60%, transparent 78%)';
@@ -45,8 +59,12 @@ export default function DigitalEnvelope({
   guestName = '',
   eventTitle = '',
   isRTL = false,
-  themeColor = C.bronze,
-  secondaryColor = C.champagne,
+  themeColor = '#B8944F',
+  secondaryColor = null,
+  /* The event's template_type — drives the ambient particle atmosphere
+     (petals/snow/gold dust) so the envelope already feels like THIS
+     invitation before it's even opened. */
+  pattern = null,
   /* Drop the carved-medallion PNG here (transparent centre). Falls back to a
      fully CSS-generated bronze disc when absent. */
   sealImageUrl = null,
@@ -57,9 +75,27 @@ export default function DigitalEnvelope({
   patternUrl = null,
   onOpen,
 }) {
+  const C = useMemo(() => derivePalette(themeColor, secondaryColor), [themeColor, secondaryColor]);
+  const resolvedSecondary = secondaryColor || C.champagne;
+  const ambient = useMemo(() => getCelebrationPreset(pattern), [pattern]);
   const [phase, setPhase] = useState('idle');
   const timers = useRef([]);
   const reduced = useRef(false);
+
+  /* ── Magnetic tilt: the seal leans toward the cursor/finger before it's
+     tapped, like a real medallion catching the light — an invitation to
+     touch it, not just a static button. Disabled once ignited. ── */
+  const tiltX = useMotionValue(0);
+  const tiltY = useMotionValue(0);
+  const sealRotateX = useTransform(tiltY, [-0.5, 0.5], [12, -12]);
+  const sealRotateY = useTransform(tiltX, [-0.5, 0.5], [-12, 12]);
+  const handleSealPointerMove = useCallback((e) => {
+    if (reduced.current || phase !== 'idle') return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    tiltX.set((e.clientX - rect.left) / rect.width - 0.5);
+    tiltY.set((e.clientY - rect.top) / rect.height - 0.5);
+  }, [tiltX, tiltY, phase]);
+  const handleSealPointerLeave = useCallback(() => { tiltX.set(0); tiltY.set(0); }, [tiltX, tiltY]);
 
   useEffect(() => {
     reduced.current =
@@ -73,6 +109,8 @@ export default function DigitalEnvelope({
 
   const ignite = useCallback(() => {
     if (phase !== 'idle') return;
+    buzz([10, 30, 10, 30, 40]); // a little ramp, like the seal cracking then flooding with light
+    playSealOpen();
     const r = reduced.current;
     const at = (ms, fn) => timers.current.push(setTimeout(fn, r ? ms * 0.35 : ms));
     setPhase('igniting');
@@ -123,9 +161,22 @@ export default function DigitalEnvelope({
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         fontFamily: 'var(--font-sans)', WebkitTapHighlightColor: 'transparent',
-        background: `radial-gradient(130% 110% at 50% 8%, ${hexA(secondaryColor, 0.35)} 0%, ${C.ivory} 42%, ${C.ivoryDeep} 100%)`,
+        background: `radial-gradient(130% 110% at 50% 8%, ${hexA(resolvedSecondary, 0.35)} 0%, ${C.ivory} 42%, ${C.ivoryDeep} 100%)`,
       }}
     >
+      {/* ═══ Layer 1a: ambient atmosphere — drifting petals/snow/gold dust
+           matched to this event's template, present before the seal is even
+           tapped, fading out once the light takes over. ═══ */}
+      <motion.div
+        aria-hidden
+        initial={false}
+        animate={{ opacity: is('idle') ? 1 : 0 }}
+        transition={{ duration: 0.6 }}
+        style={{ position: 'absolute', inset: 0, zIndex: 0 }}
+      >
+        <FloatingParticles count={22} color={ambient.ambientColor || resolvedSecondary} shape={ambient.ambient} />
+      </motion.div>
+
       {/* ═══ Layer 1b: embossed arabesque pattern (graceful fallback) ═══ */}
       <div
         aria-hidden
@@ -206,12 +257,21 @@ export default function DigitalEnvelope({
         }}
       />
 
-      {/* ═══ Stage content (seal + copy) ═══ */}
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 34, padding: 24 }}>
+      {/* A quick themed burst — the same petals/stars/snow family as the rest
+          of the guest journey — right as the seal floods with light, instead
+          of the ignition being color-only. */}
+      {is('flooding') && !reduced.current && (
+        <ConfettiExplosion active duration={1300} particleCount={44} spread={0.65} colors={ambient.colors} shapes={ambient.shapes} />
+      )}
 
-        {/* ── The 3D metallic seal ── */}
+      {/* ═══ Stage content (seal + copy) ═══ */}
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 34, padding: 24, perspective: 900 }}>
+
+        {/* ── The 3D metallic seal — leans toward the cursor/finger like a real medallion ── */}
         <motion.button
           onClick={ignite}
+          onPointerMove={handleSealPointerMove}
+          onPointerLeave={handleSealPointerLeave}
           aria-label="Open invitation"
           disabled={phase !== 'idle'}
           whileTap={phase === 'idle' ? { scale: 0.96 } : {}}
@@ -226,6 +286,7 @@ export default function DigitalEnvelope({
             border: 'none', padding: 0, background: 'transparent',
             cursor: phase === 'idle' ? 'pointer' : 'default',
             willChange: 'transform, filter', borderRadius: '50%',
+            rotateX: sealRotateX, rotateY: sealRotateY, transformStyle: 'preserve-3d',
           }}
         >
           {/* Idle breathing aura behind the disc */}
@@ -245,11 +306,32 @@ export default function DigitalEnvelope({
             position: 'absolute', inset: 0, borderRadius: '50%',
             ...(sealImageUrl
               ? { backgroundImage: `url(${sealImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-              : cssMedallion()),
+              : cssMedallion(C)),
             boxShadow: `0 22px 48px -12px ${hexA(C.bronzeShadow, 0.6)},
                         inset 0 3px 6px ${hexA(C.champagneLt, 0.55)},
                         inset 0 -10px 22px ${hexA(C.bronzeShadow, 0.55)}`,
           }} />
+
+          {/* The wax seal cracking open — a burst of jagged fissures that
+              flashes across the medallion the instant it's tapped, before
+              the light takes over. Purely decorative, so it's skipped
+              entirely once lit fades it back out. */}
+          <motion.svg
+            aria-hidden
+            viewBox="0 0 100 100"
+            initial={false}
+            animate={{ opacity: is('igniting') ? 1 : 0 }}
+            transition={{ duration: is('igniting') ? 0.12 : 0.4 }}
+            style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+          >
+            {[
+              'M50 50 L18 28', 'M50 50 L82 22', 'M50 50 L14 62',
+              'M50 50 L86 68', 'M50 50 L46 92', 'M50 50 L60 12',
+            ].map((d, i) => (
+              <path key={i} d={d} stroke={C.white} strokeWidth="0.8" strokeLinecap="round" fill="none"
+                opacity="0.85" style={{ filter: `drop-shadow(0 0 3px ${hexA(C.goldBright, 0.9)})` }} />
+            ))}
+          </motion.svg>
 
           {/* Gold/glowing seal variant — cross-faded in on tap (image seals only) */}
           {sealImageUrl && sealImageGoldUrl && sealImageGoldUrl !== sealImageUrl && (
@@ -342,7 +424,7 @@ export default function DigitalEnvelope({
 }
 
 /* ── CSS-generated bronze medallion (used when no seal image is supplied) ── */
-function cssMedallion() {
+function cssMedallion(C) {
   return {
     background: `
       radial-gradient(circle at 50% 50%, ${hexA(C.champagneLt, 0.9)} 0%, ${hexA(C.champagneLt, 0)} 30%),

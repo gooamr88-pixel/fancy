@@ -201,6 +201,50 @@ function getDirectionsUrl(lat, lng, address, mounted = false) {
   return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
 }
 
+/* Decorative floating floral spray flanking the hero photo — a stem with
+   three cascading blooms (layered petal ellipses, same technique as the
+   InvitationCard "floral" pattern), gently swaying. Colored to the event's
+   own theme rather than a fixed pink so it suits any template; mirrored via
+   scaleX for the right-hand side. */
+function HeroFloralAccent({ color, mirror = false }) {
+  const blooms = [{ cx: 50, cy: 225, r: 26 }, { cx: 49, cy: 128, r: 20 }, { cx: 51, cy: 48, r: 15 }];
+  return (
+    <motion.div
+      aria-hidden
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 1.2, delay: 0.6 }}
+      className="ep-hero-floral"
+      style={{
+        width: 'clamp(64px, 8vw, 128px)', flexShrink: 0,
+        transform: mirror ? 'scaleX(-1)' : 'none',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      }}
+    >
+      <motion.svg
+        viewBox="0 0 100 260" width="100%" height="auto" style={{ transformOrigin: 'bottom center', overflow: 'visible' }}
+        animate={{ rotate: [-2.5, 2.5, -2.5], y: [0, -10, 0] }}
+        transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+      >
+        <path d="M50 260 C46 200 54 150 48 100 C45 70 55 40 50 10" fill="none" stroke={color} strokeWidth="2" opacity="0.5" />
+        <path d="M48 190 Q20 185 12 160 Q34 162 48 190Z" fill={color} opacity="0.32" />
+        <path d="M50 140 Q80 133 90 108 Q66 112 50 140Z" fill={color} opacity="0.28" />
+        <path d="M49 80 Q26 76 20 55 Q40 58 49 80Z" fill={color} opacity="0.24" />
+        {blooms.map((bloom, i) => (
+          <g key={i}>
+            {[0, 51, 102, 153, 204, 255, 306].map(angle => (
+              <ellipse key={angle} cx={bloom.cx} cy={bloom.cy} rx={bloom.r * 0.55} ry={bloom.r * 0.32}
+                fill={color} opacity={0.2 + i * 0.06}
+                transform={`rotate(${angle} ${bloom.cx} ${bloom.cy})`} />
+            ))}
+            <circle cx={bloom.cx} cy={bloom.cy} r={bloom.r * 0.28} fill={color} opacity={0.55} />
+          </g>
+        ))}
+      </motion.svg>
+    </motion.div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════
    COMPONENT
    ═══════════════════════════════════════════════════════════════ */
@@ -870,20 +914,20 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             <FloatingParticles count={30} color={themeColor} />
           </div>
 
-          {/* Hero Content Grid */}
-          <div style={{ 
-            position: 'relative', zIndex: 10, maxWidth: '1100px', width: '100%', 
-            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '64px',
-            flexWrap: 'wrap', justifyContent: 'center'
+          {/* Hero Content — centered text above a centered photo flanked by
+              theme-colored floral accents, instead of a side-by-side split. */}
+          <div style={{
+            position: 'relative', zIndex: 10, maxWidth: '820px', width: '100%',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '56px',
           }}>
-            
-            {/* Left/Top: Text Content */}
-            <div style={{ 
-              flex: '1 1 400px', 
-              textAlign: isContentLTR ? 'left' : 'right', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: isContentLTR ? 'flex-start' : 'flex-end' 
+
+            {/* Text Content — centered */}
+            <div style={{
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              maxWidth: '680px',
             }} dir={isContentLTR ? 'ltr' : 'rtl'}>
               <FadeInUp delay={0.1} y={20}>
                 <span style={{
@@ -899,7 +943,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     background: '#D7BE80', display: 'inline-block',
                     animation: 'pulseDot 2s infinite'
                   }} />
-                  {templateLabels[lang]?.[event.template_type] || 
+                  {templateLabels[lang]?.[event.template_type] ||
                     (isRTL ? 'تفاصيل الفعالية' : `${event.template_type} invitation`)}
                 </span>
               </FadeInUp>
@@ -910,14 +954,15 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 delay={0.2}
                 dir={isContentLTR ? 'ltr' : 'rtl'}
                 style={{
-                  fontSize: 'clamp(42px, 5.5vw, 64px)', 
-                  fontWeight: isRomantic ? 400 : 800, 
+                  fontSize: 'clamp(42px, 5.5vw, 64px)',
+                  fontWeight: isRomantic ? 400 : 800,
                   color: '#FFFFFF',
-                  letterSpacing: isRomantic ? '0px' : '-0.5px', 
+                  letterSpacing: isRomantic ? '0px' : '-0.5px',
                   marginBottom: '24px',
                   fontFamily: isRomantic ? 'var(--font-serif)' : 'var(--font-sans)',
-                  lineHeight: 1.1, 
+                  lineHeight: 1.1,
                   textShadow: '0 4px 30px rgba(0,0,0,0.5)',
+                  textAlign: 'center',
                 }}
                 className="ep-hero-title"
               />
@@ -925,20 +970,21 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               <FadeInUp delay={0.5} y={20}>
                 <p style={{
                   color: 'rgba(255,255,255,0.8)',
-                  fontWeight: 300, 
-                  fontSize: '17px', 
-                  lineHeight: 1.85, 
+                  fontWeight: 300,
+                  fontSize: '17px',
+                  lineHeight: 1.85,
                   marginBottom: '40px',
                   maxWidth: '560px',
                   fontFamily: 'var(--font-sans)',
                   textShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                  textAlign: 'center',
                 }} dir={isContentLTR ? 'ltr' : 'rtl'}>
                   {localizedDesc}
                 </p>
               </FadeInUp>
 
               <FadeInUp delay={0.7} y={20}>
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
                   {/* Jump straight to the RSVP section — the most important action
                       on this page, surfaced from the very first screen instead of
                       making guests scroll past everything to find it. */}
@@ -961,40 +1007,43 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               </FadeInUp>
             </div>
 
-            {/* Right/Bottom: Featured Image Box */}
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, rotateY: isRTL ? -10 : 10 }}
-              animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-              style={{ 
-                flex: '1 1 400px', display: 'flex', justifyContent: 'center', 
-                perspective: '1000px'
-              }}
-            >
-              <motion.div 
-                whileHover={{ 
-                  scale: 1.025, 
-                  y: -5,
-                  boxShadow: `0 45px 90px rgba(0,0,0,0.6), 0 0 30px ${themeColor === '#191B1E' ? 'rgba(184,148,79,0.25)' : themeColor + '2A'}, 0 0 0 1.5px rgba(255,255,255,0.25)`
-                }}
-                transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                style={{
-                  width: '100%', maxWidth: '420px', maxHeight: '600px',
-                  aspectRatio: '4/5', position: 'relative',
-                  borderRadius: '24px', overflow: 'hidden',
-                  boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15)',
-                  transformStyle: 'preserve-3d', background: 'rgba(0,0,0,0.2)',
-                  cursor: 'pointer'
-                }}
+            {/* Featured Image — centered, flanked by animated floral accents */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(4px, 2vw, 20px)', width: '100%' }}>
+              <HeroFloralAccent color={themeColor === '#191B1E' ? '#B8944F' : themeColor} />
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+                style={{ display: 'flex', justifyContent: 'center', perspective: '1000px', minWidth: 0 }}
               >
-                <img 
-                  src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'} 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                  alt="Event Cover" 
-                />
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 30%)' }} />
+                <motion.div
+                  whileHover={{
+                    scale: 1.025,
+                    y: -5,
+                    boxShadow: `0 45px 90px rgba(0,0,0,0.6), 0 0 30px ${themeColor === '#191B1E' ? 'rgba(184,148,79,0.25)' : themeColor + '2A'}, 0 0 0 1.5px rgba(255,255,255,0.25)`
+                  }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  style={{
+                    width: '100%', maxWidth: '380px', maxHeight: '540px',
+                    aspectRatio: '4/5', position: 'relative',
+                    borderRadius: '24px', overflow: 'hidden',
+                    boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15)',
+                    transformStyle: 'preserve-3d', background: 'rgba(0,0,0,0.2)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <img
+                    src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    alt="Event Cover"
+                  />
+                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 30%)' }} />
+                </motion.div>
               </motion.div>
-            </motion.div>
+
+              <HeroFloralAccent color={themeColor === '#191B1E' ? '#B8944F' : themeColor} mirror />
+            </div>
           </div>
         </div>
 
@@ -1911,6 +1960,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             .ep-hero-title {
               font-size: 32px !important;
             }
+            .ep-hero-floral {
+              width: 36px !important;
+            }
             .ep-details-grid {
               grid-template-columns: 1fr !important;
             }
@@ -1932,6 +1984,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           @media (max-width: 480px) {
             .ep-hero-title {
               font-size: 26px !important;
+            }
+            .ep-hero-floral {
+              display: none !important;
             }
             .ep-gallery-grid {
               grid-template-columns: 1fr !important;

@@ -187,7 +187,12 @@ export function CountdownDigit({ value, label, color = '#B8944F', bgColor = 'rgb
 }
 
 // ─── FloatingParticles: Ambient gold particles background ───
-export function FloatingParticles({ count = 30, color = '#B8944F' }) {
+// Ambient drift particles — `shape` lets each invitation template carry its
+// own atmosphere throughout the whole guest journey (not just at the one
+// celebration moment): drifting petals for a garden theme, slow snow for a
+// winter theme, gold dust for a desert/vineyard theme, plain soft dots
+// otherwise. See patternCelebration.js for the per-template presets.
+export function FloatingParticles({ count = 30, color = '#B8944F', shape = 'circle' }) {
   const canvasRef = useRef(null);
   const particlesRef = useRef([]);
   const animFrameRef = useRef(null);
@@ -206,16 +211,20 @@ export function FloatingParticles({ count = 30, color = '#B8944F' }) {
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
+    const isPetal = shape === 'petal';
+    const isSnow = shape === 'snow';
 
     // Create particles
     particlesRef.current = Array.from({ length: count }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
-      size: Math.random() * 3 + 1,
-      speedX: (Math.random() - 0.5) * 0.4,
-      speedY: -Math.random() * 0.3 - 0.1,
+      size: (isPetal ? Math.random() * 4 + 3 : isSnow ? Math.random() * 3.5 + 1.5 : Math.random() * 3 + 1),
+      speedX: (Math.random() - 0.5) * (isPetal ? 0.7 : 0.4),
+      speedY: isSnow ? Math.random() * 0.35 + 0.12 : -Math.random() * 0.3 - 0.1,
       opacity: Math.random() * 0.5 + 0.1,
       pulse: Math.random() * Math.PI * 2,
+      rotation: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * (isPetal ? 1.4 : 0.3),
     }));
 
     const animate = () => {
@@ -224,16 +233,20 @@ export function FloatingParticles({ count = 30, color = '#B8944F' }) {
         p.x += p.speedX;
         p.y += p.speedY;
         p.pulse += 0.02;
+        p.rotation += p.rotSpeed;
         const alpha = p.opacity * (0.6 + 0.4 * Math.sin(p.pulse));
 
-        if (p.y < -10) { p.y = h + 10; p.x = Math.random() * w; }
+        if (isSnow ? p.y > h + 10 : p.y < -10) { p.y = isSnow ? -10 : h + 10; p.x = Math.random() * w; }
         if (p.x < -10) p.x = w + 10;
         if (p.x > w + 10) p.x = -10;
 
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        ctx.fill();
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        if (shape === 'petal' || shape === 'star') ctx.rotate((p.rotation * Math.PI) / 180);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${isSnow ? Math.min(alpha * 1.6, 0.9) : alpha})`;
+        drawConfettiShape(ctx, shape === 'snow' ? 'circle' : shape, p.size * 2);
+        ctx.restore();
       });
       animFrameRef.current = requestAnimationFrame(animate);
     };
@@ -250,7 +263,7 @@ export function FloatingParticles({ count = 30, color = '#B8944F' }) {
       cancelAnimationFrame(animFrameRef.current);
       window.removeEventListener('resize', handleResize);
     };
-  }, [count, color, reduceMotion]);
+  }, [count, color, shape, reduceMotion]);
 
   if (reduceMotion) return null; // A11Y-4: render nothing rather than a static canvas
 
@@ -265,12 +278,54 @@ export function FloatingParticles({ count = 30, color = '#B8944F' }) {
   );
 }
 
+/* Draws one confetti piece shape, centered at the origin (caller translates/rotates first). */
+function drawConfettiShape(ctx, shape, size) {
+  switch (shape) {
+    case 'petal':
+      ctx.beginPath();
+      ctx.ellipse(0, 0, size / 2, size / 3.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'star': {
+      const spikes = 4, outer = size / 2, inner = outer / 2.4;
+      ctx.beginPath();
+      for (let i = 0; i < spikes * 2; i++) {
+        const r = i % 2 === 0 ? outer : inner;
+        const a = (Math.PI / spikes) * i;
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'ring':
+      ctx.beginPath();
+      ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(1, size / 6);
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.stroke();
+      break;
+    case 'rect':
+      ctx.fillRect(-size / 2, -size / 4, size, size / 2);
+      break;
+    default: // circle
+      ctx.beginPath();
+      ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+  }
+}
+
 // ─── ConfettiExplosion: Canvas-based celebration ───
-export function ConfettiExplosion({ active = false, duration = 4000, particleCount = 120, colors }) {
+// `shapes` + `colors` let callers give each invitation template its own
+// celebration identity (gold stars for a desert/riad theme, petals for a
+// garden/floral theme, snowy rings for a winter theme…) while reusing the
+// same physics engine — see patternCelebration.js for the per-template presets.
+export function ConfettiExplosion({ active = false, duration = 4000, particleCount = 120, colors, shapes, gravity, spread = 1 }) {
   const canvasRef = useRef(null);
   const [show, setShow] = useState(active);
   const reduceMotion = useReducedMotion(); // A11Y-4
   const confettiColors = colors || ['#B8944F', '#D7BE80', '#F8F4EC', '#E8C564', '#A67C2E', '#FFFFFF', '#FF6B6B', '#4ECDC4'];
+  const confettiShapes = shapes || ['rect', 'circle'];
 
   useEffect(() => {
     if (active && !reduceMotion) setShow(true);
@@ -285,16 +340,16 @@ export function ConfettiExplosion({ active = false, duration = 4000, particleCou
     const h = canvas.height = window.innerHeight;
 
     const pieces = Array.from({ length: particleCount }, () => ({
-      x: w / 2 + (Math.random() - 0.5) * 200,
+      x: w / 2 + (Math.random() - 0.5) * 200 * spread,
       y: h * 0.4,
-      vx: (Math.random() - 0.5) * 20,
+      vx: (Math.random() - 0.5) * 20 * spread,
       vy: -(Math.random() * 18 + 5),
       size: Math.random() * 8 + 4,
       rotation: Math.random() * 360,
       rotSpeed: (Math.random() - 0.5) * 12,
       color: confettiColors[Math.floor(Math.random() * confettiColors.length)],
-      shape: Math.random() > 0.5 ? 'rect' : 'circle',
-      gravity: 0.15 + Math.random() * 0.1,
+      shape: confettiShapes[Math.floor(Math.random() * confettiShapes.length)],
+      gravity: gravity != null ? gravity * (0.85 + Math.random() * 0.3) : 0.15 + Math.random() * 0.1,
       friction: 0.99,
       opacity: 1,
     }));
@@ -325,14 +380,7 @@ export function ConfettiExplosion({ active = false, duration = 4000, particleCou
         ctx.rotate((p.rotation * Math.PI) / 180);
         ctx.globalAlpha = p.opacity;
         ctx.fillStyle = p.color;
-
-        if (p.shape === 'rect') {
-          ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
-        } else {
-          ctx.beginPath();
-          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        drawConfettiShape(ctx, p.shape, p.size);
         ctx.restore();
       });
 
@@ -341,7 +389,7 @@ export function ConfettiExplosion({ active = false, duration = 4000, particleCou
 
     animate();
     return () => cancelAnimationFrame(frame);
-  }, [show, duration, particleCount, confettiColors]);
+  }, [show, duration, particleCount, confettiColors, confettiShapes, gravity, spread]);
 
   if (!show) return null;
 

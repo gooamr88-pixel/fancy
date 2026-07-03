@@ -1,12 +1,84 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { FadeInUp, ConfettiExplosion } from '../../../components/guest/GuestAnimations';
 import { PremiumButton, CalendarButton, ShareButton } from '../../../components/guest/GuestUI';
 import GuestPassCard from '../../../components/guest/GuestPassGenerator';
 import SeatingResultPanel from './SeatingResultPanel';
+import { getCelebrationPreset } from '../../../utils/patternCelebration';
+import { playCelebration } from '../../../utils/sound';
+
+/** A theatrical "materializing" entrance for the pass card — a slight 3D
+    tilt-and-land plus a one-shot light sweep, like the card catching the
+    light as it's set down. Falls back to a plain fade for reduced-motion. */
+function PassCardReveal({ delay = 0, children }) {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) {
+    return <FadeInUp delay={delay} y={12}>{children}</FadeInUp>;
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.82, rotateX: 18, y: 26 }}
+      animate={{ opacity: 1, scale: 1, rotateX: 0, y: 0 }}
+      transition={{ type: 'spring', stiffness: 170, damping: 16, delay }}
+      style={{ position: 'relative', perspective: 800 }}
+    >
+      {children}
+      <motion.div
+        aria-hidden
+        initial={{ opacity: 0.9, x: '-120%' }}
+        animate={{ opacity: 0, x: '120%' }}
+        transition={{ duration: 0.9, delay: delay + 0.35, ease: 'easeOut' }}
+        style={{
+          position: 'absolute', inset: 0, borderRadius: 18, pointerEvents: 'none',
+          background: 'linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.55) 48%, rgba(255,255,255,0.15) 54%, transparent 70%)',
+        }}
+      />
+    </motion.div>
+  );
+}
+
+/** Three staggered confetti bursts instead of one flat explosion — reads as
+    a proper fireworks finale. Reuses the same themed colors/shapes so it
+    still feels like THIS invitation's celebration, just bigger. */
+function FireworksFinale({ colors, shapes }) {
+  const [waves, setWaves] = useState([true, false, false]);
+  useEffect(() => {
+    const t1 = setTimeout(() => setWaves(w => [w[0], true, w[2]]), 260);
+    const t2 = setTimeout(() => setWaves(w => [w[0], w[1], true]), 520);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  return (
+    <>
+      {waves[0] && <ConfettiExplosion active duration={4200} particleCount={110} colors={colors} shapes={shapes} spread={0.9} />}
+      {waves[1] && <ConfettiExplosion active duration={3800} particleCount={90} colors={colors} shapes={shapes} spread={1.3} />}
+      {waves[2] && <ConfettiExplosion active duration={3600} particleCount={90} colors={colors} shapes={shapes} spread={1.6} />}
+    </>
+  );
+}
+
+/** A one-shot full-screen radial flash in the event's own theme color — the
+    same "cinematic gateway" language as the DigitalEnvelope's opening
+    whiteout, so the journey feels bookended: it opened in light, it closes
+    in light. */
+function CelebrationFlash({ color }) {
+  const reduceMotion = useReducedMotion();
+  if (reduceMotion) return null;
+  return (
+    <motion.div
+      aria-hidden
+      initial={{ opacity: 0.85 }}
+      animate={{ opacity: 0 }}
+      transition={{ duration: 1.1, ease: 'easeOut' }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 40, pointerEvents: 'none',
+        background: `radial-gradient(circle at 50% 40%, #FFFFFF 0%, ${color} 45%, transparent 75%)`,
+      }}
+    />
+  );
+}
 
 /** Step 5 — the celebratory / follow-up / farewell screen, branched by response. */
 export default function StepSuccess({
@@ -15,13 +87,25 @@ export default function StepSuccess({
   seatingApi, seatingRevealed,
 }) {
   const { seatingView, seatingLoading, fetchSeatingMap } = seatingApi;
+  // The confetti burst matches THIS invitation's own identity — gilded stars
+  // for a riad/vineyard theme, petals for a garden theme, snowy rings for a
+  // winter theme — instead of one generic gold/rainbow burst for every event.
+  const celebration = getCelebrationPreset(event?.template_type);
+
+  // Fires once on mount — this screen only ever mounts after a fresh submit,
+  // so there's no "attending changed later" case to react to.
+  useEffect(() => {
+    if (attending === 'yes') playCelebration();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '24px', padding: '16px 0' }}>
 
       {attending === 'yes' && (
         <>
-          <ConfettiExplosion active={true} duration={4000} />
+          <CelebrationFlash color={themeColor} />
+          <FireworksFinale colors={celebration.colors} shapes={celebration.shapes} />
 
           <FadeInUp y={20}>
             <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.8, delay: 0.3 }} style={{ fontSize: '56px', display: 'block' }}>🎉</motion.span>
@@ -39,7 +123,7 @@ export default function StepSuccess({
             </p>
           </FadeInUp>
 
-          <FadeInUp delay={0.5} y={20}>
+          <PassCardReveal delay={0.5}>
             <GuestPassCard
               guestName={guestName}
               eventTitle={localizedTitle}
@@ -52,7 +136,7 @@ export default function StepSuccess({
               isRTL={isRTL}
               removeWatermark={!!event?.tier_remove_watermark}
             />
-          </FadeInUp>
+          </PassCardReveal>
 
           <FadeInUp delay={0.65} y={10}>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -115,7 +199,7 @@ export default function StepSuccess({
             </FadeInUp>
           )}
 
-          <FadeInUp delay={0.5} y={20}>
+          <PassCardReveal delay={0.5}>
             <GuestPassCard
               guestName={guestName}
               eventTitle={localizedTitle}
@@ -128,7 +212,7 @@ export default function StepSuccess({
               isRTL={isRTL}
               removeWatermark={!!event?.tier_remove_watermark}
             />
-          </FadeInUp>
+          </PassCardReveal>
 
           <FadeInUp delay={0.6} y={10}>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>

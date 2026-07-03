@@ -11,6 +11,8 @@ import { isSeatingRevealed } from '../../utils/seating';
 import { splitName } from '../../utils/nameFields';
 import { findMealField } from './styles';
 import { useSeatingLookup } from './hooks/useSeatingLookup';
+import { lighten } from '../../utils/color';
+import { getCelebrationPreset } from '../../utils/patternCelebration';
 import { FloatingParticles } from '../../components/guest/GuestAnimations';
 import TurnstileWidget, { turnstileEnabled } from '../../components/guest/TurnstileWidget';
 import StepAttendance from './steps/StepAttendance';
@@ -197,6 +199,14 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const visibleAdditionalGuests = additionalGuests.slice(0, Math.max((parseInt(partySize) || 1) - 1, 0));
 
   const themeColor = event?.custom_colors?.primary || '#B8944F';
+  // Falls back to a lightened tint of the primary when the event has no
+  // explicit secondary, so the card's frame/accents still feel bespoke
+  // instead of defaulting to the fixed gold-on-cream look for every template.
+  const secondaryColor = event?.custom_colors?.secondary || lighten(themeColor, 0.35);
+  // Ties the whole page's ambient atmosphere to the chosen template family —
+  // drifting petals for a garden theme, slow snow for a winter theme — while
+  // still using this event's own color, not a generic preset.
+  const celebration = getCelebrationPreset(event?.template_type);
   const isRTL = lang === 'ar';
   const t = translations[lang];
 
@@ -397,15 +407,15 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       }
     : {
         minHeight: '100dvh', position: 'relative', overflow: 'hidden',
-        background: 'radial-gradient(120% 100% at 50% 0%, rgba(231,212,168,0.4) 0%, #F8F4EC 45%, #EFE6D4 100%)',
+        background: `radial-gradient(120% 100% at 50% 0%, ${secondaryColor}66 0%, #F8F4EC 45%, #EFE6D4 100%)`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '24px', fontFamily: 'var(--font-sans)', textAlign: isRTL ? 'right' : 'left',
       };
 
   return (
     <div dir={isRTL ? 'rtl' : 'ltr'} style={outerStyle}>
-      {/* Ambient gold dust — a quiet echo of the envelope's ignition, never competing with it. */}
-      {!embedded && <FloatingParticles count={16} color="#D7BE80" />}
+      {/* Ambient dust — a quiet echo of the envelope's ignition, tinted to this event's own theme and shaped to its template family. */}
+      {!embedded && <FloatingParticles count={18} color={secondaryColor} shape={celebration.ambient} />}
 
       <motion.div
         initial={{ opacity: 0, y: 34, scale: 0.97 }}
@@ -414,7 +424,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
         style={{
           position: 'relative', zIndex: 1, maxWidth: '540px', width: '100%',
           borderRadius: '22px', padding: '1.5px',
-          background: 'linear-gradient(135deg, #D7BE80, #B8944F 45%, #E7D4A8)',
+          background: `linear-gradient(135deg, ${secondaryColor}, ${themeColor} 45%, ${secondaryColor})`,
           boxShadow: '0 36px 90px -24px rgba(110,74,34,0.38), 0 10px 30px rgba(25,27,30,0.07)',
         }}
       >
@@ -430,7 +440,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
             {/* Corner flourish — a quiet nod to the invitation's print-stationery roots. */}
             <span aria-hidden style={{
               position: 'absolute', top: '12px', ...(isRTL ? { right: '16px' } : { left: '16px' }),
-              fontSize: '13px', letterSpacing: '4px', color: 'rgba(215,190,128,0.55)', zIndex: 2,
+              fontSize: '13px', letterSpacing: '4px', color: `${secondaryColor}8C`, zIndex: 2,
             }}>✦</span>
 
             {!embedded && (
@@ -443,8 +453,8 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                     onClick={() => setLang(l.code)}
                     style={{
                       fontSize: '10px', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer',
-                      border: lang === l.code ? '1px solid #B8944F' : '1px solid rgba(255,255,255,0.2)',
-                      background: lang === l.code ? '#B8944F' : 'rgba(255,255,255,0.08)',
+                      border: lang === l.code ? `1px solid ${themeColor}` : '1px solid rgba(255,255,255,0.2)',
+                      background: lang === l.code ? themeColor : 'rgba(255,255,255,0.08)',
                       color: lang === l.code ? '#191B1E' : 'rgba(255,255,255,0.7)',
                       fontWeight: lang === l.code ? 700 : 400, fontFamily: 'var(--font-sans)',
                       backdropFilter: 'blur(8px)', transition: 'all 0.2s',
@@ -455,7 +465,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
             )}
 
             <motion.span initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-              style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '4px', color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '10px', fontFamily: 'var(--font-sans)' }}>
+              style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '4px', color: secondaryColor, fontWeight: 700, display: 'block', marginBottom: '10px', fontFamily: 'var(--font-sans)' }}>
               {t.rsvp_portal}
             </motion.span>
             <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.6 }}
@@ -481,6 +491,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                 <StepAttendance
                   t={t} isRTL={isRTL} guestName={guestName} attending={attending}
                   onSelect={(val) => setAttending(val)}
+                  themeColor={themeColor}
                 />
 
                 {attending && (

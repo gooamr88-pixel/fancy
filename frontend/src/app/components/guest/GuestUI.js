@@ -2,6 +2,15 @@
 
 import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConfettiExplosion } from './GuestAnimations';
+import { lighten } from '../../utils/color';
+import { playTap, playAccept } from '../../utils/sound';
+
+/** Fires a short haptic buzz on devices that support it — a no-op everywhere
+    else (desktop, iOS Safari), so it's always safe to call. */
+export function buzz(pattern) {
+  try { navigator.vibrate?.(pattern); } catch { /* unsupported — fine */ }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    FANCY RSVP — Premium Guest UI Component Library
@@ -217,88 +226,156 @@ export function MagneticButton({
 
 
 // ─── AttendanceCard: Interactive attendance choice ───
-export function AttendanceCard({ type, selected, onClick, isRTL = false }) {
+/* AttendanceCard renders in two weights so the three responses aren't three
+   equal boxes competing for attention: "yes" is the emotionally-primary
+   answer a wedding invitation is written to receive, so it gets the large,
+   theme-colored hero treatment; "maybe"/"no" are real, necessary options but
+   sit as quieter secondary chips beneath it. `accentColor` (the event's own
+   theme color) drives the "yes" card so it matches the invitation itself
+   instead of a fixed green. */
+export function AttendanceCard({ type, selected, onClick, isRTL = false, variant = 'primary', accentColor = '#10b981' }) {
   const configs = {
     yes: {
       icon: '🎉', label: isRTL ? 'سأحضر بكل سرور' : 'Joyfully Accept',
       subtitle: isRTL ? 'أتطلع للمشاركة في هذه المناسبة الجميلة' : 'I look forward to celebrating with you',
-      gradient: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(16,185,129,0.02))',
-      borderColor: '#10b981', glowColor: 'rgba(16,185,129,0.2)',
+      borderColor: accentColor, glowColor: `${accentColor}33`,
     },
     maybe: {
-      icon: '🤔', label: isRTL ? 'ربما' : 'Tentatively Accept',
-      subtitle: isRTL ? 'سأؤكد حضوري قريباً' : "I'll confirm closer to the date",
-      gradient: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.02))',
-      borderColor: '#6366f1', glowColor: 'rgba(99,102,241,0.2)',
+      icon: '🤔', label: isRTL ? 'ربما' : 'Tentative',
+      borderColor: '#6366f1', glowColor: 'rgba(99,102,241,0.18)',
     },
     no: {
-      icon: '💌', label: isRTL ? 'أعتذر عن الحضور' : 'Respectfully Decline',
-      subtitle: isRTL ? 'أتمنى لكم أمسية رائعة' : 'Wishing you a wonderful celebration',
-      gradient: 'linear-gradient(135deg, rgba(239,68,68,0.06), rgba(239,68,68,0.02))',
-      borderColor: '#ef4444', glowColor: 'rgba(239,68,68,0.15)',
+      icon: '💌', label: isRTL ? 'أعتذر' : "Can't make it",
+      borderColor: '#A09A91', glowColor: 'rgba(160,154,145,0.15)',
     },
   };
 
   const config = configs[type];
   const isSelected = selected === type;
 
+  // A quick sparkle + haptic buzz right when a response is picked — the
+  // guest shouldn't have to wait until final submit to feel something happen.
+  // "Yes" gets a small celebratory burst in the invitation's own color;
+  // "maybe"/"no" just get a soft tap so every choice feels acknowledged.
+  const [celebrate, setCelebrate] = useState(false);
+  const handleClick = () => {
+    const wasAlreadySelected = selected === type;
+    onClick(type);
+    if (wasAlreadySelected) return;
+    if (type === 'yes') {
+      buzz([12, 24, 12]);
+      playAccept();
+      setCelebrate(true);
+      setTimeout(() => setCelebrate(false), 1000);
+    } else {
+      buzz(10);
+      playTap();
+    }
+  };
+  const sparkle = celebrate && (
+    <ConfettiExplosion
+      active duration={950} particleCount={46} spread={0.45}
+      colors={[accentColor, lighten(accentColor, 0.35), lighten(accentColor, 0.7), '#FFFFFF']}
+      shapes={['star', 'circle']}
+    />
+  );
+
+  if (variant === 'compact') {
+    return (
+      <>
+        <motion.button
+          data-testid={`attendance-${type}`}
+          aria-pressed={isSelected}
+          aria-label={config.label}
+          onClick={handleClick}
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.97 }}
+          animate={isSelected ? {
+            borderColor: config.borderColor,
+            boxShadow: `0 6px 18px ${config.glowColor}`,
+          } : {
+            borderColor: '#E8E2D6',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          }}
+          transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+          style={{
+            width: '100%', padding: '13px 10px',
+            border: `1.5px solid ${isSelected ? config.borderColor : '#E8E2D6'}`,
+            borderRadius: '12px', textAlign: 'center',
+            background: isSelected ? `${config.borderColor}0D` : '#FFFFFF',
+            cursor: 'pointer', fontFamily: 'var(--font-sans)',
+            display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '7px',
+          }}
+        >
+          <span style={{ fontSize: '16px', lineHeight: 1 }}>{config.icon}</span>
+          <span style={{ fontWeight: 600, fontSize: '13px', color: isSelected ? config.borderColor : '#4A463F' }}>
+            {config.label}
+          </span>
+        </motion.button>
+        {sparkle}
+      </>
+    );
+  }
+
   return (
+    <>
     <motion.button
       data-testid={`attendance-${type}`}
       aria-pressed={isSelected}
       aria-label={config.label}
-      onClick={() => onClick(type)}
-      whileHover={{ scale: 1.02, y: -4 }}
+      onClick={handleClick}
+      whileHover={{ scale: 1.01, y: -3 }}
       whileTap={{ scale: 0.98 }}
       animate={isSelected ? {
         borderColor: config.borderColor,
-        boxShadow: `0 0 30px ${config.glowColor}, 0 12px 40px rgba(0,0,0,0.08)`,
+        boxShadow: `0 0 34px ${config.glowColor}, 0 14px 40px rgba(0,0,0,0.08)`,
       } : {
-        borderColor: '#E8E2D6',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+        borderColor: `${config.borderColor}55`,
+        boxShadow: '0 6px 20px rgba(0,0,0,0.05)',
       }}
       transition={{ type: 'spring', stiffness: 300, damping: 22 }}
       style={{
-        width: '100%', padding: '28px 20px',
-        border: `2px solid ${isSelected ? config.borderColor : '#E8E2D6'}`,
-        borderRadius: '16px', textAlign: 'center',
-        background: isSelected ? config.gradient : '#FFFFFF',
+        width: '100%', padding: '24px 20px',
+        border: `2px solid ${isSelected ? config.borderColor : `${config.borderColor}55`}`,
+        borderRadius: '18px', textAlign: isRTL ? 'right' : 'left',
+        background: isSelected
+          ? `linear-gradient(135deg, ${config.borderColor}14, ${config.borderColor}04)`
+          : `linear-gradient(135deg, ${config.borderColor}08, transparent)`,
         cursor: 'pointer', fontFamily: 'var(--font-sans)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+        display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '16px',
       }}
     >
       <motion.span
         animate={isSelected ? { scale: [1, 1.3, 1], rotate: [0, 10, -10, 0] } : { scale: 1 }}
         transition={{ duration: 0.5 }}
-        style={{ fontSize: '36px', display: 'block' }}
+        style={{ fontSize: '38px', display: 'block', flexShrink: 0 }}
       >
         {config.icon}
       </motion.span>
-      <span style={{
-        fontWeight: 700, fontSize: '15px',
-        color: isSelected ? config.borderColor : '#191B1E',
-      }}>
-        {config.label}
+      <span style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, minWidth: 0 }}>
+        <span style={{ fontWeight: 700, fontSize: '16px', color: isSelected ? config.borderColor : '#191B1E' }}>
+          {config.label}
+        </span>
+        <span style={{ fontSize: '12px', color: '#77736A', fontWeight: 400, lineHeight: 1.4 }}>
+          {config.subtitle}
+        </span>
       </span>
-      <span style={{ fontSize: '12px', color: '#77736A', fontWeight: 400, lineHeight: 1.4 }}>
-        {config.subtitle}
-      </span>
-      {isSelected && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-          style={{
-            marginTop: '4px', width: '24px', height: '24px', borderRadius: '50%',
-            background: config.borderColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </motion.div>
-      )}
+      <motion.div
+        initial={false}
+        animate={isSelected ? { scale: 1, opacity: 1 } : { scale: 0, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+        style={{
+          width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0,
+          background: config.borderColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </motion.div>
     </motion.button>
+    {sparkle}
+    </>
   );
 }
 

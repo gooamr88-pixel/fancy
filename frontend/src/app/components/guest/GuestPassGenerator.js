@@ -85,9 +85,9 @@ export default function GuestPassCard({
     clipRoundRect(0, 0, w, h, 26);
     ctx.fill();
 
-    // Shimmering gold spine
+    // Shimmering spine — tinted to the event's own theme color
     const spine = ctx.createLinearGradient(0, 0, w, 0);
-    spine.addColorStop(0, '#B8944F'); spine.addColorStop(0.5, '#F4E6C2'); spine.addColorStop(1, '#B8944F');
+    spine.addColorStop(0, themeColor); spine.addColorStop(0.5, '#F4E6C2'); spine.addColorStop(1, themeColor);
     ctx.fillStyle = spine;
     ctx.fillRect(0, 0, w, 6);
 
