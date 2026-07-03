@@ -35,6 +35,16 @@ const C = {
   error: '#C45E5E', success: '#3B9B6D',
 };
 
+/* Visual-only template keys — each is a distinct InvitationCard pattern, but
+   semantically they're all "a wedding" (Groom's/Bride's Side labels, meal
+   selection, the Stage2 partner/ceremony fields, etc. all key off event_type
+   === 'wedding'). Kept as a single list so template_type and event_type can
+   diverge cleanly without scattering the same OR-chain across the app. */
+const WEDDING_STYLE_TEMPLATE_KEYS = [
+  'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
+  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal',
+];
+
 /* ═══════════════════════════════════════════════════════
    CURATED TEMPLATE DEFINITIONS
    ═══════════════════════════════════════════════════════ */
@@ -80,6 +90,110 @@ const TEMPLATES = [
     fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   {
+    key: 'marrakesh', label: 'Marrakesh Nights', icon: '🌙', tier: 'Wedding',
+    tagline: 'Moroccan · Riad Evening',
+    desc: 'A jewel-toned riad evening — indigo night sky, zellige star motifs and a keyhole arch, for weddings with warm, worldly glamour.',
+    presets: [
+      { name: 'Indigo & Gold', primary: '#C2673A', secondary: '#D9A94E', accent: '#D9A94E', background: '#1B2A4A' },
+      { name: 'Saffron Night', primary: '#B5502F', secondary: '#E8B75E', accent: '#E8B75E', background: '#1F1B3A' },
+    ],
+    specs: ['Zellige Star Motifs', 'Keyhole Arch Frame', 'Jewel-Tone Palette', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'kyoto', label: 'Kyoto Blossom', icon: '🌸', tier: 'Wedding',
+    tagline: 'Japanese · Minimal',
+    desc: 'Quiet, spacious minimalism — a single sakura branch, a hanko stamp monogram, and generous negative space.',
+    presets: [
+      { name: 'Sakura Blush', primary: '#B23A48', secondary: '#D98B92', accent: '#B23A48', background: '#F7EFEE' },
+      { name: 'Ink & Stone', primary: '#2B2B2B', secondary: '#8A7B73', accent: '#2B2B2B', background: '#F3EFEA' },
+    ],
+    specs: ['Hand-Drawn Sakura Branch', 'Hanko Stamp Monogram', 'Generous Whitespace', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'nordic', label: 'Nordic Frost', icon: '❄️', tier: 'Wedding',
+    tagline: 'Scandinavian · Minimal',
+    desc: 'Crisp and unadorned — icy blue-greys, a single line-art pine, and clean, confident type for a modern winter wedding.',
+    presets: [
+      { name: 'Fjord Blue', primary: '#33495D', secondary: '#9FB4C4', accent: '#33495D', background: '#EFF3F5' },
+      { name: 'Glacier White', primary: '#5C6F7A', secondary: '#C7D3D8', accent: '#5C6F7A', background: '#F6F8F9' },
+    ],
+    specs: ['Line-Art Pine Motif', 'Ultra-Clean Typography', 'Generous Whitespace', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'havana', label: 'Havana Sunset', icon: '🌴', tier: 'Wedding',
+    tagline: 'Tropical · Retro',
+    desc: 'A vivid coral-to-turquoise postcard — palm silhouettes, a sunburst stamp and retro script, for a joyful beach or garden fiesta.',
+    presets: [
+      { name: 'Coral Turquoise', primary: '#FF7A59', secondary: '#2EC4B6', accent: '#FF7A59', background: '#FFF8ED' },
+    ],
+    specs: ['Palm Silhouette Corners', 'Retro Script Names', 'Postage-Stamp Badge', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'estate', label: 'Old Money Estate', icon: '🎩', tier: 'Wedding',
+    tagline: 'Preppy · Heritage',
+    desc: 'A crest, a pinstripe frame and small-caps typography — quietly formal, for country-club and estate-garden weddings.',
+    presets: [
+      { name: 'Navy Crest', primary: '#1B2A41', secondary: '#2F4538', accent: '#1B2A41', background: '#F3EEE1' },
+      { name: 'Hunter Green', primary: '#2F4538', secondary: '#8B6F1F', accent: '#2F4538', background: '#F5F1E4' },
+    ],
+    specs: ['Monogram Crest', 'Pinstripe Double Border', 'Small-Caps Typography', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'roseAtelier', label: 'Rosé Atelier', icon: '🎀', tier: 'Wedding',
+    tagline: 'French · Chic',
+    desc: 'Dusty rose and champagne, a delicate ribbon-bow motif and Parisian script — modern French wedding-atelier chic.',
+    presets: [
+      { name: 'Dusty Rose', primary: '#C98A93', secondary: '#E9D8C5', accent: '#C98A93', background: '#FBF6F2' },
+    ],
+    specs: ['Ribbon-Bow Motif', 'Parisian Script Names', 'Delicate Hairline Frame', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'orchid', label: 'Midnight Orchid', icon: '🌺', tier: 'Wedding',
+    tagline: 'Moody · Botanical Luxury',
+    desc: 'Deep plum-black with a gilded orchid stem climbing one edge — dramatic, romantic, for an intimate evening celebration.',
+    presets: [
+      { name: 'Plum & Gold', primary: '#8E4FA3', secondary: '#C9A24B', accent: '#C9A24B', background: '#1B1023' },
+    ],
+    specs: ['Gilded Orchid Line-Art', 'Dramatic Dark Palette', 'Metallic Script Names', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'clay', label: 'Copper & Clay', icon: '☀️', tier: 'Wedding',
+    tagline: 'Desert · Boho',
+    desc: 'Warm sand and terracotta, a radiating sunburst motif and dotted dividers — earthy, boho warmth for a desert celebration.',
+    presets: [
+      { name: 'Terracotta Sun', primary: '#B5502F', secondary: '#7A4A32', accent: '#B5502F', background: '#EDE0CB' },
+    ],
+    specs: ['Radiating Sunburst Motif', 'Dotted Divider Line', 'Earthy Warm Palette', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'alpine', label: 'Alpine Pine', icon: '🌲', tier: 'Wedding',
+    tagline: 'Rustic · Winter Lodge',
+    desc: 'Deep pine green with hand-drawn pine-branch corners — a cozy, rustic feel for a winter cabin or lodge wedding.',
+    presets: [
+      { name: 'Pine & Cream', primary: '#7A2E2E', secondary: '#D9C9A3', accent: '#D9C9A3', background: '#22392F' },
+    ],
+    specs: ['Pine-Branch Corner Motif', 'Cozy Lodge Palette', 'Hand-Lettered Script', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
+    key: 'coastal', label: 'Coastal Linen', icon: '🌊', tier: 'Wedding',
+    tagline: 'Nautical · Relaxed',
+    desc: 'Seafoam and sand with a gentle wave-line motif and rope-knot divider — relaxed, breezy elegance for a seaside wedding.',
+    presets: [
+      { name: 'Seafoam & Sand', primary: '#2B5F5A', secondary: '#C9B896', accent: '#2B5F5A', background: '#E8F3EF' },
+    ],
+    specs: ['Wave-Line Motif', 'Rope-Knot Divider', 'Relaxed Linen Palette', 'RSVP + Meal Selection'],
+    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
+  },
+  {
     key: 'custom', label: 'Custom Canvas', icon: '✨', tier: 'Build your own',
     tagline: 'Fully editable',
     desc: 'Start from a clean slate and design your own page — colors, typography, background, cover image, CTA and sections, all updating live as you build.',
@@ -97,13 +211,18 @@ const TEMPLATES = [
    handleTemplateSelect to drop a previous type's fields (e.g. wedding's
    loveStory) when the organizer switches to a type that doesn't use them,
    instead of silently carrying them over into the new type's submission. */
+const WEDDING_FIELD_KEYS = ['partner1', 'partner2', 'loveStory', 'ceremonyLocation', 'receptionLocation', 'giftRegistry', 'accommodations'];
 const TEMPLATE_TYPE_FIELD_KEYS = {
-  wedding: ['partner1', 'partner2', 'loveStory', 'ceremonyLocation', 'receptionLocation', 'giftRegistry', 'accommodations'],
+  wedding: WEDDING_FIELD_KEYS,
   engagement: ['partner1', 'partner2', 'proposalStory', 'giftRegistry'],
   corporate: ['company', 'agenda', 'speakers', 'sponsors'],
   birthday: ['celebrant', 'age', 'partyTheme'],
   gala: ['honoree', 'program', 'sponsorPackages'],
 };
+// Every wedding-variant template (a different InvitationCard pattern on the
+// same content shape) shares wedding's field set — switching between them,
+// or from "wedding" itself, must not wipe already-entered partner/ceremony data.
+WEDDING_STYLE_TEMPLATE_KEYS.forEach(key => { TEMPLATE_TYPE_FIELD_KEYS[key] = WEDDING_FIELD_KEYS; });
 
 /* Defaults for the guided Custom builder (Template #3). */
 const DEFAULT_CUSTOM_CONFIG = {
@@ -823,10 +942,10 @@ export default function CreateEventWizard() {
     galleryUrls: galleryUrls.length > 0 ? galleryUrls.filter(u => !u.startsWith('data:')) : undefined,
     customColors,
     templateData: buildTemplateData(),
-    // Tuscan Vineyard is a visual variant of a wedding, not a distinct event
-    // category — every event_type-gated behavior elsewhere (Groom's/Bride's
-    // Side labels, meal selection, guest-side tracking) should treat it as one.
-    eventType: templateType === 'tuscany' ? 'wedding' : templateType,
+    // These curated templates are visual variants of a wedding, not distinct
+    // event categories — every event_type-gated behavior elsewhere (Groom's/
+    // Bride's Side labels, meal selection, guest-side tracking) treats them as one.
+    eventType: WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType) ? 'wedding' : templateType,
     backgroundMusicUrl: sanitizeUrl(backgroundMusicUrl) || '',
     notificationPreferences: { email: notificationEmail, whatsapp: false },
     allowGuestEdits,
@@ -897,7 +1016,7 @@ export default function CreateEventWizard() {
         background_music_url: backgroundMusicUrl || null,
         custom_colors: customColors,
         template_data: buildTemplateData() || {},
-        event_type: templateType === 'tuscany' ? 'wedding' : templateType,
+        event_type: WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType) ? 'wedding' : templateType,
         notification_preferences: { email: notificationEmail, whatsapp: false },
         allow_guest_edits: allowGuestEdits,
         track_guest_side: trackGuestSide,

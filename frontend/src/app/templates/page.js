@@ -1,12 +1,13 @@
-"use client";
+﻿"use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import MobilePreview from "../components/templates/MobilePreview";
+import InvitationCard from "../components/templates/InvitationCard";
 import { motion, AnimatePresence } from "framer-motion";
 
-const categories = ["All", "Classic", "Modern", "Rustic", "Luxury", "Minimal", "Floral", "Vineyard"];
+const categories = ["All", "Classic", "Modern", "Rustic", "Luxury", "Minimal", "Floral", "Wedding"];
 
 const themeColors = [
   { 
@@ -89,376 +90,93 @@ const templates = [
   },
   {
     name: "Tuscan Vineyard",
-    category: "Vineyard",
+    category: "Wedding",
     description: "Parchment tones, an olive wax seal, and hand-lettered script for garden and villa weddings under the Italian sun.",
     gradient: "linear-gradient(135deg, #F8F3E6 0%, #E9E0C6 30%, #C9B896 60%, #6B7A4F 100%)",
     accent: "#6B7A4F",
     pattern: "tuscany",
   },
+  {
+    name: "Marrakesh Nights",
+    category: "Wedding",
+    description: "A jewel-toned riad evening — indigo night sky, zellige star motifs and a keyhole arch frame.",
+    gradient: "linear-gradient(135deg, #1B2A4A 0%, #223257 50%, #D9A94E 100%)",
+    accent: "#D9A94E",
+    pattern: "marrakesh",
+  },
+  {
+    name: "Kyoto Blossom",
+    category: "Wedding",
+    description: "Quiet, spacious Japanese minimalism — a single sakura branch and a hanko-stamp monogram.",
+    gradient: "linear-gradient(135deg, #F7EFEE 0%, #EDDEDC 50%, #B23A48 100%)",
+    accent: "#B23A48",
+    pattern: "kyoto",
+  },
+  {
+    name: "Nordic Frost",
+    category: "Wedding",
+    description: "Crisp Scandinavian minimalism — icy blue-greys and a single line-art pine.",
+    gradient: "linear-gradient(135deg, #EFF3F5 0%, #DEE6EA 50%, #33495D 100%)",
+    accent: "#33495D",
+    pattern: "nordic",
+  },
+  {
+    name: "Havana Sunset",
+    category: "Wedding",
+    description: "A vivid coral-to-turquoise postcard — palm silhouettes and a sunburst stamp for a joyful fiesta.",
+    gradient: "linear-gradient(135deg, #FF9A6C 0%, #FF7A59 35%, #2EC4B6 100%)",
+    accent: "#FF7A59",
+    pattern: "havana",
+  },
+  {
+    name: "Old Money Estate",
+    category: "Wedding",
+    description: "A crest, a pinstripe frame and small-caps typography — quietly formal heritage elegance.",
+    gradient: "linear-gradient(135deg, #F3EEE1 0%, #E4DCC7 50%, #1B2A41 100%)",
+    accent: "#1B2A41",
+    pattern: "estate",
+  },
+  {
+    name: "Rosé Atelier",
+    category: "Wedding",
+    description: "Dusty rose and champagne with a delicate ribbon-bow motif — modern French wedding-atelier chic.",
+    gradient: "linear-gradient(135deg, #FBF6F2 0%, #F3E2DC 100%)",
+    accent: "#C98A93",
+    pattern: "roseAtelier",
+  },
+  {
+    name: "Midnight Orchid",
+    category: "Luxury",
+    description: "Deep plum-black with a gilded orchid stem climbing one edge — dramatic, romantic luxury.",
+    gradient: "linear-gradient(135deg, #1B1023 0%, #24132E 55%, #C9A24B 100%)",
+    accent: "#C9A24B",
+    pattern: "orchid",
+  },
+  {
+    name: "Copper & Clay",
+    category: "Rustic",
+    description: "Warm sand and terracotta with a radiating sunburst motif — earthy, boho desert warmth.",
+    gradient: "linear-gradient(135deg, #EDE0CB 0%, #E6D5B8 50%, #B5502F 100%)",
+    accent: "#B5502F",
+    pattern: "clay",
+  },
+  {
+    name: "Alpine Pine",
+    category: "Rustic",
+    description: "Deep pine green with hand-drawn pine-branch corners — cozy winter lodge charm.",
+    gradient: "linear-gradient(135deg, #22392F 0%, #1B2E25 100%)",
+    accent: "#D9C9A3",
+    pattern: "alpine",
+  },
+  {
+    name: "Coastal Linen",
+    category: "Minimal",
+    description: "Seafoam and sand with a gentle wave-line motif and rope-knot divider — relaxed seaside elegance.",
+    gradient: "linear-gradient(135deg, #E8F3EF 0%, #E8DCC3 100%)",
+    accent: "#2B5F5A",
+    pattern: "coastal",
+  },
 ];
-
-function TemplatePreview({ template }) {
-  const { pattern, accent } = template;
-  
-  switch (pattern) {
-    case "serif":
-      return (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "75%",
-          height: "78%",
-          background: "#FCFAF6",
-          borderRadius: "6px",
-          border: `2.5px double ${accent}`,
-          padding: "10px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "space-between",
-          boxShadow: "0 6px 16px rgba(0,0,0,0.06), inset 0 0 10px rgba(184,148,79,0.04)",
-          fontFamily: "var(--font-serif)"
-        }}>
-          <div style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            width: "100%",
-            gap: "2px",
-            marginTop: "2px"
-          }}>
-            <span style={{
-              fontSize: "6px",
-              fontFamily: "var(--font-sans)",
-              border: `0.5px solid ${accent}`,
-              borderRadius: "50%",
-              width: "14px",
-              height: "14px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 700,
-              color: accent
-            }}>A&J</span>
-            <span style={{ fontSize: "5px", textTransform: "uppercase", letterSpacing: "1px", color: accent, fontWeight: 600 }}>CELEBRATION</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-            <span style={{ fontFamily: "var(--font-script)", fontSize: "19px", color: accent, lineHeight: 1.1 }}>Aria & Julian</span>
-            <span style={{ fontSize: "4.5px", fontFamily: "var(--font-sans)", letterSpacing: "0.5px", color: "#888", marginTop: "3px", textTransform: "uppercase" }}>REQUEST THE HONOR</span>
-            <span style={{ fontSize: "5px", fontWeight: "bold", color: "#D7BE80", marginTop: "2px" }}>OCTOBER 24, 2026</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1px", width: "100%" }}>
-            <div style={{ width: "15px", height: "1px", background: `${accent}70` }} />
-            <span style={{ fontSize: "4.5px", fontFamily: "var(--font-sans)", textTransform: "uppercase", letterSpacing: "0.5px", color: "#888" }}>THE GRAND BALLROOM</span>
-          </div>
-        </div>
-      );
-
-    case "geo":
-      return (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "75%",
-          height: "78%",
-          background: "#FAFBFD",
-          borderRadius: "6px",
-          border: "1px solid rgba(59,130,246,0.1)",
-          padding: "10px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          boxShadow: "0 6px 16px rgba(59,130,246,0.04)",
-          fontFamily: "var(--font-sans)",
-          overflow: "hidden"
-        }}>
-          <div style={{
-            position: "absolute",
-            top: "-15px",
-            right: "-15px",
-            width: "35px",
-            height: "35px",
-            borderRadius: "50%",
-            border: "0.5px solid rgba(59,130,246,0.15)"
-          }} />
-          <div style={{
-            position: "absolute",
-            bottom: "-15px",
-            left: "-15px",
-            width: "40px",
-            height: "40px",
-            border: "0.5px solid rgba(59,130,246,0.1)",
-            transform: "rotate(45deg)"
-          }} />
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "0.5px solid #EAECEF", paddingBottom: "4px", zIndex: 2 }}>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ fontSize: "4px", color: "#888", fontWeight: 700, letterSpacing: "0.5px" }}>ANNUAL</span>
-              <span style={{ fontSize: "6.5px", fontWeight: 900, letterSpacing: "0.5px", color: accent }}>SUMMIT PRO</span>
-            </div>
-            <span style={{ fontSize: "5px", background: "rgba(59,130,246,0.08)", color: "#2563EB", padding: "1px 4px", borderRadius: "100px", fontWeight: "bold" }}>NYC</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px", margin: "auto 0", zIndex: 2 }}>
-            <span style={{ fontSize: "5px", color: "#3B82F6", fontWeight: "bold", letterSpacing: "1px" }}>SHAPING THE FUTURE</span>
-            <span style={{ fontSize: "9.5px", fontWeight: 800, color: "#1F2937", lineHeight: 1.1 }}>Technology &<br/>Innovation Summit</span>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "0.5px solid #EAECEF", paddingTop: "4px", zIndex: 2 }}>
-            <span style={{ fontSize: "5px", color: "#9CA3AF" }}>OCTOBER 24, 2026</span>
-            <span style={{ fontSize: "5px", fontFamily: "monospace", color: "#9CA3AF" }}>#SUM-2026</span>
-          </div>
-        </div>
-      );
-
-    case "organic":
-      return (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "75%",
-          height: "78%",
-          background: "#FAF6EE",
-          borderRadius: "6px",
-          border: `1.5px solid ${accent}50`,
-          padding: "10px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "space-between",
-          boxShadow: "0 6px 16px rgba(139,115,85,0.04)",
-          fontFamily: "var(--font-serif)"
-        }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="1.5" style={{ opacity: 0.4, marginTop: "2px" }}>
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-          </svg>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", margin: "auto 0" }}>
-            <span style={{ fontFamily: "var(--font-sans)", fontSize: "5px", fontWeight: "bold", letterSpacing: "1px", color: "#8B7D6B" }}>CUSTOM CELEBRATION</span>
-            <span style={{ fontFamily: "var(--font-script)", fontSize: "18px", color: accent, lineHeight: 1.1, margin: "2px 0" }}>Woodland Romance</span>
-            <span style={{ fontFamily: "var(--font-sans)", fontSize: "5px", color: "#8B7D6B", letterSpacing: "0.5px" }}>PINE VALLEY CABIN, NY</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1px" }}>
-            <span style={{ fontSize: "5px", fontWeight: "bold", color: "#C4956A", textTransform: "uppercase" }}>OCTOBER 24, 2026</span>
-            <div style={{ width: "12px", height: "0.5px", background: `${accent}40` }} />
-          </div>
-        </div>
-      );
-
-    case "luxury":
-      return (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "75%",
-          height: "78%",
-          background: "linear-gradient(135deg, #0B0F19 0%, #151B26 50%, #0D121F 100%)",
-          borderRadius: "6px",
-          border: "1.5px solid rgba(215,190,128,0.4)",
-          padding: "10px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "space-between",
-          boxShadow: "0 6px 16px rgba(0,0,0,0.3)",
-          fontFamily: "var(--font-serif)"
-        }}>
-          <div style={{ position: "absolute", top: "4px", left: "4px", width: "8px", height: "8px", borderTop: "0.5px solid #D7BE80", borderLeft: "0.5px solid #D7BE80", opacity: 0.6 }} />
-          <div style={{ position: "absolute", top: "4px", right: "4px", width: "8px", height: "8px", borderTop: "0.5px solid #D7BE80", borderRight: "0.5px solid #D7BE80", opacity: 0.6 }} />
-          <div style={{ position: "absolute", bottom: "4px", left: "4px", width: "8px", height: "8px", borderBottom: "0.5px solid #D7BE80", borderLeft: "0.5px solid #D7BE80", opacity: 0.6 }} />
-          <div style={{ position: "absolute", bottom: "4px", right: "4px", width: "8px", height: "8px", borderBottom: "0.5px solid #D7BE80", borderRight: "0.5px solid #D7BE80", opacity: 0.6 }} />
-
-          <span style={{ fontSize: "5px", color: "#D7BE80", letterSpacing: "1.5px", fontWeight: "bold", textTransform: "uppercase", marginTop: "2px" }}>CELEBRATE WITH US</span>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", margin: "auto 0" }}>
-            <span style={{ fontSize: "13.5px", fontWeight: 300, color: "#FFF", letterSpacing: "0.5px", fontFamily: "var(--font-serif)" }}>Sarah & Tom</span>
-            <div style={{ width: "20px", height: "0.5px", background: "linear-gradient(90deg, transparent, #D7BE80, transparent)", margin: "4px 0" }} />
-            <span style={{ fontSize: "5px", color: "#FAF9F6", letterSpacing: "1px" }}>OCTOBER 24, 2026</span>
-          </div>
-
-          <span style={{ fontSize: "4.5px", color: "#D7BE80", letterSpacing: "1px", textTransform: "uppercase" }}>FORMAL ATTIRE</span>
-        </div>
-      );
-
-    case "minimal":
-      return (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "75%",
-          height: "78%",
-          background: "#FAF9F5",
-          borderRadius: "6px",
-          border: "1px solid #DFD3C3",
-          padding: "10px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          boxShadow: "0 6px 16px rgba(0,0,0,0.03)",
-          fontFamily: "var(--font-sans)"
-        }}>
-          <div style={{ position: "absolute", top: "3px", left: "3px", right: "3px", height: "0.5px", background: "#E5D8C6" }} />
-          <div style={{ position: "absolute", bottom: "3px", left: "3px", right: "3px", height: "0.5px", background: "#E5D8C6" }} />
-
-          <div style={{ display: "flex", justifySelf: "space-between", justifyContent: "space-between", width: "100%", fontSize: "4px", color: "#A69B8F", fontWeight: 700, letterSpacing: "1px", marginTop: "3px" }}>
-            <span>EXHIBIT // L. VANCE</span>
-            <span>№ 402</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", textAlign: "left", margin: "auto 0" }}>
-            <span style={{ fontSize: "4.5px", color: "#999", letterSpacing: "1px" }}>RETROSPECTIVE</span>
-            <span style={{ fontFamily: "var(--font-serif)", fontSize: "14.5px", fontWeight: 300, color: "#111", lineHeight: 1.1, marginTop: "1px" }}>Leon<br/>Vance</span>
-          </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "0.5px solid #EEE", paddingTop: "3px", fontSize: "4px", color: "#A69B8F", width: "100%" }}>
-            <span>PLAZA GALLERY, NY</span>
-            <span style={{ fontWeight: "bold" }}>GALA PASS</span>
-          </div>
-        </div>
-      );
-
-    case "floral":
-      return (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "75%",
-          height: "78%",
-          background: "linear-gradient(135deg, #FFF7F8 0%, #FFF3F5 100%)",
-          borderRadius: "6px",
-          border: `1.5px solid ${accent}30`,
-          padding: "10px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "space-between",
-          boxShadow: "0 6px 16px rgba(232,143,172,0.06)",
-          fontFamily: "var(--font-serif)",
-          overflow: "hidden"
-        }}>
-          <div style={{
-            position: "absolute",
-            top: "-2px",
-            right: "-2px",
-            width: "18px",
-            height: "18px",
-            opacity: 0.3,
-            borderBottomLeftRadius: "100%",
-            background: accent
-          }} />
-          <div style={{
-            position: "absolute",
-            bottom: "-2px",
-            left: "-2px",
-            width: "18px",
-            height: "18px",
-            opacity: 0.3,
-            borderTopRightRadius: "100%",
-            background: accent
-          }} />
-
-          <span style={{ fontSize: "4.5px", color: accent, letterSpacing: "1px", fontWeight: "bold" }}>SWEETEST CELEBRATION</span>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", margin: "auto 0", zIndex: 2 }}>
-            <span style={{ fontSize: "5.5px", color: "#5E5A52", letterSpacing: "0.5px" }}>LUCY&apos;S</span>
-            <span style={{ fontFamily: "var(--font-script)", fontSize: "19px", color: accent, lineHeight: 1 }}>Garden Party</span>
-            <span style={{ fontSize: "4.5px", color: "#5E5A52", letterSpacing: "0.5px", marginTop: "2px" }}>30TH BIRTHDAY</span>
-          </div>
-
-          <span style={{ fontSize: "5px", color: "#D7BE80", fontWeight: "bold" }}>OCTOBER 24, 2026</span>
-        </div>
-      );
-
-    case "tuscany":
-      return (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "75%",
-          height: "78%",
-          background: "linear-gradient(160deg, #F8F3E6 0%, #F1EAD6 45%, #E9E0C6 100%)",
-          borderRadius: "6px",
-          border: `1px solid ${accent}45`,
-          padding: "10px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "space-between",
-          boxShadow: "0 6px 16px rgba(107,122,79,0.06)",
-          fontFamily: "var(--font-serif)"
-        }}>
-          {/* Diamond checkerboard accent */}
-          <div style={{
-            position: "absolute", top: "6px", right: "6px", width: "10px", height: "10px",
-            transform: "rotate(45deg)", border: `0.5px solid ${accent}70`, opacity: 0.7,
-            display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr",
-          }}>
-            <div style={{ background: accent }} /><div />
-            <div /><div style={{ background: accent }} />
-          </div>
-
-          <div style={{
-            width: "16px", height: "16px", borderRadius: "50%", marginTop: "3px",
-            border: `1px solid ${accent}`, background: `${accent}10`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <span style={{ fontSize: "5px", fontFamily: "var(--font-sans)", fontWeight: 700, color: accent }}>L&amp;O</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-            <span style={{ fontSize: "4.5px", fontFamily: "var(--font-sans)", letterSpacing: "1.5px", color: `${accent}CC`, textTransform: "uppercase" }}>Together with their families</span>
-            <span style={{ fontFamily: "var(--font-script)", fontSize: "18px", color: accent, lineHeight: 1.1, marginTop: "2px" }}>Lujain &amp; Omar</span>
-            <span style={{ fontSize: "5px", fontWeight: "bold", color: accent, marginTop: "3px", letterSpacing: "0.5px" }}>24 OCTOBER 2026</span>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1px", width: "100%" }}>
-            <div style={{ width: "15px", height: "1px", background: `${accent}50` }} />
-            <span style={{ fontSize: "4.5px", fontFamily: "var(--font-sans)", fontStyle: "italic", color: "#8B8272" }}>VILLA ALMASA</span>
-          </div>
-        </div>
-      );
-
-    default:
-      return (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: "70%",
-          height: "72%",
-          background: "#FFFFFF",
-          borderRadius: "8px",
-          border: `1px solid ${accent}`,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "16px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
-        }}>
-          <span style={{ fontSize: "10px", color: "#333" }}>You&apos;re Invited</span>
-        </div>
-      );
-  }
-}
 
 function TemplateCard({ template, onPreview, isSelected }) {
   const [hovered, setHovered] = useState(false);
@@ -488,16 +206,22 @@ function TemplateCard({ template, onPreview, isSelected }) {
         position: "relative",
       }}
     >
-      {/* Preview area */}
+      {/* Preview area — the real InvitationCard art, so this gallery always
+          matches what organizers actually get, with zero duplicated markup. */}
       <div
         style={{
           height: "240px",
           background: template.gradient,
           position: "relative",
           overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        <TemplatePreview template={template} />
+        <div style={{ width: "62%", aspectRatio: "210 / 290", borderRadius: "10px", overflow: "hidden", boxShadow: "0 14px 30px -12px rgba(0,0,0,0.35)" }}>
+          <InvitationCard template={{ pattern: template.pattern }} theme={{ primary: template.accent, secondary: template.accent }} />
+        </div>
 
         {/* Hover overlay */}
         <div

@@ -53,7 +53,26 @@ const INVITATION_PATTERN_BY_TEMPLATE = {
   gala: 'minimal',
   custom: 'custom',
   tuscany: 'tuscany',
+  marrakesh: 'marrakesh',
+  kyoto: 'kyoto',
+  nordic: 'nordic',
+  havana: 'havana',
+  estate: 'estate',
+  roseAtelier: 'roseAtelier',
+  orchid: 'orchid',
+  clay: 'clay',
+  alpine: 'alpine',
+  coastal: 'coastal',
 };
+
+// Curated templates that are visual variants of a wedding — same content
+// schema (partner names, ceremony/reception) and "wedding" chrome as the
+// base template, just a different InvitationCard pattern + color story.
+// Keep in sync with WEDDING_STYLE_TEMPLATE_KEYS in create-event/page.js.
+const WEDDING_VARIANT_TEMPLATES = [
+  'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
+  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal',
+];
 
 const templateLabels = {
   en: {
@@ -63,7 +82,6 @@ const templateLabels = {
     gala: 'gala invitation',
     corporate: 'corporate event',
     party: 'party invitation',
-    tuscany: 'wedding invitation',
   },
   ar: {
     wedding: 'دعوة زفاف',
@@ -72,9 +90,13 @@ const templateLabels = {
     gala: 'دعوة حفل عشاء',
     corporate: 'فعالية رسمية',
     party: 'دعوة حفلة',
-    tuscany: 'دعوة زفاف',
   }
 };
+// Every wedding-variant template shares the same "wedding invitation" label.
+WEDDING_VARIANT_TEMPLATES.forEach(key => {
+  templateLabels.en[key] = 'wedding invitation';
+  templateLabels.ar[key] = 'دعوة زفاف';
+});
 
 function formatEventDateLine(event, isRTL) {
   if (!event?.event_date) return null;
@@ -97,9 +119,26 @@ function buildInvitationCardData(event, isRTL) {
   // Arabic title override (stored in template_data by EventSettings)
   const titleAr = td.title_ar || null;
 
+  if (WEDDING_VARIANT_TEMPLATES.includes(event?.template_type)) {
+    // The organizer's create-event wizard (Stage2_FormConfiguration) writes
+    // partner1/partner2 + ceremonyLocation/receptionLocation; the post-creation
+    // edit page (EventSettings) writes bride_name/groom_name + ceremony_time/
+    // reception_time into the same template_data column — read both shapes.
+    const a = td.groom_name || td.partner1Name || td.partner1;
+    const b = td.bride_name || td.partner2Name || td.partner2;
+    const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
+    const names = (isRTL && titleAr) ? titleAr : namesEn;
+    const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
+    const ceremonyLine = td.ceremony_time || td.ceremonyLocation || null;
+    const receptionLine = td.reception_time || td.receptionLocation || null;
+    // Tuscan Vineyard's "Save the Date" layout upgrades to a real photo once
+    // the organizer has uploaded a cover image; other wedding patterns ignore this.
+    const coverImageUrl = event?.template_type === 'tuscany' ? (event?.cover_image_url || null) : undefined;
+    return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, coverImageUrl };
+  }
+
   switch (event?.template_type) {
-    case 'wedding':
-    case 'tuscany': {
+    case 'wedding': {
       // The organizer's create-event wizard (Stage2_FormConfiguration) writes
       // partner1/partner2 + ceremonyLocation/receptionLocation; the post-creation
       // edit page (EventSettings) writes bride_name/groom_name + ceremony_time/
@@ -111,11 +150,7 @@ function buildInvitationCardData(event, isRTL) {
       const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
       const ceremonyLine = td.ceremony_time || td.ceremonyLocation || null;
       const receptionLine = td.reception_time || td.receptionLocation || null;
-      // Tuscan Vineyard's "Save the Date" layout upgrades to a real photo
-      // once the organizer has uploaded a cover image; other wedding patterns
-      // ignore this field.
-      const coverImageUrl = event?.template_type === 'tuscany' ? (event?.cover_image_url || null) : undefined;
-      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, coverImageUrl };
+      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine };
     }
     case 'engagement': {
       const a = td.partner1Name || td.partner1;
@@ -198,7 +233,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     setMounted(true);
   }, []);
 
-  const isWedding = event?.template_type === 'wedding' || event?.template_type === 'tuscany';
+  const isWedding = event?.template_type === 'wedding' || WEDDING_VARIANT_TEMPLATES.includes(event?.template_type);
   const isRomantic = isWedding || event?.template_type === 'engagement';
   const customColors = event?.custom_colors || {};
   const themeColor = customColors.primary || (isWedding ? '#B8944F' : '#191B1E');

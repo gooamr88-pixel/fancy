@@ -17,6 +17,14 @@ const C = {
 
 const DRESS_CODES = ['', 'Black Tie', 'Cocktail Attire', 'Semi-Formal', 'Business Casual', 'Smart Casual', 'Casual', 'Festive', 'Traditional'];
 
+// Curated templates that are visual variants of a wedding (same partner/
+// ceremony/reception fields as the base "wedding" template) — keep in sync
+// with WEDDING_STYLE_TEMPLATE_KEYS in create-event/page.js.
+const WEDDING_STYLE_TEMPLATE_KEYS = [
+  'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
+  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal',
+];
+
 const PRIVACY_MODES = [
   { key: 'public', label: 'Public Link', icon: '🌐', desc: 'Anyone with the link can RSVP' },
   { key: 'private', label: 'Private', icon: '🔒', desc: 'Guests must be on your list' },
@@ -264,7 +272,7 @@ export default function Stage2_FormConfiguration({
         {/* ═══ Section B: Template-Specific ═══ */}
         {templateType !== 'custom' && (
           <Section title={`${tpl.icon} ${tpl.label} Details`} icon="🎨">
-            {(templateType === 'wedding' || templateType === 'tuscany') && (
+            {WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType) && (
               <>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <Field label="Partner 1 Name">
@@ -544,7 +552,7 @@ export default function Stage2_FormConfiguration({
                 onChange={e => setTrackGuestSide(e.target.checked)}
                 style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
               <span>
-                {(templateType === 'wedding' || templateType === 'tuscany') ? "Tag guests as Groom's Side / Bride's Side" : "Tag guests as Partner 1's Side / Partner 2's Side"}
+                {WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType) ? "Tag guests as Groom's Side / Bride's Side" : "Tag guests as Partner 1's Side / Partner 2's Side"}
                 <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
                   Lets you and your guests mark which side of the party they belong to. Off by default — no extra field appears anywhere until you turn this on.
                 </span>

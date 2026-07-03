@@ -98,6 +98,66 @@ function getSceneStyles(pattern) {
         overlay: "radial-gradient(ellipse at 50% 38%, rgba(107,122,79,0.08) 0%, transparent 55%)",
         vignette: "radial-gradient(120% 80% at 50% 38%, transparent 32%, rgba(60,66,42,0.20) 100%)",
       };
+    case "marrakesh": // Marrakesh Nights — deep indigo evening
+      return {
+        background: "linear-gradient(170deg, #1B2A4A 0%, #1F2F52 25%, #172542 50%, #1F2F52 75%, #17223C 100%)",
+        overlay: "radial-gradient(ellipse at 50% 32%, rgba(217,169,78,0.08) 0%, transparent 55%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 28%, rgba(6,10,20,0.5) 100%)",
+      };
+    case "kyoto": // Kyoto Blossom — soft blush paper
+      return {
+        background: "linear-gradient(170deg, #F7EFEE 0%, #F2E7E5 25%, #EDDEDC 50%, #F2E7E5 75%, #F5EBE9 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(178,58,72,0.05) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 35%, rgba(90,60,58,0.15) 100%)",
+      };
+    case "nordic": // Nordic Frost — icy blue-grey
+      return {
+        background: "linear-gradient(170deg, #EFF3F5 0%, #E7EDF0 25%, #DEE6EA 50%, #E7EDF0 75%, #ECF1F3 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(51,73,93,0.04) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 38%, rgba(60,80,95,0.15) 100%)",
+      };
+    case "havana": // Havana Sunset — coral-turquoise glow
+      return {
+        background: "linear-gradient(170deg, #FFD8B8 0%, #FFC9A8 25%, #FFB89A 50%, #B9E8E1 75%, #9FDDD4 100%)",
+        overlay: "radial-gradient(ellipse at 50% 35%, rgba(255,122,89,0.1) 0%, transparent 55%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 30%, rgba(60,30,20,0.2) 100%)",
+      };
+    case "estate": // Old Money Estate — cream & navy
+      return {
+        background: "linear-gradient(170deg, #F3EEE1 0%, #ECE5D4 25%, #E4DCC7 50%, #ECE5D4 75%, #F0E9DB 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(27,42,65,0.05) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 35%, rgba(40,50,40,0.18) 100%)",
+      };
+    case "roseAtelier": // Rosé Atelier — dusty rose & champagne
+      return {
+        background: "linear-gradient(170deg, #FBF6F2 0%, #F7EBE6 25%, #F2E0D9 50%, #F7EBE6 75%, #FAF3EF 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(201,138,147,0.06) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 38%, rgba(120,70,75,0.14) 100%)",
+      };
+    case "orchid": // Midnight Orchid — deep plum-black
+      return {
+        background: "linear-gradient(170deg, #1B1023 0%, #21122A 25%, #170D1D 50%, #21122A 75%, #180E20 100%)",
+        overlay: "radial-gradient(ellipse at 50% 32%, rgba(201,162,75,0.07) 0%, transparent 55%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 28%, rgba(5,3,8,0.55) 100%)",
+      };
+    case "clay": // Copper & Clay — warm sand
+      return {
+        background: "linear-gradient(170deg, #EDE0CB 0%, #E7D8C0 25%, #DFCCB0 50%, #E7D8C0 75%, #EBDCC6 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(181,80,47,0.06) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 35%, rgba(90,55,35,0.18) 100%)",
+      };
+    case "alpine": // Alpine Pine — deep winter green
+      return {
+        background: "linear-gradient(170deg, #22392F 0%, #263F34 25%, #1D332A 50%, #263F34 75%, #1F362C 100%)",
+        overlay: "radial-gradient(ellipse at 50% 32%, rgba(217,201,163,0.06) 0%, transparent 55%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 30%, rgba(5,12,8,0.5) 100%)",
+      };
+    case "coastal": // Coastal Linen — seafoam & sand
+      return {
+        background: "linear-gradient(170deg, #E8F3EF 0%, #E2EEE8 25%, #DCE7D9 50%, #E2EEE8 75%, #E6F0EA 100%)",
+        overlay: "radial-gradient(ellipse at 50% 40%, rgba(43,95,90,0.05) 0%, transparent 50%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 36%, rgba(30,70,65,0.15) 100%)",
+      };
     default: // Default — warm cream (same as custom)
       return {
         background: "linear-gradient(170deg, #F2ECE2 0%, #EBE5DA 25%, #E5DFD4 50%, #EBE5DA 75%, #EEE8DE 100%)",

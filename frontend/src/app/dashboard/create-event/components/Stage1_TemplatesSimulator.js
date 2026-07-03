@@ -28,7 +28,17 @@ const TEMPLATE_PREVIEW_MAP = {
   birthday:   { name: 'Garden Party',     pattern: 'floral',  accent: '#E88FAC' },
   gala:       { name: 'Pure & Simple',    pattern: 'minimal', accent: '#C5A059' },
   custom:     { name: 'Woodland Romance', pattern: 'organic', accent: '#8B7355' },
-  tuscany:    { name: 'Tuscan Vineyard',  pattern: 'tuscany', accent: '#6B7A4F' },
+  tuscany:    { name: 'Tuscan Vineyard',   pattern: 'tuscany',     accent: '#6B7A4F' },
+  marrakesh:  { name: 'Marrakesh Nights',  pattern: 'marrakesh',   accent: '#D9A94E' },
+  kyoto:      { name: 'Kyoto Blossom',     pattern: 'kyoto',       accent: '#B23A48' },
+  nordic:     { name: 'Nordic Frost',      pattern: 'nordic',      accent: '#33495D' },
+  havana:     { name: 'Havana Sunset',     pattern: 'havana',      accent: '#FF7A59' },
+  estate:     { name: 'Old Money Estate',  pattern: 'estate',      accent: '#1B2A41' },
+  roseAtelier:{ name: 'Rosé Atelier',      pattern: 'roseAtelier', accent: '#C98A93' },
+  orchid:     { name: 'Midnight Orchid',   pattern: 'orchid',      accent: '#C9A24B' },
+  clay:       { name: 'Copper & Clay',     pattern: 'clay',        accent: '#B5502F' },
+  alpine:     { name: 'Alpine Pine',       pattern: 'alpine',      accent: '#D9C9A3' },
+  coastal:    { name: 'Coastal Linen',     pattern: 'coastal',     accent: '#2B5F5A' },
 };
 
 /* ═══ Envelope lining gradient mapping ═══ */
@@ -42,6 +52,14 @@ function getLiningGradId(templateKey, presetIndex) {
   if (templateKey === 'tuscany') {
     return ['oliveGrad', 'terracottaGrad', 'oliveGrad', 'burgundyGrad'][presetIndex] || 'oliveGrad';
   }
+  // Hue-matched to each template's palette — reuses the existing gradient set
+  // rather than commissioning a bespoke SVG gradient per curated template.
+  const HUE_MATCH = {
+    marrakesh: 'goldGrad', kyoto: 'burgundyGrad', nordic: 'goldGrad',
+    havana: 'terracottaGrad', estate: 'emeraldGrad', roseAtelier: 'burgundyGrad',
+    orchid: 'goldGrad', clay: 'terracottaGrad', alpine: 'emeraldGrad', coastal: 'emeraldGrad',
+  };
+  if (HUE_MATCH[templateKey]) return HUE_MATCH[templateKey];
   return 'goldGrad';
 }
 
@@ -90,7 +108,7 @@ function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
     engagement: { bg: 'linear-gradient(135deg, #0B0F19 0%, #151B26 100%)', accent: preset.primary, isDark: true },
     wedding:    { bg: 'linear-gradient(135deg, #FCFAF6 0%, #F5EDE0 100%)', accent: preset.primary, isDark: false },
     custom:     { bg: 'linear-gradient(135deg, #F8F4EB 0%, #F0EADA 100%)', accent: preset.primary, isDark: false },
-  }[template.key] || { bg: '#FAF8F5', accent: preset.primary, isDark: false };
+  }[template.key] || { bg: preset.background || '#FAF8F5', accent: preset.primary, isDark: false };
 
   return (
     <button
@@ -416,10 +434,10 @@ export default function Stage1_TemplatesSimulator({
           display: 'grid', gridTemplateColumns: '1.2fr 0.8fr',
           gap: 48, alignItems: 'start',
         }}>
-          {/* ─── LEFT: Template Gallery (large stacked cards) ─── */}
+          {/* ─── LEFT: Template Gallery (responsive card grid) ─── */}
           <div>
             <div className="s1-grid" style={{
-              display: 'grid', gridTemplateColumns: '1fr',
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
               gap: 14,
             }}>
               {templates.map((tpl, i) => (
