@@ -28,7 +28,13 @@ const { submitPublicRSVP } = require('../controllers/rsvpController');
 
 t.beforeEach(() => { mock.reset(); confirmCalls = []; emailCalls = []; });
 
-const req = (body) => mockReq({ params: { slug: 'wedding' }, body });
+// submitPublicRSVP now mandates a valid phone, affirmative SMS consent, and an
+// email (TCPA/A2P 10DLC opt-in + confirmation address) before any other check —
+// see rsvpController.submitPublicRSVP. Inject those as defaults so every payload
+// clears the new gate; tests that exercise a specific validation branch still
+// override the relevant field (e.g. an empty guestName/response).
+const REQUIRED_DEFAULTS = { phone: '+15551234567', smsConsent: true, email: 'guest@example.com' };
+const req = (body) => mockReq({ params: { slug: 'wedding' }, body: { ...REQUIRED_DEFAULTS, ...body } });
 const rpcResult = (data) => mock.setResolver((s) => (s.op === 'rpc' && s.fn === 'submit_rsvp_v2' ? { data } : {}));
 
 // ── Controller-side shape validation (no RPC should be issued) ──

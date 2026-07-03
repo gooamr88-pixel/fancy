@@ -75,7 +75,7 @@ test('an additionalGuests array longer than party_size−1 is trimmed (no phanto
   assert.equal(rows[1].full_name, 'Bob');
 });
 
-test('moving to a non-attending response clears seating and skips guest-row reconciliation', async () => {
+test('a non-attending response still reconciles guest rows when party_size is provided', async () => {
   const cap = setup({
     id: 'r1', label: 'Alice', response: 'no', party_size: 3,
     guests: [], seating_assignments: [],
@@ -83,7 +83,24 @@ test('moving to a non-attending response clears seating and skips guest-row reco
 
   const { res } = await invoke(updateRSVP, updReq({ response: 'no', partySize: 3 }));
   assert.equal(res.statusCode, 200);
-  // Non-attending → no guest rows rebuilt
+  // Reconciliation is gated on party_size / guest-detail changes, NOT on `response`
+  // (see guestService.updateParty) — so editing a declined party's size still
+  // rebuilds its guest rows, fixing the old bug where sizing a Maybe/Pending/No
+  // party silently did nothing. Seating removal on leaving 'yes' is handled by the
+  // trg_party_response_change DB trigger, outside this code path.
+  assert.equal(cap.guestInserts.length, 1);
+  assert.equal(cap.guestInserts[0].length, 3); // 1 primary + 2 padded to match size
+});
+
+test('a non-attending response with no size/detail change leaves guest rows untouched', async () => {
+  const cap = setup({
+    id: 'r1', label: 'Alice', response: 'no', party_size: 3,
+    guests: [{ full_name: 'Alice', is_primary_contact: true }], seating_assignments: [],
+  });
+
+  const { res } = await invoke(updateRSVP, updReq({ response: 'no' }));
+  assert.equal(res.statusCode, 200);
+  // Only the response changed → nothing to reconcile.
   assert.equal(cap.guestInserts.length, 0);
 });
 
