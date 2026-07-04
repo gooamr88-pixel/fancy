@@ -272,7 +272,7 @@ function HeroFloralAccent({ color, mirror = false }) {
       }}
     >
       <motion.svg
-        viewBox="0 0 100 260" width="100%" height="auto" style={{ transformOrigin: 'bottom center', overflow: 'visible' }}
+        viewBox="0 0 100 260" width="100%" style={{ transformOrigin: 'bottom center', overflow: 'visible' }}
         animate={{ rotate: [-2.5, 2.5, -2.5], y: [0, -10, 0] }}
         transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
       >

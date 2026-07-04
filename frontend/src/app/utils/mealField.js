@@ -15,7 +15,15 @@ export const MEAL_FIELD_KEY = MEAL_FIELD_KEYS[0];
 export function findMealField(customFormFields) {
   const fields = customFormFields || [];
   return (
-    fields.find((f) => f.is_meal_field === true) ||
-    fields.find((f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type))
+    // Primary: the explicit flag (source of truth for submit_rsvp_v2).
+    fields.find((f) => !!f.is_meal_field) ||
+    // Fallback 1: legacy key + option-capable type (pre-is_meal_field rows).
+    fields.find((f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()) && ['select', 'radio'].includes(f.field_type)) ||
+    // Fallback 2: key-only match — catches a field whose type was changed via
+    // PATCH or whose is_meal_field column hasn't been migrated yet. The RPC
+    // uses is_meal_field (or field_key = 'meal_selection' in older versions),
+    // so not finding this field here means an invisible required picker that
+    // blocks submit with no way for the guest to fix it.
+    fields.find((f) => MEAL_FIELD_KEYS.includes((f.field_key || '').toLowerCase()))
   );
 }

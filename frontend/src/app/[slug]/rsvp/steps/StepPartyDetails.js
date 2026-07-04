@@ -375,7 +375,7 @@ export default function StepPartyDetails({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <FadeInUp y={15}>
-        <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E' }}>{t.party_details}</h3>
+        <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E' }}>{mealField ? t.party_details : (isRTL ? 'تفاصيل المجموعة' : 'Party Details')}</h3>
       </FadeInUp>
 
       <FadeInUp delay={0.1} y={15}>
