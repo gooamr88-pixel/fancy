@@ -235,8 +235,19 @@ export default function DashboardPage() {
   const fetchEvents = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch('/events');
-      if (data.success) {
+      const [eventsResult, profileResult] = await Promise.allSettled([
+        apiFetch('/events'),
+        apiFetch('/auth/profile')
+      ]);
+
+      const data = eventsResult.status === 'fulfilled' ? eventsResult.value : null;
+      const profileData = profileResult.status === 'fulfilled' ? profileResult.value : null;
+
+      if (profileData?.success && profileData.profile) {
+        setIsSuperAdmin(!!profileData.profile.isSuperAdmin);
+      }
+
+      if (data && data.success) {
         if (data.events.length > 0) {
           setEvents(data.events);
           // Prefer the event passed back from a Stripe return (?event=…) or the last
@@ -260,7 +271,7 @@ export default function DashboardPage() {
       }
       // Same failure class as loadDashboardData below — previously this branch
       // silently showed an empty-events UI with no indication anything failed.
-      setError(data.message || 'Could not connect to backend server. Make sure the backend server is running on port 5000.');
+      setError(data?.message || 'Could not connect to backend server. Make sure the backend server is running on port 5000.');
       setLoading(false);
       return false;
     } catch (err) {
