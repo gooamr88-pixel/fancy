@@ -370,7 +370,7 @@ const getCompanionRSVPConfirmationTemplate = (companionName, mainGuestName, even
 };
 
 /** Entry pass: QR ticket + table assignment. */
-const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName) => {
+const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticketUrl) => {
   const partySize = rsvp.party_size || 1;
   const formattedDate = formatEventDate(event.event_date);
   const hasLocation = event.location_name || event.location_address;
@@ -407,12 +407,15 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName) => {
           
           <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:22px auto 0;">
             <tr><td style="background-color:${BRAND.white}; border:1px solid ${BRAND.border}; border-radius:14px; padding:14px;">
-              <img src="${qrImageUrl}" alt="Check-in QR code" width="200" height="200" style="display:block; width:200px; height:200px;" />
+              ${ticketUrl ? `<a href="${ticketUrl}" style="display:block;">` : ''}
+              <img src="${qrImageUrl}" alt="Your ticket QR code" width="200" height="200" style="display:block; width:200px; height:200px;" />
+              ${ticketUrl ? '</a>' : ''}
             </td></tr>
           </table>
+          ${ticketUrl ? `<div style="margin-top:16px;"><a href="${ticketUrl}" style="font-family:${SANS}; font-size:13px; font-weight:bold; color:${BRAND.gold}; text-decoration:underline;">View my seat &amp; party details &rarr;</a></div>` : ''}
         </td></tr>
       </table>
-      ${para('Show this pass on your phone at the venue entrance — our team will scan the QR code to confirm your party and direct you to your table.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+      ${para('Scan this QR with your phone to see your table on the venue map, or show it at the entrance for our team to check you in.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
     `,
   });
 };

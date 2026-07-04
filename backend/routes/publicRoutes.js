@@ -3,7 +3,7 @@ const rateLimit = require('express-rate-limit');
 const { body, param, query } = require('express-validator');
 const validate = require('../middleware/validate');
 const { getPublicEventBySlug } = require('../controllers/eventController');
-const { submitPublicRSVP, searchPublicGuests, verifyPublicSeating, getGuestById, getGuestSeatingMap, getRsvpInvite, respondViaToken } = require('../controllers/rsvpController');
+const { submitPublicRSVP, searchPublicGuests, verifyPublicSeating, getGuestById, getGuestSeatingMap, getTicketSeatingView, getRsvpInvite, respondViaToken } = require('../controllers/rsvpController');
 const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
 const { handleSmsStatusCallback } = require('../controllers/campaignController');
@@ -11,6 +11,7 @@ const { subscribeNewsletter, submitContactForm } = require('../controllers/marke
 const { verifyTurnstile } = require('../middleware/captcha');
 const { generateQRCodeBuffer } = require('../utils/qrHelper');
 const { getPlatformConfig } = require('../utils/configCache');
+const { getPublicBaseUrl } = require('../utils/publicUrl');
 
 const router = express.Router();
 
@@ -102,6 +103,11 @@ router.get('/events/:slug/seating/guest/:guestId', [
   validate
 ], getGuestSeatingMap);
 
+// Self-scan: resolves a guest's own QR check-in ticket into their seating view
+// (table + own party only). The ticket's signature IS the authentication —
+// no slug/guestId needed, everything is decoded from the signed token.
+router.get('/ticket/:token', getTicketSeatingView);
+
 // Public guest RSVP form submit
 router.post('/events/:slug/rsvp', [
   body('guestName').trim().notEmpty().isLength({ max: 200 }).withMessage('Guest name is required (max 200 chars)'),
@@ -134,12 +140,15 @@ router.post('/events/:slug/analytics', [
 ], trackGuestEvent);
 
 // Serve QR code as a real PNG image (email-safe — no data URIs).
-// The :token param is the signed JWT ticket; the route generates the QR on the fly.
-// Aggressive cache headers (immutable, 30 days) because the same token always
-// produces the same image.
+// The :token param is the signed JWT ticket; the QR itself encodes a link to
+// the guest's own ticket page (not the bare token) so scanning it with an
+// ordinary phone camera — not just the organizer's check-in kiosk — opens
+// the guest's seating view directly. Aggressive cache headers (immutable, 30
+// days) because the same token always produces the same image.
 router.get('/qr/:token.png', async (req, res) => {
   try {
-    const buffer = await generateQRCodeBuffer(req.params.token);
+    const ticketUrl = `${getPublicBaseUrl()}/ticket/${encodeURIComponent(req.params.token)}`;
+    const buffer = await generateQRCodeBuffer(ticketUrl);
     res.set({
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=2592000, immutable',

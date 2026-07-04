@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { normalizeToE164 } from '../../utils/phone';
 import { findMealField } from '../../utils/mealField';
 import PhoneNumberInput from '../../components/PhoneNumberInput';
+import { toast } from '../../utils/toast';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -81,6 +82,14 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to add guest');
+      const invitation = data.data?.invitation;
+      if (invitation?.attempted) {
+        if (invitation.sent) {
+          toast.success(`Invitation emailed to ${invitation.email}.`);
+        } else {
+          toast.error(`Guest added, but the invitation email to ${invitation.email} couldn't be sent.`);
+        }
+      }
       onGuestAdded?.();
       onClose();
     } catch (err) {

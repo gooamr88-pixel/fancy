@@ -117,7 +117,6 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (guest.side) setSide(guest.side);
     if (guest.sms_consent) setSmsConsent(true);
     if (['yes', 'no', 'maybe'].includes(guest.response)) setAttending(guest.response);
-    setIdentityConfirmed(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

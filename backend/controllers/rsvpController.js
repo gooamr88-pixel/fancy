@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const notificationService = require('../utils/notificationService');
 const guestService = require('../services/guestService');
 const tokenService = require('../services/tokenService');
+const invitationService = require('../services/invitationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
 const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate } = require('../utils/emailTemplates');
 const { isEventLiveForGuests } = require('../utils/eventAccess');
@@ -573,19 +574,47 @@ const addGuestManually = async (req, res, next) => {
   }
   const guestResponse = response && ['yes', 'no', 'maybe', 'pending', 'waitlist'].includes(response) ? response : 'pending';
   const guestSide = ['partner1', 'partner2'].includes(side) ? side : null;
+  const normalizedEmail = normalizeEmail(email);
+  const resolvedPartySize = partySize ? parseInt(partySize, 10) : 1;
 
   try {
     const result = await guestService.addGuest({
       eventId, actorUserId: req.user?.id, fullName: guestName.trim(),
-      phone: phone ? normalizeToE164(phone) : null, email: normalizeEmail(email), partyId, response: guestResponse,
-      partySize: partySize ? parseInt(partySize, 10) : 1, notes: notes ? String(notes).trim() : null, side: guestSide,
+      phone: phone ? normalizeToE164(phone) : null, email: normalizedEmail, partyId, response: guestResponse,
+      partySize: resolvedPartySize, notes: notes ? String(notes).trim() : null, side: guestSide,
       primaryMeal: primaryGuestMeal ? String(primaryGuestMeal).trim() : null,
     });
 
     if (!result || result.success === false) return sendRpcFailure(res, result);
 
     broadcast(eventId, 'rsvp_submitted', { partyId: result.party_id, guestName: guestName.trim(), response: guestResponse });
-    return sendOk(res, { message: 'Guest added successfully.', partyId: result.party_id, guestId: result.guest_id }, { status: 201 });
+
+    // Best-effort: an organizer-added guest has no other way to discover their
+    // event page, so a manually-added guest with an email on file gets their
+    // invitation immediately instead of the organizer having to separately
+    // remember to send one. A delivery failure (or an event that isn't
+    // paid/live yet) must not fail the add-guest request itself.
+    const invitation = { attempted: false, sent: false, email: normalizedEmail || null, reason: null };
+    if (normalizedEmail) {
+      invitation.attempted = true;
+      try {
+        const { event: liveEvent, code: liveEventCode } = await invitationService.resolveLiveEvent(eventId);
+        if (liveEvent) {
+          const inviteResult = await invitationService.sendEmailInvite(liveEvent, {
+            id: result.party_id, label: guestName.trim(), primaryEmail: normalizedEmail, partySize: resolvedPartySize,
+          });
+          invitation.sent = !!inviteResult.sent;
+          if (!inviteResult.sent) invitation.reason = inviteResult.reason || 'DELIVERY_FAILED';
+        } else {
+          invitation.reason = liveEventCode || 'EVENT_NOT_LIVE';
+        }
+      } catch (inviteErr) {
+        logger.error({ err: inviteErr, eventId, partyId: result.party_id }, 'addGuestManually: invitation email failed');
+        invitation.reason = 'DELIVERY_FAILED';
+      }
+    }
+
+    return sendOk(res, { message: 'Guest added successfully.', partyId: result.party_id, guestId: result.guest_id, invitation }, { status: 201 });
   } catch (err) {
     if (isGuestLimitError(err)) {
       return sendFail(res, { status: 409, error: 'GUEST_LIMIT_REACHED', message: 'This event has reached its plan\'s guest limit. Upgrade the plan to add more guests.' });
@@ -676,6 +705,71 @@ const getGuestSeatingMap = async (req, res, next) => {
 
     return sendOk(res, {
       guest: { id: seating.party.id, guest_name: seating.party.label, party_size: seating.party.partySize, response: seating.party.response },
+      myTableId: seating.myTableId, myTableName: seating.myTableName,
+      party: seating.companions, tables: tables || [],
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Resolves a signed QR check-in ticket into the guest's OWN seating view —
+ * the self-scan counterpart to the staff-facing checkinController.scanCheckIn.
+ * The QR image emailed to a seated party now encodes a link to this page (see
+ * routes/publicRoutes.js `/qr/:token.png`) instead of a bare token, so a guest
+ * scanning their own ticket with their phone's camera sees their table +
+ * companions on the real venue map, never anyone else's. Read-only — never
+ * checks anyone in.
+ * GET /api/v1/public/ticket/:token
+ */
+const getTicketSeatingView = async (req, res, next) => {
+  const { token } = req.params;
+
+  let decoded;
+  try {
+    decoded = tokenService.verifyQrTicket(token);
+  } catch {
+    return sendFail(res, { status: 401, error: 'INVALID_TICKET', message: 'This ticket is invalid or has expired.' });
+  }
+
+  try {
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('id, slug, title, event_date, location_name, location_address, is_paid, status, custom_colors, custom_fonts, cover_image_url')
+      .eq('id', decoded.eventId)
+      .single();
+    if (eventError || !event) return sendFail(res, { status: 404, error: 'EVENT_NOT_FOUND' });
+    if (!isEventLiveForGuests(event)) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
+
+    const seating = await guestService.getPartySeatingMap(event.id, decoded.partyId);
+    if (!seating) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
+
+    const eventBrief = {
+      title: event.title, slug: event.slug, event_date: event.event_date,
+      location_name: event.location_name, location_address: event.location_address,
+      custom_colors: event.custom_colors, custom_fonts: event.custom_fonts, cover_image_url: event.cover_image_url,
+    };
+    const guestBrief = { id: seating.party.id, guest_name: seating.party.label, party_size: seating.party.partySize, response: seating.party.response };
+
+    // Same 24h reveal-window rule as getGuestSeatingMap — a ticket is only ever
+    // emailed after seating, but the map itself can still be embargoed.
+    if (!seating.createdByOrganizer && !guestService.isSeatingRevealed(event.event_date)) {
+      return sendOk(res, {
+        event: eventBrief, guest: guestBrief,
+        locked: true, revealAt: guestService.seatingRevealAtISO(event.event_date),
+        myTableId: null, myTableName: null, party: [], tables: [],
+      });
+    }
+
+    const { data: tables, error: tablesError } = await supabase
+      .from('tables')
+      .select('id, table_name, element_type, shape, position_x, position_y, width, height, rotation, color, max_capacity')
+      .eq('event_id', event.id).order('sort_order', { ascending: true });
+    if (tablesError) throw tablesError;
+
+    return sendOk(res, {
+      event: eventBrief, guest: guestBrief,
       myTableId: seating.myTableId, myTableName: seating.myTableName,
       party: seating.companions, tables: tables || [],
     });
@@ -914,6 +1008,7 @@ module.exports = {
   addGuestManually,
   verifyPublicSeating,
   getGuestSeatingMap,
+  getTicketSeatingView,
   // Exported for unit testing of the ILIKE-injection escaping.
   escapeLikePattern,
 };

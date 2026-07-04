@@ -18,6 +18,7 @@ const logger = require('../utils/logger');
 const tokenService = require('./tokenService');
 const notificationService = require('../utils/notificationService');
 const { getInvitationTemplate, getQRTicketTemplate, buildGuestEventUrl } = require('../utils/emailTemplates');
+const { getPublicBaseUrl } = require('../utils/publicUrl');
 
 const BACKEND_BASE = () =>
   process.env.BACKEND_URL ? process.env.BACKEND_URL.replace(/\/$/, '') : `http://localhost:${process.env.PORT || 5000}`;
@@ -185,11 +186,12 @@ async function sendQrTicketEmail(eventId, partyId) {
   });
 
   const qrImageUrl = `${BACKEND_BASE()}/api/v1/public/qr/${encodeURIComponent(token)}.png`;
+  const ticketUrl = `${getPublicBaseUrl()}/ticket/${encodeURIComponent(token)}`;
   const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize };
   // The data model has no table→zone relationship (zones are standalone venue
   // elements in the same `tables` table, not a parent of seatable tables), so a
   // ticket carries no zone label.
-  const html = getQRTicketTemplate(shimParty, event, assignment.tables.table_name, qrImageUrl, null);
+  const html = getQRTicketTemplate(shimParty, event, assignment.tables.table_name, qrImageUrl, null, ticketUrl);
 
   const success = await notificationService.sendEmailViaBrevo(primaryEmail, `Your Ticket & Table Assignment: ${event.title}`, html);
   await logInvitation({

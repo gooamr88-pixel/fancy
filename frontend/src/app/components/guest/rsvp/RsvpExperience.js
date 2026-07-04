@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
 import DigitalEnvelope from '../DigitalEnvelope';
@@ -8,6 +8,8 @@ import { GlassmorphismCard, PremiumButton, CalendarButton, ShareButton } from '.
 import { ScaleIn, FadeInUp, ShimmerPlaceholder, ConfettiExplosion } from '../GuestAnimations';
 import { useRsvpResolver, rememberGuest } from './useRsvpResolver';
 import { useIdempotentRsvpSubmit } from './useIdempotentRsvpSubmit';
+import { useSeatingLookup } from '../../../[slug]/rsvp/hooks/useSeatingLookup';
+import SeatingResultPanel from '../../../[slug]/rsvp/steps/SeatingResultPanel';
 
 /**
  * RsvpExperience — the unified orchestration engine for the entire guest RSVP
@@ -97,7 +99,7 @@ const STATUS_META = {
 
 /** The bulletproof read-only lock. The input form is NOT rendered here — the only
  *  way past it is the host-gated "Update my response" action (requirement #3). */
-function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset }) {
+function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset, seatingView, seatingLoading }) {
   const meta = STATUS_META[guest?.response] || STATUS_META.yes;
   const name = guest?.guest_name || '';
   return (
@@ -124,6 +126,16 @@ function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset }) {
             <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap', marginTop: '24px' }}>
               <CalendarButton event={event} isRTL={isRTL} />
               <ShareButton title={event.title} text={isRTL ? `دعوة لحضور ${event.title}` : `You're invited to ${event.title}`} url={typeof window !== 'undefined' ? `${window.location.origin}/${event.slug}` : ''} isRTL={isRTL} />
+            </div>
+          )}
+
+          {/* Seating map — a guest revisiting their (already-locked) invitation had no
+              way to see where the organizer seated them; StepSuccess only ever showed
+              this right after the original submit. Fetched in the parent effect below
+              and rendered here whenever the lookup found a seated party. */}
+          {guest?.response === 'yes' && (seatingLoading || seatingView) && (
+            <div style={{ borderTop: '1px solid #F0ECE3', marginTop: '24px', paddingTop: '20px', textAlign: isRTL ? 'right' : 'left' }}>
+              <SeatingResultPanel view={seatingView} loading={seatingLoading} isRTL={isRTL} />
             </div>
           )}
 
@@ -190,6 +202,23 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
     },
   });
 
+  // A guest who already responded 'yes' lands straight on the locked card (never
+  // back in <RsvpWizard>), so this is the only chance to show them where the
+  // organizer seated them. `fetchSeatingMap` isn't memoized (new fn each render of
+  // the hook), so it's deliberately left out of the deps array in favor of a
+  // fetched-once-per-party ref — including it would re-fire this effect on every
+  // render once seatingView's setState triggers a re-render.
+  const seatingApi = useSeatingLookup(engine.event?.slug);
+  const seatingFetchedFor = useRef(null);
+  useEffect(() => {
+    const partyId = engine.guest?.id;
+    if (engine.phase === 'locked' && engine.guest?.response === 'yes' && partyId && seatingFetchedFor.current !== partyId) {
+      seatingFetchedFor.current = partyId;
+      seatingApi.fetchSeatingMap(partyId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engine.phase, engine.guest?.id, engine.guest?.response]);
+
   // ── Zero-flash gate: never render the child (or mock data) until resolved ──
   if (engine.phase === 'resolving') return <RsvpSkeleton />;
 
@@ -219,7 +248,7 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
             try { window.localStorage.removeItem(`fancy_rsvp_${slug}`); } catch {}
           }
           engine.refetch();
-        }} />
+        }} seatingView={seatingApi.seatingView} seatingLoading={seatingApi.seatingLoading} />
         {envelopeOverlay}
       </>
     );

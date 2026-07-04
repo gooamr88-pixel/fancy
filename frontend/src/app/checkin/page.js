@@ -14,6 +14,15 @@ const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '
 // Roomier padding + 16px font for touch kiosks (16px also prevents iOS focus-zoom).
 const inputStyle = { width: '100%', boxSizing: 'border-box', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', padding: '16px 18px', fontSize: '16px', color: C.charcoal, outline: 'none', fontFamily: 'var(--font-sans)', transition: 'border-color 0.25s ease' };
 
+// QR tickets encode a "<origin>/ticket/<token>" link (guest-facing); pull the
+// bare token back out of it for this endpoint. Falls back to the raw scanned
+// text so a still-bare token (older emailed tickets) keeps working.
+const extractTicketToken = (raw) => {
+  const text = (raw || '').trim();
+  const match = text.match(/\/ticket\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : text;
+};
+
 export default function CheckInPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -197,8 +206,13 @@ export default function CheckInPage() {
     if (qrCheckInInFlight.current) return;
     qrCheckInInFlight.current = true;
     setQrCheckInBusy(true);
+    // The QR image now encodes a guest-facing "/ticket/<token>" URL (so a guest
+    // scanning their own ticket with a phone camera lands on their seating view)
+    // instead of the bare JWT — pull the token back out for the staff scanner,
+    // while still accepting a raw pasted token for tickets emailed before this change.
+    const token = extractTicketToken(scannedToken);
     try {
-      const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token: scannedToken, checkedInBy: 'Kiosk Camera' }) });
+      const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token, checkedInBy: 'Kiosk Camera' }) });
       const data = await res.json();
       if (!res.ok) { setScanStatus({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setOverlayData({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setShowConfirmOverlay(true); return; }
       if (data.success) {
