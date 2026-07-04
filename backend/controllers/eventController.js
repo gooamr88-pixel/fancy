@@ -1,5 +1,4 @@
 const { supabase } = require('../config/supabase');
-const { sendOk } = require('../utils/responseEnvelope');
 const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
 const { generateQRCodeDataURL } = require('../utils/qrHelper');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
@@ -548,7 +547,7 @@ const getPublicEventBySlug = async (req, res, next) => {
     const { access_password, is_paid, ...publicEvent } = event;
 
     // guestRsvp is included only when a valid invitation token resolved to this event.
-    return sendOk(res, { event: publicEvent, guestRsvp });
+    return res.json({ success: true, event: publicEvent, guestRsvp });
   } catch (err) {
     next(err);
   }
