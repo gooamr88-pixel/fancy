@@ -442,11 +442,6 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Hard safety net — never trap a guest on the overlay.
-  useEffect(() => {
-    const t = setTimeout(() => finish(), 16000);
-    return () => clearTimeout(t);
-  }, [finish]);
 
   /* ═══ Reduced-motion fallback: a full luxury stationery card, just without the
      envelope-opening choreography. Large-scale parallax/spin is avoided, but

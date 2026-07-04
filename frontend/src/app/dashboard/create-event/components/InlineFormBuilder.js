@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MEAL_FIELD_KEY, MEAL_FIELD_KEYS } from '../../../utils/mealField';
+import { toast } from '../../../utils/toast';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -113,11 +114,17 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
   };
 
   const handleSave = () => {
-    if (!label.trim() || !key.trim()) return;
+    if (!label.trim() || !key.trim()) {
+      toast.error('Question label is required.');
+      return;
+    }
     let options = [];
     if (type === 'select' || type === 'radio') {
       options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
-      if (options.length === 0) return;
+      if (options.length === 0) {
+        toast.error(isMealField ? 'Please list at least one meal choice.' : 'Please specify at least one option for this question.');
+        return;
+      }
     }
     if (editingId) {
       // Update existing field — key is immutable.

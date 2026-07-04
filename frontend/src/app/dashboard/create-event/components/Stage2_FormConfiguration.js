@@ -253,18 +253,18 @@ export default function Stage2_FormConfiguration({
 
           <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Field label="Venue">
-              <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)}
-                placeholder="Grand Ballroom" style={iStyle}
-                onFocus={onFocus} onBlur={onBlur} />
-            </Field>
-            <Field label="Address">
               <PlacesAutocomplete
-                value={locationAddress}
-                onChange={setLocationAddress}
+                value={locationName}
+                onChange={setLocationName}
                 onPlaceSelect={onPlaceSelect}
-                placeholder="Search venue or address…"
+                placeholder="Search for a venue…"
                 style={iStyle}
               />
+            </Field>
+            <Field label="Address" hint="Auto-filled from the selected venue — editable">
+              <input type="text" value={locationAddress} onChange={e => setLocationAddress(e.target.value)}
+                placeholder="Grand Ballroom, 123 Main St" style={iStyle}
+                onFocus={onFocus} onBlur={onBlur} />
             </Field>
           </div>
         </Section>

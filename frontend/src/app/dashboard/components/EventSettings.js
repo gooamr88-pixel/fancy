@@ -318,7 +318,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         access_password: '',
         dress_code: event.dress_code || '',
         cover_image_url: event.cover_image_url || '',
-        primary_color: event.primary_color || '#B8944F',
+        primary_color: event.custom_colors?.primary || '#B8944F',
         background_music_url: event.background_music_url || '',
         gallery_urls: Array.isArray(event.gallery_urls) ? event.gallery_urls : [],
         font_heading: event.custom_fonts?.heading || 'Playfair Display',
@@ -395,6 +395,16 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       };
       delete body.font_heading;
       delete body.font_body;
+
+      // Pack the color picker's flat `primary_color` into the `custom_colors`
+      // jsonb column the backend actually persists — the backend's field
+      // whitelist has no bare `primary_color` field, so sending it as-is was
+      // silently dropped and never saved.
+      body.custom_colors = {
+        ...event?.custom_colors,
+        primary: body.primary_color,
+      };
+      delete body.primary_color;
 
       // Pack template data — merge onto the event's existing template_data so
       // fields this form doesn't surface (seal artwork, custom builder config,
@@ -592,28 +602,28 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={rowStyle}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Location Name</label>
-            <input value={form.location_name} onChange={handleChange('location_name')} placeholder="Grand Ballroom" style={inputStyle}
-              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-            />
-          </div>
-          <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Location Address</label>
             <PlacesAutocomplete
-              value={form.location_address}
-              onChange={(val) => { setForm(prev => ({ ...prev, location_address: val })); setSuccess(false); }}
+              value={form.location_name}
+              onChange={(val) => { setForm(prev => ({ ...prev, location_name: val })); setSuccess(false); }}
               onPlaceSelect={(place) => {
                 setForm(prev => ({
                   ...prev,
-                  location_address: place.address,
                   location_name: place.name || prev.location_name,
+                  location_address: place.address,
                   location_lat: place.lat,
                   location_lng: place.lng,
                   location_place_id: place.placeId,
                 }));
                 setSuccess(false);
               }}
-              placeholder="Search for a venue or address..."
+              placeholder="Search for a venue..."
+            />
+          </div>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Location Address</label>
+            <input value={form.location_address} onChange={handleChange('location_address')} placeholder="Grand Ballroom, 123 Main St" style={inputStyle}
+              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
             />
           </div>
         </div>

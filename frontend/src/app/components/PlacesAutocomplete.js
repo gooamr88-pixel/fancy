@@ -42,10 +42,8 @@ export default function PlacesAutocomplete({ value, onChange, onPlaceSelect, pla
   const autocompleteRef = useRef(null);
   const [mapsReady, setMapsReady] = useState(false);
 
-  // Store callbacks in refs to avoid stale closures in the Autocomplete listener
-  const onChangeRef = useRef(onChange);
+  // Store callback in a ref to avoid stale closures in the Autocomplete listener
   const onPlaceSelectRef = useRef(onPlaceSelect);
-  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => { onPlaceSelectRef.current = onPlaceSelect; }, [onPlaceSelect]);
 
   // Load Google Maps script on mount
@@ -79,8 +77,8 @@ export default function PlacesAutocomplete({ value, onChange, onPlaceSelect, pla
           placeId: place.place_id || '',
         };
 
-        // Update the controlled input value (use refs to avoid stale closure)
-        if (onChangeRef.current) onChangeRef.current(place.formatted_address || '');
+        // Let the caller decide how to reflect this back into the controlled `value`
+        // (e.g. venue name vs. formatted address) via onPlaceSelect.
         if (onPlaceSelectRef.current) onPlaceSelectRef.current(placeData);
       });
 

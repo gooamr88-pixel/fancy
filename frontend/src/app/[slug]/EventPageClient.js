@@ -373,9 +373,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
   // Background music — the organizer's uploaded track, OR a pasted YouTube
   // link (played through a hidden IFrame Player instead of an <audio> tag).
-  // Browsers block audio with sound until a real user gesture, so playback is
-  // only ever started from inside a click handler (the envelope seal tap, or
-  // this toggle) — never automatically on mount.
+  // Starts as soon as the page loads (not gated behind the envelope seal tap)
+  // so it's playing from the very first moment of the guest experience.
+  // Some mobile browsers still block unmuted autoplay without a prior user
+  // gesture; in that case the first tap anywhere (seal, toggle) starts it.
   const musicRef = useRef(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const toggleMusic = useCallback(() => {
@@ -392,6 +393,16 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const ytPlayerElRef = useRef(null);
   const ytPlayerRef = useRef(null);
   const youtubeMusicId = extractYouTubeId(event?.background_music_url);
+
+  // Direct-audio-file autoplay attempt, fired as soon as the <audio> element
+  // (and its src) exist. Browsers that block it will just no-op here; the
+  // seal tap / toggle button below still retry on the guest's first gesture.
+  useEffect(() => {
+    if (!event?.background_music_url || youtubeMusicId) return;
+    const el = musicRef.current;
+    if (el?.paused) el.play().catch(() => { /* autoplay blocked — retried on first user gesture */ });
+  }, [event?.background_music_url, youtubeMusicId]);
+
   useEffect(() => {
     if (!youtubeMusicId) return undefined;
     let cancelled = false;
@@ -409,6 +420,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               play: () => { player.playVideo(); return Promise.resolve(); },
               pause: () => player.pauseVideo(),
             };
+            // Attempt autoplay as soon as the player is ready — same best-effort,
+            // gesture-independent start as the direct-audio-file path below.
+            player.playVideo();
           },
           onStateChange: (e) => setMusicPlaying(e.data === 1),
         },
@@ -517,7 +531,13 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   useEffect(() => {
     // The demo event is set via lazy initial state above — nothing to fetch.
     if (isDemoSlug) return;
-    if (!slug || (initialEvent && !invitationRsvpId && !invitationGuestId && !deviceRememberedId)) return;
+    if (!slug) return;
+    // `initialEvent` is only the guest-agnostic SSR/ISR snapshot (cached up to 60s,
+    // see page.js) — it's used as the instant first paint (no loading flash), but
+    // it can be stale (e.g. the organizer just added/edited a custom RSVP field
+    // like the meal picker after this slug was last cached). Always refresh
+    // client-side so the interactive form guests actually fill in reflects the
+    // organizer's current configuration, not a snapshot from up to a minute ago.
     // fetchEvent is also used imperatively by the password-retry form (a plain
     // event handler, not an effect) — it stays a shared useCallback rather
     // than being duplicated. Invoking it through this IIFE (the same "run an
@@ -525,7 +545,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     // resolver effect) keeps the actual state updates inside a nested async
     // callback rather than as a direct statement of the effect body itself.
     (async () => { await fetchEvent(); })();
-  }, [slug, isDemoSlug, fetchEvent, initialEvent, invitationRsvpId, invitationGuestId, deviceRememberedId]);
+  }, [slug, isDemoSlug, fetchEvent]);
 
   /* ─── Countdown ─── */
   useEffect(() => {
@@ -825,7 +845,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           ref={musicRef}
           src={event.background_music_url}
           loop
-          preload="none"
+          autoPlay
+          preload="auto"
           onPlay={() => setMusicPlaying(true)}
           onPause={() => setMusicPlaying(false)}
           onError={(e) => console.error('Background music failed to load:', event.background_music_url, e.target.error)}

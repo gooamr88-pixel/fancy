@@ -325,10 +325,13 @@ export default function DashboardPage() {
   // ref-syncing effect) so a stale call's results are simply discarded.
   const loadRequestIdRef = useRef(0);
 
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(async ({ silent = false } = {}) => {
     if (!eventId) return;
     const requestId = ++loadRequestIdRef.current;
-    setLoading(true);
+    // Background refreshes (the 20s realtime poll, tab-refocus) must never
+    // blow away the rendered dashboard with the full skeleton — only the
+    // very first load, and explicit user-triggered refetches, show it.
+    if (!silent) setLoading(true);
     try {
 
       const [statsResult, tablesResult, rsvpsResult, fieldsResult, profileResult] = await Promise.allSettled([
@@ -402,7 +405,7 @@ export default function DashboardPage() {
       if (loadRequestIdRef.current !== requestId) return;
       setError('Could not connect to backend server. Make sure the backend server is running on port 5000.');
     } finally {
-      if (loadRequestIdRef.current === requestId) setLoading(false);
+      if (loadRequestIdRef.current === requestId && !silent) setLoading(false);
     }
   }, [eventId]);
 
@@ -451,7 +454,11 @@ export default function DashboardPage() {
     } catch (err) { toast.error(err.message); }
   }, [eventId, rsvps, loadDashboardData]);
 
-  useRealtimeRSVPs(eventId, loadDashboardData);
+  const handleRealtimeRefresh = useCallback(() => {
+    loadDashboardData({ silent: true });
+  }, [loadDashboardData]);
+
+  useRealtimeRSVPs(eventId, handleRealtimeRefresh);
 
   const totalSeatedCountText = useMemo(() => `${stats.seatingAssignedGuests} / ${stats.attendingGuests}`, [stats.seatingAssignedGuests, stats.attendingGuests]);
 
