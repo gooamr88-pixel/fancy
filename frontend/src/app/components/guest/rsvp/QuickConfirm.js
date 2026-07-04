@@ -22,6 +22,15 @@ const RESP = {
 export default function QuickConfirm({ event, guest, intendedResponse, isRTL, submit, submitting, context }) {
   const [selected, setSelected] = useState(intendedResponse || guest?.response || 'yes');
   const [partySize, setPartySize] = useState(guest?.party_size || 1);
+  // This one-click surface only ever collects attending/party-size/companion
+  // NAMES — no meal selection, no custom questions (see the comment on
+  // companionNames below). It never asked or validated either, which meant an
+  // organizer's required questions were silently skippable by clicking
+  // "Attending" in the email instead of opening the full form. Rather than
+  // duplicate the wizard's meal/custom-question UI and validation here, a
+  // "yes" response routes to the full form (already recognized as this guest
+  // via the ?party_id= invitation bypass) whenever the event has any of it.
+  const needsFullForm = selected === 'yes' && Array.isArray(event?.custom_form_fields) && event.custom_form_fields.length > 0;
   // Name-only companion list — QuickConfirm stays a one-click surface, so it
   // doesn't collect email/phone/meal per companion the way the full public
   // wizard does; without this, growing the party here left every extra
@@ -154,9 +163,17 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
 
       <FadeInUp delay={0.45}>
         <GlowPulse color={(RESP[selected] || RESP.yes).color} intensity={0.22}>
-          <PremiumButton onClick={handleConfirm} disabled={submitting} loading={submitting} variant="gold" size="lg" fullWidth style={{ borderRadius: '14px' }}>
-            {submitting ? (isRTL ? 'جارٍ التسجيل…' : 'Recording…') : `${isRTL ? 'تأكيد' : 'Confirm'} — ${(RESP[selected] || RESP.yes).label}`}
-          </PremiumButton>
+          {needsFullForm ? (
+            <Link href={`/${event.slug}/rsvp${guest?.id ? `?party_id=${guest.id}` : ''}`} style={{ textDecoration: 'none', display: 'block' }}>
+              <PremiumButton variant="gold" size="lg" fullWidth style={{ borderRadius: '14px' }}>
+                {isRTL ? 'متابعة لإكمال التفاصيل' : 'Continue to Full RSVP'}
+              </PremiumButton>
+            </Link>
+          ) : (
+            <PremiumButton onClick={handleConfirm} disabled={submitting} loading={submitting} variant="gold" size="lg" fullWidth style={{ borderRadius: '14px' }}>
+              {submitting ? (isRTL ? 'جارٍ التسجيل…' : 'Recording…') : `${isRTL ? 'تأكيد' : 'Confirm'} — ${(RESP[selected] || RESP.yes).label}`}
+            </PremiumButton>
+          )}
         </GlowPulse>
       </FadeInUp>
     </Shell>

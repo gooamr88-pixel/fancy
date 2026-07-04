@@ -17,6 +17,7 @@ const FIELD_TYPES = [
   { value: 'textarea', label: 'Long Text' },
   { value: 'select', label: 'Dropdown' },
   { value: 'radio', label: 'Radio Buttons' },
+  { value: 'multiselect', label: 'Multi-Select (Checkboxes)' },
   { value: 'checkbox', label: 'Checkbox' },
   { value: 'date', label: 'Date' },
   { value: 'number', label: 'Number' },
@@ -62,9 +63,9 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
   // True when the open form is the dedicated meal-options shortcut — locks the field
   // key/type so the guest RSVP wizard's findMealField() picks it up automatically.
   const [isMealField, setIsMealField] = useState(false);
-  const hasMealField = fields.some(
-    (f) => MEAL_FIELD_KEYS.includes((f.key || '').toLowerCase()) && ['select', 'radio'].includes(f.type)
-  );
+  const hasMealField = fields.some((f) => f.isMealField !== undefined
+    ? !!f.isMealField
+    : MEAL_FIELD_KEYS.includes((f.key || '').toLowerCase()) && ['select', 'radio'].includes(f.type));
 
   const autoKey = useCallback((val) => {
     return val.toLowerCase().trim()
@@ -94,7 +95,13 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
     setOptionsStr(Array.isArray(f.options) ? f.options.join(', ') : '');
     setIsRequired(!!f.isRequired);
     setCondition(f.condition || 'always');
-    setIsMealField(MEAL_FIELD_KEYS.includes((f.key || '').toLowerCase()) && ['select', 'radio'].includes(f.type));
+    // Trust the explicit flag carried on the field object (set by handleSave
+    // below, or hydrated from the server's is_meal_field column) — only fall
+    // back to the key/type guess for field objects that predate this flag
+    // ever being attached.
+    setIsMealField(f.isMealField !== undefined
+      ? !!f.isMealField
+      : MEAL_FIELD_KEYS.includes((f.key || '').toLowerCase()) && ['select', 'radio'].includes(f.type));
     setShowForm(true);
   };
 
@@ -119,7 +126,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
       return;
     }
     let options = [];
-    if (type === 'select' || type === 'radio') {
+    if (type === 'select' || type === 'radio' || type === 'multiselect') {
       options = optionsStr.split(',').map(o => o.trim()).filter(Boolean);
       if (options.length === 0) {
         toast.error(isMealField ? 'Please list at least one meal choice.' : 'Please specify at least one option for this question.');
@@ -129,7 +136,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
     if (editingId) {
       // Update existing field — key is immutable.
       const updated = fields.map(f => f.id === editingId
-        ? { ...f, label: label.trim(), type, options, isRequired, condition }
+        ? { ...f, label: label.trim(), type, options, isRequired, condition, isMealField }
         : f
       );
       onFieldsChange(updated);
@@ -138,7 +145,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
         id: crypto.randomUUID(),
         label: label.trim(),
         key: key.trim(),
-        type, options, isRequired, condition,
+        type, options, isRequired, condition, isMealField,
         sortOrder: fields.length,
       };
       onFieldsChange([...fields, newField]);
@@ -147,6 +154,8 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
   };
 
   const handleDelete = (fieldId) => {
+    const field = fields.find(f => f.id === fieldId);
+    if (!confirm(`Are you sure you want to delete "${field?.label || 'this question'}"? Any guest answers matching this question will also be deleted.`)) return;
     onFieldsChange(fields.filter(f => f.id !== fieldId));
   };
 
@@ -273,7 +282,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
               </div>
 
               {/* Row 3: Options (conditional) */}
-              {(type === 'select' || type === 'radio') && (
+              {(type === 'select' || type === 'radio' || type === 'multiselect') && (
                 <div>
                   <label style={lblStyle}>{isMealField ? 'Meal Choices (comma-separated)' : 'Options (comma-separated)'}</label>
                   <input type="text" value={optionsStr}

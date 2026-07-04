@@ -10,7 +10,7 @@ const INPUT_TYPE_FOR = { email: 'email', phone: 'tel', url: 'url', number: 'numb
 
 /** Step 4 — organizer-configured custom questions + the free-text note. */
 export default function StepCustomQuestions({
-  t, isRTL, fields, companionFields = [], customAnswers, setAnswer, toggleMultiAnswer,
+  t, isRTL, fields, guestName, companionFields = [], customAnswers, setAnswer, toggleMultiAnswer,
   additionalGuests = [], setCompanionAnswer, toggleCompanionMultiAnswer,
   notes, setNotes, validationErrors, submitting, onBack, onSubmit,
 }) {
@@ -56,7 +56,7 @@ export default function StepCustomQuestions({
             )}
             {field.field_type === 'select' && (
               <select value={value} onChange={e => onSetAnswer(field.id, e.target.value)} style={{ ...S.inputBase, ...errorStyle, cursor: 'pointer' }}>
-                <option value="">{t.meal_select_placeholder}</option>
+                <option value="">{t.select_placeholder}</option>
                 {opts?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
               </select>
             )}
@@ -136,7 +136,7 @@ export default function StepCustomQuestions({
                     )}
                     {field.field_type === 'select' && (
                       <select value={value} onChange={e => setAnswer(field.id, e.target.value)} style={{ ...S.inputBase, ...errorStyle, cursor: 'pointer' }}>
-                        <option value="">{t.meal_select_placeholder}</option>
+                        <option value="">{t.select_placeholder}</option>
                         {opts?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
                       </select>
                     )}
@@ -175,6 +175,35 @@ export default function StepCustomQuestions({
             })}
           </StaggerChildren>
         </>
+      )}
+
+      {/* ═══ Primary guest's own guest-scoped questions ═══ */}
+      {/* Guest-scoped questions ("once per person") were previously only ever
+          asked of companions — the primary guest (the person actually filling
+          out the form) was never asked their own answer at all, and a
+          required guest-scoped question was silently unenforced whenever a
+          guest RSVP'd solo. This mirrors how Meal Selection already asks the
+          primary guest unconditionally, then loops over companions. Answers
+          share the same `customAnswers` bucket as party-scoped `fields` —
+          field IDs never collide between scopes. */}
+      {companionFields.length > 0 && (
+        <FadeInUp y={12}>
+          <div style={{
+            border: '1px solid #F0ECE3', borderRadius: '14px', padding: '18px 16px',
+            background: 'rgba(248,244,236,0.45)',
+          }}>
+            <h4 style={{
+              fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 500,
+              color: '#191B1E', marginBottom: '14px', paddingBottom: '10px',
+              borderBottom: '1px solid #F0ECE3',
+            }}>
+              {guestName || (isRTL ? 'إجاباتك' : 'Your Answers')}
+            </h4>
+            <StaggerChildren staggerDelay={0.06}>
+              {renderFields(companionFields, customAnswers, setAnswer, toggleMultiAnswer, 'primary', 'primary')}
+            </StaggerChildren>
+          </div>
+        </FadeInUp>
       )}
 
       {/* ═══ Companion custom questions (guest-scoped only) ═══ */}

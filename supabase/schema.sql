@@ -4170,6 +4170,7 @@ DECLARE
   v_party_answer    TEXT;
   v_companion_answer TEXT;
   v_new_guest_id    UUID;
+  v_primary_guest_id UUID;
 BEGIN
   SELECT * INTO v_event FROM events WHERE slug = p_slug;
   IF NOT FOUND THEN
@@ -4254,6 +4255,20 @@ BEGIN
       WHERE event_id = v_event.id AND is_required = true AND is_meal_field = false
     LOOP
       IF v_field.scope = 'guest' THEN
+        v_party_answer := NULL;
+        IF jsonb_typeof(p_custom_answers) = 'array' THEN
+          FOR v_a IN SELECT * FROM jsonb_array_elements(p_custom_answers) LOOP
+            IF (v_a ->> 'fieldId')::uuid = v_field.id THEN
+              v_party_answer := NULLIF(btrim(COALESCE(v_a ->> 'value', '')), '');
+              EXIT;
+            END IF;
+          END LOOP;
+        END IF;
+        IF v_party_answer IS NULL THEN
+          RETURN jsonb_build_object('success', false, 'code', 'CUSTOM_ANSWER_REQUIRED',
+            'message', format('"%s" is required.', v_field.field_label));
+        END IF;
+
         IF v_party_size > 1 THEN
           FOR i IN 0..(v_party_size - 2) LOOP
             v_g := p_additional_guests -> i;
@@ -4376,7 +4391,8 @@ BEGIN
     INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
     VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
             CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END,
-            CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END);
+            CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END)
+    RETURNING id INTO v_primary_guest_id;
   ELSE
     IF v_norm_email IS NOT NULL THEN
       SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
@@ -4437,7 +4453,8 @@ BEGIN
         INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
         VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
                 CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END,
-                CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END);
+                CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END)
+        RETURNING id INTO v_primary_guest_id;
       EXCEPTION WHEN unique_violation THEN
         DELETE FROM rsvp_parties WHERE id = v_party_id;
         RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
@@ -4447,7 +4464,8 @@ BEGIN
       INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
       VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
               CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END,
-              CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END);
+              CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END)
+      RETURNING id INTO v_primary_guest_id;
     END IF;
   END IF;
 
@@ -4491,10 +4509,13 @@ BEGIN
       END IF;
     END LOOP;
 
-    INSERT INTO custom_answers (party_id, field_id, answer_value)
-    SELECT v_party_id, (a.elem ->> 'fieldId')::uuid, a.elem -> 'value'
+    INSERT INTO custom_answers (party_id, guest_id, field_id, answer_value)
+    SELECT v_party_id,
+           CASE WHEN cff.scope = 'guest' THEN v_primary_guest_id ELSE NULL END,
+           (a.elem ->> 'fieldId')::uuid, a.elem -> 'value'
     FROM jsonb_array_elements(COALESCE(p_custom_answers, '[]'::jsonb)) WITH ORDINALITY AS a(elem, ord)
-    WHERE a.ord <= 50;
+    JOIN custom_form_fields cff ON cff.id = (a.elem ->> 'fieldId')::uuid
+    WHERE a.ord <= 200;
   END IF;
 
   INSERT INTO activity_logs (event_id, action, entity_type, entity_id, metadata)

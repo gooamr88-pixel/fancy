@@ -24,6 +24,38 @@ const RESERVED_MEAL_FIELD_KEYS = ['meal_selection', 'meal', 'meal_choice', 'meal
 // required choice field a guest can never satisfy.
 const TYPES_WITH_OPTIONS = ['select', 'radio', 'multiselect'];
 
+const MAX_LABEL_LENGTH = 200;
+const MAX_OPTION_LENGTH = 100;
+
+// Both Form Builder UIs define options via a single comma-separated text
+// input, so an organizer can never create a comma-containing option through
+// the UI — the comma IS the delimiter. That guarantee only holds client-side
+// though; a direct API call could still pass an option string containing a
+// comma, which would corrupt a guest's multiselect answer later (the guest
+// wizard stores/reads selections as a comma-joined string). Reject it here
+// instead, along with duplicate options and unreasonably long label/options,
+// none of which were validated anywhere before.
+function validateOptionsList(options) {
+  if (!Array.isArray(options)) return null;
+  const seen = new Set();
+  for (const raw of options) {
+    const opt = String(raw).trim();
+    if (!opt) continue;
+    if (opt.length > MAX_OPTION_LENGTH) {
+      return `Each option must be ${MAX_OPTION_LENGTH} characters or fewer.`;
+    }
+    if (opt.includes(',')) {
+      return 'Options cannot contain a comma.';
+    }
+    const key = opt.toLowerCase();
+    if (seen.has(key)) {
+      return `Duplicate option: "${opt}".`;
+    }
+    seen.add(key);
+  }
+  return null;
+}
+
 /**
  * Fetch all custom RSVP form fields for an event.
  * GET /api/v1/events/:eventId/fields
@@ -63,6 +95,19 @@ const saveField = async (req, res, next) => {
       error: 'VALIDATION_ERROR',
       message: 'fieldKey, fieldLabel, and fieldType are required.'
     });
+  }
+
+  if (String(fieldLabel).length > MAX_LABEL_LENGTH) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: `fieldLabel must be ${MAX_LABEL_LENGTH} characters or fewer.`
+    });
+  }
+
+  const optionsError = validateOptionsList(options);
+  if (optionsError) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: optionsError });
   }
 
   // Keep in lockstep with the custom_form_fields.field_type CHECK constraint
@@ -152,6 +197,18 @@ const saveField = async (req, res, next) => {
 const updateField = async (req, res, next) => {
   const { eventId, fieldId } = req.params;
   const { fieldLabel, fieldType, options, isRequired, sortOrder, scope } = req.body;
+
+  if (fieldLabel !== undefined && String(fieldLabel).length > MAX_LABEL_LENGTH) {
+    return res.status(400).json({
+      success: false,
+      error: 'VALIDATION_ERROR',
+      message: `fieldLabel must be ${MAX_LABEL_LENGTH} characters or fewer.`
+    });
+  }
+  const optionsError = validateOptionsList(options);
+  if (optionsError) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: optionsError });
+  }
 
   const updates = {};
   if (fieldLabel !== undefined) updates.field_label = fieldLabel;

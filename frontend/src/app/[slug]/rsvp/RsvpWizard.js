@@ -345,6 +345,15 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
           errors[`field_${field.id}`] = `${field.field_label} is required`;
         }
       });
+      // Guest-scoped required questions now also apply to the primary guest
+      // (previously only companions were ever asked/validated) — same
+      // customAnswers bucket as party-scoped fields, since the two never
+      // share field IDs.
+      guestScopedFields.filter(f => f.is_required).forEach(field => {
+        if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
+          errors[`primary_field_${field.id}`] = `${field.field_label} is required`;
+        }
+      });
     }
     if (attending === 'maybe' && !maybeFollowUp) errors.maybeFollowUp = 'Please select a follow-up timeframe';
     // Bot check — only enforced when Turnstile is configured (matches the backend).
@@ -535,6 +544,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                     <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
                       <StepCustomQuestions
                         t={t} isRTL={isRTL} fields={attending === 'yes' ? partyScopedFields : []}
+                        guestName={guestName}
                         companionFields={attending === 'yes' ? guestScopedFields : []}
                         customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
                         additionalGuests={attending === 'yes' ? visibleAdditionalGuests : []}

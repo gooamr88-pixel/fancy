@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
-import { MEAL_FIELD_KEYS } from '../../utils/mealField';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -473,6 +472,7 @@ export default function CreateEventWizard() {
               options: Array.isArray(f.options) ? f.options : [],
               isRequired: !!f.is_required,
               sortOrder: f.sort_order ?? 0,
+              isMealField: !!f.is_meal_field,
               savedToServer: true,
             }));
             setCustomFields(hydratedFields);
@@ -1364,7 +1364,13 @@ export default function CreateEventWizard() {
               options: field.options || [],
               isRequired: field.isRequired,
               sortOrder: idx,
-              isMealField: MEAL_FIELD_KEYS.includes((field.key || '').toLowerCase()) && ['select', 'radio'].includes(field.type),
+              // Trust the explicit flag the builder attaches (true only when the
+              // organizer used the "Add Meal Options" shortcut) — previously this
+              // re-derived the flag from key/type, so manually typing a label
+              // that happened to slug to a reserved meal key silently became
+              // the real meal field instead of getting the builder's
+              // "reserved key" rejection.
+              isMealField: !!field.isMealField,
             }),
           }).then((res) => {
             if (!res.ok) failedLabels.push(field.label);
