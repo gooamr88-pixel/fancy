@@ -8,7 +8,7 @@ Welcome to the Fancy RSVP codebase. This repository is structured as an npm mono
 
 ```
 ├── /backend              # Node.js/Express.js REST API
-├── /frontend             # Next.js 14 (App Router) User Interface
+├── /frontend             # Next.js 16 (App Router) User Interface
 ├── /supabase             # Database migrations, SQL schema, & stored procedures
 ├── package.json          # Root workspace configuration
 └── README.md             # Developer documentation

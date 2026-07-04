@@ -128,7 +128,7 @@ export default function CTASection() {
           }}
         >
           Join thousands of hosts who trust Fancy RSVP for their most important
-          celebrations. Start free — upgrade when you're ready.
+          celebrations. Start free — upgrade when you&apos;re ready.
         </p>
 
         {/* Button Row */}

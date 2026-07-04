@@ -41,7 +41,15 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
   const mealField = findMealField(customFields);
 
-  useEffect(() => {
+  // Prefill the form whenever the modal opens or the target rsvp record
+  // changes (mirrors the previous `useEffect(..., [isOpen, rsvp])` — resetting
+  // during render instead of in an effect avoids the setState-in-effect
+  // cascading-render pattern).
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const [prevRsvp, setPrevRsvp] = useState(rsvp);
+  if (isOpen !== prevIsOpen || rsvp !== prevRsvp) {
+    setPrevIsOpen(isOpen);
+    setPrevRsvp(rsvp);
     if (isOpen && rsvp) {
       setFormData({
         guest_name: rsvp.guest_name || '',
@@ -68,6 +76,13 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
       setCompanions(existingCompanions);
       setError('');
       setLoading(false);
+    }
+  }
+
+  // Imperative DOM focus is a legitimate effect side-effect (not derivable at
+  // render time), so it stays in a real effect.
+  useEffect(() => {
+    if (isOpen && rsvp) {
       setTimeout(() => nameRef.current?.focus(), 120);
     }
   }, [isOpen, rsvp]);

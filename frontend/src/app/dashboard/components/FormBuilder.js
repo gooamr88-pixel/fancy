@@ -50,7 +50,7 @@ export default function FormBuilder({ eventId }) {
     } finally { setLoading(false); }
   }, [apiUrl, eventId]);
 
-  useEffect(() => { loadFields(); }, [loadFields]);
+  useEffect(() => { (async () => { await loadFields(); })(); }, [loadFields]);
 
   const TYPES_WITH_OPTIONS = ['select', 'radio', 'multiselect'];
 

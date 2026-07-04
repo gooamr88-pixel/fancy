@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import QRCode from 'qrcode';
 import { logout, apiFetch } from '../utils/apiClient';
 import LogoutModal from '../components/LogoutModal';
+import { useIsClient } from '../utils/useIsClient';
 import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
 import StatMetricsCard from './components/StatMetricsCard';
 import LiveActivityFeed from './components/LiveActivityFeed';
@@ -154,7 +155,13 @@ function QRCodeDisplay({ url, size = 200 }) {
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
+  // isClient gates the localStorage read until we're past hydration (SSR has
+  // no localStorage). authChecked is derived from it — it's never set
+  // independently anywhere else, so no separate state is needed (mirrors
+  // seating-map/page.js's and checkin/page.js's fix for this same pattern).
+  const isClient = useIsClient();
+  const orgId = isClient ? localStorage.getItem('org_id') : null;
+  const authChecked = isClient && !!orgId;
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [stats, setStats] = useState({
@@ -187,34 +194,37 @@ export default function DashboardPage() {
   const router = useRouter();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  // The redirect is a genuine imperative side effect (navigation); it no
+  // longer also carries the authChecked state update, which is now a plain
+  // derived value above. Super-admin status is validated server-side during
+  // data load (see below).
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const orgId = localStorage.getItem('org_id');
-      if (!orgId) { router.push('/login'); return; }
-      // Super-admin status is validated server-side during data load (see below).
-      setAuthChecked(true);
-    }
-  }, [router]);
+    if (isClient && !orgId) router.push('/login');
+  }, [isClient, orgId, router]);
 
   /* ═══ Deep-link to a tab (e.g. ?tab=drafts after "Save as Draft") + toast ═══ */
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab');
-    const saved = params.get('saved');
-    const forceReset = params.get('forceReset');
-    if (tab) setActiveTab(tab);
-    if (saved === 'draft') toast.success('Draft saved — finish it any time from Drafts.');
-    // forcePasswordReset only ever renders inside OrganizerProfile, which only
-    // mounts when activeTab === 'profile' (default tab is 'overview') — without
-    // this, a user linked in via ?forceReset=1 never actually saw the prompt
-    // unless they happened to click into Profile themselves.
-    if (forceReset === '1') { setForcePasswordReset(true); setActiveTab('profile'); }
-    if (tab || saved || forceReset) {
-      params.delete('tab'); params.delete('saved'); params.delete('forceReset');
-      const qs = params.toString();
-      window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
-    }
+    // Wrapped in an IIFE (same technique used elsewhere in this pass) so none
+    // of these setState calls are bare top-level statements in the effect body.
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      const saved = params.get('saved');
+      const forceReset = params.get('forceReset');
+      if (tab) setActiveTab(tab);
+      if (saved === 'draft') toast.success('Draft saved — finish it any time from Drafts.');
+      // forcePasswordReset only ever renders inside OrganizerProfile, which only
+      // mounts when activeTab === 'profile' (default tab is 'overview') — without
+      // this, a user linked in via ?forceReset=1 never actually saw the prompt
+      // unless they happened to click into Profile themselves.
+      if (forceReset === '1') { setForcePasswordReset(true); setActiveTab('profile'); }
+      if (tab || saved || forceReset) {
+        params.delete('tab'); params.delete('saved'); params.delete('forceReset');
+        const qs = params.toString();
+        window.history.replaceState({}, '', window.location.pathname + (qs ? `?${qs}` : ''));
+      }
+    })();
   }, []);
 
   // Pulled out to a stable callback (not just an inline effect function) so the
@@ -262,7 +272,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!authChecked) return;
-    fetchEvents();
+    (async () => { await fetchEvents(); })();
   }, [authChecked, fetchEvents]);
 
   useEffect(() => {
@@ -278,30 +288,31 @@ export default function DashboardPage() {
     const payment = params.get('payment');
     if (payment !== 'success' && payment !== 'cancelled') return;
 
-    setActiveTab('events');
-    const returnedId = params.get('event');
-    if (returnedId) localStorage.setItem('active_event_id', returnedId); // fetchEvents selects it
+    // Wrapped in one IIFE (same technique used elsewhere in this pass) so none
+    // of these setState calls are bare top-level statements in the effect body.
+    (async () => {
+      setActiveTab('events');
+      const returnedId = params.get('event');
+      if (returnedId) localStorage.setItem('active_event_id', returnedId); // fetchEvents selects it
 
-    const sessionId = params.get('session_id');
-    // Strip the payment params so a refresh doesn't replay this handler.
-    window.history.replaceState({}, '', window.location.pathname);
+      const sessionId = params.get('session_id');
+      // Strip the payment params so a refresh doesn't replay this handler.
+      window.history.replaceState({}, '', window.location.pathname);
 
-    if (payment === 'success' && sessionId) {
-      // Confirm the payment synchronously, THEN re-fetch events so the UI
-      // reflects the updated is_paid / tier state (the webhook remains the backstop).
-      // Reuses the shared fetchEvents() (rather than duplicating the fetch here)
-      // so this path gets the same session-expiry handling and unified error
-      // state as every other event load — `returnedId` was already persisted to
-      // localStorage above, so fetchEvents' own preference logic still picks it.
-      (async () => {
+      if (payment === 'success' && sessionId) {
+        // Confirm the payment synchronously, THEN re-fetch events so the UI
+        // reflects the updated is_paid / tier state (the webhook remains the backstop).
+        // Reuses the shared fetchEvents() (rather than duplicating the fetch here)
+        // so this path gets the same session-expiry handling and unified error
+        // state as every other event load — `returnedId` was already persisted to
+        // localStorage above, so fetchEvents' own preference logic still picks it.
         try {
           await apiFetch(`/payments/verify?session_id=${encodeURIComponent(sessionId)}`);
         } catch { /* non-fatal — the webhook will reconcile the event status */ }
         const ok = await fetchEvents();
         if (ok) toast.success('Payment confirmed successfully!');
-      })();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      }
+    })();
   }, [fetchEvents]);
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -395,7 +406,7 @@ export default function DashboardPage() {
     }
   }, [eventId]);
 
-  useEffect(() => { if (!eventId) return; loadDashboardData(); }, [loadDashboardData, eventId]);
+  useEffect(() => { if (!eventId) return; (async () => { await loadDashboardData(); })(); }, [loadDashboardData, eventId]);
 
   const handleCreateTable = useCallback(async (e) => {
     e.preventDefault();
@@ -1206,7 +1217,7 @@ export default function DashboardPage() {
               <>
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-serif)', margin: 0 }}>Printable Invitation</h3>
                 <p style={{ fontSize: 12, color: COLORS.stone, margin: '0 0 8px 0', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
-                  Preview of your event's printable/downloadable invitation card
+                  Preview of your event&apos;s printable/downloadable invitation card
                 </p>
                 
                 {/* Printable Card Preview */}

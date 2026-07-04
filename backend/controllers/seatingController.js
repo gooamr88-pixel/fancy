@@ -78,7 +78,7 @@ const assignSeat = async (req, res, next) => {
  */
 const reassignSeat = async (req, res, next) => {
   const { eventId } = req.params;
-  const { rsvpId, newTableId } = req.body;
+  const { rsvpId, newTableId, force } = req.body;
   const assignedBy = req.user?.id || null;
 
   if (!rsvpId || !newTableId) {
@@ -95,7 +95,8 @@ const reassignSeat = async (req, res, next) => {
       p_event_id: eventId,
       p_party_id: rsvpId,
       p_new_table_id: newTableId,
-      p_assigned_by: assignedBy
+      p_assigned_by: assignedBy,
+      p_force: !!force
     });
 
     if (error) {

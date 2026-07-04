@@ -197,8 +197,16 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
     return list;
   }, [rsvps, search, filter, sort]);
 
-  // reset page when filters change
-  React.useEffect(() => { setPage(1); }, [search, filter, sort]);
+  // Reset page when filters change — adjusted during render (like
+  // RsvpWizard's prevLangParam) rather than in an effect, since this is a
+  // "reset paginator when the filter key changes" case, and `page` is
+  // otherwise independently mutable via the pager buttons below.
+  const filterKey = `${search}|${filter}|${sort}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
+  }
 
   const totalPages = Math.max(1, Math.ceil(processed.length / PAGE_SIZE));
   const paginated = processed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);

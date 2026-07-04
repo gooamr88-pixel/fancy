@@ -282,7 +282,7 @@ export default function AboutPage() {
               }}
             >
               We believe every celebration deserves a first impression as
-              memorable as the event itself. That's why we created Fancy RSVP —
+              memorable as the event itself. That&apos;s why we created Fancy RSVP —
               where elegance meets innovation.
             </p>
           </div>
@@ -368,8 +368,8 @@ export default function AboutPage() {
                   marginBottom: "28px",
                 }}
               >
-                We set out to build the world's most elegant event response platform — one that
-                treats your guests to the same premium experience they'll enjoy at your celebration.
+                We set out to build the world&apos;s most elegant event response platform — one that
+                treats your guests to the same premium experience they&apos;ll enjoy at your celebration.
                 Today, we serve over 200,000 events annually across 40 countries.
               </p>
               <div style={{ display: "flex", gap: "40px" }}>

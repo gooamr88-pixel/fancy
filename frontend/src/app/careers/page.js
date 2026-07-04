@@ -329,7 +329,7 @@ export default function CareersPage() {
                 marginBottom: "20px",
               }}
             >
-              We're Hiring
+              We&apos;re Hiring
             </p>
             <h1
               style={{
@@ -353,7 +353,7 @@ export default function CareersPage() {
                 margin: "0 auto 36px",
               }}
             >
-              Help us build the world's most beautiful event platform. We're looking for
+              Help us build the world&apos;s most beautiful event platform. We&apos;re looking for
               passionate people who believe great design and technology can bring people together.
             </p>
             <a
@@ -381,7 +381,7 @@ export default function CareersPage() {
                   marginBottom: "16px",
                 }}
               >
-                Why You'll Love Working Here
+                Why You&apos;ll Love Working Here
               </h2>
               <p
                 style={{
@@ -436,7 +436,7 @@ export default function CareersPage() {
                   lineHeight: 1.7,
                 }}
               >
-                Find the role that's right for you.
+                Find the role that&apos;s right for you.
               </p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -483,9 +483,9 @@ export default function CareersPage() {
                     marginBottom: "32px",
                   }}
                 >
-                  We're a team of 85 people across 12 countries, united by a shared love
+                  We&apos;re a team of 85 people across 12 countries, united by a shared love
                   for creating beautiful things. Our culture is rooted in trust, creativity,
-                  and a genuine commitment to each other's growth.
+                  and a genuine commitment to each other&apos;s growth.
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
                   {cultureValues.map((v) => (
@@ -600,7 +600,7 @@ export default function CareersPage() {
                 marginBottom: "20px",
               }}
             >
-              Don't See the Right Role?
+              Don&apos;t See the Right Role?
             </h2>
             <p
               style={{
@@ -611,8 +611,8 @@ export default function CareersPage() {
                 marginBottom: "36px",
               }}
             >
-              We're always looking for exceptional talent. Send us your resume and
-              tell us how you'd like to make an impact at Fancy RSVP.
+              We&apos;re always looking for exceptional talent. Send us your resume and
+              tell us how you&apos;d like to make an impact at Fancy RSVP.
             </p>
             <Link
               href="mailto:careers@fancyrsvp.com"

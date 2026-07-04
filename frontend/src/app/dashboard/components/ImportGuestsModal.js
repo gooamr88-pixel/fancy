@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -36,12 +36,17 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
   const fileRef = useRef(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-  useEffect(() => {
+  // Reset the form whenever the modal transitions open (mirrors the previous
+  // `useEffect(..., [isOpen])` — resetting during render instead of in an
+  // effect avoids the setState-in-effect cascading-render pattern).
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setFileContent(''); setFileName(''); setPreview([]); setTotalRows(0);
       setError(''); setResult(null); setLoading(false); setDragOver(false);
     }
-  }, [isOpen]);
+  }
 
   if (!isOpen) return null;
 
@@ -308,7 +313,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                   marginTop: '16px', padding: '10px 14px', borderRadius: '8px', background: COLORS.softBg,
                   border: `1px solid ${COLORS.border}`, color: COLORS.stone, fontSize: '12px', fontFamily: 'var(--font-sans)',
                 }}>
-                  A row-by-row preview isn't available for Excel files. Your data will be validated when you click Import — for a live preview before importing, save the file as .csv instead.
+                  A row-by-row preview isn&apos;t available for Excel files. Your data will be validated when you click Import — for a live preview before importing, save the file as .csv instead.
                 </div>
               )}
 

@@ -85,7 +85,7 @@ function useAnimatedCounter(targetValue, duration = 1200, delay = 300) {
   const rafRef = useRef(null);
 
   useEffect(() => {
-    if (targetValue <= 0) { setValue(0); return; }
+    if (targetValue <= 0) return;
     let startTime = null;
     const animate = (timestamp) => {
       if (!startTime) startTime = timestamp;
@@ -99,7 +99,11 @@ function useAnimatedCounter(targetValue, duration = 1200, delay = 300) {
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [targetValue, duration, delay]);
 
-  return value;
+  // When targetValue is <= 0, the animation never starts (value may still
+  // hold a stale count from a previous positive targetValue) — clamp it to 0
+  // here at the render site instead of setting state from the effect's
+  // early-return guard.
+  return targetValue <= 0 ? 0 : value;
 }
 
 /* ── Animated Arc Segment ──────────────────────────────────── */

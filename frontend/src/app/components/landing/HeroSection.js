@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "../../hooks/useAuth";
+import { useIsClient } from "../../utils/useIsClient";
 import { motion, AnimatePresence } from "framer-motion";
 import InvitationCard from "../templates/InvitationCard";
 
@@ -144,25 +145,22 @@ function HeroCard() {
   const [isCardOut, setIsCardOut] = useState(false);
   const [showTapIndicator, setShowTapIndicator] = useState(true);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
-  const [mounted, setMounted] = useState(false);
-  const [sparkles, setSparkles] = useState([]);
-
-  useEffect(() => {
-    setMounted(true);
-    // Generate sparkle positions
-    setSparkles(Array.from({ length: 20 }, (_, i) => ({
-      id: i,
-      x: 5 + Math.random() * 90,
-      y: 5 + Math.random() * 90,
-      size: 2 + Math.random() * 4,
-      delay: Math.random() * 6,
-      dur: 2 + Math.random() * 3,
-    })));
-  }, []);
+  const isClient = useIsClient();
+  // Sparkle positions are randomized once per mount and never regenerated;
+  // computed lazily so Math.random() only runs once. They're never part of
+  // the SSR output (gated by `isClient` below), so no hydration mismatch.
+  const [sparkles] = useState(() => Array.from({ length: 20 }, (_, i) => ({
+    id: i,
+    x: 5 + Math.random() * 90,
+    y: 5 + Math.random() * 90,
+    size: 2 + Math.random() * 4,
+    delay: Math.random() * 6,
+    dur: 2 + Math.random() * 3,
+  })));
 
   // Auto-open teaser on page load
   useEffect(() => {
-    if (!mounted) return;
+    if (!isClient) return;
     const t = setTimeout(() => {
       if (!isOpen) {
         setIsOpen(true);
@@ -171,7 +169,7 @@ function HeroCard() {
       }
     }, 2500);
     return () => clearTimeout(t);
-  }, [mounted, isOpen]);
+  }, [isClient, isOpen]);
 
   const handleOpen = () => {
     if (isOpen) return;
@@ -197,7 +195,7 @@ function HeroCard() {
   };
   const handleMouseLeave = () => setTilt({ x: 0, y: 0 });
 
-  if (!mounted) return <div style={{ width: '100%', maxWidth: 320, height: 440 }} />;
+  if (!isClient) return <div style={{ width: '100%', maxWidth: 320, height: 440 }} />;
 
   const template = { pattern: "serif" };
   const theme = { primary: "#B8944F", secondary: "#D7BE80" };

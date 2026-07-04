@@ -8,6 +8,7 @@ import { logout } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { computeSmsSegments, renderTemplate } from '../../utils/smsSegments';
+import { useIsClient } from '../../utils/useIsClient';
 
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8', error: '#C45E5E', success: '#3B9B6D' };
 
@@ -36,8 +37,17 @@ export default function CampaignsPage() {
   // server reports it — keeps the buy entry hidden in pre-live / manual mode.
   const [smsEnabled, setSmsEnabled] = useState(false);
 
-  const [authChecked, setAuthChecked] = useState(false);
-  const [eventId, setEventId] = useState('');
+  // isClient gates the localStorage/URL reads until we're past hydration (SSR
+  // has neither). orgId/returnedId/storedEventId/eventId are all derived from
+  // those reads — eventId is never set independently anywhere else, so no
+  // separate state is needed for it (mirrors seating-map/page.js's fix).
+  const isClient = useIsClient();
+  const orgId = isClient ? localStorage.getItem('org_id') : null;
+  // Prefer the event returned from a Stripe credits purchase (?event=…) so the
+  // wallet/history shown matches the event the user just topped up.
+  const returnedId = isClient ? new URLSearchParams(window.location.search).get('event') : null;
+  const storedEventId = isClient ? localStorage.getItem('active_event_id') : null;
+  const eventId = (isClient && orgId) ? (returnedId || storedEventId || '') : '';
   // null = loading, true/false once known. sms_campaigns is a gated feature
   // key (see UpgradeModal.FEATURE_TITLES) but this page never actually
   // checked it — any organizer could open the composer regardless of plan.
@@ -123,26 +133,26 @@ export default function CampaignsPage() {
     }
   };
 
-  // Auth and event initializer
+  // The redirect is a genuine imperative side effect (navigation); it no
+  // longer also carries the eventId/authChecked state updates, which are now
+  // plain derived values above.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const orgId = localStorage.getItem('org_id');
-      if (!orgId) {
-        router.push('/login');
-        return;
-      }
-      // Prefer the event returned from a Stripe credits purchase (?event=…) so the
-      // wallet/history shown matches the event the user just topped up.
-      const returnedId = new URLSearchParams(window.location.search).get('event');
-      const savedEventId = returnedId || localStorage.getItem('active_event_id') || '';
-      if (!savedEventId) {
-        setError('Please select an event first. Go to the Dashboard to create or select an event.');
-        setLoading(false);
-      }
-      setEventId(savedEventId);
-      setAuthChecked(true);
+    if (!isClient) return;
+    if (!orgId) router.push('/login');
+  }, [isClient, orgId, router]);
+
+  // One-time "do we actually have an event to load?" check — adjusted during
+  // render (like RsvpWizard's prevLangParam / checkin's eventIdSeeded) rather
+  // than in an effect, since this only needs to run once, the moment we know
+  // orgId and eventId.
+  const [noEventChecked, setNoEventChecked] = useState(false);
+  if (isClient && orgId && !noEventChecked) {
+    setNoEventChecked(true);
+    if (!eventId) {
+      setError('Please select an event first. Go to the Dashboard to create or select an event.');
+      setLoading(false);
     }
-  }, [router]);
+  }
 
   // Load campaign wallet, ledger, and calculate targets
   const loadCampaignData = useCallback(async () => {
@@ -195,7 +205,7 @@ export default function CampaignsPage() {
 
   useEffect(() => {
     if (!eventId) return;
-    loadCampaignData();
+    (async () => { await loadCampaignData(); })();
   }, [loadCampaignData, eventId]);
 
   // Feature-gate check: fetch the event's resolved tier once we know eventId.
@@ -241,7 +251,7 @@ export default function CampaignsPage() {
     window.history.replaceState({}, '', url.pathname + url.search);
 
     if (purchase === 'cancelled') {
-      setPurchaseNotice('Credit purchase was cancelled — no charge was made.');
+      (async () => { setPurchaseNotice('Credit purchase was cancelled — no charge was made.'); })();
       return;
     }
 
@@ -409,7 +419,7 @@ export default function CampaignsPage() {
           </div>
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: C.charcoal, margin: 0 }}>SMS Campaigns</h2>
           <p style={{ fontSize: '14px', color: C.stone, maxWidth: 340, margin: '12px auto 0', lineHeight: 1.7 }}>
-            Send bulk SMS invitations and reminders to your guests. This feature isn't included in your current plan.
+            Send bulk SMS invitations and reminders to your guests. This feature isn&apos;t included in your current plan.
           </p>
           <button
             onClick={() => router.push('/dashboard')}

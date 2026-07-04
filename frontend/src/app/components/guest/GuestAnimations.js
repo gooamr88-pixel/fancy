@@ -327,9 +327,15 @@ export function ConfettiExplosion({ active = false, duration = 4000, particleCou
   const confettiColors = colors || ['#B8944F', '#D7BE80', '#F8F4EC', '#E8C564', '#A67C2E', '#FFFFFF', '#FF6B6B', '#4ECDC4'];
   const confettiShapes = shapes || ['rect', 'circle'];
 
-  useEffect(() => {
-    if (active && !reduceMotion) setShow(true);
-  }, [active, reduceMotion]);
+  // Re-arm the celebration whenever it becomes eligible to show again (active
+  // flips true while motion isn't reduced) — a render-time resync keyed on
+  // that combined condition, equivalent to the old effect's dependency pair.
+  const shouldArm = active && !reduceMotion;
+  const [prevShouldArm, setPrevShouldArm] = useState(shouldArm);
+  if (shouldArm !== prevShouldArm) {
+    setPrevShouldArm(shouldArm);
+    if (shouldArm) setShow(true);
+  }
 
   useEffect(() => {
     if (!show || reduceMotion) return;

@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { logout } from '../utils/apiClient';
 import LogoutModal from '../components/LogoutModal';
 import FeatureGate from '../dashboard/components/FeatureGate';
 import ImpersonationBanner from '../components/ImpersonationBanner';
+import { useIsClient } from '../utils/useIsClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -28,9 +29,16 @@ export default function CheckInPage() {
 
   const [events, setEvents] = useState([]);
   const [eventId, setEventId] = useState('');
+  const [eventIdSeeded, setEventIdSeeded] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
+  // isClient gates every localStorage read below until we're past hydration
+  // (SSR has no localStorage, and reading it before hydration would produce a
+  // client/server markup mismatch). authReady replaces the old authReady +
+  // authChecked pair, which were always set to the same value together —
+  // there was never a case where they differed.
+  const isClient = useIsClient();
+  const orgId = isClient ? localStorage.getItem('org_id') : null;
+  const authReady = isClient && !!orgId;
   // Check-in is very often run on a tablet/phone at the venue over spotty wifi.
   // This page previously had zero connectivity awareness — a dropped
   // connection just surfaced as a generic "Could not connect" error with no
@@ -39,6 +47,14 @@ export default function CheckInPage() {
   // duplicate-check-in race).
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
   const router = useRouter();
+  // Ref-based re-entry guards (independent of React's render cycle, so they
+  // catch a rapid double-tap even before the disabled state below re-renders)
+  // for the two check-in submit paths — mirrors useIdempotentRsvpSubmit's
+  // pattern on the guest-facing RSVP flow, which this kiosk page lacked.
+  const manualCheckInInFlight = useRef(false);
+  const qrCheckInInFlight = useRef(false);
+  const [manualCheckInBusy, setManualCheckInBusy] = useState(false);
+  const [qrCheckInBusy, setQrCheckInBusy] = useState(false);
 
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
@@ -53,9 +69,43 @@ export default function CheckInPage() {
 
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  useEffect(() => { if (typeof window !== 'undefined') { const orgId = localStorage.getItem('org_id'); const savedEventId = localStorage.getItem('active_event_id'); if (!orgId) { router.push('/login'); return; } if (savedEventId) setEventId(savedEventId); setAuthReady(true); setAuthChecked(true); } }, [router]);
+  // Seed eventId from localStorage the moment we know authReady — adjusting
+  // state during render (like RsvpWizard's prevLangParam) rather than in an
+  // effect, since this is a one-time "derive initial value once a precondition
+  // is met" case, not a subscription to an external system.
+  if (authReady && !eventIdSeeded) {
+    setEventIdSeeded(true);
+    const savedEventId = localStorage.getItem('active_event_id');
+    if (savedEventId) setEventId(savedEventId);
+  }
 
-  useEffect(() => { if (!authReady) return; const fetchEvents = async () => { try { const res = await fetch(`${API_URL}/events`, { credentials: 'include' }); const data = await res.json(); if (data.success && data.events.length > 0) { setEvents(data.events); if (!eventId) setEventId(data.events[0].id); } else { if (!eventId) { setError('Please select an event first. Go to the Dashboard to create or select an event.'); setLoading(false); } } } catch (err) { if (!eventId) { setError('Please select an event first. Go to the Dashboard to create or select an event.'); setLoading(false); } } }; fetchEvents(); }, [authReady]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The redirect itself is a genuine imperative side effect (navigation),
+  // which does need an effect — but it no longer also carries state updates.
+  useEffect(() => {
+    if (isClient && !orgId) router.push('/login');
+  }, [isClient, orgId, router]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/events`, { credentials: 'include' });
+        const data = await res.json();
+        if (data.success && data.events.length > 0) {
+          setEvents(data.events);
+          if (!eventId) setEventId(data.events[0].id);
+        } else if (!eventId) {
+          setError('Please select an event first. Go to the Dashboard to create or select an event.');
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!eventId) {
+          setError('Please select an event first. Go to the Dashboard to create or select an event.');
+          setLoading(false);
+        }
+      }
+    })();
+  }, [authReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCheckInSummary = useCallback(async () => {
     if (!eventId || !authReady) return;
@@ -64,9 +114,32 @@ export default function CheckInPage() {
     finally { setLoading(false); }
   }, [eventId, authReady]);
 
-  useEffect(() => { if (eventId) fetchCheckInSummary(); }, [fetchCheckInSummary, eventId]);
+  useEffect(() => {
+    if (!eventId) return;
+    (async () => { await fetchCheckInSummary(); })();
+  }, [fetchCheckInSummary, eventId]);
 
-  useEffect(() => { if (!eventId || !authReady) return; if (!searchQuery.trim()) { setSearchResults([]); return; } const delaySearch = setTimeout(async () => { try { const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${encodeURIComponent(searchQuery)}`, { credentials: 'include' }); const data = await res.json(); if (data.success) setSearchResults(data.data?.results || []); } catch (err) { /* search failed silently */ } }, 300); return () => clearTimeout(delaySearch); }, [searchQuery, eventId, authReady]);
+  // Clearing the results the instant the query goes empty is a pure
+  // reset-on-change — adjusted during render rather than via an effect. The
+  // actual debounced search fetch (which genuinely needs to wait/subscribe)
+  // stays in its own effect below.
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery);
+  if (searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery);
+    if (!searchQuery.trim()) setSearchResults([]);
+  }
+
+  useEffect(() => {
+    if (!eventId || !authReady || !searchQuery.trim()) return;
+    const delaySearch = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_URL}/events/${eventId}/checkin/search?query=${encodeURIComponent(searchQuery)}`, { credentials: 'include' });
+        const data = await res.json();
+        if (data.success) setSearchResults(data.data?.results || []);
+      } catch (err) { /* search failed silently */ }
+    }, 300);
+    return () => clearTimeout(delaySearch);
+  }, [searchQuery, eventId, authReady]);
 
   // A dropped connection at the venue previously meant an immediate hard
   // failure with no way to know whether the check-in landed server-side
@@ -89,6 +162,9 @@ export default function CheckInPage() {
   const handleManualCheckIn = async (partyId) => {
     if (!authReady) return;
     if (!isOnline) { setOverlayData({ type: 'error', message: 'No internet connection. Reconnect and try again.' }); setShowConfirmOverlay(true); return; }
+    if (manualCheckInInFlight.current) return;
+    manualCheckInInFlight.current = true;
+    setManualCheckInBusy(true);
     try {
       const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ partyId, checkedInBy: 'Tablet Front-Desk' }) });
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Check-in failed');
@@ -105,6 +181,9 @@ export default function CheckInPage() {
         ? 'Connection lost. If this guest was actually checked in, re-searching will show them as already arrived.'
         : err.message;
       setOverlayData({ type: 'error', message }); setShowConfirmOverlay(true);
+    } finally {
+      manualCheckInInFlight.current = false;
+      setManualCheckInBusy(false);
     }
   };
 
@@ -115,6 +194,9 @@ export default function CheckInPage() {
       setScanStatus({ type: 'error', message: msg }); setOverlayData({ type: 'error', message: msg }); setShowConfirmOverlay(true);
       return;
     }
+    if (qrCheckInInFlight.current) return;
+    qrCheckInInFlight.current = true;
+    setQrCheckInBusy(true);
     try {
       const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token: scannedToken, checkedInBy: 'Kiosk Camera' }) });
       const data = await res.json();
@@ -132,6 +214,9 @@ export default function CheckInPage() {
         ? 'Connection lost while verifying. If this guest was actually checked in, re-scanning will show them as already arrived.'
         : 'Could not connect to scanner backend service.';
       setScanStatus({ type: 'error', message }); setOverlayData({ type: 'error', message }); setShowConfirmOverlay(true);
+    } finally {
+      qrCheckInInFlight.current = false;
+      setQrCheckInBusy(false);
     }
   }, [eventId, fetchCheckInSummary, isOnline]);
 
@@ -144,7 +229,7 @@ export default function CheckInPage() {
   const tierFeatures = activeEvent?.tier_features;
   const eventIsPaid = !!activeEvent?.is_paid;
 
-  if (!authChecked || loading) {
+  if (!authReady || loading) {
     return (
       <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
@@ -287,12 +372,12 @@ export default function CheckInPage() {
                     </div>
                   )}
                   <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="manual_checkin" onUpgrade={() => router.push('/dashboard')} wrapperStyle={{ display: 'flex', width: '100%' }}>
-                    <button onClick={() => handleManualCheckIn(selectedGuest.id)} disabled={!isOnline}
+                    <button onClick={() => handleManualCheckIn(selectedGuest.id)} disabled={!isOnline || manualCheckInBusy}
                       title={!isOnline ? 'No internet connection' : undefined}
-                      style={{ width: '100%', padding: '16px', background: isOnline ? C.gold : C.border, borderRadius: '10px', fontWeight: 700, fontSize: '15px', border: 'none', cursor: isOnline ? 'pointer' : 'not-allowed', color: C.white, fontFamily: 'var(--font-sans)', transition: 'all 0.3s' }}
-                      onMouseEnter={e => { if (isOnline) e.target.style.background = C.goldHover; }}
-                      onMouseLeave={e => { if (isOnline) e.target.style.background = C.gold; }}>
-                      {!isOnline ? 'Offline — cannot check in' : selectedGuest.tableName === 'Unassigned' ? `Walk-In Check-In (${selectedGuest.partySize} guests)` : `Confirm Check-In (${selectedGuest.partySize} guests)`}
+                      style={{ width: '100%', padding: '16px', background: isOnline ? C.gold : C.border, borderRadius: '10px', fontWeight: 700, fontSize: '15px', border: 'none', cursor: (isOnline && !manualCheckInBusy) ? 'pointer' : 'not-allowed', color: C.white, fontFamily: 'var(--font-sans)', transition: 'all 0.3s', opacity: manualCheckInBusy ? 0.7 : 1 }}
+                      onMouseEnter={e => { if (isOnline && !manualCheckInBusy) e.target.style.background = C.goldHover; }}
+                      onMouseLeave={e => { if (isOnline && !manualCheckInBusy) e.target.style.background = C.gold; }}>
+                      {!isOnline ? 'Offline — cannot check in' : manualCheckInBusy ? 'Checking in…' : selectedGuest.tableName === 'Unassigned' ? `Walk-In Check-In (${selectedGuest.partySize} guests)` : `Confirm Check-In (${selectedGuest.partySize} guests)`}
                     </button>
                   </FeatureGate>
                 </>
@@ -319,8 +404,8 @@ export default function CheckInPage() {
               <input type="text" value={qrTokenInput} onChange={e => setQrTokenInput(e.target.value)} placeholder="Or paste signed JWT token here..."
                 style={{ ...inputStyle, flex: 1 }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
               <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')}>
-                <button type="submit" disabled={!isOnline} title={!isOnline ? 'No internet connection' : undefined}
-                  style={{ padding: '12px 24px', background: isOnline ? C.gold : C.border, color: C.white, border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: isOnline ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)' }}>Verify</button>
+                <button type="submit" disabled={!isOnline || qrCheckInBusy} title={!isOnline ? 'No internet connection' : undefined}
+                  style={{ padding: '12px 24px', background: isOnline ? C.gold : C.border, color: C.white, border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: (isOnline && !qrCheckInBusy) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)' }}>{qrCheckInBusy ? 'Verifying…' : 'Verify'}</button>
               </FeatureGate>
             </form>
             {scanStatus && (

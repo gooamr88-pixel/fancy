@@ -348,7 +348,7 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, event,
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 500, color: COLORS.charcoal, margin: 0 }}>Guest Management</h2>
-          <p style={{ fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Manage your event's guest list, seating, and preferences</p>
+          <p style={{ fontSize: '11px', color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: '4px' }}>Manage your event&apos;s guest list, seating, and preferences</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <FeatureGate tierFeatures={tierFeatures} isPaid={isPaid} feature="add_guest_manual" onUpgrade={onUpgrade}>

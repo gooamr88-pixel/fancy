@@ -56,21 +56,21 @@
 ## 📂 الملفات الرئيسية التي تم العمل عليها وتحديثها:
 
 1. **Backend Configuration & Core:**
-   - [`backend/config/featureRegistry.js`](file:///c:/Users/mazen/fancy/backend/config/featureRegistry.js) *(NEW)*
-   - [`backend/middleware/featureGate.js`](file:///c:/Users/mazen/fancy/backend/middleware/featureGate.js) *(REWRITE)*
-   - [`backend/utils/qrHelper.js`](file:///c:/Users/mazen/fancy/backend/utils/qrHelper.js)
-   - [`backend/utils/rsvpToken.js`](file:///c:/Users/mazen/fancy/backend/utils/rsvpToken.js) *(NEW)*
+   - [`backend/config/featureRegistry.js`](backend/config/featureRegistry.js) *(NEW)*
+   - [`backend/middleware/featureGate.js`](backend/middleware/featureGate.js) *(REWRITE)*
+   - [`backend/utils/qrHelper.js`](backend/utils/qrHelper.js)
+   - [`backend/utils/rsvpToken.js`](backend/utils/rsvpToken.js) *(NEW)*
 
 2. **Frontend UI Components:**
-   - [`frontend/src/app/admin/(panel)/config/page.js`](file:///c:/Users/mazen/fancy/frontend/src/app/admin/(panel)/config/page.js)
-   - [`frontend/src/app/pricing/page.js`](file:///c:/Users/mazen/fancy/frontend/src/app/pricing/page.js)
+   - [`frontend/src/app/admin/(panel)/config/page.js`](frontend/src/app/admin/(panel)/config/page.js)
+   - [`frontend/src/app/pricing/page.js`](frontend/src/app/pricing/page.js)
 
 3. **Backend Test Suite Files:**
-   - [`backend/test/rsvpSubmit.test.js`](file:///c:/Users/mazen/fancy/backend/test/rsvpSubmit.test.js)
-   - [`backend/test/rsvpUpdate.test.js`](file:///c:/Users/mazen/fancy/backend/test/rsvpUpdate.test.js)
-   - [`backend/test/rsvpListFilters.test.js`](file:///c:/Users/mazen/fancy/backend/test/rsvpListFilters.test.js)
-   - [`backend/test/adminController.test.js`](file:///c:/Users/mazen/fancy/backend/test/adminController.test.js)
-   - [`backend/test/campaignController.test.js`](file:///c:/Users/mazen/fancy/backend/test/campaignController.test.js)
-   - [`backend/test/checkinController.test.js`](file:///c:/Users/mazen/fancy/backend/test/checkinController.test.js)
-   - [`backend/test/publicRsvpAccess.test.js`](file:///c:/Users/mazen/fancy/backend/test/publicRsvpAccess.test.js)
-   - [`backend/test/pricing-flow.test.js`](file:///c:/Users/mazen/fancy/backend/test/pricing-flow.test.js)
+   - [`backend/test/rsvpSubmit.test.js`](backend/test/rsvpSubmit.test.js)
+   - [`backend/test/rsvpUpdate.test.js`](backend/test/rsvpUpdate.test.js)
+   - [`backend/test/rsvpListFilters.test.js`](backend/test/rsvpListFilters.test.js)
+   - [`backend/test/adminController.test.js`](backend/test/adminController.test.js)
+   - [`backend/test/campaignController.test.js`](backend/test/campaignController.test.js)
+   - [`backend/test/checkinController.test.js`](backend/test/checkinController.test.js)
+   - [`backend/test/publicRsvpAccess.test.js`](backend/test/publicRsvpAccess.test.js)
+   - [`backend/test/pricing-flow.test.js`](backend/test/pricing-flow.test.js)

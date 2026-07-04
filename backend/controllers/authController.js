@@ -355,6 +355,18 @@ const login = async (req, res, next) => {
 
     const org = orgs && orgs[0];
 
+    // SEC H4 / timing: pay the same PBKDF2 cost for every request *before*
+    // branching on account state (unverified / google-only / no-account /
+    // wrong-password all return the identical "Invalid email or password"
+    // message). Previously the unverified and google-only branches returned
+    // immediately without hashing, so response latency alone could distinguish
+    // those states from a genuine wrong-password/no-such-account attempt —
+    // the message was generic but the clock wasn't. Computing this up front,
+    // at a single fixed point every request passes through, closes that gap.
+    const passwordOk = (org && org.password_hash)
+      ? await verifyPassword(password, org.password_hash, normalizedEmail)
+      : await verifyPassword(password, await getDummyHash(), null);
+
     // SEC H4: Return a generic error for unverified accounts — do not reveal
     // that a specific email is registered but unverified.
     if (org && org.email_verified === false) {
@@ -387,13 +399,6 @@ const login = async (req, res, next) => {
         message: 'Invalid email or password.'
       });
     }
-
-    // By this point `org` either doesn't exist, or exists with a password_hash
-    // (the email-not-verified/lockout/google-only cases above already returned).
-    // Always pay the same PBKDF2 cost either way — see getDummyHash() above.
-    const passwordOk = org
-      ? await verifyPassword(password, org.password_hash, normalizedEmail)
-      : await verifyPassword(password, await getDummyHash(), null);
 
     if (!org || !passwordOk) {
       // Increment failed attempts if org exists

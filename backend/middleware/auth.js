@@ -24,9 +24,14 @@ const getCookieOptions = (maxAge) => ({
  * Sets the httpOnly auth cookie on the response.
  * @param {import('express').Response} res
  * @param {string} token - JWT to store
+ * @param {number} [maxAge] - cookie lifetime in ms. Must match the token's own
+ *   expiry (see jwt.sign's expiresIn at each call site) — a longer cookie
+ *   just means the browser keeps resending a token that verify() will reject
+ *   once it expires, but callers issuing short-lived tokens (e.g. impersonation)
+ *   should pass the matching maxAge here so the cookie doesn't linger.
  */
-const setAuthCookie = (res, token) => {
-  res.cookie(COOKIE_NAME, token, getCookieOptions(24 * 60 * 60 * 1000)); // 24 hours
+const setAuthCookie = (res, token, maxAge = 24 * 60 * 60 * 1000) => {
+  res.cookie(COOKIE_NAME, token, getCookieOptions(maxAge));
 };
 
 /**

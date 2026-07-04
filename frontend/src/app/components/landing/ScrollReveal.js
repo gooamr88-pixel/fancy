@@ -51,12 +51,18 @@ export default function ScrollReveal({
     return () => observer.disconnect();
   }, [threshold, once]);
 
+  // Reset willChange the instant visibility drops (e.g. `once=false` scrolling
+  // back out of view) — a render-time resync keyed on isVisible, so it commits
+  // before paint instead of one tick later via an effect.
+  const [prevIsVisible, setPrevIsVisible] = useState(isVisible);
+  if (isVisible !== prevIsVisible) {
+    setPrevIsVisible(isVisible);
+    if (!isVisible) setWillChangeValue('opacity, transform');
+  }
+
   // Clear willChange after animation completes to free GPU resources
   useEffect(() => {
-    if (!isVisible) {
-      setWillChangeValue('opacity, transform');
-      return;
-    }
+    if (!isVisible) return;
     const timer = setTimeout(() => {
       setWillChangeValue('auto');
     }, delay + duration + 1000);

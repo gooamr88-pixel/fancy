@@ -321,7 +321,7 @@ export default function ContactPage() {
               margin: "0 auto",
             }}
           >
-            Have a question, suggestion, or just want to say hello? We'd love to hear from you.
+            Have a question, suggestion, or just want to say hello? We&apos;d love to hear from you.
           </p>
         </section>
 
@@ -663,7 +663,7 @@ export default function ContactPage() {
                     marginBottom: "28px",
                   }}
                 >
-                  We'd love to meet you in person! Our doors are always open for a coffee and a chat about how Fancy RSVP can elevate your next event. Schedule a visit or just drop by during business hours.
+                  We&apos;d love to meet you in person! Our doors are always open for a coffee and a chat about how Fancy RSVP can elevate your next event. Schedule a visit or just drop by during business hours.
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   {[

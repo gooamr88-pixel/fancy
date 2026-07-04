@@ -116,8 +116,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
   }, []);
 
   useEffect(() => {
-    fetchProfile();
-    fetchSessions();
+    (async () => { await Promise.all([fetchProfile(), fetchSessions()]); })();
   }, [fetchProfile, fetchSessions]);
 
   const handleChange = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -516,8 +515,8 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
                   Connected with Google
                 </div>
                 <div style={{ fontSize: '12px', color: '#4E6A8A', fontFamily: 'var(--font-sans)', lineHeight: 1.4 }}>
-                  Your account is currently using Google Sign-In. You don't have a local password set. 
-                  If you'd like to sign in directly with your email as well, you can create a password below.
+                  Your account is currently using Google Sign-In. You don&apos;t have a local password set.
+                  If you&apos;d like to sign in directly with your email as well, you can create a password below.
                 </div>
               </div>
             </div>

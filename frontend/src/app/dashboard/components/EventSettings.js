@@ -1,7 +1,7 @@
 'use client';
 import { toast } from '../../utils/toast';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import PlacesAutocomplete from '../../components/PlacesAutocomplete';
 import FontPicker from './FontPicker';
 import { supabase } from '../../utils/supabaseClient';
@@ -287,7 +287,16 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     setInvitationBgUploading(false);
   };
 
-  useEffect(() => {
+  // Prefill the form whenever the `event` prop is replaced (mirrors the
+  // previous `useEffect(..., [event])` exactly — comparing the object
+  // reference, same as React's dependency-array comparison, so this refires
+  // on the SAME occasions the old effect did, including the resync that
+  // happens after a save round-trips through onEventUpdated). Resetting
+  // during render instead of in an effect avoids the setState-in-effect
+  // cascading-render pattern.
+  const [prevEvent, setPrevEvent] = useState(event);
+  if (event !== prevEvent) {
+    setPrevEvent(event);
     if (event) {
       setForm({
         title: event.title || '',
@@ -345,7 +354,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         invitation_bg_url: event.template_data?.invitation_bg_url || '',
       });
     }
-  }, [event]);
+  }
 
   const handleChange = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -626,11 +635,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Wedding Template Details</h4>
             <div style={rowStyle}>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Groom's Name</label>
+                <label style={labelStyle}>Groom&apos;s Name</label>
                 <input value={templateData.partner1} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1: e.target.value }))} placeholder="Groom Name" style={inputStyle} />
               </div>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Bride's Name</label>
+                <label style={labelStyle}>Bride&apos;s Name</label>
                 <input value={templateData.partner2} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2: e.target.value }))} placeholder="Bride Name" style={inputStyle} />
               </div>
             </div>

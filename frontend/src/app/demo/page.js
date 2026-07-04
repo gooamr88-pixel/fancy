@@ -1,19 +1,18 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { useIsClient } from '../utils/useIsClient';
 
 export default function DemoPage() {
   const [phase, setPhase] = useState('closed');
   const [flipping, setFlipping] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const isClient = useIsClient();
   const [guestName, setGuestName] = useState('');
   const [attending, setAttending] = useState(null);
   const [guestCount, setGuestCount] = useState(1);
   const [mealChoice, setMealChoice] = useState('');
   const [confetti, setConfetti] = useState([]);
-
-  useEffect(() => { setMounted(true); }, []);
 
   const handleOpen = () => {
     if (phase !== 'closed') return;
@@ -33,7 +32,7 @@ export default function DemoPage() {
     setPhase('done');
   };
 
-  if (!mounted) return null;
+  if (!isClient) return null;
 
   return (
     <div className="demo">
@@ -185,7 +184,7 @@ export default function DemoPage() {
                     <div className="detail-divider" />
                     <div className="detail-block">
                       <span className="detail-label">THE TIME</span>
-                      <span className="detail-value">Four O'Clock</span>
+                      <span className="detail-value">Four O&apos;Clock</span>
                       <span className="detail-sub">in the Afternoon</span>
                     </div>
                   </div>
@@ -202,7 +201,7 @@ export default function DemoPage() {
                   {phase === 'invite' && (
                     <button className="rsvp-open-btn" onClick={() => setPhase('rsvp')}>
                       <span className="rsvp-btn-inner">
-                        <span className="rsvp-btn-text">Répondez S'il Vous Plaît</span>
+                        <span className="rsvp-btn-text">Répondez S&apos;il Vous Plaît</span>
                         <span className="rsvp-btn-sub">KINDLY RESPOND BY AUGUST 15TH</span>
                       </span>
                     </button>
@@ -294,8 +293,8 @@ export default function DemoPage() {
             </div>
             {attending ? (
               <>
-                <h1 className="done-title">You're on the Guest List!</h1>
-                <p className="done-sub">Thank you, <strong>{guestName}</strong>. We can't wait to celebrate with you{guestCount > 1 ? ` and your ${guestCount - 1} guest${guestCount > 2 ? 's' : ''}` : ''}.</p>
+                <h1 className="done-title">You&apos;re on the Guest List!</h1>
+                <p className="done-sub">Thank you, <strong>{guestName}</strong>. We can&apos;t wait to celebrate with you{guestCount > 1 ? ` and your ${guestCount - 1} guest${guestCount > 2 ? 's' : ''}` : ''}.</p>
                 <div className="done-summary">
                   <div className="sum-item"><span>📅</span> Saturday, September 20th, 2025</div>
                   <div className="sum-item"><span>📍</span> The Grand Rosewood Estate</div>
@@ -306,7 +305,7 @@ export default function DemoPage() {
             ) : (
               <>
                 <h1 className="done-title">Response Received</h1>
-                <p className="done-sub">Thank you, <strong>{guestName}</strong>. We'll miss you!</p>
+                <p className="done-sub">Thank you, <strong>{guestName}</strong>. We&apos;ll miss you!</p>
               </>
             )}
             <div className="done-actions">

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
+import { useIsClient } from '../../utils/useIsClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', danger: '#C45E5E' };
@@ -203,8 +204,14 @@ function VirtualGuestList({ items, height, onDragStartGuest, onReachEnd, loading
    ════════════════════════════════════════════════════════════════ */
 export default function SeatingMapPage() {
   const router = useRouter();
-  const [authChecked, setAuthChecked] = useState(false);
-  const [eventId, setEventId] = useState('');
+  // isClient gates the localStorage reads until we're past hydration (SSR has
+  // no localStorage). authChecked/eventId are both fully derived from those
+  // reads — neither is ever set anywhere else, so no separate state is needed.
+  const isClient = useIsClient();
+  const orgId = isClient ? localStorage.getItem('org_id') : null;
+  const storedEventId = isClient ? localStorage.getItem('active_event_id') : null;
+  const authChecked = isClient && !!orgId && !!storedEventId;
+  const eventId = authChecked ? storedEventId : '';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [eventIsPaid, setEventIsPaid] = useState(null); // null = loading, true/false = known
@@ -269,17 +276,22 @@ export default function SeatingMapPage() {
   const selected = useMemo(() => elements.find(e => e.id === selectedId) || null, [elements, selectedId]);
 
   /* ── auth + event ── */
+  // The redirects are genuine imperative side effects (navigation); they no
+  // longer also carry the eventId/authChecked state updates, which are now
+  // plain derived values above.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!localStorage.getItem('org_id')) { router.push('/login'); return; }
-    const ev = localStorage.getItem('active_event_id');
-    if (!ev) { router.push('/dashboard'); return; }
-    setEventId(ev);
-    setAuthChecked(true);
-    // Check event payment status for feature gate
-    fetch(`${API_URL}/events/${ev}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
+    if (!isClient) return;
+    if (!orgId) { router.push('/login'); return; }
+    if (!storedEventId) router.push('/dashboard');
+  }, [isClient, orgId, storedEventId, router]);
+
+  // Check event payment status for feature gate
+  useEffect(() => {
+    if (!eventId) return;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/events/${eventId}`, { credentials: 'include' });
+        const data = await res.json();
         if (data?.event) {
           setEventIsPaid(!!data.event.is_paid || !!data.event.manual_override);
           // is_paid alone used to be the whole gate here — a paid organizer on a
@@ -294,9 +306,12 @@ export default function SeatingMapPage() {
           setEventIsPaid(false);
           setHasSeatingFeature(false);
         }
-      })
-      .catch(() => { setEventIsPaid(false); setHasSeatingFeature(false); });
-  }, [router]);
+      } catch {
+        setEventIsPaid(false);
+        setHasSeatingFeature(false);
+      }
+    })();
+  }, [eventId]);
 
   /* ── keep refs in sync ── */
   useEffect(() => { dragPosRef.current = dragPos; }, [dragPos]);
@@ -407,18 +422,26 @@ export default function SeatingMapPage() {
   }, [guests, pending, filter]);
 
   /* ── sync inspector fields when selection changes ── */
-  useEffect(() => {
+  // Adjusting state during render (like RsvpWizard's prevLangParam) instead of
+  // in an effect — this is a "reset editable fields when the selection
+  // changes" case, not a subscription to an external system.
+  const [prevSelectedId, setPrevSelectedId] = useState(selectedId ?? null);
+  if ((selectedId ?? null) !== prevSelectedId) {
+    setPrevSelectedId(selectedId ?? null);
     if (selected) {
       setInspectName(selected.table_name || '');
       setInspectCapacity(selected.max_capacity != null ? String(selected.max_capacity) : '');
     } else {
       setInspectName(''); setInspectCapacity('');
     }
-  }, [selected]);
+  }
 
-  /* ── fetch selected table's seated guests ── */
+  /* ── fetch selected table's seated guests ──
+     No longer clears tableGuests synchronously when the selection is invalid
+     (null/zone) — seatedHere below now derives [] for that case itself, so
+     stale data is never read rather than needing to be proactively cleared. */
   useEffect(() => {
-    if (!eventId || !selectedId || !selected || isZone(selected)) { setTableGuests([]); return; }
+    if (!eventId || !selectedId || !selected || isZone(selected)) return;
     let cancel = false;
     (async () => {
       try {
@@ -433,7 +456,10 @@ export default function SeatingMapPage() {
   }, [eventId, selectedId]);
 
   const seatedHere = useMemo(() => {
-    if (!selected) return [];
+    // A zone (or no selection) never has seated guests — tableGuests may
+    // still hold stale data from a previously-selected table since the fetch
+    // effect above only clears it by simply not running, not by resetting it.
+    if (!selected || isZone(selected)) return [];
     const base = tableGuests.filter(g => !pending[g.id] || pending[g.id].to === selected.id);
     const movedIn = guests.filter(g => pending[g.id]?.to === selected.id && !tableGuests.some(t => t.id === g.id));
     return [...base, ...movedIn];
@@ -850,7 +876,7 @@ export default function SeatingMapPage() {
     } catch (err) { toast.error(err.message); }
   };
 
-  const deleteElement = async () => {
+  const deleteElement = useCallback(async () => {
     if (!selected) return;
     if (!isZone(selected) && (occByTable[selected.id] || 0) > 0) { toast.error('Unassign guests before deleting this table.'); return; }
     if (!window.confirm(`Delete ${selected.table_name}?`)) return;
@@ -861,9 +887,9 @@ export default function SeatingMapPage() {
       setSelectedId(null);
       loadLayout();
     } catch (err) { toast.error(err.message); }
-  };
+  }, [selected, occByTable, eventId, loadLayout]);
 
-  const duplicateElement = async () => {
+  const duplicateElement = useCallback(async () => {
     // Guard against runaway duplication: the "Duplicate" button and its Ctrl/Cmd+D
     // shortcut had no in-flight check, so OS key-repeat while the key was held (or a
     // fast double-click) fired one POST per keydown event — with no uniqueness
@@ -895,7 +921,7 @@ export default function SeatingMapPage() {
       loadLayout();
     } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
-  };
+  }, [selected, saving, elements, eventId, loadLayout]);
 
   // Undo/Redo movement handlers
   const undo = useCallback(() => {

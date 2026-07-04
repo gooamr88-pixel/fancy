@@ -18,7 +18,7 @@ function useAnimatedCounter(end, duration = 1500, delay = 0) {
   const hasStarted = useRef(false);
 
   useEffect(() => {
-    if (end === 0) { setValue(0); return; }
+    if (end === 0) return;
 
     const timeout = setTimeout(() => {
       hasStarted.current = true;
@@ -46,7 +46,10 @@ function useAnimatedCounter(end, duration = 1500, delay = 0) {
     };
   }, [end, duration, delay]);
 
-  return value;
+  // When end is 0, the animation never starts (value may still hold a stale
+  // count from a previous non-zero `end`) — clamp it to 0 here at the render
+  // site instead of setting state from the effect's early-return guard.
+  return end === 0 ? 0 : value;
 }
 
 /* ═══════════════════════════════════════════════════════════════

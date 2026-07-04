@@ -37,7 +37,7 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
     }
   }, [apiUrl, eventId]);
 
-  useEffect(() => { loadTables(); }, [loadTables]);
+  useEffect(() => { (async () => { await loadTables(); })(); }, [loadTables]);
 
   const handleAdd = async (e) => {
     e.preventDefault();

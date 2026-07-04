@@ -6,6 +6,7 @@ import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
+import { useIsClient } from '../utils/useIsClient';
 import { extractYouTubeId } from '../utils/youtube';
 import {
   FadeInUp,
@@ -97,6 +98,32 @@ WEDDING_VARIANT_TEMPLATES.forEach(key => {
   templateLabels.en[key] = 'wedding invitation';
   templateLabels.ar[key] = 'دعوة زفاف';
 });
+
+// The /demo and /demo-wedding routes render a fixed showcase event — fully
+// deterministic from the slug, so it's provided via lazy initial state
+// instead of a "fetch" that only ever synchronously resolves. (It used to
+// live inside fetchEvent's async body as a same-tick early-return, which is
+// exactly the "setState before any await" pattern that trips up an effect
+// calling that function — see the mount-fetch effect below.)
+const DEMO_SLUGS = new Set(['demo-wedding', 'demo']);
+function getDemoEventData() {
+  return {
+    id: 'demo-uuid',
+    title: 'Julian & Sophia\'s Wedding Gala',
+    title_ar: 'حفل زفاف جوليان وصوفيا الأنيق',
+    description: 'Join us as we celebrate our love and write the next chapter of our story together. An evening of elegance, dinner, and dancing will follow the ceremony.',
+    description_ar: 'يسعدنا انضمامكم إلينا لمشاركتنا فرحة العمر والاحتفال بعهد حبنا الجديد. تبدأ مراسم الزفاف يتبعها مأدبة عشاء فاخر وسهرة ممتعة.',
+    event_date: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60).toISOString(),
+    location_name: 'The Glasshouse Chelsea',
+    location_address: '545 W 25th St, New York, NY 10001',
+    template_type: 'wedding',
+    dress_code: 'Black Tie Optional',
+    dress_code_ar: 'ملابس رسمية أنيقة (Black Tie)',
+    rsvp_deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
+    cover_image_url: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070',
+    custom_colors: { primary: '#B8944F', secondary: '#D7BE80', accent: '#191B1E', background: '#F8F4EC' },
+  };
+}
 
 function formatEventDateLine(event, isRTL) {
   if (!event?.event_date) return null;
@@ -254,28 +281,24 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Per-guest invitation token. Unlocks private events and lets the RSVP form pre-fill.
   const invitationRsvpId = searchParams?.get('party_id') || null;
   const invitationGuestId = searchParams?.get('g') || null;
-  // Defer localStorage read to after mount to avoid React hydration mismatch
-  // (#418): on the server, rememberedId() returns null (no window), but on the
-  // client it may return a stored UUID — producing different HTML trees.
-  const [deviceRememberedId, setDeviceRememberedId] = useState(null);
-  useEffect(() => {
-    const id = rememberedId(serverSlug);
-    if (id) setDeviceRememberedId(id);
-  }, [serverSlug]);
+  // Reading localStorage must be deferred to after hydration (#418): on the
+  // server, rememberedId() returns null (no window), but on the client it may
+  // return a stored UUID — producing different HTML trees if read up front.
+  // useIsClient's server/client snapshot split gives us that gate directly,
+  // so the remembered id can be a plain derived read instead of its own
+  // effect + state.
+  const isClient = useIsClient();
+  const deviceRememberedId = isClient ? rememberedId(serverSlug) : null;
   const effectiveRsvpId = invitationRsvpId || invitationGuestId || deviceRememberedId;
 
   const [slug, setSlug] = useState(serverSlug || '');
-  const [event, setEvent] = useState(initialEvent || null);
+  const isDemoSlug = DEMO_SLUGS.has(slug);
+  const [event, setEvent] = useState(() => initialEvent || (isDemoSlug ? getDemoEventData() : null));
   const [guestRsvp, setGuestRsvp] = useState(null);
-  const [loading, setLoading] = useState(!initialEvent);
+  const [loading, setLoading] = useState(() => !initialEvent && !isDemoSlug);
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState({});
   const [lang, setLang] = useState('en');
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const isWedding = event?.template_type === 'wedding' || WEDDING_VARIANT_TEMPLATES.includes(event?.template_type);
   const isRomantic = isWedding || event?.template_type === 'engagement';
@@ -312,7 +335,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const rsvpCardRef = useRef(null);
   const heroInView = useInView(heroRef, { amount: 0.1 });
   const rsvpCardInView = useInView(rsvpCardRef, { amount: 0.3 });
-  const [showFloatingCTA, setShowFloatingCTA] = useState(false);
+  // Fully determined by the two inView flags above — no independent state or
+  // effect needed, just compute it each render.
+  const showFloatingCTA = !heroInView && !rsvpCardInView;
   const [downloading, setDownloading] = useState(false);
 
   const handleDownloadCard = useCallback(async () => {
@@ -436,10 +461,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const [notLive, setNotLive] = useState(false);
   const fetchEventWithPasswordRef = useRef(null);
 
-  useEffect(() => {
-    setShowFloatingCTA(!heroInView && !rsvpCardInView);
-  }, [heroInView, rsvpCardInView]);
-
   // Plays over the fully-loaded public event page only — never over the
   // loading/password/private/review/error states. No localStorage check, no
   // query-param bypass: every page load (email link, raw URL, QR scan, repeat
@@ -453,27 +474,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   /* ─── Data Fetching ─── */
   const fetchEvent = useCallback(async (password) => {
     try {
-      if (slug === 'demo-wedding' || slug === 'demo') {
-        setEvent({
-          id: 'demo-uuid',
-          title: 'Julian & Sophia\'s Wedding Gala',
-          title_ar: 'حفل زفاف جوليان وصوفيا الأنيق',
-          description: 'Join us as we celebrate our love and write the next chapter of our story together. An evening of elegance, dinner, and dancing will follow the ceremony.',
-          description_ar: 'يسعدنا انضمامكم إلينا لمشاركتنا فرحة العمر والاحتفال بعهد حبنا الجديد. تبدأ مراسم الزفاف يتبعها مأدبة عشاء فاخر وسهرة ممتعة.',
-          event_date: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60).toISOString(),
-          location_name: 'The Glasshouse Chelsea',
-          location_address: '545 W 25th St, New York, NY 10001',
-          template_type: 'wedding',
-          dress_code: 'Black Tie Optional',
-          dress_code_ar: 'ملابس رسمية أنيقة (Black Tie)',
-          rsvp_deadline: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(),
-          cover_image_url: 'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070',
-          custom_colors: { primary: '#B8944F', secondary: '#D7BE80', accent: '#191B1E', background: '#F8F4EC' },
-        });
-        setLoading(false);
-        return;
-      }
-
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
       const headers = {};
       if (password) headers['x-event-password'] = password;
@@ -515,9 +515,17 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   }, [fetchEvent]);
 
   useEffect(() => {
+    // The demo event is set via lazy initial state above — nothing to fetch.
+    if (isDemoSlug) return;
     if (!slug || (initialEvent && !invitationRsvpId && !invitationGuestId && !deviceRememberedId)) return;
-    fetchEvent();
-  }, [slug, fetchEvent, initialEvent, invitationRsvpId, invitationGuestId, deviceRememberedId]);
+    // fetchEvent is also used imperatively by the password-retry form (a plain
+    // event handler, not an effect) — it stays a shared useCallback rather
+    // than being duplicated. Invoking it through this IIFE (the same "run an
+    // async function from inside the effect" shape as useRsvpResolver.js's
+    // resolver effect) keeps the actual state updates inside a nested async
+    // callback rather than as a direct statement of the effect body itself.
+    (async () => { await fetchEvent(); })();
+  }, [slug, isDemoSlug, fetchEvent, initialEvent, invitationRsvpId, invitationGuestId, deviceRememberedId]);
 
   /* ─── Countdown ─── */
   useEffect(() => {
@@ -763,7 +771,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const localizedDesc = isRTL && descAr ? descAr : event.description;
   const isContentLTR = !(/[\u0600-\u06FF]/.test(localizedTitle || ''));
   const localizedDressCode = isRTL && dressAr ? dressAr : event.dress_code;
-  const eventPassed = mounted && event.event_date && new Date(event.event_date) < new Date();
+  const eventPassed = isClient && event.event_date && new Date(event.event_date) < new Date();
 
   // Digital invitation card — same artwork the organizer previewed in
   // Stage1_TemplatesSimulator, now rendered with this event's real data.
@@ -1193,7 +1201,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                       <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '8px' }}>{event.location_name}</span>
                       <span style={{ fontSize: '14px', color: '#77736A', display: 'block', marginBottom: '16px' }}>{event.location_address}</span>
                       {(event.location_lat && event.location_lng || event.location_address) && (
-                        <MagneticButton variant="outline" size="sm" onClick={() => window.open(getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, mounted), '_blank')}>
+                        <MagneticButton variant="outline" size="sm" onClick={() => window.open(getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, isClient), '_blank')}>
                           🧭 {isRTL ? 'الاتجاهات' : 'Get Directions'}
                         </MagneticButton>
                       )}
@@ -1677,7 +1685,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                               {isRTL ? 'الموقع' : 'Location'}
                             </h2>
                             <a
-                              href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, mounted)}
+                              href={getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, isClient)}
                               target="_blank" rel="noopener noreferrer"
                               style={{
                                 display: 'inline-flex', alignItems: 'center', gap: '6px',

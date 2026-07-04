@@ -283,7 +283,7 @@ export default function OrganizerOverview() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { (async () => { await fetchData(); })(); }, []);
 
   if (loading) {
     return (

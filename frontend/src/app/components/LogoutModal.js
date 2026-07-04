@@ -14,18 +14,33 @@ export default function LogoutModal({ isOpen, onClose, onConfirm }) {
   const [animating, setAnimating] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Animate in
-  useEffect(() => {
+  // `visible` (mount) and `animating` (transition start/reset) both need to
+  // flip in lockstep with `isOpen` — a render-time resync, not an effect
+  // concern. Only the rAF-driven "animate in" choreography (paint-timing
+  // dependent) stays in an effect below.
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setVisible(true);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setAnimating(true));
-      });
     } else {
       setAnimating(false);
-      const t = setTimeout(() => setVisible(false), 280);
-      return () => clearTimeout(t);
     }
+  }
+
+  // Animate in
+  useEffect(() => {
+    if (!isOpen) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setAnimating(true));
+    });
+  }, [isOpen]);
+
+  // Animate out: unmount only after the closing transition finishes
+  useEffect(() => {
+    if (isOpen) return;
+    const t = setTimeout(() => setVisible(false), 280);
+    return () => clearTimeout(t);
   }, [isOpen]);
 
   // Close on Escape

@@ -197,7 +197,7 @@ function copyText(t) { navigator.clipboard?.writeText(t); }
 function useCounter(target, duration = 1200, delay = 0) {
   const [val, setVal] = useState(0);
   useEffect(() => {
-    if (!target) { setVal(0); return; }
+    if (!target) return;
     const timer = setTimeout(() => {
       const start = performance.now();
       const tick = (now) => {
@@ -210,7 +210,10 @@ function useCounter(target, duration = 1200, delay = 0) {
     }, delay);
     return () => clearTimeout(timer);
   }, [target, duration, delay]);
-  return val;
+  // When target is falsy, the animation never starts (val may still hold a
+  // stale count from a previous truthy target) — clamp it to 0 here at the
+  // render site instead of setting state from the effect's early-return guard.
+  return !target ? 0 : val;
 }
 
 /* ═══ Mini Donut Ring ═══ */
@@ -311,11 +314,21 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
   const initialPendingPayment = event.event_payments?.find(
     p => p.payment_method === 'cash_manual' && p.status === 'pending'
   );
+  const initialPendingRef = initialPendingPayment
+    ? (initialPendingPayment.reference_number || initialPendingPayment.stripe_checkout_session_id)
+    : null;
+
+  // Seed pendingRef from the event's existing pending payment — adjusted
+  // during render (like RsvpWizard's prevLangParam) rather than in an effect,
+  // since pendingRef is otherwise independently set by handleManualPayment
+  // once the user submits a new transfer (so it can't be pure derived state).
+  const [prevInitialPendingRef, setPrevInitialPendingRef] = useState(initialPendingRef);
+  if (initialPendingRef !== prevInitialPendingRef) {
+    setPrevInitialPendingRef(initialPendingRef);
+    if (initialPendingRef) setPendingRef(initialPendingRef);
+  }
 
   useEffect(() => {
-    if (initialPendingPayment) {
-      setPendingRef(initialPendingPayment.reference_number || initialPendingPayment.stripe_checkout_session_id);
-    }
     const loadPricing = async () => {
       try {
         const res = await apiFetch('/payments/pricing-config');
@@ -647,6 +660,7 @@ function CurrentPlanBlock({ eventId, event }) {
   // Check whether higher tiers exist so we can hide the "Upgrade" button at the ceiling.
   useEffect(() => {
     const check = async () => {
+      if (!event.tier_name) { setHasUpgrades(true); return; }
       try {
         const res = await apiFetch('/payments/pricing-config');
         if (res.success && res.config?.pricing_tiers) {
@@ -665,8 +679,7 @@ function CurrentPlanBlock({ eventId, event }) {
         setHasUpgrades(false);
       }
     };
-    if (event.tier_name) check();
-    else setHasUpgrades(true);
+    check();
   }, [event.tier_name]);
 
   // Manual payment receipt data for approved cash payments. An event can have

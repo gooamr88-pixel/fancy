@@ -19,11 +19,24 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
   const mealField = findMealField(customFields);
 
-  useEffect(() => {
+  // Reset the form whenever the modal transitions open (mirrors the previous
+  // `useEffect(..., [isOpen])` — resetting during render instead of in an
+  // effect avoids the extra "commit stale state, then immediately re-render"
+  // cycle a setState-in-effect would cause).
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setFormData({ guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '' });
       setError('');
       setLoading(false);
+    }
+  }
+
+  // Imperative DOM focus is a legitimate effect side-effect (not derivable at
+  // render time), so it stays in a real effect.
+  useEffect(() => {
+    if (isOpen) {
       setTimeout(() => nameRef.current?.focus(), 120);
     }
   }, [isOpen]);

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { toast } from '../../utils/toast';
+import { useIsClient } from '../../utils/useIsClient';
 
 /* ═══════════════════════════════════════════════
    Brand palette
@@ -118,7 +119,9 @@ export default function EventSharePanel({ event, compact = false }) {
   const [qrPreview, setQrPreview] = useState('');
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState('');
-  const [canNativeShare, setCanNativeShare] = useState(false);
+  // One-time client-side capability detection — no effect needed, see useIsClient.
+  const isClient = useIsClient();
+  const canNativeShare = isClient && typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
   const slug = event?.slug || '';
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://fancyrsvp.com';
@@ -129,15 +132,23 @@ export default function EventSharePanel({ event, compact = false }) {
   const title = event?.title || 'Your event';
   const shareText = `You're invited to ${title}. Tap to view the details and RSVP:`;
 
-  useEffect(() => {
-    setCanNativeShare(typeof navigator !== 'undefined' && typeof navigator.share === 'function');
-  }, []);
+  // Clear the stale preview the moment the URL changes (mirrors the previous
+  // effect's synchronous `setQrPreview('')` early-return — done during render
+  // instead of in an effect to avoid the setState-in-effect cascading-render
+  // pattern). The real, asynchronously-generated QR image is produced by the
+  // effect below, which only ever calls setQrPreview from inside a promise
+  // callback (already effect-safe).
+  const [prevPublicUrl, setPrevPublicUrl] = useState(publicUrl);
+  if (publicUrl !== prevPublicUrl) {
+    setPrevPublicUrl(publicUrl);
+    setQrPreview('');
+  }
 
   // Lightweight preview QR — generated once per URL, off the main render path so it
   // never blocks the dashboard. High-res variants are produced only on download.
   useEffect(() => {
     let cancelled = false;
-    if (!publicUrl) { setQrPreview(''); return; }
+    if (!publicUrl) return;
     QRCode.toDataURL(publicUrl, qrOptions(420))
       .then((url) => { if (!cancelled) setQrPreview(url); })
       .catch((err) => { console.error('QR preview generation failed:', err); });

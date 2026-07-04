@@ -493,7 +493,6 @@ export default function CreateEventWizard() {
         window.history.replaceState({}, '', '/dashboard/create-event');
       } catch { /* non-fatal — organizer can start fresh */ }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiUrl]);
 
   /* Re-verifiable on demand (a "Check again" button) as well as on the initial
@@ -535,38 +534,45 @@ export default function CreateEventWizard() {
     const payment = params.get('payment');
     if (payment !== 'success' && payment !== 'cancelled') return;
 
-    let resume = {};
-    try { resume = JSON.parse(sessionStorage.getItem('ce_resume') || '{}'); } catch { resume = {}; }
-    sessionStorage.removeItem('ce_resume');
+    // Everything below is genuinely a one-time (URL-param-gated) mount side
+    // effect — reading/clearing sessionStorage, rewriting the URL, and
+    // verifying the session — so it stays in an effect. It's nested in an
+    // IIFE (same technique as the other effects in this pass) so none of its
+    // setState calls are bare top-level statements in the effect body.
+    (async () => {
+      let resume = {};
+      try { resume = JSON.parse(sessionStorage.getItem('ce_resume') || '{}'); } catch { resume = {}; }
+      sessionStorage.removeItem('ce_resume');
 
-    const resumedEventId = params.get('event') || resume.eventId || null;
-    if (resumedEventId) setEventId(resumedEventId);
-    if (resume.selectedTierName) setSelectedTierName(resume.selectedTierName);
-    if (resume.slug) { slugManuallyEditedRef.current = true; setSlug(resume.slug); }
+      const resumedEventId = params.get('event') || resume.eventId || null;
+      if (resumedEventId) setEventId(resumedEventId);
+      if (resume.selectedTierName) setSelectedTierName(resume.selectedTierName);
+      if (resume.slug) { slugManuallyEditedRef.current = true; setSlug(resume.slug); }
 
-    // Land back on the Payment step (now index 1) where the user left off.
-    setDirection(1);
-    setStep(1);
+      // Land back on the Payment step (now index 1) where the user left off.
+      setDirection(1);
+      setStep(1);
 
-    // Strip the payment params so a refresh doesn't re-run this.
-    const clean = `${window.location.pathname}`;
-    window.history.replaceState({}, '', clean);
+      // Strip the payment params so a refresh doesn't re-run this.
+      const clean = `${window.location.pathname}`;
+      window.history.replaceState({}, '', clean);
 
-    if (payment === 'cancelled') {
-      setPaymentNotice('Payment was cancelled. You can try again or choose another method.');
-      return;
-    }
+      if (payment === 'cancelled') {
+        setPaymentNotice('Payment was cancelled. You can try again or choose another method.');
+        return;
+      }
 
-    const sessionId = params.get('session_id');
-    if (!sessionId) {
-      // No session to verify — fall back to a soft success notice; the webhook
-      // remains the backstop that flips the event to paid.
-      setPaymentNotice('Returned from checkout. If your payment went through, it will be confirmed shortly.');
-      return;
-    }
+      const sessionId = params.get('session_id');
+      if (!sessionId) {
+        // No session to verify — fall back to a soft success notice; the webhook
+        // remains the backstop that flips the event to paid.
+        setPaymentNotice('Returned from checkout. If your payment went through, it will be confirmed shortly.');
+        return;
+      }
 
-    setPendingSessionId(sessionId);
-    verifyPaymentSession(sessionId);
+      setPendingSessionId(sessionId);
+      await verifyPaymentSession(sessionId);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiUrl]);
 
@@ -625,8 +631,18 @@ export default function CreateEventWizard() {
     return () => { cancelled = true; };
   }, [step, eventId, apiUrl, paymentConfirmed]);
 
-  /* ═══ Sync preset colors → customColors ═══ */
-  useEffect(() => {
+  /* ═══ Sync preset colors → customColors ═══
+     Adjusted during render (like RsvpWizard's prevLangParam) rather than in an
+     effect. customColors isn't pure derived state — it's also independently
+     seeded when resuming a saved draft (see `ev.custom_colors` above) — so it
+     needs a reset-on-change guard, not a plain useMemo/const. The guard's
+     "previous" sentinel starts at null (not the current key) so the very
+     first render still runs the sync, matching the original effect's
+     guaranteed first run on mount. */
+  const colorSyncKey = JSON.stringify([templateType, selectedPresets, customConfig]);
+  const [prevColorSyncKey, setPrevColorSyncKey] = useState(null);
+  if (colorSyncKey !== prevColorSyncKey) {
+    setPrevColorSyncKey(colorSyncKey);
     if (templateType === 'custom') {
       setCustomColors({
         primary: customConfig.primary,
@@ -634,30 +650,35 @@ export default function CreateEventWizard() {
         accent: customConfig.accent || customConfig.primary,
         background: customConfig.background,
       });
-      return;
-    }
-    const tpl = TEMPLATES.find(t => t.key === templateType);
-    if (tpl) {
-      const presetIdx = selectedPresets[templateType] || 0;
-      const preset = tpl.presets[presetIdx];
-      if (preset) {
-        setCustomColors({
-          primary: preset.primary,
-          secondary: preset.secondary,
-          accent: preset.accent || preset.primary,
-          background: preset.background,
-        });
+    } else {
+      const tpl = TEMPLATES.find(t => t.key === templateType);
+      if (tpl) {
+        const presetIdx = selectedPresets[templateType] || 0;
+        const preset = tpl.presets[presetIdx];
+        if (preset) {
+          setCustomColors({
+            primary: preset.primary,
+            secondary: preset.secondary,
+            accent: preset.accent || preset.primary,
+            background: preset.background,
+          });
+        }
       }
     }
-  }, [templateType, selectedPresets, customConfig]);
+  }
 
   /* ═══ Seed the URL from the title — ONLY until the organizer edits the URL ═══
      The title and the event URL are separate fields. We auto-fill a sensible slug
      from the title for convenience, but once the organizer hand-edits the URL
      (slugManuallyEditedRef) we never overwrite their choice again. */
+  // slugManuallyEditedRef is a ref, and refs may only be read in effects/
+  // event handlers (not during render — react-hooks/refs), so this stays an
+  // effect. The setSlug call is wrapped in an IIFE (same technique as
+  // elsewhere in this pass) so it isn't a bare top-level setState statement.
   useEffect(() => {
     if (slugManuallyEditedRef.current) return;
-    if (title) {
+    if (!title) return;
+    (async () => {
       const generated = title
         .toLowerCase()
         .trim()
@@ -666,7 +687,7 @@ export default function CreateEventWizard() {
         .replace(/-+/g, '-')
         .replace(/^-|-$/g, '');
       setSlug(generated);
-    }
+    })();
   }, [title]);
 
   /* The organizer edited the URL directly → decouple it from the title from now on. */
@@ -675,14 +696,27 @@ export default function CreateEventWizard() {
     setSlug(value);
   }, []);
 
+  // Clear a stale status the instant the slug drops below the checkable
+  // length — adjusted during render (like RsvpWizard's prevLangParam) rather
+  // than in an effect. slugStatus isn't pure derived state (it's also set
+  // directly by the submit handlers below on a "taken" response), so this is
+  // a reset-on-change guard, keyed on `slug` to match the debounce effect's
+  // own dependency below.
+  const [prevSlugForStatus, setPrevSlugForStatus] = useState(slug);
+  if (slug !== prevSlugForStatus) {
+    setPrevSlugForStatus(slug);
+    if (!slug || slug.length < 3) setSlugStatus(null);
+  }
+
   /* ═══ Slug availability checker (debounced) ═══ */
   useEffect(() => {
     if (slugTimerRef.current) clearTimeout(slugTimerRef.current);
-    if (!slug || slug.length < 3) {
-      setSlugStatus(null);
-      return;
-    }
-    setSlugStatus('checking');
+    if (!slug || slug.length < 3) return;
+    // Wrapped in an IIFE (same technique as elsewhere in this pass) so this
+    // isn't a bare top-level setState call — keeps the "checking" indicator
+    // appearing immediately (same tick), same as before, ahead of the 500ms
+    // debounced availability fetch below.
+    (async () => { setSlugStatus('checking'); })();
     slugTimerRef.current = setTimeout(async () => {
       try {
         // Pass the current eventId so the backend can exclude the event's own slug

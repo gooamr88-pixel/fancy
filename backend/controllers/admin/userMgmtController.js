@@ -202,12 +202,16 @@ const impersonateOrganizer = async (req, res, next) => {
 
     const jti = newJti();
     // Short-lived impersonation token (1h) carrying the impersonator id for audit.
+    const IMPERSONATION_TTL_MS = 60 * 60 * 1000;
     const token = jwt.sign(
       { id: org.owner_user_id, email: org.email, role: 'organizer', imp: req.user.id, jti },
       JWT_SECRET,
       { expiresIn: '1h' }
     );
-    setAuthCookie(res, token);
+    // Cookie maxAge must match the token's own 1h expiry — setAuthCookie's
+    // default is the normal 24h session length, which would otherwise leave
+    // an unusable expired token sitting in the browser for the rest of the day.
+    setAuthCookie(res, token, IMPERSONATION_TTL_MS);
     await recordSession(req, { userId: org.owner_user_id, jti, deviceLabel: `Impersonation by admin ${req.user.email || req.user.id}` });
 
     // Security event + audit (best-effort security_event).
