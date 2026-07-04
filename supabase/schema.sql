@@ -3418,9 +3418,9 @@ BEGIN
   END IF;
 
   IF p_party_id IS NULL THEN
-    INSERT INTO rsvp_parties (event_id, label, response, response_source, side)
+    INSERT INTO rsvp_parties (event_id, label, response, response_source, side, created_by_organizer)
     VALUES (p_event_id, p_full_name, p_response::rsvp_response_type, 'manual',
-            CASE WHEN p_side IN ('partner1', 'partner2') THEN p_side END)
+            CASE WHEN p_side IN ('partner1', 'partner2') THEN p_side END, true)
     RETURNING id INTO v_party_id;
     v_is_primary := true;
     v_created_party := true;
@@ -4571,3 +4571,8 @@ CREATE TABLE IF NOT EXISTS public.contact_submissions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON public.contact_submissions(created_at DESC);
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260723000000_organizer_added_seating_reveal.sql
+-- ─────────────────────────────────────────────────────────────────────────
+ALTER TABLE public.rsvp_parties ADD COLUMN IF NOT EXISTS created_by_organizer BOOLEAN NOT NULL DEFAULT false;

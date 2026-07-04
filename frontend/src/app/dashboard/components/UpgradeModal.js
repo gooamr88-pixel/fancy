@@ -16,7 +16,7 @@ const FEATURE_TITLES = {
   add_guest_manual: 'Guest Management',
   import_guests_csv: 'Guest Import',
   seating_map: 'Seating Map',
-  form_builder: 'Form Builder',
+  rsvp_custom_fields: 'Form Builder',
   sms_campaigns: 'SMS Campaigns',
   qr_checkin: 'QR Code Check-In',
   manual_checkin: 'Manual Check-In',

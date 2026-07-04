@@ -676,7 +676,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               }}
               placeholder="Search for a venue..."
             />
-            <span style={hintStyle}>Type a name or address and pick a suggestion — the Address field fills in automatically</span>
+            <span style={hintStyle}>Type a name or address and pick a suggestion — or if Google can&apos;t find your venue, just type the name in and enter the address manually on the right</span>
           </div>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Location Address</label>
@@ -684,7 +684,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
               onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
             />
-            <span style={hintStyle}>Auto-filled from the selected venue — editable</span>
+            <span style={hintStyle}>Auto-filled from the selected venue — or type it in yourself, it&apos;s always editable</span>
           </div>
         </div>
 

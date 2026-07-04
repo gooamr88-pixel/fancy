@@ -1007,7 +1007,7 @@ export default function DashboardPage() {
           ) : activeTab === 'form-builder' ? (
             <FeatureGate
               tierFeatures={activeEvent?.tier_features}
-              feature="form_builder"
+              feature="rsvp_custom_fields"
               isPaid={!!activeEvent?.is_paid || !!activeEvent?.manual_override}
               onUpgrade={() => setActiveTab('events')}
               wrapperStyle={{ display: 'flex', width: '100%' }}

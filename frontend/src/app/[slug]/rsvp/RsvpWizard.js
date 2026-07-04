@@ -222,8 +222,12 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
 
   const localizedTitle = isRTL && (event?.title_ar || event?.template_data?.title_ar) ? (event?.title_ar || event?.template_data?.title_ar) : (event?.title || '');
   const coverImage = event?.cover_image_url;
-  // The seating chart (table search + personal map) is hidden until 24h before the event.
-  const seatingRevealed = event?.event_date ? isSeatingRevealed(event.event_date) : false;
+  // The seating chart (table search + personal map) is hidden until 24h before
+  // the event — UNLESS the organizer specifically added this guest (CSV import /
+  // Add Guest), in which case it's visible immediately since their identity is
+  // already confirmed by the organizer.
+  const seatingRevealed = guest?.createdByOrganizer === true
+    || (event?.event_date ? isSeatingRevealed(event.event_date) : false);
 
   // The meal field is shown as its own dedicated picker in step 3 (driven by the
   // organizer's configured options) rather than asked again as a generic custom

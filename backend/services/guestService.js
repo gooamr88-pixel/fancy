@@ -183,7 +183,7 @@ async function getPartyForPublicResolve(partyId) {
   const { data: party, error } = await supabase
     .from('rsvp_parties')
     .select(`
-      id, label, response,
+      id, label, response, created_by_organizer,
       events!inner(slug, is_paid, status, event_date),
       seating_assignments(tables(table_name)),
       guests(id)
@@ -194,7 +194,11 @@ async function getPartyForPublicResolve(partyId) {
   if (error || !party) return null;
 
   const partySize = (party.guests || []).length || 1;
-  const seatingRevealed = isSeatingRevealed(party.events.event_date);
+  // Organizer-added guests (CSV import / Add Guest) skip the 24h wait —
+  // their identity/contact info is already confirmed by the organizer, so
+  // there's no reason to hide their table from them. Genuinely self-serve
+  // parties still wait for the normal window.
+  const seatingRevealed = party.created_by_organizer === true || isSeatingRevealed(party.events.event_date);
   const tableName = seatingRevealed ? (party.seating_assignments?.[0]?.tables?.table_name || null) : null;
 
   return {
@@ -286,6 +290,10 @@ function shapeSeatingParty(partyRow) {
     myTableId: assignment?.table_id || null,
     myTableName: assignment?.tables?.table_name || null,
     companions: members,
+    // Organizer-added guests (CSV import / Add Guest) bypass the 24h reveal
+    // window — the caller (rsvpController) decides the final reveal/lock
+    // using this alongside the event's own date-based rule.
+    createdByOrganizer: partyRow.created_by_organizer === true,
   };
 }
 
@@ -298,7 +306,7 @@ async function verifyGuestSeating(eventId, name, phoneLast4) {
   const { data, error } = await supabase
     .from('rsvp_parties')
     .select(`
-      id, label, response,
+      id, label, response, created_by_organizer,
       seating_assignments(table_id, tables(table_name)),
       guests(full_name, is_primary_contact, meal_selection, phone, dietary_notes)
     `)
@@ -325,7 +333,7 @@ async function getPartySeatingMap(eventId, partyId) {
   const { data: party, error } = await supabase
     .from('rsvp_parties')
     .select(`
-      id, label, response,
+      id, label, response, created_by_organizer,
       seating_assignments(table_id, tables(table_name)),
       guests(full_name, is_primary_contact, meal_selection, dietary_notes)
     `)

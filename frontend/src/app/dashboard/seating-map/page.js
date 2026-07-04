@@ -81,7 +81,9 @@ function renderSeats(shape, capacity, occupied, w, h) {
 /* ════════════════════════════════════════════════════════════════
    Canvas element (memoized so only the dragged/visible ones re-render)
    ════════════════════════════════════════════════════════════════ */
-const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected, showHandles, dragOver, onPointerDownMove, onResizeStart, onRotateStart, onDropGuest, onDragOverEl, onDragLeaveEl, onSelect }) {
+const EMPTY_NAMES = [];
+
+const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = EMPTY_NAMES, selected, showHandles, dragOver, onPointerDownMove, onResizeStart, onRotateStart, onDropGuest, onDragOverEl, onDragLeaveEl, onSelect }) {
   const meta = shapeMeta(el.shape);
   const zone = isZone(el);
   const w = elWidth(el), h = elHeight(el);
@@ -121,6 +123,11 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected
           {renderSeats(el.shape, cap, occupied, w, h)}
           <span style={{ fontSize: 11, fontWeight: 700, color: C.charcoal, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', padding: '0 4px', pointerEvents: 'none' }}>{el.table_name}</span>
           <span style={{ fontSize: 9, color: C.stone, marginTop: 3, pointerEvents: 'none' }}>{occupied} / {cap}</span>
+          {names.length > 0 && (
+            <span style={{ fontSize: 9, fontWeight: 600, color: C.gold, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '92%', padding: '0 4px', pointerEvents: 'none', textAlign: 'center' }}>
+              {names[0]}{names.length > 1 ? ` +${names.length - 1} more` : ''}
+            </span>
+          )}
           <div style={{ width: 10, height: 10, borderRadius: '50%', marginTop: 5, border: `1px solid ${C.border}`, background: fill >= 100 ? C.danger : fill >= 80 ? C.champagne : C.gold, pointerEvents: 'none' }} />
         </>
       )}
@@ -147,7 +154,7 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, selected
     </div>
   );
 }, (a, b) => (
-  a.el === b.el && a.occupied === b.occupied && a.selected === b.selected && a.showHandles === b.showHandles && a.dragOver === b.dragOver
+  a.el === b.el && a.occupied === b.occupied && a.names === b.names && a.selected === b.selected && a.showHandles === b.showHandles && a.dragOver === b.dragOver
 ));
 
 /* ════════════════════════════════════════════════════════════════
@@ -239,6 +246,13 @@ export default function SeatingMapPage() {
     setHistoryIndex(val);
     historyIndexRef.current = val;
   };
+
+  // Complete, unfiltered/unpaginated guest roster — used ONLY to label seated
+  // guests directly on their table shape on the canvas. Deliberately separate
+  // from `guests` below: that list is scoped to whatever search/filter/page
+  // the sidebar currently has loaded, so it can't reliably tell us who's at
+  // EVERY table at once.
+  const [allSeatedGuests, setAllSeatedGuests] = useState([]);
 
   // guest list (server-paginated + searchable + virtualized)
   const [guests, setGuests] = useState([]);
@@ -398,6 +412,49 @@ export default function SeatingMapPage() {
     const t = setTimeout(() => fetchGuests(1, true), 250);
     return () => clearTimeout(t);
   }, [eventId, search, filter, fetchGuests]);
+
+  /* ── complete guest roster for canvas name labels (see allSeatedGuests above) ──
+     Pages through filter=all with no search term, independent of whatever the
+     sidebar's own search/filter/pagination is currently showing. Capped at 50
+     pages (25k guests) as a sanity limit against runaway loops on bad data. */
+  const fetchAllGuestsForLabels = useCallback(async () => {
+    if (!eventId) return;
+    try {
+      let all = [];
+      for (let page = 1; page <= 50; page++) {
+        const qs = new URLSearchParams({ search: '', filter: 'all', page: String(page), pageSize: '500' });
+        const res = await fetch(`${API_URL}/events/${eventId}/seating/guests?${qs}`, { credentials: 'include' });
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.guests) || data.guests.length === 0) break;
+        all = all.concat(data.guests);
+        const total = data.pagination?.total || 0;
+        if (all.length >= total) break;
+      }
+      setAllSeatedGuests(all);
+    } catch { /* non-fatal — canvas labels are a nice-to-have; sidebar/inspector still work */ }
+  }, [eventId]);
+
+  // Refetched alongside the layout/summary — same "something about seating
+  // changed" signal `loadLayout` already reacts to (assign/reassign/unassign/
+  // batch-save all end by calling loadLayout(), which bumps `summary`).
+  // Debounced the same way the sidebar's own fetchGuests effect below is —
+  // avoids calling the state-setting fetch synchronously from the effect body.
+  useEffect(() => {
+    if (!eventId) return;
+    const t = setTimeout(() => fetchAllGuestsForLabels(), 250);
+    return () => clearTimeout(t);
+  }, [eventId, summary, fetchAllGuestsForLabels]);
+
+  /* ── derived: seated guest names per table, for the canvas labels ── */
+  const namesByTable = useMemo(() => {
+    const m = {};
+    allSeatedGuests.forEach(g => {
+      const tableId = pending[g.id] ? pending[g.id].to : g.tableId;
+      if (!tableId) return;
+      (m[tableId] || (m[tableId] = [])).push(g.guest_name);
+    });
+    return m;
+  }, [allSeatedGuests, pending]);
 
   /* ── derived: live occupancy per table (server + pending deltas) ── */
   const occByTable = useMemo(() => {
@@ -1301,6 +1358,7 @@ export default function SeatingMapPage() {
                     key={el.id}
                     el={display}
                     occupied={occByTable[el.id] || 0}
+                    names={namesByTable[el.id] || EMPTY_NAMES}
                     selected={selectedId === el.id || selectedIds.has(el.id)}
                     showHandles={selectedId === el.id && selectedIds.size === 0}
                     dragOver={dragOverId === el.id}

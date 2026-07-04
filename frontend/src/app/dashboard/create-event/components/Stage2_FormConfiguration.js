@@ -273,7 +273,7 @@ export default function Stage2_FormConfiguration({
           </div>
 
           <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Field label="Venue" hint="Type a name or address and pick a suggestion — the Address field fills in automatically">
+            <Field label="Venue" hint="Type a name or address and pick a suggestion — or if Google can't find your venue, just type the name in and enter the address manually on the right">
               <PlacesAutocomplete
                 value={locationName}
                 onChange={setLocationName}
@@ -282,7 +282,7 @@ export default function Stage2_FormConfiguration({
                 style={iStyle}
               />
             </Field>
-            <Field label="Address" hint="Auto-filled from the selected venue — editable">
+            <Field label="Address" hint="Auto-filled from the selected venue — or type it in yourself, it's always editable">
               <input type="text" value={locationAddress} onChange={e => setLocationAddress(e.target.value)}
                 placeholder="Grand Ballroom, 123 Main St" style={iStyle}
                 onFocus={onFocus} onBlur={onBlur} />

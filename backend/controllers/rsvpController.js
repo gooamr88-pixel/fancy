@@ -611,12 +611,18 @@ const verifyPublicSeating = async (req, res, next) => {
       .from('events').select('id, is_paid, status, event_date').eq('slug', slug).single();
     if (eventError || !event) return sendFail(res, { status: 404, error: 'EVENT_NOT_FOUND' });
     if (!isEventLiveForGuests({ ...event, slug })) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
-    if (!guestService.isSeatingRevealed(event.event_date)) {
-      return sendOk(res, { locked: true, revealAt: guestService.seatingRevealAtISO(event.event_date), verified: false });
-    }
 
+    // Organizer-added guests bypass the 24h reveal window, so the lock check
+    // now depends on the specific party's own flag — meaning we have to look
+    // the party up FIRST rather than short-circuiting on event date alone.
+    // A locked (not-yet-revealed, non-organizer-added) match still responds
+    // identically to "no match" (verified: false) — never confirming a real
+    // guest exists during the wait, same anti-enumeration guarantee as before.
     const seating = await guestService.verifyGuestSeating(event.id, name, phoneLast4);
     if (!seating) return sendOk(res, { verified: false });
+    if (!seating.createdByOrganizer && !guestService.isSeatingRevealed(event.event_date)) {
+      return sendOk(res, { locked: true, revealAt: guestService.seatingRevealAtISO(event.event_date), verified: false });
+    }
 
     const { data: tables, error: tablesError } = await supabase
       .from('tables')
@@ -648,15 +654,19 @@ const getGuestSeatingMap = async (req, res, next) => {
       .from('events').select('id, is_paid, status, event_date').eq('slug', slug).single();
     if (eventError || !event) return sendFail(res, { status: 404, error: 'EVENT_NOT_FOUND' });
     if (!isEventLiveForGuests({ ...event, slug })) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
-    if (!guestService.isSeatingRevealed(event.event_date)) {
+
+    const seating = await guestService.getPartySeatingMap(event.id, partyId);
+    if (!seating) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
+
+    // Organizer-added guests bypass the 24h reveal window — checked per-party
+    // now rather than purely on event date, so the lookup above has to run
+    // before we can decide whether to reveal.
+    if (!seating.createdByOrganizer && !guestService.isSeatingRevealed(event.event_date)) {
       return sendOk(res, {
         locked: true, revealAt: guestService.seatingRevealAtISO(event.event_date),
         myTableId: null, myTableName: null, party: [], tables: [],
       });
     }
-
-    const seating = await guestService.getPartySeatingMap(event.id, partyId);
-    if (!seating) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
 
     const { data: tables, error: tablesError } = await supabase
       .from('tables')
@@ -694,7 +704,7 @@ const getRsvpInvite = async (req, res, next) => {
   try {
     const { data: party, error } = await supabase
       .from('rsvp_parties')
-      .select(`id, label, response, guests(id, full_name, is_primary_contact, meal_selection, dietary_notes, phone),
+      .select(`id, label, response, created_by_organizer, guests(id, full_name, is_primary_contact, email, meal_selection, dietary_notes, phone),
         events!inner(id, title, description, event_date, event_end_date, slug, location_name, location_address,
           is_paid, status, rsvp_deadline, template_type, event_type, template_data, cover_image_url,
           custom_colors, custom_fonts, allow_guest_edits, track_guest_side, access_password, custom_form_fields(*))`)
@@ -720,8 +730,14 @@ const getRsvpInvite = async (req, res, next) => {
       deadlinePassed,
       guest: {
         id: party.id, guest_name: party.label, party_size: allGuests.length || 1, response: party.response,
+        // Previously omitted here (email wasn't even selected, and phone was
+        // fetched only for companions) — the full-wizard prefill effect
+        // (RsvpWizard.js) needs both to pre-fill the primary guest's own
+        // contact fields, same as the ?party_id= link already does.
+        email: primary?.email || null, phone: primary?.phone || null,
         primary_meal: primary?.meal_selection || null,
         primary_dietary_notes: primary?.dietary_notes || null,
+        createdByOrganizer: party.created_by_organizer === true,
         additionalGuests: companions.map((g) => ({
           id: g.id,
           fullName: g.full_name || '',
