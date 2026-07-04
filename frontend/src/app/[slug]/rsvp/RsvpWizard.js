@@ -45,6 +45,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const [customAnswers, setCustomAnswers] = useState({});
   const [notes, setNotes] = useState('');
   const [primaryMeal, setPrimaryMeal] = useState('');
+  const [dietaryNotes, setDietaryNotes] = useState('');
   const [side, setSide] = useState('');
   const [smsConsent, setSmsConsent] = useState(false);
 
@@ -100,6 +101,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     // editable RSVP silently reset the host's meal picker to blank — and
     // resubmitting overwrote their saved meal_selection with NULL.
     if (guest.primary_meal) setPrimaryMeal(guest.primary_meal);
+    if (guest.primary_dietary_notes) setDietaryNotes(guest.primary_dietary_notes);
     // Pre-fill companions already on file (e.g. entered by the organizer during guest
     // import) so the form asks the responder to confirm/edit each real person instead
     // of generating blank "Guest 2", "Guest 3" fields that silently discard their names.
@@ -360,7 +362,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     const body = {
       partyId, guestName, email, phone: normalizedPhone, response: attending,
       partySize: attending === 'yes' ? partySize : 1,
-      notes: enrichedNotes, primaryGuestMeal: primaryMeal,
+      notes: enrichedNotes, primaryGuestMeal: primaryMeal, primaryGuestDietaryNotes: dietaryNotes,
       additionalGuests: attending === 'yes' ? visibleAdditionalGuests.map(g => ({ ...g, customAnswers: g.customAnswers || {} })) : [],
       customAnswers: Object.keys(customAnswers).map(fieldId => ({ fieldId, value: customAnswers[fieldId] })),
       decline_reason: attending === 'no' ? declineReason : undefined,
@@ -502,6 +504,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                       guestName={guestName} setGuestName={setGuestName}
                       partySize={partySize} setPartySize={setPartySize}
                       mealField={mealField} primaryMeal={primaryMeal} setPrimaryMeal={setPrimaryMeal}
+                      dietaryNotes={dietaryNotes} setDietaryNotes={setDietaryNotes}
                       additionalGuests={visibleAdditionalGuests} setAdditionalGuests={setAdditionalGuests}
                       email={email} setEmail={setEmail} phone={phone} setPhone={setPhone}
                       validationErrors={validationErrors} setValidationErrors={setValidationErrors}

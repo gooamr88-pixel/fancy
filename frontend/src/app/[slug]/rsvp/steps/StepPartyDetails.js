@@ -6,6 +6,7 @@ import { FadeInUp, StaggerChildren, StaggerItem } from '../../../components/gues
 import { PremiumButton, PartySizeStepper, FormField, inputFocus, inputBlur } from '../../../components/guest/GuestUI';
 import { S } from '../styles';
 import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
+import PhoneNumberInput from '../../../components/PhoneNumberInput';
 
 const MAYBE_OPTIONS = [
   { value: '24 Hours', icon: '⚡', labelEn: 'Within 24 Hours', labelAr: 'خلال ٢٤ ساعة', subEn: "I'll know very soon", subAr: 'سأعلمكم قريباً جداً' },
@@ -24,6 +25,7 @@ const DECLINE_REASONS = [
 export default function StepPartyDetails({
   t, isRTL, attending,
   partySize, setPartySize, mealField, primaryMeal, setPrimaryMeal,
+  dietaryNotes, setDietaryNotes,
   additionalGuests, setAdditionalGuests, email, setEmail, phone, setPhone,
   validationErrors, setValidationErrors, onBack, onContinue,
   maybeFollowUp, setMaybeFollowUp, declineReason, setDeclineReason,
@@ -139,9 +141,8 @@ export default function StepPartyDetails({
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
               </FormField>
               <FormField label={t.phone_label} error={validationErrors.phone}>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+1 (555) 000-0000"
-                  style={{ ...S.inputBase, ...(validationErrors.phone ? { borderColor: '#ef4444' } : {}) }}
-                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.phone)} />
+                <PhoneNumberInput value={phone} onChange={setPhone} hasError={!!validationErrors.phone}
+                  defaultCountry={isRTL ? 'eg' : 'us'} />
               </FormField>
             </div>
 
@@ -214,6 +215,17 @@ export default function StepPartyDetails({
                   <option value="">{t.meal_select_placeholder}</option>
                   {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
                 </select>
+              </FormField>
+            )}
+
+            {includeMeal && (
+              <FormField label={isRTL ? 'متطلبات غذائية أو حساسية (اختياري)' : 'Dietary Restrictions & Allergies (Optional)'}>
+                <input
+                  type="text" value={dietaryNotes} onChange={e => setDietaryNotes(e.target.value)}
+                  placeholder={isRTL ? 'مثال: نباتي، حساسية من المكسرات...' : 'e.g. Vegetarian, Peanut allergy...'}
+                  style={S.inputBase}
+                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                />
               </FormField>
             )}
           </div>
@@ -483,13 +495,8 @@ export default function StepPartyDetails({
                   />
                 </FormField>
                 <FormField label={t.companion_phone_label} error={validationErrors[`additionalGuest_phone_${index}`]}>
-                  <input
-                    type="tel" value={g.phone || ''}
-                    onChange={e => updateCompanion(index, { phone: e.target.value })}
-                    placeholder="+1 (555) 000-0000"
-                    style={{ ...S.inputBase, ...(validationErrors[`additionalGuest_phone_${index}`] ? { borderColor: '#ef4444' } : {}) }}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_phone_${index}`])}
-                  />
+                  <PhoneNumberInput value={g.phone || ''} onChange={(val) => updateCompanion(index, { phone: val })}
+                    hasError={!!validationErrors[`additionalGuest_phone_${index}`]} defaultCountry={isRTL ? 'eg' : 'us'} />
                 </FormField>
               </div>
 

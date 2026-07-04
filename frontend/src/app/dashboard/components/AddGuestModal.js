@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { normalizeToE164 } from '../../utils/phone';
 import { findMealField } from '../../utils/mealField';
+import PhoneNumberInput from '../../components/PhoneNumberInput';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -168,11 +169,8 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
               </div>
               <div>
                 <label style={labelStyle}>Phone *</label>
-                <input value={formData.phone} onChange={handleChange('phone')} type="tel"
-                  placeholder="+1 (555) 000-0000" required style={inputStyle}
-                  onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-                  onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-                />
+                <PhoneNumberInput value={formData.phone} required
+                  onChange={(val) => handleChange('phone')({ target: { value: val } })} />
               </div>
             </div>
 

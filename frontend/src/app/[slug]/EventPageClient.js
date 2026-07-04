@@ -133,6 +133,29 @@ function formatEventDateLine(event, isRTL) {
   });
 }
 
+// Renders an HTML <input type="time"> value ("HH:MM", 24h) as a locale time string.
+function formatTimeOfDay(value, isRTL) {
+  if (!value) return null;
+  const [h, m] = value.split(':').map(Number);
+  if (Number.isNaN(h)) return value;
+  return new Date(2000, 0, 1, h, m || 0).toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', {
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+// Ceremony/reception can be entered two ways depending on when the event was
+// created: the current Venue-search + time-picker fields (`${prefix}_venue_name`
+// / `${prefix}_time_of_day`), or the older single free-text field
+// (`${prefix}_time` from EventSettings, `${prefix}Location` from the create-event
+// wizard) that mixed the time and place into one string. Prefer the structured
+// fields; fall back to whichever legacy string exists so older events still display.
+function ceremonyReceptionLine(td, prefix, isRTL) {
+  const venue = td[`${prefix}_venue_name`];
+  const time = formatTimeOfDay(td[`${prefix}_time_of_day`], isRTL);
+  if (venue || time) return [time, venue].filter(Boolean).join(isRTL ? ' – ' : ' at ');
+  return td[`${prefix}_time`] || td[`${prefix}Location`] || null;
+}
+
 // Builds the real-data props for InvitationCard from the live event record,
 // replacing the demo placeholder copy (fake names/dates/venues) the card
 // otherwise renders for the organizer simulator / marketing showcase.
@@ -156,8 +179,8 @@ function buildInvitationCardData(event, isRTL) {
     const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
     const names = (isRTL && titleAr) ? titleAr : namesEn;
     const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
-    const ceremonyLine = td.ceremony_time || td.ceremonyLocation || null;
-    const receptionLine = td.reception_time || td.receptionLocation || null;
+    const ceremonyLine = ceremonyReceptionLine(td, 'ceremony', isRTL);
+    const receptionLine = ceremonyReceptionLine(td, 'reception', isRTL);
     // Tuscan Vineyard's "Save the Date" layout upgrades to a real photo once
     // the organizer has uploaded a cover image; other wedding patterns ignore this.
     const coverImageUrl = event?.template_type === 'tuscany' ? (event?.cover_image_url || null) : undefined;
@@ -175,8 +198,8 @@ function buildInvitationCardData(event, isRTL) {
       const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
       const names = (isRTL && titleAr) ? titleAr : namesEn;
       const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
-      const ceremonyLine = td.ceremony_time || td.ceremonyLocation || null;
-      const receptionLine = td.reception_time || td.receptionLocation || null;
+      const ceremonyLine = ceremonyReceptionLine(td, 'ceremony', isRTL);
+      const receptionLine = ceremonyReceptionLine(td, 'reception', isRTL);
       return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine };
     }
     case 'engagement': {
@@ -885,8 +908,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             onClick={toggleMusic}
             aria-label={musicPlaying ? (isRTL ? 'إيقاف الموسيقى' : 'Pause music') : (isRTL ? 'تشغيل الموسيقى' : 'Play music')}
             style={{
-              position: 'absolute', top: '24px', zIndex: 30,
-              ...(isRTL ? { right: '24px' } : { left: '24px' }),
+              // Fixed (not absolute) so it stays visible in the same spot while
+              // the guest scrolls, and always on the right regardless of
+              // language — offset lower in LTR so it doesn't sit on top of the
+              // language toggle, which stays on the right in that direction.
+              position: 'fixed', top: isRTL ? '24px' : '76px', right: '24px', zIndex: 30,
               width: '40px', height: '40px', borderRadius: '50%', cursor: 'pointer',
               border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)',
               backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
@@ -1359,27 +1385,27 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     )}
 
                     {/* Ceremony & Reception */}
-                    {(event.template_data.ceremonyLocation || event.template_data.receptionLocation || event.template_data.ceremony_time || event.template_data.reception_time) && (
+                    {(invitationData.ceremonyLine || invitationData.receptionLine) && (
                       <StaggerChildren staggerDelay={0.15} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #F0ECE3', paddingTop: '20px' }} className="ep-ceremony-grid">
-                        {(event.template_data.ceremonyLocation || event.template_data.ceremony_time) && (
+                        {invitationData.ceremonyLine && (
                           <StaggerItem>
                             <div style={{ textAlign: 'center' }}>
                               <span style={{ fontSize: '28px', display: 'block', marginBottom: '8px' }}>💒</span>
                               <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
                                 {isRTL ? 'مراسم الزواج' : 'Ceremony'}
                               </span>
-                              <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.ceremony_time || event.template_data.ceremonyLocation}</span>
+                              <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{invitationData.ceremonyLine}</span>
                             </div>
                           </StaggerItem>
                         )}
-                        {(event.template_data.receptionLocation || event.template_data.reception_time) && (
+                        {invitationData.receptionLine && (
                           <StaggerItem>
                             <div style={{ textAlign: 'center' }}>
                               <span style={{ fontSize: '28px', display: 'block', marginBottom: '8px' }}>🥂</span>
                               <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
                                 {isRTL ? 'حفل الاستقبال' : 'Reception'}
                               </span>
-                              <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.reception_time || event.template_data.receptionLocation}</span>
+                              <span style={{ fontSize: '14px', color: '#191B1E', fontWeight: 500 }}>{invitationData.receptionLine}</span>
                             </div>
                           </StaggerItem>
                         )}

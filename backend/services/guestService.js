@@ -47,6 +47,7 @@ function naturalCompare(a, b) {
 async function submitPublicRsvp({
   slug, partyId, guestName, email, phone, response, partySize, notes,
   primaryMeal, additionalGuests, customAnswers, declineReason, maybeConfirmBy, side, smsConsent,
+  dietaryNotes,
 }) {
   const { data, error } = await supabase.rpc('submit_rsvp_v2', {
     p_slug: slug,
@@ -64,6 +65,7 @@ async function submitPublicRsvp({
     p_maybe_confirm_by: maybeConfirmBy || null,
     p_side: side || null,
     p_sms_consent: !!smsConsent,
+    p_primary_dietary_notes: dietaryNotes || null,
   });
   if (error) throw error;
   return data;

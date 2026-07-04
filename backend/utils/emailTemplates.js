@@ -429,8 +429,13 @@ const sideLabel = (side, eventType) => {
   return isWedding ? "Bride's Side" : "Partner 2's Side";
 };
 
-/** Alerts the organizer that a guest just submitted an RSVP. */
-const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySize, email, side, eventType }) => {
+/**
+ * Alerts the organizer that a guest just submitted an RSVP. Also sent, verbatim
+ * except for the CTA/footer, to secondary recipients configured on the event
+ * (e.g. groom/bride emails) via `recipientRole: 'partner'` — they don't have
+ * dashboard access, so the CTA links to the public event page instead.
+ */
+const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySize, email, side, eventType, recipientRole = 'organizer', eventSlug }) => {
   const r = responseMeta(response);
   const verb = response === 'yes' || response === 'accepted'
     ? 'accepted'
@@ -444,6 +449,13 @@ const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySiz
   const sLabel = sideLabel(side, eventType);
   if (sLabel) rows.push(['Side', escapeHtml(sLabel)]);
 
+  const isPartner = recipientRole === 'partner';
+  const ctaUrl = isPartner ? buildGuestEventUrl(eventSlug) : `${getPublicBaseUrl()}/dashboard`;
+  const ctaLabel = isPartner ? 'View Event Page' : 'View in Dashboard';
+  const ctaCaption = isPartner
+    ? null
+    : para('Manage your guest list, seating and check-ins from your organizer dashboard.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 });
+
   return emailShell({
     preheader: `${guestName} ${verb} — ${eventTitle}`,
     eyebrow: 'New RSVP received',
@@ -451,10 +463,12 @@ const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySiz
     contentHtml: `
       ${para(`<strong style="color:${BRAND.charcoal};">${escapeHtml(guestName)}</strong> has ${verb} your invitation.`)}
       ${dataTable(rows)}
-      ${button(`${getPublicBaseUrl()}/dashboard`, 'View in Dashboard')}
-      ${para('Manage your guest list, seating and check-ins from your organizer dashboard.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+      ${button(ctaUrl, ctaLabel)}
+      ${ctaCaption || ''}
     `,
-    footerNote: 'You receive this because RSVP email alerts are enabled for this event.',
+    footerNote: isPartner
+      ? "You're receiving this because you were added as a co-recipient for RSVP updates on this event."
+      : 'You receive this because RSVP email alerts are enabled for this event.',
   });
 };
 

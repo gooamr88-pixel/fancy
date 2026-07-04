@@ -4,6 +4,7 @@ import { toast } from '../../utils/toast';
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../../utils/apiClient';
 import { supabase } from '../../utils/supabaseClient';
+import PhoneNumberInput from '../../components/PhoneNumberInput';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -352,10 +353,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
           </div>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Phone Number</label>
-            <input value={form.phone} onChange={handleChange('phone')} placeholder="+1 234 567 8900" style={inputStyle}
-              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-            />
+            <PhoneNumberInput value={form.phone} onChange={(val) => handleChange('phone')({ target: { value: val } })} />
           </div>
         </div>
       </div>

@@ -84,12 +84,15 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   // canonical writer of these fields) so the digital card never has to guess
   // which naming scheme an event was created with.
   const [templateData, setTemplateData] = useState({
-    partner1: '', partner2: '', family_names: '', ceremonyLocation: '', receptionLocation: '',
+    partner1: '', partner2: '', partner1_email: '', partner2_email: '', family_names: '',
+    ceremony_venue_name: '', ceremony_venue_address: '', ceremony_lat: null, ceremony_lng: null, ceremony_place_id: '', ceremony_time_of_day: '',
+    reception_venue_name: '', reception_venue_address: '', reception_lat: null, reception_lng: null, reception_place_id: '', reception_time_of_day: '',
     company: '', agenda: '', speakers: '',
     proposalStory: '', giftRegistry: '',
     celebrant: '', age: '', partyTheme: '',
     honoree: '', program: '', sponsorPackages: '',
     seal_text: '', seal_image_url: '', invitation_bg_url: '',
+    title_ar: '', description_ar: '', dress_code_ar: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -294,7 +297,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   // happens after a save round-trips through onEventUpdated). Resetting
   // during render instead of in an effect avoids the setState-in-effect
   // cascading-render pattern.
-  const [prevEvent, setPrevEvent] = useState(event);
+  //
+  // prevEvent starts at `null`, NOT `event` — this component unmounts/remounts
+  // every time the Settings tab is opened (it's rendered behind a ternary in
+  // page.js), so by the time it mounts, `event` is already the loaded object.
+  // Seeding prevEvent with that same reference meant `event !== prevEvent` was
+  // false on the very first render and the initial prefill never ran, leaving
+  // every field at its hardcoded blank default until the next save round-trip.
+  const [prevEvent, setPrevEvent] = useState(null);
   if (event !== prevEvent) {
     setPrevEvent(event);
     if (event) {
@@ -335,9 +345,28 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         // keys for events saved before this rename, so existing data still loads.
         partner1: event.template_data?.partner1 || event.template_data?.groom_name || '',
         partner2: event.template_data?.partner2 || event.template_data?.bride_name || '',
+        partner1_email: event.template_data?.partner1_email || '',
+        partner2_email: event.template_data?.partner2_email || '',
         family_names: event.template_data?.family_names || '',
-        ceremonyLocation: event.template_data?.ceremonyLocation || event.template_data?.ceremony_time || '',
-        receptionLocation: event.template_data?.receptionLocation || event.template_data?.reception_time || '',
+        // No legacy fallback here (unlike the fields above) — the old
+        // ceremonyLocation/ceremony_time fields stored one free-text string
+        // mixing venue and time together, which can't be reliably split into
+        // the new venue-search + time-picker fields. Leaving these blank for
+        // events that predate this rename lets the organizer fill them in
+        // explicitly; the public page still falls back to the legacy string
+        // (see ceremonyReceptionLine in EventPageClient) until they do.
+        ceremony_venue_name: event.template_data?.ceremony_venue_name || '',
+        ceremony_venue_address: event.template_data?.ceremony_venue_address || '',
+        ceremony_lat: event.template_data?.ceremony_lat || null,
+        ceremony_lng: event.template_data?.ceremony_lng || null,
+        ceremony_place_id: event.template_data?.ceremony_place_id || '',
+        ceremony_time_of_day: event.template_data?.ceremony_time_of_day || '',
+        reception_venue_name: event.template_data?.reception_venue_name || '',
+        reception_venue_address: event.template_data?.reception_venue_address || '',
+        reception_lat: event.template_data?.reception_lat || null,
+        reception_lng: event.template_data?.reception_lng || null,
+        reception_place_id: event.template_data?.reception_place_id || '',
+        reception_time_of_day: event.template_data?.reception_time_of_day || '',
         company: event.template_data?.company || event.template_data?.company_name || '',
         agenda: event.template_data?.agenda || '',
         speakers: event.template_data?.speakers || '',
@@ -352,12 +381,33 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         seal_text: event.template_data?.seal_text || '',
         seal_image_url: event.template_data?.seal_image_url || '',
         invitation_bg_url: event.template_data?.invitation_bg_url || '',
+        title_ar: event.template_data?.title_ar || '',
+        description_ar: event.template_data?.description_ar || '',
+        dress_code_ar: event.template_data?.dress_code_ar || '',
       });
     }
   }
 
   const handleChange = (field) => (e) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
+    setSuccess(false);
+  };
+
+  // Ceremony/reception venue pickers behave like the main Location Name field: a
+  // plain-address prediction has no distinct `place.name` — falling back to the
+  // raw search text there would leave the venue name stale, so fall back to the
+  // address's first segment instead.
+  const makeTemplatePlaceSelectHandler = (prefix) => (place) => {
+    setTemplateData(prev => ({
+      ...prev,
+      [`${prefix}_venue_name`]: place.name && place.name !== place.address
+        ? place.name
+        : (place.address ? place.address.split(',')[0] : prev[`${prefix}_venue_name`]),
+      [`${prefix}_venue_address`]: place.address,
+      [`${prefix}_lat`]: place.lat,
+      [`${prefix}_lng`]: place.lng,
+      [`${prefix}_place_id`]: place.placeId,
+    }));
     setSuccess(false);
   };
 
@@ -503,6 +553,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   };
   const fieldGroupStyle = { marginBottom: '16px' };
   const rowStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' };
+  const hintStyle = { fontSize: '10px', color: COLORS.stone, display: 'block', marginTop: '4px' };
 
   const currentStatus = event?.status || 'active';
   const statusColors = {
@@ -608,7 +659,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               onPlaceSelect={(place) => {
                 setForm(prev => ({
                   ...prev,
-                  location_name: place.name || prev.location_name,
+                  // Plain-address predictions have no distinct `place.name` (empty,
+                  // or identical to the address) — falling back to the previous
+                  // Venue value left it stale/blank while Address updated, making
+                  // it look like the selection only filled in the address. Fall
+                  // back to the address's first segment instead, same as create-event.
+                  location_name: place.name && place.name !== place.address
+                    ? place.name
+                    : (place.address ? place.address.split(',')[0] : prev.location_name),
                   location_address: place.address,
                   location_lat: place.lat,
                   location_lng: place.lng,
@@ -618,6 +676,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               }}
               placeholder="Search for a venue..."
             />
+            <span style={hintStyle}>Type a name or address and pick a suggestion — the Address field fills in automatically</span>
           </div>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Location Address</label>
@@ -625,6 +684,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
               onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
             />
+            <span style={hintStyle}>Auto-filled from the selected venue — editable</span>
           </div>
         </div>
 
@@ -653,18 +713,52 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <input value={templateData.partner2} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2: e.target.value }))} placeholder="Bride Name" style={inputStyle} />
               </div>
             </div>
+            <div style={rowStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Groom&apos;s Email</label>
+                <input type="email" value={templateData.partner1_email} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1_email: e.target.value }))} placeholder="groom@email.com" style={inputStyle} />
+                <span style={hintStyle}>Optional — if set, they&apos;ll also get an email whenever a guest RSVPs</span>
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Bride&apos;s Email</label>
+                <input type="email" value={templateData.partner2_email} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2_email: e.target.value }))} placeholder="bride@email.com" style={inputStyle} />
+                <span style={hintStyle}>Optional — if set, they&apos;ll also get an email whenever a guest RSVPs</span>
+              </div>
+            </div>
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Family Names / Hosts</label>
               <input value={templateData.family_names} onChange={(e) => setTemplateData(prev => ({ ...prev, family_names: e.target.value }))} placeholder="The Smith & Jones Families" style={inputStyle} />
             </div>
-            <div style={rowStyle}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Ceremony Details/Time</label>
-                <input value={templateData.ceremonyLocation} onChange={(e) => setTemplateData(prev => ({ ...prev, ceremonyLocation: e.target.value }))} placeholder="e.g. 4:00 PM at St. Mary's Church" style={inputStyle} />
+                <label style={labelStyle}>Ceremony Venue</label>
+                <PlacesAutocomplete
+                  value={templateData.ceremony_venue_name}
+                  onChange={(val) => setTemplateData(prev => ({ ...prev, ceremony_venue_name: val }))}
+                  onPlaceSelect={makeTemplatePlaceSelectHandler('ceremony')}
+                  placeholder="Search for the ceremony venue..."
+                />
+                <span style={hintStyle}>Search and pick where the ceremony takes place</span>
               </div>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Reception Details/Time</label>
-                <input value={templateData.receptionLocation} onChange={(e) => setTemplateData(prev => ({ ...prev, receptionLocation: e.target.value }))} placeholder="e.g. 6:00 PM at Grand Ballroom" style={inputStyle} />
+                <label style={labelStyle}>Ceremony Time</label>
+                <input type="time" value={templateData.ceremony_time_of_day} onChange={(e) => setTemplateData(prev => ({ ...prev, ceremony_time_of_day: e.target.value }))} style={inputStyle} />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Reception Venue</label>
+                <PlacesAutocomplete
+                  value={templateData.reception_venue_name}
+                  onChange={(val) => setTemplateData(prev => ({ ...prev, reception_venue_name: val }))}
+                  onPlaceSelect={makeTemplatePlaceSelectHandler('reception')}
+                  placeholder="Search for the reception venue..."
+                />
+                <span style={hintStyle}>Search and pick where the reception takes place</span>
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Reception Time</label>
+                <input type="time" value={templateData.reception_time_of_day} onChange={(e) => setTemplateData(prev => ({ ...prev, reception_time_of_day: e.target.value }))} style={inputStyle} />
               </div>
             </div>
           </div>
@@ -699,6 +793,18 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Partner 2 Name</label>
                 <input value={templateData.partner2} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2: e.target.value }))} placeholder="Second partner name" style={inputStyle} />
+              </div>
+            </div>
+            <div style={rowStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Partner 1 Email</label>
+                <input type="email" value={templateData.partner1_email} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1_email: e.target.value }))} style={inputStyle} />
+                <span style={hintStyle}>Optional — if set, they&apos;ll also get an email whenever a guest RSVPs</span>
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Partner 2 Email</label>
+                <input type="email" value={templateData.partner2_email} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2_email: e.target.value }))} style={inputStyle} />
+                <span style={hintStyle}>Optional — if set, they&apos;ll also get an email whenever a guest RSVPs</span>
               </div>
             </div>
             <div style={fieldGroupStyle}>
@@ -1115,6 +1221,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             />
             Receive email notification when a guest submits an RSVP
           </label>
+          <span style={{ fontSize: '11px', color: COLORS.stone, marginLeft: '26px' }}>
+            This also controls email alerts to the Groom/Bride emails above, if set.
+          </span>
 
           <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#A8A29E', cursor: 'not-allowed', userSelect: 'none', opacity: 0.6 }}>
             <input

@@ -169,9 +169,30 @@ export default function Stage2_FormConfiguration({
   onNext, onBack, onSaveDraft, savingDraft,
 }) {
   const tpl = templates.find(t => t.key === templateType) || templates[0];
+  // Dress code starts in "custom" mode if it's already set to something outside
+  // the preset pills (e.g. loaded from a draft), so the free-text box shows up
+  // with the existing value instead of looking like nothing was chosen.
+  const [customDressMode, setCustomDressMode] = useState(!!dressCode && !DRESS_CODES.includes(dressCode));
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
   const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading || sealUploading || invitationBgUploading);
+
+  // Ceremony/reception venue pickers behave like the main Venue field: a plain-
+  // address prediction (as opposed to a named venue) has no distinct `place.name`
+  // — falling back to the raw search text there would leave the venue name stale,
+  // so fall back to the address's first segment instead.
+  const makePlaceSelectHandler = (prefix) => (place) => setTemplateData(d => ({
+    ...d,
+    [`${prefix}_venue_name`]: place.name && place.name !== place.address
+      ? place.name
+      : (place.address ? place.address.split(',')[0] : d[`${prefix}_venue_name`]),
+    [`${prefix}_venue_address`]: place.address,
+    [`${prefix}_lat`]: place.lat,
+    [`${prefix}_lng`]: place.lng,
+    [`${prefix}_place_id`]: place.placeId,
+  }));
+  const onCeremonyPlaceSelect = makePlaceSelectHandler('ceremony');
+  const onReceptionPlaceSelect = makePlaceSelectHandler('reception');
 
   return (
     <div style={{ padding: '40px 24px 120px', maxWidth: 860, margin: '0 auto' }}>
@@ -252,7 +273,7 @@ export default function Stage2_FormConfiguration({
           </div>
 
           <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Field label="Venue">
+            <Field label="Venue" hint="Type a name or address and pick a suggestion — the Address field fills in automatically">
               <PlacesAutocomplete
                 value={locationName}
                 onChange={setLocationName}
@@ -284,18 +305,48 @@ export default function Stage2_FormConfiguration({
                       placeholder="Second partner name" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
                 </div>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <Field label="Partner 1 Email" hint="Optional — if set, this person also gets an email every time a guest RSVPs">
+                    <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
+                      placeholder="groom@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                  <Field label="Partner 2 Email" hint="Optional — if set, this person also gets an email every time a guest RSVPs">
+                    <input type="email" value={td('partner2_email')} onChange={e => setTd('partner2_email')(e.target.value)}
+                      placeholder="bride@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                </div>
                 <Field label="Our Love Story">
                   <textarea value={td('loveStory')} onChange={e => setTd('loveStory')(e.target.value)}
                     rows={3} placeholder="Share your beautiful story…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Ceremony Location" hint="Where the ceremony takes place">
-                    <input type="text" value={td('ceremonyLocation')} onChange={e => setTd('ceremonyLocation')(e.target.value)}
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+                  <Field label="Ceremony Venue" hint="Search and pick where the ceremony takes place">
+                    <PlacesAutocomplete
+                      value={td('ceremony_venue_name')}
+                      onChange={setTd('ceremony_venue_name')}
+                      onPlaceSelect={onCeremonyPlaceSelect}
+                      placeholder="Search for the ceremony venue…"
+                      style={iStyle}
+                    />
+                  </Field>
+                  <Field label="Ceremony Time">
+                    <input type="time" value={td('ceremony_time_of_day')} onChange={e => setTd('ceremony_time_of_day')(e.target.value)}
                       style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
-                  <Field label="Reception Location" hint="Where the reception takes place">
-                    <input type="text" value={td('receptionLocation')} onChange={e => setTd('receptionLocation')(e.target.value)}
+                </div>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+                  <Field label="Reception Venue" hint="Search and pick where the reception takes place">
+                    <PlacesAutocomplete
+                      value={td('reception_venue_name')}
+                      onChange={setTd('reception_venue_name')}
+                      onPlaceSelect={onReceptionPlaceSelect}
+                      placeholder="Search for the reception venue…"
+                      style={iStyle}
+                    />
+                  </Field>
+                  <Field label="Reception Time">
+                    <input type="time" value={td('reception_time_of_day')} onChange={e => setTd('reception_time_of_day')(e.target.value)}
                       style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
                 </div>
@@ -320,6 +371,16 @@ export default function Stage2_FormConfiguration({
                   </Field>
                   <Field label="Partner 2 Name">
                     <input type="text" value={td('partner2')} onChange={e => setTd('partner2')(e.target.value)}
+                      style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                </div>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <Field label="Partner 1 Email" hint="Optional — if set, this person also gets an email every time a guest RSVPs">
+                    <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
+                      style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                  <Field label="Partner 2 Email" hint="Optional — if set, this person also gets an email every time a guest RSVPs">
+                    <input type="email" value={td('partner2_email')} onChange={e => setTd('partner2_email')(e.target.value)}
                       style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
                 </div>
@@ -425,20 +486,37 @@ export default function Stage2_FormConfiguration({
           <Field label="Dress Code">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {DRESS_CODES.map(dc => (
-                <button key={dc || '__none'} onClick={() => setDressCode(dc)}
+                <button key={dc || '__none'} onClick={() => { setCustomDressMode(false); setDressCode(dc); }}
                   style={{
                     padding: '7px 14px', borderRadius: 20,
                     fontSize: 12, fontWeight: 600,
                     fontFamily: 'var(--font-sans)',
                     cursor: 'pointer',
-                    border: dressCode === dc ? `1.5px solid ${C.gold}` : `1px solid ${C.border}`,
-                    background: dressCode === dc ? C.gold : C.white,
-                    color: dressCode === dc ? C.white : C.stone,
+                    border: (!customDressMode && dressCode === dc) ? `1.5px solid ${C.gold}` : `1px solid ${C.border}`,
+                    background: (!customDressMode && dressCode === dc) ? C.gold : C.white,
+                    color: (!customDressMode && dressCode === dc) ? C.white : C.stone,
                     transition: 'all 0.2s ease',
                   }}
                 >{dc || 'No Dress Code'}</button>
               ))}
+              <button onClick={() => { setCustomDressMode(true); if (DRESS_CODES.includes(dressCode)) setDressCode(''); }}
+                style={{
+                  padding: '7px 14px', borderRadius: 20,
+                  fontSize: 12, fontWeight: 600,
+                  fontFamily: 'var(--font-sans)',
+                  cursor: 'pointer',
+                  border: customDressMode ? `1.5px solid ${C.gold}` : `1px solid ${C.border}`,
+                  background: customDressMode ? C.gold : C.white,
+                  color: customDressMode ? C.white : C.stone,
+                  transition: 'all 0.2s ease',
+                }}
+              >✏️ Custom…</button>
             </div>
+            {customDressMode && (
+              <input type="text" value={dressCode} onChange={e => setDressCode(e.target.value)}
+                placeholder="e.g. Everyone wears white" maxLength={80}
+                style={{ ...iStyle, marginTop: 10 }} onFocus={onFocus} onBlur={onBlur} />
+            )}
             {dressCode && (
               <div style={{
                 marginTop: 16,
@@ -517,6 +595,9 @@ export default function Stage2_FormConfiguration({
                   style={{ width: 16, height: 16, accentColor: C.gold, cursor: 'pointer' }} />
                 Receive email notification when a guest submits an RSVP
               </label>
+              <span style={{ fontSize: 11, color: '#A09A91', marginLeft: 26 }}>
+                This also controls email alerts to the Groom/Bride emails below, if set.
+              </span>
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#A8A29E', cursor: 'not-allowed', userSelect: 'none', opacity: 0.6 }}>
                 <input type="checkbox" checked={false} disabled
                   style={{ width: 16, height: 16, cursor: 'not-allowed' }} />

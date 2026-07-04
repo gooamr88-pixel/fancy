@@ -44,7 +44,7 @@ const normalizeSideCsvValue = (raw) => {
  */
 const submitPublicRSVP = async (req, res, next) => {
   const { slug } = req.params;
-  const { partyId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, customAnswers, decline_reason, maybe_confirm_by, side, smsConsent } = req.body;
+  const { partyId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, primaryGuestDietaryNotes, customAnswers, decline_reason, maybe_confirm_by, side, smsConsent } = req.body;
 
   if (!phone || !String(phone).trim()) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'A phone number is required.' });
@@ -144,6 +144,7 @@ const submitPublicRSVP = async (req, res, next) => {
     const result = await guestService.submitPublicRsvp({
       slug, partyId, guestName, email, phone: normalizedPhone, response,
       partySize: partySize || 1, notes, primaryMeal: primaryGuestMeal,
+      dietaryNotes: primaryGuestDietaryNotes || null,
       additionalGuests: sanitizedAdditional,
       customAnswers: Array.isArray(customAnswers) ? customAnswers : [],
       declineReason: decline_reason, maybeConfirmBy: maybe_confirm_by,
@@ -205,6 +206,24 @@ const submitPublicRSVP = async (req, res, next) => {
         });
         notificationService.sendEmailViaBrevo(result.org_email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`, orgEmailHtml)
           .catch((err) => logger.error({ err }, 'Failed to notify organizer via email'));
+      }
+
+      // Also copy in the groom/bride, if the organizer configured their emails
+      // on the event (template_data.partner1_email/partner2_email) — same
+      // toggle, same template, just a public-page CTA instead of a dashboard one.
+      if (isEmailPref) {
+        const { data: eventRow } = await supabase.from('events').select('template_data').eq('id', eventId).single();
+        const td = eventRow?.template_data || {};
+        for (const partnerEmail of [td.partner1_email, td.partner2_email]) {
+          if (partnerEmail && EMAIL_RE.test(String(partnerEmail).trim())) {
+            const partnerEmailHtml = getNewRsvpOrganizerTemplate({
+              eventTitle: result.event_title, guestName, response: result.response, partySize: computedPartySize, email,
+              side: result.side, eventType: result.event_type, recipientRole: 'partner', eventSlug: result.event_slug,
+            });
+            notificationService.sendEmailViaBrevo(partnerEmail.trim(), `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`, partnerEmailHtml)
+              .catch((err) => logger.error({ err }, 'Failed to notify partner recipient via email'));
+          }
+        }
       }
 
       if (isWhatsappPref && result.org_phone) {
@@ -675,7 +694,10 @@ const getRsvpInvite = async (req, res, next) => {
   try {
     const { data: party, error } = await supabase
       .from('rsvp_parties')
-      .select('id, label, response, guests(id, full_name, is_primary_contact, meal_selection, dietary_notes, phone), events!inner(id, title, event_date, slug, location_name, location_address, is_paid, status, rsvp_deadline)')
+      .select(`id, label, response, guests(id, full_name, is_primary_contact, meal_selection, dietary_notes, phone),
+        events!inner(id, title, description, event_date, event_end_date, slug, location_name, location_address,
+          is_paid, status, rsvp_deadline, template_type, event_type, template_data, cover_image_url,
+          custom_colors, custom_fonts, allow_guest_edits, track_guest_side, access_password, custom_form_fields(*))`)
       .eq('id', payload.partyId)
       .eq('event_id', payload.eventId)
       .single();
@@ -699,6 +721,7 @@ const getRsvpInvite = async (req, res, next) => {
       guest: {
         id: party.id, guest_name: party.label, party_size: allGuests.length || 1, response: party.response,
         primary_meal: primary?.meal_selection || null,
+        primary_dietary_notes: primary?.dietary_notes || null,
         additionalGuests: companions.map((g) => ({
           id: g.id,
           fullName: g.full_name || '',
@@ -707,7 +730,17 @@ const getRsvpInvite = async (req, res, next) => {
           phone: g.phone || '',
         })),
       },
-      event: { title: event.title, event_date: event.event_date, slug: event.slug, location: event.location_name || event.location_address || null },
+      // Spread the full event (minus the password hash) rather than a hand-picked
+      // subset — the full RsvpWizard reached via this token entry point needs the
+      // same shape resolveSlug's getPublicEventBySlug provides (custom_form_fields
+      // for the meal picker/custom questions, track_guest_side, event_type, fonts/
+      // colors, etc.), or those features silently fail to render even though the
+      // backend still enforces them (e.g. a required meal selection with no UI to
+      // satisfy it).
+      event: (() => {
+        const { access_password, ...publicEvent } = event;
+        return { ...publicEvent, location: event.location_name || event.location_address || null };
+      })(),
     });
   } catch (err) {
     next(err);
@@ -739,7 +772,7 @@ const respondViaToken = async (req, res, next) => {
 
   try {
     const { data: event, error: eventError } = await supabase
-      .from('events').select('id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences, allow_guest_edits')
+      .from('events').select('id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences, allow_guest_edits, template_data, organizations(email, phone)')
       .eq('id', payload.eventId).single();
     if (eventError || !event) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
     if (!isEventLiveForGuests(event)) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
@@ -794,6 +827,36 @@ const respondViaToken = async (req, res, next) => {
         notificationService.sendEmailViaBrevo(primaryEmail, `Thank You – ${escapeHtml(event.title)}`, declineHtml)
           .catch((err) => logger.error({ err }, 'Decline email error'));
       }
+    }
+
+    // Notify organizer + groom/bride of the new RSVP (best-effort). Unlike
+    // submitPublicRSVP, this one-click token path never notified the organizer
+    // at all — closing that gap here too, same toggle/template as the direct-
+    // submit path (just without `side`/guest `email`, which aren't cheaply
+    // available on this path without another join).
+    try {
+      const prefs = event.notification_preferences;
+      const isEmailPref = !prefs || prefs.email !== false;
+      const td = event.template_data || {};
+      const recipients = [
+        { email: event.organizations?.email, role: 'organizer' },
+        { email: td.partner1_email, role: 'partner' },
+        { email: td.partner2_email, role: 'partner' },
+      ];
+      if (isEmailPref) {
+        for (const { email: recipientEmail, role } of recipients) {
+          if (recipientEmail && EMAIL_RE.test(String(recipientEmail).trim())) {
+            const html = getNewRsvpOrganizerTemplate({
+              eventTitle: event.title, guestName, response: mapped, partySize: computedPartySize,
+              recipientRole: role, eventSlug: event.slug,
+            });
+            notificationService.sendEmailViaBrevo(recipientEmail.trim(), `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`, html)
+              .catch((err) => logger.error({ err, role }, 'Failed to notify RSVP recipient via email'));
+          }
+        }
+      }
+    } catch (notifyErr) {
+      logger.error({ err: notifyErr }, 'Organizer/partner notification error');
     }
 
     return sendOk(res, { message: 'Your response has been recorded.', response: mapped, guestName, eventSlug: event.slug, partyId: payload.partyId });

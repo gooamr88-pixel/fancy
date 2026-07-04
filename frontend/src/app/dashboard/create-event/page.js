@@ -211,10 +211,15 @@ const TEMPLATES = [
    handleTemplateSelect to drop a previous type's fields (e.g. wedding's
    loveStory) when the organizer switches to a type that doesn't use them,
    instead of silently carrying them over into the new type's submission. */
-const WEDDING_FIELD_KEYS = ['partner1', 'partner2', 'loveStory', 'ceremonyLocation', 'receptionLocation', 'giftRegistry', 'accommodations'];
+const WEDDING_FIELD_KEYS = [
+  'partner1', 'partner2', 'partner1_email', 'partner2_email', 'loveStory',
+  'ceremony_venue_name', 'ceremony_venue_address', 'ceremony_lat', 'ceremony_lng', 'ceremony_place_id', 'ceremony_time_of_day',
+  'reception_venue_name', 'reception_venue_address', 'reception_lat', 'reception_lng', 'reception_place_id', 'reception_time_of_day',
+  'giftRegistry', 'accommodations',
+];
 const TEMPLATE_TYPE_FIELD_KEYS = {
   wedding: WEDDING_FIELD_KEYS,
-  engagement: ['partner1', 'partner2', 'proposalStory', 'giftRegistry'],
+  engagement: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry'],
   corporate: ['company', 'agenda', 'speakers', 'sponsors'],
   birthday: ['celebrant', 'age', 'partyTheme'],
   gala: ['honoree', 'program', 'sponsorPackages'],
@@ -779,7 +784,15 @@ export default function CreateEventWizard() {
   /* ═══ Place selection handler ═══ */
   const handlePlaceSelect = useCallback((place) => {
     setLocationAddress(place.address);
-    if (place.name) setLocationName(place.name);
+    // Plain-address predictions (as opposed to named venues/businesses) have no
+    // distinct `place.name` — it either comes back empty or identical to the
+    // address. Previously that left the Venue field untouched (often still
+    // showing whatever partial text the user was mid-typing), which looked like
+    // the selection had only filled in the Address. Fall back to the first
+    // segment of the address so Venue always reflects the picked place.
+    setLocationName(place.name && place.name !== place.address
+      ? place.name
+      : (place.address ? place.address.split(',')[0] : ''));
     setLocationLat(place.lat);
     setLocationLng(place.lng);
     setLocationPlaceId(place.placeId);

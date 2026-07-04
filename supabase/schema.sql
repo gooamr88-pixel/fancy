@@ -4136,7 +4136,7 @@ ALTER TABLE public.rsvp_parties ADD COLUMN IF NOT EXISTS sms_consent_at TIMESTAM
 
 DROP FUNCTION IF EXISTS public.submit_rsvp_v2(TEXT, UUID, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, JSONB, JSONB, TEXT, TEXT, TEXT);
 
-CREATE FUNCTION public.submit_rsvp_v2(p_slug text, p_party_id uuid, p_guest_name text, p_email text, p_phone text, p_response text, p_party_size integer, p_notes text, p_primary_meal text, p_additional_guests jsonb, p_custom_answers jsonb, p_decline_reason text, p_maybe_confirm_by text, p_side text DEFAULT NULL, p_sms_consent boolean DEFAULT false) RETURNS jsonb
+CREATE FUNCTION public.submit_rsvp_v2(p_slug text, p_party_id uuid, p_guest_name text, p_email text, p_phone text, p_response text, p_party_size integer, p_notes text, p_primary_meal text, p_additional_guests jsonb, p_custom_answers jsonb, p_decline_reason text, p_maybe_confirm_by text, p_side text DEFAULT NULL, p_sms_consent boolean DEFAULT false, p_primary_dietary_notes text DEFAULT NULL) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -4373,9 +4373,10 @@ BEGIN
     DELETE FROM guests WHERE party_id = v_party_id;
     DELETE FROM custom_answers WHERE party_id = v_party_id;
 
-    INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+    INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
     VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
-            CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+            CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END,
+            CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END);
   ELSE
     IF v_norm_email IS NOT NULL THEN
       SELECT p.id, p.response INTO v_party_id, v_existing_resp FROM guests g JOIN rsvp_parties p ON p.id = g.party_id
@@ -4433,18 +4434,20 @@ BEGIN
       RETURNING id INTO v_party_id;
 
       BEGIN
-        INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+        INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
         VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
-                CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+                CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END,
+                CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END);
       EXCEPTION WHEN unique_violation THEN
         DELETE FROM rsvp_parties WHERE id = v_party_id;
         RETURN jsonb_build_object('success', false, 'code', 'DUPLICATE_RSVP',
           'message', 'An RSVP with this email or phone already exists for this event.');
       END;
     ELSE
-      INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection)
+      INSERT INTO guests (party_id, event_id, full_name, email, phone, is_primary_contact, meal_selection, dietary_notes)
       VALUES (v_party_id, v_event.id, p_guest_name, v_norm_email, p_phone, true,
-              CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END);
+              CASE WHEN p_response = 'yes' THEN NULLIF(p_primary_meal, '') ELSE NULL END,
+              CASE WHEN p_response = 'yes' THEN NULLIF(btrim(p_primary_dietary_notes), '') ELSE NULL END);
     END IF;
   END IF;
 
@@ -4523,7 +4526,7 @@ BEGIN
 END;
 $_$;
 
-REVOKE ALL ON FUNCTION public.submit_rsvp_v2(TEXT, UUID, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, JSONB, JSONB, TEXT, TEXT, TEXT, BOOLEAN) FROM anon, authenticated;
+REVOKE ALL ON FUNCTION public.submit_rsvp_v2(TEXT, UUID, TEXT, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, JSONB, JSONB, TEXT, TEXT, TEXT, BOOLEAN, TEXT) FROM anon, authenticated;
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- 20260719000000_marketing_forms.sql

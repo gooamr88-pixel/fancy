@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { normalizeToE164 } from '../../utils/phone';
 import { findMealField } from '../../utils/mealField';
+import PhoneNumberInput from '../../components/PhoneNumberInput';
 
 /** Normalize legacy response values to the canonical set the backend accepts. */
 function normalizeResponse(response) {
@@ -254,11 +255,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
               </div>
               <div>
                 <label style={labelStyle}>Phone</label>
-                <input value={formData.phone} onChange={handleChange('phone')} type="tel"
-                  placeholder="+1 (555) 000-0000" style={inputStyle}
-                  onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-                  onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-                />
+                <PhoneNumberInput value={formData.phone} onChange={(val) => handleChange('phone')({ target: { value: val } })} />
               </div>
             </div>
 
@@ -321,11 +318,8 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
                       onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
                       onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
                     />
-                    <input value={c.phone} onChange={handleCompanionChange(idx, 'phone')} type="tel"
-                      placeholder="Phone (optional)" style={inputStyle}
-                      onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-                      onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-                    />
+                    <PhoneNumberInput value={c.phone} placeholder="Phone (optional)"
+                      onChange={(val) => handleCompanionChange(idx, 'phone')({ target: { value: val } })} />
                   </div>
                 ))}
               </div>
