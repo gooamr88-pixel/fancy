@@ -28,7 +28,11 @@ export async function publicApiFetch(path, options = {}) {
   if (!res.ok || body.success === false) {
     throw new PublicApiError(body.message || 'Request failed', { status: res.status, code: body.error, meta: body.meta });
   }
-  return body.data ?? {};
+  if (body.data !== undefined) {
+    return body.data;
+  }
+  const { success, ...rest } = body;
+  return rest;
 }
 
 export { API_URL };
