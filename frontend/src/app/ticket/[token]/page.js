@@ -31,7 +31,7 @@ function TicketRoute({ token }) {
     let cancelled = false;
     (async () => {
       try {
-        const data = await publicApiFetch(`/ticket/${encodeURIComponent(token)}`);
+        const data = await publicApiFetch(`/public/ticket/${encodeURIComponent(token)}`);
         if (cancelled) return;
         setPayload(data);
         setStatus(data.locked ? 'locked' : 'ready');
