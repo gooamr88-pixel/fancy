@@ -243,18 +243,28 @@ function HeroCard() {
         }}
       >
         <div className="relative w-full h-full" style={{ transformStyle: "preserve-3d" }}>
-          {/* Layer 1: Envelope back pocket */}
+          {/* Layer 1: Envelope body. Width matches the card exactly (260/left 30)
+              and height is (stage height 440 − top flap height 120) so the
+              flap and body tile edge-to-edge with no gap between them. */}
           <div
-            className="absolute left-0 right-0 bottom-0 bg-[#F4EFE6] rounded-b-2xl border border-amber-900/10 shadow-xl"
+            className="absolute rounded-b-lg border-x border-b border-amber-900/15 shadow-xl bg-[#F1E9D8]"
             style={{
-              height: 220,
+              width: 260,
+              left: 30,
+              bottom: 0,
+              height: 320,
               zIndex: 10,
               transformStyle: "preserve-3d",
             }}
           >
-            {/* Lining pattern */}
+            {/* Fold seam where the flap meets the body */}
             <div
-              className="absolute inset-2 top-0 bg-gradient-to-b from-[#DFD3C3] via-[#FAF9F6] to-[#FAF9F6] rounded-b-xl"
+              className="absolute left-0 right-0 top-0 h-px"
+              style={{ background: "linear-gradient(90deg, transparent, rgba(122,92,22,0.4), transparent)" }}
+            />
+            {/* Interior lining panel */}
+            <div
+              className="absolute inset-2 top-1.5 bg-gradient-to-b from-[#E4D6B8] via-[#FAF6EC] to-[#FAF9F6] rounded-b-md"
               style={{ transform: "translateZ(1px)" }}
             />
           </div>
@@ -266,9 +276,12 @@ function HeroCard() {
               width: 260,
               height: 360,
               left: 30, // Centered inside the 320px stage
-              bottom: 12,
+              bottom: 20,
               transformOrigin: "bottom center",
-              zIndex: isCardOut ? 40 : 20,
+              // Constant: above the envelope body (10) and the opened flap (5)
+              // so it's visible throughout, but below the closed flap (31)
+              // so the seal/flap still conceals it before opening.
+              zIndex: 25,
             }}
             initial={{ y: 0, scale: 0.9, opacity: 0 }}
             animate={{
@@ -298,28 +311,13 @@ function HeroCard() {
             )}
           </motion.div>
 
-          {/* Layer 3: Front flaps */}
-          <div
-            className="absolute left-0 right-0 bottom-0 pointer-events-none"
-            style={{ height: 220, zIndex: 30 }}
-          >
-            <svg className="w-full h-full filter drop-shadow-md" viewBox="0 0 100 70" preserveAspectRatio="none">
-              <defs>
-                <filter id="flapShadow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" floodColor="#5C4D3C" floodOpacity="0.22" />
-                </filter>
-              </defs>
-              <path d="M 0,0 L 46,38 L 0,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
-              <path d="M 100,0 L 54,38 L 100,70 Z" fill="#EADBC8" stroke="#DFD3C3" strokeWidth="0.3" filter="url(#flapShadow)" />
-              <path d="M 0,70 L 50,34 L 100,70 Z" fill="#F5EFE6" stroke="#E5D8C6" strokeWidth="0.3" filter="url(#flapShadow)" />
-            </svg>
-          </div>
-
-          {/* Layer 4: Top folding flap */}
+          {/* Layer 4: Top folding flap — same width/left as the body below it */}
           <motion.div
-            className="absolute left-0 right-0 w-full transform-style-3d"
+            className="absolute transform-style-3d"
             style={{
-              height: 110,
+              width: 260,
+              left: 30,
+              height: 120,
               top: 0,
               transformOrigin: "top center",
               originY: 0,
@@ -337,7 +335,7 @@ function HeroCard() {
             {/* Front flap (closed) */}
             <div className="absolute inset-0 backface-hidden" style={{ zIndex: 32 }}>
               <svg className="w-full h-full filter drop-shadow-sm" viewBox="0 0 100 45" preserveAspectRatio="none">
-                <polygon points="0,0 50,45 100,0" fill="#FAF9F6" stroke="#DFD3C3" strokeWidth="0.3" />
+                <polygon points="0,0 50,45 100,0" fill="#F7F0DF" stroke="#B8944F" strokeOpacity="0.35" strokeWidth="0.6" />
               </svg>
             </div>
 
@@ -363,7 +361,7 @@ function HeroCard() {
               <motion.div
                 className="absolute left-1/2 cursor-pointer"
                 style={{
-                  top: 95,
+                  top: 120, // centered on the fold seam (flap height 120)
                   x: "-50%",
                   y: "-50%",
                   zIndex: 45,

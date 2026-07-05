@@ -80,7 +80,7 @@ function TicketRoute({ token }) {
             <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '4px', color: themeColor, fontWeight: 700, display: 'block', marginBottom: '10px' }}>
               {isRTL ? 'تذكرتك' : 'Your Ticket'}
             </span>
-            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 400, lineHeight: 1.3 }}>
+            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 400, lineHeight: 1.3, color: '#FFFFFF' }}>
               {event?.title || (isRTL ? 'الفعالية' : 'Event')}
             </h1>
             {formattedDate && (
