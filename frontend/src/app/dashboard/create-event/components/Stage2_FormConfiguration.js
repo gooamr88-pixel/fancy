@@ -6,6 +6,7 @@ import PlacesAutocomplete from '../../../../app/components/PlacesAutocomplete';
 import InlineFormBuilder from './InlineFormBuilder';
 import { DressCodeVisualizer } from '../../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../../utils/youtube';
+import RepeatableListEditor from '../../components/RepeatableListEditor';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -22,7 +23,7 @@ const DRESS_CODES = ['', 'Black Tie', 'Cocktail Attire', 'Semi-Formal', 'Busines
 // with WEDDING_STYLE_TEMPLATE_KEYS in create-event/page.js.
 const WEDDING_STYLE_TEMPLATE_KEYS = [
   'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
-  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal',
+  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
 ];
 
 const PRIVACY_MODES = [
@@ -361,6 +362,95 @@ export default function Stage2_FormConfiguration({
                   <textarea value={td('accommodations')} onChange={e => setTd('accommodations')(e.target.value)}
                     rows={2} placeholder="Hotel blocks, parking info…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+              </>
+            )}
+
+            {templateType === 'heritageArch' && (
+              <>
+                <Field label="Our Story">
+                  <textarea value={td('ha_our_story')} onChange={e => setTd('ha_our_story')(e.target.value)}
+                    rows={3} placeholder="Tell your story… (or leave blank to use Our Love Story above)"
+                    style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <Field label="Meal Options" hint="Comma-separated, e.g. Caviar, Fish">
+                    <input type="text" value={td('ha_meal_options')} onChange={e => setTd('ha_meal_options')(e.target.value)}
+                      placeholder="Caviar, Fish" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                  <Field label={'"You\'re Invited To" City'}>
+                    <input type="text" value={td('ha_invited_to_city')} onChange={e => setTd('ha_invited_to_city')(e.target.value)}
+                      placeholder="Miami" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                </div>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <Field label="Day 1 Venue Photo URL">
+                    <input type="url" value={td('ha_venue_day1_image')} onChange={e => setTd('ha_venue_day1_image')(e.target.value)}
+                      placeholder="https://…" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                  <Field label="Day 2 Venue Photo URL">
+                    <input type="url" value={td('ha_venue_day2_image')} onChange={e => setTd('ha_venue_day2_image')(e.target.value)}
+                      placeholder="https://…" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                </div>
+                <Field label="Day 1 Schedule">
+                  <RepeatableListEditor
+                    items={Array.isArray(templateData.ha_schedule_day1) ? templateData.ha_schedule_day1 : []}
+                    onChange={(items) => setTemplateData(d => ({ ...d, ha_schedule_day1: items }))}
+                    addLabel="+ Add schedule item"
+                    emptyLabel="No Day 1 schedule items yet — a sample schedule shows on the guest page until you add some."
+                    columns={[
+                      { key: 'time', label: 'Time', placeholder: '14:00' },
+                      { key: 'label', label: 'Label', placeholder: 'Lunch' },
+                      { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
+                        { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
+                        { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
+                      ] },
+                    ]}
+                  />
+                </Field>
+                <Field label="Day 2 Schedule">
+                  <RepeatableListEditor
+                    items={Array.isArray(templateData.ha_schedule_day2) ? templateData.ha_schedule_day2 : []}
+                    onChange={(items) => setTemplateData(d => ({ ...d, ha_schedule_day2: items }))}
+                    addLabel="+ Add schedule item"
+                    emptyLabel="No Day 2 schedule items yet — a sample schedule shows on the guest page until you add some."
+                    columns={[
+                      { key: 'time', label: 'Time', placeholder: '20:00' },
+                      { key: 'label', label: 'Label', placeholder: 'Wedding' },
+                      { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
+                        { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
+                        { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
+                      ] },
+                    ]}
+                  />
+                </Field>
+                <Field label="Accommodation">
+                  <RepeatableListEditor
+                    items={Array.isArray(templateData.ha_accommodation) ? templateData.ha_accommodation : []}
+                    onChange={(items) => setTemplateData(d => ({ ...d, ha_accommodation: items }))}
+                    addLabel="+ Add hotel"
+                    emptyLabel="No hotels yet — a sample hotel shows on the guest page until you add one."
+                    columns={[
+                      { key: 'name', label: 'Hotel name', placeholder: 'Hotel Costa' },
+                      { key: 'price', label: 'Price', placeholder: '$4,100' },
+                      { key: 'imageUrl', label: 'Photo URL', placeholder: 'https://…' },
+                      { key: 'link', label: 'Booking link', placeholder: 'https://…' },
+                      { key: 'description', label: 'Note', type: 'textarea', placeholder: 'Book directly for a discount' },
+                    ]}
+                  />
+                </Field>
+                <Field label="FAQ">
+                  <RepeatableListEditor
+                    items={Array.isArray(templateData.ha_faq) ? templateData.ha_faq : []}
+                    onChange={(items) => setTemplateData(d => ({ ...d, ha_faq: items }))}
+                    addLabel="+ Add question"
+                    emptyLabel="No FAQ items yet — sample questions show on the guest page until you add some."
+                    columns={[
+                      { key: 'question', label: 'Question', placeholder: 'Can I bring my children?' },
+                      { key: 'answer', label: 'Answer', type: 'textarea', placeholder: 'Answer shown to guests…' },
+                    ]}
+                  />
                 </Field>
               </>
             )}

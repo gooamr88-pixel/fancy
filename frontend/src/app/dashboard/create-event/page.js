@@ -41,7 +41,7 @@ const C = {
    diverge cleanly without scattering the same OR-chain across the app. */
 const WEDDING_STYLE_TEMPLATE_KEYS = [
   'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
-  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal',
+  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
 ];
 
 /* ═══════════════════════════════════════════════════════
@@ -193,6 +193,17 @@ const TEMPLATES = [
     fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   {
+    key: 'heritageArch', label: 'Heritage Arch', icon: '🕌', tier: 'Wedding',
+    tagline: 'Full-Page · Multi-Day',
+    desc: 'A full-page, one-section-per-screen wedding site with a temple-arch hero, a tabbed two-day schedule, per-day venue maps, accommodation, FAQ, and an all-in-one RSVP form.',
+    presets: [
+      { name: 'Ivory & Burgundy', primary: '#7A1E2C', secondary: '#D9BE8F', accent: '#7A1E2C', background: '#F7F1E4' },
+      { name: 'Parchment & Wine', primary: '#5C1A2A', secondary: '#C9A24B', accent: '#5C1A2A', background: '#F3ECDD' },
+    ],
+    specs: ['Full-Viewport Snap Sections', 'Day 1 / Day 2 Schedule & Venues', 'Accommodation Carousel', 'FAQ + Gallery + RSVP'],
+    fields: ['Partner Names', 'Two-Day Schedule', 'Venues per Day', 'Accommodation', 'FAQ'],
+  },
+  {
     key: 'custom', label: 'Custom Canvas', icon: '✨', tier: 'Build your own',
     tagline: 'Fully editable',
     desc: 'Start from a clean slate and design your own page — colors, typography, background, cover image, CTA and sections, all updating live as you build.',
@@ -215,6 +226,12 @@ const WEDDING_FIELD_KEYS = [
   'ceremony_venue_name', 'ceremony_venue_address', 'ceremony_lat', 'ceremony_lng', 'ceremony_place_id', 'ceremony_time_of_day',
   'reception_venue_name', 'reception_venue_address', 'reception_lat', 'reception_lng', 'reception_place_id', 'reception_time_of_day',
   'giftRegistry', 'accommodations',
+  // Heritage Arch template — full-page multi-day site (schedule/venues per day,
+  // accommodation list, FAQ list, meal options, invited-to city).
+  'ha_schedule_day1', 'ha_schedule_day2',
+  'ha_venue_day1_name', 'ha_venue_day1_address', 'ha_venue_day1_lat', 'ha_venue_day1_lng', 'ha_venue_day1_image',
+  'ha_venue_day2_name', 'ha_venue_day2_address', 'ha_venue_day2_lat', 'ha_venue_day2_lng', 'ha_venue_day2_image',
+  'ha_accommodation', 'ha_faq', 'ha_meal_options', 'ha_invited_to_city', 'ha_our_story',
 ];
 const TEMPLATE_TYPE_FIELD_KEYS = {
   wedding: WEDDING_FIELD_KEYS,

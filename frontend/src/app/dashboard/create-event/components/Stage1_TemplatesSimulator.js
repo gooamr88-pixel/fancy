@@ -39,6 +39,7 @@ const TEMPLATE_PREVIEW_MAP = {
   clay:       { name: 'Copper & Clay',     pattern: 'clay',        accent: '#B5502F' },
   alpine:     { name: 'Alpine Pine',       pattern: 'alpine',      accent: '#D9C9A3' },
   coastal:    { name: 'Coastal Linen',     pattern: 'coastal',     accent: '#2B5F5A' },
+  heritageArch: { name: 'Heritage Arch',   pattern: 'estate',      accent: '#7A1E2C' },
 };
 
 /* ═══ Envelope lining gradient mapping ═══ */
@@ -58,6 +59,7 @@ function getLiningGradId(templateKey, presetIndex) {
     marrakesh: 'goldGrad', kyoto: 'burgundyGrad', nordic: 'goldGrad',
     havana: 'terracottaGrad', estate: 'emeraldGrad', roseAtelier: 'burgundyGrad',
     orchid: 'goldGrad', clay: 'terracottaGrad', alpine: 'emeraldGrad', coastal: 'emeraldGrad',
+    heritageArch: 'burgundyGrad',
   };
   if (HUE_MATCH[templateKey]) return HUE_MATCH[templateKey];
   return 'goldGrad';

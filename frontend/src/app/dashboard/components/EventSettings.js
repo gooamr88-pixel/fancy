@@ -7,6 +7,7 @@ import FontPicker from './FontPicker';
 import { supabase } from '../../utils/supabaseClient';
 import { DressCodeVisualizer } from '../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../utils/youtube';
+import RepeatableListEditor from './RepeatableListEditor';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -93,6 +94,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     honoree: '', program: '', sponsorPackages: '',
     seal_text: '', seal_image_url: '', invitation_bg_url: '',
     title_ar: '', description_ar: '', dress_code_ar: '',
+    ha_schedule_day1: [], ha_schedule_day2: [],
+    ha_venue_day1_image: '', ha_venue_day2_image: '',
+    ha_accommodation: [], ha_faq: [], ha_meal_options: '', ha_invited_to_city: '', ha_our_story: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -384,6 +388,16 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         title_ar: event.template_data?.title_ar || '',
         description_ar: event.template_data?.description_ar || '',
         dress_code_ar: event.template_data?.dress_code_ar || '',
+        // Heritage Arch template — full-page multi-day site content.
+        ha_schedule_day1: Array.isArray(event.template_data?.ha_schedule_day1) ? event.template_data.ha_schedule_day1 : [],
+        ha_schedule_day2: Array.isArray(event.template_data?.ha_schedule_day2) ? event.template_data.ha_schedule_day2 : [],
+        ha_venue_day1_image: event.template_data?.ha_venue_day1_image || '',
+        ha_venue_day2_image: event.template_data?.ha_venue_day2_image || '',
+        ha_accommodation: Array.isArray(event.template_data?.ha_accommodation) ? event.template_data.ha_accommodation : [],
+        ha_faq: Array.isArray(event.template_data?.ha_faq) ? event.template_data.ha_faq : [],
+        ha_meal_options: event.template_data?.ha_meal_options || '',
+        ha_invited_to_city: event.template_data?.ha_invited_to_city || '',
+        ha_our_story: event.template_data?.ha_our_story || '',
       });
     }
   }
@@ -763,6 +777,107 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <label style={labelStyle}>Reception Time</label>
                 <input type="time" value={templateData.reception_time_of_day} onChange={(e) => setTemplateData(prev => ({ ...prev, reception_time_of_day: e.target.value }))} style={inputStyle} />
               </div>
+            </div>
+          </div>
+        )}
+
+        {event?.template_type === 'heritageArch' && (
+          <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Heritage Arch Template Details</h4>
+            <span style={hintStyle}>Day 1&apos;s venue reuses the Ceremony venue above; Day 2&apos;s venue reuses the Reception venue above.</span>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Our Story</label>
+              <textarea value={templateData.ha_our_story} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_our_story: e.target.value }))} placeholder="Tell your story…" rows={4} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+
+            <div className="es-row" style={rowStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Meal Options (comma-separated)</label>
+                <input value={templateData.ha_meal_options} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_meal_options: e.target.value }))} placeholder="Caviar, Fish" style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>&quot;You&apos;re Invited To&quot; City</label>
+                <input value={templateData.ha_invited_to_city} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_invited_to_city: e.target.value }))} placeholder="Miami" style={inputStyle} />
+              </div>
+            </div>
+
+            <div className="es-row" style={rowStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Day 1 Venue Photo URL</label>
+                <input value={templateData.ha_venue_day1_image} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_venue_day1_image: e.target.value }))} placeholder="https://…" style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Day 2 Venue Photo URL</label>
+                <input value={templateData.ha_venue_day2_image} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_venue_day2_image: e.target.value }))} placeholder="https://…" style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Day 1 Schedule</label>
+              <RepeatableListEditor
+                items={templateData.ha_schedule_day1}
+                onChange={(items) => setTemplateData(prev => ({ ...prev, ha_schedule_day1: items }))}
+                addLabel="+ Add schedule item"
+                emptyLabel="No Day 1 schedule items yet — falls back to a sample schedule on the guest page."
+                columns={[
+                  { key: 'time', label: 'Time', placeholder: '14:00' },
+                  { key: 'label', label: 'Label', placeholder: 'Lunch' },
+                  { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
+                    { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
+                    { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
+                  ] },
+                ]}
+              />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Day 2 Schedule</label>
+              <RepeatableListEditor
+                items={templateData.ha_schedule_day2}
+                onChange={(items) => setTemplateData(prev => ({ ...prev, ha_schedule_day2: items }))}
+                addLabel="+ Add schedule item"
+                emptyLabel="No Day 2 schedule items yet — falls back to a sample schedule on the guest page."
+                columns={[
+                  { key: 'time', label: 'Time', placeholder: '20:00' },
+                  { key: 'label', label: 'Label', placeholder: 'Wedding' },
+                  { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
+                    { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
+                    { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
+                  ] },
+                ]}
+              />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Accommodation</label>
+              <RepeatableListEditor
+                items={templateData.ha_accommodation}
+                onChange={(items) => setTemplateData(prev => ({ ...prev, ha_accommodation: items }))}
+                addLabel="+ Add hotel"
+                emptyLabel="No hotels yet — falls back to a sample hotel on the guest page."
+                columns={[
+                  { key: 'name', label: 'Hotel name', placeholder: 'Hotel Costa' },
+                  { key: 'price', label: 'Price', placeholder: '$4,100' },
+                  { key: 'imageUrl', label: 'Photo URL', placeholder: 'https://…' },
+                  { key: 'link', label: 'Booking link', placeholder: 'https://…' },
+                  { key: 'description', label: 'Note', type: 'textarea', placeholder: 'Book directly for a discount' },
+                ]}
+              />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>FAQ</label>
+              <RepeatableListEditor
+                items={templateData.ha_faq}
+                onChange={(items) => setTemplateData(prev => ({ ...prev, ha_faq: items }))}
+                addLabel="+ Add question"
+                emptyLabel="No FAQ items yet — falls back to sample questions on the guest page."
+                columns={[
+                  { key: 'question', label: 'Question', placeholder: 'Can I bring my children?' },
+                  { key: 'answer', label: 'Answer', type: 'textarea', placeholder: 'Answer shown to guests…' },
+                ]}
+              />
             </div>
           </div>
         )}
