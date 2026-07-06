@@ -15,7 +15,7 @@
 import React, { Suspense, use, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { publicApiFetch, PublicApiError } from '../../utils/publicApi';
+import { publicApiFetch, PublicApiError, API_URL } from '../../utils/publicApi';
 import SeatingResultPanel from '../../[slug]/rsvp/steps/SeatingResultPanel';
 
 function TicketRoute({ token }) {
@@ -126,6 +126,25 @@ function TicketRoute({ token }) {
                   </span>
                   <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '19px', fontWeight: 600, color: '#191B1E', marginTop: '4px' }}>{guest.guest_name}</h2>
                   <span style={{ fontSize: '12px', color: '#77736A' }}>{isRTL ? `عدد الأفراد: ${guest.party_size}` : `Party of ${guest.party_size}`}</span>
+                </div>
+
+                {/* The actual entrance credential — this page is reached via the same
+                    signed token the door scanner verifies, so the QR rendered here (the
+                    backend's own PNG, not a client-side re-encode) is always the real,
+                    working ticket, unlike the decorative preview shown right after RSVP. */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '20px 0' }}>
+                  <div style={{ padding: '14px', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '16px', boxShadow: '0 8px 24px rgba(25,27,30,0.06)' }}>
+                    <img
+                      src={`${API_URL}/public/qr/${encodeURIComponent(token)}.png`}
+                      alt={isRTL ? 'رمز الدخول' : 'Entrance QR code'}
+                      width={200}
+                      height={200}
+                      style={{ display: 'block', width: '200px', height: '200px' }}
+                    />
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#A09A91', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>
+                    {isRTL ? 'اعرض هذا الرمز عند الدخول' : 'Show this at the door'}
+                  </span>
                 </div>
 
                 <SeatingResultPanel

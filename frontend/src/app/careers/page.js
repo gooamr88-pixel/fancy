@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import GoldDivider from "../components/GoldDivider";
 
 /* ═══════════════════════════════════════════════════════════
    Careers Page — Fancy RSVP
@@ -119,34 +120,14 @@ const cultureValues = [
   { title: "Grow Together", desc: "Mentorship, feedback, and continuous learning are part of our DNA." },
 ];
 
-function GoldDivider() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", padding: "12px 0" }}>
-      <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, transparent, #D7BE80)" }} />
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" fill="#D7BE80" opacity="0.5" />
-      </svg>
-      <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, #D7BE80, transparent)" }} />
-    </div>
-  );
-}
-
 function PerkCard({ perk }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="perk-card"
       style={{
         background: "#FFFFFF",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "16px",
         padding: "36px 28px",
-        transition: "all 0.35s ease",
-        transform: hovered ? "translateY(-5px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 16px 48px rgba(184,148,79,0.1)"
-          : "0 2px 12px rgba(0,0,0,0.03)",
         cursor: "default",
       }}
     >
@@ -185,30 +166,37 @@ function PerkCard({ perk }) {
       >
         {perk.desc}
       </p>
+
+      <style jsx>{`
+        .perk-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.35s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        }
+        .perk-card:hover,
+        .perk-card:focus-within {
+          border-color: #D7BE80;
+          transform: translateY(-5px);
+          box-shadow: 0 16px 48px rgba(184, 148, 79, 0.1);
+        }
+      `}</style>
     </div>
   );
 }
 
 function JobCard({ job }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="job-card"
       style={{
         background: "#FFFFFF",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "14px",
         padding: "32px 36px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         gap: "24px",
-        transition: "all 0.3s ease",
-        transform: hovered ? "translateY(-3px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 12px 36px rgba(184,148,79,0.1)"
-          : "0 2px 8px rgba(0,0,0,0.02)",
         flexWrap: "wrap",
       }}
     >
@@ -272,6 +260,21 @@ function JobCard({ job }) {
       >
         Apply Now
       </a>
+
+      <style jsx>{`
+        .job-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.3s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+        }
+        .job-card:hover,
+        .job-card:focus-within {
+          border-color: #D7BE80;
+          transform: translateY(-3px);
+          box-shadow: 0 12px 36px rgba(184, 148, 79, 0.1);
+        }
+      `}</style>
     </div>
   );
 }
@@ -501,7 +504,7 @@ export default function CareersPage() {
                         }}
                       />
                       <div>
-                        <h4
+                        <h3
                           style={{
                             fontFamily: "var(--font-serif)",
                             fontSize: "17px",
@@ -511,7 +514,7 @@ export default function CareersPage() {
                           }}
                         >
                           {v.title}
-                        </h4>
+                        </h3>
                         <p
                           style={{
                             fontFamily: "var(--font-sans)",

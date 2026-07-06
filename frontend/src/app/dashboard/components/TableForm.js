@@ -160,7 +160,7 @@ const TableForm = memo(function TableForm({
                     <button
                       type="button"
                       onClick={() => setEditingTableId(null)}
-                      style={{ padding: "5px 12px", background: "transparent", border: "1px solid #E8E2D6", borderRadius: "6px", fontSize: "11px", color: "#77736A", cursor: "pointer", fontWeight: 600 }}
+                      style={{ minHeight: "44px", padding: "5px 12px", background: "transparent", border: "1px solid #E8E2D6", borderRadius: "6px", fontSize: "11px", color: "#77736A", cursor: "pointer", fontWeight: 600 }}
                     >
                       Cancel
                     </button>
@@ -174,7 +174,7 @@ const TableForm = memo(function TableForm({
                         });
                         setEditingTableId(null);
                       }}
-                      style={{ padding: "5px 16px", background: "#B8944F", border: "none", borderRadius: "6px", fontSize: "11px", color: "#FFFFFF", cursor: "pointer", fontWeight: 700 }}
+                      style={{ minHeight: "44px", padding: "5px 16px", background: "#B8944F", border: "none", borderRadius: "6px", fontSize: "11px", color: "#FFFFFF", cursor: "pointer", fontWeight: 700 }}
                     >
                       Save
                     </button>

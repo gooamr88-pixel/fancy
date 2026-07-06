@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import { T, card } from '../../_components/theme';
+import { PageLoading } from '../../_components/Spinner';
+import { ErrorState } from '../../_components/ErrorState';
 
 /**
  * System Health Center (Master Plan §20): per-service status cards with latency,
@@ -51,8 +53,11 @@ export default function HealthPage() {
         <span style={{ fontSize: 11, color: T.text400, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Auto-refresh 15s</span>
       </header>
 
-      {error && <p style={{ color: T.danger }}>{error}</p>}
+      {error && <ErrorState message={error} onRetry={() => setTick((t) => t + 1)} />}
 
+      {!health && !error ? (
+        <PageLoading label="Checking system health…" />
+      ) : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
         {(health?.services || []).map((s) => {
           const color = STATUS_COLOR[s.status] || T.text500;
@@ -69,6 +74,7 @@ export default function HealthPage() {
           );
         })}
       </div>
+      )}
     </div>
   );
 }

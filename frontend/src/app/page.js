@@ -1,9 +1,9 @@
+import dynamic from "next/dynamic";
 import Navbar from "./components/landing/Navbar";
 import HeroSection from "./components/landing/HeroSection";
 import SocialProofBar from "./components/landing/SocialProofBar";
 import RSVPFlowSection from "./components/landing/RSVPFlowSection";
 import FeaturesSection from "./components/landing/FeaturesSection";
-import DashboardPreviewSection from "./components/landing/DashboardPreviewSection";
 import TestimonialsSection from "./components/landing/TestimonialsSection";
 import PricingSection from "./components/landing/PricingSection";
 import FAQSection from "./components/landing/FAQSection";
@@ -31,6 +31,12 @@ export const metadata = {
   },
   alternates: { canonical: 'https://fancyrsvp.com' },
 };
+
+// Below-the-fold decorative mockup (~1,000 lines) — code-split out of the
+// homepage's initial bundle rather than shipped eagerly with the above-fold sections.
+const DashboardPreviewSection = dynamic(() => import("./components/landing/DashboardPreviewSection"), {
+  loading: () => <div style={{ minHeight: 900, background: "#F8F4EC" }} />,
+});
 
 const jsonLd = {
   '@context': 'https://schema.org',

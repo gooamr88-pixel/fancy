@@ -5,6 +5,7 @@ import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import MobilePreview from "../components/templates/MobilePreview";
 import InvitationCard from "../components/templates/InvitationCard";
+import GoldDivider from "../components/GoldDivider";
 import { motion, AnimatePresence } from "framer-motion";
 
 const categories = ["All", "Classic", "Modern", "Rustic", "Luxury", "Minimal", "Floral", "Wedding"];
@@ -179,28 +180,13 @@ const templates = [
 ];
 
 function TemplateCard({ template, onPreview, isSelected }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       onClick={() => onPreview(template)}
+      className={`template-card${isSelected ? " template-card-selected" : ""}`}
       style={{
         borderRadius: "16px",
         overflow: "hidden",
-        border: isSelected 
-          ? "2px solid #B8944F" 
-          : hovered 
-          ? "1.5px solid #B8944F" 
-          : "1px solid #E8E2D6",
-        transition: "all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        transform: hovered ? "translateY(-6px)" : "translateY(0)",
-        boxShadow: isSelected
-          ? "0 12px 30px rgba(184,148,79,0.15), 0 4px 12px rgba(0,0,0,0.02)"
-          : hovered
-          ? "0 20px 60px rgba(184,148,79,0.12), 0 8px 24px rgba(0,0,0,0.04)"
-          : "0 2px 12px rgba(0,0,0,0.03)",
         background: "#FFFFFF",
         cursor: "pointer",
         position: "relative",
@@ -225,11 +211,10 @@ function TemplateCard({ template, onPreview, isSelected }) {
 
         {/* Hover overlay */}
         <div
+          className="template-hover-overlay"
           style={{
             position: "absolute",
             inset: 0,
-            background: hovered ? "rgba(0,0,0,0.2)" : "rgba(0,0,0,0)",
-            transition: "all 0.4s ease",
             pointerEvents: "none",
           }}
         />
@@ -289,10 +274,10 @@ function TemplateCard({ template, onPreview, isSelected }) {
             e.stopPropagation();
           }}
         >
-          <button 
+          <button
+            className="template-use-btn"
             style={{
               width: "100%",
-              backgroundColor: "#B8944F",
               color: "#FFFFFF",
               border: "none",
               padding: "10px 16px",
@@ -301,25 +286,21 @@ function TemplateCard({ template, onPreview, isSelected }) {
               fontSize: "13px",
               fontWeight: 700,
               cursor: "pointer",
-              transition: "all 0.2s ease",
               boxShadow: "0 4px 12px rgba(184,148,79,0.2)",
             }}
-            onMouseEnter={(e) => e.target.style.backgroundColor = "#a6833f"}
-            onMouseLeave={(e) => e.target.style.backgroundColor = "#B8944F"}
           >
             Use Template
           </button>
         </Link>
-        <button 
+        <button
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             onPreview(template);
           }}
+          className="template-preview-btn"
           style={{
             flex: 1,
-            backgroundColor: "#FFFFFF",
-            color: "#5E5A52",
             border: "1px solid #E8E2D6",
             padding: "10px 16px",
             borderRadius: "8px",
@@ -327,32 +308,59 @@ function TemplateCard({ template, onPreview, isSelected }) {
             fontSize: "13px",
             fontWeight: 600,
             cursor: "pointer",
-            transition: "all 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.backgroundColor = "#F8F4EC";
-            e.target.style.color = "#191B1E";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.backgroundColor = "#FFFFFF";
-            e.target.style.color = "#5E5A52";
           }}
         >
           Live Preview
         </button>
       </div>
-    </div>
-  );
-}
 
-function GoldDivider() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", margin: "0 auto", maxWidth: "280px" }}>
-      <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, transparent, #D7BE80)" }} />
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M10 2L12 8L18 10L12 12L10 18L8 12L2 10L8 8Z" fill="#B8944F" opacity="0.5" />
-      </svg>
-      <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, #D7BE80, transparent)" }} />
+      <style jsx>{`
+        .template-card {
+          border: 1px solid #E8E2D6;
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+          transform: translateY(0);
+          transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .template-card:hover,
+        .template-card:focus-within {
+          transform: translateY(-6px);
+        }
+        .template-card:not(.template-card-selected):hover,
+        .template-card:not(.template-card-selected):focus-within {
+          border: 1.5px solid #B8944F;
+          box-shadow: 0 20px 60px rgba(184, 148, 79, 0.12), 0 8px 24px rgba(0, 0, 0, 0.04);
+        }
+        .template-card-selected {
+          border: 2px solid #B8944F;
+          box-shadow: 0 12px 30px rgba(184, 148, 79, 0.15), 0 4px 12px rgba(0, 0, 0, 0.02);
+        }
+        .template-hover-overlay {
+          background: rgba(0, 0, 0, 0);
+          transition: all 0.4s ease;
+        }
+        .template-card:hover .template-hover-overlay,
+        .template-card:focus-within .template-hover-overlay {
+          background: rgba(0, 0, 0, 0.2);
+        }
+        .template-use-btn {
+          background-color: #B8944F;
+          transition: all 0.2s ease;
+        }
+        .template-use-btn:hover,
+        .template-use-btn:focus-visible {
+          background-color: #a6833f;
+        }
+        .template-preview-btn {
+          background-color: #FFFFFF;
+          color: #5E5A52;
+          transition: all 0.2s ease;
+        }
+        .template-preview-btn:hover,
+        .template-preview-btn:focus-visible {
+          background-color: #F8F4EC;
+          color: #191B1E;
+        }
+      `}</style>
     </div>
   );
 }
@@ -363,6 +371,19 @@ export default function TemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [selectedThemeColor, setSelectedThemeColor] = useState(themeColors[0]);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  // Tracks the `lg:` breakpoint (1024px) reactively via matchMedia, instead of
+  // reading window.innerWidth once at click-time — a one-time read wouldn't
+  // notice an orientation change/resize between clicks.
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsMobileViewport(mq.matches);
+    const onChange = (e) => setIsMobileViewport(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   // Lock body scroll when mobile preview modal is open
   useEffect(() => {
@@ -425,7 +446,7 @@ export default function TemplatesPage() {
             <h1
               style={{
                 fontFamily: "var(--font-serif)",
-                fontSize: "56px",
+                fontSize: "clamp(2.4rem, 5vw, 3.8rem)",
                 fontWeight: 700,
                 color: "#191B1E",
                 lineHeight: 1.15,
@@ -454,6 +475,7 @@ export default function TemplatesPage() {
 
         {/* ════════════════════ FILTER & GALLERY ════════════════════ */}
         <section style={{ maxWidth: "1280px", margin: "0 auto", padding: "60px 24px 100px" }}>
+          <h2 className="sr-only">Browse and Customize Templates</h2>
           {/* Filter Buttons */}
           <div
             style={{
@@ -494,7 +516,7 @@ export default function TemplatesPage() {
             ))}
           </div>
 
-          <GoldDivider />
+          <GoldDivider variant="wide" />
 
           {/* Theme Color Picker Section */}
           <div 
@@ -571,7 +593,7 @@ export default function TemplatesPage() {
                     template={template} 
                     onPreview={(t) => {
                       setSelectedTemplate(t);
-                      if (window.innerWidth < 1024) {
+                      if (isMobileViewport) {
                         setIsPreviewModalOpen(true);
                       } else {
                         const previewEl = document.getElementById("sticky-preview-section");
@@ -768,20 +790,7 @@ export default function TemplatesPage() {
               >
                 Start Designing
               </Link>
-              <Link
-                href="/pricing"
-                style={{
-                  padding: "16px 48px",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  borderRadius: "8px",
-                  border: "1px solid rgba(184,148,79,0.4)",
-                  color: "#D7BE80",
-                  textDecoration: "none",
-                  fontFamily: "var(--font-sans)",
-                  transition: "all 0.3s ease",
-                }}
-              >
+              <Link href="/pricing" className="btn-ghost-gold">
                 View Pricing
               </Link>
             </div>

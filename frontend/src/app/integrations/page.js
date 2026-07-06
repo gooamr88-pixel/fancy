@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import GoldDivider from "../components/GoldDivider";
 
 const integrations = [
   {
@@ -134,22 +135,14 @@ const integrations = [
 ];
 
 function IntegrationCard({ integration }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="integration-card"
       style={{
+        "--accent": integration.color,
         background: "#FFFFFF",
-        border: `1px solid ${hovered ? integration.color : "#E8E2D6"}`,
         borderRadius: "16px",
         padding: "36px 32px",
-        transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        transform: hovered ? "translateY(-6px)" : "translateY(0)",
-        boxShadow: hovered
-          ? `0 20px 60px ${integration.color}18, 0 8px 24px rgba(0,0,0,0.04)`
-          : "0 2px 12px rgba(0,0,0,0.03)",
         cursor: "default",
         display: "flex",
         flexDirection: "column",
@@ -159,6 +152,7 @@ function IntegrationCard({ integration }) {
     >
       {/* Top accent line on hover */}
       <div
+        className="integration-accent-line"
         style={{
           position: "absolute",
           top: 0,
@@ -166,12 +160,11 @@ function IntegrationCard({ integration }) {
           right: 0,
           height: "3px",
           background: integration.color,
-          opacity: hovered ? 1 : 0,
-          transition: "opacity 0.3s ease",
         }}
       />
 
       <div
+        className="integration-icon-box"
         style={{
           width: "64px",
           height: "64px",
@@ -181,8 +174,6 @@ function IntegrationCard({ integration }) {
           alignItems: "center",
           justifyContent: "center",
           marginBottom: "20px",
-          transition: "transform 0.3s ease",
-          transform: hovered ? "scale(1.05)" : "scale(1)",
         }}
       >
         {integration.icon}
@@ -215,18 +206,15 @@ function IntegrationCard({ integration }) {
 
       <Link
         href="/register"
+        className="integration-connect-link"
         style={{
           display: "inline-block",
           padding: "10px 24px",
           borderRadius: "8px",
-          border: `1.5px solid ${hovered ? integration.color : "#E8E2D6"}`,
-          background: hovered ? `${integration.color}08` : "transparent",
-          color: hovered ? integration.color : "#5E5A52",
           fontFamily: "var(--font-sans)",
           fontSize: "13px",
           fontWeight: 700,
           cursor: "pointer",
-          transition: "all 0.3s ease",
           alignSelf: "flex-start",
           letterSpacing: "0.3px",
           textDecoration: "none",
@@ -234,18 +222,49 @@ function IntegrationCard({ integration }) {
       >
         Connect →
       </Link>
-    </div>
-  );
-}
 
-function GoldDivider() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", margin: "0 auto", maxWidth: "280px" }}>
-      <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, transparent, #D7BE80)" }} />
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M10 2L12 8L18 10L12 12L10 18L8 12L2 10L8 8Z" fill="#B8944F" opacity="0.5" />
-      </svg>
-      <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, #D7BE80, transparent)" }} />
+      <style jsx>{`
+        .integration-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        }
+        .integration-card:hover,
+        .integration-card:focus-within {
+          border-color: var(--accent);
+          transform: translateY(-6px);
+          box-shadow: 0 20px 60px color-mix(in srgb, var(--accent) 9.4%, transparent), 0 8px 24px rgba(0, 0, 0, 0.04);
+        }
+        .integration-accent-line {
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+        .integration-card:hover .integration-accent-line,
+        .integration-card:focus-within .integration-accent-line {
+          opacity: 1;
+        }
+        .integration-icon-box {
+          transition: transform 0.3s ease;
+          transform: scale(1);
+        }
+        .integration-card:hover .integration-icon-box,
+        .integration-card:focus-within .integration-icon-box {
+          transform: scale(1.05);
+        }
+        .integration-connect-link {
+          border: 1.5px solid #E8E2D6;
+          background: transparent;
+          color: #5E5A52;
+          transition: all 0.3s ease;
+        }
+        .integration-connect-link:hover,
+        .integration-connect-link:focus-visible {
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 3.1%, transparent);
+          color: var(--accent);
+        }
+      `}</style>
     </div>
   );
 }
@@ -296,7 +315,7 @@ export default function IntegrationsPage() {
             <h1
               style={{
                 fontFamily: "var(--font-serif)",
-                fontSize: "56px",
+                fontSize: "clamp(2.4rem, 5vw, 3.8rem)",
                 fontWeight: 700,
                 color: "#191B1E",
                 lineHeight: 1.15,
@@ -325,8 +344,9 @@ export default function IntegrationsPage() {
 
         {/* ════════════════════ INTEGRATIONS GRID ════════════════════ */}
         <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "60px 48px 100px" }}>
-          <GoldDivider />
+          <GoldDivider variant="wide" />
 
+          <h2 className="sr-only">Available Integrations</h2>
           <div
             className="integrations-grid"
             style={{
@@ -606,20 +626,7 @@ export default function IntegrationsPage() {
               >
                 Get Started Free
               </Link>
-              <Link
-                href="/features"
-                style={{
-                  padding: "16px 48px",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  borderRadius: "8px",
-                  border: "1px solid rgba(184,148,79,0.4)",
-                  color: "#D7BE80",
-                  textDecoration: "none",
-                  fontFamily: "var(--font-sans)",
-                  transition: "all 0.3s ease",
-                }}
-              >
+              <Link href="/features" className="btn-ghost-gold">
                 Explore Features
               </Link>
             </div>

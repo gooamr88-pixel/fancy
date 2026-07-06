@@ -5,6 +5,7 @@ import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { normalizeToE164 } from '../../utils/phone';
 import { findMealField } from '../../utils/mealField';
 import PhoneNumberInput from '../../components/PhoneNumberInput';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 /** Normalize legacy response values to the canonical set the backend accepts. */
 function normalizeResponse(response) {
@@ -87,6 +88,9 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
       setTimeout(() => nameRef.current?.focus(), 120);
     }
   }, [isOpen, rsvp]);
+
+  // A11Y-9: shared focus-trap/focus-restore/scroll-lock/Escape hook.
+  const dialogRef = useModalA11y(isOpen, { onClose });
 
   if (!isOpen || !rsvp) return null;
 
@@ -199,19 +203,25 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-guest-modal-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: COLORS.white, borderRadius: '16px', width: '100%', maxWidth: '500px',
           boxShadow: '0 24px 64px rgba(0,0,0,0.12), 0 0 0 1px rgba(232,226,214,0.5)',
           animation: 'slideUp 0.25s ease', overflow: 'hidden',
+          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
         }}
       >
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 24px', borderBottom: `1px solid ${COLORS.border}`,
+          padding: '20px 24px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
         }}>
-          <h2 style={{
+          <h2 id="edit-guest-modal-title" style={{
             fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: COLORS.charcoal, margin: 0,
           }}>Edit Guest</h2>
           <button
@@ -232,7 +242,10 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
+        {/* Scrolls internally so Save/Cancel stay reachable even when the
+            on-screen keyboard shrinks the viewport, or with several
+            companions filled in (MOB-12). */}
+        <form onSubmit={handleSubmit} style={{ padding: '24px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
             <div>

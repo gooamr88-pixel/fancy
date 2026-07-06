@@ -117,7 +117,7 @@ export default function FAQSection() {
           <p className="faq-cta-subtitle">
             Contact our team — we typically respond within 2 hours.
           </p>
-          <Link href="/contact" className="faq-cta-button" style={{ textDecoration: 'none' }}>
+          <Link href="/contact" className="btn-outline faq-cta-button">
             <span>Contact Support</span>
             <svg
               width="16"
@@ -287,24 +287,7 @@ export default function FAQSection() {
         }
 
         .faq-cta-button {
-          display: inline-flex;
-          align-items: center;
           gap: 8px;
-          background: transparent;
-          border: 1.5px solid #191b1e;
-          border-radius: 6px;
-          padding: 14px 36px;
-          font-family: var(--font-sans);
-          font-size: 14px;
-          font-weight: 700;
-          color: #191b1e;
-          cursor: pointer;
-          transition: background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
-        }
-
-        .faq-cta-button:hover {
-          background: #191b1e;
-          color: #ffffff;
         }
 
         .faq-cta-button:hover svg path {

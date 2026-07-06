@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "../../hooks/useAuth";
 import { useIsClient } from "../../utils/useIsClient";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import InvitationCard from "../templates/InvitationCard";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -146,6 +146,7 @@ function HeroCard() {
   const [showTapIndicator, setShowTapIndicator] = useState(true);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
   const isClient = useIsClient();
+  const reduceMotion = useReducedMotion();
   // Sparkle positions are randomized once per mount and never regenerated;
   // computed lazily so Math.random() only runs once. They're never part of
   // the SSR output (gated by `isClient` below), so no hydration mismatch.
@@ -158,9 +159,11 @@ function HeroCard() {
     dur: 2 + Math.random() * 3,
   })));
 
-  // Auto-open teaser on page load
+  // Auto-open teaser on page load — skipped entirely under prefers-reduced-motion
+  // rather than just playing faster, since this is an unrequested motion-driven
+  // reveal the visitor never asked for; the envelope stays tap-to-open instead.
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || reduceMotion) return;
     const t = setTimeout(() => {
       if (!isOpen) {
         setIsOpen(true);
@@ -169,7 +172,7 @@ function HeroCard() {
       }
     }, 2500);
     return () => clearTimeout(t);
-  }, [isClient, isOpen]);
+  }, [isClient, isOpen, reduceMotion]);
 
   const handleOpen = () => {
     if (isOpen) return;

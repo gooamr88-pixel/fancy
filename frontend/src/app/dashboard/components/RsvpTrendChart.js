@@ -248,12 +248,14 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
   /* ── X labels logic ─── */
   const showEveryN = data.length > 12 ? 3 : data.length > 7 ? 2 : 1;
 
-  /* ── SVG mouse move for crosshair ─── */
-  const handleMouseMove = useCallback(
-    (e) => {
+  /* ── Shared crosshair logic — driven by mouse hover OR touch tap/drag, so
+     the tooltip (the actual accepted/declined/pending counts per date) isn't
+     hover-only and undiscoverable on a phone. ─── */
+  const updateTooltipFromPoint = useCallback(
+    (clientX, clientY) => {
       if (!svgRef.current || !hasData || data.length < 2) return;
       const rect = svgRef.current.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
+      const mouseX = clientX - rect.left;
       const svgScale = svgW / rect.width;
       const scaledX = mouseX * svgScale;
 
@@ -278,17 +280,29 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
 
       setHoverIdx(nearest);
       if (containerRef.current) {
+        // MOB-15: clamp into the container's actual bounds instead of a
+        // binary left/right flip — on a narrow phone-width card (~300px)
+        // the flip alone still let the tooltip clip past either edge.
         const containerRect = containerRef.current.getBoundingClientRect();
-        const tLeft = e.clientX - containerRect.left + 16;
-        const tTop = e.clientY - containerRect.top - 20;
-        const flipX = tLeft + 160 > containerRect.width;
-        setTooltipPos({ x: tLeft, y: tTop, flipX });
+        const TOOLTIP_W = 176;
+        const TOOLTIP_H = 90;
+        const rawLeft = clientX - containerRect.left + 16;
+        const tLeft = Math.min(Math.max(rawLeft - TOOLTIP_W, 0), Math.max(containerRect.width - TOOLTIP_W, 0));
+        const flipX = rawLeft + TOOLTIP_W > containerRect.width;
+        const rawTop = clientY - containerRect.top - 20;
+        const tTop = Math.min(Math.max(rawTop, 0), Math.max(containerRect.height - TOOLTIP_H, 0));
+        setTooltipPos({ x: flipX ? tLeft : rawLeft, y: tTop, flipX });
       }
     },
     [hasData, data, seriesMapped, chartW, svgW],
   );
 
+  const handleMouseMove = useCallback((e) => updateTooltipFromPoint(e.clientX, e.clientY), [updateTooltipFromPoint]);
   const handleMouseLeave = useCallback(() => setHoverIdx(-1), []);
+  const handleTouchMove = useCallback((e) => {
+    const touch = e.touches[0];
+    if (touch) updateTooltipFromPoint(touch.clientX, touch.clientY);
+  }, [updateTooltipFromPoint]);
 
   const toggleSeries = useCallback((key) => {
     setEnabledSeries((prev) => {
@@ -438,9 +452,11 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
           viewBox={`0 0 ${svgW} ${svgH}`}
           width="100%"
           preserveAspectRatio="xMidYMid meet"
-          style={{ display: 'block', overflow: 'visible', cursor: 'crosshair' }}
+          style={{ display: 'block', overflow: 'visible', cursor: 'crosshair', touchAction: 'none' }}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
+          onTouchStart={handleTouchMove}
+          onTouchMove={handleTouchMove}
         >
           <defs>
             {/* Gradients for each series area fill */}
@@ -576,7 +592,7 @@ export default function RsvpTrendChart({ rsvpTrend = [] }) {
           <div
             className="rsvp-trend-tooltip"
             style={{
-              left: tooltipPos.flipX ? tooltipPos.x - 176 : tooltipPos.x,
+              left: tooltipPos.x,
               top: tooltipPos.y,
               opacity: 1,
               transform: 'translateY(-8px)',

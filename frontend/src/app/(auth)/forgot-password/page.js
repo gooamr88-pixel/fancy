@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 import Toast from '../../components/Toast';
+import OtpBoxes from '../../components/OtpBoxes';
 
 // Mirrors the backend's passwordRegex (authController.js) so weak passwords are
 // caught before the round trip instead of only after a WEAK_PASSWORD rejection.
@@ -41,10 +42,12 @@ export default function ForgotPasswordPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [toast, setToast] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resending, setResending] = useState(false);
   const cooldownRef = useRef(null);
+  const otpBoxesRef = useRef(null);
 
   // Cleanup cooldown interval on unmount
   useEffect(() => {
@@ -54,9 +57,11 @@ export default function ForgotPasswordPage() {
   const handleRequestOtp = async (e) => {
     e.preventDefault();
     if (!email) {
+      setFieldErrors({ email: 'Email is required.' });
       setToast({ message: 'Please enter your email address.', kind: 'error' });
       return;
     }
+    setFieldErrors({});
     setSubmitting(true); setToast(null);
     try {
       const data = await apiFetch('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
@@ -92,6 +97,7 @@ export default function ForgotPasswordPage() {
         setOtp('');
         startResendCooldown();
         setToast({ message: 'A new verification code has been sent to your email.', kind: 'success' });
+        otpBoxesRef.current?.focusFirst();
       } else {
         setToast({ message: data.message || 'Failed to resend code. Please try again.', kind: 'error' });
       }
@@ -104,18 +110,21 @@ export default function ForgotPasswordPage() {
 
   const handleResetPassword = async (e) => {
     e.preventDefault();
-    if (!otp || !newPassword || !confirmPassword) {
-      setToast({ message: 'Please fill in the code and both password fields.', kind: 'error' });
+    const errors = {};
+    if (!otp) errors.otp = 'Verification code is required.';
+    if (!newPassword) errors.newPassword = 'New password is required.';
+    else if (!PASSWORD_REGEX.test(newPassword)) errors.newPassword = PASSWORD_HINT;
+    if (!confirmPassword) errors.confirmPassword = 'Please confirm your new password.';
+    else if (newPassword && confirmPassword && newPassword !== confirmPassword) errors.confirmPassword = 'Passwords do not match.';
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setToast({
+        message: errors.confirmPassword === 'Passwords do not match.' ? 'The passwords you entered do not match.' : 'Please fill in the code and both password fields.',
+        kind: 'error',
+      });
       return;
     }
-    if (newPassword !== confirmPassword) {
-      setToast({ message: 'The passwords you entered do not match.', kind: 'error' });
-      return;
-    }
-    if (!PASSWORD_REGEX.test(newPassword)) {
-      setToast({ message: `Your new password must meet the requirements below. ${PASSWORD_HINT}`, kind: 'error' });
-      return;
-    }
+    setFieldErrors({});
     setSubmitting(true); setToast(null);
     try {
       const data = await apiFetch('/auth/reset-password', { method: 'POST', body: JSON.stringify({ email, otp, newPassword, confirmPassword }) });
@@ -217,7 +226,11 @@ export default function ForgotPasswordPage() {
                 <div className="auth-field">
                   <label htmlFor="fp-email" className="auth-label">Email Address</label>
                   <input id="fp-email" type="email" required value={email} autoComplete="email"
-                    onChange={e => setEmail(e.target.value)} placeholder="host@example.com" className="auth-input" />
+                    onChange={e => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); }}
+                    placeholder="host@example.com" className="auth-input"
+                    aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'fp-email-error' : undefined}
+                    style={fieldErrors.email ? { borderColor: '#DC2626' } : undefined} />
+                  {fieldErrors.email && <span id="fp-email-error" role="alert" className="auth-field-error">{fieldErrors.email}</span>}
                 </div>
 
                 <button type="submit" disabled={submitting} className="auth-submit-btn">
@@ -250,34 +263,51 @@ export default function ForgotPasswordPage() {
               </div>
 
               <form onSubmit={handleResetPassword} className="auth-form">
+                {/* Password managers key their "update saved password" heuristic off an
+                    associated username field inside the form — without one, browsers have
+                    no account identity to attach the new password to. */}
+                <input type="hidden" autoComplete="username" value={email} readOnly />
                 <div className="auth-field">
-                  <label htmlFor="otp-input" className="auth-label">6-Digit OTP Code</label>
-                  <input id="otp-input" type="text" required maxLength={6} value={otp} autoComplete="one-time-code"
-                    onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="123456"
-                    className="auth-input otp-single-input" />
+                  <span className="auth-label">6-Digit OTP Code</span>
+                  <OtpBoxes
+                    ref={otpBoxesRef}
+                    value={otp}
+                    onChange={(val) => { setOtp(val); if (fieldErrors.otp) setFieldErrors(prev => ({ ...prev, otp: undefined })); }}
+                    hasError={!!fieldErrors.otp}
+                    ariaLabel="6-digit OTP code"
+                    autoFocus
+                  />
+                  {fieldErrors.otp && <span id="otp-error" role="alert" className="auth-field-error" style={{ display: 'block', textAlign: 'center' }}>{fieldErrors.otp}</span>}
                 </div>
 
                 <div className="auth-field">
                   <label htmlFor="new-password-input" className="auth-label">New Password</label>
                   <div className="auth-password-wrapper">
                     <input id="new-password-input" type={showNewPassword ? 'text' : 'password'} required value={newPassword} autoComplete="new-password"
-                      onChange={e => setNewPassword(e.target.value)} placeholder="••••••••" className="auth-input" />
+                      onChange={e => { setNewPassword(e.target.value); if (fieldErrors.newPassword) setFieldErrors(prev => ({ ...prev, newPassword: undefined })); }}
+                      placeholder="••••••••" className="auth-input"
+                      aria-invalid={!!fieldErrors.newPassword} aria-describedby="new-password-hint"
+                      style={fieldErrors.newPassword ? { borderColor: '#DC2626' } : undefined} />
                     <button type="button" className="auth-eye-btn" onClick={() => setShowNewPassword(!showNewPassword)} aria-label={showNewPassword ? 'Hide password' : 'Show password'}>
                       <EyeIcon show={showNewPassword} />
                     </button>
                   </div>
-                  <p className="auth-field-hint">{PASSWORD_HINT}</p>
+                  <p id="new-password-hint" className={fieldErrors.newPassword ? 'auth-field-error' : 'auth-field-hint'}>{fieldErrors.newPassword || PASSWORD_HINT}</p>
                 </div>
 
                 <div className="auth-field">
                   <label htmlFor="confirm-password-input" className="auth-label">Confirm New Password</label>
                   <div className="auth-password-wrapper">
                     <input id="confirm-password-input" type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword} autoComplete="new-password"
-                      onChange={e => setConfirmPassword(e.target.value)} placeholder="••••••••" className="auth-input" />
+                      onChange={e => { setConfirmPassword(e.target.value); if (fieldErrors.confirmPassword) setFieldErrors(prev => ({ ...prev, confirmPassword: undefined })); }}
+                      placeholder="••••••••" className="auth-input"
+                      aria-invalid={!!fieldErrors.confirmPassword} aria-describedby={fieldErrors.confirmPassword ? 'confirm-password-error' : undefined}
+                      style={fieldErrors.confirmPassword ? { borderColor: '#DC2626' } : undefined} />
                     <button type="button" className="auth-eye-btn" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>
                       <EyeIcon show={showConfirmPassword} />
                     </button>
                   </div>
+                  {fieldErrors.confirmPassword && <span id="confirm-password-error" role="alert" className="auth-field-error">{fieldErrors.confirmPassword}</span>}
                 </div>
 
                 <button type="submit" disabled={submitting} className="auth-submit-btn">
@@ -408,17 +438,17 @@ export default function ForgotPasswordPage() {
         }
         .auth-input:focus { border-color: #B8944F; background: #FFFFFF; box-shadow: 0 0 0 3px rgba(184,148,79,0.08); }
         .auth-input::placeholder { color: #B5B0A7; }
-        .otp-single-input { text-align: center; letter-spacing: 0.3em; font-family: monospace; font-size: 18px; font-weight: 700; }
         .auth-password-wrapper { position: relative; }
         .auth-password-wrapper .auth-input { padding-right: 48px; }
         .auth-eye-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; display: flex; opacity: 0.6; transition: opacity 0.2s; }
         .auth-eye-btn:hover { opacity: 1; }
-        .auth-field-hint { font-size: 11.5px; color: #99938A; margin: 6px 0 0; line-height: 1.4; }
+        .auth-field-hint { font-size: 11.5px; color: var(--muted-stone); margin: 6px 0 0; line-height: 1.4; }
+        .auth-field-error { display: block; font-size: 11.5px; color: #DC2626; margin: 6px 0 0; line-height: 1.4; }
 
         /* ── Button ── */
         .auth-submit-btn {
           width: 100%; padding: 16px;
-          background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
+          background: linear-gradient(135deg, var(--gold-cta) 0%, var(--gold-cta-hover) 100%);
           color: #FFFFFF; border: none; border-radius: 10px;
           font-size: 14px; font-weight: 700; font-family: var(--font-sans);
           letter-spacing: 0.06em; cursor: pointer;
@@ -433,13 +463,13 @@ export default function ForgotPasswordPage() {
         /* ── Footer ── */
         .auth-footer-divider { width: 40px; height: 1px; background: #E8E2D6; margin: 28px auto 20px; }
         .auth-footer-text { text-align: center; font-size: 13px; color: #77736A; margin: 0; }
-        .auth-gold-link { color: #B8944F; font-weight: 700; text-decoration: none; transition: color 0.2s; }
-        .auth-gold-link:hover { color: #a6833f; }
+        .auth-gold-link { color: var(--gold-cta); font-weight: 700; text-decoration: none; transition: color 0.2s; }
+        .auth-gold-link:hover { color: var(--gold-cta-hover); }
         .auth-footer-row { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid #E8E2D6; font-size: 13px; }
         .auth-back-btn { background: none; border: none; color: #77736A; font-weight: 600; cursor: pointer; font-family: var(--font-sans); font-size: 13px; transition: color 0.2s; padding: 0; }
         .auth-back-btn:hover { color: #191B1E; }
-        .auth-resend-btn { background: none; border: 1px solid rgba(184,148,79,0.3); color: #B8944F; font-weight: 600; cursor: pointer; font-family: var(--font-sans); font-size: 13px; transition: all 0.2s; padding: 8px 16px; border-radius: 8px; }
-        .auth-resend-btn:hover:not(:disabled) { background: rgba(184,148,79,0.08); border-color: #B8944F; }
+        .auth-resend-btn { background: none; border: 1px solid rgba(184,148,79,0.3); color: var(--gold-cta); font-weight: 600; cursor: pointer; font-family: var(--font-sans); font-size: 13px; transition: all 0.2s; padding: 8px 16px; border-radius: 8px; }
+        .auth-resend-btn:hover:not(:disabled) { background: rgba(184,148,79,0.08); border-color: var(--gold-cta); }
         .auth-resend-btn:disabled { opacity: 0.5; cursor: not-allowed; color: #999; border-color: rgba(184,148,79,0.15); }
 
         /* ── Success ── */

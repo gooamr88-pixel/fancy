@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import SeatingMiniMap from '../SeatingMiniMap';
 import SeatingMapFullscreen from '../SeatingMapFullscreen';
+import { UtensilsIcon, WarningIcon } from '../../../components/guest/RsvpIcons';
 
 /**
  * Shows the guest's table + a highlighted map + the companions THEY brought.
@@ -116,8 +117,8 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
                 fontFamily: 'var(--font-serif)', fontWeight: 600, lineHeight: 1.25,
               }}>{host.name}</strong>
               {host.meal && (
-                <span style={{ fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)' }}>
-                  🍽️ {host.meal}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#77736A', fontFamily: 'var(--font-sans)' }}>
+                  <UtensilsIcon size={11} strokeWidth={1.8} /> {host.meal}
                 </span>
               )}
             </div>
@@ -157,8 +158,8 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
                       {p.name}
                     </span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' }}>
-                      {p.meal && <Tag color="gold">🍽️ {p.meal}</Tag>}
-                      {p.dietaryNotes && <Tag color="muted" dim>⚠ {p.dietaryNotes}</Tag>}
+                      {p.meal && <Tag color="gold"><UtensilsIcon size={11} strokeWidth={1.8} />{p.meal}</Tag>}
+                      {p.dietaryNotes && <Tag color="muted" dim><WarningIcon size={11} strokeWidth={1.8} />{p.dietaryNotes}</Tag>}
                     </div>
                   </div>
                 </div>

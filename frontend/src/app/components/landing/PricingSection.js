@@ -60,29 +60,18 @@ function tierToPlan(tier) {
   };
 }
 
-function PricingCard({ plan, isHovered, onMouseEnter, onMouseLeave }) {
-  const [btnHovered, setBtnHovered] = useState(false);
-
+function PricingCard({ plan }) {
   const cardStyle = {
     background: '#FFFFFF',
     borderRadius: '16px',
     border: plan.recommended ? 'none' : '1px solid #E8E2D6',
     padding: plan.recommended ? '0' : '40px 32px',
     flex: '1 1 0',
-    minWidth: '280px',
+    minWidth: 'clamp(240px, 100%, 280px)',
     maxWidth: '380px',
     display: 'flex',
     flexDirection: 'column',
     position: 'relative',
-    transform: isHovered ? 'translateY(-4px)' : 'translateY(0)',
-    boxShadow: plan.recommended
-      ? isHovered
-        ? '0 20px 48px rgba(184, 148, 79, 0.18), 0 8px 24px rgba(184, 148, 79, 0.10)'
-        : '0 12px 36px rgba(184, 148, 79, 0.12), 0 4px 16px rgba(184, 148, 79, 0.06)'
-      : isHovered
-        ? '0 16px 40px rgba(0, 0, 0, 0.10)'
-        : '0 2px 12px rgba(0, 0, 0, 0.04)',
-    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     cursor: 'default',
     overflow: 'hidden',
   };
@@ -166,27 +155,20 @@ function PricingCard({ plan, isHovered, onMouseEnter, onMouseLeave }) {
     plan.buttonVariant === 'filled'
       ? {
           ...buttonBase,
-          background: btnHovered
-            ? 'linear-gradient(135deg, #a07f3f 0%, #c9a85e 100%)'
-            : 'linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)',
           color: '#FFFFFF',
           border: 'none',
-          boxShadow: btnHovered
-            ? '0 6px 20px rgba(184, 148, 79, 0.35)'
-            : '0 4px 14px rgba(184, 148, 79, 0.25)',
         }
       : {
           ...buttonBase,
-          background: btnHovered ? 'rgba(184, 148, 79, 0.06)' : 'transparent',
+          background: 'transparent',
           color: '#B8944F',
           border: '1.5px solid #B8944F',
         };
 
   return (
     <div
+      className={`pricing-section-card${plan.recommended ? ' pricing-section-card-featured' : ''}`}
       style={cardStyle}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
     >
       <div style={innerStyle}>
         {plan.recommended && <div style={badgeStyle}>Most Popular</div>}
@@ -221,19 +203,50 @@ function PricingCard({ plan, isHovered, onMouseEnter, onMouseLeave }) {
         </div>
         <Link
           href={plan.href || (plan.buttonText === 'Contact Sales' ? '/contact' : '/register')}
+          className={plan.buttonVariant === 'filled' ? 'pricing-section-btn-filled' : 'pricing-section-btn-outline'}
           style={{ ...buttonStyle, textDecoration: 'none', textAlign: 'center', display: 'block' }}
-          onMouseEnter={() => setBtnHovered(true)}
-          onMouseLeave={() => setBtnHovered(false)}
         >
           {plan.buttonText}
         </Link>
       </div>
+
+      <style jsx>{`
+        .pricing-section-card {
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+          transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .pricing-section-card:hover,
+        .pricing-section-card:focus-within {
+          transform: translateY(-4px);
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.1);
+        }
+        .pricing-section-card-featured {
+          box-shadow: 0 12px 36px rgba(184, 148, 79, 0.12), 0 4px 16px rgba(184, 148, 79, 0.06);
+        }
+        .pricing-section-card-featured:hover,
+        .pricing-section-card-featured:focus-within {
+          box-shadow: 0 20px 48px rgba(184, 148, 79, 0.18), 0 8px 24px rgba(184, 148, 79, 0.1);
+        }
+        .pricing-section-btn-filled {
+          background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
+          box-shadow: 0 4px 14px rgba(184, 148, 79, 0.25);
+        }
+        .pricing-section-btn-filled:hover,
+        .pricing-section-btn-filled:focus-visible {
+          background: linear-gradient(135deg, #a07f3f 0%, #c9a85e 100%);
+          box-shadow: 0 6px 20px rgba(184, 148, 79, 0.35);
+        }
+        .pricing-section-btn-outline:hover,
+        .pricing-section-btn-outline:focus-visible {
+          background: rgba(184, 148, 79, 0.06);
+        }
+      `}</style>
     </div>
   );
 }
 
 export default function PricingSection() {
-  const [hoveredIndex, setHoveredIndex] = useState(null);
   const [plans, setPlans] = useState(FALLBACK_PLANS);
 
   useEffect(() => {
@@ -306,14 +319,8 @@ export default function PricingSection() {
             flexWrap: 'wrap',
           }}
         >
-          {plans.map((plan, index) => (
-            <PricingCard
-              key={plan.name}
-              plan={plan}
-              isHovered={hoveredIndex === index}
-              onMouseEnter={() => setHoveredIndex(index)}
-              onMouseLeave={() => setHoveredIndex(null)}
-            />
+          {plans.map((plan) => (
+            <PricingCard key={plan.name} plan={plan} />
           ))}
         </div>
       </div>

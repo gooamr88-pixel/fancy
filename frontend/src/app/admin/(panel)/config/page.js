@@ -8,6 +8,7 @@ import { Button } from '../../_components/Modal';
 import { useAlert } from '../../_components/AlertContext';
 import { Field } from '../../_components/Field';
 import { PageLoading } from '../../_components/Spinner';
+import { ErrorState } from '../../_components/ErrorState';
 
 // ── Toggle Switch component ──
 function Toggle({ checked, onChange, disabled }) {
@@ -181,8 +182,12 @@ export default function ConfigPage() {
   // UI state
   const [activeTab, setActiveTab] = useState('pricing'); // 'pricing' | 'tiers' | 'payments' | 'stats'
   const [selectedTierIdx, setSelectedTierIdx] = useState(0);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
+    // Re-arm the loading spinner for a manual retry, not just the initial mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
     (async () => {
       try {
         const [pricingRes, registryRes] = await Promise.all([
@@ -198,13 +203,14 @@ export default function ConfigPage() {
           setLandingStats(pricingRes.config.landing_stats || []);
         }
         if (registryRes) setFeatureRegistry(registryRes);
+        setError(null);
       } catch (err) {
         setError(err.message || 'Failed to load configuration');
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [retryTick]);
 
   const handleSaveConfig = async (e) => {
     e.preventDefault();
@@ -312,7 +318,7 @@ export default function ConfigPage() {
   });
 
   if (loading) return <PageLoading label="Loading configuration…" />;
-  if (error) return <p style={{ color: T.danger }}>{error}</p>;
+  if (error) return <ErrorState message={error} onRetry={() => setRetryTick((t) => t + 1)} />;
 
   const currentTier = pricingTiers[selectedTierIdx];
 
@@ -388,6 +394,7 @@ export default function ConfigPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
+                className="cfg-responsive-grid"
                 style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 24 }}
               >
                 {/* Tiers Sidebar List */}
@@ -452,7 +459,7 @@ export default function ConfigPage() {
                       <Button type="button" variant="danger" disabled={pricingTiers.length <= 1} onClick={() => removeTier(selectedTierIdx)}>Delete Tier</Button>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div className="cfg-responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
                       <Field label="Tier Name">
                         <input value={currentTier.name} onChange={e => handleTierChange(selectedTierIdx, 'name', e.target.value)} style={inputStyle} />
                       </Field>
@@ -464,7 +471,7 @@ export default function ConfigPage() {
                       </Field>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div className="cfg-responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                       <Field label="Display Price Label (e.g. Custom)">
                         <input value={currentTier.price_label || ''} onChange={e => handleTierChange(selectedTierIdx, 'price_label', e.target.value)} placeholder="auto from price" style={inputStyle} />
                       </Field>
@@ -473,7 +480,7 @@ export default function ConfigPage() {
                       </Field>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 18 }}>
+                    <div className="cfg-responsive-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 18 }}>
                       <Field label="Description">
                         <input value={currentTier.description || ''} onChange={e => handleTierChange(selectedTierIdx, 'description', e.target.value)} style={inputStyle} />
                       </Field>
@@ -546,7 +553,7 @@ export default function ConfigPage() {
                           opacity: m.is_active === false ? 0.6 : 1,
                         }}
                       >
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: 12, alignItems: 'end', marginBottom: 12 }}>
+                        <div className="cfg-responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr auto', gap: 12, alignItems: 'end', marginBottom: 12 }}>
                           <Field label="Label (e.g. Bank Transfer — CIB)">
                             <input value={m.label} onChange={e => updateMethod(idx, 'label', e.target.value)} style={inputStyle} />
                           </Field>
@@ -618,7 +625,7 @@ export default function ConfigPage() {
                           borderRadius: T.radiusSm,
                         }}
                       >
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.7fr 0.7fr auto', gap: 12, alignItems: 'end' }}>
+                        <div className="cfg-responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 0.7fr 0.7fr auto', gap: 12, alignItems: 'end' }}>
                           <Field label="Label">
                             <input value={s.label} onChange={e => updateStat(idx, 'label', e.target.value)} style={inputStyle} />
                           </Field>
@@ -647,7 +654,10 @@ export default function ConfigPage() {
         {/* Global Save Controls Container */}
         <div style={{
           position: 'sticky',
-          bottom: 24,
+          // MOB-9: matches the site's established bottom-safe-area convention
+          // (globals.css .floating-cta/.guest-sticky-footer) so this sticky
+          // bar doesn't sit flush against the iOS home-indicator.
+          bottom: 'max(24px, calc(env(safe-area-inset-bottom) + 12px))',
           background: 'var(--admin-surface, #FFFFFF)',
           border: `1px solid var(--admin-border, #E8E2D6)`,
           borderRadius: '16px',
@@ -657,6 +667,8 @@ export default function ConfigPage() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
           marginTop: 40,
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
@@ -674,6 +686,15 @@ export default function ConfigPage() {
           </Button>
         </div>
 
+        <style jsx>{`
+          /* MOB-9: every fixed multi-column field grid on this page (tiers
+             split, tier fields, offline-payment rows, landing-stat rows —
+             the last one 5 columns wide) had no breakpoint at all, making the
+             pricing/tiers editor genuinely unusable below ~600px. */
+          @media (max-width: 640px) {
+            .cfg-responsive-grid { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
       </form>
     </div>
   );

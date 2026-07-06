@@ -458,10 +458,21 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       const previousCallback = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => { previousCallback?.(); createPlayer(); };
       if (!document.getElementById('youtube-iframe-api')) {
-        const tag = document.createElement('script');
-        tag.id = 'youtube-iframe-api';
-        tag.src = 'https://www.youtube.com/iframe_api';
-        document.head.appendChild(tag);
+        const loadScript = () => {
+          if (cancelled || document.getElementById('youtube-iframe-api')) return;
+          const tag = document.createElement('script');
+          tag.id = 'youtube-iframe-api';
+          tag.src = 'https://www.youtube.com/iframe_api';
+          document.head.appendChild(tag);
+        };
+        // Defer the third-party script fetch until the browser is idle (Safari
+        // lacks requestIdleCallback, hence the setTimeout fallback), so it
+        // doesn't compete with the critical landing-page first paint.
+        if (typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(loadScript, { timeout: 2000 });
+        } else {
+          setTimeout(loadScript, 200);
+        }
       }
     }
 

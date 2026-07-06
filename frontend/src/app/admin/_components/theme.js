@@ -24,12 +24,16 @@ export const T = {
   // Brand / accents (Luxury Champagne Gold and semantic alerts)
   primary: 'var(--admin-primary, #B8944F)',
   primarySoft: 'var(--admin-primary-soft, rgba(184, 148, 79, 0.08))',
+  primaryDark: 'var(--admin-primary-dark, #8A6D34)',
   success: 'var(--admin-success, #10B981)',
   successSoft: 'var(--admin-success-soft, rgba(16, 185, 129, 0.08))',
+  successDark: 'var(--admin-success-dark, #059669)',
   warning: 'var(--admin-warning, #F59E0B)',
   warningSoft: 'var(--admin-warning-soft, rgba(245, 158, 11, 0.08))',
+  warningDark: 'var(--admin-warning-dark, #B45309)',
   danger: 'var(--admin-danger, #EF4444)',
   dangerSoft: 'var(--admin-danger-soft, rgba(239, 68, 68, 0.08))',
+  dangerDark: 'var(--admin-danger-dark, #B91C1C)',
 
   // Shape
   radius: '16px',

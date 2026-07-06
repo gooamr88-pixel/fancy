@@ -8,6 +8,7 @@ import LogoutModal from '../components/LogoutModal';
 import FeatureGate from '../dashboard/components/FeatureGate';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import { useIsClient } from '../utils/useIsClient';
+import { playAccept, playError, buzz } from '../utils/sound';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -179,6 +180,7 @@ export default function CheckInPage() {
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Check-in failed');
       if (data.success) {
         const result = data.data;
+        playAccept(); buzz([12, 24, 12]);
         setSelectedGuest(prev => prev ? { ...prev, isCheckedIn: true, checkedInAt: new Date().toLocaleTimeString() } : null);
         setCheckInLogs(logs => [{ partyId, guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, checkedInAt: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }), method: 'manual_search' }, ...logs]);
         fetchCheckInSummary();
@@ -189,6 +191,7 @@ export default function CheckInPage() {
       const message = err.message === 'Failed to fetch' || !navigator.onLine
         ? 'Connection lost. If this guest was actually checked in, re-searching will show them as already arrived.'
         : err.message;
+      playError(); buzz([40, 30, 40]);
       setOverlayData({ type: 'error', message }); setShowConfirmOverlay(true);
     } finally {
       manualCheckInInFlight.current = false;
@@ -214,9 +217,10 @@ export default function CheckInPage() {
     try {
       const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token, checkedInBy: 'Kiosk Camera' }) });
       const data = await res.json();
-      if (!res.ok) { setScanStatus({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setOverlayData({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setShowConfirmOverlay(true); return; }
+      if (!res.ok) { playError(); buzz([40, 30, 40]); setScanStatus({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setOverlayData({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setShowConfirmOverlay(true); return; }
       if (data.success) {
         const result = data.data;
+        playAccept(); buzz([12, 24, 12]);
         setScanStatus({ type: 'success', message: `${result.guestName} (${result.partySize} guests) checked in successfully at ${result.tableName}.` });
         setCheckInLogs(logs => [{ partyId: result.partyId, guestName: result.guestName, partySize: result.partySize, tableName: result.tableName, checkedInAt: new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }), method: 'qr_scan' }, ...logs]);
         fetchCheckInSummary();
@@ -227,6 +231,7 @@ export default function CheckInPage() {
       const message = err.message === 'Failed to fetch' || !navigator.onLine
         ? 'Connection lost while verifying. If this guest was actually checked in, re-scanning will show them as already arrived.'
         : 'Could not connect to scanner backend service.';
+      playError(); buzz([40, 30, 40]);
       setScanStatus({ type: 'error', message }); setOverlayData({ type: 'error', message }); setShowConfirmOverlay(true);
     } finally {
       qrCheckInInFlight.current = false;
@@ -237,6 +242,18 @@ export default function CheckInPage() {
   const handleQRScanSubmit = async (e) => { e.preventDefault(); if (!qrTokenInput.trim()) return; await handleQRScan(qrTokenInput); setQrTokenInput(''); };
 
   useEffect(() => { let html5QrcodeScanner; if (cameraActive) { import('html5-qrcode').then((module) => { const Html5QrcodeScanner = module.Html5QrcodeScanner; html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: { width: 250, height: 250 }, rememberLastUsedCamera: true }, false); html5QrcodeScanner.render(async (decodedText) => { await handleQRScan(decodedText); setCameraActive(false); }, () => {}); }).catch(err => console.error("Failed to load html5-qrcode:", err)); } return () => { if (html5QrcodeScanner) html5QrcodeScanner.clear().catch(err => console.error("Failed to clear scanner:", err)); }; }, [cameraActive, handleQRScan]);
+
+  // MOB-16: this kiosk is meant to run for hours at a venue door — without a
+  // wake lock the device sleeps mid-shift, forcing staff to unlock and
+  // re-navigate repeatedly during the busiest arrival window. Best-effort:
+  // unsupported browsers (iOS Safari < 16.4) just silently skip it.
+  useEffect(() => {
+    if (!cameraActive || typeof navigator === 'undefined' || !navigator.wakeLock) return undefined;
+    let sentinel;
+    let released = false;
+    navigator.wakeLock.request('screen').then((s) => { if (released) { s.release().catch(() => {}); } else { sentinel = s; } }).catch(() => {});
+    return () => { released = true; if (sentinel) sentinel.release().catch(() => {}); };
+  }, [cameraActive]);
 
   const cardStyle = { background: C.white, border: `1px solid ${C.border}`, padding: '24px', borderRadius: '12px' };
   const activeEvent = events.find(ev => ev.id === eventId) || null;
@@ -316,6 +333,37 @@ export default function CheckInPage() {
         {/* Left */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
+          {/* QR Scanner — the highest-frequency door action, surfaced first
+              rather than buried below search/detail. */}
+          <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500 }}>QR Ticket Validation</h3>
+            <p style={{ fontSize: '12px', color: C.stone, lineHeight: 1.6 }}>Verify credentials using device camera scanning or token string submission below.</p>
+            <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')} wrapperStyle={{ display: 'flex', width: '100%' }}>
+              <button type="button" onClick={() => setCameraActive(!cameraActive)}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: cameraActive ? '#C45E5E' : C.gold, color: C.white, transition: 'all 0.3s' }}>
+                {cameraActive ? '🛑 Stop Camera Scanner' : '📷 Open Camera Scanner'}
+              </button>
+            </FeatureGate>
+            {cameraActive && (
+              <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px', display: 'flex', justifyContent: 'center' }}>
+                <div id="qr-reader" style={{ width: '100%', maxWidth: '360px', borderRadius: '8px', overflow: 'hidden' }} />
+              </div>
+            )}
+            <form onSubmit={handleQRScanSubmit} style={{ display: 'flex', gap: '10px', paddingTop: '8px' }}>
+              <input type="text" value={qrTokenInput} onChange={e => setQrTokenInput(e.target.value)} placeholder="Or paste signed JWT token here..."
+                style={{ ...inputStyle, flex: 1 }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+              <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')}>
+                <button type="submit" disabled={!isOnline || qrCheckInBusy} title={!isOnline ? 'No internet connection' : undefined}
+                  style={{ padding: '12px 24px', background: isOnline ? C.gold : C.border, color: C.white, border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: (isOnline && !qrCheckInBusy) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)' }}>{qrCheckInBusy ? 'Verifying…' : 'Verify'}</button>
+              </FeatureGate>
+            </form>
+            {scanStatus && (
+              <div style={{ padding: '16px', borderRadius: '10px', border: `1px solid ${scanStatus.type === 'success' ? 'rgba(184,148,79,0.2)' : 'rgba(196,94,94,0.15)'}`, background: scanStatus.type === 'success' ? 'rgba(184,148,79,0.06)' : 'rgba(196,94,94,0.04)', color: scanStatus.type === 'success' ? C.gold : '#C45E5E', fontSize: '13px' }}>
+                {scanStatus.type === 'success' ? '✓ Success: ' : '✕ Failed: '}{scanStatus.message}
+              </div>
+            )}
+          </div>
+
           {/* Guest Search */}
           <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500 }}>Guest Search & Check-In</h3>
@@ -354,7 +402,7 @@ export default function CheckInPage() {
                   {selectedGuest.isCheckedIn ? '✅ Checked-In' : '⏳ Pending Arrival'}
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }} className="checkin-detail-grid">
                 <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px' }}>
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, display: 'block', fontWeight: 700 }}>Assigned Table</span>
                   <span style={{ fontSize: '18px', fontWeight: 700, marginTop: '4px', display: 'block', color: C.charcoal }}>{selectedGuest.tableName}</span>
@@ -398,36 +446,6 @@ export default function CheckInPage() {
               )}
             </div>
           )}
-
-          {/* QR Scanner */}
-          <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500 }}>QR Ticket Validation</h3>
-            <p style={{ fontSize: '12px', color: C.stone, lineHeight: 1.6 }}>Verify credentials using device camera scanning or token string submission below.</p>
-            <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')} wrapperStyle={{ display: 'flex', width: '100%' }}>
-              <button type="button" onClick={() => setCameraActive(!cameraActive)}
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: cameraActive ? '#C45E5E' : C.gold, color: C.white, transition: 'all 0.3s' }}>
-                {cameraActive ? '🛑 Stop Camera Scanner' : '📷 Open Camera Scanner'}
-              </button>
-            </FeatureGate>
-            {cameraActive && (
-              <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px', display: 'flex', justifyContent: 'center' }}>
-                <div id="qr-reader" style={{ width: '100%', maxWidth: '360px', borderRadius: '8px', overflow: 'hidden' }} />
-              </div>
-            )}
-            <form onSubmit={handleQRScanSubmit} style={{ display: 'flex', gap: '10px', paddingTop: '8px' }}>
-              <input type="text" value={qrTokenInput} onChange={e => setQrTokenInput(e.target.value)} placeholder="Or paste signed JWT token here..."
-                style={{ ...inputStyle, flex: 1 }} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
-              <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')}>
-                <button type="submit" disabled={!isOnline || qrCheckInBusy} title={!isOnline ? 'No internet connection' : undefined}
-                  style={{ padding: '12px 24px', background: isOnline ? C.gold : C.border, color: C.white, border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, cursor: (isOnline && !qrCheckInBusy) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)' }}>{qrCheckInBusy ? 'Verifying…' : 'Verify'}</button>
-              </FeatureGate>
-            </form>
-            {scanStatus && (
-              <div style={{ padding: '16px', borderRadius: '10px', border: `1px solid ${scanStatus.type === 'success' ? 'rgba(184,148,79,0.2)' : 'rgba(196,94,94,0.15)'}`, background: scanStatus.type === 'success' ? 'rgba(184,148,79,0.06)' : 'rgba(196,94,94,0.04)', color: scanStatus.type === 'success' ? C.gold : '#C45E5E', fontSize: '13px' }}>
-                {scanStatus.type === 'success' ? '✓ Success: ' : '✕ Failed: '}{scanStatus.message}
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Right: Arrivals Feed */}
@@ -504,6 +522,9 @@ export default function CheckInPage() {
         @keyframes shrink { from { width: 100%; } to { width: 0%; } }
         @media (max-width: 768px) {
           .checkin-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 480px) {
+          .checkin-detail-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />

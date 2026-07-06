@@ -500,11 +500,11 @@ export default function CampaignsPage() {
       <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr', gap: 32 }}>
         
         {/* Left/Middle Column: Template Composer & Campaign launcher */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 32 }}>
+        <div className="camp-main-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 32 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          
+
           {/* 1. Wallet Status Widget */}
-          <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 24, borderRadius: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, textAlign: 'center' }}>
+          <div className="camp-wallet-grid" style={{ background: C.white, border: `1px solid ${C.border}`, padding: 24, borderRadius: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, textAlign: 'center' }}>
             <div>
               <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.1em' }}>Purchased</span>
               <span style={{ fontSize: 20, fontWeight: 900, display: 'block', marginTop: 8, color: C.charcoal }}>{creditsPurchased}</span>
@@ -530,7 +530,7 @@ export default function CampaignsPage() {
           <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 24, borderRadius: 12 }}>
             <h3 style={{ fontSize: 17, fontWeight: 700, borderBottom: `1px solid ${C.border}`, paddingBottom: 12, fontFamily: 'var(--font-serif)', color: C.charcoal }}>Campaign Composer & Live Mobile Preview</h3>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: 32, alignItems: 'start', marginTop: 24 }}>
+            <div className="camp-composer-grid" style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: 32, alignItems: 'start', marginTop: 24 }}>
               
               {/* Form Block */}
               <form onSubmit={handleLaunchCampaign} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -933,7 +933,19 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        /* MOB-11: the SMS composer's editor+preview split, the wallet stat
+           row, and the outer content/audience split were all fixed grids
+           with zero breakpoints — unusable side-by-side on a phone. */
+        @media (max-width: 900px) {
+          .camp-main-grid { grid-template-columns: 1fr !important; }
+          .camp-composer-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 640px) {
+          .camp-wallet-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );

@@ -48,13 +48,24 @@
   --admin-text-900: #191B1E;
   --admin-text-700: #4A4D53;
   --admin-text-500: #77736A;
-  --admin-text-400: #A19E95;
+  /* A11Y-5: #A19E95 measured ~2.68:1 on --admin-bg/white — fails WCAG AA for
+     the empty-state copy, sub-labels and placeholders that use this token.
+     Darkened to clear 4.5:1; the dark-theme value below was already fine. */
+  --admin-text-400: #7A756B;
   --admin-primary: #B8944F;
   --admin-primary-soft: rgba(184, 148, 79, 0.08);
   --admin-primary-hover: #D7BE80;
   --admin-primary-dark: #8A6D34;
+  --admin-warning: #F59E0B;
+  /* A11Y-5: status-badge foreground colors, darkened from the base semantic
+     hues above — those pass fine as backgrounds/accents but fail contrast as
+     TEXT on the ~8%-tint badge backgrounds they're paired with in
+     admin/_components/Modal.js's StatusBadge. Decorative/chart uses should
+     keep reading --admin-warning/--admin-danger/--admin-primary directly. */
+  --admin-warning-dark: #B45309;
   --admin-danger: #EF4444;
   --admin-danger-light: #F43F5E;
+  --admin-danger-dark: #B91C1C;
   --admin-success: #10B981;
   --admin-success-dark: #059669;
   --admin-sky: #0EA5E9;
@@ -110,6 +121,27 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+/* A11Y-7: standard visually-hidden utility — used to insert heading levels
+   (e.g. a section h2 above a grid of h3 cards) that screen-reader users
+   navigating by heading need, without changing the visual design. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 420px) {
+  .admin-topbar-role {
+    display: none;
+  }
 }
 
 html {
@@ -294,6 +326,28 @@ h3 {
 
 .btn-outline:active {
   transform: translateY(0);
+}
+
+/* Secondary CTA for dark/gradient sections (gold border + text) */
+.btn-ghost-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 48px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid rgba(184, 148, 79, 0.4);
+  color: #D7BE80;
+  background: transparent;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+.btn-ghost-gold:hover {
+  border-color: rgba(184, 148, 79, 0.7);
+  background: rgba(184, 148, 79, 0.08);
 }
 
 /* ─── Decorative Ornament ─── */
@@ -516,15 +570,29 @@ h3 {
     /* Prevent bouncy rubber-band effect causing layout shifts */
     overscroll-behavior-y: none;
   }
+}
 
+/* A11Y-6/MOB-4: the iOS zoom-prevention and touch-target rules were keyed
+   purely on viewport WIDTH (max-width:768px), so a large phone in LANDSCAPE
+   (e.g. iPhone 14 Pro Max ~926px, many Android flagships ~900px+) fell
+   through the gap — width alone no longer means "not a touch device". Also
+   matching on (pointer:coarse) (true for any touch-primary screen regardless
+   of orientation/width, false for mouse/trackpad) closes that gap without
+   affecting desktop. Every inline 14px/12px form input already relies on
+   this rule (verified: `!important` here always wins over a plain inline
+   style), so widening ITS condition is the single highest-leverage fix
+   rather than editing font-size in each component individually. */
+@media (max-width: 768px), (pointer: coarse) {
   /* Prevent iOS Safari from auto-zooming when focusing on inputs */
   input, select, textarea {
     font-size: 16px !important;
   }
 
   /* Ensure buttons and touch targets are adequately sized for touch (min 44px) */
-  button, .tap-target, [role="button"], a {
+  button, .tap-target, [role="button"], a, input, select, textarea {
     min-height: 44px;
+  }
+  button, .tap-target, [role="button"], a {
     min-width: 44px;
   }
 }

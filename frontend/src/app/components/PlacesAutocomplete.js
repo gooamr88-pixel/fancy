@@ -37,7 +37,7 @@ function loadGoogleMaps() {
 
 const C = { gold: '#B8944F', charcoal: '#191B1E', ivory: '#F8F4EC', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
 
-export default function PlacesAutocomplete({ value, onChange, onPlaceSelect, placeholder, style }) {
+export default function PlacesAutocomplete({ value, onChange, onPlaceSelect, placeholder, style, id, ...rest }) {
   const inputRef = useRef(null);
   const autocompleteRef = useRef(null);
   const [mapsReady, setMapsReady] = useState(false);
@@ -102,6 +102,8 @@ export default function PlacesAutocomplete({ value, onChange, onPlaceSelect, pla
   return (
     <div style={{ position: 'relative' }}>
       <input
+        {...rest}
+        id={id}
         ref={inputRef}
         type="text"
         value={value}

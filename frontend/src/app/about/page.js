@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import GoldDivider from "../components/GoldDivider";
 
 /* ═══════════════════════════════════════════════════════════
    About Page — Fancy RSVP
@@ -74,22 +75,14 @@ const milestones = [
 ];
 
 function ValueCard({ value }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="value-card"
       style={{
         background: "#FFFFFF",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "16px",
         padding: "44px 32px 36px",
         textAlign: "center",
-        transition: "all 0.35s ease",
-        transform: hovered ? "translateY(-6px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 16px 48px rgba(184,148,79,0.12)"
-          : "0 2px 12px rgba(0,0,0,0.03)",
         cursor: "default",
       }}
     >
@@ -117,27 +110,34 @@ function ValueCard({ value }) {
       >
         {value.desc}
       </p>
+
+      <style jsx>{`
+        .value-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.35s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        }
+        .value-card:hover,
+        .value-card:focus-within {
+          border-color: #D7BE80;
+          transform: translateY(-6px);
+          box-shadow: 0 16px 48px rgba(184, 148, 79, 0.12);
+        }
+      `}</style>
     </div>
   );
 }
 
 function TeamCard({ member }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="team-card"
       style={{
         background: "#FFFFFF",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "16px",
         padding: "40px 28px 32px",
         textAlign: "center",
-        transition: "all 0.35s ease",
-        transform: hovered ? "translateY(-4px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 12px 40px rgba(184,148,79,0.1)"
-          : "0 2px 12px rgba(0,0,0,0.03)",
       }}
     >
       {/* Avatar */}
@@ -200,23 +200,26 @@ function TeamCard({ member }) {
       >
         {member.bio}
       </p>
+
+      <style jsx>{`
+        .team-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.35s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        }
+        .team-card:hover,
+        .team-card:focus-within {
+          border-color: #D7BE80;
+          transform: translateY(-4px);
+          box-shadow: 0 12px 40px rgba(184, 148, 79, 0.1);
+        }
+      `}</style>
     </div>
   );
 }
 
 /* ─── Gold ornamental divider ─── */
-function GoldDivider() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", padding: "12px 0" }}>
-      <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, transparent, #D7BE80)" }} />
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" fill="#D7BE80" opacity="0.5" />
-      </svg>
-      <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, #D7BE80, transparent)" }} />
-    </div>
-  );
-}
-
 export default function AboutPage() {
   return (
     <>

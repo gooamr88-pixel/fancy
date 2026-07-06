@@ -1,10 +1,10 @@
 export default function DashboardLoading() {
   return (
     <div style={styles.container}>
-      <style>{pulseKeyframes}</style>
+      <style>{globalStyles}</style>
 
       {/* Sidebar skeleton */}
-      <aside style={styles.sidebar}>
+      <aside className="dl-sidebar" style={styles.sidebar}>
         <div style={{ ...styles.bar, width: '60%', height: 28, marginBottom: 32 }} />
         {[72, 85, 68, 90, 76, 82].map((w, i) => (
           <div key={i} style={{ ...styles.bar, width: `${w}%`, height: 16, marginBottom: 20 }} />
@@ -12,7 +12,7 @@ export default function DashboardLoading() {
       </aside>
 
       {/* Main content skeleton */}
-      <main style={styles.main}>
+      <main className="dl-main" style={styles.main}>
         {/* Header bar */}
         <div style={styles.headerBar}>
           <div style={{ ...styles.bar, width: 220, height: 24 }} />
@@ -52,10 +52,21 @@ export default function DashboardLoading() {
   );
 }
 
-const pulseKeyframes = `
+const globalStyles = `
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+/* MOB-14: the real dashboard (page.js) hides this same 240px sidebar behind
+   an off-canvas drawer below 1024px — the skeleton didn't match, so every
+   cold mobile load flashed a desktop layout for a moment before the real,
+   already-responsive dashboard replaced it. */
+@media (max-width: 1024px) {
+  .dl-sidebar { display: none !important; }
+  .dl-main { padding: 16px !important; }
+}
+@media (prefers-color-scheme: dark) {
+  body { background-color: #17181A; }
 }
 `;
 

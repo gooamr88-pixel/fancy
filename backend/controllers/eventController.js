@@ -5,6 +5,7 @@ const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
 const { getPlatformConfig } = require('../utils/configCache');
 const { hashEventPassword, verifyEventPassword, isHashedEventPassword } = require('../utils/eventPassword');
+const tokenService = require('../services/tokenService');
 const logger = require('../utils/logger');
 
 /** Strict UUID matcher — used to validate invitation tokens before querying. */
@@ -487,9 +488,10 @@ const getPublicEventBySlug = async (req, res, next) => {
         // so the confirmation form pre-fills their names/meals instead of asking the
         // responder to retype every member of their own party from a blank field.
         const companions = allGuests.filter((g) => !g.is_primary_contact);
+        const partySize = allGuests.length || 1;
         guestRsvp = {
           id: partyRecord.id, guest_name: partyRecord.label, email: primary.email || null, phone: primary.phone || null,
-          response: partyRecord.response, party_size: allGuests.length || 1, notes: partyRecord.notes,
+          response: partyRecord.response, party_size: partySize, notes: partyRecord.notes,
           primary_meal: primary.meal_selection || null, primary_dietary_notes: primary.dietary_notes || null, side: partyRecord.side || null,
           // Organizer-added guests (CSV import / manual "Add Guest") skip the
           // 24h seating-reveal wait — see RsvpWizard.js's seatingRevealed calc.
@@ -497,6 +499,12 @@ const getPublicEventBySlug = async (req, res, next) => {
           additionalGuests: companions.map((g) => ({
             id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
           })),
+          // Lets a returning "yes" guest see/save their real entrance QR from the
+          // locked card, not just in the fleeting moment right after they submit.
+          qrToken: tokenService.signQrTicketForResponse({
+            response: partyRecord.response, partyId: partyRecord.id, eventId: event.id,
+            tableName: null, partySize, eventDate: event.event_date,
+          }),
         };
       }
     }

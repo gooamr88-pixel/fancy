@@ -4,9 +4,20 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FadeInUp, StaggerChildren, StaggerItem, GlowPulse } from '../../../components/guest/GuestAnimations';
 import { PremiumButton, FormField, inputFocus, inputBlur } from '../../../components/guest/GuestUI';
+import { WarningIcon } from '../../../components/guest/RsvpIcons';
 import { S } from '../styles';
 
 const INPUT_TYPE_FOR = { email: 'email', phone: 'tel', url: 'url', number: 'number', date: 'date' };
+
+// Radio/checkbox option rows previously had no explicit height — the tappable
+// area was just the line-height of the text (~20px, under the 44px minimum).
+// Padding the whole row makes the entire label (not just the tiny native
+// control) the tap target.
+const OPTION_ROW_STYLE = {
+  display: 'flex', alignItems: 'center', gap: '10px',
+  fontSize: '14px', color: '#191B1E', cursor: 'pointer', fontFamily: 'var(--font-sans)',
+  minHeight: '44px', padding: '8px 4px', width: '100%', boxSizing: 'border-box',
+};
 
 /** Step 4 — organizer-configured custom questions + the free-text note. */
 export default function StepCustomQuestions({
@@ -61,9 +72,9 @@ export default function StepCustomQuestions({
               </select>
             )}
             {field.field_type === 'radio' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {opts?.map((opt, i) => (
-                  <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  <label key={i} style={OPTION_ROW_STYLE}>
                     <input type="radio" name={fieldKey} value={opt} checked={value === opt} onChange={() => onSetAnswer(field.id, opt)} />
                     {opt}
                   </label>
@@ -71,11 +82,11 @@ export default function StepCustomQuestions({
               </div>
             )}
             {field.field_type === 'multiselect' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 {opts?.map((opt, i) => {
                   const selected = (value || '').split(',').map(s => s.trim()).filter(Boolean).includes(opt);
                   return (
-                    <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                    <label key={i} style={OPTION_ROW_STYLE}>
                       <input type="checkbox" checked={selected} onChange={() => onToggleMulti(field.id, opt)} />
                       {opt}
                     </label>
@@ -84,7 +95,7 @@ export default function StepCustomQuestions({
               </div>
             )}
             {field.field_type === 'checkbox' && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              <label style={OPTION_ROW_STYLE}>
                 <input type="checkbox" checked={value === 'Yes'} onChange={e => onSetAnswer(field.id, e.target.checked ? 'Yes' : '')} />
                 {isRTL ? 'نعم' : 'Yes'}
               </label>
@@ -141,9 +152,9 @@ export default function StepCustomQuestions({
                       </select>
                     )}
                     {field.field_type === 'radio' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {opts?.map((opt, i) => (
-                          <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                          <label key={i} style={OPTION_ROW_STYLE}>
                             <input type="radio" name={`field_${field.id}`} value={opt} checked={value === opt} onChange={() => setAnswer(field.id, opt)} />
                             {opt}
                           </label>
@@ -151,11 +162,11 @@ export default function StepCustomQuestions({
                       </div>
                     )}
                     {field.field_type === 'multiselect' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {opts?.map((opt, i) => {
                           const selected = (value || '').split(',').map(s => s.trim()).filter(Boolean).includes(opt);
                           return (
-                            <label key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                            <label key={i} style={OPTION_ROW_STYLE}>
                               <input type="checkbox" checked={selected} onChange={() => toggleMultiAnswer(field.id, opt)} />
                               {opt}
                             </label>
@@ -164,7 +175,7 @@ export default function StepCustomQuestions({
                       </div>
                     )}
                     {field.field_type === 'checkbox' && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#191B1E', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                      <label style={OPTION_ROW_STYLE}>
                         <input type="checkbox" checked={value === 'Yes'} onChange={e => setAnswer(field.id, e.target.checked ? 'Yes' : '')} />
                         {isRTL ? 'نعم' : 'Yes'}
                       </label>
@@ -251,9 +262,10 @@ export default function StepCustomQuestions({
         {Object.keys(validationErrors).length > 0 && (
           <motion.div
             initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-            style={{ padding: '14px 16px', borderRadius: '12px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', fontSize: '12px', color: '#ef4444' }}
+            style={{ padding: '14px 16px', borderRadius: '12px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', fontSize: '12px', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            ⚠️ {isRTL ? 'يرجى ملء جميع الحقول المطلوبة.' : 'Please fill in all required fields before submitting.'}
+            <WarningIcon size={15} strokeWidth={1.6} />
+            <span>{isRTL ? 'يرجى ملء جميع الحقول المطلوبة.' : 'Please fill in all required fields before submitting.'}</span>
           </motion.div>
         )}
       </AnimatePresence>

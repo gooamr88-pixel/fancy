@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import GoldDivider from "../components/GoldDivider";
 
 /* ═══════════════════════════════════════════════════════════
    Press Page — Fancy RSVP
@@ -62,39 +63,19 @@ const brandColors = [
   { name: "Muted Stone", hex: "#5E5A52", textColor: "#FFF" },
 ];
 
-function GoldDivider() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", padding: "12px 0" }}>
-      <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, transparent, #D7BE80)" }} />
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" fill="#D7BE80" opacity="0.5" />
-      </svg>
-      <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, #D7BE80, transparent)" }} />
-    </div>
-  );
-}
-
 function MentionCard({ mention }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <a
       href={mention.url}
       target="_blank"
       rel="noopener noreferrer"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="mention-card"
       style={{
         display: "block",
         background: "#FFFFFF",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "16px",
         padding: "32px 28px",
         textDecoration: "none",
-        transition: "all 0.35s ease",
-        transform: hovered ? "translateY(-5px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 16px 48px rgba(184,148,79,0.1)"
-          : "0 2px 12px rgba(0,0,0,0.03)",
       }}
     >
       <div
@@ -171,30 +152,37 @@ function MentionCard({ mention }) {
           <path d="M3 7h8M8 4l3 3-3 3" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
+
+      <style jsx>{`
+        .mention-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.35s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        }
+        .mention-card:hover,
+        .mention-card:focus-visible {
+          border-color: #D7BE80;
+          transform: translateY(-5px);
+          box-shadow: 0 16px 48px rgba(184, 148, 79, 0.1);
+        }
+      `}</style>
     </a>
   );
 }
 
 function DownloadCard({ title, desc, icon }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <a
       href={`mailto:press@fancyrsvp.com?subject=${encodeURIComponent("Press Kit: " + title)}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="download-card"
       style={{
         display: "block",
         background: "#FFFFFF",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "14px",
         padding: "32px 28px",
         textAlign: "center",
         textDecoration: "none",
-        transition: "all 0.35s ease",
-        transform: hovered ? "translateY(-4px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 12px 36px rgba(184,148,79,0.1)"
-          : "0 2px 8px rgba(0,0,0,0.02)",
         cursor: "pointer",
       }}
     >
@@ -213,7 +201,7 @@ function DownloadCard({ title, desc, icon }) {
       >
         {icon}
       </div>
-      <h4
+      <h3
         style={{
           fontFamily: "var(--font-serif)",
           fontSize: "17px",
@@ -223,7 +211,7 @@ function DownloadCard({ title, desc, icon }) {
         }}
       >
         {title}
-      </h4>
+      </h3>
       <p
         style={{
           fontFamily: "var(--font-sans)",
@@ -253,6 +241,21 @@ function DownloadCard({ title, desc, icon }) {
         </svg>
         Download
       </span>
+
+      <style jsx>{`
+        .download-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.35s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+        }
+        .download-card:hover,
+        .download-card:focus-visible {
+          border-color: #D7BE80;
+          transform: translateY(-4px);
+          box-shadow: 0 12px 36px rgba(184, 148, 79, 0.1);
+        }
+      `}</style>
     </a>
   );
 }
@@ -681,16 +684,14 @@ export default function PressPage() {
                   key={award.title}
                   style={{
                     background: "#FFFFFF",
-                    border: "1px solid #E8E2D6",
                     borderRadius: "16px",
                     padding: "40px 24px",
                     textAlign: "center",
-                    transition: "all 0.3s ease",
                   }}
                   className="award-card"
                 >
                   <div style={{ fontSize: "40px", marginBottom: "16px" }}>{award.icon}</div>
-                  <h4
+                  <h3
                     style={{
                       fontFamily: "var(--font-serif)",
                       fontSize: "17px",
@@ -701,7 +702,7 @@ export default function PressPage() {
                     }}
                   >
                     {award.title}
-                  </h4>
+                  </h3>
                   <p
                     style={{
                       fontFamily: "var(--font-sans)",
@@ -807,7 +808,12 @@ export default function PressPage() {
       <FooterSection />
 
       <style jsx>{`
-        .award-card:hover {
+        .award-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.3s ease;
+        }
+        .award-card:hover,
+        .award-card:focus-within {
           transform: translateY(-5px);
           box-shadow: 0 12px 40px rgba(184,148,79,0.1);
           border-color: #D7BE80;

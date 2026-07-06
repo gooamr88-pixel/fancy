@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Button } from './Modal';
 import { T } from './theme';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 const AlertContext = createContext({
   showAlert: async () => {},
@@ -104,6 +105,16 @@ export function AlertProvider({ children }) {
     }
   };
 
+  const closeModal = useCallback(() => {
+    setModal((current) => {
+      current?.resolve(current.type === 'prompt' ? null : false);
+      return null;
+    });
+  }, []);
+  // A11Y-9: shared focus-trap/initial-focus/focus-restore/scroll-lock/Escape
+  // hook — this dialog previously had none of the five.
+  const dialogRef = useModalA11y(!!modal, { onClose: closeModal });
+
   return (
     <AlertContext.Provider value={{ showAlert, showConfirm, showPrompt, showToast }}>
       {children}
@@ -125,6 +136,11 @@ export function AlertProvider({ children }) {
           }}
         >
           <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="alert-modal-title"
+            tabIndex={-1}
             style={{
               background: T.surface,
               borderRadius: T.radius,
@@ -143,7 +159,7 @@ export function AlertProvider({ children }) {
       )}
 
       {/* Toast notifications */}
-      <div style={{ position: 'fixed', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 10, zIndex: 999999, pointerEvents: 'none' }}>
+      <div style={{ position: 'fixed', bottom: 'max(24px, calc(env(safe-area-inset-bottom) + 12px))', right: 24, display: 'flex', flexDirection: 'column', gap: 10, zIndex: 999999, pointerEvents: 'none' }}>
         {toasts.map((t) => (
           <div
             key={t.id}
@@ -198,7 +214,7 @@ function AlertDialogInner({ modal, getIcon }) {
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
       <div style={{ marginBottom: 16 }}>{getIcon(modal.type)}</div>
-      <h3 style={{ fontSize: 18, fontWeight: 800, color: T.text900, margin: '0 0 10px', fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>
+      <h3 id="alert-modal-title" style={{ fontSize: 18, fontWeight: 800, color: T.text900, margin: '0 0 10px', fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>
         {modal.title}
       </h3>
       <p style={{ fontSize: 13.5, color: T.text700, margin: '0 0 20px', lineHeight: 1.5 }}>
@@ -226,7 +242,7 @@ function AlertDialogInner({ modal, getIcon }) {
         />
       )}
 
-      <div style={{ display: 'flex', gap: 10, width: '100%', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, width: '100%', justifyContent: 'center' }}>
         {modal.cancelText && (
           <Button variant="ghost" type="button" onClick={() => modal.resolve(modal.type === 'prompt' ? null : false)}>
             {modal.cancelText}

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -47,6 +48,9 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
       setError(''); setResult(null); setLoading(false); setDragOver(false);
     }
   }
+
+  // A11Y-9: shared focus-trap/initial-focus/focus-restore/scroll-lock/Escape hook.
+  const dialogRef = useModalA11y(isOpen, { onClose });
 
   if (!isOpen) return null;
 
@@ -148,6 +152,11 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="import-guests-modal-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: COLORS.white, borderRadius: '16px', width: '100%', maxWidth: '560px',
@@ -161,7 +170,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
           padding: '20px 24px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
         }}>
           <div>
-            <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: COLORS.charcoal, margin: 0 }}>
+            <h2 id="import-guests-modal-title" style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: COLORS.charcoal, margin: 0 }}>
               Import Guests
             </h2>
             <p style={{ fontSize: '12px', color: COLORS.stone, margin: '4px 0 0', fontFamily: 'var(--font-sans)' }}>

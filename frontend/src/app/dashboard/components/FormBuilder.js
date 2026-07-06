@@ -210,7 +210,7 @@ export default function FormBuilder({ eventId }) {
             </p>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="fb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={labelStyle}>{isMealField ? 'Question Label' : 'Question / Label (e.g. Dietary Notes)'}</label>
               <input type="text" value={label} onChange={e => handleLabelChange(e.target.value)} placeholder="e.g. Dietary Restrictions"
@@ -224,7 +224,7 @@ export default function FormBuilder({ eventId }) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="fb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={labelStyle}>Response Type</label>
               <select value={type} onChange={e => setType(e.target.value)} disabled={isMealField} style={{ ...inputStyle, cursor: isMealField ? 'not-allowed' : 'pointer', ...(isMealField ? { background: '#F0ECE3', color: '#A09A91' } : {}) }}>
@@ -338,7 +338,12 @@ export default function FormBuilder({ eventId }) {
         )}
       </div>
 
-      <style jsx>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style jsx>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @media (max-width: 640px) {
+          .fb-row { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

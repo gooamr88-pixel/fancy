@@ -25,69 +25,89 @@ const footerLinks = {
 };
 
 function FooterLink({ text, href }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <Link
       href={href}
+      className="footer-link"
       style={{
         fontFamily: 'var(--font-sans)',
         fontSize: '14px',
-        color: hovered ? '#B8944F' : 'rgba(255, 255, 255, 0.6)',
         textDecoration: 'none',
-        transition: 'color 0.25s ease',
         lineHeight: '2.2',
         display: 'block',
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       {text}
+      <style jsx>{`
+        .footer-link {
+          color: rgba(255, 255, 255, 0.6);
+          transition: color 0.25s ease;
+        }
+        .footer-link:hover,
+        .footer-link:focus-visible {
+          color: #B8944F;
+        }
+      `}</style>
     </Link>
   );
 }
 
 function SocialIcon({ children, label, href = '#' }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <a
       href={href}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={label}
+      className="social-icon"
       style={{
         width: '36px',
         height: '36px',
         borderRadius: '50%',
-        border: `1px solid ${hovered ? '#B8944F' : 'rgba(255, 255, 255, 0.15)'}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'all 0.25s ease',
-        background: hovered ? 'rgba(184, 148, 79, 0.1)' : 'transparent',
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <svg
+        className="social-icon-svg"
         width="16"
         height="16"
         viewBox="0 0 24 24"
         fill="none"
-        stroke={hovered ? '#B8944F' : 'rgba(255, 255, 255, 0.5)'}
+        stroke="rgba(255, 255, 255, 0.5)"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ transition: 'stroke 0.25s ease' }}
       >
         {children}
       </svg>
+
+      <style jsx>{`
+        .social-icon {
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          background: transparent;
+          transition: all 0.25s ease;
+        }
+        .social-icon:hover,
+        .social-icon:focus-visible {
+          border-color: #B8944F;
+          background: rgba(184, 148, 79, 0.1);
+        }
+        .social-icon-svg {
+          transition: stroke 0.25s ease;
+        }
+        .social-icon:hover .social-icon-svg,
+        .social-icon:focus-visible .social-icon-svg {
+          stroke: #B8944F;
+        }
+      `}</style>
     </a>
   );
 }
 
 export default function FooterSection() {
   const [emailValue, setEmailValue] = useState('');
-  const [btnHovered, setBtnHovered] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
@@ -138,7 +158,7 @@ export default function FooterSection() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1.4fr 1fr 1fr 1fr 1.5fr',
+            gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr)',
             gap: '40px',
           }}
         >
@@ -242,6 +262,7 @@ export default function FooterSection() {
             >
               <input
                 type="email"
+                autoComplete="email"
                 placeholder="Enter your email"
                 aria-label="Email address for newsletter"
                 value={emailValue}
@@ -264,30 +285,20 @@ export default function FooterSection() {
                 }}
               />
               <button
-                onMouseEnter={() => setBtnHovered(true)}
-                onMouseLeave={() => setBtnHovered(false)}
                 onClick={handleSubscribe}
                 disabled={subscribed || subscribing}
+                className={`footer-subscribe-btn${subscribed ? ' footer-subscribe-btn-done' : ''}`}
                 style={{
                   padding: '10px 18px',
                   borderRadius: '8px',
                   border: 'none',
-                  background: subscribed
-                    ? 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)'
-                    : btnHovered
-                      ? 'linear-gradient(135deg, #a07f3f 0%, #c9a85e 100%)'
-                      : 'linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)',
                   color: '#FFFFFF',
                   fontFamily: 'var(--font-sans)',
                   fontSize: '13px',
                   fontWeight: '600',
                   cursor: (subscribed || subscribing) ? 'default' : 'pointer',
                   opacity: subscribing ? 0.7 : 1,
-                  transition: 'all 0.25s ease',
                   whiteSpace: 'nowrap',
-                  boxShadow: btnHovered
-                    ? '0 4px 14px rgba(184, 148, 79, 0.35)'
-                    : '0 2px 8px rgba(184, 148, 79, 0.2)',
                 }}
               >
                 {subscribed ? '✓ Subscribed' : subscribing ? 'Subscribing…' : 'Subscribe'}
@@ -365,15 +376,28 @@ export default function FooterSection() {
         input::placeholder {
           color: rgba(255, 255, 255, 0.3);
         }
+        .footer-subscribe-btn {
+          background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
+          box-shadow: 0 2px 8px rgba(184, 148, 79, 0.2);
+          transition: all 0.25s ease;
+        }
+        .footer-subscribe-btn:not(:disabled):hover,
+        .footer-subscribe-btn:not(:disabled):focus-visible {
+          background: linear-gradient(135deg, #a07f3f 0%, #c9a85e 100%);
+          box-shadow: 0 4px 14px rgba(184, 148, 79, 0.35);
+        }
+        .footer-subscribe-btn-done {
+          background: linear-gradient(135deg, #2e7d32 0%, #4caf50 100%);
+        }
         @media (max-width: 900px) {
           footer > div:nth-child(2) > div:first-child {
-            grid-template-columns: 1fr 1fr !important;
+            grid-template-columns: minmax(0,1fr) minmax(0,1fr) !important;
             gap: 40px 32px !important;
           }
         }
         @media (max-width: 560px) {
           footer > div:nth-child(2) > div:first-child {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: minmax(0,1fr) !important;
             gap: 36px !important;
           }
         }

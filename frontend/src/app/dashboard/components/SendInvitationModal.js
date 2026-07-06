@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -254,6 +255,9 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
     }
   }, [channel, selectedIds, eventId, apiUrl, onSuccess]);
 
+  // A11Y-9: shared focus-trap/initial-focus/focus-restore/scroll-lock/Escape hook.
+  const dialogRef = useModalA11y(isOpen, { onClose });
+
   if (!isOpen) return null;
 
   return (
@@ -264,14 +268,21 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '20px', animation: 'fadeIn 0.2s ease-out',
     }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: COLORS.white, borderRadius: '20px',
-        width: '100%', maxWidth: '640px', maxHeight: '85vh',
-        display: 'flex', flexDirection: 'column',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.15), 0 0 0 1px rgba(184,148,79,0.1)',
-        animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        overflow: 'hidden',
-      }}>
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="send-invitation-modal-title"
+        tabIndex={-1}
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: COLORS.white, borderRadius: '20px',
+          width: '100%', maxWidth: '640px', maxHeight: '85vh',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.15), 0 0 0 1px rgba(184,148,79,0.1)',
+          animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          overflow: 'hidden',
+        }}>
 
         {/* ═══ Header ═══ */}
         <div style={{
@@ -279,7 +290,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div>
-            <h2 style={{
+            <h2 id="send-invitation-modal-title" style={{
               fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500,
               color: COLORS.charcoal, margin: 0, letterSpacing: '-0.01em',
             }}>Send Invitations</h2>

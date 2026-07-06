@@ -452,7 +452,12 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
           borderRadius: 12,
           overflow: 'hidden',
         }}>
-          <div style={{ overflowX: 'auto' }}>
+          {/* Table on desktop, stacked cards on mobile — a raw table forced
+              into overflow-x:auto is the classic mobile anti-pattern (every
+              row needs two-directional scrolling to reach Actions). Both are
+              rendered and toggled via CSS so there's no JS viewport check /
+              hydration risk; RSVPRow and RSVPCard share the same row data. */}
+          <div className="rsvps-table-wrap" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
               <thead>
                 <tr style={{ background: COLORS.softBg }}>
@@ -490,6 +495,27 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
               </tbody>
             </table>
           </div>
+
+          <div className="rsvps-cards-wrap" style={{ display: 'none', flexDirection: 'column', gap: 10, padding: 12 }}>
+            {paginated.map((rsvp, idx) => (
+              <RSVPCard
+                key={rsvp.id || idx}
+                rsvp={rsvp}
+                deletingId={deletingId}
+                onDelete={handleDelete}
+                resending={resending}
+                onResend={handleResend}
+                onEdit={setEditingGuest}
+              />
+            ))}
+          </div>
+
+          <style jsx>{`
+            @media (max-width: 640px) {
+              .rsvps-table-wrap { display: none; }
+              .rsvps-cards-wrap { display: flex !important; }
+            }
+          `}</style>
 
           {/* ── Footer / Pagination ───────────────────────────── */}
           <div style={{
@@ -664,6 +690,52 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
   );
 });
 
+/* ── Mobile Card (same data/actions as RSVPRow, stacked instead of tabular) ── */
+const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onResend, onEdit }) {
+  const badge = responseBadge(rsvp.response);
+  return (
+    <div style={{
+      background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: 12,
+      padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+        <div style={{ minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {rsvp.guest_name || '—'}
+          </span>
+          {rsvp.email && (
+            <span style={{ display: 'block', fontSize: 12, color: COLORS.stone, marginTop: 2, fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {rsvp.email}
+            </span>
+          )}
+        </div>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+          padding: '4px 12px', borderRadius: 6, background: badge.bg,
+          fontSize: 10, fontWeight: 700, color: badge.color, textTransform: 'uppercase',
+          letterSpacing: '0.06em', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: badge.dot, flexShrink: 0 }} />
+          {badge.label}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 12, color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
+        <span>Party of {rsvp.party_size ?? '—'}</span>
+        {rsvp.meal && <span>· {rsvp.meal}</span>}
+        <span>· {formatTime(rsvp.timestamp)}</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: `1px solid ${COLORS.border}`, paddingTop: 10 }}>
+        <IconActionButton title="Edit guest" onClick={() => onEdit(rsvp)} icon={PencilIcon} />
+        <ResendButton type="confirmation" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Resend confirmation email" />
+        <ResendButton type="qr" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Resend QR ticket email (requires table assignment)" />
+        <DeleteButton rsvpId={rsvp.id} deletingId={deletingId} onDelete={onDelete} />
+      </div>
+    </div>
+  );
+});
+
 /* ── Delete Button ───────────────────────────────────────────── */
 function DeleteButton({ rsvpId, deletingId, onDelete }) {
   const [hovered, setHovered] = useState(false);
@@ -680,8 +752,8 @@ function DeleteButton({ rsvpId, deletingId, onDelete }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 32,
-        height: 32,
+        width: 44,
+        height: 44,
         borderRadius: 8,
         border: 'none',
         cursor: isDeleting ? 'wait' : 'pointer',
@@ -706,7 +778,7 @@ function IconActionButton({ title, onClick, icon: Icon }) {
       title={title}
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 32, height: 32, borderRadius: 8, border: 'none',
+        width: 44, height: 44, borderRadius: 8, border: 'none',
         cursor: 'pointer', background: hovered ? COLORS.champagneLight : 'transparent',
         transition: 'all 0.2s ease',
       }}
@@ -733,8 +805,8 @@ function ResendButton({ type, rsvpId, resending, onResend, title }) {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 32,
-        height: 32,
+        width: 44,
+        height: 44,
         borderRadius: 8,
         border: 'none',
         cursor: isBusy ? 'wait' : 'pointer',

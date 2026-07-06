@@ -90,23 +90,16 @@ const socialLinks = [
 ];
 
 function ContactInfoCard({ card }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <div
+      className="contact-info-card"
       style={{
         display: "flex",
         gap: "16px",
         padding: "20px",
         borderRadius: "12px",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
-        background: hovered ? "#FFFDF8" : "#FFFFFF",
-        transition: "all 0.3s ease",
         cursor: "default",
-        transform: hovered ? "translateY(-2px)" : "none",
-        boxShadow: hovered ? "0 8px 24px rgba(184,148,79,0.08)" : "0 2px 8px rgba(0,0,0,0.03)",
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <div
         style={{
@@ -157,46 +150,79 @@ function ContactInfoCard({ card }) {
           {card.detail}
         </p>
       </div>
+
+      <style jsx>{`
+        .contact-info-card {
+          border: 1px solid #E8E2D6;
+          background: #FFFFFF;
+          transition: all 0.3s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+        }
+        .contact-info-card:hover,
+        .contact-info-card:focus-within {
+          border-color: #D7BE80;
+          background: #FFFDF8;
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(184, 148, 79, 0.08);
+        }
+      `}</style>
     </div>
   );
 }
 
 function SocialLink({ link }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <a
       href={link.url}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={link.name}
+      className="social-link"
       style={{
         width: "48px",
         height: "48px",
         borderRadius: "50%",
-        border: `1.5px solid ${hovered ? "#B8944F" : "#E8E2D6"}`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        transition: "all 0.3s ease",
-        background: hovered ? "rgba(184, 148, 79, 0.08)" : "transparent",
-        transform: hovered ? "translateY(-2px)" : "none",
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       <svg
+        className="social-link-icon"
         width="18"
         height="18"
         viewBox="0 0 24 24"
         fill="none"
-        stroke={hovered ? "#B8944F" : "#5E5A52"}
+        stroke="#5E5A52"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ transition: "stroke 0.3s ease" }}
       >
         {link.icon}
       </svg>
+
+      <style jsx>{`
+        .social-link {
+          border: 1.5px solid #E8E2D6;
+          background: transparent;
+          transition: all 0.3s ease;
+          transform: translateY(0);
+        }
+        .social-link:hover,
+        .social-link:focus-visible {
+          border-color: #B8944F;
+          background: rgba(184, 148, 79, 0.08);
+          transform: translateY(-2px);
+        }
+        .social-link-icon {
+          transition: stroke 0.3s ease;
+        }
+        .social-link:hover .social-link-icon,
+        .social-link:focus-visible .social-link-icon {
+          stroke: #B8944F;
+        }
+      `}</style>
     </a>
   );
 }
@@ -302,7 +328,7 @@ export default function ContactPage() {
           <h1
             style={{
               fontFamily: "var(--font-serif)",
-              fontSize: "48px",
+              fontSize: "clamp(2rem, 6vw, 3rem)",
               fontWeight: 700,
               color: "#191B1E",
               marginBottom: "16px",
@@ -427,10 +453,12 @@ export default function ContactPage() {
               <form onSubmit={handleSubmit}>
                 <div className="form-row" style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
                   <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Full Name</label>
+                    <label style={labelStyle} htmlFor="contact-name">Full Name</label>
                     <input
+                      id="contact-name"
                       type="text"
                       name="name"
+                      autoComplete="name"
                       value={formData.name}
                       onChange={handleChange}
                       onFocus={() => setFocusedField("name")}
@@ -441,10 +469,12 @@ export default function ContactPage() {
                     />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <label style={labelStyle}>Email Address</label>
+                    <label style={labelStyle} htmlFor="contact-email">Email Address</label>
                     <input
+                      id="contact-email"
                       type="email"
                       name="email"
+                      autoComplete="email"
                       value={formData.email}
                       onChange={handleChange}
                       onFocus={() => setFocusedField("email")}
@@ -457,8 +487,9 @@ export default function ContactPage() {
                 </div>
 
                 <div style={{ marginBottom: "20px" }}>
-                  <label style={labelStyle}>Subject</label>
+                  <label style={labelStyle} htmlFor="contact-subject">Subject</label>
                   <select
+                    id="contact-subject"
                     name="subject"
                     value={formData.subject}
                     onChange={handleChange}
@@ -489,8 +520,9 @@ export default function ContactPage() {
                 </div>
 
                 <div style={{ marginBottom: "28px" }}>
-                  <label style={labelStyle}>Message</label>
+                  <label style={labelStyle} htmlFor="contact-message">Message</label>
                   <textarea
+                    id="contact-message"
                     name="message"
                     value={formData.message}
                     onChange={handleChange}

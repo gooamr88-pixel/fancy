@@ -1,12 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function CTASection() {
-  const [primaryHovered, setPrimaryHovered] = useState(false);
-  const [secondaryHovered, setSecondaryHovered] = useState(false);
   const { isLoggedIn, loading } = useAuth();
 
   const trustItems = [
@@ -144,12 +141,12 @@ export default function CTASection() {
           {/* Primary Button */}
           <Link
             href={!loading && isLoggedIn ? '/dashboard' : '/register'}
+            className="cta-primary-btn"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '16px 40px',
-              background: 'linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)',
               color: '#FFFFFF',
               fontSize: '14px',
               fontWeight: 700,
@@ -159,14 +156,7 @@ export default function CTASection() {
               textDecoration: 'none',
               border: 'none',
               cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              transform: primaryHovered ? 'translateY(-2px)' : 'translateY(0)',
-              boxShadow: primaryHovered
-                ? '0 12px 32px rgba(184,148,79,0.35)'
-                : '0 4px 16px rgba(184,148,79,0.2)',
             }}
-            onMouseEnter={() => setPrimaryHovered(true)}
-            onMouseLeave={() => setPrimaryHovered(false)}
           >
             {!loading && isLoggedIn ? 'Go to Dashboard' : 'Get Started Free'}
           </Link>
@@ -174,14 +164,12 @@ export default function CTASection() {
           {/* Secondary Button */}
           <Link
             href="/demo"
+            className="cta-secondary-btn"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
               padding: '16px 40px',
-              background: secondaryHovered
-                ? 'rgba(255,255,255,0.05)'
-                : 'transparent',
               color: '#FFFFFF',
               fontSize: '14px',
               fontWeight: 700,
@@ -189,14 +177,8 @@ export default function CTASection() {
               borderRadius: '8px',
               letterSpacing: '0.5px',
               textDecoration: 'none',
-              border: secondaryHovered
-                ? '1.5px solid rgba(255,255,255,1)'
-                : '1.5px solid rgba(255,255,255,0.3)',
               cursor: 'pointer',
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             }}
-            onMouseEnter={() => setSecondaryHovered(true)}
-            onMouseLeave={() => setSecondaryHovered(false)}
           >
             View Live Demo
           </Link>
@@ -220,7 +202,7 @@ export default function CTASection() {
                 fontFamily: 'var(--font-sans)',
                 fontSize: '12px',
                 fontWeight: 500,
-                color: 'rgba(255,255,255,0.4)',
+                color: 'rgba(255,255,255,0.55)',
                 letterSpacing: '0.5px',
                 whiteSpace: 'nowrap',
               }}
@@ -236,6 +218,29 @@ export default function CTASection() {
       <style jsx>{`
         .cta-heading {
           font-size: clamp(1.8rem, 4vw, 2.6rem);
+        }
+
+        .cta-primary-btn {
+          background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          transform: translateY(0);
+          box-shadow: 0 4px 16px rgba(184, 148, 79, 0.2);
+        }
+        .cta-primary-btn:hover,
+        .cta-primary-btn:focus-visible {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 32px rgba(184, 148, 79, 0.35);
+        }
+
+        .cta-secondary-btn {
+          background: transparent;
+          border: 1.5px solid rgba(255, 255, 255, 0.3);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .cta-secondary-btn:hover,
+        .cta-secondary-btn:focus-visible {
+          background: rgba(255, 255, 255, 0.05);
+          border-color: rgba(255, 255, 255, 1);
         }
 
         /* Shimmer animation */

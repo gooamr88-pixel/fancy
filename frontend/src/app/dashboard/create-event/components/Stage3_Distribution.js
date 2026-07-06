@@ -452,7 +452,7 @@ export default function Stage3_Distribution({
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
         borderTop: `1px solid ${C.border}`,
-        padding: '16px 24px', zIndex: 50,
+        padding: '16px 24px', paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 8px))', zIndex: 50,
         display: 'flex', justifyContent: 'center',
       }}>
         <div style={{

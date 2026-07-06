@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -31,6 +32,9 @@ const FEATURE_LIST = [
 ];
 
 export default function UpgradeModal({ isOpen, onClose, feature, isPaid, onUpgrade }) {
+  // A11Y-9: shared focus-trap/initial-focus/focus-restore/scroll-lock/Escape hook.
+  const dialogRef = useModalA11y(isOpen, { onClose });
+
   if (!isOpen) return null;
 
   const title = FEATURE_TITLES[feature] || 'Premium Feature';
@@ -53,6 +57,11 @@ export default function UpgradeModal({ isOpen, onClose, feature, isPaid, onUpgra
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="upgrade-modal-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: COLORS.white,
@@ -60,7 +69,8 @@ export default function UpgradeModal({ isOpen, onClose, feature, isPaid, onUpgra
           boxShadow: '0 24px 64px rgba(0,0,0,0.12)',
           maxWidth: '440px',
           width: '100%',
-          overflow: 'hidden',
+          maxHeight: '90vh',
+          overflowY: 'auto',
           position: 'relative',
         }}
       >
@@ -102,7 +112,7 @@ export default function UpgradeModal({ isOpen, onClose, feature, isPaid, onUpgra
             </svg>
           </div>
 
-          <h3 style={{
+          <h3 id="upgrade-modal-title" style={{
             fontFamily: 'var(--font-serif)',
             fontSize: '20px',
             fontWeight: 600,

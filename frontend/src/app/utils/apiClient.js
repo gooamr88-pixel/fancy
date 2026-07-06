@@ -43,7 +43,7 @@ export async function apiFetch(path, options = {}) {
         localStorage.removeItem('org_id');
         localStorage.removeItem('user_role');
         localStorage.removeItem('active_event_id');
-        window.location.href = '/login';
+        window.location.href = '/login?reason=expired';
         return; // Don't throw — we're redirecting
       }
 

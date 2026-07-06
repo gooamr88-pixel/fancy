@@ -6,6 +6,7 @@ import adminApi from '../../_lib/adminApi';
 import useAdminList from '../../_hooks/useAdminList';
 import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
+import { PageLoading } from '../../_components/Spinner';
 import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
@@ -132,7 +133,7 @@ function PackageCatalog() {
 
       {error && <p style={{ color: T.danger }}>{error}</p>}
       {loading ? (
-        <p style={{ color: T.text500 }}>Loading packages…</p>
+        <PageLoading label="Loading packages…" />
       ) : packages.length === 0 ? (
         <div style={{ ...card, padding: 24, textAlign: 'center', color: T.text400, fontSize: 13 }}>No packages yet.</div>
       ) : (

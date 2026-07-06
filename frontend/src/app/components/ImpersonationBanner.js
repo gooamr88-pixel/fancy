@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../utils/apiClient';
+import { toast } from '../utils/toast';
 
 /**
  * Persistent indicator + escape hatch for an active admin impersonation
@@ -38,7 +39,7 @@ export default function ImpersonationBanner() {
       window.location.href = '/admin/overview';
     } catch (err) {
       setReturning(false);
-      window.alert(err.message || 'Could not return to your admin account. Please log out and back in.');
+      toast.error(err.message || 'Could not return to your admin account. Please log out and back in.');
     }
   };
 

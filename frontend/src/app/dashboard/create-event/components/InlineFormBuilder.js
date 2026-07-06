@@ -236,7 +236,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
               )}
 
               {/* Row 1: Label + Key */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="ifb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div>
                   <label style={lblStyle}>Question Label</label>
                   <input type="text" value={label}
@@ -256,7 +256,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
               </div>
 
               {/* Row 2: Type + Required */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="ifb-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div>
                   <label style={lblStyle}>Response Type</label>
                   <select value={type} onChange={e => setType(e.target.value)}
@@ -457,6 +457,11 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
           </div>
         )}
       </div>
+      <style jsx>{`
+        @media (max-width: 640px) {
+          .ifb-row { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

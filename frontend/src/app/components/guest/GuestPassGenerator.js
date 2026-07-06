@@ -200,12 +200,7 @@ export default function GuestPassCard({
         animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
         transition={{ type: 'spring', stiffness: 180, damping: 18, delay: 0.25 }}
         whileHover={{ rotateX: 2, rotateY: -2, scale: 1.012 }}
-        onClick={() => setFlipped(f => !f)}
-        role="button"
-        tabIndex={0}
-        aria-label={isRTL ? 'اضغط لقلب البطاقة' : 'Tap to flip the pass'}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setFlipped(f => !f); }}
-        style={{ position: 'relative', transformStyle: 'preserve-3d', cursor: 'pointer' }}
+        style={{ position: 'relative', transformStyle: 'preserve-3d' }}
       >
         {/* ── FRONT ── */}
         <motion.div
@@ -315,7 +310,7 @@ export default function GuestPassCard({
 
           <div style={{ padding: '0 26px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
-              onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+              onClick={handleDownload}
               style={{
                 width: '100%', padding: '12px', borderRadius: '10px',
                 border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
@@ -329,9 +324,18 @@ export default function GuestPassCard({
             >
               ⬇ {isRTL ? 'تحميل بطاقة الدخول' : 'Download Guest Pass'}
             </button>
-            <span style={{ textAlign: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.22)', letterSpacing: '0.04em' }}>
-              {isRTL ? 'اضغط على البطاقة لرؤية التفاصيل' : 'Tap the pass to flip it over'}
-            </span>
+            <button
+              onClick={() => setFlipped(true)}
+              aria-label={isRTL ? 'عرض تفاصيل التذكرة' : 'View pass details'}
+              style={{
+                background: 'none', border: 'none', padding: '4px', cursor: 'pointer',
+                textAlign: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.4)',
+                letterSpacing: '0.04em', fontFamily: 'var(--font-sans)', textDecoration: 'underline',
+                textUnderlineOffset: '2px',
+              }}
+            >
+              {isRTL ? 'تفاصيل التذكرة ›' : 'Pass details ›'}
+            </button>
           </div>
         </motion.div>
 
@@ -368,9 +372,16 @@ export default function GuestPassCard({
             {!removeWatermark && (
               <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px' }}>Fancy RSVP</span>
             )}
-            <span style={{ fontSize: '10px', color: themeColor, fontWeight: 700 }}>
-              {isRTL ? '↺ اضغط للعودة' : '↺ Tap to flip back'}
-            </span>
+            <button
+              onClick={() => setFlipped(false)}
+              aria-label={isRTL ? 'العودة إلى بطاقة الدخول' : 'Back to pass'}
+              style={{
+                background: 'none', border: 'none', padding: '4px', cursor: 'pointer',
+                fontSize: '10px', color: themeColor, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              }}
+            >
+              {isRTL ? '↺ العودة' : '↺ Back to pass'}
+            </button>
           </div>
         </motion.div>
       </motion.div>

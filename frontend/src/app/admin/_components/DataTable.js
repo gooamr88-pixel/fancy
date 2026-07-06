@@ -35,6 +35,12 @@ export default function DataTable({
   actions,
   onRefresh,
 }) {
+  // Loading/empty states are just a centered message in one cell — fine at any
+  // width. Only actual data rows suffer the "raw table needs 2D scrolling on a
+  // phone" problem this component is shared by ~10 admin list screens, so the
+  // fix lives here once: swap to a stacked label/value card per row on mobile
+  // instead of forcing horizontal scroll to reach the last column.
+  const hasRows = !loading && !!rows && rows.length > 0;
   return (
     <div style={{ ...card, overflow: 'hidden' }}>
       {(title || actions || onRefresh) && (
@@ -61,14 +67,14 @@ export default function DataTable({
         </div>
       )}
 
-      <div style={{ overflowX: 'auto' }}>
+      <div className={hasRows ? 'admin-table-wrap-rows' : undefined} style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ background: T.surfaceAlt, borderBottom: `1px solid ${T.border}` }}>
               {columns.map((c) => (
                 <th
                   key={c.key}
-                  style={{ padding: '14px 20px', textAlign: c.align || 'left', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.text500, fontWeight: 700, whiteSpace: 'nowrap' }}
+                  style={{ padding: '14px 20px', textAlign: c.align || 'left', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.text500, fontWeight: 700 }}
                 >
                   {c.header}
                 </th>
@@ -107,6 +113,28 @@ export default function DataTable({
         </table>
       </div>
 
+      {hasRows && (
+        <div className="admin-cards-wrap" style={{ display: 'none', flexDirection: 'column', gap: 10, padding: 16 }}>
+          {rows.map((row, i) => (
+            <div key={rowKey ? rowKey(row, i) : i} style={{ border: `1px solid ${T.border}`, borderRadius: T.radiusSm, padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {columns.map((c) => {
+                const value = c.render ? c.render(row) : row[c.key];
+                return (
+                  <div key={c.key} style={{ display: 'flex', justifyContent: c.header ? 'space-between' : 'flex-start', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {c.header && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: T.text500, textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>
+                        {c.header}
+                      </span>
+                    )}
+                    <span style={{ fontSize: 13, color: T.text700, textAlign: c.header ? 'right' : 'left' }}>{value}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+
       {pagination && pagination.totalPages > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '16px 24px', borderTop: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: T.text500 }}>
@@ -127,6 +155,10 @@ export default function DataTable({
           background-color: ${T.surfaceAlt};
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 640px) {
+          .admin-table-wrap-rows { display: none; }
+          .admin-cards-wrap { display: flex !important; }
+        }
       `}</style>
     </div>
   );

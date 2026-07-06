@@ -45,6 +45,17 @@ export const metadata = {
       { url: "/icon.svg", type: "image/svg+xml" },
     ],
     shortcut: "/favicon.ico",
+    // Was sitting unused in /public — iOS reaches for this specific file when
+    // a guest/organizer adds the site to their home screen, otherwise it
+    // falls back to a plain screenshot of the page as the "icon".
+    apple: "/apple-touch-icon.png",
+  },
+  // MOB-13: lets "Add to Home Screen" open as a standalone app (own title,
+  // no Safari chrome) instead of just bookmarking the URL.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Fancy RSVP",
   },
 };
 
@@ -52,6 +63,11 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // MOB-13: tints the browser's own UI chrome (Android Chrome's address bar,
+  // iOS Safari's toolbar in some contexts) to match the brand instead of
+  // defaulting to plain white/grey — the one contrast-safe gold, not the
+  // decorative --champagne-gold.
+  themeColor: "#8A6D34",
 };
 
 export default function RootLayout({ children }) {

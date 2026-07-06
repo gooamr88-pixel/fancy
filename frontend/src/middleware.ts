@@ -19,7 +19,10 @@ export function middleware(request: NextRequest) {
     const payload = JSON.parse(atob(parts[1]));
     // Check if token is expired
     if (payload.exp && payload.exp * 1000 < Date.now()) {
-      const response = NextResponse.redirect(loginUrl);
+      const expiredUrl = new URL('/login', request.url);
+      expiredUrl.searchParams.set('redirect', request.nextUrl.pathname);
+      expiredUrl.searchParams.set('reason', 'expired');
+      const response = NextResponse.redirect(expiredUrl);
       response.cookies.delete('fancy_session');
       return response;
     }

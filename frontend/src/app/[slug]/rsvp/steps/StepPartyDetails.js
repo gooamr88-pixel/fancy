@@ -7,18 +7,19 @@ import { PremiumButton, PartySizeStepper, FormField, inputFocus, inputBlur } fro
 import { S } from '../styles';
 import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
 import PhoneNumberInput from '../../../components/PhoneNumberInput';
+import { BoltIcon, CalendarIcon, PlaneIcon, ClipboardIcon, HeartPulseIcon, DotsIcon, ClockIcon, EnvelopeIcon, PeopleIcon } from '../../../components/guest/RsvpIcons';
 
 const MAYBE_OPTIONS = [
-  { value: '24 Hours', icon: '⚡', labelEn: 'Within 24 Hours', labelAr: 'خلال ٢٤ ساعة', subEn: "I'll know very soon", subAr: 'سأعلمكم قريباً جداً' },
-  { value: '3 Days', icon: '📅', labelEn: 'Within 3 Days', labelAr: 'خلال ٣ أيام', subEn: 'I need a short while to confirm', subAr: 'أحتاج وقت قصير للتأكد' },
-  { value: '1 Week', icon: '🗓️', labelEn: 'Within 1 Week', labelAr: 'خلال أسبوع', subEn: "I'm working out some details", subAr: 'أنتظر ترتيب بعض الأمور' },
+  { value: '24 Hours', Icon: BoltIcon, labelEn: 'Within 24 Hours', labelAr: 'خلال ٢٤ ساعة', subEn: "I'll know very soon", subAr: 'سأعلمكم قريباً جداً' },
+  { value: '3 Days', Icon: CalendarIcon, labelEn: 'Within 3 Days', labelAr: 'خلال ٣ أيام', subEn: 'I need a short while to confirm', subAr: 'أحتاج وقت قصير للتأكد' },
+  { value: '1 Week', Icon: CalendarIcon, labelEn: 'Within 1 Week', labelAr: 'خلال أسبوع', subEn: "I'm working out some details", subAr: 'أنتظر ترتيب بعض الأمور' },
 ];
 
 const DECLINE_REASONS = [
-  { value: 'Travel', icon: '✈️', labelEn: 'Travel Commitment', labelAr: 'ارتباط بسفر' },
-  { value: 'Schedule Conflict', icon: '📋', labelEn: 'Schedule Conflict', labelAr: 'تعارض في الجدول' },
-  { value: 'Health', icon: '🏥', labelEn: 'Health Reasons', labelAr: 'أسباب صحية' },
-  { value: 'Other', icon: '💭', labelEn: 'Other Reasons', labelAr: 'أسباب أخرى' },
+  { value: 'Travel', Icon: PlaneIcon, labelEn: 'Travel Commitment', labelAr: 'ارتباط بسفر' },
+  { value: 'Schedule Conflict', Icon: ClipboardIcon, labelEn: 'Schedule Conflict', labelAr: 'تعارض في الجدول' },
+  { value: 'Health', Icon: HeartPulseIcon, labelEn: 'Health Reasons', labelAr: 'أسباب صحية' },
+  { value: 'Other', Icon: DotsIcon, labelEn: 'Other Reasons', labelAr: 'أسباب أخرى' },
 ];
 
 /** Step 3 (attending=yes: party details) / 3B (maybe: follow-up) / 3C (no: decline reason). */
@@ -100,7 +101,7 @@ export default function StepPartyDetails({
                 }
               };
               return (
-                <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px' }}>
+                <div className="name-title-row" style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px' }}>
                   <FormField label={isRTL ? 'اللقب' : 'Title'} error={validationErrors.guestNameTitle}>
                     <select
                       value={hTitle.replace('.', '')}
@@ -240,7 +241,13 @@ export default function StepPartyDetails({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <FadeInUp y={15}>
           <div style={{ textAlign: 'center' }}>
-            <motion.span animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 1.5, repeat: Infinity }} style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>🤔</motion.span>
+            <motion.span animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 1.5, repeat: Infinity }} style={{
+              width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(99,102,241,0.1)', color: '#6366f1',
+            }}>
+              <ClockIcon size={30} strokeWidth={1.5} />
+            </motion.span>
             <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E', lineHeight: 1.4 }}>
               {isRTL ? 'متى يمكننا توقع تأكيدك؟' : 'When can we expect your confirmation?'}
             </h3>
@@ -268,7 +275,14 @@ export default function StepPartyDetails({
                   textAlign: isRTL ? 'right' : 'left',
                 }}
               >
-                <span style={{ fontSize: '28px', flexShrink: 0 }}>{opt.icon}</span>
+                <span style={{
+                  width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: maybeFollowUp === opt.value ? 'rgba(99,102,241,0.12)' : '#F5F3EF',
+                  color: maybeFollowUp === opt.value ? '#6366f1' : '#8A8578',
+                }}>
+                  <opt.Icon size={20} />
+                </span>
                 <div>
                   <span style={{ fontWeight: 700, fontSize: '14px', display: 'block', color: maybeFollowUp === opt.value ? '#6366f1' : '#191B1E' }}>
                     {isRTL ? opt.labelAr : opt.labelEn}
@@ -306,7 +320,13 @@ export default function StepPartyDetails({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <FadeInUp y={15}>
           <div style={{ textAlign: 'center' }}>
-            <motion.span initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block', marginBottom: '12px' }}>💌</motion.span>
+            <motion.span initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 12, delay: 0.2 }} style={{
+              width: '64px', height: '64px', borderRadius: '50%', margin: '0 auto 12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(239,68,68,0.08)', color: '#ef4444',
+            }}>
+              <EnvelopeIcon size={30} strokeWidth={1.5} />
+            </motion.span>
             <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E', lineHeight: 1.4 }}>
               {isRTL ? 'نتفهم ذلك ونتمنى لك كل الخير' : 'We understand and wish you well'}
             </h3>
@@ -334,7 +354,14 @@ export default function StepPartyDetails({
                   textAlign: isRTL ? 'right' : 'left',
                 }}
               >
-                <span style={{ fontSize: '22px' }}>{reason.icon}</span>
+                <span style={{
+                  width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: declineReason === reason.value ? 'rgba(239,68,68,0.08)' : '#F5F3EF',
+                  color: declineReason === reason.value ? '#ef4444' : '#8A8578',
+                }}>
+                  <reason.Icon size={17} />
+                </span>
                 <span style={{ fontWeight: 600, fontSize: '14px', color: declineReason === reason.value ? '#ef4444' : '#191B1E' }}>
                   {isRTL ? reason.labelAr : reason.labelEn}
                 </span>
@@ -391,7 +418,7 @@ export default function StepPartyDetails({
             display: 'flex', alignItems: 'center', gap: '10px',
             paddingTop: '8px',
           }}>
-            <span aria-hidden style={{ fontSize: '18px' }}>👥</span>
+            <span aria-hidden style={{ display: 'flex', color: '#8A6D34' }}><PeopleIcon size={19} strokeWidth={1.5} /></span>
             <div>
               <h4 style={{
                 margin: 0, fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E',
@@ -451,7 +478,7 @@ export default function StepPartyDetails({
               </div>
 
               {/* Name row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px' }}>
+              <div className="name-title-row" style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px' }}>
                 <FormField label={isRTL ? 'اللقب' : 'Title'} error={validationErrors[`additionalGuest_title_${index}`]}>
                   <select
                     value={title.replace('.', '')}
@@ -540,6 +567,14 @@ export default function StepPartyDetails({
           {onContinue && <PremiumButton testId="rsvp-next" onClick={onContinue}>{t.continue}</PremiumButton>}
         </div>
       )}
+
+      <style jsx>{`
+        @media (max-width: 360px) {
+          .name-title-row {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

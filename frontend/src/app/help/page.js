@@ -131,43 +131,32 @@ const faqItems = [
 ];
 
 function CategoryCard({ category, index, onCategoryClick }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <div
       className="help-category-card"
       style={{
-        background: hovered ? "#FFFDF8" : "#FFFFFF",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "16px",
         padding: "36px 28px",
         cursor: "pointer",
-        transition: "all 0.35s ease",
-        transform: hovered ? "translateY(-4px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 12px 40px rgba(184, 148, 79, 0.12)"
-          : "0 2px 12px rgba(0, 0, 0, 0.04)",
         animationDelay: `${index * 80}ms`,
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       onClick={onCategoryClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`Jump to ${category?.title || 'this'} FAQ section`}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCategoryClick?.(); } }}
     >
-      <div
-        style={{
+      <div className="help-category-icon-box" style={{
           width: "56px",
           height: "56px",
           borderRadius: "14px",
-          background: hovered
-            ? "linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)"
-            : "#FAF7F0",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           marginBottom: "20px",
-          transition: "all 0.35s ease",
         }}
       >
-        <div style={{ filter: hovered ? "brightness(10)" : "none", transition: "filter 0.35s ease" }}>
+        <div className="help-category-icon">
           {category.icon}
         </div>
       </div>
@@ -204,6 +193,38 @@ function CategoryCard({ category, index, onCategoryClick }) {
       >
         {category.count} articles →
       </span>
+
+      <style jsx>{`
+        .help-category-card {
+          background: #FFFFFF;
+          border: 1px solid #E8E2D6;
+          transition: all 0.35s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+        }
+        .help-category-card:hover,
+        .help-category-card:focus-visible {
+          background: #FFFDF8;
+          border-color: #D7BE80;
+          transform: translateY(-4px);
+          box-shadow: 0 12px 40px rgba(184, 148, 79, 0.12);
+        }
+        .help-category-icon-box {
+          background: #FAF7F0;
+          transition: all 0.35s ease;
+        }
+        .help-category-card:hover .help-category-icon-box,
+        .help-category-card:focus-visible .help-category-icon-box {
+          background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
+        }
+        .help-category-icon {
+          transition: filter 0.35s ease;
+        }
+        .help-category-card:hover .help-category-icon,
+        .help-category-card:focus-visible .help-category-icon {
+          filter: brightness(10);
+        }
+      `}</style>
     </div>
   );
 }
@@ -363,7 +384,7 @@ export default function HelpCenter() {
             <h1
               style={{
                 fontFamily: "var(--font-serif)",
-                fontSize: "48px",
+                fontSize: "clamp(2rem, 6vw, 3rem)",
                 fontWeight: 700,
                 color: "#191B1E",
                 marginBottom: "16px",

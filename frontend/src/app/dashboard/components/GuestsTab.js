@@ -112,7 +112,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               {(guest.response || 'pending').toUpperCase()}
             </span>
             <button onClick={() => onEdit(guest)} title="Edit guest" style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
               borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', color: COLORS.stone,
             }}
               onMouseEnter={e => { e.currentTarget.style.background = COLORS.ivory; e.currentTarget.style.color = COLORS.gold; }}
@@ -121,7 +121,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
             </button>
             <button onClick={() => onDelete(guest.id)} title="Delete guest" disabled={deleting} style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: '44px', height: '44px',
               borderRadius: '6px', border: 'none', background: 'transparent', cursor: deleting ? 'wait' : 'pointer',
               color: COLORS.stone, opacity: deleting ? 0.4 : 1,
             }}
@@ -447,7 +447,7 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, event,
         </div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+          <div className="guests-cards-grid" style={{ display: 'grid', gap: '12px' }}>
             {paginated.map(guest => (
               <GuestCard
                 key={guest.id} guest={guest} tables={tables} onAssignTable={onAssignTable}
@@ -456,6 +456,12 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, event,
               />
             ))}
           </div>
+          <style jsx>{`
+            .guests-cards-grid { grid-template-columns: repeat(2, 1fr); }
+            @media (max-width: 640px) {
+              .guests-cards-grid { grid-template-columns: 1fr; }
+            }
+          `}</style>
 
           {totalPages > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>

@@ -131,30 +131,25 @@ const faqData = [
 // Comparison features are now built dynamically from the loaded plans.
 
 function PricingCard({ plan }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className={`pricing-card${plan.highlight ? " pricing-card-highlight" : ""}`}
       style={{
         background: plan.highlight ? "#191B1E" : "#FFFFFF",
-        border: plan.highlight
-          ? "2px solid #B8944F"
-          : `1px solid ${hovered ? "#B8944F" : "#E8E2D6"}`,
         borderRadius: "20px",
         padding: plan.highlight ? "48px 36px" : "44px 36px",
         transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        transform: hovered ? "translateY(-8px)" : plan.highlight ? "translateY(-8px)" : "translateY(0)",
-        boxShadow: plan.highlight
-          ? "0 24px 80px rgba(184,148,79,0.2), 0 8px 32px rgba(0,0,0,0.08)"
-          : hovered
-          ? "0 20px 60px rgba(0,0,0,0.08)"
-          : "0 2px 16px rgba(0,0,0,0.04)",
         position: "relative",
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        ...(plan.highlight
+          ? {
+              border: "2px solid #B8944F",
+              transform: "translateY(-8px)",
+              boxShadow: "0 24px 80px rgba(184,148,79,0.2), 0 8px 32px rgba(0,0,0,0.08)",
+            }
+          : {}),
       }}
     >
       {/* Gold shimmer for highlighted card */}
@@ -301,22 +296,29 @@ function PricingCard({ plan }) {
           </li>
         ))}
       </ul>
+
+      <style jsx>{`
+        .pricing-card:not(.pricing-card-highlight) {
+          border: 1px solid #E8E2D6;
+          transform: translateY(0);
+          box-shadow: 0 2px 16px rgba(0, 0, 0, 0.04);
+        }
+        .pricing-card:not(.pricing-card-highlight):hover,
+        .pricing-card:not(.pricing-card-highlight):focus-within {
+          border-color: #B8944F;
+          transform: translateY(-8px);
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+        }
+      `}</style>
     </div>
   );
 }
 
 function FaqItem({ item, isOpen, onToggle }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        borderBottom: "1px solid #E8E2D6",
-        transition: "background 0.3s ease",
-        background: hovered ? "rgba(184,148,79,0.02)" : "transparent",
-      }}
+      className="faq-item-row"
+      style={{ borderBottom: "1px solid #E8E2D6" }}
     >
       <button
         onClick={onToggle}
@@ -371,6 +373,17 @@ function FaqItem({ item, isOpen, onToggle }) {
           {item.answer}
         </div>
       )}
+
+      <style jsx>{`
+        .faq-item-row {
+          transition: background 0.3s ease;
+          background: transparent;
+        }
+        .faq-item-row:hover,
+        .faq-item-row:focus-within {
+          background: rgba(184, 148, 79, 0.02);
+        }
+      `}</style>
     </div>
   );
 }
@@ -459,7 +472,7 @@ export default function PricingPage() {
             <h1
               style={{
                 fontFamily: "var(--font-serif)",
-                fontSize: "56px",
+                fontSize: "clamp(2.4rem, 5vw, 3.8rem)",
                 fontWeight: 700,
                 color: "#191B1E",
                 lineHeight: 1.15,
@@ -488,6 +501,7 @@ export default function PricingPage() {
 
         {/* ════════════════════ PRICING CARDS ════════════════════ */}
         <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 48px 100px" }}>
+          <h2 className="sr-only">Pricing Plans</h2>
           <div
             className="pricing-grid"
             style={{
@@ -531,12 +545,14 @@ export default function PricingPage() {
               </p>
             </div>
 
+            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
             <div
               style={{
                 background: "#FFFFFF",
                 borderRadius: "16px",
                 border: "1px solid #E8E2D6",
                 overflow: "hidden",
+                minWidth: `${(plans.length + 2) * 100}px`,
               }}
             >
               {/* Table Header */}
@@ -603,6 +619,7 @@ export default function PricingPage() {
                   })}
                 </div>
               ))}
+            </div>
             </div>
           </div>
         </section>

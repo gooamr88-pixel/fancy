@@ -10,6 +10,7 @@
  * of relying on field-name mismatches to fail closed by accident.
  */
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 
 const JWT_SECRET = process.env.QR_JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: QR_JWT_SECRET environment variable is required');
@@ -105,6 +106,32 @@ function verifyQrTicket(token) {
   return decoded;
 }
 
+/**
+ * Mints a QR ticket for a party as soon as they're a confirmed "yes" —
+ * deliberately NOT gated on a seating assignment existing. checkinController's
+ * scanCheckIn re-queries the live table assignment at scan time rather than
+ * trusting the token's tableName (see checkinController.js), so a ticket
+ * signed before seating is finalized is fully valid at the door; the table
+ * just reads "Unassigned" until the organizer seats them. Returns null for
+ * "maybe"/"no" — there's nothing to check in for an unconfirmed guest.
+ *
+ * Deliberately swallows its own errors: every caller sits inside an RSVP
+ * read/write that has ALREADY succeeded (the party's response is recorded
+ * either way), so a ticket-signing hiccup must never turn an otherwise-
+ * successful RSVP into a 500 for the guest. Worst case they see the existing
+ * "sent separately" placeholder instead of an immediate pass — never a
+ * failed request for something that actually worked.
+ */
+function signQrTicketForResponse({ response, partyId, eventId, tableName, partySize, eventDate }) {
+  if (response !== 'yes') return null;
+  try {
+    return signQrTicket({ partyId, eventId, tableName: tableName || null, partySize, eventDate });
+  } catch (err) {
+    logger.error({ err, partyId, eventId }, 'Failed to mint QR ticket for RSVP response');
+    return null;
+  }
+}
+
 module.exports = {
   PURPOSES,
   VALID_INTENTS,
@@ -113,4 +140,5 @@ module.exports = {
   verifyRsvpInvite,
   signQrTicket,
   verifyQrTicket,
+  signQrTicketForResponse,
 };

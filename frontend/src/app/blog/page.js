@@ -3,6 +3,7 @@ import React, { useState, useCallback } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import GoldDivider from "../components/GoldDivider";
 
 /* ═══════════════════════════════════════════════════════════
    Blog Page — Fancy RSVP
@@ -79,36 +80,16 @@ const categoryColors = {
   "Inspiration": { bg: "rgba(215,190,128,0.15)", text: "#a07f3f" },
 };
 
-function GoldDivider() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", padding: "12px 0" }}>
-      <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, transparent, #D7BE80)" }} />
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" fill="#D7BE80" opacity="0.5" />
-      </svg>
-      <div style={{ width: "60px", height: "1px", background: "linear-gradient(90deg, #D7BE80, transparent)" }} />
-    </div>
-  );
-}
-
 function ArticleCard({ article }) {
-  const [hovered, setHovered] = useState(false);
   const colors = categoryColors[article.category] || categoryColors["Event Tips"];
 
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="article-card"
       style={{
         background: "#FFFFFF",
-        border: `1px solid ${hovered ? "#D7BE80" : "#E8E2D6"}`,
         borderRadius: "16px",
         overflow: "hidden",
-        transition: "all 0.35s ease",
-        transform: hovered ? "translateY(-6px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 16px 48px rgba(184,148,79,0.12)"
-          : "0 2px 12px rgba(0,0,0,0.03)",
         display: "flex",
         flexDirection: "column",
       }}
@@ -207,6 +188,7 @@ function ArticleCard({ article }) {
         </div>
         <Link
           href="/register?from=blog"
+          aria-label={`Read full article: ${article.title}`}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -223,6 +205,21 @@ function ArticleCard({ article }) {
           Read Full Article →
         </Link>
       </div>
+
+      <style jsx>{`
+        .article-card {
+          border: 1px solid #E8E2D6;
+          transition: all 0.35s ease;
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        }
+        .article-card:hover,
+        .article-card:focus-within {
+          border-color: #D7BE80;
+          transform: translateY(-6px);
+          box-shadow: 0 16px 48px rgba(184, 148, 79, 0.12);
+        }
+      `}</style>
     </div>
   );
 }
@@ -409,7 +406,7 @@ export default function BlogPage() {
                     style={{
                       fontFamily: "var(--font-sans)",
                       fontSize: "13px",
-                      color: "rgba(255,255,255,0.4)",
+                      color: "rgba(255,255,255,0.55)",
                     }}
                   >
                     {featuredArticle.date}
@@ -572,6 +569,7 @@ export default function BlogPage() {
             >
               <input
                 type="email"
+                autoComplete="email"
                 placeholder="Enter your email"
                 value={emailValue}
                 onChange={(e) => setEmailValue(e.target.value)}

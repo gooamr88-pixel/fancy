@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 /**
  * LogoutModal — Premium logout confirmation popup.
@@ -43,13 +44,10 @@ export default function LogoutModal({ isOpen, onClose, onConfirm }) {
     return () => clearTimeout(t);
   }, [isOpen]);
 
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [isOpen, onClose]);
+  // A11Y-9: focus trap, initial focus, focus restore, body-scroll lock, and
+  // Escape-to-close (replacing the standalone handler this used to have)
+  // shared with every other modal in the app via one hook.
+  const dialogRef = useModalA11y(isOpen, { onClose });
 
   const handleConfirm = useCallback(async () => {
     setLoading(true);
@@ -114,9 +112,11 @@ export default function LogoutModal({ isOpen, onClose, onConfirm }) {
         }}
       >
         <div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby="logout-modal-title"
+          tabIndex={-1}
           onClick={(e) => e.stopPropagation()}
           style={{
             pointerEvents: 'auto',

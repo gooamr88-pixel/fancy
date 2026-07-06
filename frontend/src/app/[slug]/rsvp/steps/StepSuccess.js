@@ -8,7 +8,7 @@ import { PremiumButton, CalendarButton, ShareButton } from '../../../components/
 import GuestPassCard from '../../../components/guest/GuestPassGenerator';
 import SeatingResultPanel from './SeatingResultPanel';
 import { getCelebrationPreset } from '../../../utils/patternCelebration';
-import { playCelebration } from '../../../utils/sound';
+import { CelebrateIcon, CalendarIcon, EnvelopeIcon, MapPinIcon } from '../../../components/guest/RsvpIcons';
 
 /** A theatrical "materializing" entrance for the pass card — a slight 3D
     tilt-and-land plus a one-shot light sweep, like the card catching the
@@ -42,19 +42,26 @@ function PassCardReveal({ delay = 0, children }) {
 
 /** Three staggered confetti bursts instead of one flat explosion — reads as
     a proper fireworks finale. Reuses the same themed colors/shapes so it
-    still feels like THIS invitation's celebration, just bigger. */
+    still feels like THIS invitation's celebration, just bigger. Drops to two,
+    lighter waves on devices reporting few logical cores (a widely-supported,
+    if imprecise, low-end-hardware signal) so three overlapping particle
+    systems don't compete for paint budget on the guest's actual phone. */
 function FireworksFinale({ colors, shapes }) {
+  const [lowEnd] = useState(
+    () => typeof navigator !== 'undefined' && typeof navigator.hardwareConcurrency === 'number' && navigator.hardwareConcurrency <= 4
+  );
   const [waves, setWaves] = useState([true, false, false]);
   useEffect(() => {
     const t1 = setTimeout(() => setWaves(w => [w[0], true, w[2]]), 260);
+    if (lowEnd) return () => clearTimeout(t1);
     const t2 = setTimeout(() => setWaves(w => [w[0], w[1], true]), 520);
     return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+  }, [lowEnd]);
   return (
     <>
-      {waves[0] && <ConfettiExplosion active duration={4200} particleCount={110} colors={colors} shapes={shapes} spread={0.9} />}
-      {waves[1] && <ConfettiExplosion active duration={3800} particleCount={90} colors={colors} shapes={shapes} spread={1.3} />}
-      {waves[2] && <ConfettiExplosion active duration={3600} particleCount={90} colors={colors} shapes={shapes} spread={1.6} />}
+      {waves[0] && <ConfettiExplosion active duration={4200} particleCount={lowEnd ? 70 : 110} colors={colors} shapes={shapes} spread={0.9} />}
+      {waves[1] && <ConfettiExplosion active duration={3800} particleCount={lowEnd ? 60 : 90} colors={colors} shapes={shapes} spread={1.3} />}
+      {!lowEnd && waves[2] && <ConfettiExplosion active duration={3600} particleCount={90} colors={colors} shapes={shapes} spread={1.6} />}
     </>
   );
 }
@@ -84,20 +91,21 @@ function CelebrationFlash({ color }) {
 export default function StepSuccess({
   t, isRTL, attending, event, localizedTitle, guestName, email, partySize,
   partyId, slug, themeColor, assignedTableName, maybeFollowUp, declineReason,
-  seatingApi, seatingRevealed,
+  seatingApi, seatingRevealed, qrToken,
 }) {
+  // The pass's QR must encode a REAL signed ticket (the same shape the emailed
+  // ticket link and the door scanner use), never a placeholder string — a fake
+  // QR here would look scannable but fail at checkinController's verifyQrTicket.
+  // qrToken is only minted server-side for a confirmed "yes" (see
+  // tokenService.signQrTicketForResponse), so a "maybe" correctly falls back to
+  // GuestPassCard's existing "sent separately" placeholder instead of a lie.
+  const qrData = qrToken && typeof window !== 'undefined' ? `${window.location.origin}/ticket/${qrToken}` : null;
+
   const { seatingView, seatingLoading, fetchSeatingMap } = seatingApi;
   // The confetti burst matches THIS invitation's own identity — gilded stars
   // for a riad/vineyard theme, petals for a garden theme, snowy rings for a
   // winter theme — instead of one generic gold/rainbow burst for every event.
   const celebration = getCelebrationPreset(event?.template_type);
-
-  // Fires once on mount — this screen only ever mounts after a fresh submit,
-  // so there's no "attending changed later" case to react to.
-  useEffect(() => {
-    if (attending === 'yes') playCelebration();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '24px', padding: '16px 0' }}>
@@ -108,7 +116,17 @@ export default function StepSuccess({
           <FireworksFinale colors={celebration.colors} shapes={celebration.shapes} />
 
           <FadeInUp y={20}>
-            <motion.span animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 0.8, delay: 0.3 }} style={{ fontSize: '56px', display: 'block' }}>🎉</motion.span>
+            <motion.span
+              animate={{ scale: [1, 1.08, 1] }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              style={{
+                width: '72px', height: '72px', borderRadius: '50%', margin: '0 auto',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: `${themeColor}14`, color: themeColor,
+              }}
+            >
+              <CelebrateIcon size={34} strokeWidth={1.4} />
+            </motion.span>
           </FadeInUp>
 
           <FadeInUp delay={0.2} y={15}>
@@ -123,7 +141,12 @@ export default function StepSuccess({
             </p>
           </FadeInUp>
 
-          <PassCardReveal delay={0.5}>
+          {/* Delayed until after the fireworks' three waves (0/260/520ms) have
+              launched — landing the pass card's own 3D entrance here instead
+              of at 0.5s means the guest isn't fighting three confetti bursts
+              and a spring-physics card materialization for GPU/paint budget
+              in the same instant they need to actually read the pass. */}
+          <PassCardReveal delay={1.0}>
             <GuestPassCard
               guestName={guestName}
               eventTitle={localizedTitle}
@@ -131,14 +154,14 @@ export default function StepSuccess({
               eventLocation={event?.location_name || event?.location_address}
               tableName={assignedTableName}
               response="yes"
-              qrData={partyId ? `fancy-rsvp:${slug}:${partyId}` : null}
+              qrData={qrData}
               themeColor={themeColor}
               isRTL={isRTL}
               removeWatermark={!!event?.tier_remove_watermark}
             />
           </PassCardReveal>
 
-          <FadeInUp delay={0.65} y={10}>
+          <FadeInUp delay={1.15} y={10}>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <CalendarButton event={event} isRTL={isRTL} />
               <ShareButton
@@ -151,20 +174,20 @@ export default function StepSuccess({
           </FadeInUp>
 
           {partyId && seatingRevealed && (
-            <FadeInUp delay={0.75} y={15}>
+            <FadeInUp delay={1.25} y={15}>
               {seatingView ? (
                 <div style={{ marginTop: '4px' }}>
                   <SeatingResultPanel view={seatingView} loading={seatingLoading} isRTL={isRTL} />
                 </div>
               ) : (
-                <PremiumButton variant="outline" onClick={() => fetchSeatingMap(partyId)} loading={seatingLoading} icon="🗺️">
+                <PremiumButton variant="outline" onClick={() => fetchSeatingMap(partyId)} loading={seatingLoading} icon={<MapPinIcon size={15} />}>
                   {isRTL ? 'اعرض مكان جلوسي على الخريطة' : 'View where I sit on the map'}
                 </PremiumButton>
               )}
             </FadeInUp>
           )}
 
-          <FadeInUp delay={0.85} y={5}>
+          <FadeInUp delay={1.35} y={5}>
             <p style={{ fontSize: '12px', color: '#A09A91', fontStyle: 'italic', fontFamily: 'var(--font-sans)' }}>{t.qr_notice}</p>
           </FadeInUp>
         </>
@@ -173,7 +196,17 @@ export default function StepSuccess({
       {attending === 'maybe' && (
         <>
           <FadeInUp y={20}>
-            <motion.span animate={{ y: [0, -8, 0] }} transition={{ duration: 2, repeat: Infinity }} style={{ fontSize: '56px', display: 'block' }}>📅</motion.span>
+            <motion.span
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              style={{
+                width: '72px', height: '72px', borderRadius: '50%', margin: '0 auto',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(99,102,241,0.1)', color: '#6366f1',
+              }}
+            >
+              <CalendarIcon size={32} strokeWidth={1.4} />
+            </motion.span>
           </FadeInUp>
 
           <FadeInUp delay={0.2} y={15}>
@@ -207,7 +240,7 @@ export default function StepSuccess({
               eventLocation={event?.location_name || event?.location_address}
               tableName={assignedTableName}
               response="maybe"
-              qrData={partyId ? `fancy-rsvp:${slug}:${partyId}` : null}
+              qrData={qrData}
               themeColor={themeColor}
               isRTL={isRTL}
               removeWatermark={!!event?.tier_remove_watermark}
@@ -231,7 +264,18 @@ export default function StepSuccess({
       {attending === 'no' && (
         <>
           <FadeInUp y={20}>
-            <motion.span initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }} style={{ fontSize: '56px', display: 'block' }}>✉️</motion.span>
+            <motion.span
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
+              style={{
+                width: '72px', height: '72px', borderRadius: '50%', margin: '0 auto',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(160,154,145,0.14)', color: '#A09A91',
+              }}
+            >
+              <EnvelopeIcon size={32} strokeWidth={1.4} />
+            </motion.span>
           </FadeInUp>
 
           <FadeInUp delay={0.2} y={15}>

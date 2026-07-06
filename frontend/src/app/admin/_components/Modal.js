@@ -1,12 +1,16 @@
 'use client';
 
 import { T } from './theme';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 /**
  * Minimal centered modal/dialog used by admin section pages (detail drawers,
  * confirmations). Click the backdrop or ✕ to dismiss.
  */
 export default function Modal({ open, title, onClose, children, footer, width = 560 }) {
+  // A11Y-9: shared focus-trap/initial-focus/focus-restore/scroll-lock/Escape
+  // hook — this dialog previously had none of the five.
+  const dialogRef = useModalA11y(open, { onClose });
   if (!open) return null;
   return (
     <div
@@ -21,10 +25,18 @@ export default function Modal({ open, title, onClose, children, footer, width = 
         alignItems: 'center',
         justifyContent: 'center',
         padding: 20,
-        zIndex: 100,
+        // Above the mobile sidebar drawer's z-index:200 (Sidebar.js) — a modal
+        // triggered while the drawer happens to be open must never render
+        // invisibly behind it.
+        zIndex: 300,
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-modal-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: T.surface,
@@ -41,7 +53,7 @@ export default function Modal({ open, title, onClose, children, footer, width = 
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${T.border}` }}>
-          <h3 style={{ fontSize: 17, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>{title}</h3>
+          <h3 id="admin-modal-title" style={{ fontSize: 17, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.01em' }}>{title}</h3>
           <button
             onClick={onClose}
             aria-label="Close"
@@ -66,7 +78,7 @@ export default function Modal({ open, title, onClose, children, footer, width = 
           </button>
         </div>
         <div style={{ padding: '24px 28px', overflowY: 'auto', boxSizing: 'border-box' }}>{children}</div>
-        {footer && <div style={{ padding: '16px 24px', borderTop: `1px solid ${T.border}`, background: T.surfaceAlt, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>{footer}</div>}
+        {footer && <div style={{ padding: '16px 24px', borderTop: `1px solid ${T.border}`, background: T.surfaceAlt, display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 10 }}>{footer}</div>}
       </div>
     </div>
   );
@@ -110,21 +122,25 @@ export function Button({ onClick, children, variant = 'default', disabled, type 
 }
 
 export function StatusBadge({ status, label }) {
+  // A11Y-5: fg uses the *Dark text-safe variants, not the base semantic hues —
+  // T.success/T.warning/T.primary/T.danger read fine as accents/backgrounds
+  // but measure well under WCAG AA (2.1–3.8:1) as text on these ~8%-tint
+  // badge backgrounds. See globals.css's --admin-*-dark tokens.
   const map = {
     // Lifecycle / health
-    active: { bg: T.successSoft, fg: T.success, border: 'rgba(16, 185, 129, 0.2)' },
-    suspended: { bg: T.warningSoft, fg: T.warning, border: 'rgba(245, 158, 11, 0.2)' },
-    banned: { bg: T.dangerSoft, fg: T.danger, border: 'rgba(239, 68, 68, 0.2)' },
+    active: { bg: T.successSoft, fg: T.successDark, border: 'rgba(16, 185, 129, 0.2)' },
+    suspended: { bg: T.warningSoft, fg: T.warningDark, border: 'rgba(245, 158, 11, 0.2)' },
+    banned: { bg: T.dangerSoft, fg: T.dangerDark, border: 'rgba(239, 68, 68, 0.2)' },
     // Payments
-    completed: { bg: T.successSoft, fg: T.success, border: 'rgba(16, 185, 129, 0.2)' },
-    paid: { bg: T.successSoft, fg: T.success, border: 'rgba(16, 185, 129, 0.2)' },
-    pending: { bg: T.warningSoft, fg: T.warning, border: 'rgba(245, 158, 11, 0.2)' },
-    failed: { bg: T.dangerSoft, fg: T.danger, border: 'rgba(239, 68, 68, 0.2)' },
+    completed: { bg: T.successSoft, fg: T.successDark, border: 'rgba(16, 185, 129, 0.2)' },
+    paid: { bg: T.successSoft, fg: T.successDark, border: 'rgba(16, 185, 129, 0.2)' },
+    pending: { bg: T.warningSoft, fg: T.warningDark, border: 'rgba(245, 158, 11, 0.2)' },
+    failed: { bg: T.dangerSoft, fg: T.dangerDark, border: 'rgba(239, 68, 68, 0.2)' },
     refunded: { bg: T.surfaceAlt, fg: T.text500, border: 'rgba(156, 163, 175, 0.15)' },
     // Subscriptions
-    trialing: { bg: T.primarySoft, fg: T.primary, border: 'rgba(197, 168, 107, 0.2)' },
-    past_due: { bg: T.warningSoft, fg: T.warning, border: 'rgba(245, 158, 11, 0.2)' },
-    canceled: { bg: T.dangerSoft, fg: T.danger, border: 'rgba(239, 68, 68, 0.2)' },
+    trialing: { bg: T.primarySoft, fg: T.primaryDark, border: 'rgba(197, 168, 107, 0.2)' },
+    past_due: { bg: T.warningSoft, fg: T.warningDark, border: 'rgba(245, 158, 11, 0.2)' },
+    canceled: { bg: T.dangerSoft, fg: T.dangerDark, border: 'rgba(239, 68, 68, 0.2)' },
   };
   const c = map[status] || { bg: T.surfaceAlt, fg: T.text500, border: 'rgba(156, 163, 175, 0.15)' };
   return (

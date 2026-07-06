@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 /**
  * Fullscreen, pannable + zoomable viewer for the guest's seating chart.
@@ -86,29 +87,21 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
     setView({ scale, tx, ty });
   }, [els, myTableId]);
 
-  // Lock body scroll + fit on open.
+  // Fit-to-screen (or center on the guest's own table) once on open. Scroll
+  // lock, focus trap, initial focus, and Escape-to-close are handled by the
+  // shared useModalA11y hook below.
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
     const id = requestAnimationFrame(() => {
       if (myTableId) centerOnMyTable();
       else fitToScreen();
     });
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      cancelAnimationFrame(id);
-    };
+    return () => cancelAnimationFrame(id);
     // We deliberately only run this on mount — the callbacks close over the
     // initial bounds, which is what we want for the open animation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Escape closes.
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const dialogRef = useModalA11y(true, { onClose });
 
   // Zoom-at-cursor on wheel.
   const onWheel = (e) => {
@@ -188,21 +181,24 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={isRTL ? 'خريطة الجلوس' : 'Seating chart'}
+      tabIndex={-1}
       style={{
         position: 'fixed', inset: 0, zIndex: 2000,
         background: 'rgba(25,27,30,0.85)',
         backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
         display: 'flex', flexDirection: 'column',
         fontFamily: 'var(--font-sans)',
+        outline: 'none',
       }}
     >
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 18px', gap: '12px',
+        padding: '14px 18px', paddingTop: 'max(14px, calc(env(safe-area-inset-top) + 8px))', gap: '12px',
         background: 'linear-gradient(180deg, rgba(25,27,30,0.6), rgba(25,27,30,0))',
         color: '#FFFFFF',
       }}>
@@ -220,7 +216,7 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
           style={{
             background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
             color: '#FFFFFF', borderRadius: '999px',
-            width: '36px', height: '36px', cursor: 'pointer',
+            width: '44px', height: '44px', cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
@@ -323,7 +319,7 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
 
         {/* Controls — bottom right */}
         <div style={{
-          position: 'absolute', bottom: '18px',
+          position: 'absolute', bottom: 'max(18px, calc(env(safe-area-inset-bottom) + 10px))',
           ...(isRTL ? { left: '18px' } : { right: '18px' }),
           display: 'flex', flexDirection: 'column', gap: '8px',
         }}>
@@ -382,7 +378,7 @@ function CircleBtn({ children, onClick, ...rest }) {
       onClick={onClick}
       {...rest}
       style={{
-        width: '40px', height: '40px', borderRadius: '50%',
+        width: '44px', height: '44px', borderRadius: '50%',
         background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.4)',
         color: '#3A3631', cursor: 'pointer', fontSize: '20px', fontWeight: 700,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',

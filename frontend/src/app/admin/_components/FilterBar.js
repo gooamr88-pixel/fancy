@@ -36,6 +36,7 @@ export default function FilterBar({ onSearch, placeholder = 'Search…', childre
             className="admin-search-input"
             style={{
               width: '100%',
+              minHeight: 44,
               padding: '10px 14px 10px 38px',
               border: `1px solid ${T.border}`,
               borderRadius: T.radiusSm,

@@ -1,0 +1,801 @@
+<title>Fancy RSVP — Mobile-First Production Audit</title>
+<style>
+:root{
+  --ink:#1B1D20; --ink-2:#4B4E54; --muted:#726C61;
+  --surface:#FFFFFF; --surface-2:#FAF7F0; --surface-3:#F1EBDC;
+  --border:#E4DDCB;
+  --accent:#8A6D34; --accent-2:#6F5726; --accent-soft:rgba(138,109,52,.09);
+  --crit:#AE3526; --crit-soft:#FBEAE6; --crit-ink:#7A2519;
+  --med:#9C6300; --med-soft:#FBF0DD; --med-ink:#6E4700;
+  --minor:#3F5872; --minor-soft:#EAF0F5; --minor-ink:#2E4056;
+  --good:#2E7D5A; --good-soft:#E6F4ED; --good-ink:#1F5E42;
+  --shadow: 0 1px 2px rgba(27,29,32,.04), 0 10px 28px rgba(27,29,32,.07);
+  --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --ink:#F1ECDF; --ink-2:#D3CDBE; --muted:#A79F8C;
+    --surface:#18191B; --surface-2:#202123; --surface-3:#28292B;
+    --border:#3B3C38;
+    --accent:#D8BE82; --accent-2:#E9D9AC; --accent-soft:rgba(216,190,130,.12);
+    --crit:#E8877A; --crit-soft:rgba(232,135,122,.13); --crit-ink:#F5B3A8;
+    --med:#E6B55A; --med-soft:rgba(230,181,90,.13); --med-ink:#F2CE8E;
+    --minor:#93A9C4; --minor-soft:rgba(147,169,196,.13); --minor-ink:#BBCBE0;
+    --good:#6FCBA0; --good-soft:rgba(111,203,160,.13); --good-ink:#9FE1C2;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#F1ECDF; --ink-2:#D3CDBE; --muted:#A79F8C;
+  --surface:#18191B; --surface-2:#202123; --surface-3:#28292B;
+  --border:#3B3C38;
+  --accent:#D8BE82; --accent-2:#E9D9AC; --accent-soft:rgba(216,190,130,.12);
+  --crit:#E8877A; --crit-soft:rgba(232,135,122,.13); --crit-ink:#F5B3A8;
+  --med:#E6B55A; --med-soft:rgba(230,181,90,.13); --med-ink:#F2CE8E;
+  --minor:#93A9C4; --minor-soft:rgba(147,169,196,.13); --minor-ink:#BBCBE0;
+  --good:#6FCBA0; --good-soft:rgba(111,203,160,.13); --good-ink:#9FE1C2;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --ink:#1B1D20; --ink-2:#4B4E54; --muted:#726C61;
+  --surface:#FFFFFF; --surface-2:#FAF7F0; --surface-3:#F1EBDC;
+  --border:#E4DDCB;
+  --accent:#8A6D34; --accent-2:#6F5726; --accent-soft:rgba(138,109,52,.09);
+  --crit:#AE3526; --crit-soft:#FBEAE6; --crit-ink:#7A2519;
+  --med:#9C6300; --med-soft:#FBF0DD; --med-ink:#6E4700;
+  --minor:#3F5872; --minor-soft:#EAF0F5; --minor-ink:#2E4056;
+  --good:#2E7D5A; --good-soft:#E6F4ED; --good-ink:#1F5E42;
+  --shadow: 0 1px 2px rgba(27,29,32,.04), 0 10px 28px rgba(27,29,32,.07);
+}
+
+*{box-sizing:border-box;}
+body{
+  background:var(--surface-2); color:var(--ink); font-family:var(--sans);
+  line-height:1.6; margin:0; padding:0 0 96px;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{ font-family:var(--serif); color:var(--ink); text-wrap:balance; line-height:1.2; font-weight:700; }
+p{ margin:0 0 .9em; color:var(--ink-2); max-width:70ch; }
+code, .mono{ font-family:var(--mono); }
+a{ color:var(--accent); }
+::selection{ background:var(--accent-soft); }
+
+.wrap{ max-width:960px; margin:0 auto; padding:0 20px; }
+
+/* ---------- Hero ---------- */
+.hero{
+  background:linear-gradient(180deg, var(--surface-3), var(--surface-2) 70%);
+  border-bottom:1px solid var(--border);
+  padding:56px 0 40px;
+}
+.eyebrow{
+  font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent);
+  font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:10px;
+}
+.eyebrow::before{ content:""; width:22px; height:1px; background:var(--accent); display:inline-block; }
+.hero h1{ font-size:clamp(1.9rem, 4.4vw, 2.85rem); margin:0 0 12px; letter-spacing:-.01em; }
+.hero .dek{ font-size:17px; color:var(--ink-2); max-width:62ch; }
+.hero .meta{
+  display:flex; flex-wrap:wrap; gap:10px 22px; margin-top:22px; font-size:13px; color:var(--muted);
+}
+.hero .meta strong{ color:var(--ink-2); font-weight:600; }
+
+/* ---------- Sticky section nav ---------- */
+.tocbar{
+  position:sticky; top:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--border);
+  overflow-x:auto; white-space:nowrap; -webkit-overflow-scrolling:touch;
+}
+.tocbar .wrap{ display:flex; gap:4px; padding:10px 20px; }
+.tocbar a{
+  flex:0 0 auto; font-size:12.5px; font-weight:600; color:var(--ink-2); text-decoration:none;
+  padding:7px 12px; border-radius:99px; border:1px solid transparent;
+}
+.tocbar a:hover, .tocbar a:focus-visible{ background:var(--accent-soft); color:var(--accent-2); border-color:var(--border); }
+
+/* ---------- Sections ---------- */
+section{ padding:44px 0; border-bottom:1px solid var(--border); }
+section:last-of-type{ border-bottom:none; }
+.section-head{ margin-bottom:26px; }
+.section-head .tag{
+  font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:700;
+}
+.section-head h2{ font-size:clamp(1.4rem,2.6vw,1.9rem); margin:6px 0 8px; }
+.section-head p{ font-size:15px; }
+
+/* ---------- P0 banner ---------- */
+.p0{
+  background:var(--crit-soft); border:1px solid color-mix(in srgb, var(--crit) 35%, var(--border));
+  border-radius:14px; padding:22px 24px; margin:28px 0 0; box-shadow:var(--shadow);
+}
+.p0 .p0-label{
+  display:inline-flex; align-items:center; gap:8px; font-size:11.5px; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; color:#fff; background:var(--crit); padding:4px 10px; border-radius:99px; margin-bottom:12px;
+}
+.p0 h3{ font-size:19px; margin:0 0 8px; color:var(--crit-ink); }
+.p0 p{ color:var(--ink); max-width:none; font-size:14.5px; }
+.p0 code{ background:rgba(0,0,0,.06); padding:1px 5px; border-radius:4px; font-size:.92em; }
+:root[data-theme="dark"] .p0 code, @media (prefers-color-scheme:dark){ .p0 code{ background:rgba(255,255,255,.08); } }
+
+/* ---------- Scorecard ---------- */
+.scoregrid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(210px,1fr)); gap:14px; }
+.score{
+  background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 18px 16px;
+  box-shadow:var(--shadow);
+}
+.score .num{ font-family:var(--serif); font-size:34px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; }
+.score .num span{ font-size:16px; color:var(--muted); font-family:var(--sans); font-weight:600; }
+.score .label{ font-size:12.5px; font-weight:700; letter-spacing:.03em; color:var(--ink-2); margin-top:6px; }
+.score .meter{ height:6px; border-radius:99px; background:var(--surface-3); margin-top:12px; overflow:hidden; }
+.score .meter i{ display:block; height:100%; border-radius:99px; }
+.score .why{ font-size:12.5px; color:var(--muted); margin-top:10px; margin-bottom:0; }
+.band-crit .num{ color:var(--crit); } .band-crit .meter i{ background:var(--crit); }
+.band-med .num{ color:var(--med); } .band-med .meter i{ background:var(--med); }
+.band-good .num{ color:var(--good); } .band-good .meter i{ background:var(--good); }
+
+/* ---------- Chips ---------- */
+.chip{ display:inline-flex; align-items:center; font-size:11px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+  padding:3px 9px; border-radius:6px; }
+.chip-crit{ background:var(--crit-soft); color:var(--crit-ink); }
+.chip-med{ background:var(--med-soft); color:var(--med-ink); }
+.chip-minor{ background:var(--minor-soft); color:var(--minor-ink); }
+.chip-good{ background:var(--good-soft); color:var(--good-ink); }
+.chip-cat{ background:var(--surface-3); color:var(--ink-2); text-transform:none; font-weight:700; letter-spacing:0; }
+
+/* ---------- Area groups / details ---------- */
+.area{ margin-bottom:16px; border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--surface); }
+.area > summary{
+  list-style:none; cursor:pointer; padding:16px 20px; display:flex; align-items:center; justify-content:space-between;
+  gap:12px; font-family:var(--serif); font-size:17px; font-weight:700; background:var(--surface-3);
+}
+.area > summary::-webkit-details-marker{ display:none; }
+.area > summary::after{ content:"+"; font-family:var(--sans); font-size:20px; color:var(--muted); font-weight:400; }
+.area[open] > summary::after{ content:"–"; }
+.area .count{ font-family:var(--sans); font-size:12px; font-weight:700; color:var(--muted); margin-left:auto; margin-right:10px; }
+.area-body{ padding:6px 20px 18px; }
+
+/* ---------- Finding cards (critical) ---------- */
+.finding{ padding:16px 0; border-bottom:1px solid var(--border); }
+.finding:last-child{ border-bottom:none; }
+.finding-head{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:8px; }
+.finding .loc{ font-size:12px; background:var(--surface-3); padding:2px 7px; border-radius:5px; color:var(--ink-2); }
+.finding .problem{ font-size:14.5px; margin-bottom:6px; }
+.finding .fix{ font-size:14px; background:var(--accent-soft); border-left:3px solid var(--accent); padding:9px 12px; border-radius:0 8px 8px 0; margin:0; }
+.finding .fix strong{ color:var(--accent-2); }
+
+/* ---------- Compact issue rows (medium/minor) ---------- */
+.issue-row{ padding:10px 0; border-bottom:1px solid var(--border); }
+.issue-row:last-child{ border-bottom:none; }
+.issue-row .loc{ display:inline-block; font-size:11.5px; background:var(--surface-3); padding:2px 7px; border-radius:5px; color:var(--ink-2); margin-bottom:5px; }
+.issue-row p{ margin:0; font-size:13.8px; max-width:none; }
+.sev-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+.sev-dot.crit{ background:var(--crit); } .sev-dot.med{ background:var(--med); } .sev-dot.minor{ background:var(--minor); }
+
+/* ---------- Tables (variant catalogs) ---------- */
+.tbl-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; }
+table.variants{ border-collapse:collapse; width:100%; font-size:13px; min-width:480px; }
+table.variants th, table.variants td{ padding:8px 12px; text-align:left; border-bottom:1px solid var(--border); white-space:normal; }
+table.variants th{ background:var(--surface-3); font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+table.variants tr:last-child td{ border-bottom:none; }
+
+/* ---------- Strengths ---------- */
+.strengths{ background:var(--good-soft); border:1px solid color-mix(in srgb, var(--good) 30%, var(--border)); border-radius:14px; padding:20px 22px; }
+.strengths h3{ font-size:16px; color:var(--good-ink); margin:0 0 10px; }
+.strengths ul{ margin:0; padding-left:20px; }
+.strengths li{ font-size:14px; color:var(--ink-2); margin-bottom:6px; }
+
+/* ---------- Redesign screens ---------- */
+.screens{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:14px; }
+.screen-card{ border:1px solid var(--border); background:var(--surface); border-radius:14px; padding:16px 18px; }
+.screen-card .rank{ font-family:var(--serif); font-size:22px; color:var(--accent); font-weight:700; }
+.screen-card h4{ font-size:15.5px; margin:2px 0 6px; }
+.screen-card p{ font-size:13.3px; margin:0; }
+
+/* ---------- Roadmap ---------- */
+.phase{ border:1px solid var(--border); border-radius:14px; background:var(--surface); margin-bottom:14px; overflow:hidden; }
+.phase-head{ padding:14px 20px; background:var(--surface-3); display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.phase-head h3{ font-size:16px; margin:0; }
+.phase-head span{ font-size:12px; color:var(--muted); font-weight:600; }
+.phase ul{ margin:0; padding:14px 20px 16px 38px; }
+.phase li{ font-size:14px; color:var(--ink-2); margin-bottom:7px; }
+.phase li code{ font-size:.87em; background:var(--surface-3); padding:1px 5px; border-radius:4px; }
+
+/* ---------- Verdict ---------- */
+.verdict{
+  border:1px solid var(--border); border-radius:16px; padding:28px 26px; background:var(--surface); box-shadow:var(--shadow);
+}
+.verdict .stamp{
+  display:inline-block; font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+  background:var(--med-soft); color:var(--med-ink); padding:6px 14px; border-radius:99px; margin-bottom:14px;
+}
+.verdict h3{ font-size:20px; margin:0 0 10px; }
+
+footer{ text-align:center; padding:36px 20px 10px; font-size:12px; color:var(--muted); }
+
+@media (max-width:640px){
+  .hero{ padding:40px 0 30px; }
+  section{ padding:32px 0; }
+  .area > summary{ font-size:15.5px; padding:14px 16px; }
+  .area-body{ padding:4px 16px 14px; }
+}
+@media (prefers-reduced-motion: reduce){ *{ scroll-behavior:auto !important; } }
+</style>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Production UX / UI / Mobile Audit</div>
+    <h1>Fancy RSVP — mobile-first readiness review</h1>
+    <p class="dek">A full-surface engineering and design audit of the guest RSVP, ticketing, organizer dashboard, super-admin, marketing, and authentication experiences — read for iPhone Safari first, verified against Android Chrome, scored against an Apple / Airbnb / Stripe / Linear bar.</p>
+    <div class="meta">
+      <span><strong>173</strong> frontend source files reviewed</span>
+      <span><strong>6</strong> focus areas audited in full</span>
+      <span><strong>127</strong> distinct findings</span>
+      <span><strong>27</strong> critical</span>
+      <span>Stack: Next.js 16 App Router · React 19 · Tailwind v4</span>
+    </div>
+  </div>
+</div>
+
+<nav class="tocbar">
+  <div class="wrap">
+    <a href="#p0">P0 blocker</a>
+    <a href="#scores">Scorecard</a>
+    <a href="#critical">Critical issues</a>
+    <a href="#medium">Medium issues</a>
+    <a href="#minor">Minor issues</a>
+    <a href="#consistency">Design consistency</a>
+    <a href="#strengths">Strengths</a>
+    <a href="#redesign">Screens to redesign</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#verdict">Readiness verdict</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<section id="p0" style="padding-bottom:8px;">
+  <div class="p0">
+    <span class="p0-label">P0 — Fix before any real event uses this</span>
+    <h3>The QR "pass" shown right after RSVP is not a real ticket. Guests can be turned away at the door.</h3>
+    <p>
+      <code>frontend/src/app/[slug]/rsvp/steps/StepSuccess.js:134</code> generates the celebratory pass's QR from
+      <code>qrData={partyId ? `fancy-rsvp:${slug}:${partyId}` : null}</code> — a plain string encoded client-side via the
+      <code>qrcode</code> package. The door scanner (<code>backend/controllers/checkinController.js:20</code>) calls
+      <code>tokenService.verifyQrTicket(token)</code>, which requires an HS256 JWT carrying <code>purpose:'qr_ticket'</code>
+      (<code>backend/services/tokenService.js:102</code>). A plain string is not a JWT — <code>jwt.verify</code> throws and the
+      scanner returns <code>INVALID_TICKET</code>. The real signed ticket only exists once it's emailed later (after seating is
+      finalized), and no in-app screen — including <code>frontend/src/app/ticket/[token]/page.js</code>, the page reached via that
+      real emailed link — ever renders the actual working QR image the backend already serves at
+      <code>GET /public/qr/:token.png</code>. Verified independently by reading both the frontend generator and the backend token
+      service; this is not a UX nitpick, it is a functional defect with real-world consequences at a real wedding.
+    </p>
+    <p style="margin-bottom:0;"><strong>Fix:</strong> stop labeling the success-screen pass "scan to check in" until a real signed ticket exists (swap in the honest copy already used elsewhere: "Your entrance QR will be emailed once seating is confirmed"), and render <code>&lt;img src=`${API_URL}/public/qr/${token}.png`&gt;</code> on <code>ticket/[token]/page.js</code> so the one page guests actually receive by email shows a working, scannable code.</p>
+  </div>
+</section>
+
+<section id="scores">
+  <div class="section-head">
+    <div class="tag">01 — Scorecard</div>
+    <h2>Where the platform stands today</h2>
+    <p>Each score reflects severity-weighted findings against the product's own stated bar (Apple / Airbnb / Stripe / Linear), not against an average SaaS app. Bands: <span style="color:var(--crit); font-weight:700;">below 50</span>, <span style="color:var(--med); font-weight:700;">50–69</span>, <span style="color:var(--good); font-weight:700;">70+</span>.</p>
+  </div>
+  <div class="scoregrid">
+
+    <div class="score band-med"><div class="num">57<span>/100</span></div><div class="label">UX Score</div><div class="meter"><i style="width:57%"></i></div><p class="why">The idempotent RSVP engine and single-scroll wizard show real craft, but the two highest-frequency mobile jobs — seat a guest, navigate the admin panel — are functionally broken, and the entrance pass doesn't match what the scanner accepts.</p></div>
+
+    <div class="score band-med"><div class="num">63<span>/100</span></div><div class="label">UI Score</div><div class="meter"><i style="width:63%"></i></div><p class="why">Strong token foundation (brand palette, clamp() type scale) undercut by 11 button recipes and 18 card recipes fighting each other across the app.</p></div>
+
+    <div class="score band-crit"><div class="num">46<span>/100</span></div><div class="label">Mobile Score</div><div class="meter"><i style="width:46%"></i></div><p class="why">The guest-facing flow was clearly mobile-considered; the organizer dashboard and admin panel are desktop-shrunk, with entire pages carrying zero <code>@media</code> queries.</p></div>
+
+    <div class="score band-med"><div class="num">54<span>/100</span></div><div class="label">iPhone Score</div><div class="meter"><i style="width:54%"></i></div><p class="why"><code>viewport-fit=cover</code> and bottom safe-area padding are correctly wired, but toast isn't safe-area-aware at the top, ~15 form surfaces still trigger Safari zoom, and there's no manifest/theme-color despite prepared icon assets.</p></div>
+
+    <div class="score band-med"><div class="num">59<span>/100</span></div><div class="label">Android Score</div><div class="meter"><i style="width:59%"></i></div><p class="why">Fewer Android-specific defects surfaced, but the structural bugs — native HTML5 drag-and-drop, fixed CSS grids, hover-only tooltips — break identically on Chrome Android.</p></div>
+
+    <div class="score band-crit"><div class="num">44<span>/100</span></div><div class="label">Accessibility Score</div><div class="meter"><i style="width:44%"></i></div><p class="why">Multiple WCAG AA contrast failures on primary CTAs and status badges, three keyboard-unreachable click targets (one blocks the whole demo flow), and no modal has a real focus trap.</p></div>
+
+    <div class="score band-good"><div class="num">67<span>/100</span></div><div class="label">Performance Score</div><div class="meter"><i style="width:67%"></i></div><p class="why">Good instincts — next/font, dynamic imports for qrcode/html5-qrcode/html-to-image, code-split wizard stages — offset by dead marketing components and triple-confetti at the one moment guests need to read their pass.</p></div>
+
+    <div class="score band-crit"><div class="num">38<span>/100</span></div><div class="label">Design Consistency Score</div><div class="meter"><i style="width:38%"></i></div><p class="why">The lowest score in the audit: two parallel token systems (marketing vs. admin), zero shared modal primitive across 5+ implementations, and measurably drifting spacing/radius/shadow values page to page.</p></div>
+
+    <div class="score band-med"><div class="num">56<span>/100</span></div><div class="label">Code Quality Score</div><div class="meter"><i style="width:56%"></i></div><p class="why">Clean hook architecture (<code>useAuth</code>, <code>useIdempotentRsvpSubmit</code>) and a real token layer in <code>admin/theme.js</code>, offset by heavy inline-style sprawl, DOM-mutation anti-patterns, and orphaned dead code referencing Tailwind classes that don't exist.</p></div>
+
+  </div>
+</section>
+
+<section id="critical">
+  <div class="section-head">
+    <div class="tag">02 — Critical Issues (27)</div>
+    <h2>Fix before launch</h2>
+    <p>Grouped by product area. Each entry names the exact file/line, the concrete failure, and the specific fix — no generic advice.</p>
+  </div>
+
+  <details class="area" open>
+    <summary>Guest RSVP → Seating → QR Pass<span class="count">4 critical</span></summary>
+    <div class="area-body">
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">QR pass</span><code class="loc">ticket/[token]/page.js:121</code></div>
+        <p class="problem">The one page reached via a guest's real, emailed ticket link never renders the QR itself — only name, party size, and seating. Combined with the P0 above, no in-app surface ever shows a guest a functioning entrance code; their only fallback is digging through an email client.</p>
+        <p class="fix"><strong>Fix —</strong> render <code>&lt;img src={`${API_URL}/public/qr/${token}.png`}&gt;</code> prominently, large and high-contrast, plus a native Share/Save-to-Photos action.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">iOS Safari / Forms</span><code class="loc">GuestUI.js:773, rsvp/styles.js:4</code></div>
+        <p class="problem">Every field in the core RSVP form — name, email, meal choice, custom questions, notes — is styled at 14px, well under the 16px iOS Safari needs to avoid auto-zoom on focus. <code>checkin/page.js:15</code> already sets 16px with the comment "prevents iOS focus-zoom" — the team knows the fix, it just never reached the guest form.</p>
+        <p class="fix"><strong>Fix —</strong> bump <code>inputStyle</code>/<code>S.inputBase</code> and every inline 14px input in <code>StepPartyDetails.js</code>/<code>StepCustomQuestions.js</code> to 16px.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">First impression</span><code class="loc">components/guest/DigitalEnvelope.js</code></div>
+        <p class="problem">The envelope-opening gate has no skip control and no memory across mounts. A guest returning to check their status, or navigating back from the seating map, is forced through the full tap-and-wait sequence again — on top of the separate envelope already shown on the event landing page moments earlier. <code>GuestEnvelopeReveal.js:619</code> already implements a skip affordance elsewhere in the same codebase.</p>
+        <p class="fix"><strong>Fix —</strong> add the same persistent "Skip" control, and remember <code>envelopeDismissed</code> per-slug in <code>sessionStorage</code>.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">QR pass</span><code class="loc">GuestPassGenerator.js:198</code></div>
+        <p class="problem">The entire pass card — front and back — is one <code>onClick</code> flip target. A nervous guest tapping/zooming their phone while approaching the scanner can flip the card away from the QR face at the exact moment they need to show it.</p>
+        <p class="fix"><strong>Fix —</strong> move the flip trigger to a small explicit "Details" affordance; keep the QR face the default, sticky state.</p>
+      </div>
+    </div>
+  </details>
+
+  <details class="area" open>
+    <summary>Organizer Dashboard<span class="count">8 critical</span></summary>
+    <div class="area-body">
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Seating map</span><code class="loc">dashboard/seating-map/page.js:191, 1255, 1348</code></div>
+        <p class="problem">The entire 1,786-line page is a fixed 3-column desktop grid with zero <code>@media</code> queries anywhere in the file. Worse: seating a guest is done by dragging their name onto a table using native HTML5 drag-and-drop (<code>draggable="true"</code>, <code>onDragStart</code>/<code>onDrop</code>), which simply does not fire on touch without a polyfill; zoom is mouse-wheel only. An organizer at the venue on a phone cannot open a usable layout, let alone seat anyone — the single most severe mobile gap in the product.</p>
+        <p class="fix"><strong>Fix —</strong> rebuild the guest→table interaction on Pointer Events with a "tap guest, then tap table" touch mode; add pinch-to-zoom; collapse the 3-column grid into stacked/swipeable panels under 900px.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Data tables</span><code class="loc">RSVPsTab.js:449, SeatingManager.js:130, page.js:1072</code></div>
+        <p class="problem">RSVPs and the seating-manager guest list both render as raw <code>&lt;table&gt;</code> with <code>minWidth:720</code> wrapped only in <code>overflowX:auto</code> — the classic mobile anti-pattern — while <code>GuestsTab.js</code> next door already solved this with a card layout.</p>
+        <p class="fix"><strong>Fix —</strong> reuse <code>GuestsTab</code>'s existing card pattern below 768px in both tables.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Responsive layout</span><code class="loc">GuestsTab.js:450</code></div>
+        <p class="problem"><code>gridTemplateColumns:'repeat(2,1fr)'</code> with no media query anywhere in the file — on a 375px screen each guest card is squeezed to ~170px, breaking the name/badge/meal-pill layout.</p>
+        <p class="fix"><strong>Fix —</strong> <code>grid-template-columns:1fr</code> under 640px, copying <code>OverviewStatCards.js:340</code>'s existing breakpoint pattern.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Modals / keyboard</span><code class="loc">AddGuestModal.js:122, EditGuestModal.js:201</code></div>
+        <p class="problem">Neither modal sets <code>maxHeight</code>/<code>overflowY</code> on its panel. On a short viewport with the on-screen keyboard open, the Save/Cancel footer can be pushed off-screen with no way to scroll to it — a guest edit can become literally unfinishable.</p>
+        <p class="fix"><strong>Fix —</strong> match <code>ImportGuestsModal.js:155</code>'s own pattern: <code>maxHeight:'90vh'</code>, scrollable body, sticky footer.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Forms</span><code class="loc">EventSettings.js (1,525 lines)</code></div>
+        <p class="problem">Zero <code>@media</code> queries in the file. Every 2-column row — dates/location/RSVP-privacy, and every event-type sub-form (wedding, corporate, engagement, birthday, gala) — stays 2 columns at any width, crushing inputs on a phone. This is the largest, most-used settings surface in the dashboard.</p>
+        <p class="fix"><strong>Fix —</strong> wrap the repeated row grid in a class with one <code>@media (max-width:640px){grid-template-columns:1fr}</code> rule, mirroring <code>OrganizerProfile.js:761</code> which already solves this in the same dashboard.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Forms</span><code class="loc">dashboard/campaigns/page.js:503, 507, 533</code></div>
+        <p class="problem">The SMS campaign composer is built on fixed grids (<code>2fr 1fr</code>, <code>1fr 1fr 1fr</code>, <code>7fr 5fr</code>) with zero <code>@media</code> queries — the message editor and audience panel are unusable side-by-side on a phone.</p>
+        <p class="fix"><strong>Fix —</strong> stack to one column under 900px; pair with a sticky mobile header (current back-affordance is a plain text link).</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Navigation</span><code class="loc">dashboard/page.js:506</code></div>
+        <p class="problem">Below 1024px, the sidebar becomes a hidden off-canvas drawer with no persistent way to jump between Events/Guests/RSVPs/Seating/Campaigns — every switch costs two taps, and the hamburger sits top-left, the worst spot for one-handed thumb reach.</p>
+        <p class="fix"><strong>Fix —</strong> add a persistent bottom tab bar (Overview / Guests / RSVPs / Seating / More) for the top 4-5 destinations.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Design system</span><code class="loc">FormBuilder.js:213, InlineFormBuilder.js:239</code></div>
+        <p class="problem">Two near-identical "add a custom field" UIs in the same wizard get different mobile treatment — one collapses to 1 column at 768px, its sibling has no matching rule at all.</p>
+        <p class="fix"><strong>Fix —</strong> extract the shared row-breakpoint class both components should import.</p>
+      </div>
+    </div>
+  </details>
+
+  <details class="area" open>
+    <summary>Super Admin Dashboard<span class="count">3 critical</span></summary>
+    <div class="area-body">
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Navigation</span><code class="loc">_components/AdminShell.js:30, 93</code></div>
+        <p class="problem"><code>useState(true)</code> — the mobile nav drawer defaults <em>open</em> on every viewport, and <code>onNavigate={() =&gt; {}}</code> is a no-op, so tapping any nav link never closes it. Every phone visit to <code>/admin/*</code> fights a full-screen drawer + backdrop on first paint <em>and</em> after every navigation.</p>
+        <p class="fix"><strong>Fix —</strong> initialize <code>sidebarOpen</code> from <code>matchMedia('(min-width:900px)')</code> and wire <code>onNavigate={() =&gt; setSidebarOpen(false)}</code>.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Layout grids</span><code class="loc">admin/(panel)/config/page.js:391, 455, 467, 476, 549, 621</code></div>
+        <p class="problem">The Config page's pricing/tiers editor uses fixed grids up to 5 columns wide (<code>200px 1fr</code>, <code>1.4fr 1fr 0.7fr 0.7fr auto</code>) with no breakpoint. On a 375px viewport this isn't just cramped — it's functionally broken, and it's one of the most operationally important admin screens.</p>
+        <p class="fix"><strong>Fix —</strong> switch to <code>repeat(auto-fit, minmax(160px,1fr))</code>, matching the "Global Pricing" tab which already does this correctly nearby.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Shared table</span><code class="loc">_components/DataTable.js:38-133</code></div>
+        <p class="problem">Reused by at least 10 admin screens (Users, Organizers, Events, Payments, Audit, Security, Roles, Credits…). Its only responsive concession is <code>overflowX:auto</code>; headers are forced <code>whiteSpace:nowrap</code>, maximizing column width. Every list view needs two-directional scrolling on a phone to reach the Actions column.</p>
+        <p class="fix"><strong>Fix —</strong> since this is the one shared component, add a card-view variant below ~640px, or let column defs declare <code>hideBelow</code> to drop non-essential columns on narrow viewports.</p>
+      </div>
+    </div>
+  </details>
+
+  <details class="area">
+    <summary>Authentication (Login / Register / Forgot Password)<span class="count">5 critical</span></summary>
+    <div class="area-body">
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Accessibility / Contrast</span><code class="loc">login/page.js:467, 414; register/page.js:637, 622</code></div>
+        <p class="problem">Every primary CTA and "gold link" (Forgot?, Create an account, Resend Code) uses raw <code>#B8944F</code> on white ≈ 2.84:1 — fails WCAG AA. <code>globals.css:19</code> already defines a corrected <code>--gold-cta:#8A6D34</code> (≈4.86:1, passes AA) used by the shared <code>.btn-gold</code> class — the auth pages bypass it and reintroduce the exact failure it was built to fix.</p>
+        <p class="fix"><strong>Fix —</strong> replace hardcoded <code>#B8944F</code>/<code>#D7BE80</code> with <code>var(--gold-cta)</code>/<code>var(--gold-cta-hover)</code> on any text-bearing surface.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">iOS Safari / Forms</span><code class="loc">forgot-password/page.js:255</code></div>
+        <p class="problem">The 6-digit OTP field is <code>type="text"</code> with no <code>inputMode</code>, so mobile pops the full QWERTY keyboard for a numeric code — right at the highest-friction, highest-abandonment point in the auth journey. Register's equivalent field already sets <code>inputMode="numeric"</code>.</p>
+        <p class="fix"><strong>Fix —</strong> add <code>inputMode="numeric" pattern="[0-9]*"</code>.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Accessibility / Contrast</span><code class="loc">register/page.js ~634, forgot-password/page.js:416</code></div>
+        <p class="problem">Password-requirement hint text at <code>#99938A</code> on white/#FAFAF8 ≈ 3.05:1 — fails AA.</p>
+        <p class="fix"><strong>Fix —</strong> darken to roughly <code>#6B655C</code> or darker.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Validation / A11y</span><code class="loc">login/page.js:26, register/page.js:63, forgot-password/page.js:107</code></div>
+        <p class="problem">Every validation failure across all 3 pages surfaces only as a global toast — no input ever gets <code>aria-invalid</code>/<code>aria-describedby</code> or a visible error border, so nothing tells a sighted or screen-reader user which field is wrong.</p>
+        <p class="fix"><strong>Fix —</strong> set inline field-level errors and <code>aria-invalid</code> alongside the existing toast.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Forms / Autofill</span><code class="loc">forgot-password/page.js:252-288</code></div>
+        <p class="problem">The reset form contains no input carrying the account's email inside the <code>&lt;form&gt;</code> — Chrome/Safari's "update saved password" heuristic expects an associated username field to correctly save the new credential.</p>
+        <p class="fix"><strong>Fix —</strong> add <code>&lt;input type="hidden" autoComplete="username" value={email} readOnly /&gt;</code> inside the form.</p>
+      </div>
+    </div>
+  </details>
+
+  <details class="area">
+    <summary>Global Foundation &amp; Shared Components<span class="count">4 critical</span></summary>
+    <div class="area-body">
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Layering</span><code class="loc">components/Toast.js:70 vs AddGuestModal.js:117 and others</code></div>
+        <p class="problem">Toast and several dashboard modals share the exact same <code>z-index:1000</code>. Since modals mount later in the DOM, they paint on top — <code>AddGuestModal.js:88</code> fires a toast while its own modal is still open, hiding the feedback the user most needs to see.</p>
+        <p class="fix"><strong>Fix —</strong> give the toast viewport a dedicated top layer, e.g. <code>z-index:100001</code>, above every modal.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Accessibility</span><code class="loc">LogoutModal.js, admin/_components/Modal.js, all dashboard modals</code></div>
+        <p class="problem">No shared modal primitive exists. None of the dashboard modals implement <code>role="dialog"</code>, <code>aria-modal</code>, Escape-to-close, or a focus trap — keyboard/VoiceOver users can tab straight through the overlay into the page behind it.</p>
+        <p class="fix"><strong>Fix —</strong> extract one <code>&lt;Dialog&gt;</code> primitive (portal, ARIA roles, Tab-loop, Escape handler, body-scroll lock, focus restore) and migrate every one-off overlay onto it.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Accessibility / Forms</span><code class="loc">components/PlacesAutocomplete.js:40, 104</code></div>
+        <p class="problem">Never accepts or forwards <code>id</code>/<code>aria-invalid</code>/<code>aria-describedby</code>, and its rendered input has no <code>id</code>. Call sites use a bare <code>&lt;label&gt;</code> with no <code>htmlFor</code>, so every venue-search field has no accessible name at all.</p>
+        <p class="fix"><strong>Fix —</strong> accept and spread <code>id</code>/<code>aria-*</code> props onto the input; wrap call sites in the existing <code>FormField</code> component.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Error handling</span><code class="loc">middleware.ts:9, apiClient.js:37</code></div>
+        <p class="problem">Both the edge middleware and the API client's 401 handler silently redirect to <code>/login</code> on session expiry with zero explanation. <code>authErrors.js</code> already has the right copy ("Your session has expired…") but it's never actually invoked for this path — dead code.</p>
+        <p class="fix"><strong>Fix —</strong> append <code>&amp;reason=expired</code> on redirect and toast the existing message on the login page when present.</p>
+      </div>
+    </div>
+  </details>
+
+  <details class="area">
+    <summary>Marketing &amp; Static Pages<span class="count">3 critical (live)</span></summary>
+    <div class="area-body">
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Responsive typography</span><code class="loc">features/page.js:263, integrations/page.js:298, templates/page.js:428, pricing/page.js:462</code></div>
+        <p class="problem">These four H1s are hardcoded <code>fontSize:"56px"</code> with no responsive override at any breakpoint, unlike every other marketing page which uses <code>clamp(2.4rem,5vw,3.8rem)</code>. On a 320-375px viewport they consume far more vertical space than equivalent pages and simply don't shrink.</p>
+        <p class="fix"><strong>Fix —</strong> replace with <code>clamp(2.2rem, 6vw, 3.6rem)</code>, matching the site's own global h1 convention.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Responsive layout</span><code class="loc">pricing/page.js:534-606</code></div>
+        <p class="problem">The plan-comparison table is a raw CSS grid (<code>2fr repeat(N,1fr)</code>), never wrapped in a scroll container and never restructured for mobile — at 320-375px the columns compress feature labels and ✓/— cells into unreadable ~70px slivers.</p>
+        <p class="fix"><strong>Fix —</strong> wrap in <code>overflow-x:auto</code> at minimum, or switch to a stacked-card layout under 640px like the plan cards above it already do.</p>
+      </div>
+      <div class="finding">
+        <div class="finding-head"><span class="chip chip-crit">Critical</span><span class="chip chip-cat">Accessibility / Keyboard</span><code class="loc">help/page.js:136, templates/page.js:185, demo/page.js:57</code></div>
+        <p class="problem">All three wrap their entire primary interaction in a bare <code>&lt;div onClick&gt;</code> with no <code>role="button"</code>, <code>tabIndex</code>, or keyboard handler. Worst case: <code>demo/page.js</code>'s "tap to open invitation" flip-card <em>is</em> the entire entry point to the interactive demo — a keyboard-only or screen-reader user cannot start the demo at all. <code>HeroSection.js:229</code> already does this correctly elsewhere in the same codebase.</p>
+        <p class="fix"><strong>Fix —</strong> add <code>role="button" tabIndex={0}</code> and an Enter/Space <code>onKeyDown</code> handler to all three, copying <code>HeroSection.js</code>'s own pattern.</p>
+      </div>
+    </div>
+  </details>
+
+</section>
+
+<section id="medium">
+  <div class="section-head">
+    <div class="tag">03 — Medium Issues (~48)</div>
+    <h2>Fix in the next 1–2 sprints</h2>
+    <p>Real, verified defects that degrade the experience without blocking core flows. Condensed to file, problem, and fix.</p>
+  </div>
+
+  <details class="area">
+    <summary>Guest RSVP journey<span class="count">14 medium</span></summary>
+    <div class="area-body">
+      <div class="issue-row"><code class="loc">checkin/page.js</code><p><span class="sev-dot med"></span>No <code>navigator.wakeLock</code> — a door kiosk running for hours will sleep mid-shift. <strong>Fix:</strong> request a screen wake lock while the camera is active.</p></div>
+      <div class="issue-row"><code class="loc">checkin/page.js — handleQRScan</code><p><span class="sev-dot med"></span>Zero audio/haptic feedback despite an existing <code>sound.js</code>/<code>buzz()</code> utility used elsewhere. <strong>Fix:</strong> wire a success chime + buzz, and a distinct rejection tone for invalid/duplicate scans.</p></div>
+      <div class="issue-row"><code class="loc">checkin/page.js:320-430</code><p><span class="sev-dot med"></span>The camera scanner — the highest-frequency door action — is buried third below Guest Search and Guest Detail; the 3-column detail grid also has no tuned mobile breakpoint. <strong>Fix:</strong> surface the scanner first / as a persistent action; stack the grid under 480px.</p></div>
+      <div class="issue-row"><code class="loc">SeatingMapFullscreen.js:190</code><p><span class="sev-dot med"></span>Edge-to-edge fixed overlay with no <code>env(safe-area-inset-*)</code>, unlike the rest of the codebase's established bottom-safe-area pattern. <strong>Fix:</strong> apply <code>max(Npx, env(safe-area-inset-top/bottom))</code> to header and zoom controls.</p></div>
+      <div class="issue-row"><code class="loc">StepCustomQuestions.js:66-170</code><p><span class="sev-dot med"></span>Radio/checkbox option rows have no explicit height — effective tap target ≈20px, well under 44px. <strong>Fix:</strong> wrap each option in a padded, full-width 44px-minimum row.</p></div>
+      <div class="issue-row"><code class="loc">RsvpWizard.js</code><p><span class="sev-dot med"></span>No autosave — a large party's answers are lost entirely if the guest backgrounds the browser mid-form. <strong>Fix:</strong> debounce-persist form state to <code>sessionStorage</code>, rehydrate on mount.</p></div>
+      <div class="issue-row"><code class="loc">StepCustomQuestions.js:250, RsvpWizard.js:279</code><p><span class="sev-dot med"></span>No scroll-to-first-error on failed submit in a long single-page form. <strong>Fix:</strong> focus/scroll the first <code>[aria-invalid="true"]</code> field into view.</p></div>
+      <div class="issue-row"><code class="loc">GuestUI.js / GuestAnimations.js</code><p><span class="sev-dot med"></span>Guest-facing "premium" primitives (<code>PremiumButton</code>, <code>GlassmorphismCard</code>, <code>ShimmerPlaceholder</code>) don't consume the shared <code>.btn-gold</code>/<code>.glass</code>/<code>.skeleton</code> classes — two parallel styling systems for the same visual language. <strong>Fix:</strong> have one consume the other's tokens.</p></div>
+      <div class="issue-row"><code class="loc">templates/RSVPBottomSheet.js</code><p><span class="sev-dot med"></span>The organizer-facing template preview fakes a nicer, native bottom-sheet RSVP than guests actually get — an expectation-mismatch risk for the paying customer. <strong>Fix:</strong> bring the real flow's presentation closer, or have the simulator render the real wizard with mock data.</p></div>
+      <div class="issue-row"><code class="loc">checkin/page.js:388-411</code><p><span class="sev-dot med"></span>Both manual and QR check-in can be feature-gated off simultaneously, discoverable only at the venue door. <strong>Fix:</strong> surface the gap at event-setup time; always allow a basic manual fallback regardless of tier.</p></div>
+      <div class="issue-row"><code class="loc">DigitalEnvelope.js:100-121</code><p><span class="sev-dot med"></span><code>prefers-reduced-motion</code> only speeds up the envelope animation (×0.35) instead of skipping to a static reveal, unlike <code>GuestEnvelopeReveal.js</code>'s proper reduced-motion branch. <strong>Fix:</strong> give it the same static-reveal branch.</p></div>
+      <div class="issue-row"><code class="loc">StepSuccess.js:105-170</code><p><span class="sev-dot med"></span>Confetti, fireworks, and a 3D pass-card tilt all fire simultaneously at the exact moment the guest needs to read/save their pass — jank risk on mid-range Android. <strong>Fix:</strong> stagger the sequence; drop a confetti wave on lower-end devices.</p></div>
+      <div class="issue-row"><code class="loc">RsvpWizard.js:511-529</code><p><span class="sev-dot med"></span>No focus/scroll management when choosing "Attending" reveals new required fields below the fold. <strong>Fix:</strong> move focus to / scroll to the newly revealed section's heading.</p></div>
+      <div class="issue-row"><code class="loc">SeatingMapFullscreen.js / GalleryLightbox</code><p><span class="sev-dot med"></span>Both dialogs have correct <code>role="dialog"</code>/Escape handling but no initial focus or focus trap. <strong>Fix:</strong> focus the dialog on mount; trap Tab within it.</p></div>
+    </div>
+  </details>
+
+  <details class="area">
+    <summary>Organizer dashboard<span class="count">11 medium</span></summary>
+    <div class="area-body">
+      <div class="issue-row"><code class="loc">RsvpTrendChart.js:252-289</code><p><span class="sev-dot med"></span>Tooltip is driven entirely by <code>onMouseMove</code>/<code>onMouseLeave</code> — undiscoverable on touch, hiding per-date accepted/declined/pending counts. <strong>Fix:</strong> add a <code>onTouchStart</code>/tap handler reusing the same nearest-point logic.</p></div>
+      <div class="issue-row"><code class="loc">EventsTab.js:114, RSVPsTab.js:680, TableForm.js:163, GuestsTab.js:114</code><p><span class="sev-dot med"></span>None of these hand-rolled buttons reuse <code>.btn-gold</code>/<code>.btn-outline</code> (which already carry the app's own 44px standard) — several compute to 22-32px tall. <strong>Fix:</strong> reuse the shared button classes for primary actions.</p></div>
+      <div class="issue-row"><code class="loc">StagePayment.js, StageTables.js, Stage3_Distribution.js, dashboard/page.js:533</code><p><span class="sev-dot med"></span>No <code>env(safe-area-inset-*)</code> anywhere under <code>dashboard/</code> — fixed bottom bars and the mobile drawer can sit flush against the iOS home indicator.</p></div>
+      <div class="issue-row"><code class="loc">page.js:86, dashboard/loading.js:62</code><p><span class="sev-dot med"></span>Loading skeletons hardcode a 240px-sidebar desktop layout that doesn't match the real off-canvas-drawer mobile UI — a layout flash on every cold load. <strong>Fix:</strong> mirror the real breakpoint in both skeletons.</p></div>
+      <div class="issue-row"><code class="loc">EventSettings.js, AddGuestModal.js, GuestsTab.js, TableForm.js</code><p><span class="sev-dot med"></span>Multiple form inputs styled at 12-14px — below the 16px threshold that prevents iOS auto-zoom on focus. <strong>Fix:</strong> bump every form input/select/textarea to 16px.</p></div>
+      <div class="issue-row"><code class="loc">dashboard/** (zero hits repo-wide)</code><p><span class="sev-dot med"></span>No <code>autoComplete</code> attributes anywhere in the dashboard, notably on <code>OrganizerProfile.js</code>'s password-change form. <strong>Fix:</strong> add standard <code>autoComplete</code> values to password/contact fields.</p></div>
+      <div class="issue-row"><code class="loc">AddGuestModal.js:240, EditGuestModal.js:346, EventSettings.js</code><p><span class="sev-dot med"></span>Validation errors show as one generic banner, never attached to the offending field — costly when that field has scrolled off-screen. <strong>Fix:</strong> highlight the failing field's border and scroll it into view on submit failure.</p></div>
+      <div class="issue-row"><code class="loc">RsvpTrendChart.js:57</code><p><span class="sev-dot med"></span>Tooltip only flips horizontally at the right edge, never clamps vertically — can still clip outside a narrow phone-width chart card. <strong>Fix:</strong> clamp <code>left</code> to the container bounds instead of a binary flip.</p></div>
+      <div class="issue-row"><code class="loc">useRealtimeRSVPs.js, page.js:468</code><p><span class="sev-dot med"></span>"Real-time" is a silent 20s poll that fully replaces state with no diff/toast — rows can reorder under a scrolling thumb with zero warning. <strong>Fix:</strong> diff old vs. new ids and surface a "3 new responses" pill instead of a silent swap.</p></div>
+      <div class="issue-row"><code class="loc">dashboard/page.js:1130 QR modal</code><p><span class="sev-dot med"></span>Close is a plain text link, inconsistent with every other modal's 32px icon-circle close button. <strong>Fix:</strong> reuse the standard close-button pattern.</p></div>
+      <div class="issue-row"><code class="loc">seating-map/page.js:420-435</code><p><span class="sev-dot med"></span><code>fetchAllGuestsForLabels</code> pages through up to 25,000 guest records on every seating summary change, just to label tables — costly on a mobile connection for large events. <strong>Fix:</strong> fetch/cache labels incrementally instead of refetching the full set per change.</p></div>
+    </div>
+  </details>
+
+  <details class="area">
+    <summary>Super admin dashboard<span class="count">14 medium</span></summary>
+    <div class="area-body">
+      <div class="issue-row"><code class="loc">_components/Modal.js:112 StatusBadge</code><p><span class="sev-dot med"></span>Status text on a ~8%-tint background computes to 2.15–3.76:1 depending on status — fails WCAG AA across every status column (Users, Organizers, Payments, Events). <strong>Fix:</strong> darken badge text specifically, or add a border/icon so meaning isn't color-only.</p></div>
+      <div class="issue-row"><code class="loc">globals.css:51 --admin-text-400</code><p><span class="sev-dot med"></span>≈2.68:1 in light mode against white/#FAFAF8 (the dark-mode equivalent is fine at ≈4.84:1) — fails AA for empty-state copy, sub-labels, placeholders in the theme most admins will actually see. <strong>Fix:</strong> darken the light-mode token to ~#7A756B.</p></div>
+      <div class="issue-row"><code class="loc">_components/Sidebar.js, AdminShell.js:100,142</code><p><span class="sev-dot med"></span>Sidebar/topbar chrome hardcodes raw colors instead of the <code>T.*</code> tokens the rest of the admin panel correctly uses — a rebrand would silently miss this surface. <strong>Fix:</strong> route through <code>T.*</code> like every other admin component.</p></div>
+      <div class="issue-row"><code class="loc">overview/page.js:93, finance/page.js:75</code><p><span class="sev-dot med"></span>Chart values only surface via CSS <code>:hover</code> or the native <code>title</code> tooltip — neither fires on touch. <strong>Fix:</strong> add a tap handler showing the value inline.</p></div>
+      <div class="issue-row"><code class="loc">config/page.js:648-676</code><p><span class="sev-dot med"></span>Sticky "Save Configuration" bar has no safe-area padding, unlike the site's own established bottom-safe-area convention. <strong>Fix:</strong> add <code>calc(24px + env(safe-area-inset-bottom))</code>.</p></div>
+      <div class="issue-row"><code class="loc">overview, config, health, finance, roles, audit pages</code><p><span class="sev-dot med"></span>Every fetch-error state is a bare error string with no "Try again" button, despite most pages already having an internal reload mechanism. <strong>Fix:</strong> add a shared <code>&lt;ErrorState onRetry&gt;</code> component.</p></div>
+      <div class="issue-row"><code class="loc">AdminShell.js:136-156</code><p><span class="sev-dot med"></span>Topbar name/email cluster has no <code>min-width:0</code>/ellipsis — long values can clip off-screen rather than truncate. <strong>Fix:</strong> add overflow/ellipsis handling; hide the role badge below ~420px.</p></div>
+      <div class="issue-row"><code class="loc">users, organizers, events, payments, credits, roles, security pages</code><p><span class="sev-dot med"></span>Nearly every section page calls <code>usePermissions()</code> again even though <code>AdminShell</code> already resolved it — a redundant round-trip on every navigation, costliest on mobile connections. <strong>Fix:</strong> lift <code>{me, can}</code> into context instead of re-fetching per page.</p></div>
+      <div class="issue-row"><code class="loc">_components/Modal.js:9-73</code><p><span class="sev-dot med"></span>No ARIA dialog semantics, no Escape handler, no focus trap. <strong>Fix:</strong> add the standard dialog a11y set.</p></div>
+      <div class="issue-row"><code class="loc">Modal.js:69, AlertContext.js:229</code><p><span class="sev-dot med"></span>Button footers have no <code>flexWrap</code> — longer button-pair labels wrap mid-word on a ~280px modal instead of stacking. <strong>Fix:</strong> add <code>flexWrap:wrap</code> and let buttons stack full-width.</p></div>
+      <div class="issue-row"><code class="loc">health/page.js</code><p><span class="sev-dot med"></span>The only admin page that never imports the shared <code>Spinner</code>/<code>PageLoading</code> — first load renders an empty grid with just "Checking…" text. <strong>Fix:</strong> add the shared loading component.</p></div>
+      <div class="issue-row"><code class="loc">FilterBar.js:31, events/page.js:162, payments/page.js:283</code><p><span class="sev-dot med"></span>Search input and filter <code>&lt;select&gt;</code>s compute to ~35-38px tall — under the 44px standard <code>.btn-gold</code> already sets elsewhere. <strong>Fix:</strong> add a shared <code>.admin-control{min-height:44px}</code> class.</p></div>
+      <div class="issue-row"><code class="loc">_components/PermissionGate.js</code><p><span class="sev-dot med"></span>The documented reusable "show X only if permitted" primitive is never actually imported anywhere — every page inlines <code>can('x') &amp;&amp; &lt;Button&gt;</code> with no fallback messaging. <strong>Fix:</strong> adopt it where actions are conditionally hidden, or delete it.</p></div>
+      <div class="issue-row"><code class="loc">Modal.js z-index:100 vs Sidebar.js z-index:200</code><p><span class="sev-dot med"></span>The mobile drawer stacks above any modal — combined with the drawer-never-closes bug, a modal triggered while the drawer is open would render invisibly behind it. <strong>Fix:</strong> raise Modal's z-index above the drawer's.</p></div>
+    </div>
+  </details>
+
+  <details class="area">
+    <summary>Marketing &amp; static pages<span class="count">11 medium</span></summary>
+    <div class="area-body">
+      <div class="issue-row"><code class="loc">contact/page.js:305, help/page.js:366, privacy/page.js:249, terms/page.js:248</code><p><span class="sev-dot med"></span>H1s hardcoded to 44-48px with no <code>clamp()</code> or mobile override, diverging from the global h1 pattern used elsewhere. <strong>Fix:</strong> convert to <code>clamp()</code>.</p></div>
+      <div class="issue-row"><code class="loc">landing/PricingSection.js:72</code><p><span class="sev-dot med"></span>Card <code>minWidth:280px</code> inside 24px page padding overflows by 8px at exactly 320px viewport width, silently clipped by the global <code>overflow-x:hidden</code>. <strong>Fix:</strong> drop to <code>clamp(240px,100%,380px)</code>.</p></div>
+      <div class="issue-row"><code class="loc">landing/Navbar.js:349-438</code><p><span class="sev-dot med"></span>Mobile menu overlay has no focus trap / <code>inert</code> on background content. <strong>Fix:</strong> trap Tab within the open menu.</p></div>
+      <div class="issue-row"><code class="loc">landing/Navbar.js</code><p><span class="sev-dot med"></span>No active-link indication anywhere in the nav — six top-level pages with no "you are here" cue. <strong>Fix:</strong> use <code>usePathname()</code> + <code>aria-current="page"</code>.</p></div>
+      <div class="issue-row"><code class="loc">contact/page.js:427-528</code><p><span class="sev-dot med"></span>Labels have no <code>htmlFor</code>/matching <code>id</code>, no <code>autoComplete</code>. <strong>Fix:</strong> pair ids/labels; add <code>autoComplete="name"</code>/<code>"email"</code>.</p></div>
+      <div class="issue-row"><code class="loc">landing/HeroSection.js:162-356</code><p><span class="sev-dot med"></span>The homepage hero's envelope auto-opens via a hardcoded 2500ms timer with framer-motion — no file under <code>components/landing</code> checks <code>useReducedMotion()</code>. <strong>Fix:</strong> skip the auto-open timer when reduced motion is requested.</p></div>
+      <div class="issue-row"><code class="loc">features, integrations, pricing, templates, press, careers pages</code><p><span class="sev-dot med"></span>Six pages skip a heading level (H1→H3, or H2→H4) — screen-reader users navigating by heading jump straight past a level. <strong>Fix:</strong> insert the missing (optionally visually-hidden) heading level.</p></div>
+      <div class="issue-row"><code class="loc">landing/CTASection.js:223, blog/page.js:412</code><p><span class="sev-dot med"></span><code>rgba(255,255,255,.4)</code> micro-copy on charcoal computes to ≈3.8:1 — fails AA (the more common .6-opacity variant used elsewhere is fine at ≈6.75:1). <strong>Fix:</strong> bump to ≈.55 opacity minimum.</p></div>
+      <div class="issue-row"><code class="loc">11 distinct button recipes, 18 card recipes (see §04)</code><p><span class="sev-dot med"></span>Aggregated design-consistency drift across nearly every marketing page. <strong>Fix:</strong> see Design Consistency section below.</p></div>
+      <div class="issue-row"><code class="loc">demo/page.js:62, 160</code><p><span class="sev-dot med"></span>Raw <code>&lt;img&gt;</code> for the page's largest (LCP) image — no responsive srcset/format negotiation. <strong>Fix:</strong> switch to <code>next/image</code> with <code>priority</code> on the hero image.</p></div>
+      <div class="issue-row"><code class="loc">PricingSection.js, features/page.js vs. CTASection.js:237</code><p><span class="sev-dot med"></span>Two competing heading-size strategies live side by side — one <code>clamp()</code>-based, most others hardcoded-px-with-breakpoints. <strong>Fix:</strong> standardize on <code>clamp()</code> everywhere, following <code>CTASection.js</code>'s own precedent.</p></div>
+    </div>
+  </details>
+
+  <details class="area">
+    <summary>Foundation &amp; shared components<span class="count">8 medium</span></summary>
+    <div class="area-body">
+      <div class="issue-row"><code class="loc">components/Toast.js:66-73</code><p><span class="sev-dot med"></span><code>top:24px</code> fixed with no <code>env(safe-area-inset-top)</code>, inconsistent with the bottom-anchored elements which already do this correctly. <strong>Fix:</strong> <code>top:max(24px, calc(env(safe-area-inset-top) + 12px))</code>.</p></div>
+      <div class="issue-row"><code class="loc">LogoutModal.js:47-116</code><p><span class="sev-dot med"></span>The most complete modal in the app still has no focus trap, no initial focus, no scroll-lock. <strong>Fix:</strong> focus the dialog on open, trap Tab, lock body scroll while visible.</p></div>
+      <div class="issue-row"><code class="loc">dashboard/loading.js:63-79</code><p><span class="sev-dot med"></span>Skeleton hardcodes a 240px sidebar + main with zero media query. <strong>Fix:</strong> mirror the real dashboard's mobile breakpoint.</p></div>
+      <div class="issue-row"><code class="loc">error.js, not-found.js, ErrorBoundary.js, dashboard/error.js</code><p><span class="sev-dot med"></span>All hardcode light-only inline hex, ignoring the dark-mode admin tokens already defined in globals.css. <strong>Fix:</strong> route through CSS variables so these surfaces inherit dark mode automatically.</p></div>
+      <div class="issue-row"><code class="loc">error.js:14, not-found.js:7, dashboard/error.js:41</code><p><span class="sev-dot med"></span>Use <code>100vh</code> instead of <code>100dvh</code> — iOS Safari's collapsing address bar can vertically mis-center or clip these cards. <strong>Fix:</strong> standardize on <code>100dvh</code>.</p></div>
+      <div class="issue-row"><code class="loc">components/guest/TurnstileWidget.js:77</code><p><span class="sev-dot med"></span>No <code>size:'flexible'</code> passed to Cloudflare's render options — the fixed 300×65px widget can clip on a narrow phone card. <strong>Fix:</strong> pass the flexible size option and a <code>max-width:100%</code> guard.</p></div>
+      <div class="issue-row"><code class="loc">components/ImpersonationBanner.js:41</code><p><span class="sev-dot med"></span>Error fallback uses a blocking native <code>window.alert</code> instead of the app's own toast system. <strong>Fix:</strong> use <code>toast.error(...)</code>.</p></div>
+      <div class="issue-row"><code class="loc">components/PhoneNumberInput.js vs GuestUI.js:737</code><p><span class="sev-dot med"></span><code>FormField</code>'s <code>aria-invalid</code>/<code>aria-describedby</code> injection is silently dropped because <code>PhoneNumberInput</code> doesn't forward those props — error state is shown visually but never announced. <strong>Fix:</strong> forward the ARIA props into the underlying input.</p></div>
+    </div>
+  </details>
+</section>
+
+<section id="minor">
+  <div class="section-head">
+    <div class="tag">04 — Minor Issues (~40)</div>
+    <h2>Polish backlog</h2>
+    <p>Real but low-impact findings — batch these into general hardening sprints rather than scheduling individually.</p>
+  </div>
+
+  <details class="area">
+    <summary>Guest journey, dashboard &amp; admin<span class="count">17 minor</span></summary>
+    <div class="area-body">
+      <div class="issue-row"><code class="loc">SeatingMapFullscreen.js:217, 379</code><p>Close button (36px) and zoom controls (40px) sit just under the 44px touch-target minimum used elsewhere. <strong>Fix:</strong> bump both to 44×44.</p></div>
+      <div class="issue-row"><code class="loc">StepPartyDetails.js:103, 454</code><p><code>80px 1fr 1fr</code> Title/First/Last grid is tight on the smallest phones. <strong>Fix:</strong> stack under ~360px.</p></div>
+      <div class="issue-row"><code class="loc">EventPageClient.js:1006-1023</code><p>Per-character hero title stagger animation adds first-paint cost alongside a canvas particle effect. <strong>Fix:</strong> animate per-word for Latin titles, matching the existing Arabic branch's behavior.</p></div>
+      <div class="issue-row"><code class="loc">EventPageClient.js:455-466</code><p>YouTube IFrame API script injected unconditionally on the critical landing-page load. <strong>Fix:</strong> defer until after first paint / idle.</p></div>
+      <div class="issue-row"><code class="loc">dashboard/page.js:1130 QR modal</code><p>Centered dialog with a plain small text "Close" — inconsistent with the icon-circle close pattern used everywhere else. <strong>Fix:</strong> reuse the standard pattern.</p></div>
+      <div class="issue-row"><code class="loc">RsvpProgressDonut.js:111-171</code><p>Hover-glow segment interaction has no touch equivalent (low severity — the same numbers are always visible in the adjacent stat row).</p></div>
+      <div class="issue-row"><code class="loc">LiveActivityFeed.js:79-86</code><p>A 280px nested scroll region inside an already-scrolling page can be hard to distinguish from page scroll on mobile.</p></div>
+      <div class="issue-row"><code class="loc">EventsTab.js:157-160</code><p>Only one of the file's three grid patterns has a mobile breakpoint — partially, not fully, responsive.</p></div>
+      <div class="issue-row"><code class="loc">_components/Sidebar.js:53-54</code><p>Mobile drawer is a fixed 256px even on a 320-360px device — 70-80% of the screen. <strong>Fix:</strong> <code>width:min(85vw,256px)</code>.</p></div>
+      <div class="issue-row"><code class="loc">Modal.js close button (30px), AdminShell.js hamburger (36px)</code><p>Only reach 44px via the incidental global mobile CSS rule, not their own sizing — fragile if that rule ever changes scope. <strong>Fix:</strong> set <code>min-height/width:44</code> directly.</p></div>
+      <div class="issue-row"><code class="loc">credits/page.js:135</code><p>Loading state is a bare <code>&lt;p&gt;</code>, the one place that skips the shared <code>PageLoading</code> spinner.</p></div>
+      <div class="issue-row"><code class="loc">DataTable.js:71</code><p><code>whiteSpace:nowrap</code> on every header forces full label width, compounding the horizontal-scroll problem.</p></div>
+      <div class="issue-row"><code class="loc">nav.js:12-66 vs Sidebar.js:87</code><p>Every nav entry defines an unused emoji <code>icon</code> field overridden by an SVG map — dead data across 25 items.</p></div>
+      <div class="issue-row"><code class="loc">components/ToastHost.js:13</code><p>Only tracks a single "current" toast — a second toast fully replaces the first before it's read or dismissed. <strong>Fix:</strong> support a small stacked queue.</p></div>
+      <div class="issue-row"><code class="loc">components/Toast.js:57-61</code><p>No swipe-to-dismiss gesture, the expected mobile toast interaction. <strong>Fix:</strong> add a drag-to-dismiss threshold (framer-motion is already a dependency).</p></div>
+      <div class="issue-row"><code class="loc">hooks/useAuth.js:40-47</code><p>On a network failure, the hook optimistically treats a stale session as still logged in for an unbounded time.</p></div>
+      <div class="issue-row"><code class="loc">not-found.js:17-28</code><p>The "404" glyph is a fixed 96px, inconsistent with the rest of the type system's <code>clamp()</code> usage.</p></div>
+    </div>
+  </details>
+
+  <details class="area">
+    <summary>Marketing &amp; code hygiene<span class="count">13 minor</span></summary>
+    <div class="area-body">
+      <div class="issue-row"><code class="loc">7 separate page files</code><p><code>GoldDivider</code> redefined with near-identical SVG markup in at least 7 places instead of one shared module.</p></div>
+      <div class="issue-row"><code class="loc">~9 marketing pages</code><p>Hover-lift cards use JS <code>onMouseEnter</code>/<code>onMouseLeave</code> state, which never fires on touch — inert weight on mobile. <code>press/page.js</code>'s <code>award-card</code> already proves a CSS <code>:hover</code>/<code>:focus-visible</code> pattern works fine. <strong>Fix:</strong> move to CSS.</p></div>
+      <div class="issue-row"><code class="loc">templates/page.js:307-339</code><p><code>onMouseEnter={(e) =&gt; e.target.style.backgroundColor = ...}</code> — direct DOM mutation outside React's render model. <strong>Fix:</strong> convert to state-driven styling like every sibling component.</p></div>
+      <div class="issue-row"><code class="loc">landing/FooterSection.js:141</code><p>5-column footer grid has no <code>minmax(0,1fr)</code> guard against long labels/translated text.</p></div>
+      <div class="issue-row"><code class="loc">careers/page.js:465-529</code><p>H2 → H4, skipping H3 in the culture-values list.</p></div>
+      <div class="issue-row"><code class="loc">blog/page.js, press/page.js "Read more" links</code><p>Repetitive identical link text across cards reads as an undifferentiated list to screen readers. <strong>Fix:</strong> add a title-specific <code>aria-label</code> per link.</p></div>
+      <div class="issue-row"><code class="loc">demo/page.js</code><p>No page-specific <code>metadata</code>/<code>noindex</code> for what is effectively a sandbox tool.</p></div>
+      <div class="issue-row"><code class="loc">DashboardPreviewSection.js (~1,030 lines), RSVPSimulator.js</code><p>Large, fully client-rendered decorative mockups ship in the homepage's main bundle with no <code>next/dynamic</code> code-splitting.</p></div>
+      <div class="issue-row"><code class="loc">templates/page.js:573-585</code><p>Responsive branching decided by <code>window.innerWidth</code> read at click-time instead of CSS, so it won't react to an orientation change without a re-click.</p></div>
+      <div class="issue-row"><code class="loc">footer/blog newsletter inputs</code><p>Missing <code>autoComplete="email"</code>.</p></div>
+      <div class="issue-row"><code class="loc">OverviewSection.js, DesignsSection.js, NatureSection.js, RSVPSimulator.js</code><p>Reference Tailwind classes (<code>text-brand-green</code>, <code>bg-sec-bg</code>, odd shades like <code>red-955</code>) that map to no defined token and are silently dropped by Tailwind v4. Confirmed these 4 files are not currently imported by any route — dead code today, but a landmine if ever wired up. <strong>Fix:</strong> delete, or patch the missing tokens before reuse.</p></div>
+      <div class="issue-row"><code class="loc">apiClient.js:60-79</code><p>No shared progress/loading convention for large export downloads on slow connections — left to each caller to remember.</p></div>
+      <div class="issue-row"><code class="loc">components/guest/TurnstileWidget.js:36</code><p>The expiry callback doesn't distinguish "blocked by network/ad-blocker" from "token expired" — a guest on a restrictive network sees a broken widget with no explanation.</p></div>
+    </div>
+  </details>
+</section>
+
+<section id="consistency">
+  <div class="section-head">
+    <div class="tag">05 — Design System Consistency</div>
+    <h2>One brand, several accents worth of drift</h2>
+    <p>The lowest-scoring dimension of the audit. None of the counts below are hypothetical — every row was found live in the codebase.</p>
+  </div>
+
+  <h3 style="font-size:15px; margin-bottom:8px;">Button recipes found: 11 (should be 2–3)</h3>
+  <div class="tbl-wrap">
+    <table class="variants">
+      <thead><tr><th>Location</th><th>Radius</th><th>Padding</th><th>Fill</th></tr></thead>
+      <tbody>
+        <tr><td><code>.btn-gold</code> (globals.css)</td><td>6px</td><td>14/36</td><td>Solid <code>--gold-cta</code></td></tr>
+        <tr><td><code>.btn-outline</code> (globals.css)</td><td>6px</td><td>14/36</td><td>Transparent, charcoal border</td></tr>
+        <tr><td>PricingSection.js filled CTA</td><td>10px</td><td>14/24</td><td>Gradient gold</td></tr>
+        <tr><td>CTASection.js primary</td><td>8px</td><td>16/40</td><td>Gradient gold (3rd recipe)</td></tr>
+        <tr><td>CTASection.js secondary</td><td>8px</td><td>16/40</td><td>Ghost-on-dark</td></tr>
+        <tr><td>"View Pricing" ghost link (×3 copies)</td><td>none</td><td>16/48</td><td>Transparent, gold border</td></tr>
+        <tr><td>templates.js "Use Template"</td><td>8px</td><td>10/16</td><td>Solid gold, DOM-mutated hover</td></tr>
+        <tr><td>templates.js "Live Preview"</td><td>8px</td><td>10/16</td><td>White / outline</td></tr>
+        <tr><td>blog.js category pill</td><td>24px</td><td>10/22</td><td>Gradient when active</td></tr>
+        <tr><td>templates.js category pill</td><td>100px</td><td>10/24</td><td>Gradient when active</td></tr>
+        <tr><td>FAQSection.js <code>.faq-cta-button</code></td><td>6px</td><td>14/36</td><td>Re-implements <code>.btn-outline</code> from scratch</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="font-size:15px; margin:22px 0 8px;">Card recipes found: 18, for ~4 conceptual patterns</h3>
+  <p style="font-size:13.5px;">
+    <code>.occasion-card</code> (12px/32-24) is the one shared card class defined in <code>globals.css</code>, yet <em>none</em> of the 18 page-level cards use it: About's ValueCard and TeamCard (both 16px), Blog's ArticleCard (16px/28-24-24), Careers' PerkCard and JobCard (16px / 14px), Contact's ContactInfoCard (12px/20), Features' FeatureCard (16px), Help's CategoryCard, Integrations' IntegrationCard, Press's MentionCard/DownloadCard/award-card, Pricing's two independent PricingCard implementations (20px and 16px), Testimonials' card, and Templates' TemplateCard each ship a different radius/padding/hover-elevation combination. Radius alone ranges <strong>6px → 20px</strong> for what a user experiences as "the same card."
+  </p>
+
+  <h3 style="font-size:15px; margin:22px 0 8px;">Other structural drift</h3>
+  <div class="tbl-wrap">
+    <table class="variants">
+      <thead><tr><th>Pattern</th><th>Finding</th></tr></thead>
+      <tbody>
+        <tr><td>Modal / dialog primitive</td><td>Zero shared implementation — <code>LogoutModal</code>, <code>admin/_components/Modal</code>, every dashboard modal, and <code>RSVPBottomSheet</code> are five independent bespoke overlays with inconsistent (often absent) ARIA and focus handling.</td></tr>
+        <tr><td>Design-token systems</td><td>Two parallel token layers: marketing/guest (<code>--champagne-gold</code>, <code>--deep-charcoal</code>…) and admin (<code>--admin-primary</code>, <code>--admin-bg</code>…) — never cross-referenced, so a brand tweak to one silently drifts from the other.</td></tr>
+        <tr><td>Corner radius scale</td><td>6px (marketing buttons) · 10px (auth inputs) · 12px (marketing cards) · 16px (admin cards, most page-level cards) · 20px (pricing cards) — no documented scale.</td></tr>
+        <tr><td>OTP entry pattern</td><td>Register uses 6 auto-advancing boxes with paste-splitting; Forgot Password uses one plain text input — same concept, two implementations in the same journey.</td></tr>
+        <tr><td>Typography scaling strategy</td><td><code>clamp()</code> (global h1/h2, CTASection) vs. hardcoded px + manual per-breakpoint overrides (most homepage sections, 4 marketing-page H1s) — two competing systems doing the same job.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="strengths">
+  <div class="section-head">
+    <div class="tag">06 — What's already right</div>
+    <h2>Preserve these — don't refactor away real strengths</h2>
+  </div>
+  <div class="strengths">
+    <h3>Genuine engineering and design strengths found during the audit</h3>
+    <ul>
+      <li><strong>Idempotent RSVP engine</strong> (<code>useIdempotentRsvpSubmit</code>/<code>useRsvpResolver</code>) — a well-designed, race-safe single source of truth for the RSVP lock/edit/reconciliation lifecycle.</li>
+      <li><strong>Single-scroll RSVP redesign</strong> deliberately avoids classic step-wizard back-button bugs; browser back behaves correctly.</li>
+      <li><strong>Prior mobile/a11y remediation pass</strong> already in <code>globals.css</code> (tagged <code>MOB-*</code>/<code>A11Y-*</code>) correctly ships <code>viewport-fit=cover</code>, bottom safe-area padding on floating CTAs, a global <code>:focus-visible</code> ring, and <code>prefers-reduced-motion</code> handling.</li>
+      <li><strong>Create-event wizard's Stage 1 template picker</strong> ships a genuinely separate, well-built mobile carousel layout — proof the team can execute mobile-first when they choose to.</li>
+      <li><strong>Payment handling</strong> correctly delegates all PCI-sensitive card entry to Stripe Checkout rather than a custom form — the right call, already made.</li>
+      <li><strong>Upgrade/paywall UX</strong> (<code>UpgradeModal</code>/<code>FeatureGate</code>) is a strong, non-dead-end pattern: clear feature list, distinct CTA copy, dismissible.</li>
+      <li><strong>Onboarding empty states</strong> across Events, RSVP trend, upcoming events, and activity feed all ship purpose-built illustrated states with helpful CTAs, not blank tables.</li>
+      <li><strong>Performance instincts</strong>: <code>next/font</code>, dynamic imports for <code>qrcode</code>/<code>html5-qrcode</code>/<code>html-to-image</code> only where used, and code-split wizard stages via <code>next/dynamic</code>.</li>
+      <li><strong>Custom OTP/backend auth token service</strong> (<code>tokenService.js</code>) is deliberately unified with an explicit <code>purpose</code> discriminator specifically to close a prior cross-token-type vulnerability — good defensive design, documented in its own code comments.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="redesign">
+  <div class="section-head">
+    <div class="tag">07 — Screens Requiring Redesign</div>
+    <h2>Where a patch isn't enough</h2>
+    <p>Ranked by how much of the current implementation survives.</p>
+  </div>
+  <div class="screens">
+    <div class="screen-card"><div class="rank">01</div><h4>Organizer seating map</h4><p>Full interaction rebuild: Pointer Events, tap-to-assign touch mode, pinch-zoom, panel layout that stacks under 900px.</p></div>
+    <div class="screen-card"><div class="rank">02</div><h4>Admin shell (sidebar + topbar)</h4><p>Mobile-state logic rebuilt from scratch: viewport-aware default, close-on-navigate, correct z-index ordering.</p></div>
+    <div class="screen-card"><div class="rank">03</div><h4>Admin Config page (pricing/tiers)</h4><p>Every fixed grid replaced with <code>auto-fit</code>/<code>minmax</code> or a stacked mobile layout.</p></div>
+    <div class="screen-card"><div class="rank">04</div><h4>Guest RSVP success + ticket page</h4><p>Replace the fake QR with the real signed ticket end-to-end; redesign the ticket page around actually showing it.</p></div>
+    <div class="screen-card"><div class="rank">05</div><h4>Event Settings (organizer)</h4><p>1,525 lines with zero responsive rules — needs a systematic breakpoint pass, not spot fixes.</p></div>
+    <div class="screen-card"><div class="rank">06</div><h4>SMS Campaigns composer</h4><p>Editor + audience panel need a real mobile layout, not a shrunk desktop grid.</p></div>
+    <div class="screen-card"><div class="rank">07</div><h4>Shared modal / dialog / sheet primitive</h4><p>Net-new component to retire 5 bespoke, inconsistently-accessible overlay implementations.</p></div>
+    <div class="screen-card"><div class="rank">08</div><h4>Admin DataTable</h4><p>Add a card-view variant or column-priority system — it's shared by 10+ screens, so this is the highest-leverage single fix in the admin panel.</p></div>
+    <div class="screen-card"><div class="rank">09</div><h4>Auth pages (login / register / forgot-password)</h4><p>Consolidate three hand-rolled implementations into one shared component set; fix contrast and OTP UX once, centrally.</p></div>
+    <div class="screen-card"><div class="rank">10</div><h4>Marketing button &amp; card components</h4><p>Consolidate 11 button and 18 card recipes into 2–3 documented, shared components.</p></div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="section-head">
+    <div class="tag">08 — Priority Roadmap</div>
+    <h2>High → Medium → Low</h2>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head"><h3>Phase 0 — This week</h3><span>Launch blockers</span></div>
+    <ul>
+      <li>Fix the QR ticket mismatch — sign a real <code>qr_ticket</code> JWT for the success-screen pass, and render the real QR on <code>ticket/[token]/page.js</code>.</li>
+      <li>Fix the admin sidebar drawer: viewport-aware default state + close-on-navigate.</li>
+      <li>Card-ify <code>RSVPsTab</code>, <code>SeatingManager</code>, and admin <code>DataTable</code> below 768px.</li>
+      <li>Add a touch-friendly assignment mode to the seating map (even a minimal "tap guest, tap table" fallback unblocks venue-day usage).</li>
+      <li>Bump every sub-16px form input across auth, guest RSVP, and the dashboard to 16px.</li>
+      <li>Replace hardcoded <code>#B8944F</code> text/buttons with <code>var(--gold-cta)</code> everywhere it fails contrast (auth pages, admin status badges).</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head"><h3>Phase 1 — Next 1–2 sprints</h3><span>High</span></div>
+    <ul>
+      <li>Build the shared <code>&lt;Dialog&gt;</code>/<code>&lt;Sheet&gt;</code> primitive; migrate all 5+ bespoke modals onto it.</li>
+      <li>Rebuild Admin Config page grids with <code>auto-fit</code>/<code>minmax</code>.</li>
+      <li>Add responsive breakpoints to <code>EventSettings.js</code>, <code>FormBuilder.js</code>/<code>InlineFormBuilder.js</code>, and the SMS campaigns composer.</li>
+      <li>Fix toast z-index and top safe-area inset; fix OTP <code>inputMode="numeric"</code>; add <code>aria-invalid</code> field-level errors across all 3 auth pages.</li>
+      <li>Fix the three keyboard-unreachable clickable divs (demo page is a full-flow blocker).</li>
+      <li>Add a persistent bottom tab bar to the organizer dashboard's primary 4–5 destinations.</li>
+      <li>Fix heading-hierarchy skips across the 6 affected marketing pages.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head"><h3>Phase 2 — Sprints 3–4</h3><span>Medium</span></div>
+    <ul>
+      <li>Consolidate button/card recipes into shared components (marketing + dashboard).</li>
+      <li>Add a PWA manifest + <code>theme-color</code> meta, wiring up the already-prepared <code>icon-192</code>/<code>icon-512</code>/<code>apple-touch-icon</code> assets.</li>
+      <li>Route <code>error.js</code>/<code>not-found.js</code>/<code>ErrorBoundary</code> through CSS variables so they inherit dark mode; standardize on <code>100dvh</code>.</li>
+      <li>Add tap-to-reveal alternatives to every hover-only chart tooltip (organizer + admin dashboards).</li>
+      <li>Add screen wake lock + audio/haptic feedback to the check-in scanner.</li>
+      <li>Add envelope-skip memory and RSVP form autosave to the guest journey.</li>
+      <li>Fix redundant <code>usePermissions()</code> re-fetching per admin page.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head"><h3>Phase 3 — Backlog</h3><span>Low / polish</span></div>
+    <ul>
+      <li>Delete or patch the 4 dead marketing components referencing undefined Tailwind tokens.</li>
+      <li>Deduplicate <code>GoldDivider</code> across 7 files; remove DOM-mutation hover handlers in <code>templates/page.js</code>.</li>
+      <li>Add swipe-to-dismiss and a stacked queue to the toast system.</li>
+      <li>Code-split <code>DashboardPreviewSection</code>/<code>RSVPSimulator</code> out of the homepage's initial bundle.</li>
+      <li>Add distinct <code>aria-label</code>s to repetitive "Read more" links.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="verdict" style="border-bottom:none;">
+  <div class="section-head">
+    <div class="tag">09 — Production Readiness</div>
+    <h2>Final assessment</h2>
+  </div>
+  <div class="verdict">
+    <span class="stamp">Not production-ready — conditional on Phase 0</span>
+    <h3>Ship-blocked by one functional defect, not a design problem.</h3>
+    <p>
+      The marketing site, authentication, and guest RSVP experience are close: the visual language, typography scale, and
+      core interaction models (single-scroll RSVP, idempotent submit engine) already clear a premium bar. What blocks
+      production is narrower and more fixable than the finding count suggests. One functional defect — the mismatched QR
+      ticket — must be fixed before a single real event runs through this platform; it is a data-integrity bug wearing
+      UX clothing, not a polish item. Two entire admin-facing surfaces (the super-admin panel and the organizer's seating
+      map) are <strong>effectively unusable on a phone today</strong>, which matters because the platform's own pitch —
+      "the organizer running around a venue on their phone" — depends on exactly the page that currently doesn't work
+      on one. Once Phase 0 lands, this platform is a realistic candidate for the Apple/Airbnb/Stripe bar it's aiming for;
+      today it is a strong desktop product with a mobile-considered guest funnel bolted alongside a mobile-shrunk
+      operator experience.
+    </p>
+  </div>
+</section>
+
+</div>
+
+<footer>Fancy RSVP — Mobile-First Production Audit · 173 files reviewed · 127 findings · prepared as a working engineering document, not a final word</footer>

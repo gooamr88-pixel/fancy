@@ -160,7 +160,7 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
 /* ════════════════════════════════════════════════════════════════
    Virtualized guest list (renders only the visible window)
    ════════════════════════════════════════════════════════════════ */
-function VirtualGuestList({ items, height, onDragStartGuest, onReachEnd, loading, emptyText }) {
+function VirtualGuestList({ items, height, onDragStartGuest, onTapGuest, armedGuestId, onReachEnd, loading, emptyText }) {
   const [scrollTop, setScrollTop] = useState(0);
   const ref = useRef(null);
 
@@ -185,18 +185,34 @@ function VirtualGuestList({ items, height, onDragStartGuest, onReachEnd, loading
       <div style={{ height: total * ROW_H, position: 'relative' }}>
         {slice.map((g, i) => {
           const idx = startIdx + i;
+          const armed = armedGuestId === g.id;
           return (
             <div
               key={g.id}
               draggable="true"
               onDragStart={(e) => onDragStartGuest(e, g)}
-              style={{ position: 'absolute', top: idx * ROW_H, left: 0, right: 6, height: ROW_H - 8, background: '#FAFAF8', padding: '0 12px', border: `1px solid ${C.border}`, borderRadius: 10, cursor: 'grab', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              onClick={() => onTapGuest?.(g)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTapGuest?.(g); } }}
+              aria-pressed={armed}
+              style={{
+                position: 'absolute', top: idx * ROW_H, left: 0, right: 6, height: ROW_H - 8,
+                background: armed ? 'rgba(184,148,79,0.12)' : '#FAFAF8', padding: '0 12px',
+                border: `1.5px solid ${armed ? C.gold : C.border}`, borderRadius: 10,
+                cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                minHeight: 44, boxSizing: 'border-box',
+              }}
             >
               <div style={{ minWidth: 0 }}>
                 <span style={{ fontWeight: 600, color: C.charcoal, display: 'block', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.guest_name}</span>
                 <span style={{ fontSize: 11, color: C.stone }}>Party of {g.party_size}</span>
               </div>
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={C.stone} strokeWidth={2}><path strokeLinecap="round" d="M4 8h16M4 16h16" /></svg>
+              {armed ? (
+                <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>Tap a table</span>
+              ) : (
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={C.stone} strokeWidth={2}><path strokeLinecap="round" d="M4 8h16M4 16h16" /></svg>
+              )}
             </div>
           );
         })}
@@ -549,10 +565,49 @@ export default function SeatingMapPage() {
     });
   }, [elements, view, containerSize]);
 
+  // Shared by both the mouse drag-and-drop drop handler (below) and the
+  // touch-friendly tap-to-assign flow (native HTML5 drag-and-drop never fires
+  // on touch, so tap-to-assign is the only way a phone/tablet organizer can
+  // seat anyone). Declared ahead of onElementPointerDown, which depends on
+  // onTapAssign below — both are useCallback deps evaluated at render time,
+  // so they must exist before that point, not just before it's *called*.
+  const assignGuestToTable = useCallback((rsvpId, partySize, from, tableId) => {
+    const el = elements.find(x => x.id === tableId);
+    if (!el || isZone(el)) { toast.error('Guests can only be seated at tables, not venue zones.'); return; }
+    if (from === tableId) return;
+    const projected = occByTable[tableId] || 0;
+    if (projected + partySize > (el.max_capacity || 0)) {
+      const remaining = (el.max_capacity || 0) - projected;
+      if (!window.confirm(`${el.table_name} has ${remaining} seat(s) left, party size is ${partySize}. Seat anyway (overbook)?`)) return;
+    }
+    setPending(prev => ({ ...prev, [rsvpId]: { from: from || '', to: tableId, size: partySize } }));
+    toast.success(`${el.table_name} — seated`);
+  }, [elements, occByTable]);
+
+  /* ════════ tap-to-assign (touch-friendly alternative to drag-and-drop) ════════
+     Tap a guest in the list to "arm" them, then tap a table to seat them —
+     mirrors the drag gesture's outcome without requiring a drag gesture. */
+  const [armedGuest, setArmedGuest] = useState(null);
+  const onTapGuest = useCallback((g) => {
+    setArmedGuest(prev => (prev && prev.id === g.id) ? null : g);
+  }, []);
+  const onTapAssign = useCallback((tableId) => {
+    if (!armedGuest) return false;
+    const from = pending[armedGuest.id] ? pending[armedGuest.id].to : (armedGuest.tableId || '');
+    assignGuestToTable(armedGuest.id, armedGuest.party_size, from, tableId);
+    setArmedGuest(null);
+    return true;
+  }, [armedGuest, pending, assignGuestToTable]);
+
   /* ════════ pointer interaction (pan / move / resize / rotate) ════════ */
   const onElementPointerDown = useCallback((e, id) => {
     if (e.button !== 0) return;
     e.stopPropagation();
+
+    // A guest is "armed" from the list (tap-to-assign) — this tap seats them
+    // instead of selecting/moving the table. Takes priority over every other
+    // click behavior below, same as a drag-and-drop drop would.
+    if (onTapAssign(id)) return;
 
     // Ctrl/Cmd/Shift-click toggles this one element in or out of the
     // multi-selection, so specific elements can be picked instead of only
@@ -586,7 +641,7 @@ export default function SeatingMapPage() {
     const el = elements.find(x => x.id === id);
     if (!el) return;
     interaction.current = { mode: 'move', id, startX: e.clientX, startY: e.clientY, origX: Number(el.position_x) || 0, origY: Number(el.position_y) || 0 };
-  }, [elements, selectedIds]);
+  }, [elements, selectedIds, onTapAssign]);
 
   const selectAll = useCallback(() => {
     setSelectedId(null);
@@ -791,18 +846,10 @@ export default function SeatingMapPage() {
   const onDropGuest = (e, tableId) => {
     e.preventDefault();
     setDragOverId(null);
-    const el = elements.find(x => x.id === tableId);
-    if (!el || isZone(el)) { toast.error('Guests can only be seated at tables, not venue zones.'); return; }
     let payload;
     try { payload = JSON.parse(e.dataTransfer.getData('application/json')); } catch { return; }
     const { rsvpId, partySize, from } = payload;
-    if (from === tableId) return;
-    const projected = occByTable[tableId] || 0;
-    if (projected + partySize > (el.max_capacity || 0)) {
-      const remaining = (el.max_capacity || 0) - projected;
-      if (!window.confirm(`${el.table_name} has ${remaining} seat(s) left, party size is ${partySize}. Seat anyway (overbook)?`)) return;
-    }
-    setPending(prev => ({ ...prev, [rsvpId]: { from: from || '', to: tableId, size: partySize } }));
+    assignGuestToTable(rsvpId, partySize, from, tableId);
   };
 
   const unseatGuest = (g) => {
@@ -1252,14 +1299,29 @@ export default function SeatingMapPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1480, margin: '0 auto', display: 'grid', gridTemplateColumns: '300px 1fr 300px', gap: 18 }}>
+      {armedGuest && (
+        <div style={{
+          maxWidth: 1480, margin: '0 auto 12px', padding: '10px 16px', borderRadius: 10,
+          background: 'rgba(184,148,79,0.1)', border: `1px solid ${C.gold}`,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.charcoal }}>
+            Tap a table to seat <strong style={{ color: C.gold }}>{armedGuest.guest_name}</strong> (party of {armedGuest.party_size})
+          </span>
+          <button onClick={() => setArmedGuest(null)} style={{ ...btn, background: C.white, border: `1px solid ${C.border}`, color: C.stone, padding: '6px 14px' }}>
+            Cancel
+          </button>
+        </div>
+      )}
+
+      <div className="seating-layout-grid" style={{ maxWidth: 1480, margin: '0 auto', display: 'grid', gridTemplateColumns: '300px 1fr 300px', gap: 18 }}>
 
         {/* ── Left: guest list ── */}
-        <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 18, borderRadius: 12, display: 'flex', flexDirection: 'column', height: 640 }}>
+        <div className="seating-guestlist-panel" style={{ background: C.white, border: `1px solid ${C.border}`, padding: 18, borderRadius: 12, display: 'flex', flexDirection: 'column', height: 640 }}>
           <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 500, marginBottom: 12 }}>Guests</h3>
           <input
             value={search} onChange={e => setSearch(e.target.value)} placeholder="Search guests…"
-            style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', marginBottom: 8 }}
+            style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 16, outline: 'none', marginBottom: 8 }}
             onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border}
           />
           <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
@@ -1267,12 +1329,14 @@ export default function SeatingMapPage() {
               <button key={f} onClick={() => setFilter(f)} style={{ flex: 1, padding: '6px 4px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: `1px solid ${filter === f ? C.gold : C.border}`, background: filter === f ? 'rgba(184,148,79,0.08)' : C.white, color: filter === f ? C.gold : C.stone, cursor: 'pointer', textTransform: 'capitalize' }}>{f}</button>
             ))}
           </div>
-          <span style={{ fontSize: 11, color: C.stone, marginBottom: 8 }}>{guestTotal.toLocaleString()} {filter} guest{guestTotal === 1 ? '' : 's'}</span>
+          <span style={{ fontSize: 11, color: C.stone, marginBottom: 8 }}>{guestTotal.toLocaleString()} {filter} guest{guestTotal === 1 ? '' : 's'} · tap a guest, then tap a table to seat them</span>
           <VirtualGuestList
             items={effectiveGuests}
             height={470}
             loading={guestLoading}
             onDragStartGuest={onDragStartGuest}
+            onTapGuest={onTapGuest}
+            armedGuestId={armedGuest?.id}
             onReachEnd={() => { if (!guestLoading && guests.length < guestTotal) fetchGuests(guestPage + 1, false); }}
             emptyText={filter === 'unseated' ? 'Everyone is seated 🎉' : 'No guests found.'}
           />
@@ -1455,7 +1519,19 @@ export default function SeatingMapPage() {
       {/* Add element modal */}
       {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} view={view} saving={saving} elements={elements} />}
 
-      <style jsx>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style jsx>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* MOB-7: the 3-column planner (guest list | canvas | inspector) was a
+           fixed grid with no breakpoint at all — on a phone the columns
+           compressed to unusably narrow slivers. Stacked instead; the canvas
+           itself still benefits from more room, so it keeps a taller default
+           height once full-width rather than the cramped 590px meant for a
+           1/3-width column. */
+        @media (max-width: 900px) {
+          .seating-layout-grid { grid-template-columns: 1fr !important; }
+          .seating-guestlist-panel { height: 360px !important; }
+        }
+      `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
     </div>
   );

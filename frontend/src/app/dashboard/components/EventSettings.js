@@ -633,7 +633,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           />
         </div>
 
-        <div style={rowStyle}>
+        <div className="es-row" style={rowStyle}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Start Date &amp; Time</label>
             <input type="datetime-local" value={form.event_date} onChange={handleChange('event_date')} style={inputStyle}
@@ -650,10 +650,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         </div>
 
-        <div style={rowStyle}>
+        <div className="es-row" style={rowStyle}>
           <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Location Name</label>
+            <label style={labelStyle} htmlFor="es-location-name">Location Name</label>
             <PlacesAutocomplete
+              id="es-location-name"
               value={form.location_name}
               onChange={(val) => { setForm(prev => ({ ...prev, location_name: val })); setSuccess(false); }}
               onPlaceSelect={(place) => {
@@ -703,7 +704,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         {form.event_type === 'wedding' && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Wedding Template Details</h4>
-            <div style={rowStyle}>
+            <div className="es-row" style={rowStyle}>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Groom&apos;s Name</label>
                 <input value={templateData.partner1} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1: e.target.value }))} placeholder="Groom Name" style={inputStyle} />
@@ -713,7 +714,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <input value={templateData.partner2} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2: e.target.value }))} placeholder="Bride Name" style={inputStyle} />
               </div>
             </div>
-            <div style={rowStyle}>
+            <div className="es-row" style={rowStyle}>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Groom&apos;s Email</label>
                 <input type="email" value={templateData.partner1_email} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1_email: e.target.value }))} placeholder="groom@email.com" style={inputStyle} />
@@ -729,10 +730,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <label style={labelStyle}>Family Names / Hosts</label>
               <input value={templateData.family_names} onChange={(e) => setTemplateData(prev => ({ ...prev, family_names: e.target.value }))} placeholder="The Smith & Jones Families" style={inputStyle} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Ceremony Venue</label>
+                <label style={labelStyle} htmlFor="es-ceremony-venue">Ceremony Venue</label>
                 <PlacesAutocomplete
+                  id="es-ceremony-venue"
                   value={templateData.ceremony_venue_name}
                   onChange={(val) => setTemplateData(prev => ({ ...prev, ceremony_venue_name: val }))}
                   onPlaceSelect={makeTemplatePlaceSelectHandler('ceremony')}
@@ -745,10 +747,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <input type="time" value={templateData.ceremony_time_of_day} onChange={(e) => setTemplateData(prev => ({ ...prev, ceremony_time_of_day: e.target.value }))} style={inputStyle} />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Reception Venue</label>
+                <label style={labelStyle} htmlFor="es-reception-venue">Reception Venue</label>
                 <PlacesAutocomplete
+                  id="es-reception-venue"
                   value={templateData.reception_venue_name}
                   onChange={(val) => setTemplateData(prev => ({ ...prev, reception_venue_name: val }))}
                   onPlaceSelect={makeTemplatePlaceSelectHandler('reception')}
@@ -785,7 +788,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         {form.event_type === 'engagement' && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Engagement Template Details</h4>
-            <div style={rowStyle}>
+            <div className="es-row" style={rowStyle}>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Partner 1 Name</label>
                 <input value={templateData.partner1} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1: e.target.value }))} placeholder="First partner name" style={inputStyle} />
@@ -795,7 +798,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <input value={templateData.partner2} onChange={(e) => setTemplateData(prev => ({ ...prev, partner2: e.target.value }))} placeholder="Second partner name" style={inputStyle} />
               </div>
             </div>
-            <div style={rowStyle}>
+            <div className="es-row" style={rowStyle}>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Partner 1 Email</label>
                 <input type="email" value={templateData.partner1_email} onChange={(e) => setTemplateData(prev => ({ ...prev, partner1_email: e.target.value }))} style={inputStyle} />
@@ -821,7 +824,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         {form.event_type === 'birthday' && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Birthday Template Details</h4>
-            <div style={rowStyle}>
+            <div className="es-row" style={rowStyle}>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Celebrant Name</label>
                 <input value={templateData.celebrant} onChange={(e) => setTemplateData(prev => ({ ...prev, celebrant: e.target.value }))} style={inputStyle} />
@@ -874,7 +877,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           />
         </div>
 
-        <div style={rowStyle}>
+        <div className="es-row" style={rowStyle}>
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Privacy Mode</label>
             <select value={form.privacy_mode} onChange={handleChange('privacy_mode')} style={{ ...inputStyle, cursor: 'pointer' }}>
@@ -1518,6 +1521,15 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+        /* MOB-10: every 2-column row (dates/location/RSVP-privacy) and every
+           event-type sub-form (wedding/corporate/engagement/birthday/gala)
+           shares this one rowStyle object with no breakpoint at all — the
+           largest, most-used settings surface in the dashboard was entirely
+           desktop-fixed. Mirrors OrganizerProfile.js's existing breakpoint
+           for the same 2-column-row pattern. */
+        @media (max-width: 640px) {
+          .es-row { grid-template-columns: 1fr !important; }
+        }
       `}</style>
     </div>
   );

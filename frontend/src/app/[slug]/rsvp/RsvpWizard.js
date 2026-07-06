@@ -38,6 +38,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
 
   const [guestName, setGuestName] = useState('');
   const [attending, setAttending] = useState(null);
+  const revealedSectionRef = useRef(null);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [partySize, setPartySize] = useState(1);
@@ -53,6 +54,30 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   const [partyId, setPartyId] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [assignedTableName, setAssignedTableName] = useState(null);
+  const [qrToken, setQrToken] = useState(null);
+
+  // A failed submit on this long single-page form previously left the guest
+  // staring at whatever section they were scrolled to, with no indication
+  // that an error appeared somewhere else on the page. FormField already
+  // marks invalid inputs with aria-invalid once validationErrors is set —
+  // scroll/focus the first one into view once that render commits.
+  useEffect(() => {
+    if (Object.keys(validationErrors).length === 0) return;
+    const firstInvalid = document.querySelector('[aria-invalid="true"]');
+    if (firstInvalid) {
+      firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstInvalid.focus?.({ preventScroll: true });
+    }
+  }, [validationErrors]);
+
+  // Choosing "Attending" reveals a whole new set of required fields below the
+  // fold with no cue that anything changed — bring the newly-revealed section
+  // into view instead of leaving the guest looking at the (now-answered)
+  // attendance question with no obvious next step.
+  useEffect(() => {
+    if (!attending) return;
+    revealedSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [attending]);
 
   const [maybeFollowUp, setMaybeFollowUp] = useState(null);
   const [declineReason, setDeclineReason] = useState(null);
@@ -62,6 +87,10 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
   // mirroring the backend gate. The solved token rides along in the submit body
   // as `captchaToken`; the ref lets us request a fresh one after a failed submit.
   const [captchaToken, setCaptchaToken] = useState(null);
+  // Distinguishes "the widget failed to load" (network block / ad-blocker —
+  // retrying won't help) from a plain expired/not-yet-solved token, so we can
+  // show the guest something more useful than "please try again."
+  const [captchaLoadError, setCaptchaLoadError] = useState(false);
   const turnstileRef = useRef(null);
 
   const seatingApi = useSeatingLookup(slug);
@@ -119,6 +148,65 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (['yes', 'no', 'maybe'].includes(guest.response)) setAttending(guest.response);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /* ═══ Draft autosave (MOB-18) ═══
+     A large party (companions, meals, custom answers) is a lot to type on a
+     phone — losing all of it to an interrupted app-switch, low battery, or
+     accidental reload had no recovery path. Debounce-persisted per slug in
+     sessionStorage; rehydration below only ever fills in fields that are
+     STILL blank, so the guest-prefill effect's server-resolved data (above)
+     always wins over a locally-cached draft. Functional setState updates
+     throughout so this is correct regardless of which mount effect's queued
+     update React actually applies first. */
+  const draftKey = slug ? `fancy_rsvp_draft_${slug}` : null;
+
+  useEffect(() => {
+    if (!draftKey || typeof window === 'undefined') return;
+    let draft;
+    try { draft = JSON.parse(window.sessionStorage.getItem(draftKey) || 'null'); } catch { draft = null; }
+    if (!draft) return;
+    // Rehydrating locally-cached draft answers into state on mount — the same
+    // prop/storage-to-state sync case as the guest-prefill effect above.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (draft.guestName) setGuestName(prev => prev || draft.guestName);
+    if (draft.email) setEmail(prev => prev || draft.email);
+    if (draft.phone) setPhone(prev => prev || draft.phone);
+    if (draft.attending) setAttending(prev => prev || draft.attending);
+    if (draft.partySize) setPartySize(prev => (prev && prev !== 1) ? prev : draft.partySize);
+    if (draft.notes) setNotes(prev => prev || draft.notes);
+    if (draft.primaryMeal) setPrimaryMeal(prev => prev || draft.primaryMeal);
+    if (draft.dietaryNotes) setDietaryNotes(prev => prev || draft.dietaryNotes);
+    if (draft.side) setSide(prev => prev || draft.side);
+    if (draft.smsConsent) setSmsConsent(true);
+    if (Array.isArray(draft.additionalGuests) && draft.additionalGuests.length > 0) {
+      setAdditionalGuests(prev => (prev.some(g => g.fullName)) ? prev : draft.additionalGuests);
+    }
+    if (draft.customAnswers && typeof draft.customAnswers === 'object' && Object.keys(draft.customAnswers).length > 0) {
+      setCustomAnswers(prev => (Object.keys(prev).length > 0 ? prev : draft.customAnswers));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draftKey || submitted || typeof window === 'undefined') return;
+    const t = setTimeout(() => {
+      try {
+        window.sessionStorage.setItem(draftKey, JSON.stringify({
+          guestName, email, phone, attending, partySize, additionalGuests, customAnswers,
+          notes, primaryMeal, dietaryNotes, side, smsConsent,
+        }));
+      } catch { /* storage unavailable/full — best effort only */ }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [draftKey, submitted, guestName, email, phone, attending, partySize, additionalGuests, customAnswers, notes, primaryMeal, dietaryNotes, side, smsConsent]);
+
+  // Draft served its purpose once submitted — don't resurrect stale answers
+  // on a future visit to the same event.
+  useEffect(() => {
+    if (submitted && draftKey && typeof window !== 'undefined') {
+      try { window.sessionStorage.removeItem(draftKey); } catch { /* fine */ }
+    }
+  }, [submitted, draftKey]);
 
   /* ═══ Document title ═══ */
   useEffect(() => {
@@ -361,7 +449,9 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (attending === 'maybe' && !maybeFollowUp) errors.maybeFollowUp = 'Please select a follow-up timeframe';
     // Bot check — only enforced when Turnstile is configured (matches the backend).
     if (turnstileEnabled && !captchaToken) {
-      errors.captcha = t.captcha_required || (isRTL ? 'يرجى إكمال التحقق الأمني.' : 'Please complete the security check.');
+      errors.captcha = captchaLoadError
+        ? (isRTL ? 'تعذر تحميل التحقق الأمني. قد يكون ذلك بسبب حظر الشبكة أو أداة حظر الإعلانات — يرجى تعطيلها أو تجربة شبكة أخرى، ثم إعادة تحميل الصفحة.' : "The security check couldn't load. This can happen on restrictive networks or with an ad-blocker enabled — try disabling it or switching networks, then reload the page.")
+        : (t.captcha_required || (isRTL ? 'يرجى إكمال التحقق الأمني.' : 'Please complete the security check.'));
     }
     if (Object.keys(errors).length > 0) { setValidationErrors(errors); return; }
     setValidationErrors({});
@@ -397,6 +487,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
         rememberGuest(slug, resolvedId);
         if (attending === 'yes') fetchAssignedTable(resolvedId);
       }
+      if (r.data?.qrToken) setQrToken(r.data.qrToken);
       // Tell the host page (EventPageClient) the guest's real name — its own
       // invitation greeting/envelope is fetched once on page load and has no
       // way to know a name was just typed in and submitted here, so without
@@ -496,7 +587,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
               <StepSuccess
                 t={t} isRTL={isRTL} attending={attending} event={event} localizedTitle={localizedTitle}
                 guestName={guestName} email={email} partySize={partySize} partyId={partyId} slug={slug}
-                themeColor={themeColor} assignedTableName={assignedTableName}
+                themeColor={themeColor} assignedTableName={assignedTableName} qrToken={qrToken}
                 maybeFollowUp={maybeFollowUp} declineReason={declineReason}
                 seatingApi={seatingApi} seatingRevealed={seatingRevealed}
               />
@@ -509,7 +600,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                 />
 
                 {attending && (
-                  <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+                  <motion.div ref={revealedSectionRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
                     style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
                     <StepPartyDetails
                       t={t} isRTL={isRTL} attending={attending}
@@ -534,9 +625,11 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                           ref={turnstileRef}
                           onVerify={(token) => {
                             setCaptchaToken(token);
+                            setCaptchaLoadError(false);
                             setValidationErrors(prev => { const n = { ...prev }; delete n.captcha; return n; });
                           }}
                           onExpire={() => setCaptchaToken(null)}
+                          onError={() => { setCaptchaToken(null); setCaptchaLoadError(true); }}
                         />
                         {validationErrors.captcha && (
                           <span style={{ fontSize: '12px', color: '#ef4444' }}>{validationErrors.captcha}</span>

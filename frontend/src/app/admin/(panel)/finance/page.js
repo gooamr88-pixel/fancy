@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import adminApi from '../../_lib/adminApi';
 import StatCard from '../../_components/StatCard';
 import { PageLoading } from '../../_components/Spinner';
+import { ErrorState } from '../../_components/ErrorState';
 import { T, card } from '../../_components/theme';
 import { money } from '../../_lib/format';
 
@@ -26,13 +27,21 @@ export default function FinancePage() {
   const [fin, setFin] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // MOB-15: the native `title` attribute was the ONLY way to read a bar's
+  // value — it never fires on touch. onClick doubles as a tap handler on
+  // touch devices, so one handler covers both mouse and touch.
+  const [activeDay, setActiveDay] = useState(null);
+  const [retryTick, setRetryTick] = useState(0);
 
   useEffect(() => {
     let ignore = false;
+    // Re-arm the loading spinner for a manual retry, not just the initial mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
     (async () => {
       try {
         const res = await adminApi.get('/finance/summary');
-        if (!ignore) setFin(res?.finance || null);
+        if (!ignore) { setFin(res?.finance || null); setError(null); }
       } catch (err) {
         if (!ignore) setError(err.message || 'Failed to load financials');
       } finally {
@@ -40,10 +49,10 @@ export default function FinancePage() {
       }
     })();
     return () => { ignore = true; };
-  }, []);
+  }, [retryTick]);
 
   if (loading) return <PageLoading label="Loading financials…" />;
-  if (error) return <p style={{ color: T.danger }}>{error}</p>;
+  if (error) return <ErrorState message={error} onRetry={() => setRetryTick((t) => t + 1)} />;
   if (!fin) return <p style={{ color: T.text500 }}>No financial data.</p>;
 
   const t = fin.totals || {};
@@ -68,7 +77,12 @@ export default function FinancePage() {
       </div>
 
       <div style={{ ...card, padding: '18px 20px' }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text900, margin: '0 0 16px' }}>Daily net revenue</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text900, margin: 0 }}>Daily net revenue</h3>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: activeDay ? (activeDay.net_cents < 0 ? T.danger : T.primary) : T.text400 }}>
+            {activeDay ? `${activeDay.day} — ${fmt(activeDay.net_cents || 0)}` : 'Tap a bar for its value'}
+          </span>
+        </div>
         {series.length === 0 ? (
           <p style={{ color: T.text400, fontSize: 13 }}>No revenue recorded in this window.</p>
         ) : (
@@ -81,17 +95,27 @@ export default function FinancePage() {
               // net loss. Render those as a distinct (red) minimum-height marker.
               const isNegative = net < 0;
               const heightPx = isNegative ? 2 : Math.max(2, (net / maxNet) * 150);
+              const isActive = activeDay?.day === s.day;
               return (
                 <div
                   key={s.day}
                   title={`${s.day}: ${fmt(net)}`}
+                  onClick={() => setActiveDay(s)}
+                  onMouseEnter={() => setActiveDay(s)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${s.day}: ${fmt(net)}`}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveDay(s); } }}
                   style={{
                     flex: '1 0 8px',
                     minWidth: 8,
                     height: `${heightPx}px`,
                     background: isNegative ? T.danger : T.primary,
-                    opacity: 0.85,
+                    opacity: isActive ? 1 : 0.85,
+                    outline: isActive ? `2px solid ${T.text900}` : 'none',
+                    outlineOffset: 1,
                     borderRadius: '4px 4px 0 0',
+                    cursor: 'pointer',
                   }}
                 />
               );

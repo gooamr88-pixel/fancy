@@ -5,6 +5,7 @@ import adminApi from '../../_lib/adminApi';
 import StatCard from '../../_components/StatCard';
 import DataTable from '../../_components/DataTable';
 import { PageLoading } from '../../_components/Spinner';
+import { ErrorState } from '../../_components/ErrorState';
 import { T, card } from '../../_components/theme';
 import { money as fmtMoney } from '../../_lib/format';
 
@@ -50,7 +51,7 @@ export default function OverviewPage() {
   }, [nonce]);
 
   if (loading) return <PageLoading label="Loading overview…" />;
-  if (error) return <p style={{ color: T.danger }}>{error}</p>;
+  if (error) return <ErrorState message={error} onRetry={() => setNonce((n) => n + 1)} />;
   if (!ov) return <p style={{ color: T.text500 }}>No data available.</p>;
 
   const maxTrend = Math.max(1, ...(ov.revenue?.trend || []).map((t) => t.cents));
@@ -159,6 +160,12 @@ export default function OverviewPage() {
           background: linear-gradient(180deg, #FFFFFF, ${T.primary}) !important;
           box-shadow: 0 0 25px rgba(197, 168, 107, 0.35) !important;
           transform: scaleX(1.05);
+        }
+        /* MOB-15: the dollar value only ever appeared on :hover, which never
+           fires on a touch-primary device — always show it there instead of
+           requiring a tap-and-hold that doesn't exist on mobile. */
+        @media (pointer: coarse) {
+          .chart-val { opacity: 1 !important; }
         }
       `}</style>
 

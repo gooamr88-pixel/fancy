@@ -12,6 +12,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [toast, setToast] = useState(null);
+  // A11Y-8: the toast alone never told sighted or screen-reader users WHICH
+  // field was wrong — only that submission failed. Field-level state drives
+  // aria-invalid/aria-describedby plus a visible inline message per field.
+  const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleBtnRef = useRef(null);
@@ -21,13 +25,30 @@ export default function LoginPage() {
 
   const router = useRouter();
 
+  // Surface *why* the user landed back on login when a protected page or API
+  // call bounced them here for an expired/missing session (middleware.ts,
+  // apiClient.js) — previously a silent redirect with no explanation.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const reason = new URLSearchParams(window.location.search).get('reason');
+    if (reason === 'expired') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setToast({ message: 'Your session has expired. Please sign in again.', kind: 'error' });
+    }
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) {
+    const errors = {};
+    if (!email) errors.email = 'Email is required.';
+    if (!password) errors.password = 'Password is required.';
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       setToast({ message: 'Please enter both your email and password.', kind: 'error' });
       return;
     }
 
+    setFieldErrors({});
     setSubmitting(true);
     setToast(null);
 
@@ -199,10 +220,14 @@ export default function LoginPage() {
               <label htmlFor="email" className="auth-label">Email Address</label>
               <input
                 id="email" type="email" required autoComplete="email"
-                value={email} onChange={e => setEmail(e.target.value)}
+                value={email} onChange={e => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); }}
                 placeholder="organizer@example.com"
                 className="auth-input"
+                aria-invalid={!!fieldErrors.email}
+                aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+                style={fieldErrors.email ? { borderColor: '#DC2626' } : undefined}
               />
+              {fieldErrors.email && <span id="email-error" role="alert" className="auth-field-error">{fieldErrors.email}</span>}
             </div>
 
             <div className="auth-field">
@@ -214,9 +239,12 @@ export default function LoginPage() {
                 <input
                   id="password" type={showPassword ? 'text' : 'password'} required
                   autoComplete="current-password"
-                  value={password} onChange={e => setPassword(e.target.value)}
+                  value={password} onChange={e => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: undefined })); }}
                   placeholder="••••••••"
                   className="auth-input"
+                  aria-invalid={!!fieldErrors.password}
+                  aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+                  style={fieldErrors.password ? { borderColor: '#DC2626' } : undefined}
                 />
                 <button type="button" className="auth-eye-btn" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
                   {showPassword ? (
@@ -226,6 +254,7 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+              {fieldErrors.password && <span id="password-error" role="alert" className="auth-field-error">{fieldErrors.password}</span>}
             </div>
 
             <button type="submit" disabled={submitting} className="auth-submit-btn">
@@ -238,7 +267,7 @@ export default function LoginPage() {
           {/* OR Divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '24px 0' }}>
             <div style={{ flex: 1, height: '1px', background: 'rgba(184, 148, 79, 0.2)' }} />
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1.5px' }}>or</span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-stone)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>or</span>
             <div style={{ flex: 1, height: '1px', background: 'rgba(184, 148, 79, 0.2)' }} />
           </div>
 
@@ -389,6 +418,12 @@ export default function LoginPage() {
 
         /* ── Form ── */
         .auth-form { display: flex; flex-direction: column; gap: 20px; }
+        .auth-field-error {
+          display: block;
+          font-size: 12px;
+          color: #DC2626;
+          margin-top: 6px;
+        }
 
         .auth-field {}
         .auth-label {
@@ -411,13 +446,13 @@ export default function LoginPage() {
         .auth-forgot-link {
           font-size: 11px;
           font-weight: 700;
-          color: #B8944F;
+          color: var(--gold-cta);
           text-transform: uppercase;
           letter-spacing: 0.1em;
           text-decoration: none;
           transition: color 0.2s;
         }
-        .auth-forgot-link:hover { color: #a6833f; }
+        .auth-forgot-link:hover { color: var(--gold-cta-hover); }
 
         .auth-input {
           width: 100%;
@@ -464,7 +499,7 @@ export default function LoginPage() {
         .auth-submit-btn {
           width: 100%;
           padding: 16px;
-          background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
+          background: linear-gradient(135deg, var(--gold-cta) 0%, var(--gold-cta-hover) 100%);
           color: #FFFFFF;
           border: none;
           border-radius: 10px;
@@ -510,7 +545,7 @@ export default function LoginPage() {
         .auth-google-container:empty::after {
           content: 'Loading Google Sign-In...';
           font-size: 13px;
-          color: #999;
+          color: var(--muted-stone);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -534,12 +569,12 @@ export default function LoginPage() {
           margin: 0;
         }
         .auth-gold-link {
-          color: #B8944F;
+          color: var(--gold-cta);
           font-weight: 700;
           text-decoration: none;
           transition: color 0.2s;
         }
-        .auth-gold-link:hover { color: #a6833f; }
+        .auth-gold-link:hover { color: var(--gold-cta-hover); }
 
         /* ── Animations ── */
         @keyframes authFadeIn {

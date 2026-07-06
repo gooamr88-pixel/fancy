@@ -242,7 +242,20 @@ const submitPublicRSVP = async (req, res, next) => {
       logger.error({ err: orgNotifyErr }, 'Organizer notification error');
     }
 
-    return sendOk(res, { partyId: result.party_id, message: result.is_update ? 'RSVP updated successfully.' : 'RSVP submitted successfully.' }, { status: 201 });
+    // Mint the real entrance QR ticket immediately on a "yes" — see
+    // signQrTicketForResponse's doc comment for why this doesn't wait for
+    // seating. The success screen (and any later return visit) can now show
+    // a genuinely scannable code instead of a decorative placeholder.
+    const qrToken = tokenService.signQrTicketForResponse({
+      response: result.response, partyId: result.party_id, eventId,
+      tableName: null, partySize: computedPartySize, eventDate: result.event_date,
+    });
+
+    return sendOk(res, {
+      partyId: result.party_id,
+      message: result.is_update ? 'RSVP updated successfully.' : 'RSVP submitted successfully.',
+      qrToken,
+    }, { status: 201 });
   } catch (err) {
     if (isGuestLimitError(err)) {
       return sendFail(res, { status: 409, error: 'GUEST_LIMIT_REACHED', message: 'This event has reached its plan\'s guest limit. Contact the organizer.' });
@@ -262,6 +275,11 @@ const getGuestById = async (req, res, next) => {
     if (!resolved) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
     if (!isEventLiveForGuests(resolved.event)) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
 
+    const qrToken = tokenService.signQrTicketForResponse({
+      response: resolved.response, partyId: resolved.id, eventId: resolved.eventId,
+      tableName: resolved.tableName, partySize: resolved.partySize, eventDate: resolved.event.event_date,
+    });
+
     return sendOk(res, {
       slug: resolved.event.slug,
       seatingLocked: !resolved.seatingRevealed,
@@ -272,6 +290,7 @@ const getGuestById = async (req, res, next) => {
         party_size: resolved.partySize,
         response: resolved.response,
         table_name: resolved.tableName,
+        qrToken,
       },
     });
   } catch (err) {
@@ -818,12 +837,18 @@ const getRsvpInvite = async (req, res, next) => {
     // responder to retype every member of their own party from a blank field.
     const companions = allGuests.filter((g) => !g.is_primary_contact);
     const primary = allGuests.find((g) => g.is_primary_contact);
+    const partySize = allGuests.length || 1;
+
+    const qrToken = tokenService.signQrTicketForResponse({
+      response: party.response, partyId: party.id, eventId: event.id,
+      tableName: null, partySize, eventDate: event.event_date,
+    });
 
     return sendOk(res, {
       intendedResponse: payload.response ? tokenService.mapIntentToResponse(payload.response) : null,
       deadlinePassed,
       guest: {
-        id: party.id, guest_name: party.label, party_size: allGuests.length || 1, response: party.response,
+        id: party.id, guest_name: party.label, party_size: partySize, response: party.response,
         // Previously omitted here (email wasn't even selected, and phone was
         // fetched only for companions) — the full-wizard prefill effect
         // (RsvpWizard.js) needs both to pre-fill the primary guest's own
@@ -832,6 +857,7 @@ const getRsvpInvite = async (req, res, next) => {
         primary_meal: primary?.meal_selection || null,
         primary_dietary_notes: primary?.dietary_notes || null,
         createdByOrganizer: party.created_by_organizer === true,
+        qrToken,
         additionalGuests: companions.map((g) => ({
           id: g.id,
           fullName: g.full_name || '',

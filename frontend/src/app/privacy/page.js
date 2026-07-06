@@ -246,7 +246,7 @@ export default function PrivacyPolicy() {
           <h1
             style={{
               fontFamily: "var(--font-serif)",
-              fontSize: "44px",
+              fontSize: "clamp(1.8rem, 5.5vw, 2.75rem)",
               fontWeight: 700,
               color: "#191B1E",
               marginBottom: "16px",

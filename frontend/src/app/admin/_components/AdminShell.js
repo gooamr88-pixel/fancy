@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { T } from './theme';
 import Sidebar from './Sidebar';
 import usePermissions from '../_hooks/usePermissions';
+import { PermissionsContext } from '../_hooks/PermissionsContext';
 import { logout } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
 import { AlertProvider } from './AlertContext';
@@ -25,11 +26,34 @@ const PERM_BY_PATH = NAV_GROUPS.flatMap((g) => g.items).reduce((map, item) => {
  *
  * Responsive: on narrow viewports the sidebar collapses behind a ☰ toggle.
  */
+// Matches Sidebar.js's own `@media (max-width: 900px)` breakpoint, where the
+// sidebar switches from a persistent desktop column to a fixed overlay drawer.
+const MOBILE_QUERY = '(max-width: 900px)';
+
 export default function AdminShell({ children }) {
-  const { me, loading, error, can, isSuperAdmin } = usePermissions();
+  const { me, loading, error, can, isSuperAdmin, reload } = usePermissions();
+  // Default true so desktop (the common dev/SSR case) never flashes a hidden
+  // sidebar; the effect below corrects this to closed on an actual mobile
+  // viewport before the user can interact with it.
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const pathname = usePathname();
+
+  // The drawer must default CLOSED on a phone (previously always opened on
+  // every viewport, forcing mobile visitors to fight a full-screen nav
+  // overlay on first paint) and re-evaluate on resize/orientation change.
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const applyForViewport = (e) => {
+      const narrow = e ? e.matches : mq.matches;
+      setIsNarrowViewport(narrow);
+      setSidebarOpen(!narrow);
+    };
+    applyForViewport();
+    mq.addEventListener('change', applyForViewport);
+    return () => mq.removeEventListener('change', applyForViewport);
+  }, []);
 
   if (loading) {
     return (
@@ -54,9 +78,9 @@ export default function AdminShell({ children }) {
           <p style={{ fontSize: 14, color: T.text500, margin: '0 0 24px', lineHeight: 1.6 }}>
             {error || 'You do not have administrative access to this area.'}
           </p>
-          <a href="/dashboard" style={{ display: 'inline-block', background: T.primary, color: '#FFFFFF', padding: '10px 24px', borderRadius: T.radiusSm, fontSize: 13, fontWeight: 700, textDecoration: 'none', transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+          <Link href="/dashboard" style={{ display: 'inline-block', background: T.primary, color: '#FFFFFF', padding: '10px 24px', borderRadius: T.radiusSm, fontSize: 13, fontWeight: 700, textDecoration: 'none', transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
             Return to Dashboard
-          </a>
+          </Link>
         </div>
       </Centered>
     );
@@ -88,9 +112,10 @@ export default function AdminShell({ children }) {
   }
 
   return (
+    <PermissionsContext.Provider value={{ me, loading, error, can, isSuperAdmin, reload }}>
     <AlertProvider>
       <div style={{ display: 'flex', minHeight: '100dvh', background: T.bg, color: T.text900, fontFamily: 'var(--font-sans)' }}>
-        <Sidebar can={can} open={sidebarOpen} onNavigate={() => {}} onLogout={() => setShowLogoutModal(true)} onClose={() => setSidebarOpen(false)} />
+        <Sidebar can={can} open={sidebarOpen} onNavigate={() => { if (isNarrowViewport) setSidebarOpen(false); }} onLogout={() => setShowLogoutModal(true)} onClose={() => setSidebarOpen(false)} />
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {/* Topbar */}
@@ -133,8 +158,9 @@ export default function AdminShell({ children }) {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
             
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
               <span
+                className="admin-topbar-role"
                 style={{
                   fontSize: 11,
                   fontWeight: 800,
@@ -145,13 +171,14 @@ export default function AdminShell({ children }) {
                   padding: '4px 12px',
                   borderRadius: 20,
                   textTransform: 'uppercase',
+                  flexShrink: 0,
                 }}
               >
                 {isSuperAdmin ? 'Super Admin' : (me.roles && me.roles[0]) || 'Admin'}
               </span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>{me.name || 'Admin'}</span>
-                <span style={{ fontSize: 11, color: '#A19E95' }}>{me.email}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{me.name || 'Admin'}</span>
+                <span style={{ fontSize: 11, color: '#A19E95', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{me.email}</span>
               </div>
             </div>
           </header>
@@ -163,6 +190,7 @@ export default function AdminShell({ children }) {
         <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />
       </div>
     </AlertProvider>
+    </PermissionsContext.Provider>
   );
 }
 

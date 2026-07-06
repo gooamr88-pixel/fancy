@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useAdminList from '../../_hooks/useAdminList';
 import DataTable from '../../_components/DataTable';
 import FilterBar from '../../_components/FilterBar';
+import { ErrorState } from '../../_components/ErrorState';
 import { T } from '../../_components/theme';
 
 /**
@@ -13,7 +14,7 @@ import { T } from '../../_components/theme';
 export default function AuditPage() {
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
-  const { rows, pagination, loading, error } = useAdminList('/audit', { page, limit: 30, q }, (res) => res?.logs || res?.data || []);
+  const { rows, pagination, loading, error, reload } = useAdminList('/audit', { page, limit: 30, q }, (res) => res?.logs || res?.data || []);
 
   return (
     <div>
@@ -24,7 +25,7 @@ export default function AuditPage() {
 
       <FilterBar onSearch={(val) => { setPage(1); setQ(val); }} placeholder="Search action…" />
 
-      {error && <p style={{ color: T.danger, fontSize: 13 }}>{error}</p>}
+      {error && <ErrorState message={error} onRetry={reload} />}
 
       <DataTable
         loading={loading}

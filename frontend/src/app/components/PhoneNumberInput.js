@@ -15,7 +15,16 @@ const C = { gold: '#B8944F', charcoal: '#191B1E', ivory: '#F8F4EC', stone: '#777
 export default function PhoneNumberInput({
   value, onChange, placeholder, hasError = false, disabled = false, required = false,
   defaultCountry = 'us', preferredCountries = ['us', 'eg', 'gb'], name, id,
+  'aria-invalid': ariaInvalid, 'aria-describedby': ariaDescribedBy,
 }) {
+  // FormField (GuestUI.js) clones aria-invalid/aria-describedby onto its
+  // child once an error is set — this component previously had nowhere to
+  // put them, so the error state was shown visually but never announced.
+  const inputProps = {
+    ...(id ? { id } : {}),
+    ...(ariaInvalid !== undefined ? { 'aria-invalid': ariaInvalid } : {}),
+    ...(ariaDescribedBy ? { 'aria-describedby': ariaDescribedBy } : {}),
+  };
   return (
     <div className={`phone-number-input${hasError ? ' phone-number-input--error' : ''}`}>
       <PhoneInput
@@ -27,7 +36,7 @@ export default function PhoneNumberInput({
         disabled={disabled}
         required={required}
         name={name}
-        inputProps={id ? { id } : undefined}
+        inputProps={Object.keys(inputProps).length ? inputProps : undefined}
       />
       <style jsx global>{`
         .phone-number-input .react-international-phone-input-container {

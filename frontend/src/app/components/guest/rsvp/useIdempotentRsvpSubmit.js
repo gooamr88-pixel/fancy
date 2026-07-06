@@ -85,7 +85,7 @@ export function useIdempotentRsvpSubmit({ onSuccess, onLocked, messages = {} } =
       const landed = await didResponseLand(reconcileId);
       if (landed) {
         onSuccess?.({ reconciled: true, partyId: reconcileId, guest: landed, response: landed.response });
-        return { ok: true, reconciled: true, data: { partyId: reconcileId, response: landed.response } };
+        return { ok: true, reconciled: true, data: { partyId: reconcileId, response: landed.response, qrToken: landed.qrToken || null } };
       }
       toast.error(messages.failed || 'We couldn’t save your RSVP. Please check your connection and try again.');
       return { ok: false, reason: 'NETWORK', error: err };

@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from "react";
 import LogoutModal from '../LogoutModal';
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "../../hooks/useAuth";
+import { useModalA11y } from "../../hooks/useModalA11y";
 
 /* ═══════════════════════════════════════════════════════════
    Navbar — Fancy RSVP (Page 09 Brand Guide)
@@ -37,6 +39,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isLoggedIn, loading, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -47,17 +50,9 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Lock body scroll when mobile menu is open
-  useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [mobileMenuOpen]);
+  // Focus trap, initial focus, Escape-to-close, and body-scroll lock for the
+  // full-screen mobile menu overlay — it previously had none of these.
+  const mobileMenuRef = useModalA11y(mobileMenuOpen, { onClose: () => setMobileMenuOpen(false) });
 
   return (
     <>
@@ -208,20 +203,18 @@ export default function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
+                className={`desktop-nav-link${pathname === item.href ? " desktop-nav-link-active" : ""}`}
+                aria-current={pathname === item.href ? "page" : undefined}
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
                   fontWeight: 400,
-                  color: "#191B1E",
                   textDecoration: "none",
                   cursor: "pointer",
                   padding: "4px 0",
-                  transition: "color 0.25s ease",
                   letterSpacing: "0.2px",
                   whiteSpace: "nowrap",
                 }}
-                onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
-                onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
                 id={`nav-link-${item.href === "/" ? "home" : item.href.slice(1)}`}
               >
                 {item.label}
@@ -231,17 +224,14 @@ export default function Navbar() {
             {!loading && !isLoggedIn && (
               <Link
                 href="/login"
+                className="desktop-nav-link"
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
                   fontWeight: 400,
-                  color: "#191B1E",
                   textDecoration: "none",
                   cursor: "pointer",
-                  transition: "color 0.25s ease",
                 }}
-                onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
-                onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
                 id="nav-link-login"
               >
                 Log In
@@ -250,19 +240,16 @@ export default function Navbar() {
             {!loading && isLoggedIn && (
               <button
                 onClick={() => setShowLogoutModal(true)}
+                className="desktop-nav-link"
                 style={{
                   background: "none",
                   border: "none",
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
                   fontWeight: 400,
-                  color: "#191B1E",
                   textDecoration: "none",
                   cursor: "pointer",
-                  transition: "color 0.25s ease",
                 }}
-                onMouseEnter={(e) => (e.target.style.color = "#B8944F")}
-                onMouseLeave={(e) => (e.target.style.color = "#191B1E")}
                 id="nav-link-logout"
               >
                 Log Out
@@ -348,6 +335,11 @@ export default function Navbar() {
       {/* ─── Mobile Menu Overlay ─── */}
       {mobileMenuOpen && (
         <div
+          ref={mobileMenuRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
+          tabIndex={-1}
           className="mobile-menu-overlay"
           style={{
             position: "fixed",
@@ -363,18 +355,20 @@ export default function Navbar() {
             paddingTop: "48px",
             gap: "28px",
             animation: "fadeIn 0.25s ease",
+            outline: "none",
           }}
         >
           {NAV_LINKS.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              onClick={() => { setMobileMenuOpen(false); document.body.style.overflow = ''; }}
+              aria-current={pathname === item.href ? "page" : undefined}
+              onClick={() => setMobileMenuOpen(false)}
               style={{
                 fontFamily: "var(--font-serif)",
                 fontSize: "24px",
                 fontWeight: 500,
-                color: "#191B1E",
+                color: pathname === item.href ? "#B8944F" : "#191B1E",
                 textDecoration: "none",
                 cursor: "pointer",
                 letterSpacing: "1px",
@@ -441,6 +435,15 @@ export default function Navbar() {
       <div style={{ height: "78px" }} />
 
       <style jsx>{`
+        .desktop-nav-link {
+          color: #191B1E;
+          transition: color 0.25s ease;
+        }
+        .desktop-nav-link:hover,
+        .desktop-nav-link:focus-visible,
+        .desktop-nav-link-active {
+          color: #B8944F;
+        }
         @media (max-width: 768px) {
           .desktop-nav {
             display: none !important;

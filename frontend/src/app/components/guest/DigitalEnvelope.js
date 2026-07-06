@@ -25,8 +25,6 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { lighten, darken } from '../../utils/color';
 import { getCelebrationPreset } from '../../utils/patternCelebration';
-import { playSealOpen } from '../../utils/sound';
-import { buzz } from './GuestUI';
 import { FloatingParticles, ConfettiExplosion } from './GuestAnimations';
 
 /* ═══ Palette derivation — every event gets its OWN "molten seal" palette,
@@ -73,6 +71,10 @@ export default function DigitalEnvelope({
   sealImageGoldUrl = null,
   /* The embossed arabesque background tile. Falls back to CSS gradients. */
   patternUrl = null,
+  // Per-event session key so a guest who already opened the envelope once
+  // this session (e.g. navigating to the seating map and back) isn't forced
+  // through the full tap-and-wait sequence again. Omit to disable memory.
+  slug = null,
   onOpen,
 }) {
   const C = useMemo(() => derivePalette(themeColor, secondaryColor), [themeColor, secondaryColor]);
@@ -80,7 +82,36 @@ export default function DigitalEnvelope({
   const ambient = useMemo(() => getCelebrationPreset(pattern), [pattern]);
   const [phase, setPhase] = useState('idle');
   const timers = useRef([]);
+  // A ref for the synchronous, non-rendering reads below (handleSealPointerMove,
+  // ignite — callbacks that want the latest value without triggering a
+  // re-render), plus mirrored state for the one place this value actually
+  // affects render output (the confetti gate) — reading a ref's .current
+  // during render doesn't reliably reflect updates.
   const reduced = useRef(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  // MOB-17: remember per-slug, per-session, so a return visit (back from the
+  // seating map, a page refresh) doesn't replay this every time. onOpen is
+  // read from a ref so the "already seen" effect can fire it exactly once
+  // on mount without needing a stable callback identity from the caller.
+  const onOpenRef = useRef(onOpen);
+  useEffect(() => { onOpenRef.current = onOpen; }, [onOpen]);
+  const seenKey = slug ? `fancy_envelope_seen_${slug}` : null;
+  const markSeen = useCallback(() => {
+    if (!seenKey || typeof window === 'undefined') return;
+    try { window.sessionStorage.setItem(seenKey, '1'); } catch { /* storage unavailable */ }
+  }, [seenKey]);
+  // Lazy-initialized state (computed once, on first render) rather than a
+  // ref — this value gates JSX output below, and reading a ref's .current
+  // during render doesn't reliably reflect updates.
+  const [alreadySeen] = useState(
+    () => !!(seenKey && typeof window !== 'undefined' && (() => { try { return window.sessionStorage.getItem(seenKey) === '1'; } catch { return false; } })())
+  );
+  useEffect(() => {
+    if (alreadySeen) onOpenRef.current && onOpenRef.current();
+    // Only ever needs to run once, on mount, for the initial "already seen" check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ── Magnetic tilt: the seal leans toward the cursor/finger before it's
      tapped, like a real medallion catching the light — an invitation to
@@ -98,10 +129,16 @@ export default function DigitalEnvelope({
   const handleSealPointerLeave = useCallback(() => { tiltX.set(0); tiltY.set(0); }, [tiltX, tiltY]);
 
   useEffect(() => {
-    reduced.current =
+    const matches =
       typeof window !== 'undefined' &&
       window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    reduced.current = matches;
+    // Reading a platform API (matchMedia) and syncing it into render-affecting
+    // state — the same external-system-sync case as the guest-prefill effect
+    // elsewhere in this codebase.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReducedMotion(matches);
     // Capture the stable timers array so cleanup clears exactly what we scheduled.
     const scheduled = timers.current;
     return () => scheduled.forEach(clearTimeout);
@@ -109,16 +146,24 @@ export default function DigitalEnvelope({
 
   const ignite = useCallback(() => {
     if (phase !== 'idle') return;
-    buzz([10, 30, 10, 30, 40]); // a little ramp, like the seal cracking then flooding with light
-    playSealOpen();
-    const r = reduced.current;
-    const at = (ms, fn) => timers.current.push(setTimeout(fn, r ? ms * 0.35 : ms));
+    // prefers-reduced-motion: skip the whole igniting/flooding light-show —
+    // not just a faster version of it. The whiteout's onAnimationComplete
+    // (which normally fires onOpen) never runs here since its opacity target
+    // is 0 in both 'idle' and 'reveal', so nothing actually animates —
+    // hand off directly instead, same as the Skip control's own action.
+    if (reduced.current) {
+      setPhase('reveal');
+      markSeen();
+      onOpen && onOpen();
+      return;
+    }
+    const at = (ms, fn) => timers.current.push(setTimeout(fn, ms));
     setPhase('igniting');
     at(480, () => setPhase('flooding'));
     at(1500, () => setPhase('reveal'));
     // onOpen is fired by the whiteout's onAnimationComplete in the reveal phase,
     // guaranteeing the form is revealed only after the cross-dissolve finishes.
-  }, [phase]);
+  }, [phase, markSeen, onOpen]);
 
   const is = (...p) => p.includes(phase);
   const lit = is('igniting', 'flooding', 'reveal');
@@ -149,6 +194,10 @@ export default function DigitalEnvelope({
     `0 0 70px ${hexA(C.gold, 0.6)}`,
   ].join(', ');
 
+  // Already opened this session (per slug) — the mount effect above already
+  // fired onOpen(); render nothing instead of replaying the full sequence.
+  if (alreadySeen) return null;
+
   return (
     <motion.div
       key="digital-envelope"
@@ -164,6 +213,38 @@ export default function DigitalEnvelope({
         background: `radial-gradient(130% 110% at 50% 8%, ${hexA(resolvedSecondary, 0.35)} 0%, ${C.ivory} 42%, ${C.ivoryDeep} 100%)`,
       }}
     >
+      {/* Skip — always available, never forces the tap-and-wait sequence on
+          a guest who just wants the form (MOB-17). */}
+      <button
+        type="button"
+        data-testid="guest-envelope-skip"
+        onClick={() => { markSeen(); onOpen && onOpen(); }}
+        aria-label={isRTL ? 'تخطي الرسوم المتحركة' : 'Skip invitation animation'}
+        style={{
+          position: 'absolute',
+          top: 'max(16px, env(safe-area-inset-top))',
+          insetInlineEnd: 20,
+          zIndex: 20,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '8px 16px',
+          minHeight: 44,
+          borderRadius: 999,
+          border: `1px solid ${hexA(C.bronze, 0.22)}`,
+          background: 'rgba(255,255,255,0.5)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          color: C.bronzeDeep,
+          fontSize: 12,
+          fontWeight: 600,
+          letterSpacing: '0.04em',
+          cursor: 'pointer',
+          fontFamily: 'var(--font-sans)',
+        }}
+      >
+        {isRTL ? <><span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>‹</span> تخطي</> : <>Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span></>}
+      </button>
       {/* ═══ Layer 1a: ambient atmosphere — drifting petals/snow/gold dust
            matched to this event's template, present before the seal is even
            tapped, fading out once the light takes over. ═══ */}
@@ -260,7 +341,7 @@ export default function DigitalEnvelope({
       {/* A quick themed burst — the same petals/stars/snow family as the rest
           of the guest journey — right as the seal floods with light, instead
           of the ignition being color-only. */}
-      {is('flooding') && !reduced.current && (
+      {is('flooding') && !reducedMotion && (
         <ConfettiExplosion active duration={1300} particleCount={44} spread={0.65} colors={ambient.colors} shapes={ambient.shapes} />
       )}
 
@@ -412,7 +493,7 @@ export default function DigitalEnvelope({
         initial={false}
         animate={{ opacity: is('flooding') ? 1 : is('reveal') ? 0 : 0 }}
         transition={{ duration: is('reveal') ? 0.65 : 0.7, ease: 'easeInOut' }}
-        onAnimationComplete={() => { if (phase === 'reveal') onOpen && onOpen(); }}
+        onAnimationComplete={() => { if (phase === 'reveal') { markSeen(); onOpen && onOpen(); } }}
         style={{
           position: 'absolute', inset: 0, pointerEvents: 'none',
           willChange: 'opacity',

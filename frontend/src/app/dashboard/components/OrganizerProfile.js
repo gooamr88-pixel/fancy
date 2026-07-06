@@ -523,7 +523,8 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Current Password</label>
               <div style={{ position: 'relative' }}>
-                <input type={showCurrentPassword ? "text" : "password"} value={passwordForm.currentPassword} onChange={handlePasswordChange('currentPassword')} placeholder="••••••••" 
+                <input type={showCurrentPassword ? "text" : "password"} value={passwordForm.currentPassword} onChange={handlePasswordChange('currentPassword')} placeholder="••••••••"
+                  autoComplete="current-password"
                   style={{ ...inputStyle, paddingRight: '40px' }}
                   onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
                   onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
@@ -548,7 +549,8 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>{profile?.hasPassword ? 'New Password' : 'Create Password'}</label>
               <div style={{ position: 'relative' }}>
-                <input type={showNewPassword ? "text" : "password"} value={passwordForm.newPassword} onChange={handlePasswordChange('newPassword')} placeholder="••••••••" 
+                <input type={showNewPassword ? "text" : "password"} value={passwordForm.newPassword} onChange={handlePasswordChange('newPassword')} placeholder="••••••••"
+                  autoComplete="new-password"
                   style={{ ...inputStyle, paddingRight: '40px' }}
                   onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
                   onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
@@ -571,7 +573,8 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>{profile?.hasPassword ? 'Confirm New Password' : 'Confirm Password'}</label>
               <div style={{ position: 'relative' }}>
-                <input type={showConfirmPassword ? "text" : "password"} value={passwordForm.confirmPassword} onChange={handlePasswordChange('confirmPassword')} placeholder="••••••••" 
+                <input type={showConfirmPassword ? "text" : "password"} value={passwordForm.confirmPassword} onChange={handlePasswordChange('confirmPassword')} placeholder="••••••••"
+                  autoComplete="new-password"
                   style={{ ...inputStyle, paddingRight: '40px' }}
                   onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
                   onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}

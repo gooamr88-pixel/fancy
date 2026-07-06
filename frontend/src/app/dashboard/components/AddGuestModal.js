@@ -5,6 +5,7 @@ import { normalizeToE164 } from '../../utils/phone';
 import { findMealField } from '../../utils/mealField';
 import PhoneNumberInput from '../../components/PhoneNumberInput';
 import { toast } from '../../utils/toast';
+import { useModalA11y } from '../../hooks/useModalA11y';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -42,6 +43,12 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
       setTimeout(() => nameRef.current?.focus(), 120);
     }
   }, [isOpen]);
+
+  // A11Y-9: shared focus-trap/focus-restore/scroll-lock/Escape hook. The
+  // nameRef effect above still owns which field gets focus first (more
+  // precise than the hook's generic fallback); this adds what was missing —
+  // Tab no longer escapes to the page behind the overlay, and Escape closes.
+  const dialogRef = useModalA11y(isOpen, { onClose });
 
   if (!isOpen) return null;
 
@@ -120,19 +127,25 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-guest-modal-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
           background: COLORS.white, borderRadius: '16px', width: '100%', maxWidth: '500px',
           boxShadow: '0 24px 64px rgba(0,0,0,0.12), 0 0 0 1px rgba(232,226,214,0.5)',
           animation: 'slideUp 0.25s ease', overflow: 'hidden',
+          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
         }}
       >
         {/* Header */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 24px', borderBottom: `1px solid ${COLORS.border}`,
+          padding: '20px 24px', borderBottom: `1px solid ${COLORS.border}`, flexShrink: 0,
         }}>
-          <h2 style={{
+          <h2 id="add-guest-modal-title" style={{
             fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: COLORS.charcoal, margin: 0,
           }}>Add Guest</h2>
           <button
@@ -152,8 +165,9 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} style={{ padding: '24px' }}>
+        {/* Form — scrolls internally so Save/Cancel stay reachable even when
+            the on-screen keyboard shrinks the viewport (MOB-12). */}
+        <form onSubmit={handleSubmit} style={{ padding: '24px', overflowY: 'auto', flex: 1, minHeight: 0 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
             {/* Guest Name */}

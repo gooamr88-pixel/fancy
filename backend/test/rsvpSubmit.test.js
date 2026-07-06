@@ -95,7 +95,7 @@ test('a first-time response (party still pending) is never blocked, regardless o
     if (s.table === 'rsvp_parties' && s.terminal === 'maybeSingle') {
       return { data: { response: 'pending', events: { slug: 'wedding', allow_guest_edits: false } } };
     }
-    if (s.op === 'rpc' && s.fn === 'submit_rsvp_v2') return { data: { success: true, party_id: 'party-1', response: 'yes' } };
+    if (s.op === 'rpc' && s.fn === 'submit_rsvp_v2') return { data: { success: true, party_id: 'party-1', event_id: 'evt-1', response: 'yes' } };
     return {};
   });
   const { res } = await invoke(submitPublicRSVP, req({ partyId: 'party-1', guestName: 'A', email: 'a@x.com', response: 'yes', partySize: 1 }));
@@ -149,7 +149,7 @@ test('a successful insert returns 201 with the new rsvpId and fires the confirma
 
 test('a successful update returns 201 with the "updated" message', async () => {
   rpcResult({
-    success: true, rsvp_id: 'rsvp-1', is_update: true, event_id: 'evt-1', event_title: 'W',
+    success: true, rsvp_id: 'rsvp-1', party_id: 'rsvp-1', is_update: true, event_id: 'evt-1', event_title: 'W',
     response: 'yes', party_size: 1, guest_email: null, notification_preferences: { email: false },
   });
   const { res } = await invoke(submitPublicRSVP, req({ rsvpId: 'rsvp-1', guestName: 'Alice', email: 'a@x.com', response: 'yes', partySize: 1 }));
@@ -170,7 +170,7 @@ test('a declined RSVP with an email sends the decline acknowledgement to the gue
 
 test('the organizer is emailed when preferences allow and an org email is present', async () => {
   rpcResult({
-    success: true, rsvp_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
+    success: true, rsvp_id: 'r1', party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
     response: 'yes', party_size: 2, guest_email: null, notification_preferences: { email: true }, org_email: 'org@x.com',
   });
   const { res } = await invoke(submitPublicRSVP, req({ guestName: 'Alice', response: 'yes', partySize: 1 }));

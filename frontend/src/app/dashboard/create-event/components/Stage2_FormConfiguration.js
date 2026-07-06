@@ -97,10 +97,10 @@ function Section({ title, icon, defaultOpen = true, children }) {
 }
 
 /* ═══ Field wrapper ═══ */
-function Field({ label: lbl, required, hint, children, style: wrapStyle }) {
+function Field({ label: lbl, required, hint, children, style: wrapStyle, htmlFor }) {
   return (
     <div style={{ marginBottom: 16, ...wrapStyle }}>
-      <label style={lblStyle}>
+      <label style={lblStyle} htmlFor={htmlFor}>
         {lbl}{required && <span style={{ color: C.error, marginLeft: 2 }}>*</span>}
       </label>
       {children}
@@ -273,8 +273,9 @@ export default function Stage2_FormConfiguration({
           </div>
 
           <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Field label="Venue" hint="Type a name or address and pick a suggestion — or if Google can't find your venue, just type the name in and enter the address manually on the right">
+            <Field label="Venue" htmlFor="s2-venue" hint="Type a name or address and pick a suggestion — or if Google can't find your venue, just type the name in and enter the address manually on the right">
               <PlacesAutocomplete
+                id="s2-venue"
                 value={locationName}
                 onChange={setLocationName}
                 onPlaceSelect={onPlaceSelect}
@@ -321,8 +322,9 @@ export default function Stage2_FormConfiguration({
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-                  <Field label="Ceremony Venue" hint="Search and pick where the ceremony takes place">
+                  <Field label="Ceremony Venue" htmlFor="s2-ceremony-venue" hint="Search and pick where the ceremony takes place">
                     <PlacesAutocomplete
+                      id="s2-ceremony-venue"
                       value={td('ceremony_venue_name')}
                       onChange={setTd('ceremony_venue_name')}
                       onPlaceSelect={onCeremonyPlaceSelect}
@@ -336,8 +338,9 @@ export default function Stage2_FormConfiguration({
                   </Field>
                 </div>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-                  <Field label="Reception Venue" hint="Search and pick where the reception takes place">
+                  <Field label="Reception Venue" htmlFor="s2-reception-venue" hint="Search and pick where the reception takes place">
                     <PlacesAutocomplete
+                      id="s2-reception-venue"
                       value={td('reception_venue_name')}
                       onChange={setTd('reception_venue_name')}
                       onPlaceSelect={onReceptionPlaceSelect}

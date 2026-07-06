@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassmorphismCard, PremiumButton, AttendanceCard, PartySizeStepper, CalendarButton, ShareButton } from '../GuestUI';
 import { FadeInUp, ScaleIn, GlowPulse, ConfettiExplosion } from '../GuestAnimations';
+import { CalendarIcon, CheckIcon } from '../RsvpIcons';
 
 /**
  * QuickConfirm — the one-click email-token input surface, now a thin presentational
@@ -76,7 +77,9 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
         <ConfettiExplosion active={finalResponse === 'yes'} duration={4500} particleCount={140} />
         <div style={{ textAlign: 'center' }}>
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200, damping: 14, delay: 0.15 }}
-            style={{ width: '72px', height: '72px', borderRadius: '50%', background: `${meta.color}14`, border: `2px solid ${meta.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '30px', color: meta.color }}>✓</motion.div>
+            style={{ width: '72px', height: '72px', borderRadius: '50%', background: `${meta.color}14`, border: `2px solid ${meta.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', color: meta.color }}>
+            <CheckIcon size={30} strokeWidth={2} />
+          </motion.div>
           <FadeInUp delay={0.2}>
             <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#191B1E', margin: 0 }}>
               {finalResponse === 'yes' ? (isRTL ? 'لا نطيق الانتظار لرؤيتك!' : 'We Can’t Wait to See You!') : (isRTL ? 'تم تسجيل ردك' : 'Response Recorded')}
@@ -120,7 +123,7 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
         <FadeInUp delay={0.2}>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '26px', fontWeight: 600, color: '#191B1E', margin: '14px 0 0' }}>{event?.title}</h1>
         </FadeInUp>
-        {dateStr && <FadeInUp delay={0.3}><p style={{ color: '#77736A', fontSize: '13px', marginTop: '8px' }}>📅 {dateStr}</p></FadeInUp>}
+        {dateStr && <FadeInUp delay={0.3}><p style={{ color: '#77736A', fontSize: '13px', marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}><CalendarIcon size={13} strokeWidth={1.8} /> {dateStr}</p></FadeInUp>}
       </div>
 
       <FadeInUp delay={0.35}>

@@ -173,6 +173,10 @@ export default function DashboardPage() {
 
   const [tables, setTables] = useState([]);
   const [rsvps, setRsvps] = useState([]);
+  // Read inside the silent 20s realtime poll to diff against incoming data
+  // without making loadDashboardData depend on (and re-create per) rsvps.
+  const rsvpsRef = useRef([]);
+  useEffect(() => { rsvpsRef.current = rsvps; }, [rsvps]);
   const [customFields, setCustomFields] = useState([]);
   const [newTableName, setNewTableName] = useState('');
   const [newTableCapacity, setNewTableCapacity] = useState(10);
@@ -409,6 +413,16 @@ export default function DashboardPage() {
             timestamp: r.created_at || null
           };
         });
+        // The 20s realtime poll previously swapped the whole list in silently —
+        // rows could reorder under a scrolling thumb with zero warning. Surface
+        // a toast naming how many responses are actually new instead.
+        if (silent) {
+          const prevIds = new Set(rsvpsRef.current.map((g) => g.id));
+          const newCount = formattedGuests.filter((g) => !prevIds.has(g.id)).length;
+          if (newCount > 0) {
+            toast.success(`${newCount} new response${newCount > 1 ? 's' : ''}`);
+          }
+        }
         setRsvps(formattedGuests);
       }
       setError(null);
@@ -528,6 +542,44 @@ export default function DashboardPage() {
           className="sidebar-overlay"
         />
       )}
+
+      {/* ═══ MOBILE BOTTOM TAB BAR ═══
+          The off-canvas sidebar drawer costs two taps to reach any section
+          (open hamburger, then tap) and the hamburger itself sits top-left —
+          the worst spot for one-handed thumb reach. This surfaces the 4
+          highest-frequency destinations plus "More" (opens the same drawer,
+          everything else still lives there) within one thumb's reach. */}
+      <nav className="dashboard-bottom-tabbar" aria-label="Primary">
+        {[
+          { key: 'overview', label: 'Home', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> },
+          { key: 'guests', label: 'Guests', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg> },
+          { key: 'rsvps', label: 'RSVPs', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> },
+          { key: 'seating', label: 'Seating', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg> },
+        ].map(item => {
+          const isActive = activeTab === item.key;
+          return (
+            <button
+              key={item.key}
+              onClick={() => { setActiveTab(item.key); setSidebarOpen(false); }}
+              aria-current={isActive ? 'page' : undefined}
+              className="dashboard-bottom-tab"
+              style={{ color: isActive ? COLORS.gold : COLORS.stone }}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setSidebarOpen(true)}
+          aria-label="More navigation options"
+          className="dashboard-bottom-tab"
+          style={{ color: COLORS.stone }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+          <span>More</span>
+        </button>
+      </nav>
 
       {/* ═══ LEFT SIDEBAR ═══ */}
       <aside className="dashboard-sidebar" style={{
@@ -1069,7 +1121,7 @@ export default function DashboardPage() {
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
                 {eventId && (<>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
+                  <div className="seating-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
                     <TableForm tables={tables} newTableName={newTableName} setNewTableName={setNewTableName} newTableCapacity={newTableCapacity} setNewTableCapacity={setNewTableCapacity} onCreateTable={handleCreateTable} onUpdateTable={handleUpdateTable} />
                     <ErrorBoundary><SeatingManager rsvps={rsvps} tables={tables} searchQuery={searchQuery} setSearchQuery={setSearchQuery} filterResponse={filterResponse} setFilterResponse={setFilterResponse} onAssignTable={handleAssignTable} /></ErrorBoundary>
                   </div>
@@ -1130,8 +1182,25 @@ export default function DashboardPage() {
       {/* ═══ QR CODE MODAL ═══ */}
       {showQRModal && activeEvent && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: COLORS.white, border: `1px solid ${COLORS.border}`, width: '100%', maxWidth: 420, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', textAlign: 'center' }}>
-            
+          <div style={{ position: 'relative', background: COLORS.white, border: `1px solid ${COLORS.border}`, width: '100%', maxWidth: 420, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center', textAlign: 'center' }}>
+
+            <button
+              onClick={() => setShowQRModal(false)}
+              aria-label="Close"
+              style={{
+                position: 'absolute', top: 12, right: 12,
+                width: '32px', height: '32px', borderRadius: '8px', border: 'none', background: COLORS.softBg,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: COLORS.stone, transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#EDE8DD'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.softBg; }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
             {/* Modal Tabs */}
             <div style={{ display: 'flex', gap: '8px', background: COLORS.softBg, padding: '4px', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
               <button
@@ -1402,27 +1471,52 @@ export default function DashboardPage() {
                 </div>
               </>
             )}
-            
-            <button
-              onClick={() => setShowQRModal(false)}
-              style={{ marginTop: 8, padding: '8px 16px', background: 'transparent', border: 'none', color: COLORS.stone, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-              onMouseEnter={e => { e.currentTarget.style.color = COLORS.charcoal; }}
-              onMouseLeave={e => { e.currentTarget.style.color = COLORS.stone; }}
-            >
-              Close
-            </button>
           </div>
         </div>
       )}
 
       <style jsx>{`
+        .dashboard-bottom-tabbar {
+          display: none;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 55;
+          background: ${COLORS.white};
+          border-top: 1px solid ${COLORS.border};
+          padding: 6px 4px max(6px, env(safe-area-inset-bottom));
+          justify-content: space-around;
+          align-items: stretch;
+          box-shadow: 0 -4px 16px rgba(0,0,0,0.04);
+        }
+        .dashboard-bottom-tab {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2px;
+          flex: 1;
+          min-height: 48px;
+          padding: 4px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-family: var(--font-sans);
+          font-size: 10px;
+          font-weight: 600;
+        }
         @media (max-width: 1024px) {
           .sidebar-toggle { display: flex !important; }
           .sidebar-overlay { display: block !important; }
           .dashboard-sidebar { transform: ${sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'}; }
-          main { margin-left: 0 !important; }
+          main { margin-left: 0 !important; padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important; }
           .top-bar { padding-left: 72px !important; padding-right: 16px !important; }
           .content-container { padding: 16px !important; }
+          .dashboard-bottom-tabbar { display: flex !important; }
+        }
+        @media (max-width: 900px) {
+          .seating-form-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />

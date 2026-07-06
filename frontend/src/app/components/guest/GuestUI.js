@@ -4,13 +4,8 @@ import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfettiExplosion } from './GuestAnimations';
 import { lighten } from '../../utils/color';
-import { playTap, playAccept } from '../../utils/sound';
-
-/** Fires a short haptic buzz on devices that support it — a no-op everywhere
-    else (desktop, iOS Safari), so it's always safe to call. */
-export function buzz(pattern) {
-  try { navigator.vibrate?.(pattern); } catch { /* unsupported — fine */ }
-}
+import { useModalA11y } from '../../hooks/useModalA11y';
+import { CelebrateIcon, ClockIcon, EnvelopeIcon, CalendarIcon, CheckIcon, LinkIcon } from './RsvpIcons';
 
 /* ═══════════════════════════════════════════════════════════════
    FANCY RSVP — Premium Guest UI Component Library
@@ -236,16 +231,16 @@ export function MagneticButton({
 export function AttendanceCard({ type, selected, onClick, isRTL = false, variant = 'primary', accentColor = '#10b981' }) {
   const configs = {
     yes: {
-      icon: '🎉', label: isRTL ? 'سأحضر بكل سرور' : 'Joyfully Accept',
+      Icon: CelebrateIcon, label: isRTL ? 'سأحضر بكل سرور' : 'Joyfully Accept',
       subtitle: isRTL ? 'أتطلع للمشاركة في هذه المناسبة الجميلة' : 'I look forward to celebrating with you',
       borderColor: accentColor, glowColor: `${accentColor}33`,
     },
     maybe: {
-      icon: '🤔', label: isRTL ? 'ربما' : 'Tentative',
+      Icon: ClockIcon, label: isRTL ? 'ربما' : 'Tentative',
       borderColor: '#6366f1', glowColor: 'rgba(99,102,241,0.18)',
     },
     no: {
-      icon: '💌', label: isRTL ? 'أعتذر' : "Can't make it",
+      Icon: EnvelopeIcon, label: isRTL ? 'أعتذر' : "Can't make it",
       borderColor: '#A09A91', glowColor: 'rgba(160,154,145,0.15)',
     },
   };
@@ -253,23 +248,16 @@ export function AttendanceCard({ type, selected, onClick, isRTL = false, variant
   const config = configs[type];
   const isSelected = selected === type;
 
-  // A quick sparkle + haptic buzz right when a response is picked — the
-  // guest shouldn't have to wait until final submit to feel something happen.
-  // "Yes" gets a small celebratory burst in the invitation's own color;
-  // "maybe"/"no" just get a soft tap so every choice feels acknowledged.
+  // A quick sparkle right when "Yes" is picked — the guest shouldn't have to
+  // wait until final submit to feel something happen.
   const [celebrate, setCelebrate] = useState(false);
   const handleClick = () => {
     const wasAlreadySelected = selected === type;
     onClick(type);
     if (wasAlreadySelected) return;
     if (type === 'yes') {
-      buzz([12, 24, 12]);
-      playAccept();
       setCelebrate(true);
       setTimeout(() => setCelebrate(false), 1000);
-    } else {
-      buzz(10);
-      playTap();
     }
   };
   const sparkle = celebrate && (
@@ -307,7 +295,9 @@ export function AttendanceCard({ type, selected, onClick, isRTL = false, variant
             display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: '7px',
           }}
         >
-          <span style={{ fontSize: '16px', lineHeight: 1 }}>{config.icon}</span>
+          <span style={{ display: 'flex', color: isSelected ? config.borderColor : '#9A958A' }}>
+            <config.Icon size={17} />
+          </span>
           <span style={{ fontWeight: 600, fontSize: '13px', color: isSelected ? config.borderColor : '#4A463F' }}>
             {config.label}
           </span>
@@ -346,11 +336,15 @@ export function AttendanceCard({ type, selected, onClick, isRTL = false, variant
       }}
     >
       <motion.span
-        animate={isSelected ? { scale: [1, 1.3, 1], rotate: [0, 10, -10, 0] } : { scale: 1 }}
+        animate={isSelected ? { scale: [1, 1.08, 1] } : { scale: 1 }}
         transition={{ duration: 0.5 }}
-        style={{ fontSize: '38px', display: 'block', flexShrink: 0 }}
+        style={{
+          width: '52px', height: '52px', borderRadius: '50%', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: `${config.borderColor}14`, color: config.borderColor,
+        }}
       >
-        {config.icon}
+        <config.Icon size={26} strokeWidth={1.5} />
       </motion.span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, minWidth: 0 }}>
         <span style={{ fontWeight: 700, fontSize: '16px', color: isSelected ? config.borderColor : '#191B1E' }}>
@@ -418,19 +412,19 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }) {
   const next = useCallback(() => setCurrent(i => (i + 1) % images.length), [images.length]);
   const prev = useCallback(() => setCurrent(i => (i - 1 + images.length) % images.length), [images.length]);
 
+  // Escape-to-close, focus trap, initial focus, and scroll lock are handled
+  // by the shared useModalA11y hook — this effect only owns the
+  // arrow-key gallery navigation, which isn't part of that hook's contract.
   useEffect(() => {
     const handleKey = (e) => {
-      if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowRight') next();
       if (e.key === 'ArrowLeft') prev();
     };
     window.addEventListener('keydown', handleKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = '';
-    };
-  }, [onClose, next, prev]);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [next, prev]);
+
+  const dialogRef = useModalA11y(true, { onClose });
 
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e) => {
@@ -440,6 +434,11 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }) {
 
   return (
     <motion.div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo gallery"
+      tabIndex={-1}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -448,6 +447,7 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }) {
         background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(20px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         cursor: 'pointer',
+        outline: 'none',
       }}
       onClick={onClose}
       onTouchStart={handleTouchStart}
@@ -581,14 +581,14 @@ export function CalendarButton({ event, isRTL = false, variant = 'outline', styl
   };
 
   const options = [
-    { label: 'Google Calendar', icon: '📅', action: () => { window.open(googleUrl, '_blank'); setOpen(false); } },
-    { label: 'Apple Calendar', icon: '🍎', action: generateICS },
-    { label: 'Outlook / Other', icon: '📧', action: generateICS },
+    { label: 'Google Calendar', action: () => { window.open(googleUrl, '_blank'); setOpen(false); } },
+    { label: 'Apple Calendar', action: generateICS },
+    { label: 'Outlook / Other', action: generateICS },
   ];
 
   return (
     <div style={{ position: 'relative', display: 'inline-block', ...style }}>
-      <MagneticButton variant={variant} size="sm" icon="📅" onClick={() => setOpen(!open)} style={buttonStyle}>
+      <MagneticButton variant={variant} size="sm" icon={<CalendarIcon size={15} />} onClick={() => setOpen(!open)} style={buttonStyle}>
         {isRTL ? 'أضف إلى التقويم' : 'Add to Calendar'}
       </MagneticButton>
       <AnimatePresence>
@@ -622,7 +622,7 @@ export function CalendarButton({ event, isRTL = false, variant = 'outline', styl
                 onMouseEnter={e => e.currentTarget.style.background = '#F8F4EC'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               >
-                <span>{opt.icon}</span>
+                <span style={{ display: 'flex', color: '#B8944F' }}><CalendarIcon size={16} /></span>
                 <span>{opt.label}</span>
               </button>
             ))}
@@ -650,7 +650,7 @@ export function ShareButton({ title, text, url, isRTL = false, variant = 'ghost'
   };
 
   return (
-    <MagneticButton variant={variant} size="sm" icon={copied ? '✓' : '🔗'} onClick={handleShare} style={style}>
+    <MagneticButton variant={variant} size="sm" icon={copied ? <CheckIcon size={15} /> : <LinkIcon size={15} />} onClick={handleShare} style={style}>
       {copied ? (isRTL ? 'تم النسخ!' : 'Link Copied!') : (isRTL ? 'مشاركة الدعوة' : 'Share Invitation')}
     </MagneticButton>
   );

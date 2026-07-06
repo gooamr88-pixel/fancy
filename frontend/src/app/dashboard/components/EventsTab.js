@@ -112,8 +112,8 @@ const CSS = `
 }
 .evt2-actions { display:flex; align-items:center; gap:6px; margin-top:6px; }
 .evt2-action-btn {
-  display:inline-flex; align-items:center; gap:5px;
-  padding:6px 14px; border-radius:8px;
+  display:inline-flex; align-items:center; justify-content:center; gap:5px;
+  min-height:44px; padding:6px 14px; border-radius:8px;
   border:1px solid #E8E2D6; background:#fff;
   color:#77736A; font-size:11px; font-weight:600;
   font-family:var(--font-sans); cursor:pointer;

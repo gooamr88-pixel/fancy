@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '../../utils/apiClient';
 import { getAuthErrorMessage } from '../../utils/authErrors';
 import Toast from '../../components/Toast';
+import OtpBoxes from '../../components/OtpBoxes';
 
 // Mirrors the backend's passwordRegex (authController.js) so weak passwords are
 // caught before the round trip instead of only after a WEAK_PASSWORD rejection.
@@ -26,6 +27,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [toast, setToast] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const googleBtnRef = useRef(null);
@@ -33,9 +35,9 @@ export default function RegisterPage() {
 
   // OTP verification state
   const [otpStep, setOtpStep] = useState(false);
-  const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
+  const [otp, setOtp] = useState('');
   const [verifying, setVerifying] = useState(false);
-  const otpRefs = useRef([]);
+  const otpBoxesRef = useRef(null);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resending, setResending] = useState(false);
   const cooldownRef = useRef(null);
@@ -60,15 +62,19 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!firstName || !lastName || !email || !password) {
-      setToast({ message: 'Please fill in all fields to create your account.', kind: 'error' });
-      return;
-    }
-    if (!PASSWORD_REGEX.test(password)) {
-      setToast({ message: `Your password must meet the requirements below. ${PASSWORD_HINT}`, kind: 'error' });
+    const errors = {};
+    if (!firstName) errors.firstName = 'First name is required.';
+    if (!lastName) errors.lastName = 'Last name is required.';
+    if (!email) errors.email = 'Email is required.';
+    if (!password) errors.password = 'Password is required.';
+    else if (!PASSWORD_REGEX.test(password)) errors.password = PASSWORD_HINT;
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setToast({ message: errors.password && Object.keys(errors).length === 1 ? `Your password must meet the requirements below. ${PASSWORD_HINT}` : 'Please fill in all fields to create your account.', kind: 'error' });
       return;
     }
 
+    setFieldErrors({});
     setSubmitting(true);
     setToast(null);
 
@@ -110,10 +116,10 @@ export default function RegisterPage() {
         body: JSON.stringify({ name, orgName, email, password })
       });
       if (data.success) {
-        setOtpValues(['', '', '', '', '', '']);
+        setOtp('');
         startResendCooldown();
         setToast({ message: 'A new verification code has been sent to your email.', kind: 'success' });
-        otpRefs.current[0]?.focus();
+        otpBoxesRef.current?.focusFirst();
       } else {
         setToast({ message: data.message || 'Failed to resend code. Please try again.', kind: 'error' });
       }
@@ -128,7 +134,7 @@ export default function RegisterPage() {
   // an undocumented full page refresh) — form fields are left intact.
   const handleBackToForm = () => {
     setOtpStep(false);
-    setOtpValues(['', '', '', '', '', '']);
+    setOtp('');
     setToast(null);
     if (cooldownRef.current) { clearInterval(cooldownRef.current); cooldownRef.current = null; }
     setResendCooldown(0);
@@ -203,45 +209,8 @@ export default function RegisterPage() {
     };
   }, [router]);
 
-  // Auto-focus first OTP input when entering OTP step
-  useEffect(() => {
-    if (otpStep) {
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    }
-  }, [otpStep]);
-
-  const handleOtpChange = (index, value) => {
-    if (!/^\d*$/.test(value)) return;
-    const newValues = [...otpValues];
-    newValues[index] = value.slice(-1);
-    setOtpValues(newValues);
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !otpValues[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleOtpPaste = (e) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (!pasted) return;
-    const newValues = [...otpValues];
-    for (let j = 0; j < 6 && j < pasted.length; j++) {
-      newValues[j] = pasted[j];
-    }
-    setOtpValues(newValues);
-    const focusIdx = Math.min(pasted.length, 5);
-    otpRefs.current[focusIdx]?.focus();
-  };
-
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    const otp = otpValues.join('');
     if (otp.length !== 6) return;
 
     setVerifying(true);
@@ -262,8 +231,8 @@ export default function RegisterPage() {
       }
     } catch (err) {
       setToast({ message: getAuthErrorMessage(err, 'Verification failed. Please try again.'), kind: 'error' });
-      setOtpValues(['', '', '', '', '', '']);
-      otpRefs.current[0]?.focus();
+      setOtp('');
+      otpBoxesRef.current?.focusFirst();
     } finally {
       setVerifying(false);
     }
@@ -329,28 +298,19 @@ export default function RegisterPage() {
             </div>
 
             <h1 className="auth-heading">Verify Your Email</h1>
-            <p className="auth-subtext">We sent a 6-digit code to <strong style={{ color: '#B8944F' }}>{email}</strong></p>
+            <p className="auth-subtext">We sent a 6-digit code to <strong style={{ color: 'var(--gold-cta)' }}>{email}</strong></p>
 
             <form onSubmit={handleVerifyOtp}>
-              <div className="otp-row">
-                {otpValues.map((val, i) => (
-                  <input
-                    key={i}
-                    ref={el => otpRefs.current[i] = el}
-                    type="text" inputMode="numeric" maxLength={1}
-                    value={val}
-                    onChange={(e) => handleOtpChange(i, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    onPaste={handleOtpPaste}
-                    autoComplete="one-time-code"
-                    aria-label={`Digit ${i + 1} of 6`}
-                    autoFocus={i === 0}
-                    className={`otp-input ${val ? 'otp-filled' : ''}`}
-                  />
-                ))}
-              </div>
+              <OtpBoxes
+                ref={otpBoxesRef}
+                value={otp}
+                onChange={setOtp}
+                disabled={verifying}
+                autoFocus
+                ariaLabel="6-digit verification code"
+              />
 
-              <button type="submit" disabled={verifying || otpValues.join('').length !== 6} className="auth-submit-btn">
+              <button type="submit" disabled={verifying || otp.length !== 6} className="auth-submit-btn">
                 {verifying ? (
                   <span className="auth-spinner-row"><span className="auth-spinner" /> Verifying...</span>
                 ) : 'Verify & Continue'}
@@ -377,24 +337,6 @@ export default function RegisterPage() {
           .otp-container .auth-heading { text-align: center; }
           .otp-container .auth-subtext { text-align: center; }
           .otp-icon { width: 64px; height: 64px; }
-          .otp-row {
-            display: flex; gap: 10px; justify-content: center; margin: 28px 0;
-          }
-          .otp-input {
-            width: 52px; height: 60px; text-align: center;
-            font-size: 24px; font-weight: 700; font-family: monospace;
-            border: 2px solid #E8E2D6; border-radius: 12px;
-            background: #FAFAF8; color: #191B1E; outline: none;
-            transition: all 0.3s ease;
-          }
-          .otp-input:focus {
-            border-color: #B8944F; background: #FFFFFF;
-            box-shadow: 0 0 0 3px rgba(184,148,79,0.12);
-          }
-          .otp-filled {
-            border-color: #B8944F; background: #FFFFFF;
-            box-shadow: 0 0 0 3px rgba(184,148,79,0.08);
-          }
           .otp-footer-row {
             display: flex; justify-content: space-between; align-items: center;
             margin-top: 24px; padding-top: 20px; border-top: 1px solid #E8E2D6;
@@ -408,15 +350,12 @@ export default function RegisterPage() {
           .otp-back-btn:hover { color: #191B1E; }
           .otp-retry-btn {
             background: none; border: 1px solid rgba(184,148,79,0.3);
-            color: #B8944F; font-weight: 600; cursor: pointer;
+            color: var(--gold-cta); font-weight: 600; cursor: pointer;
             font-family: var(--font-sans); font-size: 13px;
             transition: all 0.2s; padding: 8px 16px; border-radius: 8px;
           }
-          .otp-retry-btn:hover:not(:disabled) { background: rgba(184,148,79,0.08); border-color: #B8944F; }
+          .otp-retry-btn:hover:not(:disabled) { background: rgba(184,148,79,0.08); border-color: var(--gold-cta); }
           .otp-retry-btn:disabled { opacity: 0.5; cursor: not-allowed; color: #999; border-color: rgba(184,148,79,0.15); }
-          @media (max-width: 640px) {
-            .otp-input { width: 44px; height: 52px; font-size: 20px; }
-          }
         `}</style>
       </div>
     );
@@ -489,14 +428,20 @@ export default function RegisterPage() {
               <div className="auth-field">
                 <label htmlFor="firstName" className="auth-label">First Name</label>
                 <input id="firstName" type="text" required autoComplete="given-name"
-                  value={firstName} onChange={e => setFirstName(e.target.value)}
-                  placeholder="Julian" className="auth-input" />
+                  value={firstName} onChange={e => { setFirstName(e.target.value); if (fieldErrors.firstName) setFieldErrors(prev => ({ ...prev, firstName: undefined })); }}
+                  placeholder="Julian" className="auth-input"
+                  aria-invalid={!!fieldErrors.firstName} aria-describedby={fieldErrors.firstName ? 'firstName-error' : undefined}
+                  style={fieldErrors.firstName ? { borderColor: '#DC2626' } : undefined} />
+                {fieldErrors.firstName && <span id="firstName-error" role="alert" className="auth-field-error">{fieldErrors.firstName}</span>}
               </div>
               <div className="auth-field">
                 <label htmlFor="lastName" className="auth-label">Last Name</label>
                 <input id="lastName" type="text" required autoComplete="family-name"
-                  value={lastName} onChange={e => setLastName(e.target.value)}
-                  placeholder="Vance" className="auth-input" />
+                  value={lastName} onChange={e => { setLastName(e.target.value); if (fieldErrors.lastName) setFieldErrors(prev => ({ ...prev, lastName: undefined })); }}
+                  placeholder="Vance" className="auth-input"
+                  aria-invalid={!!fieldErrors.lastName} aria-describedby={fieldErrors.lastName ? 'lastName-error' : undefined}
+                  style={fieldErrors.lastName ? { borderColor: '#DC2626' } : undefined} />
+                {fieldErrors.lastName && <span id="lastName-error" role="alert" className="auth-field-error">{fieldErrors.lastName}</span>}
               </div>
             </div>
 
@@ -510,8 +455,11 @@ export default function RegisterPage() {
             <div className="auth-field">
               <label htmlFor="reg-email" className="auth-label">Email Address</label>
               <input id="reg-email" type="email" required autoComplete="email"
-                value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="host@example.com" className="auth-input" />
+                value={email} onChange={e => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); }}
+                placeholder="host@example.com" className="auth-input"
+                aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? 'reg-email-error' : undefined}
+                style={fieldErrors.email ? { borderColor: '#DC2626' } : undefined} />
+              {fieldErrors.email && <span id="reg-email-error" role="alert" className="auth-field-error">{fieldErrors.email}</span>}
             </div>
 
             <div className="auth-field">
@@ -519,13 +467,15 @@ export default function RegisterPage() {
               <div className="auth-password-wrapper">
                 <input id="reg-password" type={showPassword ? 'text' : 'password'} required
                   autoComplete="new-password"
-                  value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••" className="auth-input" />
+                  value={password} onChange={e => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: undefined })); }}
+                  placeholder="••••••••" className="auth-input"
+                  aria-invalid={!!fieldErrors.password} aria-describedby="reg-password-hint"
+                  style={fieldErrors.password ? { borderColor: '#DC2626' } : undefined} />
                 <button type="button" className="auth-eye-btn" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
                   <EyeIcon show={showPassword} />
                 </button>
               </div>
-              <p className="auth-field-hint">{PASSWORD_HINT}</p>
+              <p id="reg-password-hint" className={fieldErrors.password ? 'auth-field-error' : 'auth-field-hint'}>{fieldErrors.password || PASSWORD_HINT}</p>
             </div>
 
             <button type="submit" disabled={submitting} className="auth-submit-btn">
@@ -538,7 +488,7 @@ export default function RegisterPage() {
           {/* OR Divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '24px 0' }}>
             <div style={{ flex: 1, height: '1px', background: 'rgba(184, 148, 79, 0.2)' }} />
-            <span style={{ fontSize: '12px', fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '1.5px' }}>or</span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--muted-stone)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>or</span>
             <div style={{ flex: 1, height: '1px', background: 'rgba(184, 148, 79, 0.2)' }} />
           </div>
 
@@ -631,10 +581,11 @@ const sharedStyles = `
   .auth-password-wrapper .auth-input { padding-right: 48px; }
   .auth-eye-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; display: flex; opacity: 0.6; transition: opacity 0.2s; }
   .auth-eye-btn:hover { opacity: 1; }
-  .auth-field-hint { font-size: 11.5px; color: #99938A; margin: 6px 0 0; line-height: 1.4; }
+  .auth-field-hint { font-size: 11.5px; color: var(--muted-stone); margin: 6px 0 0; line-height: 1.4; }
+  .auth-field-error { display: block; font-size: 11.5px; color: #DC2626; margin: 6px 0 0; line-height: 1.4; }
   .auth-submit-btn {
     width: 100%; padding: 16px;
-    background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
+    background: linear-gradient(135deg, var(--gold-cta) 0%, var(--gold-cta-hover) 100%);
     color: #FFFFFF; border: none; border-radius: 10px;
     font-size: 14px; font-weight: 700; font-family: var(--font-sans);
     letter-spacing: 0.06em; cursor: pointer;
@@ -650,13 +601,13 @@ const sharedStyles = `
   }
   .auth-google-container:empty::after {
     content: 'Loading Google Sign-In...';
-    font-size: 13px; color: #999; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--muted-stone); display: flex; align-items: center; justify-content: center;
     width: 100%; height: 44px; border: 1px dashed rgba(184, 148, 79, 0.3); border-radius: 10px;
   }
   .auth-footer-divider { width: 40px; height: 1px; background: #E8E2D6; margin: 28px auto 20px; }
   .auth-footer-text { text-align: center; font-size: 13px; color: #77736A; margin: 0; }
-  .auth-gold-link { color: #B8944F; font-weight: 700; text-decoration: none; transition: color 0.2s; }
-  .auth-gold-link:hover { color: #a6833f; }
+  .auth-gold-link { color: var(--gold-cta); font-weight: 700; text-decoration: none; transition: color 0.2s; }
+  .auth-gold-link:hover { color: var(--gold-cta-hover); }
 
   @keyframes authFadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes authFadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }

@@ -164,6 +164,7 @@ export default function EventsPage() {
           aria-label="Filter status"
           onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}
           style={{
+            minHeight: 44,
             padding: '9px 12px',
             border: `1px solid ${T.border}`,
             borderRadius: T.radiusSm,

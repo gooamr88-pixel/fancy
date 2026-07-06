@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
+import GoldDivider from "../components/GoldDivider";
 
 const features = [
   {
@@ -104,22 +105,12 @@ const features = [
 ];
 
 function FeatureCard({ feature, index }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="feature-card"
       style={{
-        background: hovered ? "#FFFFFF" : "#FDFCF9",
-        border: `1px solid ${hovered ? "#B8944F" : "#E8E2D6"}`,
         borderRadius: "16px",
         padding: "40px 36px",
-        transition: "all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-        transform: hovered ? "translateY(-6px)" : "translateY(0)",
-        boxShadow: hovered
-          ? "0 20px 60px rgba(184, 148, 79, 0.12), 0 8px 24px rgba(0,0,0,0.04)"
-          : "0 2px 12px rgba(0,0,0,0.03)",
         cursor: "default",
         position: "relative",
         overflow: "hidden",
@@ -139,18 +130,15 @@ function FeatureCard({ feature, index }) {
       />
 
       <div
+        className="feature-icon-box"
         style={{
           width: "72px",
           height: "72px",
           borderRadius: "16px",
-          background: hovered
-            ? "linear-gradient(135deg, rgba(184,148,79,0.12) 0%, rgba(215,190,128,0.08) 100%)"
-            : "linear-gradient(135deg, rgba(184,148,79,0.06) 0%, rgba(215,190,128,0.04) 100%)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           marginBottom: "24px",
-          transition: "background 0.4s ease",
         }}
       >
         {feature.icon}
@@ -183,37 +171,55 @@ function FeatureCard({ feature, index }) {
 
       {/* Bottom gold line accent on hover */}
       <div
+        className="feature-bottom-line"
         style={{
           position: "absolute",
           bottom: 0,
           left: "50%",
           transform: "translateX(-50%)",
-          width: hovered ? "60%" : "0%",
           height: "2px",
           background: "linear-gradient(90deg, transparent, #B8944F, transparent)",
-          transition: "width 0.4s ease",
           borderRadius: "2px",
         }}
       />
-    </div>
-  );
-}
 
-function GoldDivider() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", margin: "0 auto", maxWidth: "280px" }}>
-      <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, transparent, #D7BE80)" }} />
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M10 2L12 8L18 10L12 12L10 18L8 12L2 10L8 8Z" fill="#B8944F" opacity="0.5" />
-      </svg>
-      <div style={{ flex: 1, height: "1px", background: "linear-gradient(90deg, #D7BE80, transparent)" }} />
+      <style jsx>{`
+        .feature-card {
+          background: #FDFCF9;
+          border: 1px solid #E8E2D6;
+          transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+          transform: translateY(0);
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+        }
+        .feature-card:hover,
+        .feature-card:focus-within {
+          background: #FFFFFF;
+          border-color: #B8944F;
+          transform: translateY(-6px);
+          box-shadow: 0 20px 60px rgba(184, 148, 79, 0.12), 0 8px 24px rgba(0, 0, 0, 0.04);
+        }
+        .feature-icon-box {
+          background: linear-gradient(135deg, rgba(184,148,79,0.06) 0%, rgba(215,190,128,0.04) 100%);
+          transition: background 0.4s ease;
+        }
+        .feature-card:hover .feature-icon-box,
+        .feature-card:focus-within .feature-icon-box {
+          background: linear-gradient(135deg, rgba(184,148,79,0.12) 0%, rgba(215,190,128,0.08) 100%);
+        }
+        .feature-bottom-line {
+          width: 0%;
+          transition: width 0.4s ease;
+        }
+        .feature-card:hover .feature-bottom-line,
+        .feature-card:focus-within .feature-bottom-line {
+          width: 60%;
+        }
+      `}</style>
     </div>
   );
 }
 
 export default function FeaturesPage() {
-  const [ctaHovered, setCtaHovered] = useState(false);
-
   return (
     <>
       <Navbar />
@@ -260,7 +266,7 @@ export default function FeaturesPage() {
             <h1
               style={{
                 fontFamily: "var(--font-serif)",
-                fontSize: "56px",
+                fontSize: "clamp(2.4rem, 5vw, 3.8rem)",
                 fontWeight: 700,
                 color: "#191B1E",
                 lineHeight: 1.15,
@@ -297,9 +303,10 @@ export default function FeaturesPage() {
           }}
         >
           <div style={{ marginBottom: "60px" }}>
-            <GoldDivider />
+            <GoldDivider variant="wide" />
           </div>
 
+          <h2 className="sr-only">Platform Features</h2>
           <div
             className="features-grid"
             style={{
@@ -510,38 +517,18 @@ export default function FeaturesPage() {
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
               <Link
                 href="/register"
-                className="btn-gold"
-                onMouseEnter={() => setCtaHovered(true)}
-                onMouseLeave={() => setCtaHovered(false)}
+                className="btn-gold features-cta-gold"
                 style={{
                   padding: "16px 48px",
                   fontSize: "16px",
                   fontWeight: 700,
                   borderRadius: "8px",
                   letterSpacing: "0.3px",
-                  transform: ctaHovered ? "translateY(-2px)" : "translateY(0)",
-                  boxShadow: ctaHovered
-                    ? "0 12px 40px rgba(184,148,79,0.35)"
-                    : "0 4px 20px rgba(184,148,79,0.2)",
-                  transition: "all 0.3s ease",
                 }}
               >
                 Start Free Trial
               </Link>
-              <Link
-                href="/pricing"
-                style={{
-                  padding: "16px 48px",
-                  fontSize: "16px",
-                  fontWeight: 600,
-                  borderRadius: "8px",
-                  border: "1px solid rgba(184,148,79,0.4)",
-                  color: "#D7BE80",
-                  textDecoration: "none",
-                  fontFamily: "var(--font-sans)",
-                  transition: "all 0.3s ease",
-                }}
-              >
+              <Link href="/pricing" className="btn-ghost-gold">
                 View Pricing
               </Link>
             </div>
@@ -582,6 +569,12 @@ export default function FeaturesPage() {
           .stats-grid {
             grid-template-columns: 1fr !important;
           }
+        }
+        /* .btn-gold's own :hover already sets an identical, slightly heavier
+           shadow (globals.css) — only the resting/base shadow needs a custom
+           value here, so it's left to override on hover automatically. */
+        .features-cta-gold {
+          box-shadow: 0 4px 20px rgba(184, 148, 79, 0.2);
         }
       `}</style>
     </>

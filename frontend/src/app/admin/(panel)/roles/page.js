@@ -6,6 +6,7 @@ import usePermissions from '../../_hooks/usePermissions';
 import Modal, { Button } from '../../_components/Modal';
 import DataTable from '../../_components/DataTable';
 import { PageLoading } from '../../_components/Spinner';
+import { ErrorState } from '../../_components/ErrorState';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 
@@ -78,7 +79,7 @@ export default function RolesPage() {
   };
 
   if (loading) return <PageLoading label="Loading roles…" />;
-  if (error) return <p style={{ color: T.danger }}>{error}</p>;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
 
   // Group permissions for the editor.
   const groups = {};

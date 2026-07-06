@@ -4,12 +4,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
 import DigitalEnvelope from '../DigitalEnvelope';
+import GuestPassCard from '../GuestPassGenerator';
 import { GlassmorphismCard, PremiumButton, CalendarButton, ShareButton } from '../GuestUI';
 import { ScaleIn, FadeInUp, ShimmerPlaceholder, ConfettiExplosion } from '../GuestAnimations';
 import { useRsvpResolver, rememberGuest } from './useRsvpResolver';
 import { useIdempotentRsvpSubmit } from './useIdempotentRsvpSubmit';
 import { useSeatingLookup } from '../../../[slug]/rsvp/hooks/useSeatingLookup';
 import SeatingResultPanel from '../../../[slug]/rsvp/steps/SeatingResultPanel';
+import { CelebrateIcon, ClockIcon, EnvelopeIcon, CreditCardIcon, DoorIcon, SearchIcon, PencilIcon } from '../RsvpIcons';
 
 /**
  * RsvpExperience — the unified orchestration engine for the entire guest RSVP
@@ -75,7 +77,11 @@ function StatusCard({ icon, title, message, slug }) {
     <Centered>
       <ScaleIn>
         <GlassmorphismCard bg="rgba(255,255,255,0.92)" hoverable={false} style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
-          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.15 }} style={{ fontSize: '48px', display: 'block' }}>{icon}</motion.span>
+          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.15 }} style={{
+            width: '76px', height: '76px', borderRadius: '50%', margin: '0 auto',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(184,148,79,0.1)', color: '#B8944F',
+          }}>{icon}</motion.span>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#B8944F', marginTop: '12px' }}>{title}</h1>
           <p style={{ color: STONE, marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>{message}</p>
           {slug && (
@@ -92,9 +98,9 @@ function StatusCard({ icon, title, message, slug }) {
 }
 
 const STATUS_META = {
-  yes:   { label: 'Attending', color: '#10b981', soft: 'rgba(16,185,129,0.1)',  icon: '🎉' },
-  maybe: { label: 'Tentative', color: '#6366f1', soft: 'rgba(99,102,241,0.1)',  icon: '🤔' },
-  no:    { label: 'Declined',  color: '#ef4444', soft: 'rgba(239,68,68,0.08)',  icon: '💌' },
+  yes:   { label: 'Attending', color: '#10b981', soft: 'rgba(16,185,129,0.1)',  Icon: CelebrateIcon },
+  maybe: { label: 'Tentative', color: '#6366f1', soft: 'rgba(99,102,241,0.1)',  Icon: ClockIcon },
+  no:    { label: 'Declined',  color: '#ef4444', soft: 'rgba(239,68,68,0.08)',  Icon: EnvelopeIcon },
 };
 
 /** The bulletproof read-only lock. The input form is NOT rendered here — the only
@@ -106,7 +112,13 @@ function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset, seat
     <Centered>
       <ScaleIn>
         <GlassmorphismCard bg="rgba(255,255,255,0.94)" hoverable={false} style={{ maxWidth: '460px', width: '100%', textAlign: 'center', padding: '44px 34px' }}>
-          <motion.span animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 0.8, delay: 0.2 }} style={{ fontSize: '52px', display: 'block', marginBottom: '12px' }}>{meta.icon}</motion.span>
+          <motion.span animate={{ scale: [1, 1.08, 1] }} transition={{ duration: 0.8, delay: 0.2 }} style={{
+            width: '80px', height: '80px', borderRadius: '50%', margin: '0 auto 12px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: meta.soft, color: meta.color,
+          }}>
+            <meta.Icon size={38} strokeWidth={1.5} />
+          </motion.span>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '25px', fontWeight: 600, color: '#191B1E', marginBottom: '8px' }}>
             {isRTL ? 'أنت مسجّل بالفعل' : 'You’re already registered'}
           </h1>
@@ -129,6 +141,27 @@ function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset, seat
             </div>
           )}
 
+          {/* Entrance pass — a guest who confirmed "yes" and comes back later (the
+              common case; most guests don't linger on the success screen) had no
+              way to pull their real QR back up in-app before this. Same signed
+              ticket the success screen and the emailed link use. */}
+          {guest?.response === 'yes' && guest?.qrToken && event && (
+            <div style={{ marginTop: '24px' }}>
+              <GuestPassCard
+                guestName={guest.guest_name}
+                eventTitle={event.title}
+                eventDate={event.event_date}
+                eventLocation={event.location_name || event.location_address}
+                tableName={guest.table_name || null}
+                response="yes"
+                qrData={typeof window !== 'undefined' ? `${window.location.origin}/ticket/${guest.qrToken}` : null}
+                themeColor={event?.custom_colors?.primary || '#B8944F'}
+                isRTL={isRTL}
+                removeWatermark={!!event?.tier_remove_watermark}
+              />
+            </div>
+          )}
+
           {/* Seating map — a guest revisiting their (already-locked) invitation had no
               way to see where the organizer seated them; StepSuccess only ever showed
               this right after the original submit. Fetched in the parent effect below
@@ -145,7 +178,7 @@ function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset, seat
                 <p style={{ fontSize: '12px', color: '#A09A91', lineHeight: 1.6, marginBottom: '14px' }}>
                   {isRTL ? 'تغيّرت خططك؟ يمكنك تحديث ردك قبل الموعد النهائي.' : 'Plans changed? You can update your response before the deadline.'}
                 </p>
-                <PremiumButton variant="outline" onClick={onEdit} icon="✏️">
+                <PremiumButton variant="outline" onClick={onEdit} icon={<PencilIcon size={15} />}>
                   {isRTL ? 'تحديث ردّي' : 'Update my response'}
                 </PremiumButton>
               </>
@@ -222,10 +255,10 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
   // ── Zero-flash gate: never render the child (or mock data) until resolved ──
   if (engine.phase === 'resolving') return <RsvpSkeleton />;
 
-  if (engine.phase === 'paymentRequired') return <StatusCard icon="💳" title={isRTL ? 'الفعالية غير مفعّلة' : 'Event Unpaid'} message={isRTL ? 'هذه الصفحة غير متاحة حالياً.' : 'This event page is offline pending activation.'} />;
-  if (engine.phase === 'underReview')   return <StatusCard icon="✨" title={isRTL ? 'جاهز قريباً' : 'Almost Ready'} message={isRTL ? 'تتم مراجعة هذه الدعوة وستكون جاهزة قريباً.' : 'This invitation is getting its final touches and will be live shortly.'} />;
-  if (engine.phase === 'closed')        return <StatusCard icon="🕊️" title={isRTL ? 'انتهت فترة الرد' : 'RSVPs Are Closed'} message={isRTL ? 'لم يعد بالإمكان الرد على هذه الدعوة.' : 'Responses are no longer being accepted for this event.'} slug={engine.event?.slug} />;
-  if (engine.phase === 'unavailable')   return <StatusCard icon="🔍" title={isRTL ? 'الدعوة غير متاحة' : 'Invitation Unavailable'} message={engine.error || (isRTL ? 'تعذّر العثور على هذه الدعوة.' : 'This invitation could not be found.')} />;
+  if (engine.phase === 'paymentRequired') return <StatusCard icon={<CreditCardIcon size={34} strokeWidth={1.5} />} title={isRTL ? 'الفعالية غير مفعّلة' : 'Event Unpaid'} message={isRTL ? 'هذه الصفحة غير متاحة حالياً.' : 'This event page is offline pending activation.'} />;
+  if (engine.phase === 'underReview')   return <StatusCard icon={<CelebrateIcon size={34} strokeWidth={1.5} />} title={isRTL ? 'جاهز قريباً' : 'Almost Ready'} message={isRTL ? 'تتم مراجعة هذه الدعوة وستكون جاهزة قريباً.' : 'This invitation is getting its final touches and will be live shortly.'} />;
+  if (engine.phase === 'closed')        return <StatusCard icon={<DoorIcon size={34} strokeWidth={1.5} />} title={isRTL ? 'انتهت فترة الرد' : 'RSVPs Are Closed'} message={isRTL ? 'لم يعد بالإمكان الرد على هذه الدعوة.' : 'Responses are no longer being accepted for this event.'} slug={engine.event?.slug} />;
+  if (engine.phase === 'unavailable')   return <StatusCard icon={<SearchIcon size={34} strokeWidth={1.5} />} title={isRTL ? 'الدعوة غير متاحة' : 'Invitation Unavailable'} message={engine.error || (isRTL ? 'تعذّر العثور على هذه الدعوة.' : 'This invitation could not be found.')} />;
 
   const envelopeOverlay = envelopeOpen && engine.event ? (
     <DigitalEnvelope
@@ -235,6 +268,7 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
       themeColor={engine.event?.custom_colors?.primary || '#B8944F'}
       secondaryColor={engine.event?.custom_colors?.secondary || null}
       pattern={engine.event?.template_type}
+      slug={engine.event?.slug}
       onOpen={closeEnvelope}
     />
   ) : null;

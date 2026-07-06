@@ -287,6 +287,7 @@ function Select({ value, onChange, options, label }) {
       value={value}
       onChange={(e) => onChange(e.target.value)}
       style={{
+        minHeight: 44,
         padding: '9px 12px',
         border: `1px solid ${T.border}`,
         borderRadius: T.radiusSm,

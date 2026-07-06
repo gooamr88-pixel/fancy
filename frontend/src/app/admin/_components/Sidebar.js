@@ -258,6 +258,8 @@ export default function Sidebar({ can, open, onNavigate, onLogout, onClose }) {
             top: 0;
             left: 0;
             bottom: 0;
+            width: min(85vw, 256px) !important;
+            flex-basis: min(85vw, 256px) !important;
             z-index: 200;
           }
           .sidebar-backdrop {

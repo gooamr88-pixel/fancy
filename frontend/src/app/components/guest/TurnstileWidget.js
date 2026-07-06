@@ -24,7 +24,7 @@ export const turnstileEnabled = !!SITEKEY;
  * exposed `reset()` (via ref) to request a fresh token after a failed submit,
  * since Turnstile tokens are single-use.
  */
-const TurnstileWidget = forwardRef(function TurnstileWidget({ onVerify, onExpire, theme = 'light' }, ref) {
+const TurnstileWidget = forwardRef(function TurnstileWidget({ onVerify, onExpire, onError, theme = 'light' }, ref) {
   const containerRef = useRef(null);
   const widgetIdRef = useRef(null);
 
@@ -33,11 +33,18 @@ const TurnstileWidget = forwardRef(function TurnstileWidget({ onVerify, onExpire
     widgetIdRef.current = window.turnstile.render(containerRef.current, {
       sitekey: SITEKEY,
       theme,
+      // The fixed 300x65px default can clip on a narrow phone card — let the
+      // widget size itself to its container instead.
+      size: 'flexible',
       callback: (token) => onVerify?.(token),
+      // Token solved then timed out — a fresh solve will work, same widget.
       'expired-callback': () => onExpire?.(),
-      'error-callback': () => onExpire?.(),
+      // The widget itself failed (network block, ad-blocker, etc.) — no
+      // amount of retrying the same render will fix this; the caller needs
+      // to say something different than "please try again."
+      'error-callback': () => onError?.(),
     });
-  }, [onVerify, onExpire, theme]);
+  }, [onVerify, onExpire, onError, theme]);
 
   useImperativeHandle(ref, () => ({
     reset() {
@@ -74,7 +81,7 @@ const TurnstileWidget = forwardRef(function TurnstileWidget({ onVerify, onExpire
   }, [render]);
 
   if (!SITEKEY) return null;
-  return <div ref={containerRef} style={{ display: 'flex', justifyContent: 'center', minHeight: '65px' }} />;
+  return <div ref={containerRef} style={{ display: 'flex', justifyContent: 'center', minHeight: '65px', width: '100%', maxWidth: '100%' }} />;
 });
 
 export default TurnstileWidget;

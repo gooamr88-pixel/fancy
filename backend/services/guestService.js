@@ -184,7 +184,7 @@ async function getPartyForPublicResolve(partyId) {
     .from('rsvp_parties')
     .select(`
       id, label, response, created_by_organizer,
-      events!inner(slug, is_paid, status, event_date),
+      events!inner(id, slug, is_paid, status, event_date),
       seating_assignments(tables(table_name)),
       guests(id)
     `)
@@ -203,6 +203,7 @@ async function getPartyForPublicResolve(partyId) {
 
   return {
     id: party.id,
+    eventId: party.events.id,
     label: party.label,
     response: party.response,
     partySize,
