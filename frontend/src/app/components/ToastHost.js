@@ -36,7 +36,11 @@ export default function ToastHost() {
       <style jsx>{`
         .toast-stack-viewport {
           position: fixed;
-          top: max(24px, calc(env(safe-area-inset-top) + 12px));
+          /* Cleared below the tallest sticky in-app header (the organizer
+             dashboard's title bar, ~92px) so a toast never lands on top of
+             a page heading — it was rendering at the very top of the
+             viewport and covering the dashboard's title/back bar. */
+          top: max(100px, calc(env(safe-area-inset-top) + 88px));
           left: 50%;
           transform: translateX(-50%);
           z-index: 100001;

@@ -135,7 +135,7 @@ export default function StepPartyDetails({
               );
             })()}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="email-phone-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <FormField label={t.email_label} error={validationErrors.email}>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@email.com"
                   style={{ ...S.inputBase, ...(validationErrors.email ? { borderColor: '#ef4444' } : {}) }}
@@ -511,7 +511,7 @@ export default function StepPartyDetails({
               </div>
 
               {/* Email + Phone row */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div className="email-phone-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <FormField label={t.email_label} error={validationErrors[`additionalGuest_email_${index}`]}>
                   <input
                     type="email" value={g.email || ''}
@@ -569,8 +569,11 @@ export default function StepPartyDetails({
       )}
 
       <style jsx>{`
-        @media (max-width: 360px) {
+        @media (max-width: 640px) {
           .name-title-row {
+            grid-template-columns: 1fr !important;
+          }
+          .email-phone-row {
             grid-template-columns: 1fr !important;
           }
         }

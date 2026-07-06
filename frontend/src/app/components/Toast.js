@@ -35,8 +35,11 @@ export default function Toast({ toast, onClose, duration }) {
           /* MOB-8: was a bare 24px, so a notch/Dynamic Island could clip it;
              also raised above LogoutModal's z-index:100000 (and every other
              modal) — a toast fired while a modal is open must stay visible,
-             not render invisibly underneath it. */
-          top: max(24px, calc(env(safe-area-inset-top) + 12px));
+             not render invisibly underneath it.
+             Also cleared below the tallest sticky in-app header (the
+             organizer dashboard's title bar, ~92px) so it never lands on
+             top of a page heading — kept in sync with ToastHost's viewport. */
+          top: max(100px, calc(env(safe-area-inset-top) + 88px));
           left: 50%;
           transform: translateX(-50%);
           z-index: 100001;

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence, useInView, useScroll, useTransform, useReducedMotion } from 'framer-motion';
+import { lighten, darken } from '../../utils/color';
 
 /* ═══════════════════════════════════════════════════════════════
    FANCY RSVP — Premium Guest Animation Library
@@ -308,11 +309,32 @@ function drawConfettiShape(ctx, shape, size) {
     case 'rect':
       ctx.fillRect(-size / 2, -size / 4, size, size / 2);
       break;
+    case 'ribbon':
+      // A shred of foil ribbon — longer and thinner than 'rect' — reads as a
+      // premium material once the metallic gradient sheen is applied to it.
+      ctx.fillRect(-size * 1.15, -size / 6, size * 2.3, size / 3);
+      break;
     default: // circle
       ctx.beginPath();
       ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
       ctx.fill();
   }
+}
+
+// A foil/metallic sheen instead of one flat fill — a light streak down the
+// middle of the piece's own local width, so it "catches the light" as it
+// tumbles (the gradient rotates with the piece since it's built in the
+// already-rotated/translated canvas space). Turns plain colored confetti
+// into something that reads as gold foil rather than cheap flat paper.
+function metallicGradient(ctx, color, size) {
+  const span = Math.max(size, 6);
+  const g = ctx.createLinearGradient(-span, 0, span, 0);
+  g.addColorStop(0, darken(color, 0.35));
+  g.addColorStop(0.42, color);
+  g.addColorStop(0.5, lighten(color, 0.65));
+  g.addColorStop(0.58, color);
+  g.addColorStop(1, darken(color, 0.35));
+  return g;
 }
 
 // ─── ConfettiExplosion: Canvas-based celebration ───
@@ -324,7 +346,7 @@ export function ConfettiExplosion({ active = false, duration = 4000, particleCou
   const canvasRef = useRef(null);
   const [show, setShow] = useState(active);
   const reduceMotion = useReducedMotion(); // A11Y-4
-  const confettiColors = colors || ['#B8944F', '#D7BE80', '#F8F4EC', '#E8C564', '#A67C2E', '#FFFFFF', '#FF6B6B', '#4ECDC4'];
+  const confettiColors = colors || ['#B8944F', '#D7BE80', '#F8F4EC', '#E8C564', '#A67C2E', '#FFFFFF'];
   const confettiShapes = shapes || ['rect', 'circle'];
 
   // Re-arm the celebration whenever it becomes eligible to show again (active
@@ -385,7 +407,7 @@ export function ConfettiExplosion({ active = false, duration = 4000, particleCou
         ctx.translate(p.x, p.y);
         ctx.rotate((p.rotation * Math.PI) / 180);
         ctx.globalAlpha = p.opacity;
-        ctx.fillStyle = p.color;
+        ctx.fillStyle = metallicGradient(ctx, p.color, p.size);
         drawConfettiShape(ctx, p.shape, p.size);
         ctx.restore();
       });

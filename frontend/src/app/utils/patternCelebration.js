@@ -30,7 +30,7 @@ const FAMILIES = {
   minimal: { colors: ['#1A1A1A', '#D5CFC5', '#FFFFFF'], shapes: ['rect'], ambient: 'circle', ambientColor: '#D5CFC5' },
 };
 
-const DEFAULT_FAMILY = { colors: undefined, shapes: ['rect', 'circle'], ambient: 'circle', ambientColor: '#D7BE80' };
+const DEFAULT_FAMILY = { colors: undefined, shapes: ['ribbon', 'circle'], ambient: 'circle', ambientColor: '#D7BE80' };
 
 /** Returns { colors, shapes, ambient, ambientColor } keyed by template_type. */
 export function getCelebrationPreset(pattern) {

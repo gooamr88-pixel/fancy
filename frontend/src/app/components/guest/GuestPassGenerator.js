@@ -47,7 +47,7 @@ export default function GuestPassCard({
     if (!qrData) return;
     import('qrcode').then(QRCode => {
       QRCode.toDataURL(qrData, {
-        width: 200, margin: 1,
+        width: 320, margin: 1,
         color: { dark: '#191B1E', light: '#FFFFFF' },
       }).then(url => setQrImageUrl(url)).catch(() => {});
     }).catch(() => {});
@@ -236,7 +236,7 @@ export default function GuestPassCard({
 
           <div style={{ display: 'flex' }}>
             {/* Main stub */}
-            <div style={{ flex: '1 1 68%', padding: '26px 26px 22px', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+            <div style={{ flex: '1 1 65%', padding: '26px 26px 22px', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)', fontWeight: 700, fontFamily: 'var(--font-sans)' }}>
@@ -281,7 +281,7 @@ export default function GuestPassCard({
 
             {/* QR stub */}
             <div style={{
-              flex: '0 0 32%', padding: '22px 16px', display: 'flex', flexDirection: 'column',
+              flex: '0 0 35%', padding: '22px 14px', display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'rgba(255,255,255,0.02)',
             }}>
               {dateShort && (
@@ -290,12 +290,12 @@ export default function GuestPassCard({
                 </span>
               )}
               {qrImageUrl ? (
-                <div style={{ padding: '8px', background: '#FFFFFF', borderRadius: '10px' }}>
-                  <img src={qrImageUrl} alt="Check-in QR" style={{ width: '88px', height: '88px', display: 'block' }} />
+                <div style={{ padding: '6px', background: '#FFFFFF', borderRadius: '10px' }}>
+                  <img src={qrImageUrl} alt="Check-in QR" style={{ width: '112px', height: '112px', display: 'block' }} />
                 </div>
               ) : (
                 <div style={{
-                  width: '104px', height: '104px', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.18)',
+                  width: '112px', height: '112px', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.18)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                   fontSize: '9px', color: 'rgba(255,255,255,0.3)', padding: '8px', fontFamily: 'var(--font-sans)',
                 }}>
