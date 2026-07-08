@@ -215,8 +215,15 @@ export function FloatingParticles({ count = 30, color = '#B8944F', shape = 'circ
     const isPetal = shape === 'petal';
     const isSnow = shape === 'snow';
 
+    // Phones run the same rAF loop as desktops; a full particle count there is
+    // a real battery/jank cost for a purely ambient effect. Scale it down hard
+    // on small screens (and cap it everywhere) so the drift stays tasteful
+    // without pegging a mobile CPU.
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    const effectiveCount = Math.min(count, isMobile ? 12 : 30);
+
     // Create particles
-    particlesRef.current = Array.from({ length: count }, () => ({
+    particlesRef.current = Array.from({ length: effectiveCount }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
       size: (isPetal ? Math.random() * 4 + 3 : isSnow ? Math.random() * 3.5 + 1.5 : Math.random() * 3 + 1),

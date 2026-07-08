@@ -134,10 +134,7 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
         <AttendanceCard type="yes" variant="primary" accentColor={event?.custom_colors?.primary || '#10b981'} selected={selected} onClick={setSelected} isRTL={isRTL} />
-        <div className="attendance-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '10px' }}>
-          <AttendanceCard type="maybe" variant="compact" selected={selected} onClick={setSelected} isRTL={isRTL} />
-          <AttendanceCard type="no" variant="compact" selected={selected} onClick={setSelected} isRTL={isRTL} />
-        </div>
+        <AttendanceCard type="no" variant="compact" selected={selected} onClick={setSelected} isRTL={isRTL} />
       </div>
 
       <AnimatePresence mode="wait">

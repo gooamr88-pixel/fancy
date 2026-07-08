@@ -563,7 +563,6 @@ const getRsvpReminderTemplate = (rsvp, event, links) => {
       <p style="margin:8px 0 14px; font-family:${SANS}; font-size:11px; font-weight:bold; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.stone}; text-align:center;">Will you attend?</p>
       <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 6px;"><tr>
         ${choice(links.accept, '✓ Accept', BRAND.success, BRAND.white, BRAND.success)}
-        ${choice(links.maybe, 'Maybe', BRAND.white, BRAND.charcoal, BRAND.border)}
         ${choice(links.decline, '✕ Decline', BRAND.danger, BRAND.white, BRAND.danger)}
       </tr></table>
       ${para('It only takes a moment — thank you!', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}

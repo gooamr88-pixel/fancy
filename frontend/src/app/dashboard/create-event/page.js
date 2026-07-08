@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import dynamic from 'next/dynamic';
 import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
+import { toTagArray } from '../components/TagListEditor';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -391,6 +392,8 @@ export default function CreateEventWizard() {
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [sealUploading, setSealUploading] = useState(false);
   const [invitationBgUploading, setInvitationBgUploading] = useState(false);
+  const [haVenueDay1Uploading, setHaVenueDay1Uploading] = useState(false);
+  const [haVenueDay2Uploading, setHaVenueDay2Uploading] = useState(false);
 
   /* ─── Custom Colors (derived from preset) ─── */
   const [customColors, setCustomColors] = useState({
@@ -893,6 +896,41 @@ export default function CreateEventWizard() {
     uploadInvitationAsset(e.target.files?.[0], 'invitation-bg', 'invitation_bg_url', setInvitationBgUploading);
   }, [uploadInvitationAsset]);
 
+  // Heritage Arch per-day venue photos — uploaded to storage (replaces the old
+  // paste-a-URL fields). ImageUploadField hands us a File directly.
+  const handleHaVenueDay1Upload = useCallback((file) => {
+    uploadInvitationAsset(file, 'venues', 'ha_venue_day1_image', setHaVenueDay1Uploading);
+  }, [uploadInvitationAsset]);
+  const handleHaVenueDay2Upload = useCallback((file) => {
+    uploadInvitationAsset(file, 'venues', 'ha_venue_day2_image', setHaVenueDay2Uploading);
+  }, [uploadInvitationAsset]);
+
+  // Generic single-image upload that RETURNS the public URL (rather than writing
+  // a fixed template_data key) — used by list rows like Accommodation hotels so
+  // each row's photo becomes a real upload instead of a pasted URL.
+  const uploadRowImage = useCallback(async (file) => {
+    if (!file) return null;
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('File exceeds 8MB. Please use a smaller file.');
+      return null;
+    }
+    try {
+      if (!supabase) throw new Error('Storage client not configured.');
+      const ext = file.name.split('.').pop();
+      const filePath = `venues/wizard-row-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
+      return publicUrl;
+    } catch (err) {
+      console.error('Row image upload failed:', err);
+      toast.error('Image upload failed. Please try again.');
+      return null;
+    }
+  }, []);
+
   /* ═══ Background music upload (Supabase storage — no base64 fallback) ═══ */
   const handleMusicUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
@@ -980,7 +1018,11 @@ export default function CreateEventWizard() {
   const buildTemplateData = useCallback(() => {
     const merged = templateType === 'custom'
       ? { ...templateData, customDesign: customConfig }
-      : templateData;
+      : { ...templateData };
+    // Meal options are edited as chips (an array); coerce any legacy
+    // comma-separated string (e.g. from a draft made before the switch) so the
+    // stored shape stays consistently an array.
+    if ('ha_meal_options' in merged) merged.ha_meal_options = toTagArray(merged.ha_meal_options);
     return Object.keys(merged).length > 0 ? merged : undefined;
   }, [templateType, templateData, customConfig]);
 
@@ -1559,6 +1601,9 @@ export default function CreateEventWizard() {
               templateData={templateData} setTemplateData={setTemplateData}
               onSealImageUpload={handleSealImageUpload} sealUploading={sealUploading}
               onInvitationBgUpload={handleInvitationBgUpload} invitationBgUploading={invitationBgUploading}
+              onHaVenueDay1Upload={handleHaVenueDay1Upload} haVenueDay1Uploading={haVenueDay1Uploading}
+              onHaVenueDay2Upload={handleHaVenueDay2Upload} haVenueDay2Uploading={haVenueDay2Uploading}
+              onRowImageUpload={uploadRowImage}
               dressCode={dressCode} setDressCode={setDressCode}
               rsvpDeadline={rsvpDeadline} setRsvpDeadline={setRsvpDeadline}
               privacyMode={privacyMode} setPrivacyMode={setPrivacyMode}

@@ -927,6 +927,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           slug={slug}
           effectiveRsvpId={effectiveRsvpId}
           trackEvent={trackEvent}
+          invitationPattern={invitationPattern}
+          invitationTheme={invitationTheme}
+          invitationGuestName={invitationGuestName}
+          invitationData={invitationData}
           isPreview={isDemoSlug}
         />
       </PageTransition>
@@ -1042,16 +1046,16 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         {/* ═══ CINEMATIC HERO ═══ */}
         <div ref={heroRef} style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '120px 24px 80px' }}>
           
-          {/* Ambient Blurred Background */}
-          <div style={{ position: 'absolute', inset: '-10%', zIndex: 0 }}>
-            <img 
-              src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'} 
-              style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(60px) brightness(0.5)' }} 
-              alt="" 
-              aria-hidden="true" 
-            />
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(20,22,25,0.85) 0%, rgba(20,22,25,0.5) 100%)' }} />
-          </div>
+          {/* Ambient themed background — the cover photo now lives in its own
+              framed section further down, so the hero is a clean, dark, themed
+              stage for the invitation card. */}
+          <div
+            style={{
+              position: 'absolute', inset: 0, zIndex: 0,
+              background: `radial-gradient(circle at 50% 18%, ${themeColor}4D 0%, transparent 55%), linear-gradient(160deg, #14161A 0%, #191B1E 55%, #0E0F11 100%)`,
+            }}
+            aria-hidden="true"
+          />
 
           <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
             <FloatingParticles count={30} color={themeColor} />
@@ -1150,7 +1154,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               </FadeInUp>
             </div>
 
-            {/* Featured Image — centered, flanked by animated floral accents */}
+            {/* Featured invitation card — the exact template shape the organizer
+                chose (matching their live simulator), flanked by floral accents.
+                The cover photo now lives in its own framed section below. */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'clamp(4px, 2vw, 20px)', width: '100%' }}>
               <HeroFloralAccent color={themeColor === '#191B1E' ? '#B8944F' : themeColor} />
 
@@ -1158,31 +1164,65 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-                style={{ display: 'flex', justifyContent: 'center', perspective: '1000px', minWidth: 0 }}
+                style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', perspective: '1000px', minWidth: 0 }}
               >
                 <motion.div
+                  onClick={() => setCardLightboxOpen(true)}
                   whileHover={{
                     scale: 1.025,
                     y: -5,
                     boxShadow: `0 45px 90px rgba(0,0,0,0.6), 0 0 30px ${themeColor === '#191B1E' ? 'rgba(184,148,79,0.25)' : themeColor + '2A'}, 0 0 0 1.5px rgba(255,255,255,0.25)`
                   }}
                   transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                  id="invitation-card-capture"
                   style={{
-                    width: '100%', maxWidth: '380px', maxHeight: '540px',
-                    aspectRatio: '4/5', position: 'relative',
-                    borderRadius: '24px', overflow: 'hidden',
+                    width: 'min(78vw, 300px)',
+                    aspectRatio: '210 / 290', position: 'relative',
+                    borderRadius: '16px', overflow: 'hidden',
                     boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.15)',
-                    transformStyle: 'preserve-3d', background: 'rgba(0,0,0,0.2)',
+                    transformStyle: 'preserve-3d', background: '#FAF8F5',
                     cursor: 'pointer'
                   }}
                 >
-                  <img
-                    src={event.cover_image_url || 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?q=80&w=2070'}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    alt="Event Cover"
+                  <InvitationCard
+                    template={{ pattern: invitationPattern }}
+                    theme={invitationTheme}
+                    guestName={invitationGuestName}
+                    config={invitationPattern === 'custom' ? event.template_data : undefined}
+                    data={invitationData}
                   />
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 30%)' }} />
                 </motion.div>
+
+                {/* Download the invitation card (captures #invitation-card-capture) */}
+                <motion.button
+                  type="button"
+                  onClick={handleDownloadCard}
+                  disabled={downloading}
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '10px',
+                    padding: '12px 28px', background: 'rgba(215, 190, 128, 0.12)',
+                    border: '1.5px solid rgba(215, 190, 128, 0.5)', borderRadius: '12px',
+                    color: '#F0DFB4', fontSize: '13px', fontWeight: 700,
+                    cursor: downloading ? 'not-allowed' : 'pointer',
+                    fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
+                    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {downloading ? (
+                    <>
+                      <div style={{ width: '16px', height: '16px', border: '2px solid transparent', borderTop: '2px solid currentColor', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                      <span>{isRTL ? 'جاري التحميل...' : 'Downloading...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '1.2em' }}>📥</span>
+                      <span>{isRTL ? 'تحميل بطاقة الدعوة' : 'Download Invitation'}</span>
+                    </>
+                  )}
+                </motion.button>
               </motion.div>
 
               <HeroFloralAccent color={themeColor === '#191B1E' ? '#B8944F' : themeColor} mirror />
@@ -1196,111 +1236,65 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           {/* ─── LEFT COLUMN: Details ─── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
-            {/* Digital Invitation Card Showcase Frame */}
-            <ScaleIn delay={0.05}>
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '24px',
-                width: '100%',
-                padding: '32px 24px',
-                borderRadius: '24px',
-                background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                boxShadow: '0 24px 50px -12px rgba(0, 0, 0, 0.25)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-              }}>
-                <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-                  <span style={{
-                    fontSize: '11px', textTransform: 'uppercase', letterSpacing: '3px',
-                    color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '4px',
-                    fontFamily: 'var(--font-sans)',
-                  }}>
-                    {isRTL ? 'بطاقة الدعوة الرقمية' : 'Your Digital Invitation'}
-                  </span>
-                  <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
-                    {isRTL ? 'تصميم حصري ومخصص لك' : 'An exclusive design customized for you'}
-                  </span>
+            {/* Cover Photo Showcase — the template card is now the hero
+                centerpiece, so the organizer's cover photo gets its own framed
+                showcase here. Shown only when a cover photo was uploaded. */}
+            {event.cover_image_url && (
+              <ScaleIn delay={0.05}>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '24px',
+                  width: '100%',
+                  padding: '32px 24px',
+                  borderRadius: '24px',
+                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  boxShadow: '0 24px 50px -12px rgba(0, 0, 0, 0.25)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                }}>
+                  <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                    <span style={{
+                      fontSize: '11px', textTransform: 'uppercase', letterSpacing: '3px',
+                      color: '#D7BE80', fontWeight: 700, display: 'block', marginBottom: '4px',
+                      fontFamily: 'var(--font-sans)',
+                    }}>
+                      {isRTL ? 'لمحة' : 'A Glimpse'}
+                    </span>
+                    <span style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.5)', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
+                      {isRTL ? 'لحظة من مناسبتنا' : 'A moment from our celebration'}
+                    </span>
+                  </div>
+
+                  {/* Framed cover photo */}
+                  <motion.div
+                    whileHover={{
+                      scale: 1.025,
+                      y: -6,
+                      boxShadow: '0 35px 70px rgba(0,0,0,0.45), 0 0 30px rgba(215, 190, 128, 0.2)'
+                    }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    style={{
+                      width: '100%', maxWidth: '340px', aspectRatio: '4/5',
+                      borderRadius: '16px', overflow: 'hidden',
+                      boxShadow: '0 20px 45px rgba(0,0,0,0.3)',
+                      background: 'rgba(0,0,0,0.2)',
+                      position: 'relative'
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={event.cover_image_url}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      alt="Event Cover"
+                    />
+                    <div aria-hidden="true" style={{ position: 'absolute', inset: '10px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '10px', pointerEvents: 'none' }} />
+                  </motion.div>
                 </div>
-
-                {/* Floating Card Container */}
-                <motion.div 
-                  onClick={() => setCardLightboxOpen(true)}
-                  whileHover={{ 
-                    scale: 1.035,
-                    y: -8,
-                    boxShadow: '0 35px 70px rgba(0,0,0,0.45), 0 0 30px rgba(215, 190, 128, 0.2)'
-                  }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                  style={{
-                    width: '100%', maxWidth: '280px', aspectRatio: '210 / 290',
-                    borderRadius: '16px', overflow: 'hidden',
-                    boxShadow: '0 20px 45px rgba(0,0,0,0.3)',
-                    background: '#FAF8F5',
-                    cursor: 'pointer',
-                    position: 'relative'
-                  }}
-                  id="invitation-card-capture"
-                >
-                  <InvitationCard
-                    template={{ pattern: invitationPattern }}
-                    theme={invitationTheme}
-                    guestName={invitationGuestName}
-                    config={invitationPattern === 'custom' ? event.template_data : undefined}
-                    data={invitationData}
-                  />
-                </motion.div>
-
-                {/* Download Button */}
-                <motion.button
-                  type="button"
-                  onClick={handleDownloadCard}
-                  disabled={downloading}
-                  whileHover={{ scale: 1.02, y: -1 }}
-                  whileTap={{ scale: 0.98 }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '12px 28px',
-                    background: 'rgba(215, 190, 128, 0.08)',
-                    border: '1.5px solid rgba(215, 190, 128, 0.4)',
-                    borderRadius: '12px',
-                    color: '#D7BE80',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: downloading ? 'not-allowed' : 'pointer',
-                    fontFamily: 'var(--font-sans)',
-                    transition: 'all 0.2s',
-                    marginTop: '8px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    width: '100%',
-                    maxWidth: '240px',
-                    justifyContent: 'center',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#D7BE80'; e.currentTarget.style.color = '#121212'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(215, 190, 128, 0.08)'; e.currentTarget.style.color = '#D7BE80'; }}
-                >
-                  {downloading ? (
-                    <>
-                      <div style={{
-                        width: '16px', height: '16px', border: '2px solid transparent',
-                        borderTop: '2px solid currentColor', borderRadius: '50%',
-                        animation: 'spin 0.8s linear infinite',
-                      }} />
-                      <span>{isRTL ? 'جاري التحميل...' : 'Downloading...'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ fontSize: '1.2em' }}>📥</span>
-                      <span>{isRTL ? 'تحميل بطاقة الدعوة' : 'Download Invitation'}</span>
-                    </>
-                  )}
-                </motion.button>
-              </div>
-            </ScaleIn>
+              </ScaleIn>
+            )}
 
             {/* ═══ EVENT INFO ═══ (When/Where/Dress Code + Countdown merged into
                 one section — previously two separately-stacked cards) */}
@@ -1995,16 +1989,18 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             submit; RsvpWizard renders embedded (no second envelope, no second
             language toggle — both already happened above on this same page). */}
         <div id="rsvp-section" style={{ padding: '0 24px 64px' }}>
-          <RsvpExperience context={{ kind: 'slug', slug, guestId: invitationGuestId, partyId: invitationRsvpId }} lang={lang}>
-            {(api) => (
-              <RsvpWizard
-                {...api}
-                embedded
-                lang={lang}
-                onGuestIdentified={(g) => setGuestRsvp((prev) => ({ ...(prev || {}), ...g }))}
-              />
-            )}
-          </RsvpExperience>
+          <FadeInUp>
+            <RsvpExperience context={{ kind: 'slug', slug, guestId: invitationGuestId, partyId: invitationRsvpId }} lang={lang}>
+              {(api) => (
+                <RsvpWizard
+                  {...api}
+                  embedded
+                  lang={lang}
+                  onGuestIdentified={(g) => setGuestRsvp((prev) => ({ ...(prev || {}), ...g }))}
+                />
+              )}
+            </RsvpExperience>
+          </FadeInUp>
         </div>
 
         {/* ═══ FLOATING RSVP CTA ═══ */}

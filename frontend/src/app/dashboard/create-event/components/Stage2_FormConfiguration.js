@@ -7,6 +7,8 @@ import InlineFormBuilder from './InlineFormBuilder';
 import { DressCodeVisualizer } from '../../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../../utils/youtube';
 import RepeatableListEditor from '../../components/RepeatableListEditor';
+import TagListEditor from '../../components/TagListEditor';
+import ImageUploadField from '../../components/ImageUploadField';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -164,6 +166,9 @@ export default function Stage2_FormConfiguration({
   templateData, setTemplateData,
   onSealImageUpload, sealUploading,
   onInvitationBgUpload, invitationBgUploading,
+  onHaVenueDay1Upload, haVenueDay1Uploading,
+  onHaVenueDay2Upload, haVenueDay2Uploading,
+  onRowImageUpload,
   dressCode, setDressCode,
   rsvpDeadline, setRsvpDeadline,
   privacyMode, setPrivacyMode,
@@ -184,7 +189,7 @@ export default function Stage2_FormConfiguration({
   const [customDressMode, setCustomDressMode] = useState(!!dressCode && !DRESS_CODES.includes(dressCode));
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
-  const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading || sealUploading || invitationBgUploading);
+  const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading || sealUploading || invitationBgUploading || haVenueDay1Uploading || haVenueDay2Uploading);
 
   // Ceremony/reception venue pickers behave like the main Venue field: a plain-
   // address prediction (as opposed to a named venue) has no distinct `place.name`
@@ -352,11 +357,17 @@ export default function Stage2_FormConfiguration({
                       placeholder="bride@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
                 </div>
-                <Field label="Our Love Story">
-                  <textarea value={td('loveStory')} onChange={e => setTd('loveStory')(e.target.value)}
-                    rows={3} placeholder="Share your beautiful story…"
-                    style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
-                </Field>
+                {/* Full-page templates use the dedicated "Our Story" field below
+                    (ha_our_story) for the same guest section — showing both here
+                    duplicated the input, so "Our Love Story" is only for the
+                    non-full-page wedding layouts. */}
+                {!isFullPage(templateType) && (
+                  <Field label="Our Love Story">
+                    <textarea value={td('loveStory')} onChange={e => setTd('loveStory')(e.target.value)}
+                      rows={3} placeholder="Share your beautiful story…"
+                      style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                )}
                 {/* Full-page templates have their own Day 1 / Day 2 venue pickers
                     below — a single Ceremony/Reception pair doesn't fit a
                     multi-day site (Day 1 isn't necessarily "the ceremony"). */}
@@ -413,15 +424,18 @@ export default function Stage2_FormConfiguration({
                 <div style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)', marginBottom: 4 }}>
                   Full-page guest experience — each section below appears on the guest page only when you fill it in.
                 </div>
-                <Field label="Our Story">
+                <Field label="Our Story" hint="Shown in the guest page's story section">
                   <textarea value={td('ha_our_story')} onChange={e => setTd('ha_our_story')(e.target.value)}
-                    rows={3} placeholder="Tell your story… (or leave blank to use Our Love Story above)"
+                    rows={3} placeholder="Tell your story…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Meal Options" hint="Comma-separated, e.g. Caviar, Fish">
-                    <input type="text" value={td('ha_meal_options')} onChange={e => setTd('ha_meal_options')(e.target.value)}
-                      placeholder="Caviar, Fish" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  <Field label="Meal Options" hint="Guests pick one when they RSVP — add as many as you like">
+                    <TagListEditor
+                      value={templateData.ha_meal_options}
+                      onChange={(arr) => setTd('ha_meal_options')(arr)}
+                      placeholder="e.g. Beef, Fish, Vegetarian — Enter to add"
+                    />
                   </Field>
                   <Field label={'"You\'re Invited To" City'} htmlFor="s2-ha-invited-to" hint="Search and pick a city — its map pin uses this location, not Day 1's venue">
                     <PlacesAutocomplete
@@ -445,9 +459,13 @@ export default function Stage2_FormConfiguration({
                       style={iStyle}
                     />
                   </Field>
-                  <Field label="Day 1 Venue Photo URL">
-                    <input type="url" value={td('ha_venue_day1_image')} onChange={e => setTd('ha_venue_day1_image')(e.target.value)}
-                      placeholder="https://…" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  <Field label="Day 1 Venue Photo">
+                    <ImageUploadField
+                      value={td('ha_venue_day1_image')}
+                      uploading={haVenueDay1Uploading}
+                      onUpload={(file) => onHaVenueDay1Upload?.(file)}
+                      onClear={() => setTd('ha_venue_day1_image')('')}
+                    />
                   </Field>
                 </div>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
@@ -461,9 +479,13 @@ export default function Stage2_FormConfiguration({
                       style={iStyle}
                     />
                   </Field>
-                  <Field label="Day 2 Venue Photo URL">
-                    <input type="url" value={td('ha_venue_day2_image')} onChange={e => setTd('ha_venue_day2_image')(e.target.value)}
-                      placeholder="https://…" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  <Field label="Day 2 Venue Photo">
+                    <ImageUploadField
+                      value={td('ha_venue_day2_image')}
+                      uploading={haVenueDay2Uploading}
+                      onUpload={(file) => onHaVenueDay2Upload?.(file)}
+                      onClear={() => setTd('ha_venue_day2_image')('')}
+                    />
                   </Field>
                 </div>
                 <Field label="Day 1 Schedule">
@@ -502,13 +524,15 @@ export default function Stage2_FormConfiguration({
                   <RepeatableListEditor
                     items={Array.isArray(templateData.ha_accommodation) ? templateData.ha_accommodation : []}
                     onChange={(items) => setTemplateData(d => ({ ...d, ha_accommodation: items }))}
+                    onUploadImage={onRowImageUpload}
+                    itemNoun="Hotel"
                     addLabel="+ Add hotel"
                     emptyLabel="No hotels yet — a sample hotel shows on the guest page until you add one."
                     columns={[
                       { key: 'name', label: 'Hotel name', placeholder: 'Hotel Costa' },
                       { key: 'price', label: 'Price', placeholder: '$4,100' },
-                      { key: 'imageUrl', label: 'Photo URL', placeholder: 'https://…' },
                       { key: 'link', label: 'Booking link', placeholder: 'https://…' },
+                      { key: 'imageUrl', label: 'Photo', type: 'image' },
                       { key: 'description', label: 'Note', type: 'textarea', placeholder: 'Book directly for a discount' },
                     ]}
                   />
@@ -517,6 +541,7 @@ export default function Stage2_FormConfiguration({
                   <RepeatableListEditor
                     items={Array.isArray(templateData.ha_faq) ? templateData.ha_faq : []}
                     onChange={(items) => setTemplateData(d => ({ ...d, ha_faq: items }))}
+                    itemNoun="Question"
                     addLabel="+ Add question"
                     emptyLabel="No FAQ items yet — sample questions show on the guest page until you add some."
                     columns={[
@@ -529,6 +554,7 @@ export default function Stage2_FormConfiguration({
                   <RepeatableListEditor
                     items={Array.isArray(templateData.ha_menu_courses) ? templateData.ha_menu_courses : []}
                     onChange={(items) => setTemplateData(d => ({ ...d, ha_menu_courses: items }))}
+                    itemNoun="Course"
                     addLabel="+ Add course"
                     emptyLabel="No menu courses yet — the Menu section stays hidden until you add one."
                     columns={[
@@ -542,6 +568,7 @@ export default function Stage2_FormConfiguration({
                   <RepeatableListEditor
                     items={Array.isArray(templateData.ha_things_to_do) ? templateData.ha_things_to_do : []}
                     onChange={(items) => setTemplateData(d => ({ ...d, ha_things_to_do: items }))}
+                    itemNoun="Place"
                     addLabel="+ Add place"
                     emptyLabel="No places yet — the Things to Do section stays hidden until you add one."
                     columns={[
@@ -699,7 +726,12 @@ export default function Stage2_FormConfiguration({
           </Section>
         )}
 
-        {/* ═══ Premium Invitation Seal & Stationery ═══ */}
+        {/* ═══ Premium Invitation Seal & Stationery ═══
+             Heritage Arch is the one template that opens straight into its
+             sections with NO envelope reveal (see FULL_PAGE handling in
+             [slug]/EventPageClient.js), so a seal configured here would never
+             appear to its guests — hide the section for that template. */}
+        {templateType !== 'heritageArch' && (
         <Section title="Invitation Seal & Stationery" icon="✨">
           <p style={{ fontSize: 12.5, color: C.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
             These power the cinematic envelope your guests unseal when they open the link.
@@ -719,6 +751,7 @@ export default function Stage2_FormConfiguration({
             <SealUpload url={td('invitation_bg_url')} onUpload={onInvitationBgUpload} onClear={() => setTd('invitation_bg_url')('')} busy={invitationBgUploading} previewFit="cover" />
           </Field>
         </Section>
+        )}
 
         {/* ═══ Section C: Settings ═══ */}
         <Section title="Event Settings" icon="⚙️">

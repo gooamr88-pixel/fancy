@@ -93,9 +93,15 @@ export function DayTabs({ value, onChange, isRTL, dayLabels }) {
 // Bobbing "scroll to RSVP" hint repeated at the bottom of every section
 // (matches the reference exactly: same label + mouse icon on every screen,
 // always scrolling to the RSVP form rather than just the next section).
-export function ScrollToRsvpHint({ isRTL, label, color }) {
+export function ScrollToRsvpHint({ isRTL, label, color, fixed = false }) {
   const C = useFullPageTheme();
   const c = color || C.maroon;
+  // Consolidated to ONE cue: SnapShell renders a single fixed hint at the
+  // bottom of the viewport (fixed=true) and hides it once the guest reaches the
+  // RSVP section. The old per-section calls (fixed omitted) now render nothing,
+  // so guests see a single "scroll to RSVP" indicator that follows them down
+  // instead of one repeated on every screen.
+  if (!fixed) return null;
   const scroll = () => {
     const el = document.getElementById('ha-rsvp');
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -105,8 +111,8 @@ export function ScrollToRsvpHint({ isRTL, label, color }) {
       type="button"
       onClick={scroll}
       style={{
-        position: 'absolute', bottom: '28px', left: '50%', transform: 'translateX(-50%)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
+        position: 'fixed', bottom: '22px', left: '50%', transform: 'translateX(-50%)', zIndex: 20,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
         background: 'none', border: 'none', cursor: 'pointer', color: c,
         fontFamily: 'var(--font-sans)',
       }}

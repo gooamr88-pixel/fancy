@@ -5,6 +5,7 @@ import SnapShell from './SnapShell';
 import { FullPageThemeProvider, buildPalette } from './theme';
 import { HERITAGE_ARCH_DEFAULTS as D } from './defaultContent';
 import HeroSection from './sections/HeroSection';
+import CoverPhotoSection from './sections/CoverPhotoSection';
 import CountdownSection from './sections/CountdownSection';
 import ScheduleSection from './sections/ScheduleSection';
 import VenuesSection from './sections/VenuesSection';
@@ -40,6 +41,7 @@ function parseMealOptions(raw, isPreview) {
 export default function HeritageArchPage({
   event, guestRsvp, lang, setLang, isRTL, t, timeLeft, musicPlaying, toggleMusic,
   hasBackgroundMusic, hasResponded, responseStatus, allowGuestEdits, slug, effectiveRsvpId, trackEvent,
+  invitationPattern, invitationTheme, invitationGuestName, invitationData,
   isPreview = false,
 }) {
   const td = event.template_data || {};
@@ -131,12 +133,20 @@ export default function HeritageArchPage({
         <HeroSection
           partner1={partner1} partner2={partner2} title={event.title}
           tagline={isPreview ? D.tagline : ''} dateLine={dateLine}
-          coverImageUrl={event.cover_image_url || D.coverImageUrl} isRTL={isRTL} t={t}
+          invitationPattern={invitationPattern} invitationTheme={invitationTheme}
+          invitationGuestName={invitationGuestName} invitationData={invitationData}
+          isRTL={isRTL} t={t}
         />
       ),
     },
     { id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} /> },
   ];
+
+  // The cover photo, now that the template card is the hero centerpiece, gets
+  // its own framed slide — shown only when the organizer uploaded one.
+  if (event.cover_image_url) {
+    sections.push({ id: 'ha-cover-photo', content: <CoverPhotoSection imageUrl={event.cover_image_url} isRTL={isRTL} /> });
+  }
 
   if (hasSchedule) {
     sections.push({ id: 'ha-schedule', content: <ScheduleSection schedule={schedule} isRTL={isRTL} /> });

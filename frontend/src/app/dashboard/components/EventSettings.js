@@ -8,6 +8,8 @@ import { supabase } from '../../utils/supabaseClient';
 import { DressCodeVisualizer } from '../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../utils/youtube';
 import RepeatableListEditor from './RepeatableListEditor';
+import TagListEditor, { toTagArray } from './TagListEditor';
+import ImageUploadField from './ImageUploadField';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -108,7 +110,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     ha_schedule_day1: [], ha_schedule_day2: [],
     ha_venue_day1_name: '', ha_venue_day1_address: '', ha_venue_day1_lat: null, ha_venue_day1_lng: null, ha_venue_day1_image: '',
     ha_venue_day2_name: '', ha_venue_day2_address: '', ha_venue_day2_lat: null, ha_venue_day2_lng: null, ha_venue_day2_image: '',
-    ha_accommodation: [], ha_faq: [], ha_meal_options: '',
+    ha_accommodation: [], ha_faq: [], ha_meal_options: [],
     ha_invited_to_city: '', ha_invited_to_lat: null, ha_invited_to_lng: null, ha_our_story: '',
     ha_menu_courses: [], ha_things_to_do: [], ha_getting_there: '',
     ha_gift_bank_name: '', ha_gift_account_name: '', ha_gift_iban: '', ha_gift_registry_label: '', ha_gift_message: '',
@@ -128,6 +130,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [sealUploading, setSealUploading] = useState(false);
   const [invitationBgUploading, setInvitationBgUploading] = useState(false);
+  const [haVenueUploading, setHaVenueUploading] = useState({}); // { day1: bool, day2: bool }
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -270,6 +273,22 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         reader.onerror = () => { toast.error('Failed to read the file. Please try again.'); resolve(null); };
         reader.readAsDataURL(file);
       });
+    }
+  };
+
+  // Heritage Arch per-day venue photo upload (replaces the old paste-a-URL
+  // fields). `day` is 'day1' | 'day2'; stores the public URL in template_data.
+  const handleHaVenueUpload = async (file, day) => {
+    if (!file) return;
+    setHaVenueUploading(prev => ({ ...prev, [day]: true }));
+    try {
+      const url = await uploadFile(file, 'venues');
+      if (url) {
+        setTemplateData(prev => ({ ...prev, [`ha_venue_${day}_image`]: url }));
+        setSuccess(false);
+      }
+    } finally {
+      setHaVenueUploading(prev => ({ ...prev, [day]: false }));
     }
   };
 
@@ -421,7 +440,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         ha_venue_day2_image: event.template_data?.ha_venue_day2_image || '',
         ha_accommodation: Array.isArray(event.template_data?.ha_accommodation) ? event.template_data.ha_accommodation : [],
         ha_faq: Array.isArray(event.template_data?.ha_faq) ? event.template_data.ha_faq : [],
-        ha_meal_options: event.template_data?.ha_meal_options || '',
+        ha_meal_options: toTagArray(event.template_data?.ha_meal_options),
         ha_invited_to_city: event.template_data?.ha_invited_to_city || '',
         ha_invited_to_lat: event.template_data?.ha_invited_to_lat ?? null,
         ha_invited_to_lng: event.template_data?.ha_invited_to_lng ?? null,
@@ -869,8 +888,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
             <div className="es-row" style={rowStyle}>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Meal Options (comma-separated)</label>
-                <input value={templateData.ha_meal_options} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_meal_options: e.target.value }))} placeholder="Caviar, Fish" style={inputStyle} />
+                <label style={labelStyle}>Meal Options</label>
+                <TagListEditor
+                  value={templateData.ha_meal_options}
+                  onChange={(arr) => setTemplateData(prev => ({ ...prev, ha_meal_options: arr }))}
+                  placeholder="e.g. Beef, Fish, Vegetarian — Enter to add"
+                />
+                <span style={hintStyle}>Guests pick one when they RSVP — add as many as you like</span>
               </div>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle} htmlFor="es-ha-invited-to">&quot;You&apos;re Invited To&quot; City</label>
@@ -898,8 +922,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <span style={hintStyle}>Where Day 1 of the celebration takes place</span>
               </div>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Day 1 Venue Photo URL</label>
-                <input value={templateData.ha_venue_day1_image} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_venue_day1_image: e.target.value }))} placeholder="https://…" style={inputStyle} />
+                <label style={labelStyle}>Day 1 Venue Photo</label>
+                <ImageUploadField
+                  value={templateData.ha_venue_day1_image}
+                  uploading={!!haVenueUploading.day1}
+                  onUpload={(file) => handleHaVenueUpload(file, 'day1')}
+                  onClear={() => setTemplateData(prev => ({ ...prev, ha_venue_day1_image: '' }))}
+                />
               </div>
             </div>
 
@@ -916,8 +945,13 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <span style={hintStyle}>Where Day 2 of the celebration takes place</span>
               </div>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Day 2 Venue Photo URL</label>
-                <input value={templateData.ha_venue_day2_image} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_venue_day2_image: e.target.value }))} placeholder="https://…" style={inputStyle} />
+                <label style={labelStyle}>Day 2 Venue Photo</label>
+                <ImageUploadField
+                  value={templateData.ha_venue_day2_image}
+                  uploading={!!haVenueUploading.day2}
+                  onUpload={(file) => handleHaVenueUpload(file, 'day2')}
+                  onClear={() => setTemplateData(prev => ({ ...prev, ha_venue_day2_image: '' }))}
+                />
               </div>
             </div>
 
@@ -962,13 +996,15 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <RepeatableListEditor
                 items={templateData.ha_accommodation}
                 onChange={(items) => setTemplateData(prev => ({ ...prev, ha_accommodation: items }))}
+                onUploadImage={(file) => uploadFile(file, 'venues')}
+                itemNoun="Hotel"
                 addLabel="+ Add hotel"
                 emptyLabel="No hotels yet — falls back to a sample hotel on the guest page."
                 columns={[
                   { key: 'name', label: 'Hotel name', placeholder: 'Hotel Costa' },
                   { key: 'price', label: 'Price', placeholder: '$4,100' },
-                  { key: 'imageUrl', label: 'Photo URL', placeholder: 'https://…' },
                   { key: 'link', label: 'Booking link', placeholder: 'https://…' },
+                  { key: 'imageUrl', label: 'Photo', type: 'image' },
                   { key: 'description', label: 'Note', type: 'textarea', placeholder: 'Book directly for a discount' },
                 ]}
               />
@@ -979,6 +1015,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <RepeatableListEditor
                 items={templateData.ha_faq}
                 onChange={(items) => setTemplateData(prev => ({ ...prev, ha_faq: items }))}
+                itemNoun="Question"
                 addLabel="+ Add question"
                 emptyLabel="No FAQ items yet — falls back to sample questions on the guest page."
                 columns={[
@@ -993,6 +1030,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <RepeatableListEditor
                 items={templateData.ha_menu_courses}
                 onChange={(items) => setTemplateData(prev => ({ ...prev, ha_menu_courses: items }))}
+                itemNoun="Course"
                 addLabel="+ Add course"
                 emptyLabel="No menu courses yet — the Menu section stays hidden until you add one."
                 columns={[
@@ -1008,6 +1046,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <RepeatableListEditor
                 items={templateData.ha_things_to_do}
                 onChange={(items) => setTemplateData(prev => ({ ...prev, ha_things_to_do: items }))}
+                itemNoun="Place"
                 addLabel="+ Add place"
                 emptyLabel="No places yet — the Things to Do section stays hidden until you add one."
                 columns={[
@@ -1479,7 +1518,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         </div>
       </div>
 
-      {/* ═══ INVITATION SEAL & STATIONERY ═══ */}
+      {/* ═══ INVITATION SEAL & STATIONERY ═══
+           Hidden for Heritage Arch: that template opens with no envelope reveal,
+           so a seal configured here would never appear to its guests. */}
+      {event?.template_type !== 'heritageArch' && (
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1510,6 +1552,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           <SealUpload url={templateData.invitation_bg_url} onUpload={handleInvitationBgUpload} onClear={() => setTemplateData(prev => ({ ...prev, invitation_bg_url: '' }))} busy={invitationBgUploading} previewFit="cover" />
         </div>
       </div>
+      )}
 
       {/* ═══ NOTIFICATION PREFERENCES ═══ */}
       <div style={sectionStyle}>

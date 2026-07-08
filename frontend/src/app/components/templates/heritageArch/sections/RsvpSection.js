@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { PartySizeStepper, FormField } from '../../../guest/GuestUI';
+import { motion } from 'framer-motion';
+import { PartySizeStepper, FormField, CalendarButton, ShareButton } from '../../../guest/GuestUI';
+import { ConfettiExplosion } from '../../../guest/GuestAnimations';
 import PhoneNumberInput from '../../../PhoneNumberInput';
 import { useIdempotentRsvpSubmit } from '../../../guest/rsvp/useIdempotentRsvpSubmit';
+import { getCelebrationPreset } from '../../../../utils/patternCelebration';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading } from '../shared';
 
@@ -110,13 +113,50 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   };
 
   if (locked || submitted) {
-    const label = responseStatus?.label || (attending === 'yes' ? (isRTL ? 'الحضور' : 'Attending') : (isRTL ? 'الاعتذار' : 'Declined'));
+    // "Attending" covers yes + tentative; only an explicit "no" is a decline.
+    const isYes = attending === 'yes' || (!!guestRsvp?.response && guestRsvp.response !== 'no');
+    const label = responseStatus?.label || (isYes ? (isRTL ? 'تأكيد الحضور' : 'Attending') : (isRTL ? 'الاعتذار عن الحضور' : 'Declined'));
+    const celebration = getCelebrationPreset(event?.template_type);
     return (
       <SectionShell background={C.paper}>
+        {/* Confetti only on a fresh submit this session — not every time a
+            already-responded guest revisits the locked page. */}
+        {submitted && isYes && (
+          <ConfettiExplosion active duration={4200} particleCount={110} colors={celebration.colors} shapes={celebration.shapes} spread={1.1} />
+        )}
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85, y: 14 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 200, damping: 16 }}
+          aria-hidden="true"
+          style={{
+            width: '76px', height: '76px', borderRadius: '50%', marginBottom: '14px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px',
+            background: isYes ? `${C.maroon}14` : 'rgba(160,154,145,0.16)',
+          }}
+        >
+          {isYes ? '🎉' : '💌'}
+        </motion.div>
+
         <SectionHeading isRTL={isRTL}>{isRTL ? 'شكراً لك!' : 'Thank you!'}</SectionHeading>
-        <p style={{ fontSize: '15px', color: C.ink, opacity: 0.85, textAlign: 'center' }}>
-          {isRTL ? 'تم تسجيل ردكم:' : 'Your response has been recorded:'} <strong style={{ color: C.maroon }}>{label}</strong>
+
+        <p style={{ fontSize: '15px', color: C.ink, opacity: 0.85, textAlign: 'center', maxWidth: '440px', lineHeight: 1.75 }}>
+          {isYes
+            ? (isRTL ? 'يسعدنا انضمامكم إلينا — تم تسجيل ردكم بنجاح.' : "We're so happy you'll be joining us — your response is recorded.")
+            : (isRTL ? 'شكراً لإعلامنا. سنفتقد وجودكم، ونتمنى لكم كل الخير.' : "Thank you for letting us know — you'll be missed, and we wish you all the best.")}
         </p>
+
+        <div style={{ marginTop: '14px', padding: '9px 20px', borderRadius: '999px', background: C.cream, border: `1px solid ${C.border}` }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.04em', color: C.maroon }}>{label}</span>
+        </div>
+
+        {isYes && (
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '22px' }}>
+            <CalendarButton event={event} isRTL={isRTL} />
+            <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
+          </div>
+        )}
       </SectionShell>
     );
   }
@@ -160,6 +200,37 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
         {attending === 'yes' && (
           <>
+            {/* Meal choice — surfaced immediately after "Yes" (not buried below
+                party size / allergies) and rendered as clear selectable pills so
+                it's unmistakable. */}
+            {mealOptions && mealOptions.length > 0 && (
+              <div style={{ padding: '16px', borderRadius: '14px', border: `1px solid ${C.maroon}33`, background: `${C.maroon}08` }}>
+                <label style={{ ...labelStyle, opacity: 1 }}>🍽 {isRTL ? 'اختر وجبتك' : 'Choose your meal'}</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px' }}>
+                  {mealOptions.map((opt) => {
+                    const selected = meal === opt;
+                    return (
+                      <button
+                        type="button"
+                        key={opt}
+                        onClick={() => setMeal(opt)}
+                        style={{
+                          padding: '10px 18px', borderRadius: '999px', cursor: 'pointer',
+                          fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600,
+                          border: selected ? `1.5px solid ${C.maroon}` : `1px solid ${C.border}`,
+                          background: selected ? C.maroon : C.cream,
+                          color: selected ? '#FFFDF8' : C.ink,
+                          transition: 'all 0.18s ease',
+                        }}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <PartySizeStepper value={partySize} onChange={handlePartySizeChange} label={isRTL ? 'عدد الضيوف (بما فيهم أنت)' : 'Number of guests (including yourself)'} isRTL={isRTL} />
 
             {Array.from({ length: Math.max(0, partySize - 1) }).map((_, i) => (
@@ -170,14 +241,27 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                 <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => updateAdditionalGuest(i, { phone: v })} />
                 {mealOptions && mealOptions.length > 0 && (
                   <div>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.ink, opacity: 0.7 }}>{isRTL ? 'الوجبة الرئيسية' : 'Main'}</span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '6px' }}>
-                      {mealOptions.map((opt) => (
-                        <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: C.ink, cursor: 'pointer' }}>
-                          <input type="radio" name={`ha-meal-${i}`} checked={additionalGuests[i]?.mealSelection === opt} onChange={() => updateAdditionalGuest(i, { mealSelection: opt })} />
-                          {opt}
-                        </label>
-                      ))}
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.ink, opacity: 0.7 }}>🍽 {isRTL ? 'الوجبة' : 'Meal'}</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                      {mealOptions.map((opt) => {
+                        const sel = additionalGuests[i]?.mealSelection === opt;
+                        return (
+                          <button
+                            type="button"
+                            key={opt}
+                            onClick={() => updateAdditionalGuest(i, { mealSelection: opt })}
+                            style={{
+                              padding: '7px 14px', borderRadius: '999px', cursor: 'pointer',
+                              fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600,
+                              border: sel ? `1.5px solid ${C.maroon}` : `1px solid ${C.border}`,
+                              background: sel ? C.maroon : '#FFFFFF', color: sel ? '#FFFDF8' : C.ink,
+                              transition: 'all 0.18s ease',
+                            }}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -208,20 +292,6 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                 style={{ ...fieldStyle, marginTop: '10px' }} onFocus={onFieldFocus} onBlur={onFieldBlur}
               />
             </div>
-
-            {mealOptions && mealOptions.length > 0 && (
-              <div>
-                <label style={labelStyle}>{isRTL ? 'الوجبة الرئيسية' : 'Main'}</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                  {mealOptions.map((opt) => (
-                    <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: C.ink, cursor: 'pointer' }}>
-                      <input type="radio" name="ha-meal" checked={meal === opt} onChange={() => setMeal(opt)} />
-                      {opt}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
 
             <FormField label={`🎵 ${isRTL ? 'اقتراح أغنية للحفلة' : 'Song request for the party'}`}>
               <input placeholder={isRTL ? 'مثال: أغنية مفضلة' : 'E.g. "Dancing Queen" by ABBA'} value={songRequest} onChange={(e) => setSongRequest(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
