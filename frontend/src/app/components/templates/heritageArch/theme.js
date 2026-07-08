@@ -45,15 +45,21 @@ export function buildPalette(customColors = {}, templateType) {
   const secondary = customColors.secondary || customColors.accent || HERITAGE_ARCH_COLORS.gold;
   const background = customColors.background || HERITAGE_ARCH_COLORS.background;
   const dark = isDark(background);
+  // On dark themes the primary accent (headings, labels, icons, dividers) is
+  // used against dark surfaces, so a dark primary reads poorly. Lift it toward
+  // a legible mid-tone — enough to stand off the dark background while staying
+  // saturated enough that white button text on it still reads. (Light themes
+  // keep the primary exactly as chosen.)
+  const accent = dark ? lighten(primary, 0.32) : primary;
 
   return {
     background,
     paper: dark ? lighten(background, 0.08) : darken(background, 0.05),
     cream: dark ? lighten(background, 0.14) : lighten(background, 0.55),
     ink: dark ? lighten(background, 0.85) : darken(primary, 0.55),
-    maroon: primary,
-    maroonDeep: darken(primary, 0.28),
+    maroon: accent,
+    maroonDeep: dark ? lighten(primary, 0.15) : darken(primary, 0.28),
     gold: secondary,
-    border: alpha(primary, 0.18),
+    border: dark ? alpha(accent, 0.35) : alpha(primary, 0.18),
   };
 }

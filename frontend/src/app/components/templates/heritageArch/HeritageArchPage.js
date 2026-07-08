@@ -88,7 +88,7 @@ export default function HeritageArchPage({
 
   const faq = Array.isArray(td.ha_faq) && td.ha_faq.length > 0 ? td.ha_faq : (isPreview ? D.faq : []);
   const hasFaq = faq.length > 0;
-  const ourStory = td.ha_our_story || td.loveStory || demo(D.ourStory) || '';
+  const ourStory = td.ha_our_story || td.loveStory || td.proposalStory || demo(D.ourStory) || '';
   const dressCode = event.dress_code || demo(D.dressCode) || '';
   const invitedToCity = td.ha_invited_to_city || (event.location_name ? event.location_name.split(',')[0] : (isPreview ? D.invitedToCity : ''));
   // The map pin uses the city's own coordinates when the organizer picked one
@@ -119,13 +119,11 @@ export default function HeritageArchPage({
     .filter(Boolean)
     .join('♡') || null;
 
-  // Sections are assembled in the reference screenshots' order. New sections
-  // (Menu, Gift List, Boarding Pass, Things to Do, Getting There) are pushed
-  // conditionally — same pattern as Gallery — so an empty one never leaves a
-  // blank full-viewport slide (and a dead dot in the side nav).
-  // Hero + Countdown + RSVP always render; every content section in between is
-  // pushed only when it has real data (or in preview), so an unconfigured event
-  // shows a clean short page instead of blank slides or placeholder content.
+  // Sections are assembled in the reference screenshots' order. Hero + Countdown
+  // + RSVP always render; every content section in between is pushed only when
+  // it has real data (or in preview) — same pattern as Gallery — so an
+  // unconfigured event shows a clean short page instead of blank full-viewport
+  // slides (with dead dots in the side nav) or placeholder content.
   const sections = [
     {
       id: 'ha-hero',

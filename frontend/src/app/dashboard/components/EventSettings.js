@@ -14,13 +14,14 @@ const COLORS = {
   champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8',
 };
 
-// Templates rendered as the full-page snap-scroll guest experience (all but
-// the fully-custom builder) — they share the ha_* section fields.
+// Templates rendered as the full-page snap-scroll guest experience — the
+// wedding-style templates plus engagement (corporate/birthday/gala/custom keep
+// the continuous-scroll layout and their own content fields).
 // Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
 const FULL_PAGE_TEMPLATE_KEYS = [
   'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
-  'engagement', 'corporate', 'birthday', 'gala',
+  'engagement',
 ];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 

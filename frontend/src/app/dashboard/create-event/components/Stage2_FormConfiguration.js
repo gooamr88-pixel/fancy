@@ -26,11 +26,12 @@ const WEDDING_STYLE_TEMPLATE_KEYS = [
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
 ];
 
-// Templates rendered as the full-page snap-scroll guest experience (everything
-// except the fully-custom builder). They all share the same ha_* section
-// fields, so the Heritage Arch content block is shown for all of them.
+// Templates rendered as the full-page snap-scroll guest experience — the
+// wedding-style templates plus engagement, which all map onto the same ha_*
+// section fields (corporate/birthday/gala/custom keep the continuous-scroll
+// layout and their own content fields).
 // Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
-const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'corporate', 'birthday', 'gala'];
+const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement'];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 
 const PRIVACY_MODES = [

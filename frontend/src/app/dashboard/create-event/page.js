@@ -243,10 +243,12 @@ const WEDDING_FIELD_KEYS = [
 ];
 const TEMPLATE_TYPE_FIELD_KEYS = {
   wedding: WEDDING_FIELD_KEYS,
+  // engagement is a full-page template, so it keeps the ha_* section fields;
+  // corporate/birthday/gala render continuous-scroll and use only their own.
   engagement: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
-  corporate: ['company', 'agenda', 'speakers', 'sponsors', 'networkingNotes', ...HA_SECTION_FIELD_KEYS],
-  birthday: ['celebrant', 'age', 'partyTheme', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
-  gala: ['honoree', 'program', 'sponsorPackages', ...HA_SECTION_FIELD_KEYS],
+  corporate: ['company', 'agenda', 'speakers', 'sponsors', 'networkingNotes'],
+  birthday: ['celebrant', 'age', 'partyTheme', 'giftRegistry'],
+  gala: ['honoree', 'program', 'sponsorPackages'],
 };
 // Every wedding-variant template (a different InvitationCard pattern on the
 // same content shape) shares wedding's field set — switching between them,

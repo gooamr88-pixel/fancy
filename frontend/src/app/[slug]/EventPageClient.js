@@ -78,13 +78,18 @@ const WEDDING_VARIANT_TEMPLATES = [
 ];
 
 // The full-viewport, snap-scrolled page shell (HeritageArchPage) — originally
-// only Heritage Arch — is now the guest experience for EVERY template except
-// the fully-custom builder. Each renders the same sections recolored to its
-// own custom_colors palette (see buildPalette). The envelope reveal still
-// plays first; everything above (fetch, countdown, music, RSVP resolution) is
-// shared. `custom` keeps the continuous-scroll builder path below.
+// only Heritage Arch — is now the guest experience for the wedding-style
+// templates and engagement, all of which map cleanly onto its sections
+// (couple names, story, venues, gift registry, etc.). Each renders the same
+// sections recolored to its own custom_colors palette (see buildPalette), with
+// the envelope reveal still playing first.
+//
+// corporate / birthday / gala / custom intentionally stay on the continuous-
+// scroll layout below: their content fields (agenda/speakers/sponsors,
+// honoree/program, celebrant details) have no section in the full-page engine,
+// so routing them here would drop that content from the guest page.
 const FULL_PAGE_TEMPLATES = new Set([
-  ...WEDDING_VARIANT_TEMPLATES, 'wedding', 'engagement', 'corporate', 'birthday', 'gala',
+  ...WEDDING_VARIANT_TEMPLATES, 'wedding', 'engagement',
 ]);
 
 const templateLabels = {
@@ -876,10 +881,12 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     return (
       <PageTransition>
         {/* One-time premium envelope reveal — the same fixed overlay the
-            continuous-scroll templates use, now also layered above the
-            full-page experience so every template opens with it. */}
+            continuous-scroll templates use, layered above the full-page
+            experience so those templates keep the envelope intro they had.
+            Heritage Arch is deliberately excluded: its reference design opens
+            straight into the sections with no envelope. */}
         <AnimatePresence>
-          {showReveal && (
+          {showReveal && event.template_type !== 'heritageArch' && (
             <GuestEnvelopeReveal
               key="guest-reveal"
               event={event}
