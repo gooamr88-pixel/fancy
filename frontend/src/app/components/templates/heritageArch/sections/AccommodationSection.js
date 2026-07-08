@@ -1,16 +1,24 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
 
 export default function AccommodationSection({ hotels, note, isRTL }) {
+  const C = useFullPageTheme();
   const trackRef = useRef(null);
   const scrollByCard = (dir) => {
     const track = trackRef.current;
     if (!track) return;
     track.scrollBy({ left: dir * (track.clientWidth * 0.85), behavior: 'smooth' });
   };
+  // Defined inside the component so it can read the themed palette (C).
+  const arrowStyle = (side) => ({
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)', [side]: '-8px',
+    width: '38px', height: '38px', borderRadius: '50%', border: `1px solid ${C.border}`,
+    background: 'rgba(255,255,255,0.9)', color: C.maroon, fontSize: '20px', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  });
 
   return (
     <SectionShell background={C.paper}>
@@ -74,13 +82,4 @@ export default function AccommodationSection({ hotels, note, isRTL }) {
       <ScrollToRsvpHint isRTL={isRTL} />
     </SectionShell>
   );
-}
-
-function arrowStyle(side) {
-  return {
-    position: 'absolute', top: '50%', transform: 'translateY(-50%)', [side]: '-8px',
-    width: '38px', height: '38px', borderRadius: '50%', border: `1px solid ${C.border}`,
-    background: 'rgba(255,255,255,0.9)', color: C.maroon, fontSize: '20px', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  };
 }

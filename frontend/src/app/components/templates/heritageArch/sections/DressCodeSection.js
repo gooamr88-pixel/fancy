@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
 
 const DEFAULT_MEN_COLORS = ['#7C8B6F', '#B8926A', '#E8DFC8'];
@@ -33,6 +33,7 @@ function WomanFigure({ color, skin = '#D9B99A' }) {
 }
 
 export default function DressCodeSection({ dressCode, colors, isRTL }) {
+  const C = useFullPageTheme();
   const menColors = colors?.men?.length ? colors.men : DEFAULT_MEN_COLORS;
   const womenColors = colors?.women?.length ? colors.women : DEFAULT_WOMEN_COLORS;
   const swatchColors = colors?.swatches || [];

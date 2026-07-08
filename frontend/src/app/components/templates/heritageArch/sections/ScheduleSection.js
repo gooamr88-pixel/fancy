@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DayTabs, ScrollToRsvpHint, ICONS, VineLine } from '../shared';
 
 export default function ScheduleSection({ schedule, isRTL }) {
+  const C = useFullPageTheme();
   const [day, setDay] = useState('day1');
   const items = (schedule && schedule[day]) || [];
 

@@ -65,7 +65,7 @@ const INVITATION_PATTERN_BY_TEMPLATE = {
   clay: 'clay',
   alpine: 'alpine',
   coastal: 'coastal',
-  heritageArch: 'estate',
+  heritageArch: 'heritageArch',
 };
 
 // Curated templates that are visual variants of a wedding — same content
@@ -77,11 +77,15 @@ const WEDDING_VARIANT_TEMPLATES = [
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
 ];
 
-// heritageArch renders as a wholly different full-viewport, snap-scrolled page
-// (HeritageArchPage) instead of this file's single continuous-scroll layout —
-// everything above (data fetching, countdown, music, RSVP resolution) is still
-// shared; only the JSX below the status-screen gates diverges for this key.
-const FULL_PAGE_TEMPLATES = new Set(['heritageArch']);
+// The full-viewport, snap-scrolled page shell (HeritageArchPage) — originally
+// only Heritage Arch — is now the guest experience for EVERY template except
+// the fully-custom builder. Each renders the same sections recolored to its
+// own custom_colors palette (see buildPalette). The envelope reveal still
+// plays first; everything above (fetch, countdown, music, RSVP resolution) is
+// shared. `custom` keeps the continuous-scroll builder path below.
+const FULL_PAGE_TEMPLATES = new Set([
+  ...WEDDING_VARIANT_TEMPLATES, 'wedding', 'engagement', 'corporate', 'birthday', 'gala',
+]);
 
 const templateLabels = {
   en: {
@@ -113,28 +117,8 @@ WEDDING_VARIANT_TEMPLATES.forEach(key => {
 // live inside fetchEvent's async body as a same-tick early-return, which is
 // exactly the "setState before any await" pattern that trips up an effect
 // calling that function — see the mount-fetch effect below.)
-const DEMO_SLUGS = new Set(['demo-wedding', 'demo', 'demo-heritage-TEMP']);
+const DEMO_SLUGS = new Set(['demo-wedding', 'demo']);
 function getDemoEventData(slug) {
-  if (slug === 'demo-heritage-TEMP') {
-    // TEMP verification fixture for the Heritage Arch template — remove after manual QA.
-    return {
-      id: 'demo-uuid-2',
-      title: 'Mohammed & Leila',
-      event_date: new Date(Date.now() + 1000 * 60 * 60 * 24 * 60).toISOString(),
-      event_end_date: new Date(Date.now() + 1000 * 60 * 60 * 24 * 61).toISOString(),
-      location_name: 'Oceanfront Beach House, Miami',
-      location_address: 'South Dixie Highway, Homestead, Miami-Dade County, Florida, 33030, United States',
-      template_type: 'heritageArch',
-      dress_code: 'Semi-Formal',
-      cover_image_url: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?q=80&w=2069',
-      custom_colors: { primary: '#7A1E2C', secondary: '#D9BE8F', accent: '#7A1E2C', background: '#F7F1E4' },
-      gallery_urls: [
-        'https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=1000',
-        'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?q=80&w=1000',
-      ],
-      template_data: { partner1: 'Mohammed', partner2: 'Leila' },
-    };
-  }
   return {
     id: 'demo-uuid',
     title: 'Julian & Sophia\'s Wedding Gala',
@@ -891,6 +875,19 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   if (FULL_PAGE_TEMPLATES.has(event.template_type)) {
     return (
       <PageTransition>
+        {/* One-time premium envelope reveal — the same fixed overlay the
+            continuous-scroll templates use, now also layered above the
+            full-page experience so every template opens with it. */}
+        <AnimatePresence>
+          {showReveal && (
+            <GuestEnvelopeReveal
+              key="guest-reveal"
+              event={event}
+              onComplete={handleRevealComplete}
+              musicRef={musicRef}
+            />
+          )}
+        </AnimatePresence>
         {youtubeMusicId ? (
           <div aria-hidden style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
             <div ref={ytPlayerElRef} />
@@ -923,6 +920,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           slug={slug}
           effectiveRsvpId={effectiveRsvpId}
           trackEvent={trackEvent}
+          isPreview={isDemoSlug}
         />
       </PageTransition>
     );

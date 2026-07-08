@@ -221,24 +221,32 @@ const TEMPLATES = [
    handleTemplateSelect to drop a previous type's fields (e.g. wedding's
    loveStory) when the organizer switches to a type that doesn't use them,
    instead of silently carrying them over into the new type's submission. */
+// The full-page guest experience's own section fields (schedule/venues per day,
+// accommodation & FAQ lists, meal options, invited-to city, menu, things-to-do,
+// getting-there, gift bank details, boarding-pass override). Shared by EVERY
+// full-page template so switching template type never wipes them.
+const HA_SECTION_FIELD_KEYS = [
+  'ha_schedule_day1', 'ha_schedule_day2',
+  'ha_venue_day1_name', 'ha_venue_day1_address', 'ha_venue_day1_lat', 'ha_venue_day1_lng', 'ha_venue_day1_image',
+  'ha_venue_day2_name', 'ha_venue_day2_address', 'ha_venue_day2_lat', 'ha_venue_day2_lng', 'ha_venue_day2_image',
+  'ha_accommodation', 'ha_faq', 'ha_meal_options', 'ha_invited_to_city', 'ha_invited_to_lat', 'ha_invited_to_lng', 'ha_our_story',
+  'ha_menu_courses', 'ha_things_to_do', 'ha_getting_there',
+  'ha_gift_bank_name', 'ha_gift_account_name', 'ha_gift_iban', 'ha_gift_registry_label', 'ha_gift_message',
+  'ha_boarding_flight_code',
+];
 const WEDDING_FIELD_KEYS = [
   'partner1', 'partner2', 'partner1_email', 'partner2_email', 'loveStory',
   'ceremony_venue_name', 'ceremony_venue_address', 'ceremony_lat', 'ceremony_lng', 'ceremony_place_id', 'ceremony_time_of_day',
   'reception_venue_name', 'reception_venue_address', 'reception_lat', 'reception_lng', 'reception_place_id', 'reception_time_of_day',
   'giftRegistry', 'accommodations',
-  // Heritage Arch template — full-page multi-day site (schedule/venues per day,
-  // accommodation list, FAQ list, meal options, invited-to city).
-  'ha_schedule_day1', 'ha_schedule_day2',
-  'ha_venue_day1_name', 'ha_venue_day1_address', 'ha_venue_day1_lat', 'ha_venue_day1_lng', 'ha_venue_day1_image',
-  'ha_venue_day2_name', 'ha_venue_day2_address', 'ha_venue_day2_lat', 'ha_venue_day2_lng', 'ha_venue_day2_image',
-  'ha_accommodation', 'ha_faq', 'ha_meal_options', 'ha_invited_to_city', 'ha_our_story',
+  ...HA_SECTION_FIELD_KEYS,
 ];
 const TEMPLATE_TYPE_FIELD_KEYS = {
   wedding: WEDDING_FIELD_KEYS,
-  engagement: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry'],
-  corporate: ['company', 'agenda', 'speakers', 'sponsors'],
-  birthday: ['celebrant', 'age', 'partyTheme'],
-  gala: ['honoree', 'program', 'sponsorPackages'],
+  engagement: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
+  corporate: ['company', 'agenda', 'speakers', 'sponsors', 'networkingNotes', ...HA_SECTION_FIELD_KEYS],
+  birthday: ['celebrant', 'age', 'partyTheme', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
+  gala: ['honoree', 'program', 'sponsorPackages', ...HA_SECTION_FIELD_KEYS],
 };
 // Every wedding-variant template (a different InvitationCard pattern on the
 // same content shape) shares wedding's field set — switching between them,

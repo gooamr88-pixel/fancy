@@ -158,6 +158,12 @@ function getSceneStyles(pattern) {
         overlay: "radial-gradient(ellipse at 50% 40%, rgba(43,95,90,0.05) 0%, transparent 50%)",
         vignette: "radial-gradient(120% 80% at 50% 38%, transparent 36%, rgba(30,70,65,0.15) 100%)",
       };
+    case "heritageArch": // Heritage Arch — ivory & burgundy
+      return {
+        background: "linear-gradient(170deg, #F7F1E4 0%, #F1E8D4 25%, #EDE1CB 50%, #F1E8D4 75%, #F5EEDC 100%)",
+        overlay: "radial-gradient(ellipse at 50% 35%, rgba(122,30,44,0.06) 0%, transparent 55%)",
+        vignette: "radial-gradient(120% 80% at 50% 38%, transparent 32%, rgba(74,20,32,0.20) 100%)",
+      };
     default: // Default — warm cream (same as custom)
       return {
         background: "linear-gradient(170deg, #F2ECE2 0%, #EBE5DA 25%, #E5DFD4 50%, #EBE5DA 75%, #EEE8DE 100%)",

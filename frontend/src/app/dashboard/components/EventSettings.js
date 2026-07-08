@@ -14,6 +14,16 @@ const COLORS = {
   champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8',
 };
 
+// Templates rendered as the full-page snap-scroll guest experience (all but
+// the fully-custom builder) — they share the ha_* section fields.
+// Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
+const FULL_PAGE_TEMPLATE_KEYS = [
+  'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
+  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
+  'engagement', 'corporate', 'birthday', 'gala',
+];
+const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
+
 function toLocalDatetimeString(dateStr) {
   if (!dateStr) return '';
   try {
@@ -88,15 +98,20 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     partner1: '', partner2: '', partner1_email: '', partner2_email: '', family_names: '',
     ceremony_venue_name: '', ceremony_venue_address: '', ceremony_lat: null, ceremony_lng: null, ceremony_place_id: '', ceremony_time_of_day: '',
     reception_venue_name: '', reception_venue_address: '', reception_lat: null, reception_lng: null, reception_place_id: '', reception_time_of_day: '',
-    company: '', agenda: '', speakers: '',
+    company: '', agenda: '', speakers: '', sponsors: '', networkingNotes: '',
     proposalStory: '', giftRegistry: '',
     celebrant: '', age: '', partyTheme: '',
     honoree: '', program: '', sponsorPackages: '',
     seal_text: '', seal_image_url: '', invitation_bg_url: '',
     title_ar: '', description_ar: '', dress_code_ar: '',
     ha_schedule_day1: [], ha_schedule_day2: [],
-    ha_venue_day1_image: '', ha_venue_day2_image: '',
-    ha_accommodation: [], ha_faq: [], ha_meal_options: '', ha_invited_to_city: '', ha_our_story: '',
+    ha_venue_day1_name: '', ha_venue_day1_address: '', ha_venue_day1_lat: null, ha_venue_day1_lng: null, ha_venue_day1_image: '',
+    ha_venue_day2_name: '', ha_venue_day2_address: '', ha_venue_day2_lat: null, ha_venue_day2_lng: null, ha_venue_day2_image: '',
+    ha_accommodation: [], ha_faq: [], ha_meal_options: '',
+    ha_invited_to_city: '', ha_invited_to_lat: null, ha_invited_to_lng: null, ha_our_story: '',
+    ha_menu_courses: [], ha_things_to_do: [], ha_getting_there: '',
+    ha_gift_bank_name: '', ha_gift_account_name: '', ha_gift_iban: '', ha_gift_registry_label: '', ha_gift_message: '',
+    ha_boarding_flight_code: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -374,6 +389,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         company: event.template_data?.company || event.template_data?.company_name || '',
         agenda: event.template_data?.agenda || '',
         speakers: event.template_data?.speakers || '',
+        sponsors: event.template_data?.sponsors || '',
+        networkingNotes: event.template_data?.networkingNotes || '',
         proposalStory: event.template_data?.proposalStory || '',
         giftRegistry: event.template_data?.giftRegistry || '',
         celebrant: event.template_data?.celebrant || '',
@@ -391,13 +408,32 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         // Heritage Arch template — full-page multi-day site content.
         ha_schedule_day1: Array.isArray(event.template_data?.ha_schedule_day1) ? event.template_data.ha_schedule_day1 : [],
         ha_schedule_day2: Array.isArray(event.template_data?.ha_schedule_day2) ? event.template_data.ha_schedule_day2 : [],
+        ha_venue_day1_name: event.template_data?.ha_venue_day1_name || '',
+        ha_venue_day1_address: event.template_data?.ha_venue_day1_address || '',
+        ha_venue_day1_lat: event.template_data?.ha_venue_day1_lat ?? null,
+        ha_venue_day1_lng: event.template_data?.ha_venue_day1_lng ?? null,
         ha_venue_day1_image: event.template_data?.ha_venue_day1_image || '',
+        ha_venue_day2_name: event.template_data?.ha_venue_day2_name || '',
+        ha_venue_day2_address: event.template_data?.ha_venue_day2_address || '',
+        ha_venue_day2_lat: event.template_data?.ha_venue_day2_lat ?? null,
+        ha_venue_day2_lng: event.template_data?.ha_venue_day2_lng ?? null,
         ha_venue_day2_image: event.template_data?.ha_venue_day2_image || '',
         ha_accommodation: Array.isArray(event.template_data?.ha_accommodation) ? event.template_data.ha_accommodation : [],
         ha_faq: Array.isArray(event.template_data?.ha_faq) ? event.template_data.ha_faq : [],
         ha_meal_options: event.template_data?.ha_meal_options || '',
         ha_invited_to_city: event.template_data?.ha_invited_to_city || '',
+        ha_invited_to_lat: event.template_data?.ha_invited_to_lat ?? null,
+        ha_invited_to_lng: event.template_data?.ha_invited_to_lng ?? null,
         ha_our_story: event.template_data?.ha_our_story || '',
+        ha_menu_courses: Array.isArray(event.template_data?.ha_menu_courses) ? event.template_data.ha_menu_courses : [],
+        ha_things_to_do: Array.isArray(event.template_data?.ha_things_to_do) ? event.template_data.ha_things_to_do : [],
+        ha_getting_there: event.template_data?.ha_getting_there || '',
+        ha_gift_bank_name: event.template_data?.ha_gift_bank_name || '',
+        ha_gift_account_name: event.template_data?.ha_gift_account_name || '',
+        ha_gift_iban: event.template_data?.ha_gift_iban || '',
+        ha_gift_registry_label: event.template_data?.ha_gift_registry_label || '',
+        ha_gift_message: event.template_data?.ha_gift_message || '',
+        ha_boarding_flight_code: event.template_data?.ha_boarding_flight_code || '',
       });
     }
   }
@@ -421,6 +457,35 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       [`${prefix}_lat`]: place.lat,
       [`${prefix}_lng`]: place.lng,
       [`${prefix}_place_id`]: place.placeId,
+    }));
+    setSuccess(false);
+  };
+
+  // Heritage Arch's own per-day venue fields — Day 1 isn't necessarily "the
+  // ceremony", so these are kept independent from the ceremony/reception pair.
+  const makeHaVenuePlaceSelectHandler = (day) => (place) => {
+    setTemplateData(prev => ({
+      ...prev,
+      [`ha_venue_${day}_name`]: place.name && place.name !== place.address
+        ? place.name
+        : (place.address ? place.address.split(',')[0] : prev[`ha_venue_${day}_name`]),
+      [`ha_venue_${day}_address`]: place.address,
+      [`ha_venue_${day}_lat`]: place.lat,
+      [`ha_venue_${day}_lng`]: place.lng,
+    }));
+    setSuccess(false);
+  };
+
+  // "Invited to" city — captures coordinates so the world-map pin actually
+  // points at this city instead of silently reusing Day 1's venue coordinates.
+  const onHaInvitedToPlaceSelect = (place) => {
+    setTemplateData(prev => ({
+      ...prev,
+      ha_invited_to_city: place.name && place.name !== place.address
+        ? place.name
+        : (place.address ? place.address.split(',')[0] : prev.ha_invited_to_city),
+      ha_invited_to_lat: place.lat,
+      ha_invited_to_lng: place.lng,
     }));
     setSuccess(false);
   };
@@ -744,47 +809,57 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <label style={labelStyle}>Family Names / Hosts</label>
               <input value={templateData.family_names} onChange={(e) => setTemplateData(prev => ({ ...prev, family_names: e.target.value }))} placeholder="The Smith & Jones Families" style={inputStyle} />
             </div>
-            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle} htmlFor="es-ceremony-venue">Ceremony Venue</label>
-                <PlacesAutocomplete
-                  id="es-ceremony-venue"
-                  value={templateData.ceremony_venue_name}
-                  onChange={(val) => setTemplateData(prev => ({ ...prev, ceremony_venue_name: val }))}
-                  onPlaceSelect={makeTemplatePlaceSelectHandler('ceremony')}
-                  placeholder="Search for the ceremony venue..."
-                />
-                <span style={hintStyle}>Search and pick where the ceremony takes place</span>
-              </div>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Ceremony Time</label>
-                <input type="time" value={templateData.ceremony_time_of_day} onChange={(e) => setTemplateData(prev => ({ ...prev, ceremony_time_of_day: e.target.value }))} style={inputStyle} />
-              </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Gift Registry URL</label>
+              <input type="url" value={templateData.giftRegistry} onChange={(e) => setTemplateData(prev => ({ ...prev, giftRegistry: e.target.value }))} placeholder="https://registry.example.com" style={inputStyle} />
             </div>
-            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle} htmlFor="es-reception-venue">Reception Venue</label>
-                <PlacesAutocomplete
-                  id="es-reception-venue"
-                  value={templateData.reception_venue_name}
-                  onChange={(val) => setTemplateData(prev => ({ ...prev, reception_venue_name: val }))}
-                  onPlaceSelect={makeTemplatePlaceSelectHandler('reception')}
-                  placeholder="Search for the reception venue..."
-                />
-                <span style={hintStyle}>Search and pick where the reception takes place</span>
-              </div>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Reception Time</label>
-                <input type="time" value={templateData.reception_time_of_day} onChange={(e) => setTemplateData(prev => ({ ...prev, reception_time_of_day: e.target.value }))} style={inputStyle} />
-              </div>
-            </div>
+            {/* Full-page templates have their own Day 1 / Day 2 venue pickers
+                below — a single Ceremony/Reception pair doesn't fit a multi-day site. */}
+            {!isFullPage(event?.template_type) && (
+              <>
+                <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                  <div style={fieldGroupStyle}>
+                    <label style={labelStyle} htmlFor="es-ceremony-venue">Ceremony Venue</label>
+                    <PlacesAutocomplete
+                      id="es-ceremony-venue"
+                      value={templateData.ceremony_venue_name}
+                      onChange={(val) => setTemplateData(prev => ({ ...prev, ceremony_venue_name: val }))}
+                      onPlaceSelect={makeTemplatePlaceSelectHandler('ceremony')}
+                      placeholder="Search for the ceremony venue..."
+                    />
+                    <span style={hintStyle}>Search and pick where the ceremony takes place</span>
+                  </div>
+                  <div style={fieldGroupStyle}>
+                    <label style={labelStyle}>Ceremony Time</label>
+                    <input type="time" value={templateData.ceremony_time_of_day} onChange={(e) => setTemplateData(prev => ({ ...prev, ceremony_time_of_day: e.target.value }))} style={inputStyle} />
+                  </div>
+                </div>
+                <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+                  <div style={fieldGroupStyle}>
+                    <label style={labelStyle} htmlFor="es-reception-venue">Reception Venue</label>
+                    <PlacesAutocomplete
+                      id="es-reception-venue"
+                      value={templateData.reception_venue_name}
+                      onChange={(val) => setTemplateData(prev => ({ ...prev, reception_venue_name: val }))}
+                      onPlaceSelect={makeTemplatePlaceSelectHandler('reception')}
+                      placeholder="Search for the reception venue..."
+                    />
+                    <span style={hintStyle}>Search and pick where the reception takes place</span>
+                  </div>
+                  <div style={fieldGroupStyle}>
+                    <label style={labelStyle}>Reception Time</label>
+                    <input type="time" value={templateData.reception_time_of_day} onChange={(e) => setTemplateData(prev => ({ ...prev, reception_time_of_day: e.target.value }))} style={inputStyle} />
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {event?.template_type === 'heritageArch' && (
+        {isFullPage(event?.template_type) && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
-            <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Heritage Arch Template Details</h4>
-            <span style={hintStyle}>Day 1&apos;s venue reuses the Ceremony venue above; Day 2&apos;s venue reuses the Reception venue above.</span>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Full-Page Guest Experience</h4>
+            <span style={hintStyle}>Each section below appears on the guest page only when you fill it in.</span>
 
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Our Story</label>
@@ -797,15 +872,47 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <input value={templateData.ha_meal_options} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_meal_options: e.target.value }))} placeholder="Caviar, Fish" style={inputStyle} />
               </div>
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>&quot;You&apos;re Invited To&quot; City</label>
-                <input value={templateData.ha_invited_to_city} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_invited_to_city: e.target.value }))} placeholder="Miami" style={inputStyle} />
+                <label style={labelStyle} htmlFor="es-ha-invited-to">&quot;You&apos;re Invited To&quot; City</label>
+                <PlacesAutocomplete
+                  id="es-ha-invited-to"
+                  value={templateData.ha_invited_to_city}
+                  onChange={(val) => setTemplateData(prev => ({ ...prev, ha_invited_to_city: val }))}
+                  onPlaceSelect={onHaInvitedToPlaceSelect}
+                  placeholder="Miami"
+                />
+                <span style={hintStyle}>Search and pick a city — its map pin uses this location, not Day 1&apos;s venue</span>
               </div>
             </div>
 
-            <div className="es-row" style={rowStyle}>
+            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle} htmlFor="es-ha-venue-day1">Day 1 Venue</label>
+                <PlacesAutocomplete
+                  id="es-ha-venue-day1"
+                  value={templateData.ha_venue_day1_name}
+                  onChange={(val) => setTemplateData(prev => ({ ...prev, ha_venue_day1_name: val }))}
+                  onPlaceSelect={makeHaVenuePlaceSelectHandler('day1')}
+                  placeholder="Search for Day 1's venue..."
+                />
+                <span style={hintStyle}>Where Day 1 of the celebration takes place</span>
+              </div>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Day 1 Venue Photo URL</label>
                 <input value={templateData.ha_venue_day1_image} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_venue_day1_image: e.target.value }))} placeholder="https://…" style={inputStyle} />
+              </div>
+            </div>
+
+            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle} htmlFor="es-ha-venue-day2">Day 2 Venue</label>
+                <PlacesAutocomplete
+                  id="es-ha-venue-day2"
+                  value={templateData.ha_venue_day2_name}
+                  onChange={(val) => setTemplateData(prev => ({ ...prev, ha_venue_day2_name: val }))}
+                  onPlaceSelect={makeHaVenuePlaceSelectHandler('day2')}
+                  placeholder="Search for Day 2's venue..."
+                />
+                <span style={hintStyle}>Where Day 2 of the celebration takes place</span>
               </div>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Day 2 Venue Photo URL</label>
@@ -879,6 +986,77 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 ]}
               />
             </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Menu</label>
+              <RepeatableListEditor
+                items={templateData.ha_menu_courses}
+                onChange={(items) => setTemplateData(prev => ({ ...prev, ha_menu_courses: items }))}
+                addLabel="+ Add course"
+                emptyLabel="No menu courses yet — the Menu section stays hidden until you add one."
+                columns={[
+                  { key: 'label', label: 'Course', placeholder: 'Starter' },
+                  { key: 'name', label: 'Dish', placeholder: 'Burrata & Heirloom Tomatoes' },
+                  { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Shown under the dish name…' },
+                ]}
+              />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Things to Do</label>
+              <RepeatableListEditor
+                items={templateData.ha_things_to_do}
+                onChange={(items) => setTemplateData(prev => ({ ...prev, ha_things_to_do: items }))}
+                addLabel="+ Add place"
+                emptyLabel="No places yet — the Things to Do section stays hidden until you add one."
+                columns={[
+                  { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
+                    { value: 'mountain', label: '⛰️ Nature/Walk' }, { value: 'food', label: '🍴 Restaurant' },
+                    { value: 'water', label: '🌊 Beach/Lake' }, { value: 'camera', label: '📷 Sightseeing' },
+                    { value: 'drink', label: '🍷 Bar/Café' }, { value: 'shopping', label: '🛍️ Shopping' },
+                    { value: 'landmark', label: '🏛️ Landmark' }, { value: 'star', label: '✦ Other' },
+                  ] },
+                  { key: 'title', label: 'Title', placeholder: 'Walk by the lake' },
+                  { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Why guests should go…' },
+                ]}
+              />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Getting There</label>
+              <textarea value={templateData.ha_getting_there} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_getting_there: e.target.value }))} placeholder="How to get there, parking, shuttle info…" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+
+            <div className="es-row" style={rowStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Gift Registry Button Label</label>
+                <input value={templateData.ha_gift_registry_label} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_registry_label: e.target.value }))} placeholder="Gift Registry" style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Optional Flight Code (Boarding Pass)</label>
+                <input value={templateData.ha_boarding_flight_code} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_boarding_flight_code: e.target.value }))} placeholder="WED01" style={inputStyle} />
+              </div>
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Gift Message</label>
+              <textarea value={templateData.ha_gift_message} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_message: e.target.value }))} placeholder="Your presence is your gift, but contributions can go to…" rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+
+            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Bank Name</label>
+                <input value={templateData.ha_gift_bank_name} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_bank_name: e.target.value }))} placeholder="KBC" style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Account Holder</label>
+                <input value={templateData.ha_gift_account_name} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_account_name: e.target.value }))} placeholder="Full name" style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>IBAN</label>
+                <input value={templateData.ha_gift_iban} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_iban: e.target.value }))} placeholder="BE89 5655 5224 55" style={inputStyle} />
+              </div>
+            </div>
           </div>
         )}
 
@@ -896,6 +1074,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Agenda / Timeline</label>
               <textarea value={templateData.agenda} onChange={(e) => setTemplateData(prev => ({ ...prev, agenda: e.target.value }))} placeholder="9:00 AM - Keynote&#10;10:30 AM - Panel Discussion" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Sponsors</label>
+              <textarea value={templateData.sponsors} onChange={(e) => setTemplateData(prev => ({ ...prev, sponsors: e.target.value }))} placeholder="Event sponsors…" rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Networking Notes</label>
+              <textarea value={templateData.networkingNotes} onChange={(e) => setTemplateData(prev => ({ ...prev, networkingNotes: e.target.value }))} placeholder="Tips for networking, meet-and-greet details…" rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
           </div>
         )}
@@ -952,6 +1138,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Party Theme / Details</label>
               <input value={templateData.partyTheme} onChange={(e) => setTemplateData(prev => ({ ...prev, partyTheme: e.target.value }))} placeholder="e.g. Masquerade Ball" style={inputStyle} />
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Gift Registry URL</label>
+              <input type="url" value={templateData.giftRegistry} onChange={(e) => setTemplateData(prev => ({ ...prev, giftRegistry: e.target.value }))} placeholder="https://registry.example.com" style={inputStyle} />
             </div>
           </div>
         )}

@@ -16,6 +16,13 @@ export const S = {
     cursor: 'pointer', fontFamily: 'var(--font-sans)', padding: '4px 0',
     fontWeight: 600, transition: 'color 0.2s ease',
   },
+  // Uppercase-tracked micro-label — the badge/kicker treatment repeated
+  // across the host card, companion cards, and section headings. Color is
+  // supplied by the caller (usually the event's theme color).
+  eyebrow: {
+    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.14em',
+    fontWeight: 700, fontFamily: 'var(--font-sans)',
+  },
 };
 
 export { MEAL_FIELD_KEYS, findMealField } from '../../utils/mealField';

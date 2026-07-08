@@ -9,6 +9,7 @@ import GuestPassCard from '../../../components/guest/GuestPassGenerator';
 import SeatingResultPanel from './SeatingResultPanel';
 import { getCelebrationPreset } from '../../../utils/patternCelebration';
 import { CelebrateIcon, CalendarIcon, EnvelopeIcon, MapPinIcon } from '../../../components/guest/RsvpIcons';
+import { RsvpDivider } from '../components';
 
 /** A theatrical "materializing" entrance for the pass card — a slight 3D
     tilt-and-land plus a one-shot light sweep, like the card catching the
@@ -299,15 +300,11 @@ export default function StepSuccess({
           )}
 
           <FadeInUp delay={0.5} y={5}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', margin: '8px 0' }}>
-              <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, #E8E2D6)' }} />
-              <span style={{ color: '#D7BE80', fontSize: '16px' }}>✦</span>
-              <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, #E8E2D6, transparent)' }} />
-            </div>
+            <RsvpDivider themeColor={themeColor} spacing={8} />
           </FadeInUp>
 
           <FadeInUp delay={0.55} y={10}>
-            <p style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', color: '#B8944F', fontStyle: 'italic', lineHeight: 1.6 }}>
+            <p style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', color: themeColor, fontStyle: 'italic', lineHeight: 1.6 }}>
               {isRTL ? 'نتمنى لك كل الخير ونأمل أن نلتقي في مناسبة قريبة' : 'We wish you all the best and hope to see you at a future celebration'}
             </p>
           </FadeInUp>
@@ -315,8 +312,9 @@ export default function StepSuccess({
       )}
 
       <FadeInUp delay={0.8} y={5}>
-        <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
-          <Link href={`/${slug}`} style={{ color: '#B8944F', fontSize: '14px', fontWeight: 600, textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>
+        <RsvpDivider themeColor={themeColor} spacing={4} />
+        <div style={{ paddingTop: '20px' }}>
+          <Link href={`/${slug}`} style={{ color: themeColor, fontSize: '14px', fontWeight: 600, textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>
             {t.return_btn}
           </Link>
         </div>

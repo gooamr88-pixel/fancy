@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
 
 export default function GallerySection({ images, isRTL }) {
+  const C = useFullPageTheme();
   const [index, setIndex] = useState(0);
   if (!images || images.length === 0) return null;
 

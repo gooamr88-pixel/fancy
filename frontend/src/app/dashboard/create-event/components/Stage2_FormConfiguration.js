@@ -26,6 +26,13 @@ const WEDDING_STYLE_TEMPLATE_KEYS = [
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
 ];
 
+// Templates rendered as the full-page snap-scroll guest experience (everything
+// except the fully-custom builder). They all share the same ha_* section
+// fields, so the Heritage Arch content block is shown for all of them.
+// Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
+const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'corporate', 'birthday', 'gala'];
+const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
+
 const PRIVACY_MODES = [
   { key: 'public', label: 'Public Link', icon: '🌐', desc: 'Anyone with the link can RSVP' },
   { key: 'private', label: 'Private', icon: '🔒', desc: 'Guests must be on your list' },
@@ -195,6 +202,33 @@ export default function Stage2_FormConfiguration({
   const onCeremonyPlaceSelect = makePlaceSelectHandler('ceremony');
   const onReceptionPlaceSelect = makePlaceSelectHandler('reception');
 
+  // Heritage Arch's own per-day venue fields (ha_venue_dayN_*) — kept separate
+  // from ceremony/reception since Day 1 of a multi-day site isn't necessarily
+  // "the ceremony" (could be a henna night, welcome dinner, etc.).
+  const makeHaVenuePlaceSelectHandler = (day) => (place) => setTemplateData(d => ({
+    ...d,
+    [`ha_venue_${day}_name`]: place.name && place.name !== place.address
+      ? place.name
+      : (place.address ? place.address.split(',')[0] : d[`ha_venue_${day}_name`]),
+    [`ha_venue_${day}_address`]: place.address,
+    [`ha_venue_${day}_lat`]: place.lat,
+    [`ha_venue_${day}_lng`]: place.lng,
+  }));
+  const onHaVenueDay1Select = makeHaVenuePlaceSelectHandler('day1');
+  const onHaVenueDay2Select = makeHaVenuePlaceSelectHandler('day2');
+
+  // "Invited to" city — captures coordinates too, so the world-map pin in the
+  // Invited-To section actually points at this city instead of silently
+  // reusing the Day 1 venue's coordinates.
+  const onHaInvitedToPlaceSelect = (place) => setTemplateData(d => ({
+    ...d,
+    ha_invited_to_city: place.name && place.name !== place.address
+      ? place.name
+      : (place.address ? place.address.split(',')[0] : d.ha_invited_to_city),
+    ha_invited_to_lat: place.lat,
+    ha_invited_to_lng: place.lng,
+  }));
+
   return (
     <div style={{ padding: '40px 24px 120px', maxWidth: 860, margin: '0 auto' }}>
       {/* Header */}
@@ -322,43 +356,50 @@ export default function Stage2_FormConfiguration({
                     rows={3} placeholder="Share your beautiful story…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-                  <Field label="Ceremony Venue" htmlFor="s2-ceremony-venue" hint="Search and pick where the ceremony takes place">
-                    <PlacesAutocomplete
-                      id="s2-ceremony-venue"
-                      value={td('ceremony_venue_name')}
-                      onChange={setTd('ceremony_venue_name')}
-                      onPlaceSelect={onCeremonyPlaceSelect}
-                      placeholder="Search for the ceremony venue…"
-                      style={iStyle}
-                    />
-                  </Field>
-                  <Field label="Ceremony Time">
-                    <input type="time" value={td('ceremony_time_of_day')} onChange={e => setTd('ceremony_time_of_day')(e.target.value)}
-                      style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                  </Field>
-                </div>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-                  <Field label="Reception Venue" htmlFor="s2-reception-venue" hint="Search and pick where the reception takes place">
-                    <PlacesAutocomplete
-                      id="s2-reception-venue"
-                      value={td('reception_venue_name')}
-                      onChange={setTd('reception_venue_name')}
-                      onPlaceSelect={onReceptionPlaceSelect}
-                      placeholder="Search for the reception venue…"
-                      style={iStyle}
-                    />
-                  </Field>
-                  <Field label="Reception Time">
-                    <input type="time" value={td('reception_time_of_day')} onChange={e => setTd('reception_time_of_day')(e.target.value)}
-                      style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                  </Field>
-                </div>
+                {/* Full-page templates have their own Day 1 / Day 2 venue pickers
+                    below — a single Ceremony/Reception pair doesn't fit a
+                    multi-day site (Day 1 isn't necessarily "the ceremony"). */}
+                {!isFullPage(templateType) && (
+                  <>
+                    <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+                      <Field label="Ceremony Venue" htmlFor="s2-ceremony-venue" hint="Search and pick where the ceremony takes place">
+                        <PlacesAutocomplete
+                          id="s2-ceremony-venue"
+                          value={td('ceremony_venue_name')}
+                          onChange={setTd('ceremony_venue_name')}
+                          onPlaceSelect={onCeremonyPlaceSelect}
+                          placeholder="Search for the ceremony venue…"
+                          style={iStyle}
+                        />
+                      </Field>
+                      <Field label="Ceremony Time">
+                        <input type="time" value={td('ceremony_time_of_day')} onChange={e => setTd('ceremony_time_of_day')(e.target.value)}
+                          style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                      </Field>
+                    </div>
+                    <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+                      <Field label="Reception Venue" htmlFor="s2-reception-venue" hint="Search and pick where the reception takes place">
+                        <PlacesAutocomplete
+                          id="s2-reception-venue"
+                          value={td('reception_venue_name')}
+                          onChange={setTd('reception_venue_name')}
+                          onPlaceSelect={onReceptionPlaceSelect}
+                          placeholder="Search for the reception venue…"
+                          style={iStyle}
+                        />
+                      </Field>
+                      <Field label="Reception Time">
+                        <input type="time" value={td('reception_time_of_day')} onChange={e => setTd('reception_time_of_day')(e.target.value)}
+                          style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                      </Field>
+                    </div>
+                  </>
+                )}
                 <Field label="Gift Registry URL">
                   <input type="url" value={td('giftRegistry')} onChange={e => setTd('giftRegistry')(e.target.value)}
                     placeholder="https://registry.example.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
-                <Field label="Guest Accommodations">
+                <Field label="Guest Accommodations" hint={templateType === 'heritageArch' ? 'Shown to guests only as a fallback note, and only if no hotels are added in the Accommodation list below' : undefined}>
                   <textarea value={td('accommodations')} onChange={e => setTd('accommodations')(e.target.value)}
                     rows={2} placeholder="Hotel blocks, parking info…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
@@ -366,8 +407,11 @@ export default function Stage2_FormConfiguration({
               </>
             )}
 
-            {templateType === 'heritageArch' && (
+            {isFullPage(templateType) && (
               <>
+                <div style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)', marginBottom: 4 }}>
+                  Full-page guest experience — each section below appears on the guest page only when you fill it in.
+                </div>
                 <Field label="Our Story">
                   <textarea value={td('ha_our_story')} onChange={e => setTd('ha_our_story')(e.target.value)}
                     rows={3} placeholder="Tell your story… (or leave blank to use Our Love Story above)"
@@ -378,15 +422,43 @@ export default function Stage2_FormConfiguration({
                     <input type="text" value={td('ha_meal_options')} onChange={e => setTd('ha_meal_options')(e.target.value)}
                       placeholder="Caviar, Fish" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
-                  <Field label={'"You\'re Invited To" City'}>
-                    <input type="text" value={td('ha_invited_to_city')} onChange={e => setTd('ha_invited_to_city')(e.target.value)}
-                      placeholder="Miami" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  <Field label={'"You\'re Invited To" City'} htmlFor="s2-ha-invited-to" hint="Search and pick a city — its map pin uses this location, not Day 1's venue">
+                    <PlacesAutocomplete
+                      id="s2-ha-invited-to"
+                      value={td('ha_invited_to_city')}
+                      onChange={setTd('ha_invited_to_city')}
+                      onPlaceSelect={onHaInvitedToPlaceSelect}
+                      placeholder="Miami"
+                      style={iStyle}
+                    />
                   </Field>
                 </div>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+                  <Field label="Day 1 Venue" htmlFor="s2-ha-venue-day1" hint="Where Day 1 of the celebration takes place">
+                    <PlacesAutocomplete
+                      id="s2-ha-venue-day1"
+                      value={td('ha_venue_day1_name')}
+                      onChange={setTd('ha_venue_day1_name')}
+                      onPlaceSelect={onHaVenueDay1Select}
+                      placeholder="Search for Day 1's venue…"
+                      style={iStyle}
+                    />
+                  </Field>
                   <Field label="Day 1 Venue Photo URL">
                     <input type="url" value={td('ha_venue_day1_image')} onChange={e => setTd('ha_venue_day1_image')(e.target.value)}
                       placeholder="https://…" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                </div>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+                  <Field label="Day 2 Venue" htmlFor="s2-ha-venue-day2" hint="Where Day 2 of the celebration takes place">
+                    <PlacesAutocomplete
+                      id="s2-ha-venue-day2"
+                      value={td('ha_venue_day2_name')}
+                      onChange={setTd('ha_venue_day2_name')}
+                      onPlaceSelect={onHaVenueDay2Select}
+                      placeholder="Search for Day 2's venue…"
+                      style={iStyle}
+                    />
                   </Field>
                   <Field label="Day 2 Venue Photo URL">
                     <input type="url" value={td('ha_venue_day2_image')} onChange={e => setTd('ha_venue_day2_image')(e.target.value)}
@@ -452,6 +524,71 @@ export default function Stage2_FormConfiguration({
                     ]}
                   />
                 </Field>
+                <Field label="Menu" hint="Each course shows on the guest page only if you add it here">
+                  <RepeatableListEditor
+                    items={Array.isArray(templateData.ha_menu_courses) ? templateData.ha_menu_courses : []}
+                    onChange={(items) => setTemplateData(d => ({ ...d, ha_menu_courses: items }))}
+                    addLabel="+ Add course"
+                    emptyLabel="No menu courses yet — the Menu section stays hidden until you add one."
+                    columns={[
+                      { key: 'label', label: 'Course', placeholder: 'Starter' },
+                      { key: 'name', label: 'Dish', placeholder: 'Burrata & Heirloom Tomatoes' },
+                      { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Shown under the dish name…' },
+                    ]}
+                  />
+                </Field>
+                <Field label="Things to Do">
+                  <RepeatableListEditor
+                    items={Array.isArray(templateData.ha_things_to_do) ? templateData.ha_things_to_do : []}
+                    onChange={(items) => setTemplateData(d => ({ ...d, ha_things_to_do: items }))}
+                    addLabel="+ Add place"
+                    emptyLabel="No places yet — the Things to Do section stays hidden until you add one."
+                    columns={[
+                      { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
+                        { value: 'mountain', label: '⛰️ Nature/Walk' }, { value: 'food', label: '🍴 Restaurant' },
+                        { value: 'water', label: '🌊 Beach/Lake' }, { value: 'camera', label: '📷 Sightseeing' },
+                        { value: 'drink', label: '🍷 Bar/Café' }, { value: 'shopping', label: '🛍️ Shopping' },
+                        { value: 'landmark', label: '🏛️ Landmark' }, { value: 'star', label: '✦ Other' },
+                      ] },
+                      { key: 'title', label: 'Title', placeholder: 'Walk by the lake' },
+                      { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Why guests should go…' },
+                    ]}
+                  />
+                </Field>
+                <Field label="Getting There" hint="Transport, parking, and directions notes">
+                  <textarea value={td('ha_getting_there')} onChange={e => setTd('ha_getting_there')(e.target.value)}
+                    rows={3} placeholder="How to get there, parking, shuttle info…"
+                    style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <Field label="Gift Registry Button Label" hint="Text on the registry button, e.g. Amazon">
+                    <input type="text" value={td('ha_gift_registry_label')} onChange={e => setTd('ha_gift_registry_label')(e.target.value)}
+                      placeholder="Gift Registry" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                  <Field label="Optional Flight Code" hint="Shown on the Boarding Pass; auto if blank">
+                    <input type="text" value={td('ha_boarding_flight_code')} onChange={e => setTd('ha_boarding_flight_code')(e.target.value)}
+                      placeholder="WED01" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                </div>
+                <Field label="Gift Message" hint="Shown above the registry button / bank details">
+                  <textarea value={td('ha_gift_message')} onChange={e => setTd('ha_gift_message')(e.target.value)}
+                    rows={2} placeholder="Your presence is your gift, but contributions can go to…"
+                    style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                  <Field label="Bank Name">
+                    <input type="text" value={td('ha_gift_bank_name')} onChange={e => setTd('ha_gift_bank_name')(e.target.value)}
+                      placeholder="KBC" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                  <Field label="Account Holder">
+                    <input type="text" value={td('ha_gift_account_name')} onChange={e => setTd('ha_gift_account_name')(e.target.value)}
+                      placeholder="Full name" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                  <Field label="IBAN">
+                    <input type="text" value={td('ha_gift_iban')} onChange={e => setTd('ha_gift_iban')(e.target.value)}
+                      placeholder="BE89 5655 5224 55" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                </div>
               </>
             )}
 
@@ -510,6 +647,11 @@ export default function Stage2_FormConfiguration({
                     rows={2} placeholder="Event sponsors…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
+                <Field label="Networking Notes">
+                  <textarea value={td('networkingNotes')} onChange={e => setTd('networkingNotes')(e.target.value)}
+                    rows={2} placeholder="Tips for networking, meet-and-greet details…"
+                    style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
               </>
             )}
 
@@ -528,6 +670,10 @@ export default function Stage2_FormConfiguration({
                 <Field label="Party Theme / Details">
                   <input type="text" value={td('partyTheme')} onChange={e => setTd('partyTheme')(e.target.value)}
                     placeholder="e.g. Masquerade Ball" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+                <Field label="Gift Registry URL">
+                  <input type="url" value={td('giftRegistry')} onChange={e => setTd('giftRegistry')(e.target.value)}
+                    placeholder="https://registry.example.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
               </>
             )}

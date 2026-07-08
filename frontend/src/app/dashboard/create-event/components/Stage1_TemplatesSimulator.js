@@ -39,7 +39,7 @@ const TEMPLATE_PREVIEW_MAP = {
   clay:       { name: 'Copper & Clay',     pattern: 'clay',        accent: '#B5502F' },
   alpine:     { name: 'Alpine Pine',       pattern: 'alpine',      accent: '#D9C9A3' },
   coastal:    { name: 'Coastal Linen',     pattern: 'coastal',     accent: '#2B5F5A' },
-  heritageArch: { name: 'Heritage Arch',   pattern: 'estate',      accent: '#7A1E2C' },
+  heritageArch: { name: 'Heritage Arch',   pattern: 'heritageArch', accent: '#7A1E2C' },
 };
 
 /* ═══ Envelope lining gradient mapping ═══ */

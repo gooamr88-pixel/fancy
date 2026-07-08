@@ -1,10 +1,11 @@
 'use client';
 
 import React from 'react';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
 
 export default function OurStorySection({ story, isRTL }) {
+  const C = useFullPageTheme();
   return (
     <SectionShell>
       <span style={{ fontSize: '34px', marginBottom: '8px' }} aria-hidden="true">📖</span>

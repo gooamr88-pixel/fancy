@@ -2,15 +2,18 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { HERITAGE_ARCH_COLORS as C } from './defaultContent';
+import { alpha } from '../../../utils/color';
+import { useFullPageTheme } from './theme';
 
-/* Shared visual language for every Heritage Arch section: cream/burgundy
-   palette, serif headings, and the small chrome pieces (lang pill, music
-   toggle, scroll-to-rsvp hint) repeated across sections. */
+/* Shared visual language for every full-page section: the palette comes from
+   useFullPageTheme() (Heritage Arch's cream/burgundy by default, or the
+   event's own derived palette), serif headings, and the small chrome pieces
+   (lang pill, music toggle, scroll-to-rsvp hint) repeated across sections. */
 
 export const SECTION_PADDING = 'clamp(24px, 6vw, 64px)';
 
-export function SectionShell({ children, background = C.background, style = {}, center = true }) {
+export function SectionShell({ children, background, style = {}, center = true }) {
+  const C = useFullPageTheme();
   return (
     <div
       style={{
@@ -21,7 +24,7 @@ export function SectionShell({ children, background = C.background, style = {}, 
         alignItems: center ? 'center' : 'stretch',
         justifyContent: 'center',
         position: 'relative',
-        background,
+        background: background || C.background,
         padding: `96px ${SECTION_PADDING} 80px`,
         boxSizing: 'border-box',
         fontFamily: 'var(--font-sans)',
@@ -35,6 +38,7 @@ export function SectionShell({ children, background = C.background, style = {}, 
 }
 
 export function SectionHeading({ children, subtitle, isRTL, style = {} }) {
+  const C = useFullPageTheme();
   return (
     <div style={{ textAlign: 'center', marginBottom: '20px', ...style }}>
       <h2 style={{
@@ -50,17 +54,20 @@ export function SectionHeading({ children, subtitle, isRTL, style = {} }) {
   );
 }
 
-export function DiamondDivider({ color = C.gold }) {
+export function DiamondDivider({ color }) {
+  const C = useFullPageTheme();
+  const c = color || C.gold;
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', margin: '18px 0' }} aria-hidden="true">
-      <span style={{ width: '48px', height: '1px', background: color, opacity: 0.6 }} />
-      <span style={{ width: '7px', height: '7px', background: color, transform: 'rotate(45deg)', display: 'inline-block' }} />
-      <span style={{ width: '48px', height: '1px', background: color, opacity: 0.6 }} />
+      <span style={{ width: '48px', height: '1px', background: c, opacity: 0.6 }} />
+      <span style={{ width: '7px', height: '7px', background: c, transform: 'rotate(45deg)', display: 'inline-block' }} />
+      <span style={{ width: '48px', height: '1px', background: c, opacity: 0.6 }} />
     </div>
   );
 }
 
 export function DayTabs({ value, onChange, isRTL, dayLabels }) {
+  const C = useFullPageTheme();
   return (
     <div style={{ display: 'flex', gap: '8px', marginBottom: '36px' }}>
       {['day1', 'day2'].map((d, i) => (
@@ -86,7 +93,9 @@ export function DayTabs({ value, onChange, isRTL, dayLabels }) {
 // Bobbing "scroll to RSVP" hint repeated at the bottom of every section
 // (matches the reference exactly: same label + mouse icon on every screen,
 // always scrolling to the RSVP form rather than just the next section).
-export function ScrollToRsvpHint({ isRTL, label, color = C.maroon }) {
+export function ScrollToRsvpHint({ isRTL, label, color }) {
+  const C = useFullPageTheme();
+  const c = color || C.maroon;
   const scroll = () => {
     const el = document.getElementById('ha-rsvp');
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -98,7 +107,7 @@ export function ScrollToRsvpHint({ isRTL, label, color = C.maroon }) {
       style={{
         position: 'absolute', bottom: '28px', left: '50%', transform: 'translateX(-50%)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
-        background: 'none', border: 'none', cursor: 'pointer', color,
+        background: 'none', border: 'none', cursor: 'pointer', color: c,
         fontFamily: 'var(--font-sans)',
       }}
     >
@@ -112,8 +121,8 @@ export function ScrollToRsvpHint({ isRTL, label, color = C.maroon }) {
         aria-hidden="true"
       >
         <svg width="22" height="34" viewBox="0 0 22 34" fill="none">
-          <rect x="1" y="1" width="20" height="32" rx="10" stroke={color} strokeWidth="1.5" />
-          <circle cx="11" cy="10" r="2.4" fill={color} />
+          <rect x="1" y="1" width="20" height="32" rx="10" stroke={c} strokeWidth="1.5" />
+          <circle cx="11" cy="10" r="2.4" fill={c} />
         </svg>
       </motion.span>
     </button>
@@ -138,6 +147,7 @@ const FLAG_EG = (
 );
 
 export function LangPill({ lang, setLang, isRTL }) {
+  const C = useFullPageTheme();
   return (
     <div
       className="ha-lang-pill"
@@ -170,6 +180,7 @@ export function LangPill({ lang, setLang, isRTL }) {
 }
 
 export function MusicToggle({ playing, onToggle, isRTL }) {
+  const C = useFullPageTheme();
   return (
     <button
       type="button"
@@ -193,6 +204,7 @@ export function MusicToggle({ playing, onToggle, isRTL }) {
 }
 
 export function DotNav({ count, active, onSelect, isRTL }) {
+  const C = useFullPageTheme();
   return (
     <div
       style={{
@@ -210,7 +222,7 @@ export function DotNav({ count, active, onSelect, isRTL }) {
           style={{
             width: active === i ? '10px' : '7px', height: active === i ? '10px' : '7px',
             borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
-            background: active === i ? C.maroon : 'rgba(107,27,42,0.3)',
+            background: active === i ? C.maroon : alpha(C.maroon, 0.3),
             transition: 'all 0.25s ease',
           }}
         />
@@ -231,7 +243,9 @@ export const ICONS = {
 // plain center line down the schedule timeline. Decorative only (not to
 // scale), so a little vertical stretch from filling the timeline's actual
 // height is an acceptable trade-off for not hand-tracing per-viewport paths.
-export function VineLine({ itemCount, color = C.gold }) {
+export function VineLine({ itemCount, color }) {
+  const C = useFullPageTheme();
+  const c = color || C.gold;
   const bends = Math.max(1, itemCount);
   const unit = 100;
   let d = 'M 20 0';
@@ -252,11 +266,11 @@ export function VineLine({ itemCount, color = C.gold }) {
       aria-hidden="true"
       style={{ position: 'absolute', left: '50%', top: 0, height: '100%', width: '40px', transform: 'translateX(-50%)' }}
     >
-      <path d={d} stroke={color} strokeWidth="1.6" fill="none" opacity="0.5" vectorEffect="non-scaling-stroke" />
+      <path d={d} stroke={c} strokeWidth="1.6" fill="none" opacity="0.5" vectorEffect="non-scaling-stroke" />
       {leaves.map((p, i) => (
         <g key={i} transform={`translate(${p.x} ${p.y}) rotate(${p.dir * 25})`}>
-          <ellipse cx={p.dir * 5} cy="0" rx="6" ry="2.6" fill={color} opacity="0.5" />
-          <ellipse cx={p.dir * 10} cy="1.5" rx="4.4" ry="2" fill={color} opacity="0.35" />
+          <ellipse cx={p.dir * 5} cy="0" rx="6" ry="2.6" fill={c} opacity="0.5" />
+          <ellipse cx={p.dir * 10} cy="1.5" rx="4.4" ry="2" fill={c} opacity="0.35" />
         </g>
       ))}
     </svg>
@@ -264,6 +278,7 @@ export function VineLine({ itemCount, color = C.gold }) {
 }
 
 export function MapEmbed({ lat, lng, address, height = '300px' }) {
+  const C = useFullPageTheme();
   const hasCoords = lat != null && lng != null;
   const query = hasCoords ? `${lat},${lng}` : encodeURIComponent(address || '');
   const src = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY

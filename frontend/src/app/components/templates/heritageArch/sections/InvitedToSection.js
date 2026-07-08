@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, ScrollToRsvpHint } from '../shared';
 
 // Simplified, non-cartographic continent silhouettes on an equirectangular
@@ -30,6 +30,7 @@ function project(lat, lng) {
 }
 
 export default function InvitedToSection({ city, lat, lng, isRTL }) {
+  const C = useFullPageTheme();
   const hasCoords = lat != null && lng != null && !Number.isNaN(Number(lat)) && !Number.isNaN(Number(lng));
   const pin = hasCoords ? project(lat, lng) : null;
 

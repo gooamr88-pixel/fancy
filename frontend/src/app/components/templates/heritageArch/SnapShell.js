@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { HERITAGE_ARCH_COLORS as C } from './defaultContent';
+import { useFullPageTheme } from './theme';
 import { LangPill, MusicToggle, DotNav } from './shared';
 
 /* Full-viewport, scroll-snapped page shell: one 100dvh section per screen,
    a side dot-nav tracking which section is in view, a top-corner language
    pill, and a bottom-corner music toggle (when the event has music). */
 export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying, toggleMusic, hasBackgroundMusic }) {
+  const C = useFullPageTheme();
   const containerRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
 

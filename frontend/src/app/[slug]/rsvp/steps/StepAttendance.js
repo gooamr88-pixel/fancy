@@ -4,6 +4,7 @@ import React from 'react';
 import { FadeInUp, StaggerChildren, StaggerItem } from '../../../components/guest/GuestAnimations';
 import { AttendanceCard } from '../../../components/guest/GuestUI';
 import { S } from '../styles';
+import { RsvpSectionHeading, RsvpDivider } from '../components';
 
 /** Step 2 — attending / maybe / declining. "Yes" is the hero answer (large,
     theme-colored); "maybe"/"no" are real but quieter options underneath —
@@ -17,9 +18,9 @@ export default function StepAttendance({ t, isRTL, guestName, attending, onSelec
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <FadeInUp y={15}>
-        <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E', textAlign: 'center', lineHeight: 1.4 }}>
+        <RsvpSectionHeading kicker={isRTL ? 'ردّكم' : 'YOUR RESPONSE'} themeColor={themeColor} isRTL={isRTL} align="center">
           {attendingQuestion}
-        </h3>
+        </RsvpSectionHeading>
       </FadeInUp>
 
       <StaggerChildren staggerDelay={0.1} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -35,9 +36,12 @@ export default function StepAttendance({ t, isRTL, guestName, attending, onSelec
       </StaggerChildren>
 
       {onBack && (
-        <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-          <button onClick={onBack} style={S.backBtn}>{isRTL ? '← السابق' : '← Back'}</button>
-        </div>
+        <>
+          <RsvpDivider themeColor={themeColor} />
+          <div style={{ paddingTop: '4px' }}>
+            <button onClick={onBack} style={S.backBtn}>{isRTL ? '← السابق' : '← Back'}</button>
+          </div>
+        </>
       )}
     </div>
   );

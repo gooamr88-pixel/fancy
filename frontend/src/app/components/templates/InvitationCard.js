@@ -980,6 +980,39 @@ export default function InvitationCard({ template, theme, guestName, config, dat
       );
 
     /* ──────────────────────────────────────────────────────────
+       HERITAGE ARCH — Full-page multi-day wedding site, temple arch
+       ────────────────────────────────────────────────────────── */
+    case "heritageArch":
+      return (
+        <div
+          className="w-full h-full flex flex-col items-center justify-between select-none relative overflow-hidden font-serif"
+          style={{ background: "#F7F1E4", color: "#3A2A22", padding: "16px 16px 14px" }}
+        >
+          <div className="relative z-10 flex flex-col items-center mt-2 gap-1">
+            <svg width="34" height="42" viewBox="0 0 34 42">
+              <path d="M4 40 L4 20 Q4 10 10 6 L17 1 L24 6 Q30 10 30 20 L30 40" fill="none" stroke={accentColor} strokeWidth="1.2" />
+              <path d="M8 40 L8 21 Q8 13 12.5 9.5 L17 6 L21.5 9.5 Q26 13 26 21 L26 40" fill="none" stroke={accentColor} strokeWidth="0.5" opacity="0.45" />
+            </svg>
+          </div>
+          <div className="flex flex-col items-center text-center my-auto gap-1.5 relative z-10 px-2">
+            <span className="text-[6.5px] uppercase tracking-[3px] font-sans font-semibold" style={{ color: `${accentColor}99` }}>A Two-Day Celebration</span>
+            <span className="italic text-[19px] leading-tight mt-1" style={{ color: accentColor }}>{d.names || "Mohammed & Leila"}</span>
+            <div className="flex items-center gap-1.5 my-1 px-2.5 py-1 rounded-full" style={{ border: `1px solid ${accentColor}50` }}>
+              <span className="text-[5.5px] font-sans font-bold tracking-[1.5px] uppercase" style={{ color: accentColor }}>Day One</span>
+              <span className="w-0.5 h-0.5 rounded-full shrink-0" style={{ background: accentColor }} />
+              <span className="text-[5.5px] font-sans font-bold tracking-[1.5px] uppercase" style={{ color: accentColor }}>Day Two</span>
+            </div>
+            <span className="text-[8.5px] font-bold tracking-[1.5px]">{d.dateLine || "OCTOBER 24–25, 2026"}</span>
+            <span className="text-[7.5px] italic" style={{ color: `${accentColor}90` }}>{d.venueLine || "Oceanfront Beach House · Miami"}</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5 relative z-10 mb-1">
+            <span className="text-[6px] uppercase tracking-[2px]" style={{ color: `${accentColor}80` }}>Reserved for</span>
+            <span className="text-sm italic">{name}</span>
+          </div>
+        </div>
+      );
+
+    /* ──────────────────────────────────────────────────────────
        ROSE ATELIER — Modern French chic, ribbon & script
        ────────────────────────────────────────────────────────── */
     case "roseAtelier": {

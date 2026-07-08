@@ -10,6 +10,7 @@ import { useGuestAnalytics, useRsvpFunnelTracking, useAbandonmentTracking } from
 import { isSeatingRevealed } from '../../utils/seating';
 import { splitName } from '../../utils/nameFields';
 import { findMealField } from './styles';
+import { LangSwitchPill, RsvpDivider, SparkMark } from './components';
 import { useSeatingLookup } from './hooks/useSeatingLookup';
 import { lighten } from '../../utils/color';
 import { getCelebrationPreset } from '../../utils/patternCelebration';
@@ -544,28 +545,14 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
           }}>
             {/* Corner flourish — a quiet nod to the invitation's print-stationery roots. */}
             <span aria-hidden style={{
-              position: 'absolute', top: '12px', ...(isRTL ? { right: '16px' } : { left: '16px' }),
-              fontSize: '13px', letterSpacing: '4px', color: `${secondaryColor}8C`, zIndex: 2,
-            }}>✦</span>
+              position: 'absolute', top: '14px', ...(isRTL ? { right: '16px' } : { left: '16px' }), zIndex: 2,
+            }}>
+              <SparkMark color={secondaryColor} size={16} opacity={0.55} />
+            </span>
 
             {!embedded && (
-              <div style={{ position: 'absolute', top: '14px', ...(isRTL ? { left: '14px' } : { right: '14px' }), display: 'flex', gap: '6px', zIndex: 2 }}>
-                {[{ code: 'en', label: 'EN' }, { code: 'ar', label: 'عربي' }].map(l => (
-                  <motion.button
-                    key={l.code}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setLang(l.code)}
-                    style={{
-                      fontSize: '10px', padding: '5px 10px', borderRadius: '6px', cursor: 'pointer',
-                      border: lang === l.code ? `1px solid ${themeColor}` : '1px solid rgba(255,255,255,0.2)',
-                      background: lang === l.code ? themeColor : 'rgba(255,255,255,0.08)',
-                      color: lang === l.code ? '#191B1E' : 'rgba(255,255,255,0.7)',
-                      fontWeight: lang === l.code ? 700 : 400, fontFamily: 'var(--font-sans)',
-                      backdropFilter: 'blur(8px)', transition: 'all 0.2s',
-                    }}
-                  >{l.label}</motion.button>
-                ))}
+              <div style={{ position: 'absolute', top: '14px', ...(isRTL ? { left: '14px' } : { right: '14px' }), zIndex: 2 }}>
+                <LangSwitchPill lang={lang} setLang={setLang} themeColor={themeColor} />
               </div>
             )}
 
@@ -577,8 +564,17 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
               style={{ fontFamily: event?.custom_fonts?.card_title || 'var(--font-serif)', fontSize: '22px', fontWeight: 400, letterSpacing: '0.5px', lineHeight: 1.3 }}>
               {localizedTitle}
             </motion.h1>
+            {/* Themed equivalent of the global .gold-shimmer-line class (kept
+                out of globals.css since that class is also shared by the
+                marketing footer and the ticket pass card) — same shimmer
+                keyframe, defined locally below, tinted to this event's colors
+                instead of a fixed gold. */}
             <motion.div aria-hidden initial={{ opacity: 0, scaleX: 0 }} animate={{ opacity: 1, scaleX: 1 }} transition={{ delay: 0.55, duration: 0.7 }}
-              className="gold-shimmer-line" style={{ width: '64px', margin: '14px auto 0' }} />
+              style={{
+                width: '64px', margin: '14px auto 0', height: '1px',
+                background: `linear-gradient(90deg, transparent 0%, ${lighten(secondaryColor, 0.3)} 30%, ${themeColor} 50%, ${lighten(secondaryColor, 0.3)} 70%, transparent 100%)`,
+                backgroundSize: '200% 100%', animation: 'shimmer 3s linear infinite',
+              }} />
           </div>
 
           <div style={{ padding: '28px 32px 32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
@@ -601,7 +597,8 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
 
                 {attending && (
                   <motion.div ref={revealedSectionRef} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-                    style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                    style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+                    <RsvpDivider themeColor={themeColor} />
                     <StepPartyDetails
                       t={t} isRTL={isRTL} attending={attending}
                       guestName={guestName} setGuestName={setGuestName}
@@ -617,6 +614,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                       showSidePicker={!!event?.track_guest_side}
                       isWedding={event?.event_type === 'wedding'}
                       smsConsent={smsConsent} setSmsConsent={setSmsConsent}
+                      themeColor={themeColor} secondaryColor={secondaryColor}
                     />
 
                     {turnstileEnabled && (
@@ -637,20 +635,20 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                       </div>
                     )}
 
-                    <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '24px' }}>
-                      <StepCustomQuestions
-                        t={t} isRTL={isRTL} fields={attending === 'yes' ? partyScopedFields : []}
-                        guestName={guestName}
-                        companionFields={attending === 'yes' ? guestScopedFields : []}
-                        customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
-                        additionalGuests={attending === 'yes' ? visibleAdditionalGuests : []}
-                        setCompanionAnswer={setCompanionAnswer}
-                        toggleCompanionMultiAnswer={toggleCompanionMultiAnswer}
-                        notes={notes} setNotes={setNotes} validationErrors={validationErrors}
-                        submitting={submitting}
-                        onSubmit={handleSubmit}
-                      />
-                    </div>
+                    <RsvpDivider themeColor={themeColor} />
+                    <StepCustomQuestions
+                      t={t} isRTL={isRTL} fields={attending === 'yes' ? partyScopedFields : []}
+                      guestName={guestName}
+                      companionFields={attending === 'yes' ? guestScopedFields : []}
+                      customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
+                      additionalGuests={attending === 'yes' ? visibleAdditionalGuests : []}
+                      setCompanionAnswer={setCompanionAnswer}
+                      toggleCompanionMultiAnswer={toggleCompanionMultiAnswer}
+                      notes={notes} setNotes={setNotes} validationErrors={validationErrors}
+                      submitting={submitting}
+                      onSubmit={handleSubmit}
+                      themeColor={themeColor}
+                    />
                   </motion.div>
                 )}
               </>

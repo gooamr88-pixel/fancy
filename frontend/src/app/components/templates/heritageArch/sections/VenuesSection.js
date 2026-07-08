@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DayTabs, ScrollToRsvpHint, MapEmbed, getDirectionsUrl } from '../shared';
 
 export default function VenuesSection({ venues, isRTL, t }) {
+  const C = useFullPageTheme();
   const [day, setDay] = useState('day1');
   const venue = (venues && venues[day]) || {};
 

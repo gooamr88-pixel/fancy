@@ -6,6 +6,7 @@ import { FadeInUp, StaggerChildren, StaggerItem, GlowPulse } from '../../../comp
 import { PremiumButton, FormField, inputFocus, inputBlur } from '../../../components/guest/GuestUI';
 import { WarningIcon } from '../../../components/guest/RsvpIcons';
 import { S } from '../styles';
+import { RsvpSectionHeading, RsvpDivider } from '../components';
 
 const INPUT_TYPE_FOR = { email: 'email', phone: 'tel', url: 'url', number: 'number', date: 'date' };
 
@@ -24,6 +25,7 @@ export default function StepCustomQuestions({
   t, isRTL, fields, guestName, companionFields = [], customAnswers, setAnswer, toggleMultiAnswer,
   additionalGuests = [], setCompanionAnswer, toggleCompanionMultiAnswer,
   notes, setNotes, validationErrors, submitting, onBack, onSubmit,
+  themeColor = '#B8944F',
 }) {
 
   /* Renders a set of custom question fields for a given answers object and handlers.
@@ -111,7 +113,9 @@ export default function StepCustomQuestions({
       {fields.length > 0 && (
         <>
           <FadeInUp y={15}>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E' }}>{t.additional_details}</h3>
+            <RsvpSectionHeading kicker={isRTL ? 'تفاصيل إضافية' : 'A FEW MORE DETAILS'} themeColor={themeColor} isRTL={isRTL}>
+              {t.additional_details}
+            </RsvpSectionHeading>
           </FadeInUp>
 
           <StaggerChildren staggerDelay={0.08}>
@@ -270,10 +274,11 @@ export default function StepCustomQuestions({
         )}
       </AnimatePresence>
 
-      <div style={{ display: 'flex', justifyContent: onBack ? 'space-between' : 'flex-end', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
+      <RsvpDivider themeColor={themeColor} />
+      <div style={{ display: 'flex', justifyContent: onBack ? 'space-between' : 'flex-end', paddingTop: '4px' }}>
         {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
-        <GlowPulse color="#B8944F" intensity={submitting ? 0 : 0.2}>
-          <PremiumButton testId="rsvp-submit" disabled={submitting} loading={submitting} onClick={onSubmit}>
+        <GlowPulse color={themeColor} intensity={submitting ? 0 : 0.2}>
+          <PremiumButton testId="rsvp-submit" disabled={submitting} loading={submitting} onClick={onSubmit} accentColor={themeColor}>
             {submitting ? t.submitting : t.submit_rsvp}
           </PremiumButton>
         </GlowPulse>

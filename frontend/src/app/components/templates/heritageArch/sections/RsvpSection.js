@@ -4,22 +4,23 @@ import React, { useState } from 'react';
 import { PartySizeStepper, FormField } from '../../../guest/GuestUI';
 import PhoneNumberInput from '../../../PhoneNumberInput';
 import { useIdempotentRsvpSubmit } from '../../../guest/rsvp/useIdempotentRsvpSubmit';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading } from '../shared';
 
 const ALLERGY_OPTIONS = ['Gluten-free / Celiac', 'Lactose-free', 'Nut allergy', 'Seafood'];
 
-const fieldStyle = {
-  width: '100%', boxSizing: 'border-box', padding: '13px 15px',
-  background: C.cream, border: `1px solid ${C.border}`, borderRadius: '10px',
-  fontSize: '14px', color: C.ink, outline: 'none', fontFamily: 'var(--font-sans)',
-  transition: 'border-color 0.2s ease',
-};
-const onFieldFocus = (e) => { e.target.style.borderColor = C.maroon; };
-const onFieldBlur = (e) => { e.target.style.borderColor = C.border; };
-const labelStyle = { fontSize: '12px', fontWeight: 700, color: C.ink, opacity: 0.75, display: 'block', marginBottom: '6px' };
-
 export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions, isRTL, trackEvent }) {
+  const C = useFullPageTheme();
+  // Defined inside the component so they read the themed palette (C).
+  const fieldStyle = {
+    width: '100%', boxSizing: 'border-box', padding: '13px 15px',
+    background: C.cream, border: `1px solid ${C.border}`, borderRadius: '10px',
+    fontSize: '14px', color: C.ink, outline: 'none', fontFamily: 'var(--font-sans)',
+    transition: 'border-color 0.2s ease',
+  };
+  const onFieldFocus = (e) => { e.target.style.borderColor = C.maroon; };
+  const onFieldBlur = (e) => { e.target.style.borderColor = C.border; };
+  const labelStyle = { fontSize: '12px', fontWeight: 700, color: C.ink, opacity: 0.75, display: 'block', marginBottom: '6px' };
   const locked = hasResponded && !allowGuestEdits;
 
   const [guestName, setGuestName] = useState(guestRsvp?.guest_name || '');
@@ -167,6 +168,24 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                 <input placeholder={isRTL ? 'الاسم الكامل' : 'Full name'} value={additionalGuests[i]?.fullName || ''} onChange={(e) => updateAdditionalGuest(i, { fullName: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                 <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => updateAdditionalGuest(i, { email: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                 <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => updateAdditionalGuest(i, { phone: v })} />
+                {mealOptions && mealOptions.length > 0 && (
+                  <div>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.ink, opacity: 0.7 }}>{isRTL ? 'الوجبة الرئيسية' : 'Main'}</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '6px' }}>
+                      {mealOptions.map((opt) => (
+                        <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: C.ink, cursor: 'pointer' }}>
+                          <input type="radio" name={`ha-meal-${i}`} checked={additionalGuests[i]?.mealSelection === opt} onChange={() => updateAdditionalGuest(i, { mealSelection: opt })} />
+                          {opt}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <input
+                  placeholder={isRTL ? 'حساسية أو قيود غذائية (اختياري)' : 'Allergies / dietary notes (optional)'}
+                  value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })}
+                  style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}
+                />
               </div>
             ))}
 

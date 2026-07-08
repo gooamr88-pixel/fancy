@@ -2,10 +2,11 @@
 
 import React from 'react';
 import { CountdownDigit } from '../../../guest/GuestAnimations';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
 
 export default function CountdownSection({ timeLeft, isRTL }) {
+  const C = useFullPageTheme();
   const units = [
     { key: 'days', value: timeLeft.days, label: isRTL ? 'أيام' : 'Days' },
     { key: 'hours', value: timeLeft.hours, label: isRTL ? 'ساعات' : 'Hours' },

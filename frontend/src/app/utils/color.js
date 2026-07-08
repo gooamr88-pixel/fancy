@@ -33,3 +33,20 @@ export function mix(hexA, hexB, t) {
   const a = hexToRgb(hexA), b = hexToRgb(hexB);
   return rgbToHex(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t);
 }
+
+/** Return an `rgba(...)` string for a hex color at opacity `a` (0..1). */
+export function alpha(hex, a) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+/** Perceived relative luminance in [0, 1] (Rec. 601 weighting). */
+export function luminance(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+/** True when a background color is dark enough to need light-on-dark text. */
+export function isDark(hex) {
+  return luminance(hex) < 0.5;
+}

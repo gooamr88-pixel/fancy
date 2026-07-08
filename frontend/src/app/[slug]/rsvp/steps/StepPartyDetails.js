@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FadeInUp, StaggerChildren, StaggerItem } from '../../../components/guest/GuestAnimations';
 import { PremiumButton, PartySizeStepper, FormField, inputFocus, inputBlur } from '../../../components/guest/GuestUI';
 import { S } from '../styles';
+import { RsvpSectionHeading, RsvpDivider } from '../components';
+import { darken } from '../../../utils/color';
 import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
 import PhoneNumberInput from '../../../components/PhoneNumberInput';
 import { BoltIcon, CalendarIcon, PlaneIcon, ClipboardIcon, HeartPulseIcon, DotsIcon, ClockIcon, EnvelopeIcon, PeopleIcon } from '../../../components/guest/RsvpIcons';
@@ -33,6 +35,7 @@ export default function StepPartyDetails({
   guestName, setGuestName,
   side, setSide, showSidePicker, isWedding,
   smsConsent, setSmsConsent,
+  themeColor = '#B8944F', secondaryColor = '#D7BE80',
 }) {
   // NOTE: organizer-authored meal options have no Arabic-translation mechanism
   // today (custom_form_fields has no options_ar column) — always show the
@@ -46,8 +49,8 @@ export default function StepPartyDetails({
           position: 'relative',
           padding: '1.5px',
           borderRadius: '18px',
-          background: 'linear-gradient(135deg, #E7D4A8 0%, #B8944F 50%, #D7BE80 100%)',
-          boxShadow: '0 18px 40px -16px rgba(110,74,34,0.32)',
+          background: `linear-gradient(135deg, ${secondaryColor} 0%, ${themeColor} 50%, ${secondaryColor} 100%)`,
+          boxShadow: `0 18px 40px -16px ${themeColor}52`,
         }}>
           <div style={{
             background: 'linear-gradient(180deg, #FFFCF6 0%, #F8F4EC 100%)',
@@ -62,15 +65,12 @@ export default function StepPartyDetails({
                 <span aria-hidden style={{
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                   width: '36px', height: '36px', borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #D7BE80, #B8944F)',
+                  background: `linear-gradient(135deg, ${secondaryColor}, ${themeColor})`,
                   color: '#FFFFFF', fontSize: '18px', flexShrink: 0,
-                  boxShadow: '0 6px 14px rgba(184,148,79,0.45)',
+                  boxShadow: `0 6px 14px ${themeColor}73`,
                 }}>♛</span>
                 <div>
-                  <span style={{
-                    fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.18em',
-                    color: '#8A6D34', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)',
-                  }}>{t.host_badge}</span>
+                  <span style={{ ...S.eyebrow, color: darken(themeColor, 0.15), display: 'block' }}>{t.host_badge}</span>
                   <strong style={{
                     fontSize: '17px', color: '#191B1E', display: 'block',
                     fontFamily: 'var(--font-serif)', fontWeight: 600, lineHeight: 1.2,
@@ -79,7 +79,7 @@ export default function StepPartyDetails({
               </div>
               <span style={{
                 fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '999px',
-                background: 'rgba(184,148,79,0.14)', color: '#8A6D34', whiteSpace: 'nowrap',
+                background: `${themeColor}24`, color: darken(themeColor, 0.15), whiteSpace: 'nowrap',
                 fontFamily: 'var(--font-sans)',
               }}>{t.host_section_title}</span>
             </div>
@@ -154,8 +154,8 @@ export default function StepPartyDetails({
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: '10px',
                 padding: '12px 14px', borderRadius: '12px',
-                background: validationErrors.smsConsent ? 'rgba(239,68,68,0.05)' : 'rgba(184,148,79,0.05)',
-                border: `1px solid ${validationErrors.smsConsent ? '#ef4444' : 'rgba(184,148,79,0.25)'}`,
+                background: validationErrors.smsConsent ? 'rgba(239,68,68,0.05)' : `${themeColor}0D`,
+                border: `1px solid ${validationErrors.smsConsent ? '#ef4444' : `${themeColor}40`}`,
                 transition: 'all 0.2s ease',
               }}>
                 <input
@@ -168,22 +168,22 @@ export default function StepPartyDetails({
                       setValidationErrors(prev => { const n = { ...prev }; delete n.smsConsent; return n; });
                     }
                   }}
-                  style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: '#B8944F', cursor: 'pointer', flexShrink: 0 }}
+                  style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: themeColor, cursor: 'pointer', flexShrink: 0 }}
                 />
                 <label htmlFor="sms-consent-checkbox" style={{ fontSize: '12px', color: '#5E5A52', lineHeight: 1.6, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {isRTL ? (
                     <>
                       أوافق على تلقي رسائل نصية (SMS) بخصوص هذه الفعالية من Fancy RSVP. يختلف عدد الرسائل حسب الفعالية، وقد تُطبّق رسوم الرسائل والبيانات من مشغّل شبكتك. أرسل STOP لإلغاء الاشتراك في أي وقت. راجع{' '}
-                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#B8944F', fontWeight: 600, textDecoration: 'underline' }}>سياسة الخصوصية</a>
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: themeColor, fontWeight: 600, textDecoration: 'underline' }}>سياسة الخصوصية</a>
                       {' '}و{' '}
-                      <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#B8944F', fontWeight: 600, textDecoration: 'underline' }}>شروط الخدمة</a>.
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: themeColor, fontWeight: 600, textDecoration: 'underline' }}>شروط الخدمة</a>.
                     </>
                   ) : (
                     <>
                       I agree to receive text messages about this event from Fancy RSVP. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out at any time. See our{' '}
-                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#B8944F', fontWeight: 600, textDecoration: 'underline' }}>Privacy Policy</a>
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: themeColor, fontWeight: 600, textDecoration: 'underline' }}>Privacy Policy</a>
                       {' '}and{' '}
-                      <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#B8944F', fontWeight: 600, textDecoration: 'underline' }}>Terms of Service</a>.
+                      <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: themeColor, fontWeight: 600, textDecoration: 'underline' }}>Terms of Service</a>.
                     </>
                   )}
                 </label>
@@ -248,10 +248,10 @@ export default function StepPartyDetails({
             }}>
               <ClockIcon size={30} strokeWidth={1.5} />
             </motion.span>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E', lineHeight: 1.4 }}>
+            <RsvpSectionHeading kicker={isRTL ? 'المتابعة' : 'FOLLOW-UP'} themeColor={themeColor} isRTL={isRTL} align="center">
               {isRTL ? 'متى يمكننا توقع تأكيدك؟' : 'When can we expect your confirmation?'}
-            </h3>
-            <p style={{ fontSize: '13px', color: '#77736A', marginTop: '6px' }}>
+            </RsvpSectionHeading>
+            <p style={{ fontSize: '13px', color: '#77736A', marginTop: '10px' }}>
               {isRTL ? 'حتى نتمكن من المتابعة معك' : "So we can follow up with you at the right time"}
             </p>
           </div>
@@ -305,10 +305,13 @@ export default function StepPartyDetails({
         {maybeFollowUp && renderHostDetailsCard(false)}
 
         {(onBack || onContinue) && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-            {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
-            {onContinue && <PremiumButton disabled={!maybeFollowUp} onClick={onContinue}>{t.continue}</PremiumButton>}
-          </div>
+          <>
+            <RsvpDivider themeColor={themeColor} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px' }}>
+              {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
+              {onContinue && <PremiumButton disabled={!maybeFollowUp} onClick={onContinue} accentColor={themeColor}>{t.continue}</PremiumButton>}
+            </div>
+          </>
         )}
       </div>
     );
@@ -327,10 +330,10 @@ export default function StepPartyDetails({
             }}>
               <EnvelopeIcon size={30} strokeWidth={1.5} />
             </motion.span>
-            <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E', lineHeight: 1.4 }}>
+            <RsvpSectionHeading kicker={isRTL ? 'ردّكم' : 'YOUR RESPONSE'} themeColor={themeColor} isRTL={isRTL} align="center">
               {isRTL ? 'نتفهم ذلك ونتمنى لك كل الخير' : 'We understand and wish you well'}
-            </h3>
-            <p style={{ fontSize: '13px', color: '#77736A', marginTop: '6px', lineHeight: 1.6 }}>
+            </RsvpSectionHeading>
+            <p style={{ fontSize: '13px', color: '#77736A', marginTop: '10px', lineHeight: 1.6 }}>
               {isRTL ? 'لو تكرمت بإخبارنا بالسبب (اختياري)' : 'Would you mind sharing the reason? (optional)'}
             </p>
           </div>
@@ -379,10 +382,13 @@ export default function StepPartyDetails({
         {declineReason && renderHostDetailsCard(false)}
 
         {(onBack || onContinue) && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-            {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
-            {onContinue && <PremiumButton onClick={onContinue}>{t.continue}</PremiumButton>}
-          </div>
+          <>
+            <RsvpDivider themeColor={themeColor} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px' }}>
+              {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
+              {onContinue && <PremiumButton onClick={onContinue} accentColor={themeColor}>{t.continue}</PremiumButton>}
+            </div>
+          </>
         )}
       </div>
     );
@@ -402,7 +408,9 @@ export default function StepPartyDetails({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <FadeInUp y={15}>
-        <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 500, color: '#191B1E' }}>{mealField ? t.party_details : (isRTL ? 'تفاصيل المجموعة' : 'Party Details')}</h3>
+        <RsvpSectionHeading kicker={isRTL ? 'التفاصيل' : 'PARTY & CONTACT DETAILS'} themeColor={themeColor} isRTL={isRTL}>
+          {mealField ? t.party_details : (isRTL ? 'تفاصيل المجموعة' : 'Party Details')}
+        </RsvpSectionHeading>
       </FadeInUp>
 
       <FadeInUp delay={0.1} y={15}>
@@ -418,7 +426,7 @@ export default function StepPartyDetails({
             display: 'flex', alignItems: 'center', gap: '10px',
             paddingTop: '8px',
           }}>
-            <span aria-hidden style={{ display: 'flex', color: '#8A6D34' }}><PeopleIcon size={19} strokeWidth={1.5} /></span>
+            <span aria-hidden style={{ display: 'flex', color: themeColor }}><PeopleIcon size={19} strokeWidth={1.5} /></span>
             <div>
               <h4 style={{
                 margin: 0, fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E',
@@ -460,7 +468,7 @@ export default function StepPartyDetails({
                   <span aria-hidden style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                     width: '30px', height: '30px', borderRadius: '50%',
-                    background: '#F0ECE3', color: '#8A6D34',
+                    background: `${themeColor}14`, color: darken(themeColor, 0.1),
                     fontSize: '13px', fontWeight: 700, flexShrink: 0,
                     fontFamily: 'var(--font-sans)',
                   }}>{index + 2}</span>
@@ -562,10 +570,13 @@ export default function StepPartyDetails({
       </AnimatePresence>
 
       {(onBack || onContinue) && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #F0ECE3', paddingTop: '16px' }}>
-          {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
-          {onContinue && <PremiumButton testId="rsvp-next" onClick={onContinue}>{t.continue}</PremiumButton>}
-        </div>
+        <>
+          <RsvpDivider themeColor={themeColor} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '4px' }}>
+            {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
+            {onContinue && <PremiumButton testId="rsvp-next" onClick={onContinue} accentColor={themeColor}>{t.continue}</PremiumButton>}
+          </div>
+        </>
       )}
 
       <style jsx>{`

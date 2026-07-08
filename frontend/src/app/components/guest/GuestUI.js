@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfettiExplosion } from './GuestAnimations';
-import { lighten } from '../../utils/color';
+import { lighten, darken } from '../../utils/color';
 import { useModalA11y } from '../../hooks/useModalA11y';
 import { CelebrateIcon, ClockIcon, EnvelopeIcon, CalendarIcon, CheckIcon, LinkIcon } from './RsvpIcons';
 
@@ -44,15 +44,26 @@ export function GlassmorphismCard({
 // ─── PremiumButton ───
 export function PremiumButton({
   children, onClick, disabled = false, variant = 'gold', size = 'md', fullWidth = false,
-  style = {}, icon, loading = false, testId,
+  style = {}, icon, loading = false, testId, accentColor,
 }) {
   const variants = {
-    gold: {
-      // DES-1: contrast-safe CTA gold (white text = 4.86:1, passes AA).
-      bg: '#8A6D34', hoverBg: '#765C2B', color: '#FFFFFF',
-      shadow: '0 8px 25px rgba(184, 148, 79, 0.3)',
-      glow: '0 0 30px rgba(184, 148, 79, 0.2)',
-    },
+    gold: accentColor
+      // When the caller passes the event's own theme color, override the
+      // otherwise-fixed gold CTA fill so this button (the actual RSVP submit/
+      // continue action) isn't permanently gold for every non-gold event.
+      // Darkened for contrast the same way the fixed gold value was chosen
+      // (DES-1: white text must stay AA-safe against the fill).
+      ? {
+          bg: darken(accentColor, 0.15), hoverBg: darken(accentColor, 0.3), color: '#FFFFFF',
+          shadow: `0 8px 25px ${accentColor}4D`,
+          glow: `0 0 30px ${accentColor}33`,
+        }
+      : {
+          // DES-1: contrast-safe CTA gold (white text = 4.86:1, passes AA).
+          bg: '#8A6D34', hoverBg: '#765C2B', color: '#FFFFFF',
+          shadow: '0 8px 25px rgba(184, 148, 79, 0.3)',
+          glow: '0 0 30px rgba(184, 148, 79, 0.2)',
+        },
     dark: {
       bg: '#191B1E', hoverBg: '#2a2d32', color: '#D7BE80',
       shadow: '0 8px 25px rgba(25, 27, 30, 0.3)',
@@ -778,9 +789,9 @@ export const inputStyle = {
   transition: 'border-color 0.25s ease, box-shadow 0.25s ease',
 };
 
-export const inputFocus = (e) => {
-  e.target.style.borderColor = '#B8944F';
-  e.target.style.boxShadow = '0 0 0 3px rgba(184, 148, 79, 0.1)';
+export const inputFocus = (e, accentColor = '#B8944F') => {
+  e.target.style.borderColor = accentColor;
+  e.target.style.boxShadow = `0 0 0 3px ${accentColor}1A`;
 };
 
 export const inputBlur = (e, hasError) => {

@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { HERITAGE_ARCH_COLORS as C } from '../defaultContent';
+import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
 
 export default function FaqSection({ items, isRTL }) {
+  const C = useFullPageTheme();
   const [openIndex, setOpenIndex] = useState(null);
 
   return (
