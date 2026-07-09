@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from './theme';
-import { LangPill, MusicToggle, DotNav, ScrollToRsvpHint } from './shared';
+import { LangPill, MusicToggle, ScrollToRsvpHint } from './shared';
 
 /* Full-viewport, scroll-snapped page shell: one 100dvh section per screen,
    a side dot-nav tracking which section is in view, a top-corner language
@@ -54,19 +54,18 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
     return () => { observer.disconnect(); clearTimeout(failsafe); };
   }, [sections.length]);
 
-  const scrollToIndex = (i) => {
-    const container = containerRef.current;
-    const el = container?.querySelectorAll('[data-ha-section]')[i];
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
     <div
       ref={containerRef}
       dir={isRTL ? 'rtl' : 'ltr'}
       style={{
+        // Free, natural scrolling. The page previously used `scroll-snap: y
+        // mandatory` + `scroll-snap-stop: always`, which forced every swipe to
+        // halt on a section boundary — that's what made scrolling feel slow and
+        // sticky. `scroll-behavior: smooth` is kept only so the "scroll to RSVP"
+        // hint glides rather than jumps.
         height: '100dvh', overflowY: 'auto', overflowX: 'hidden',
-        scrollSnapType: 'y mandatory', scrollBehavior: 'smooth',
+        scrollBehavior: 'smooth',
         position: 'relative', background: C.background,
         fontFamily: 'var(--font-sans)',
       }}
@@ -78,7 +77,7 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
             key={s.id}
             id={s.id}
             data-ha-section
-            style={{ minHeight: '100dvh', scrollSnapAlign: 'start', scrollSnapStop: 'always', position: 'relative' }}
+            style={{ minHeight: '100dvh', position: 'relative' }}
           >
             <div
               style={{
@@ -86,7 +85,6 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
                 opacity: show ? 1 : 0,
                 transform: show ? 'none' : 'translateY(22px)',
                 transition: reduceMotion ? undefined : 'opacity 0.55s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-                willChange: reduceMotion ? undefined : 'opacity, transform',
               }}
             >
               {s.content}
@@ -99,7 +97,6 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
           down and hides once they reach the RSVP section (the last one). */}
       {activeIndex < sections.length - 1 && <ScrollToRsvpHint fixed isRTL={isRTL} />}
 
-      <DotNav count={sections.length} active={activeIndex} onSelect={scrollToIndex} isRTL={isRTL} />
       <LangPill lang={lang} setLang={setLang} isRTL={isRTL} />
       {hasBackgroundMusic && <MusicToggle playing={musicPlaying} onToggle={toggleMusic} isRTL={isRTL} />}
     </div>

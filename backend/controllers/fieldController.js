@@ -87,7 +87,7 @@ const getFields = async (req, res, next) => {
  */
 const saveField = async (req, res, next) => {
   const { eventId } = req.params;
-  const { fieldKey, fieldLabel, fieldType, options, isRequired, sortOrder, scope, isMealField } = req.body;
+  const { fieldKey, fieldLabel, fieldType, options, isRequired, sortOrder, scope, isMealField, condition } = req.body;
 
   if (!fieldKey || !fieldLabel || !fieldType) {
     return res.status(400).json({
@@ -125,6 +125,11 @@ const saveField = async (req, res, next) => {
   // questions (e.g. meal) — see custom_form_fields.scope (Phase 1 migration).
   const fieldScope = ['party', 'guest'].includes(scope) ? scope : 'party';
 
+  // condition controls when the guest is asked: 'always' (every response) vs
+  // 'attending' (only when they RSVP yes). Default 'attending' preserves the
+  // historical behavior for any client that doesn't send it.
+  const fieldCondition = ['always', 'attending'].includes(condition) ? condition : 'attending';
+
   // is_meal_field is the single source of truth submit_rsvp_v2 reads to find
   // "the" meal picker (see 20260714000000_guest_side_tagging.sql) — force the
   // key/type the guest wizard's dedicated meal UI expects rather than trusting
@@ -161,6 +166,7 @@ const saveField = async (req, res, next) => {
         is_required: !!isRequired,
         sort_order: parseInt(sortOrder) || 0,
         scope: fieldScope,
+        condition: fieldCondition,
         is_meal_field: fieldIsMeal
       })
       .select()
@@ -196,7 +202,7 @@ const saveField = async (req, res, next) => {
  */
 const updateField = async (req, res, next) => {
   const { eventId, fieldId } = req.params;
-  const { fieldLabel, fieldType, options, isRequired, sortOrder, scope } = req.body;
+  const { fieldLabel, fieldType, options, isRequired, sortOrder, scope, condition } = req.body;
 
   if (fieldLabel !== undefined && String(fieldLabel).length > MAX_LABEL_LENGTH) {
     return res.status(400).json({
@@ -217,6 +223,12 @@ const updateField = async (req, res, next) => {
       return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: "scope must be 'party' or 'guest'." });
     }
     updates.scope = scope;
+  }
+  if (condition !== undefined) {
+    if (!['always', 'attending'].includes(condition)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: "condition must be 'always' or 'attending'." });
+    }
+    updates.condition = condition;
   }
   if (fieldType !== undefined) {
     if (!ALLOWED_FIELD_TYPES.includes(fieldType)) {

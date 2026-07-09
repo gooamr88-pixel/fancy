@@ -886,27 +886,19 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <textarea value={templateData.ha_our_story} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_our_story: e.target.value }))} placeholder="Tell your story…" rows={4} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
 
-            <div className="es-row" style={rowStyle}>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Meal Options</label>
-                <TagListEditor
-                  value={templateData.ha_meal_options}
-                  onChange={(arr) => setTemplateData(prev => ({ ...prev, ha_meal_options: arr }))}
-                  placeholder="e.g. Beef, Fish, Vegetarian — Enter to add"
-                />
-                <span style={hintStyle}>Guests pick one when they RSVP — add as many as you like</span>
-              </div>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle} htmlFor="es-ha-invited-to">&quot;You&apos;re Invited To&quot; City</label>
-                <PlacesAutocomplete
-                  id="es-ha-invited-to"
-                  value={templateData.ha_invited_to_city}
-                  onChange={(val) => setTemplateData(prev => ({ ...prev, ha_invited_to_city: val }))}
-                  onPlaceSelect={onHaInvitedToPlaceSelect}
-                  placeholder="Miami"
-                />
-                <span style={hintStyle}>Search and pick a city — its map pin uses this location, not Day 1&apos;s venue</span>
-              </div>
+            {/* Meal options moved to the single "🍽 Add Meal Options" source in
+                Custom RSVP Questions — the duplicate ha_meal_options input was
+                removed here to match the create-event wizard. */}
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle} htmlFor="es-ha-invited-to">&quot;You&apos;re Invited To&quot; City</label>
+              <PlacesAutocomplete
+                id="es-ha-invited-to"
+                value={templateData.ha_invited_to_city}
+                onChange={(val) => setTemplateData(prev => ({ ...prev, ha_invited_to_city: val }))}
+                onPlaceSelect={onHaInvitedToPlaceSelect}
+                placeholder="Miami"
+              />
+              <span style={hintStyle}>Search and pick a city — its map pin uses this location, not Day 1&apos;s venue</span>
             </div>
 
             <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>

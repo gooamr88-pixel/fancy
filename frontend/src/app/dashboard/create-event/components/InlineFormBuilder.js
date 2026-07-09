@@ -59,7 +59,9 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
   const [type, setType] = useState('text');
   const [optionsStr, setOptionsStr] = useState('');
   const [isRequired, setIsRequired] = useState(false);
-  const [condition, setCondition] = useState('always');
+  // Default 'attending' matches the historical effective behavior (questions were
+  // only ever shown when the guest RSVP'd yes); the organizer opts into 'always'.
+  const [condition, setCondition] = useState('attending');
   // True when the open form is the dedicated meal-options shortcut — locks the field
   // key/type so the guest RSVP wizard's findMealField() picks it up automatically.
   const [isMealField, setIsMealField] = useState(false);
@@ -83,7 +85,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
   const resetForm = () => {
     setLabel(''); setKey(''); setType('text');
     setOptionsStr(''); setIsRequired(false);
-    setCondition('always'); setShowForm(false);
+    setCondition('attending'); setShowForm(false);
     setEditingId(null); setIsMealField(false);
   };
 
@@ -94,7 +96,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
     setType(f.type || 'text');
     setOptionsStr(Array.isArray(f.options) ? f.options.join(', ') : '');
     setIsRequired(!!f.isRequired);
-    setCondition(f.condition || 'always');
+    setCondition(f.condition || 'attending');
     // Trust the explicit flag carried on the field object (set by handleSave
     // below, or hydrated from the server's is_meal_field column) — only fall
     // back to the key/type guess for field objects that predate this flag

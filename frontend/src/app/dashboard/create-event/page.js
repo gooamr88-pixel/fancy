@@ -542,6 +542,7 @@ export default function CreateEventWizard() {
               isRequired: !!f.is_required,
               sortOrder: f.sort_order ?? 0,
               isMealField: !!f.is_meal_field,
+              condition: f.condition || 'attending',
               savedToServer: true,
             }));
             setCustomFields(hydratedFields);
@@ -1492,6 +1493,7 @@ export default function CreateEventWizard() {
               // the real meal field instead of getting the builder's
               // "reserved key" rejection.
               isMealField: !!field.isMealField,
+              condition: field.condition || 'attending',
             }),
           }).then((res) => {
             if (!res.ok) failedLabels.push(field.label);
@@ -1510,6 +1512,7 @@ export default function CreateEventWizard() {
               fieldType: field.type,
               options: field.options || [],
               isRequired: field.isRequired,
+              condition: field.condition || 'attending',
             }),
           }).then((res) => {
             if (!res.ok) failedLabels.push(field.label);

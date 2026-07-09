@@ -7,7 +7,6 @@ import InlineFormBuilder from './InlineFormBuilder';
 import { DressCodeVisualizer } from '../../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../../utils/youtube';
 import RepeatableListEditor from '../../components/RepeatableListEditor';
-import TagListEditor from '../../components/TagListEditor';
 import ImageUploadField from '../../components/ImageUploadField';
 
 const C = {
@@ -429,14 +428,11 @@ export default function Stage2_FormConfiguration({
                     rows={3} placeholder="Tell your story…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Meal Options" hint="Guests pick one when they RSVP — add as many as you like">
-                    <TagListEditor
-                      value={templateData.ha_meal_options}
-                      onChange={(arr) => setTd('ha_meal_options')(arr)}
-                      placeholder="e.g. Beef, Fish, Vegetarian — Enter to add"
-                    />
-                  </Field>
+                {/* Meal options are configured once via the "🍽 Add Meal Options"
+                    shortcut in Custom RSVP Questions (the single source of truth the
+                    guest RSVP + backend read) — the old duplicate ha_meal_options
+                    input was removed from here to end the two-places confusion. */}
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
                   <Field label={'"You\'re Invited To" City'} htmlFor="s2-ha-invited-to" hint="Search and pick a city — its map pin uses this location, not Day 1's venue">
                     <PlacesAutocomplete
                       id="s2-ha-invited-to"

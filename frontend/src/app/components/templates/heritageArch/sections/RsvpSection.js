@@ -9,10 +9,11 @@ import { useIdempotentRsvpSubmit } from '../../../guest/rsvp/useIdempotentRsvpSu
 import { getCelebrationPreset } from '../../../../utils/patternCelebration';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading } from '../shared';
+import { findMealField } from '../../../../utils/mealField';
 
 const ALLERGY_OPTIONS = ['Gluten-free / Celiac', 'Lactose-free', 'Nut allergy', 'Seafood'];
 
-export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions, isRTL, trackEvent }) {
+export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions: mealOptionsProp, isRTL, trackEvent }) {
   const C = useFullPageTheme();
   // Defined inside the component so they read the themed palette (C).
   const fieldStyle = {
@@ -22,9 +23,32 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     transition: 'border-color 0.2s ease',
   };
   const onFieldFocus = (e) => { e.target.style.borderColor = C.maroon; };
-  const onFieldBlur = (e) => { e.target.style.borderColor = C.border; };
+  const onFieldBlur = (e, invalid) => { e.target.style.borderColor = invalid ? '#C45E5E' : C.border; };
   const labelStyle = { fontSize: '12px', fontWeight: 700, color: C.ink, opacity: 0.75, display: 'block', marginBottom: '6px' };
   const locked = hasResponded && !allowGuestEdits;
+
+  // ── Form Builder integration ──────────────────────────────────────────────
+  // This inline RSVP previously rendered a fixed field set and ignored the
+  // organizer's custom_form_fields entirely (custom questions never appeared and
+  // customAnswers submitted as []). Wire them in: the dedicated meal picker
+  // prefers the builder's flagged meal field — falling back to the template's
+  // ha_meal_options (mealOptionsProp) only when none is configured — and every
+  // other custom question is rendered + submitted below. Mirrors the standard
+  // RsvpWizard/StepCustomQuestions path so both RSVP surfaces behave the same.
+  const allCustomFields = event?.custom_form_fields || [];
+  const mealField = findMealField(allCustomFields);
+  const mealOptions = (mealField?.options && mealField.options.length > 0) ? mealField.options : mealOptionsProp;
+  const customQuestions = mealField ? allCustomFields.filter((f) => f.id !== mealField.id) : allCustomFields;
+  // scope==='guest' questions are asked once per person — of the primary guest
+  // (in "A few more details" below) AND of every companion in their own block —
+  // matching submit_rsvp_v2, which stores/validates them per guest_id.
+  const guestScopedQuestions = customQuestions.filter((f) => f.scope === 'guest');
+  // 'always' questions are asked of the primary guest for EVERY response (rendered
+  // outside the "attending only" block); 'attending' questions only when they RSVP
+  // yes. Companions exist only when attending, so their guest-scoped block is
+  // unaffected. Matches submit_rsvp_v2, which stores/validates by condition.
+  const alwaysQuestions = customQuestions.filter((f) => f.condition === 'always');
+  const attendingQuestions = customQuestions.filter((f) => f.condition !== 'always');
 
   const [guestName, setGuestName] = useState(guestRsvp?.guest_name || '');
   const [phone, setPhone] = useState(guestRsvp?.phone || '');
@@ -40,6 +64,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const [smsConsent, setSmsConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
+  const [customAnswers, setCustomAnswers] = useState({});
 
   const { submit, submitting } = useIdempotentRsvpSubmit({
     onSuccess: () => setSubmitted(true),
@@ -63,6 +88,135 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     setAdditionalGuests((prev) => prev.slice(0, Math.max(0, v - 1)));
   };
 
+  const setCustomAnswer = (fieldId, value) => {
+    setCustomAnswers((prev) => ({ ...prev, [fieldId]: value }));
+    setErrors((prev) => { const n = { ...prev }; delete n[`field_${fieldId}`]; return n; });
+  };
+  // Multiselect answers are stored as a comma-joined string — the exact shape
+  // custom_form_fields rejects commas inside options for (fieldController.js) and
+  // that submit_rsvp_v2 reads back, so the guest's selections round-trip cleanly.
+  const toggleCustomMulti = (fieldId, opt) => {
+    setCustomAnswers((prev) => {
+      const cur = (prev[fieldId] || '').split(',').map((s) => s.trim()).filter(Boolean);
+      const i = cur.indexOf(opt);
+      if (i >= 0) cur.splice(i, 1); else cur.push(opt);
+      return { ...prev, [fieldId]: cur.join(', ') };
+    });
+    setErrors((prev) => { const n = { ...prev }; delete n[`field_${fieldId}`]; return n; });
+  };
+
+  const clearError = (key) => setErrors((prev) => { if (!prev[key]) return prev; const n = { ...prev }; delete n[key]; return n; });
+
+  const setCompanionCustomAnswer = (gIdx, fieldId, value) => {
+    setAdditionalGuests((prev) => {
+      const copy = [...prev];
+      copy[gIdx] = { ...(copy[gIdx] || {}), customAnswers: { ...((copy[gIdx] || {}).customAnswers || {}), [fieldId]: value } };
+      return copy;
+    });
+    setErrors((prev) => { const k = `companion_${gIdx}_field_${fieldId}`; if (!prev[k]) return prev; const n = { ...prev }; delete n[k]; return n; });
+  };
+  const toggleCompanionCustomMulti = (gIdx, fieldId, opt) => {
+    setAdditionalGuests((prev) => {
+      const copy = [...prev];
+      const cur = (((copy[gIdx] || {}).customAnswers || {})[fieldId] || '').split(',').map((s) => s.trim()).filter(Boolean);
+      const idx = cur.indexOf(opt);
+      if (idx >= 0) cur.splice(idx, 1); else cur.push(opt);
+      copy[gIdx] = { ...(copy[gIdx] || {}), customAnswers: { ...((copy[gIdx] || {}).customAnswers || {}), [fieldId]: cur.join(', ') } };
+      return copy;
+    });
+    setErrors((prev) => { const k = `companion_${gIdx}_field_${fieldId}`; if (!prev[k]) return prev; const n = { ...prev }; delete n[k]; return n; });
+  };
+
+  const CUSTOM_INPUT_TYPE = { email: 'email', phone: 'tel', url: 'url', number: 'number', date: 'date' };
+  const optionRowStyle = { display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: C.ink, cursor: 'pointer', minHeight: '44px' };
+  const errorTextStyle = { display: 'block', marginTop: '6px', fontSize: '12px', color: '#C45E5E', fontWeight: 600 };
+  // The shared "pill" the whole form speaks in — every selectable choice (attend
+  // yes/no, meal, custom radio/multiselect) renders as the same rounded chip with
+  // a 44px minimum tap target, so the surface reads as one cohesive system on
+  // mobile and desktop alike.
+  const pillStyle = (selected, { size = 'md', full = false } = {}) => ({
+    padding: size === 'sm' ? '9px 15px' : '11px 18px',
+    minHeight: '44px', boxSizing: 'border-box',
+    borderRadius: full ? '14px' : '999px', cursor: 'pointer',
+    fontFamily: 'var(--font-sans)', fontSize: size === 'sm' ? '13px' : '14px', fontWeight: 600,
+    border: selected ? `1.5px solid ${C.maroon}` : `1px solid ${C.border}`,
+    background: selected ? C.maroon : C.cream,
+    color: selected ? '#FFFDF8' : C.ink,
+    transition: 'all 0.18s ease',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+  });
+  // Reusable across the primary guest and every companion — the caller supplies
+  // the current value, the setters, and the invalid flag so the same premium
+  // controls drive both `customAnswers` (primary) and each companion's own
+  // `customAnswers` bucket.
+  const renderCustomControl = (field, { value, onSet, onToggle, invalid }) => {
+    const type = field.field_type;
+    const inputStyle = invalid ? { ...fieldStyle, borderColor: '#C45E5E' } : fieldStyle;
+    if (['text', 'email', 'phone', 'url', 'number', 'date'].includes(type)) {
+      return <input type={CUSTOM_INPUT_TYPE[type] || 'text'} value={value} aria-invalid={invalid} onChange={(e) => onSet(e.target.value)} style={inputStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, invalid)} />;
+    }
+    if (type === 'textarea') {
+      return <textarea rows={3} value={value} aria-invalid={invalid} onChange={(e) => onSet(e.target.value)} style={{ ...inputStyle, resize: 'vertical' }} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, invalid)} />;
+    }
+    if (type === 'select') {
+      return (
+        <select value={value} aria-invalid={invalid} onChange={(e) => onSet(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, invalid)}>
+          <option value="">{isRTL ? 'اختر...' : 'Select...'}</option>
+          {(field.options || []).map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
+        </select>
+      );
+    }
+    if (type === 'radio') {
+      return (
+        <div role="radiogroup" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+          {(field.options || []).map((opt, i) => (
+            <button type="button" key={i} role="radio" aria-checked={value === opt} onClick={() => onSet(opt)} style={pillStyle(value === opt, { size: 'sm' })}>
+              {opt}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    if (type === 'multiselect') {
+      const chosen = value.split(',').map((s) => s.trim()).filter(Boolean);
+      return (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+          {(field.options || []).map((opt, i) => {
+            const on = chosen.includes(opt);
+            return (
+              <button type="button" key={i} aria-pressed={on} onClick={() => onToggle(opt)} style={pillStyle(on, { size: 'sm' })}>
+                {on ? '✓ ' : ''}{opt}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+    if (type === 'checkbox') {
+      return (
+        <label style={optionRowStyle}>
+          <input type="checkbox" checked={value === 'Yes'} onChange={(e) => onSet(e.target.checked ? 'Yes' : '')} />
+          {isRTL ? 'نعم' : 'Yes'}
+        </label>
+      );
+    }
+    return null;
+  };
+
+  // Bind the reusable control to a specific answers bucket + error namespace.
+  const primaryControl = (field) => renderCustomControl(field, {
+    value: customAnswers[field.id] || '',
+    onSet: (v) => setCustomAnswer(field.id, v),
+    onToggle: (opt) => toggleCustomMulti(field.id, opt),
+    invalid: !!errors[`field_${field.id}`],
+  });
+  const companionControl = (gIdx, field) => renderCustomControl(field, {
+    value: (additionalGuests[gIdx]?.customAnswers || {})[field.id] || '',
+    onSet: (v) => setCompanionCustomAnswer(gIdx, field.id, v),
+    onToggle: (opt) => toggleCompanionCustomMulti(gIdx, field.id, opt),
+    invalid: !!errors[`companion_${gIdx}_field_${field.id}`],
+  });
+
   const validate = () => {
     const e = {};
     if (!guestName.trim()) e.guestName = true;
@@ -76,7 +230,24 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       for (let i = 0; i < partySize - 1; i++) {
         const g = additionalGuests[i];
         if (!g?.fullName?.trim() || !g?.email?.trim() || !g?.phone?.trim()) e.additionalGuests = true;
+        guestScopedQuestions.filter((f) => f.is_required).forEach((f) => {
+          const v = (g?.customAnswers || {})[f.id];
+          if (!v || !v.toString().trim()) e[`companion_${i}_field_${f.id}`] = true;
+        });
       }
+    }
+    // 'always'-condition required questions apply to every response.
+    alwaysQuestions.filter((f) => f.is_required).forEach((f) => {
+      const v = customAnswers[f.id];
+      if (!v || !v.toString().trim()) e[`field_${f.id}`] = true;
+    });
+    // Required meal + 'attending'-only required questions are asked of attendees.
+    if (attending === 'yes') {
+      if (mealField?.is_required && !meal.trim()) e.meal = true;
+      attendingQuestions.filter((f) => f.is_required).forEach((f) => {
+        const v = customAnswers[f.id];
+        if (!v || !v.toString().trim()) e[`field_${f.id}`] = true;
+      });
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -103,8 +274,15 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       notes,
       primaryGuestMeal: attending === 'yes' ? (meal || null) : null,
       primaryGuestDietaryNotes: attending === 'yes' ? dietaryNotes : null,
-      additionalGuests: attending === 'yes' ? additionalGuests.slice(0, partySize - 1) : [],
-      customAnswers: [],
+      additionalGuests: attending === 'yes'
+        ? additionalGuests.slice(0, partySize - 1).map((g) => ({ ...g, customAnswers: g.customAnswers || {} }))
+        : [],
+      // 'always' answers are sent for every response; 'attending' answers only
+      // when coming. The RPC re-checks condition, so stale attending answers left
+      // over from toggling yes→no are filtered out server-side regardless.
+      customAnswers: Object.keys(customAnswers)
+        .filter((fieldId) => attending === 'yes' || alwaysQuestions.some((f) => f.id === fieldId))
+        .map((fieldId) => ({ fieldId, value: customAnswers[fieldId] })),
       smsConsent,
     };
 
@@ -180,17 +358,28 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
         </FormField>
 
         <div>
-          <label style={labelStyle}>{isRTL ? 'هل ستحضر؟' : 'Will you attend?'} <span style={{ color: '#C45E5E' }}>*</span></label>
-          <div style={{ display: 'flex', gap: '24px', marginTop: '8px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: C.ink, cursor: 'pointer' }}>
-              <input type="radio" name="ha-attending" checked={attending === 'yes'} onChange={() => setAttending('yes')} />
-              {isRTL ? 'نعم، سأحضر' : 'Yes, I will attend'}
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: C.ink, cursor: 'pointer' }}>
-              <input type="radio" name="ha-attending" checked={attending === 'no'} onChange={() => setAttending('no')} />
-              {isRTL ? 'لا، أعتذر' : "No, I can't attend"}
-            </label>
+          <label id="ha-attending-label" style={labelStyle}>{isRTL ? 'هل ستحضر؟' : 'Will you attend?'} <span style={{ color: '#C45E5E' }}>*</span></label>
+          <div role="radiogroup" aria-labelledby="ha-attending-label" style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={attending === 'yes'}
+              onClick={() => { setAttending('yes'); clearError('attending'); }}
+              style={{ ...pillStyle(attending === 'yes', { full: true }), flex: 1 }}
+            >
+              ✓ {isRTL ? 'نعم، سأحضر' : "Yes, I'll be there"}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={attending === 'no'}
+              onClick={() => { setAttending('no'); clearError('attending'); }}
+              style={{ ...pillStyle(attending === 'no', { full: true }), flex: 1 }}
+            >
+              {isRTL ? 'لا، أعتذر' : "Can't make it"}
+            </button>
           </div>
+          {errors.attending && <span style={errorTextStyle}>{isRTL ? 'يرجى اختيار إجابة' : 'Please choose an answer'}</span>}
         </div>
 
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px', color: C.ink, opacity: 0.85, cursor: 'pointer' }}>
@@ -198,36 +387,43 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
           {isRTL ? 'أوافق على تلقي تحديثات عبر الرسائل النصية حول هذه الفعالية.' : 'I agree to receive SMS updates about this event.'}
         </label>
 
+        {/* "Always Show" custom questions — asked of the primary guest regardless
+            of the yes/no choice (companions, who exist only when attending, get
+            these in their own blocks below). */}
+        {alwaysQuestions.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '4px', paddingTop: '18px', borderTop: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.maroon, opacity: 0.9 }}>
+              {isRTL ? 'تفاصيل إضافية' : 'A few more details'}
+            </span>
+            {alwaysQuestions.map((field) => (
+              <FormField
+                key={field.id}
+                label={field.field_label}
+                required={field.is_required}
+                error={errors[`field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null}
+              >
+                {primaryControl(field)}
+              </FormField>
+            ))}
+          </div>
+        )}
+
         {attending === 'yes' && (
           <>
             {/* Meal choice — surfaced immediately after "Yes" (not buried below
                 party size / allergies) and rendered as clear selectable pills so
                 it's unmistakable. */}
             {mealOptions && mealOptions.length > 0 && (
-              <div style={{ padding: '16px', borderRadius: '14px', border: `1px solid ${C.maroon}33`, background: `${C.maroon}08` }}>
-                <label style={{ ...labelStyle, opacity: 1 }}>🍽 {isRTL ? 'اختر وجبتك' : 'Choose your meal'}</label>
+              <div style={{ padding: '16px', borderRadius: '14px', border: `1px solid ${errors.meal ? '#C45E5E' : `${C.maroon}33`}`, background: `${C.maroon}08` }}>
+                <label style={{ ...labelStyle, opacity: 1 }}>🍽 {isRTL ? 'اختر وجبتك' : 'Choose your meal'}{mealField?.is_required && <span style={{ color: '#C45E5E' }}> *</span>}</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px' }}>
-                  {mealOptions.map((opt) => {
-                    const selected = meal === opt;
-                    return (
-                      <button
-                        type="button"
-                        key={opt}
-                        onClick={() => setMeal(opt)}
-                        style={{
-                          padding: '10px 18px', borderRadius: '999px', cursor: 'pointer',
-                          fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600,
-                          border: selected ? `1.5px solid ${C.maroon}` : `1px solid ${C.border}`,
-                          background: selected ? C.maroon : C.cream,
-                          color: selected ? '#FFFDF8' : C.ink,
-                          transition: 'all 0.18s ease',
-                        }}
-                      >
-                        {opt}
-                      </button>
-                    );
-                  })}
+                  {mealOptions.map((opt) => (
+                    <button type="button" key={opt} aria-pressed={meal === opt} onClick={() => { setMeal(opt); clearError('meal'); }} style={pillStyle(meal === opt)}>
+                      {opt}
+                    </button>
+                  ))}
                 </div>
+                {errors.meal && <span style={errorTextStyle}>{isRTL ? 'يرجى اختيار وجبة' : 'Please select a meal'}</span>}
               </div>
             )}
 
@@ -246,18 +442,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                       {mealOptions.map((opt) => {
                         const sel = additionalGuests[i]?.mealSelection === opt;
                         return (
-                          <button
-                            type="button"
-                            key={opt}
-                            onClick={() => updateAdditionalGuest(i, { mealSelection: opt })}
-                            style={{
-                              padding: '7px 14px', borderRadius: '999px', cursor: 'pointer',
-                              fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600,
-                              border: sel ? `1.5px solid ${C.maroon}` : `1px solid ${C.border}`,
-                              background: sel ? C.maroon : '#FFFFFF', color: sel ? '#FFFDF8' : C.ink,
-                              transition: 'all 0.18s ease',
-                            }}
-                          >
+                          <button type="button" key={opt} aria-pressed={sel} onClick={() => updateAdditionalGuest(i, { mealSelection: opt })} style={pillStyle(sel, { size: 'sm' })}>
                             {opt}
                           </button>
                         );
@@ -270,6 +455,17 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                   value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })}
                   style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}
                 />
+                {/* Per-guest custom questions (scope='guest') — asked of each companion. */}
+                {guestScopedQuestions.map((field) => (
+                  <FormField
+                    key={field.id}
+                    label={field.field_label}
+                    required={field.is_required}
+                    error={errors[`companion_${i}_field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null}
+                  >
+                    {companionControl(i, field)}
+                  </FormField>
+                ))}
               </div>
             ))}
 
@@ -296,6 +492,26 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
             <FormField label={`🎵 ${isRTL ? 'اقتراح أغنية للحفلة' : 'Song request for the party'}`}>
               <input placeholder={isRTL ? 'مثال: أغنية مفضلة' : 'E.g. "Dancing Queen" by ABBA'} value={songRequest} onChange={(e) => setSongRequest(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
             </FormField>
+
+            {/* "If Attending" custom questions from the Form Builder — shown only
+                to attendees (the 'always' ones already appear above). */}
+            {attendingQuestions.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '4px', paddingTop: '18px', borderTop: `1px solid ${C.border}` }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.maroon, opacity: 0.9 }}>
+                  {isRTL ? 'تفاصيل الحضور' : 'A few details for your visit'}
+                </span>
+                {attendingQuestions.map((field) => (
+                  <FormField
+                    key={field.id}
+                    label={field.field_label}
+                    required={field.is_required}
+                    error={errors[`field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null}
+                  >
+                    {primaryControl(field)}
+                  </FormField>
+                ))}
+              </div>
+            )}
           </>
         )}
 

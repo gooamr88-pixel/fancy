@@ -447,6 +447,20 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
         }
       });
     }
+    // 'always'-condition required questions must be answered for every response,
+    // including declines/maybe (attendees are fully validated inside the block above).
+    if (attending && attending !== 'yes') {
+      partyScopedFields.filter(f => f.condition === 'always' && f.is_required).forEach(field => {
+        if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
+          errors[`field_${field.id}`] = `${field.field_label} is required`;
+        }
+      });
+      guestScopedFields.filter(f => f.condition === 'always' && f.is_required).forEach(field => {
+        if (!customAnswers[field.id] || !customAnswers[field.id].toString().trim()) {
+          errors[`primary_field_${field.id}`] = `${field.field_label} is required`;
+        }
+      });
+    }
     if (attending === 'maybe' && !maybeFollowUp) errors.maybeFollowUp = 'Please select a follow-up timeframe';
     // Bot check — only enforced when Turnstile is configured (matches the backend).
     if (turnstileEnabled && !captchaToken) {
@@ -637,9 +651,9 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
 
                     <RsvpDivider themeColor={themeColor} />
                     <StepCustomQuestions
-                      t={t} isRTL={isRTL} fields={attending === 'yes' ? partyScopedFields : []}
+                      t={t} isRTL={isRTL} fields={attending === 'yes' ? partyScopedFields : partyScopedFields.filter(f => f.condition === 'always')}
                       guestName={guestName}
-                      companionFields={attending === 'yes' ? guestScopedFields : []}
+                      companionFields={attending === 'yes' ? guestScopedFields : guestScopedFields.filter(f => f.condition === 'always')}
                       customAnswers={customAnswers} setAnswer={setAnswer} toggleMultiAnswer={toggleMultiAnswer}
                       additionalGuests={attending === 'yes' ? visibleAdditionalGuests : []}
                       setCompanionAnswer={setCompanionAnswer}
