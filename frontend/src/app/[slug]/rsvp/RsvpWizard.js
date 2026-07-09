@@ -371,20 +371,29 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     if (!hTitle) errors.guestNameTitle = 'Title is required';
     if (!hFirst.trim()) errors.guestNameFirst = 'First name is required';
     if (!hLast.trim()) errors.guestNameLast = 'Last name is required';
-    if (!email || !email.trim()) {
-      errors.email = 'Email address is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // Email required for attendees (confirmation + logistics); optional for a
+    // decline (validated for format only when supplied).
+    if (attending === 'yes') {
+      if (!email || !email.trim()) {
+        errors.email = 'Email address is required';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.email = 'Invalid email format';
+      }
+    } else if (email && email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       errors.email = 'Invalid email format';
     }
 
-    // Phone is required regardless of attendance.
+    // Phone required for attendees; optional for a decline. Valid E.164 if supplied.
     const normalizedPhone = phone.trim() ? normalizeToE164(phone) : '';
-    if (!normalizedPhone) {
-      errors.phone = phone.trim() ? (t.phone_invalid || 'Enter a valid phone number') : (t.phone_required || 'Phone number is required');
+    if (phone.trim() && !normalizedPhone) {
+      errors.phone = t.phone_invalid || 'Enter a valid phone number';
+    } else if (attending === 'yes' && !normalizedPhone) {
+      errors.phone = t.phone_required || 'Phone number is required';
     }
-    // TCPA/A2P 10DLC: a phone number is being collected, so affirmative SMS
-    // consent must be captured too — mirrored server-side (rsvpController.js).
-    if (!smsConsent) {
+    // TCPA/A2P 10DLC: affirmative SMS consent only when a phone number is actually
+    // being collected — mirrored server-side (rsvpController.js). A decline that
+    // leaves the phone blank is never asked to opt in.
+    if (normalizedPhone && !smsConsent) {
       errors.smsConsent = isRTL
         ? 'يرجى الموافقة على تلقي رسائل نصية بخصوص هذه الفعالية للمتابعة.'
         : 'Please agree to receive SMS updates about this event to continue.';

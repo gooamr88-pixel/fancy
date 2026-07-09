@@ -42,6 +42,12 @@ export default function StepPartyDetails({
   // options exactly as the organizer typed them, regardless of guest language.
   const mealOptions = mealField?.options;
 
+  // Consent is about collecting a phone number, not attendance — show it only when
+  // a phone is actually in play: always for attendees (phone required), and for a
+  // decline only once a number is entered. Mirrors RsvpSection + the backend.
+  const isAttending = attending === 'yes';
+  const showSmsConsent = isAttending || !!(phone && phone.trim());
+
   const renderHostDetailsCard = (includeMeal = false) => {
     return (
       <FadeInUp delay={0.18} y={15}>
@@ -136,20 +142,22 @@ export default function StepPartyDetails({
             })()}
 
             <div className="email-phone-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <FormField label={t.email_label} error={validationErrors.email}>
+              <FormField label={isAttending ? t.email_label : `${t.email_label}${isRTL ? ' (اختياري)' : ' (optional)'}`} error={validationErrors.email}>
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@email.com"
                   style={{ ...S.inputBase, ...(validationErrors.email ? { borderColor: '#ef4444' } : {}) }}
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
               </FormField>
-              <FormField label={t.phone_label} error={validationErrors.phone}>
+              <FormField label={isAttending ? t.phone_label : `${t.phone_label}${isRTL ? ' (اختياري)' : ' (optional)'}`} error={validationErrors.phone}>
                 <PhoneNumberInput value={phone} onChange={setPhone} hasError={!!validationErrors.phone}
                   defaultCountry={isRTL ? 'eg' : 'us'} />
               </FormField>
             </div>
 
-            {/* SMS opt-in consent — required whenever a phone number is collected
-                (TCPA / Twilio A2P 10DLC). The checked state is persisted to
-                rsvp_parties.sms_consent as a timestamped compliance record. */}
+            {/* SMS opt-in consent — shown only when a phone number is actually
+                being collected (TCPA / Twilio A2P 10DLC): always for attendees
+                (phone required) and for a decline only once a number is entered.
+                Persisted to rsvp_parties.sms_consent as a timestamped record. */}
+            {showSmsConsent && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: '10px',
@@ -192,6 +200,7 @@ export default function StepPartyDetails({
                 <span style={{ fontSize: '11px', color: '#ef4444', fontFamily: 'var(--font-sans)', paddingLeft: '2px' }}>{validationErrors.smsConsent}</span>
               )}
             </div>
+            )}
 
             {showSidePicker && (
               <FormField label={isWedding ? (isRTL ? 'جانب الاحتفال' : "Which side are you celebrating with?") : (isRTL ? 'الجانب' : "Which partner's side?")}>

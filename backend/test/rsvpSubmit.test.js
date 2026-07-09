@@ -28,11 +28,12 @@ const { submitPublicRSVP } = require('../controllers/rsvpController');
 
 t.beforeEach(() => { mock.reset(); confirmCalls = []; emailCalls = []; });
 
-// submitPublicRSVP now mandates a valid phone, affirmative SMS consent, and an
-// email (TCPA/A2P 10DLC opt-in + confirmation address) before any other check —
-// see rsvpController.submitPublicRSVP. Inject those as defaults so every payload
-// clears the new gate; tests that exercise a specific validation branch still
-// override the relevant field (e.g. an empty guestName/response).
+// submitPublicRSVP requires a valid phone + affirmative SMS consent + an email
+// for ATTENDING guests, but treats all three as optional for a decline (consent
+// is only required when a phone is actually supplied, in either case) — see
+// rsvpController.submitPublicRSVP. Most payloads here RSVP "yes", so inject those
+// as defaults to clear the attending gate; tests exercising a specific branch
+// override the relevant field (or build a bare request via mockReq directly).
 const REQUIRED_DEFAULTS = { phone: '+15551234567', smsConsent: true, email: 'guest@example.com' };
 const req = (body) => mockReq({ params: { slug: 'wedding' }, body: { ...REQUIRED_DEFAULTS, ...body } });
 const rpcResult = (data) => mock.setResolver((s) => (s.op === 'rpc' && s.fn === 'submit_rsvp_v2' ? { data } : {}));
@@ -60,6 +61,31 @@ test('an additional guest without a name is rejected (400, no RPC)', async () =>
   const { res } = await invoke(submitPublicRSVP, req({ guestName: 'A', response: 'yes', partySize: 2, additionalGuests: [{ fullName: '   ' }] }));
   assert.equal(res.statusCode, 400);
   assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
+});
+
+// ── Conditional phone / SMS consent / email (attending vs decline) ──
+
+test('an attending RSVP still requires a phone (400, no RPC)', async () => {
+  mock.setResolver(() => ({}));
+  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'yes', partySize: 1, email: 'a@x.com', smsConsent: true } }));
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'VALIDATION_ERROR');
+  assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
+});
+
+test('a supplied phone with no SMS consent is rejected (400, no RPC) — even on a decline', async () => {
+  mock.setResolver(() => ({}));
+  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'no', phone: '+15551234567', smsConsent: false } }));
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'VALIDATION_ERROR');
+  assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
+});
+
+test('a decline with no phone/email/consent is accepted (consent only gates a supplied phone)', async () => {
+  rpcResult({ success: true, party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W', response: 'no', party_size: 1, guest_email: null, notification_preferences: { email: false } });
+  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'no' } }));
+  assert.equal(res.statusCode, 201);
+  assert.equal(mock.calls.some(c => c.op === 'rpc' && c.fn === 'submit_rsvp_v2'), true);
 });
 
 // ── Defense-in-depth: allow_guest_edits (edits disabled at the API layer, not just hidden in the UI) ──

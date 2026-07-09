@@ -47,27 +47,41 @@ const submitPublicRSVP = async (req, res, next) => {
   const { slug } = req.params;
   const { partyId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, primaryGuestDietaryNotes, customAnswers, decline_reason, maybe_confirm_by, side, smsConsent } = req.body;
 
-  if (!phone || !String(phone).trim()) {
-    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'A phone number is required.' });
-  }
-  const normalizedPhone = normalizeToE164(phone);
-  if (!normalizedPhone) {
-    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
-  }
-  // TCPA/A2P 10DLC: since a phone number is mandatory on this endpoint, so is
-  // affirmative SMS consent — enforced server-side too, not just by the
-  // wizard's UI, so a direct API call can't bypass the opt-in.
-  if (!smsConsent) {
-    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Please confirm you agree to receive SMS updates about this event.' });
-  }
-
   if (!guestName || !response) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'guestName and response are required.' });
   }
-  if (!email || !String(email).trim()) {
+
+  const isAttending = response === 'yes';
+
+  // Phone is required for attendees (they need event-day logistics), but optional
+  // for a decline — there's no reason to force a contact number from someone who
+  // isn't coming. Whenever a number IS supplied it must be valid E.164.
+  const hasPhone = phone && String(phone).trim();
+  let normalizedPhone = null;
+  if (hasPhone) {
+    normalizedPhone = normalizeToE164(phone);
+    if (!normalizedPhone) {
+      return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
+    }
+  }
+  if (isAttending && !normalizedPhone) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'A phone number is required.' });
+  }
+
+  // TCPA/A2P 10DLC: affirmative SMS consent is required whenever we actually
+  // collect a phone number (regardless of yes/no) — enforced server-side, not
+  // just in the UI, so a direct API call can't store a number without consent. A
+  // decliner who leaves the phone blank is never asked to opt into SMS at all.
+  if (normalizedPhone && !smsConsent) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Please confirm you agree to receive SMS updates about this event.' });
+  }
+
+  // Email is required for attendees (confirmation + logistics), optional for a
+  // decline; when present it must be valid either way.
+  if (isAttending && (!email || !String(email).trim())) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'An email address is required.' });
   }
-  if (!EMAIL_RE.test(String(email).trim())) {
+  if (email && String(email).trim() && !EMAIL_RE.test(String(email).trim())) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid email address.' });
   }
 

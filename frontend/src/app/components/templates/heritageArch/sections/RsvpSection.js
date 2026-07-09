@@ -1,52 +1,221 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { PartySizeStepper, FormField, CalendarButton, ShareButton } from '../../../guest/GuestUI';
+import React, { useState, useEffect, useRef, useId } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CalendarButton, ShareButton } from '../../../guest/GuestUI';
 import { ConfettiExplosion } from '../../../guest/GuestAnimations';
+import GuestPassCard from '../../../guest/GuestPassGenerator';
 import PhoneNumberInput from '../../../PhoneNumberInput';
+import TurnstileWidget, { turnstileEnabled } from '../../../guest/TurnstileWidget';
+import { normalizeToE164 } from '../../../../utils/phone';
 import { useIdempotentRsvpSubmit } from '../../../guest/rsvp/useIdempotentRsvpSubmit';
 import { getCelebrationPreset } from '../../../../utils/patternCelebration';
 import { useFullPageTheme } from '../theme';
-import { SectionShell, SectionHeading } from '../shared';
+import { SectionShell, SectionHeading, DiamondDivider } from '../shared';
 import { findMealField } from '../../../../utils/mealField';
+import { isSeatingRevealed } from '../../../../utils/seating';
+import { useSeatingLookup } from '../../../../[slug]/rsvp/hooks/useSeatingLookup';
+import SeatingResultPanel from '../../../../[slug]/rsvp/steps/SeatingResultPanel';
+import { alpha, darken } from '../../../../utils/color';
 
 const ALLERGY_OPTIONS = ['Gluten-free / Celiac', 'Lactose-free', 'Nut allergy', 'Seafood'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Warm dusty-rose validation red — distinct from the burgundy accent so an error
+// never reads as "selected", yet still belongs to the palette's warm family.
+const ERR = '#C45E5E';
+
+/* ── ThemedField ──────────────────────────────────────────────────────────
+   Module-scope (never re-created per render → inputs keep focus while typing)
+   label + control + animated error, wired for a11y (label/for, aria-invalid,
+   aria-describedby, role="alert"). Colored from the caller's palette instead of
+   the generic gold GuestUI.FormField, so it reads as part of the burgundy theme. */
+function ThemedField({ label, required, error, hint, labelColor, children }) {
+  const autoId = useId();
+  const fieldId = (React.isValidElement(children) && children.props.id) || autoId;
+  const errorId = `${fieldId}-err`;
+  const control = React.isValidElement(children)
+    ? React.cloneElement(children, {
+        id: children.props.id || fieldId,
+        'aria-invalid': error ? true : undefined,
+        'aria-describedby': error ? errorId : children.props['aria-describedby'],
+      })
+    : children;
+  return (
+    <div>
+      {label && (
+        <label htmlFor={fieldId} style={{
+          fontSize: '12px', fontWeight: 700, letterSpacing: '0.01em',
+          color: labelColor, opacity: 0.82, display: 'block', marginBottom: '7px', fontFamily: 'var(--font-sans)',
+        }}>
+          {label} {required && <span style={{ color: ERR }} aria-hidden="true">*</span>}
+        </label>
+      )}
+      {control}
+      {hint && !error && (
+        <span style={{ display: 'block', marginTop: '5px', fontSize: '11px', color: labelColor, opacity: 0.55, fontFamily: 'var(--font-sans)' }}>{hint}</span>
+      )}
+      <AnimatePresence>
+        {error && (
+          <motion.span
+            id={errorId} role="alert"
+            initial={{ opacity: 0, y: -3, height: 0 }} animate={{ opacity: 1, y: 0, height: 'auto' }} exit={{ opacity: 0, y: -3, height: 0 }}
+            style={{ fontSize: '11.5px', color: ERR, display: 'block', marginTop: '5px', fontWeight: 600, fontFamily: 'var(--font-sans)' }}
+          >
+            {error}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ── PartyStepper ── themed −/N/+ counter (replaces the off-brand gold GuestUI one). */
+function PartyStepper({ value, onChange, min = 1, max = 20, label, isRTL, C }) {
+  const btn = (disabled) => ({
+    width: '46px', height: '46px', borderRadius: '13px', flexShrink: 0,
+    border: `1px solid ${C.border}`, background: C.cream,
+    fontSize: '22px', lineHeight: 1, fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: disabled ? alpha(C.maroon, 0.3) : C.maroon,
+  });
+  return (
+    <div>
+      {label && <label style={{ fontSize: '12px', fontWeight: 700, color: C.ink, opacity: 0.82, display: 'block', marginBottom: '7px', fontFamily: 'var(--font-sans)' }}>{label}</label>}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '14px',
+        background: C.cream, borderRadius: '15px', padding: '8px 14px', border: `1px solid ${C.border}`,
+      }}>
+        <motion.button type="button" whileTap={{ scale: 0.88 }} aria-label={isRTL ? 'إنقاص العدد' : 'Decrease party size'}
+          onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} style={btn(value <= min)}>−</motion.button>
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <AnimatePresence mode="popLayout">
+            <motion.span key={value} initial={{ y: -18, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 18, opacity: 0 }} transition={{ duration: 0.2 }}
+              style={{ fontSize: '30px', fontWeight: 800, color: C.maroon, fontFamily: 'var(--font-serif)', display: 'block', lineHeight: 1.1 }}>
+              {value}
+            </motion.span>
+          </AnimatePresence>
+          <span style={{ fontSize: '11px', color: C.ink, opacity: 0.6, fontWeight: 600 }}>
+            {value === 1 ? (isRTL ? 'ضيف واحد' : 'guest') : (isRTL ? 'ضيوف' : 'guests')}
+          </span>
+        </div>
+        <motion.button type="button" whileTap={{ scale: 0.88 }} aria-label={isRTL ? 'زيادة العدد' : 'Increase party size'}
+          onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} style={btn(value >= max)}>+</motion.button>
+      </div>
+    </div>
+  );
+}
+
+/* ── AttendanceChoice ── the emotional core: "will you be there?" as two large,
+   tactile reply cards (accept = warm burgundy hero, decline = quiet but real). */
+function AttendanceChoice({ value, onSelect, C, isRTL }) {
+  const OPTIONS = [
+    {
+      key: 'yes', accent: C.maroon,
+      title: isRTL ? 'نعم، سأكون هناك' : "Yes, I'll be there",
+      sub: isRTL ? 'بكل سرور وحب' : 'With joy & love',
+      glyph: (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+      ),
+    },
+    {
+      key: 'no', accent: darken(C.ink, 0.05),
+      title: isRTL ? 'للأسف، لا أستطيع' : "Sadly, can't make it",
+      sub: isRTL ? 'سنفتقد وجودكم' : "You'll be missed",
+      glyph: (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4l16 16M20 4L4 20" /></svg>
+      ),
+    },
+  ];
+  return (
+    <div role="radiogroup" aria-label={isRTL ? 'هل ستحضر؟' : 'Will you attend?'}
+      className="ha-attend-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      {OPTIONS.map((opt) => {
+        const selected = value === opt.key;
+        const isYes = opt.key === 'yes';
+        return (
+          <motion.button
+            key={opt.key} type="button" role="radio" aria-checked={selected}
+            onClick={() => onSelect(opt.key)}
+            whileHover={{ y: -3 }} whileTap={{ scale: 0.98 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+            style={{
+              position: 'relative', overflow: 'hidden', textAlign: isRTL ? 'right' : 'left',
+              padding: '18px 18px', borderRadius: '18px', cursor: 'pointer',
+              minHeight: '104px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px',
+              fontFamily: 'var(--font-sans)',
+              border: `1.5px solid ${selected ? opt.accent : C.border}`,
+              background: selected
+                ? (isYes ? `linear-gradient(150deg, ${C.maroon} 0%, ${C.maroonDeep} 100%)` : C.paper)
+                : C.cream,
+              color: selected ? (isYes ? '#FFFCF6' : C.ink) : C.ink,
+              boxShadow: selected ? `0 16px 34px -16px ${alpha(opt.accent, 0.6)}` : `0 2px 10px ${alpha(C.ink, 0.05)}`,
+            }}
+          >
+            <span aria-hidden style={{
+              width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: selected ? (isYes ? alpha('#FFFCF6', 0.18) : alpha(C.maroon, 0.1)) : alpha(C.maroon, 0.08),
+              color: selected ? (isYes ? '#FFFCF6' : C.maroon) : C.maroon,
+              border: isYes && selected ? '1px solid rgba(255,252,246,0.4)' : 'none',
+            }}>{opt.glyph}</span>
+            <span>
+              <span style={{ display: 'block', fontSize: '15px', fontWeight: 700, lineHeight: 1.25 }}>{opt.title}</span>
+              <span style={{ display: 'block', fontSize: '12px', marginTop: '3px', opacity: selected ? 0.85 : 0.55 }}>{opt.sub}</span>
+            </span>
+            {/* Selected corner tick — a quiet confirmation flourish. */}
+            {selected && (
+              <motion.span aria-hidden initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500, damping: 16 }}
+                style={{
+                  position: 'absolute', top: '12px', ...(isRTL ? { left: '12px' } : { right: '12px' }),
+                  width: '20px', height: '20px', borderRadius: '50%',
+                  background: isYes ? '#FFFCF6' : C.maroon, color: isYes ? C.maroon : '#FFFCF6',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              </motion.span>
+            )}
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions: mealOptionsProp, isRTL, trackEvent }) {
   const C = useFullPageTheme();
-  // Defined inside the component so they read the themed palette (C).
-  const fieldStyle = {
-    width: '100%', boxSizing: 'border-box', padding: '13px 15px',
-    background: C.cream, border: `1px solid ${C.border}`, borderRadius: '10px',
-    fontSize: '14px', color: C.ink, outline: 'none', fontFamily: 'var(--font-sans)',
-    transition: 'border-color 0.2s ease',
-  };
-  const onFieldFocus = (e) => { e.target.style.borderColor = C.maroon; };
-  const onFieldBlur = (e, invalid) => { e.target.style.borderColor = invalid ? '#C45E5E' : C.border; };
-  const labelStyle = { fontSize: '12px', fontWeight: 700, color: C.ink, opacity: 0.75, display: 'block', marginBottom: '6px' };
   const locked = hasResponded && !allowGuestEdits;
 
-  // ── Form Builder integration ──────────────────────────────────────────────
-  // This inline RSVP previously rendered a fixed field set and ignored the
-  // organizer's custom_form_fields entirely (custom questions never appeared and
-  // customAnswers submitted as []). Wire them in: the dedicated meal picker
-  // prefers the builder's flagged meal field — falling back to the template's
-  // ha_meal_options (mealOptionsProp) only when none is configured — and every
-  // other custom question is rendered + submitted below. Mirrors the standard
-  // RsvpWizard/StepCustomQuestions path so both RSVP surfaces behave the same.
+  // ── Themed input chrome (burgundy palette, not GuestUI's gold) ──
+  const fieldStyle = {
+    width: '100%', boxSizing: 'border-box', padding: '13px 15px',
+    background: C.cream, border: `1px solid ${C.border}`, borderRadius: '11px',
+    fontSize: '14px', color: C.ink, outline: 'none', fontFamily: 'var(--font-sans)',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+  };
+  const onFieldFocus = (e) => { e.target.style.borderColor = C.maroon; e.target.style.boxShadow = `0 0 0 3px ${alpha(C.maroon, 0.12)}`; };
+  const onFieldBlur = (e, invalid) => { e.target.style.borderColor = invalid ? ERR : C.border; e.target.style.boxShadow = 'none'; };
+  const labelStyle = { fontSize: '12px', fontWeight: 700, color: C.ink, opacity: 0.82, display: 'block', marginBottom: '7px' };
+  const errorTextStyle = { display: 'block', marginTop: '6px', fontSize: '11.5px', color: ERR, fontWeight: 600 };
+  const eyebrowStyle = { fontSize: '11px', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.maroon, opacity: 0.9 };
+
+  // Card frame shared by the details/companion blocks — a hairline gold→maroon
+  // gradient edge over cream, giving each grouping a soft printed-stationery lift.
+  const cardOuter = {
+    padding: '1.25px', borderRadius: '19px',
+    background: `linear-gradient(140deg, ${alpha(C.gold, 0.55)}, ${alpha(C.maroon, 0.35)} 55%, ${alpha(C.gold, 0.45)})`,
+    boxShadow: `0 18px 40px -22px ${alpha(C.maroon, 0.4)}`,
+  };
+  const cardInner = {
+    background: `linear-gradient(180deg, ${C.cream} 0%, ${C.background} 140%)`,
+    borderRadius: '18px', padding: 'clamp(16px, 4.5vw, 20px)', display: 'flex', flexDirection: 'column', gap: '15px',
+  };
+
+  // ── Form Builder integration (unchanged contract — mirrors RsvpWizard) ──
   const allCustomFields = event?.custom_form_fields || [];
   const mealField = findMealField(allCustomFields);
   const mealOptions = (mealField?.options && mealField.options.length > 0) ? mealField.options : mealOptionsProp;
   const customQuestions = mealField ? allCustomFields.filter((f) => f.id !== mealField.id) : allCustomFields;
-  // scope==='guest' questions are asked once per person — of the primary guest
-  // (in "A few more details" below) AND of every companion in their own block —
-  // matching submit_rsvp_v2, which stores/validates them per guest_id.
   const guestScopedQuestions = customQuestions.filter((f) => f.scope === 'guest');
-  // 'always' questions are asked of the primary guest for EVERY response (rendered
-  // outside the "attending only" block); 'attending' questions only when they RSVP
-  // yes. Companions exist only when attending, so their guest-scoped block is
-  // unaffected. Matches submit_rsvp_v2, which stores/validates by condition.
   const alwaysQuestions = customQuestions.filter((f) => f.condition === 'always');
   const attendingQuestions = customQuestions.filter((f) => f.condition !== 'always');
 
@@ -66,14 +235,96 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const [errors, setErrors] = useState({});
   const [customAnswers, setCustomAnswers] = useState({});
 
+  // Cloudflare Turnstile — mirrors RsvpWizard. When NEXT_PUBLIC_TURNSTILE_SITEKEY
+  // is set, the backend's verifyTurnstile middleware rejects any submit without a
+  // solved token, so this full-page form must collect one too.
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaLoadError, setCaptchaLoadError] = useState(false);
+  const turnstileRef = useRef(null);
+  // Signed entrance-ticket token minted by the submit response — powers the
+  // scannable QR pass on the "yes" success screen.
+  const [qrToken, setQrToken] = useState(null);
+  const [submittedPartyId, setSubmittedPartyId] = useState(null);
+
   const { submit, submitting } = useIdempotentRsvpSubmit({
-    onSuccess: () => setSubmitted(true),
+    onSuccess: (data) => { if (data?.qrToken) setQrToken(data.qrToken); if (data?.partyId) setSubmittedPartyId(data.partyId); setSubmitted(true); },
     onLocked: () => setSubmitted(true),
   });
 
-  const toggleAllergy = (opt) => {
-    setAllergies((prev) => (prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]));
+  // Analytics — fire once when the form is actually presented.
+  useEffect(() => {
+    if (!locked) trackEvent?.('rsvp_started');
+  }, [trackEvent, locked]);
+
+  // Prefill from the guest's existing RSVP once it resolves (EventPageClient paints
+  // from the SSR snapshot with guestRsvp still null, then fills it after refetch —
+  // a render-time initializer alone would miss it). Only fills untouched fields, so
+  // an edit shows the real party/meal/dietary/message instead of resetting them.
+  const prefilledRef = useRef(false);
+  /* eslint-disable react-hooks/set-state-in-effect -- legitimate prop→state sync:
+     guestRsvp resolves asynchronously after the SSR paint (see comment above). */
+  useEffect(() => {
+    if (prefilledRef.current || !guestRsvp) return;
+    prefilledRef.current = true;
+    setGuestName((prev) => prev || guestRsvp.guest_name || '');
+    setPhone((prev) => prev || guestRsvp.phone || '');
+    setEmail((prev) => prev || guestRsvp.email || '');
+    setAttending((prev) => prev || (['yes', 'no', 'maybe'].includes(guestRsvp.response) ? (guestRsvp.response === 'no' ? 'no' : 'yes') : null));
+    if (guestRsvp.party_size) setPartySize((prev) => (prev && prev !== 1 ? prev : guestRsvp.party_size));
+    if (guestRsvp.primary_meal) setMeal((prev) => prev || guestRsvp.primary_meal);
+    if (Array.isArray(guestRsvp.additionalGuests) && guestRsvp.additionalGuests.length > 0) {
+      setAdditionalGuests((prev) => (prev.some((g) => g.fullName) ? prev : guestRsvp.additionalGuests.map((g) => ({
+        fullName: g.fullName || '', email: g.email || '', phone: g.phone || '',
+        mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '', customAnswers: {},
+      }))));
+    }
+    if (guestRsvp.primary_dietary_notes) {
+      const parts = String(guestRsvp.primary_dietary_notes).split(',').map((s) => s.trim()).filter(Boolean);
+      const known = parts.filter((p) => ALLERGY_OPTIONS.includes(p));
+      const other = parts.filter((p) => !ALLERGY_OPTIONS.includes(p)).join(', ');
+      if (known.length) setAllergies((prev) => (prev.length ? prev : known));
+      if (other) setOtherAllergy((prev) => prev || other);
+    }
+    if (guestRsvp.notes) {
+      let song = '';
+      const rest = [];
+      String(guestRsvp.notes).split('\n\n').forEach((b) => {
+        const m = b.match(/^🎵 Song request:\s*([\s\S]*)$/);
+        if (m && !song) song = m[1].trim(); else rest.push(b);
+      });
+      if (song) setSongRequest((prev) => prev || song);
+      if (rest.length) setMessage((prev) => prev || rest.join('\n\n'));
+    }
+  }, [guestRsvp]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Seating — a "yes" guest's own table + companions on the venue map. Gated to
+  // the 24h reveal window (or organizer-added guests). Auto-fetched once the guest
+  // is confirmed (fresh submit or a returning locked "yes"); before the window the
+  // backend returns a locked/empty view, which SeatingResultPanel renders safely.
+  const seatingApi = useSeatingLookup(slug);
+  const seatingFetchedFor = useRef(null);
+  const isYesResponse = attending === 'yes' || (!!guestRsvp?.response && guestRsvp.response !== 'no');
+  const seatingRevealed = guestRsvp?.createdByOrganizer === true || (event?.event_date ? isSeatingRevealed(event.event_date) : false);
+  const seatingPartyId = submittedPartyId || guestRsvp?.id || null;
+  useEffect(() => {
+    if ((locked || submitted) && isYesResponse && seatingRevealed && seatingPartyId && seatingFetchedFor.current !== seatingPartyId) {
+      seatingFetchedFor.current = seatingPartyId;
+      seatingApi.fetchSeatingMap(seatingPartyId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, submitted, isYesResponse, seatingRevealed, seatingPartyId]);
+
+  // Bring the revealed detail block into view when the guest picks an answer, so
+  // it's obvious something new appeared below the (now-answered) choice.
+  const detailsRef = useRef(null);
+  const onSelectAttending = (val) => {
+    setAttending(val);
+    clearError('attending');
+    requestAnimationFrame(() => detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   };
+
+  const toggleAllergy = (opt) => setAllergies((prev) => (prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]));
 
   const updateAdditionalGuest = (idx, patch) => {
     setAdditionalGuests((prev) => {
@@ -92,9 +343,6 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     setCustomAnswers((prev) => ({ ...prev, [fieldId]: value }));
     setErrors((prev) => { const n = { ...prev }; delete n[`field_${fieldId}`]; return n; });
   };
-  // Multiselect answers are stored as a comma-joined string — the exact shape
-  // custom_form_fields rejects commas inside options for (fieldController.js) and
-  // that submit_rsvp_v2 reads back, so the guest's selections round-trip cleanly.
   const toggleCustomMulti = (fieldId, opt) => {
     setCustomAnswers((prev) => {
       const cur = (prev[fieldId] || '').split(',').map((s) => s.trim()).filter(Boolean);
@@ -129,15 +377,12 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
   const CUSTOM_INPUT_TYPE = { email: 'email', phone: 'tel', url: 'url', number: 'number', date: 'date' };
   const optionRowStyle = { display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px', color: C.ink, cursor: 'pointer', minHeight: '44px' };
-  const errorTextStyle = { display: 'block', marginTop: '6px', fontSize: '12px', color: '#C45E5E', fontWeight: 600 };
-  // The shared "pill" the whole form speaks in — every selectable choice (attend
-  // yes/no, meal, custom radio/multiselect) renders as the same rounded chip with
-  // a 44px minimum tap target, so the surface reads as one cohesive system on
-  // mobile and desktop alike.
+  // The shared "pill" the whole form speaks in — attend yes/no, meal, custom
+  // radio/multiselect — all render as the same rounded chip (44px tap target).
   const pillStyle = (selected, { size = 'md', full = false } = {}) => ({
     padding: size === 'sm' ? '9px 15px' : '11px 18px',
     minHeight: '44px', boxSizing: 'border-box',
-    borderRadius: full ? '14px' : '999px', cursor: 'pointer',
+    borderRadius: full ? '13px' : '999px', cursor: 'pointer',
     fontFamily: 'var(--font-sans)', fontSize: size === 'sm' ? '13px' : '14px', fontWeight: 600,
     border: selected ? `1.5px solid ${C.maroon}` : `1px solid ${C.border}`,
     background: selected ? C.maroon : C.cream,
@@ -145,13 +390,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     transition: 'all 0.18s ease',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
   });
-  // Reusable across the primary guest and every companion — the caller supplies
-  // the current value, the setters, and the invalid flag so the same premium
-  // controls drive both `customAnswers` (primary) and each companion's own
-  // `customAnswers` bucket.
+
   const renderCustomControl = (field, { value, onSet, onToggle, invalid }) => {
     const type = field.field_type;
-    const inputStyle = invalid ? { ...fieldStyle, borderColor: '#C45E5E' } : fieldStyle;
+    const inputStyle = invalid ? { ...fieldStyle, borderColor: ERR } : fieldStyle;
     if (['text', 'email', 'phone', 'url', 'number', 'date'].includes(type)) {
       return <input type={CUSTOM_INPUT_TYPE[type] || 'text'} value={value} aria-invalid={invalid} onChange={(e) => onSet(e.target.value)} style={inputStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, invalid)} />;
     }
@@ -170,9 +412,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       return (
         <div role="radiogroup" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
           {(field.options || []).map((opt, i) => (
-            <button type="button" key={i} role="radio" aria-checked={value === opt} onClick={() => onSet(opt)} style={pillStyle(value === opt, { size: 'sm' })}>
-              {opt}
-            </button>
+            <button type="button" key={i} role="radio" aria-checked={value === opt} onClick={() => onSet(opt)} style={pillStyle(value === opt, { size: 'sm' })}>{opt}</button>
           ))}
         </div>
       );
@@ -183,11 +423,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
           {(field.options || []).map((opt, i) => {
             const on = chosen.includes(opt);
-            return (
-              <button type="button" key={i} aria-pressed={on} onClick={() => onToggle(opt)} style={pillStyle(on, { size: 'sm' })}>
-                {on ? '✓ ' : ''}{opt}
-              </button>
-            );
+            return <button type="button" key={i} aria-pressed={on} onClick={() => onToggle(opt)} style={pillStyle(on, { size: 'sm' })}>{on ? '✓ ' : ''}{opt}</button>;
           })}
         </div>
       );
@@ -195,7 +431,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     if (type === 'checkbox') {
       return (
         <label style={optionRowStyle}>
-          <input type="checkbox" checked={value === 'Yes'} onChange={(e) => onSet(e.target.checked ? 'Yes' : '')} />
+          <input type="checkbox" checked={value === 'Yes'} onChange={(e) => onSet(e.target.checked ? 'Yes' : '')} style={{ accentColor: C.maroon, width: '17px', height: '17px' }} />
           {isRTL ? 'نعم' : 'Yes'}
         </label>
       );
@@ -203,7 +439,6 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     return null;
   };
 
-  // Bind the reusable control to a specific answers bucket + error namespace.
   const primaryControl = (field) => renderCustomControl(field, {
     value: customAnswers[field.id] || '',
     onSet: (v) => setCustomAnswer(field.id, v),
@@ -217,16 +452,39 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     invalid: !!errors[`companion_${gIdx}_field_${field.id}`],
   });
 
+  // Consent is about *collecting a phone number*, not about attendance — so it's
+  // only asked when a phone is actually present: always for attendees (phone is
+  // required), and for a decliner only once they choose to leave a number. A
+  // guest who declines without a phone is never asked to opt into SMS at all.
+  const hasPhone = !!phone.trim();
+  const showSmsConsent = attending === 'yes' || hasPhone;
+
   const validate = () => {
     const e = {};
-    if (!guestName.trim()) e.guestName = true;
-    if (!phone.trim()) e.phone = true;
-    if (!email.trim()) e.email = true;
+    const isAttending = attending === 'yes';
     if (!attending) e.attending = true;
-    // The backend requires affirmative SMS consent on every RSVP submission
-    // (TCPA/A2P compliance), regardless of yes/no — not just when attending.
-    if (!smsConsent) e.smsConsent = true;
-    if (attending === 'yes' && partySize > 1) {
+    if (!guestName.trim()) e.guestName = isRTL ? 'مطلوب' : 'Required';
+
+    // Phone: required for attendees, optional for decliners; validate format if present.
+    const normalizedPhone = hasPhone ? normalizeToE164(phone) : '';
+    if (hasPhone && !normalizedPhone) e.phone = isRTL ? 'رقم هاتف غير صالح' : 'Invalid phone number';
+    else if (isAttending && !normalizedPhone) e.phone = isRTL ? 'مطلوب' : 'Required';
+
+    // Email: required for attendees (confirmation + logistics), optional for declines.
+    if (isAttending) {
+      if (!email.trim()) e.email = isRTL ? 'مطلوب' : 'Required';
+      else if (!EMAIL_RE.test(email.trim())) e.email = isRTL ? 'بريد إلكتروني غير صالح' : 'Invalid email';
+    } else if (email.trim() && !EMAIL_RE.test(email.trim())) {
+      e.email = isRTL ? 'بريد إلكتروني غير صالح' : 'Invalid email';
+    }
+
+    // SMS consent — only when a phone number is actually being submitted.
+    if (normalizedPhone && !smsConsent) e.smsConsent = true;
+
+    // Bot check — only when Turnstile is configured (mirrors the backend gate).
+    if (turnstileEnabled && !captchaToken) e.captcha = true;
+
+    if (isAttending && partySize > 1) {
       for (let i = 0; i < partySize - 1; i++) {
         const g = additionalGuests[i];
         if (!g?.fullName?.trim() || !g?.email?.trim() || !g?.phone?.trim()) e.additionalGuests = true;
@@ -242,7 +500,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       if (!v || !v.toString().trim()) e[`field_${f.id}`] = true;
     });
     // Required meal + 'attending'-only required questions are asked of attendees.
-    if (attending === 'yes') {
+    if (isAttending) {
       if (mealField?.is_required && !meal.trim()) e.meal = true;
       attendingQuestions.filter((f) => f.is_required).forEach((f) => {
         const v = customAnswers[f.id];
@@ -250,294 +508,418 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       });
     }
     setErrors(e);
+    if (Object.keys(e).length > 0) {
+      requestAnimationFrame(() => {
+        const el = document.querySelector('[aria-invalid="true"]');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async () => {
     if (!validate()) return;
 
+    const isAttending = attending === 'yes';
     const dietaryNotes = [...allergies, otherAllergy.trim()].filter(Boolean).join(', ') || null;
-    // "Song request" has no dedicated backend column and custom_answers requires
-    // a pre-existing organizer-configured field id — folding it into the free-text
-    // notes keeps this correct against the real submit_rsvp_v2 contract without
-    // any extra setup step for the organizer.
     const notes = [songRequest.trim() ? `🎵 Song request: ${songRequest.trim()}` : null, message.trim() || null]
       .filter(Boolean).join('\n\n') || null;
+    const normalizedPhone = phone.trim() ? (normalizeToE164(phone) || phone) : undefined;
 
     const body = {
-      partyId: guestRsvp?.party_id || effectiveRsvpId || undefined,
+      partyId: guestRsvp?.id || effectiveRsvpId || undefined,
       guestName: guestName.trim(),
-      email: email.trim(),
-      phone,
+      email: email.trim() || undefined,
+      phone: normalizedPhone,
       response: attending,
-      partySize: attending === 'yes' ? partySize : 1,
+      partySize: isAttending ? partySize : 1,
       notes,
-      primaryGuestMeal: attending === 'yes' ? (meal || null) : null,
-      primaryGuestDietaryNotes: attending === 'yes' ? dietaryNotes : null,
-      additionalGuests: attending === 'yes'
+      primaryGuestMeal: isAttending ? (meal || null) : null,
+      primaryGuestDietaryNotes: isAttending ? dietaryNotes : null,
+      additionalGuests: isAttending
         ? additionalGuests.slice(0, partySize - 1).map((g) => ({ ...g, customAnswers: g.customAnswers || {} }))
         : [],
-      // 'always' answers are sent for every response; 'attending' answers only
-      // when coming. The RPC re-checks condition, so stale attending answers left
-      // over from toggling yes→no are filtered out server-side regardless.
       customAnswers: Object.keys(customAnswers)
-        .filter((fieldId) => attending === 'yes' || alwaysQuestions.some((f) => f.id === fieldId))
+        .filter((fieldId) => isAttending || alwaysQuestions.some((f) => f.id === fieldId))
         .map((fieldId) => ({ fieldId, value: customAnswers[fieldId] })),
       smsConsent,
     };
 
-    trackEvent?.('rsvp_started');
-    await submit({ url: `/public/events/${slug}/rsvp`, body, reconcileId: body.partyId });
+    const r = await submit({ url: `/public/events/${slug}/rsvp`, body, reconcileId: body.partyId });
+    // Turnstile tokens are single-use — force a fresh challenge before any retry.
+    if (!r.ok && turnstileEnabled) { turnstileRef.current?.reset(); setCaptchaToken(null); }
   };
 
+  /* ═══════════════════════════ SUCCESS / LOCKED ═══════════════════════════ */
   if (locked || submitted) {
-    // "Attending" covers yes + tentative; only an explicit "no" is a decline.
     const isYes = attending === 'yes' || (!!guestRsvp?.response && guestRsvp.response !== 'no');
     const label = responseStatus?.label || (isYes ? (isRTL ? 'تأكيد الحضور' : 'Attending') : (isRTL ? 'الاعتذار عن الحضور' : 'Declined'));
     const celebration = getCelebrationPreset(event?.template_type);
+    // The scannable pass works both right after a fresh "yes" (token from the
+    // submit response) and for a returning guest (token supplied on guestRsvp).
+    const passQrToken = qrToken || guestRsvp?.qrToken || null;
+    const passGuestName = guestName || guestRsvp?.guest_name || '';
     return (
-      <SectionShell background={C.paper}>
-        {/* Confetti only on a fresh submit this session — not every time a
-            already-responded guest revisits the locked page. */}
+      <SectionShell background={C.background}>
         {submitted && isYes && (
           <ConfettiExplosion active duration={4200} particleCount={110} colors={celebration.colors} shapes={celebration.shapes} spread={1.1} />
         )}
-
         <motion.div
-          initial={{ opacity: 0, scale: 0.85, y: 14 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 16 }}
-          aria-hidden="true"
-          style={{
-            width: '76px', height: '76px', borderRadius: '50%', marginBottom: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px',
-            background: isYes ? `${C.maroon}14` : 'rgba(160,154,145,0.16)',
-          }}
+          initial={{ opacity: 0, y: 22, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          style={{ ...cardOuter, width: '100%', maxWidth: '440px' }}
         >
-          {isYes ? '🎉' : '💌'}
+          <div style={{ ...cardInner, alignItems: 'center', textAlign: 'center', padding: 'clamp(28px, 7vw, 40px) clamp(20px, 6vw, 30px)', gap: '6px' }}>
+            <motion.div
+              initial={{ scale: 0, rotate: -12 }} animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.15 }} aria-hidden="true"
+              style={{
+                width: '78px', height: '78px', borderRadius: '50%', marginBottom: '14px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: isYes ? `linear-gradient(150deg, ${C.maroon}, ${C.maroonDeep})` : alpha(C.ink, 0.08),
+                color: isYes ? '#FFFCF6' : C.ink, boxShadow: isYes ? `0 14px 30px -12px ${alpha(C.maroon, 0.6)}` : 'none',
+              }}
+            >
+              {isYes ? (
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              ) : (
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /></svg>
+              )}
+            </motion.div>
+
+            <SectionHeading isRTL={isRTL} style={{ marginBottom: '4px' }}>{isRTL ? 'شكراً لك' : 'Thank you'}</SectionHeading>
+            <DiamondDivider />
+
+            <p style={{ fontSize: '15px', color: C.ink, opacity: 0.85, maxWidth: '360px', lineHeight: 1.75, margin: '4px 0 0' }}>
+              {isYes
+                ? (isRTL ? 'يسعدنا انضمامكم إلينا — تم تسجيل ردكم بنجاح.' : "We're so happy you'll be joining us — your response is recorded.")
+                : (isRTL ? 'شكراً لإعلامنا. سنفتقد وجودكم، ونتمنى لكم كل الخير.' : "Thank you for letting us know — you'll be missed, and we wish you all the best.")}
+            </p>
+
+            <div style={{ marginTop: '16px', padding: '9px 20px', borderRadius: '999px', background: C.cream, border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isYes ? '#3B9B6D' : ERR }} />
+              <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.04em', color: C.maroon }}>{label}</span>
+            </div>
+
+            {isYes && (
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '24px' }}>
+                <CalendarButton event={event} isRTL={isRTL} />
+                <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
+              </div>
+            )}
+          </div>
         </motion.div>
 
-        <SectionHeading isRTL={isRTL}>{isRTL ? 'شكراً لك!' : 'Thank you!'}</SectionHeading>
+        {/* Entrance pass — a real, scannable QR ticket for attendees, shown here
+            (fresh submit) and to any returning guest whose token is on file. */}
+        {isYes && passQrToken && event && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+            style={{ width: '100%', maxWidth: '380px', marginTop: '26px' }}
+          >
+            <GuestPassCard
+              guestName={passGuestName}
+              eventTitle={event.title}
+              eventDate={event.event_date}
+              eventLocation={event.location_name || event.location_address}
+              tableName={guestRsvp?.table_name || null}
+              response="yes"
+              qrData={typeof window !== 'undefined' ? `${window.location.origin}/ticket/${passQrToken}` : null}
+              themeColor={C.maroon}
+              isRTL={isRTL}
+              removeWatermark={!!event?.tier_remove_watermark}
+            />
+          </motion.div>
+        )}
 
-        <p style={{ fontSize: '15px', color: C.ink, opacity: 0.85, textAlign: 'center', maxWidth: '440px', lineHeight: 1.75 }}>
-          {isYes
-            ? (isRTL ? 'يسعدنا انضمامكم إلينا — تم تسجيل ردكم بنجاح.' : "We're so happy you'll be joining us — your response is recorded.")
-            : (isRTL ? 'شكراً لإعلامنا. سنفتقد وجودكم، ونتمنى لكم كل الخير.' : "Thank you for letting us know — you'll be missed, and we wish you all the best.")}
-        </p>
-
-        <div style={{ marginTop: '14px', padding: '9px 20px', borderRadius: '999px', background: C.cream, border: `1px solid ${C.border}` }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.04em', color: C.maroon }}>{label}</span>
-        </div>
-
-        {isYes && (
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '22px' }}>
-            <CalendarButton event={event} isRTL={isRTL} />
-            <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
-          </div>
+        {/* Seating map — the guest's own table + companions, once seating is revealed. */}
+        {isYes && seatingRevealed && (seatingApi.seatingLoading || seatingApi.seatingView) && (
+          <motion.div
+            initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+            style={{ ...cardOuter, width: '100%', maxWidth: '440px', marginTop: '22px' }}
+          >
+            <div style={{ ...cardInner, gap: '10px' }}>
+              <span style={eyebrowStyle}>{isRTL ? 'مكان جلوسك' : "Where you'll sit"}</span>
+              <SeatingResultPanel view={seatingApi.seatingView} loading={seatingApi.seatingLoading} isRTL={isRTL} />
+            </div>
+          </motion.div>
         )}
       </SectionShell>
     );
   }
 
+  /* ═════════════════════════════════ FORM ═════════════════════════════════ */
+  const reveal = { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } };
+  const greetingName = (guestRsvp?.guest_name || '').split(' ')[0];
+
   return (
-    <SectionShell background={C.paper} style={{ paddingBottom: '96px' }}>
-      <SectionHeading isRTL={isRTL}>{isRTL ? 'الرد على الدعوة' : 'RSVP'}</SectionHeading>
+    <SectionShell background={C.background} style={{ paddingBottom: '120px' }}>
+      <div style={{ width: '100%', maxWidth: '540px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        {/* Heading */}
+        <motion.span {...reveal} style={{ ...eyebrowStyle, marginBottom: '10px' }}>
+          {isRTL ? 'نتشرّف بحضوركم' : 'Kindly Reply'}
+        </motion.span>
+        <SectionHeading isRTL={isRTL} style={{ marginBottom: '6px' }}>
+          {isRTL ? 'الرد على الدعوة' : 'RSVP'}
+        </SectionHeading>
+        <DiamondDivider />
+        <motion.p {...reveal} style={{ fontSize: '14.5px', color: C.ink, opacity: 0.72, textAlign: 'center', maxWidth: '400px', lineHeight: 1.7, margin: '4px 0 26px' }}>
+          {greetingName
+            ? (isRTL ? `${greetingName}، يسعدنا أن نعرف إن كنت ستشاركنا الاحتفال.` : `${greetingName}, we'd love to know if you'll be celebrating with us.`)
+            : (isRTL ? 'يسعدنا أن نعرف إن كنت ستشاركنا الاحتفال.' : "We'd love to know if you'll be celebrating with us.")}
+        </motion.p>
 
-      <div style={{ width: '100%', maxWidth: '480px', background: C.cream, borderRadius: '20px', border: `1px solid ${C.border}`, padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <FormField label={isRTL ? 'الاسم الكامل' : 'Full name'} required error={errors.guestName ? (isRTL ? 'مطلوب' : 'Required') : null}>
-          <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={isRTL ? 'اسمك' : 'Your name'} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-        </FormField>
-
-        <div>
-          <label style={labelStyle}>{isRTL ? 'رقم الهاتف' : 'Phone number'} <span style={{ color: '#C45E5E' }}>*</span></label>
-          <PhoneNumberInput value={phone} onChange={setPhone} hasError={!!errors.phone} />
+        {/* ── The decision: coming or not ── */}
+        <div style={{ width: '100%' }}>
+          <label style={{ ...labelStyle, textAlign: 'center', opacity: 1, marginBottom: '12px', fontSize: '13px' }}>
+            {isRTL ? 'هل ستشرّفنا بحضورك؟' : 'Will you be joining us?'}
+          </label>
+          <AttendanceChoice value={attending} onSelect={onSelectAttending} C={C} isRTL={isRTL} />
+          {errors.attending && (
+            <p style={{ ...errorTextStyle, textAlign: 'center', marginTop: '10px' }}>{isRTL ? 'يرجى اختيار إجابة' : 'Please choose an answer'}</p>
+          )}
         </div>
 
-        <FormField label={isRTL ? 'البريد الإلكتروني' : 'Email'} required error={errors.email ? (isRTL ? 'مطلوب' : 'Required') : null}>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-        </FormField>
-
-        <div>
-          <label id="ha-attending-label" style={labelStyle}>{isRTL ? 'هل ستحضر؟' : 'Will you attend?'} <span style={{ color: '#C45E5E' }}>*</span></label>
-          <div role="radiogroup" aria-labelledby="ha-attending-label" style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={attending === 'yes'}
-              onClick={() => { setAttending('yes'); clearError('attending'); }}
-              style={{ ...pillStyle(attending === 'yes', { full: true }), flex: 1 }}
+        {/* ── Everything below reveals only after a choice is made ── */}
+        <AnimatePresence>
+          {attending && (
+            <motion.div
+              ref={detailsRef}
+              key="rsvp-details"
+              initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              style={{ width: '100%', overflow: 'hidden' }}
             >
-              ✓ {isRTL ? 'نعم، سأحضر' : "Yes, I'll be there"}
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={attending === 'no'}
-              onClick={() => { setAttending('no'); clearError('attending'); }}
-              style={{ ...pillStyle(attending === 'no', { full: true }), flex: 1 }}
-            >
-              {isRTL ? 'لا، أعتذر' : "Can't make it"}
-            </button>
-          </div>
-          {errors.attending && <span style={errorTextStyle}>{isRTL ? 'يرجى اختيار إجابة' : 'Please choose an answer'}</span>}
-        </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', paddingTop: '26px' }}>
 
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '12px', color: C.ink, opacity: 0.85, cursor: 'pointer' }}>
-          <input type="checkbox" checked={smsConsent} onChange={(e) => setSmsConsent(e.target.checked)} style={{ marginTop: '2px' }} />
-          {isRTL ? 'أوافق على تلقي تحديثات عبر الرسائل النصية حول هذه الفعالية.' : 'I agree to receive SMS updates about this event.'}
-        </label>
+                {/* Your details */}
+                <motion.div {...reveal} style={cardOuter}>
+                  <div style={cardInner}>
+                    <span style={eyebrowStyle}>{isRTL ? 'بياناتك' : 'Your details'}</span>
+                    <ThemedField label={isRTL ? 'الاسم الكامل' : 'Full name'} required error={errors.guestName} labelColor={C.ink}>
+                      <input value={guestName} onChange={(e) => { setGuestName(e.target.value); clearError('guestName'); }} placeholder={isRTL ? 'اسمك' : 'Your name'} style={fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors.guestName)} />
+                    </ThemedField>
 
-        {/* "Always Show" custom questions — asked of the primary guest regardless
-            of the yes/no choice (companions, who exist only when attending, get
-            these in their own blocks below). */}
-        {alwaysQuestions.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '4px', paddingTop: '18px', borderTop: `1px solid ${C.border}` }}>
-            <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.maroon, opacity: 0.9 }}>
-              {isRTL ? 'تفاصيل إضافية' : 'A few more details'}
-            </span>
-            {alwaysQuestions.map((field) => (
-              <FormField
-                key={field.id}
-                label={field.field_label}
-                required={field.is_required}
-                error={errors[`field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null}
-              >
-                {primaryControl(field)}
-              </FormField>
-            ))}
-          </div>
-        )}
+                    <ThemedField label={isRTL ? 'البريد الإلكتروني' : 'Email'} required={attending === 'yes'} error={errors.email} labelColor={C.ink}>
+                      <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError('email'); }} placeholder="your@email.com" style={fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors.email)} />
+                    </ThemedField>
 
-        {attending === 'yes' && (
-          <>
-            {/* Meal choice — surfaced immediately after "Yes" (not buried below
-                party size / allergies) and rendered as clear selectable pills so
-                it's unmistakable. */}
-            {mealOptions && mealOptions.length > 0 && (
-              <div style={{ padding: '16px', borderRadius: '14px', border: `1px solid ${errors.meal ? '#C45E5E' : `${C.maroon}33`}`, background: `${C.maroon}08` }}>
-                <label style={{ ...labelStyle, opacity: 1 }}>🍽 {isRTL ? 'اختر وجبتك' : 'Choose your meal'}{mealField?.is_required && <span style={{ color: '#C45E5E' }}> *</span>}</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '10px' }}>
-                  {mealOptions.map((opt) => (
-                    <button type="button" key={opt} aria-pressed={meal === opt} onClick={() => { setMeal(opt); clearError('meal'); }} style={pillStyle(meal === opt)}>
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-                {errors.meal && <span style={errorTextStyle}>{isRTL ? 'يرجى اختيار وجبة' : 'Please select a meal'}</span>}
-              </div>
-            )}
-
-            <PartySizeStepper value={partySize} onChange={handlePartySizeChange} label={isRTL ? 'عدد الضيوف (بما فيهم أنت)' : 'Number of guests (including yourself)'} isRTL={isRTL} />
-
-            {Array.from({ length: Math.max(0, partySize - 1) }).map((_, i) => (
-              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '14px', border: `1px solid ${C.border}`, borderRadius: '12px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 700, color: C.maroon }}>{isRTL ? `ضيف ${i + 2}` : `Guest ${i + 2}`}</span>
-                <input placeholder={isRTL ? 'الاسم الكامل' : 'Full name'} value={additionalGuests[i]?.fullName || ''} onChange={(e) => updateAdditionalGuest(i, { fullName: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => updateAdditionalGuest(i, { email: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => updateAdditionalGuest(i, { phone: v })} />
-                {mealOptions && mealOptions.length > 0 && (
-                  <div>
-                    <span style={{ fontSize: '11px', fontWeight: 700, color: C.ink, opacity: 0.7 }}>🍽 {isRTL ? 'الوجبة' : 'Meal'}</span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
-                      {mealOptions.map((opt) => {
-                        const sel = additionalGuests[i]?.mealSelection === opt;
-                        return (
-                          <button type="button" key={opt} aria-pressed={sel} onClick={() => updateAdditionalGuest(i, { mealSelection: opt })} style={pillStyle(sel, { size: 'sm' })}>
-                            {opt}
-                          </button>
-                        );
-                      })}
+                    <div>
+                      <label style={labelStyle}>
+                        {isRTL ? 'رقم الهاتف' : 'Phone number'}{attending === 'yes' && <span style={{ color: ERR }}> *</span>}
+                        {attending === 'no' && <span style={{ opacity: 0.5, fontWeight: 500 }}> {isRTL ? '(اختياري)' : '(optional)'}</span>}
+                      </label>
+                      <PhoneNumberInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); if (!v.trim()) clearError('smsConsent'); }} hasError={!!errors.phone} defaultCountry={isRTL ? 'eg' : 'us'} />
+                      {errors.phone && <span style={errorTextStyle}>{typeof errors.phone === 'string' ? errors.phone : (isRTL ? 'مطلوب' : 'Required')}</span>}
                     </div>
+
+                    {/* SMS consent — only when a phone is actually being collected. */}
+                    <AnimatePresence>
+                      {showSmsConsent && (
+                        <motion.label
+                          initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                          style={{
+                            display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer',
+                            padding: '12px 14px', borderRadius: '12px', overflow: 'hidden',
+                            background: errors.smsConsent ? alpha(ERR, 0.06) : alpha(C.maroon, 0.05),
+                            border: `1px solid ${errors.smsConsent ? ERR : C.border}`,
+                          }}
+                        >
+                          <input type="checkbox" checked={smsConsent} onChange={(e) => { setSmsConsent(e.target.checked); clearError('smsConsent'); }} style={{ marginTop: '2px', width: '17px', height: '17px', accentColor: C.maroon, flexShrink: 0 }} />
+                          <span style={{ fontSize: '12px', color: C.ink, opacity: 0.85, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                            {isRTL
+                              ? 'أوافق على تلقي رسائل نصية (SMS) بخصوص هذه الفعالية. قد تُطبّق رسوم الرسائل والبيانات. أرسل STOP لإلغاء الاشتراك.'
+                              : 'I agree to receive SMS updates about this event. Message & data rates may apply. Reply STOP to opt out.'}
+                          </span>
+                        </motion.label>
+                      )}
+                    </AnimatePresence>
+                    {errors.smsConsent && <span style={errorTextStyle}>{isRTL ? 'يرجى الموافقة لتلقي الرسائل النصية للمتابعة.' : 'Please agree to receive SMS updates to continue.'}</span>}
+                  </div>
+                </motion.div>
+
+                {/* Always-show custom questions (asked of the primary guest for any response). */}
+                {alwaysQuestions.length > 0 && (
+                  <motion.div {...reveal} style={cardOuter}>
+                    <div style={cardInner}>
+                      <span style={eyebrowStyle}>{isRTL ? 'تفاصيل إضافية' : 'A few more details'}</span>
+                      {alwaysQuestions.map((field) => (
+                        <ThemedField key={field.id} label={field.field_label} required={field.is_required} error={errors[`field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
+                          {primaryControl(field)}
+                        </ThemedField>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* ── Attending-only details ── */}
+                <AnimatePresence>
+                  {attending === 'yes' && (
+                    <motion.div
+                      key="attending-details"
+                      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.4 }} style={{ overflow: 'hidden' }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                        {/* Meal */}
+                        {mealOptions && mealOptions.length > 0 && (
+                          <div style={{ padding: '18px', borderRadius: '18px', border: `1px solid ${errors.meal ? ERR : alpha(C.maroon, 0.28)}`, background: alpha(C.maroon, 0.05) }}>
+                            <label style={{ ...labelStyle, opacity: 1, marginBottom: 0 }}>🍽 {isRTL ? 'اختر وجبتك' : 'Choose your meal'}{mealField?.is_required && <span style={{ color: ERR }}> *</span>}</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
+                              {mealOptions.map((opt) => (
+                                <button type="button" key={opt} aria-pressed={meal === opt} onClick={() => { setMeal(opt); clearError('meal'); }} style={pillStyle(meal === opt)}>{opt}</button>
+                              ))}
+                            </div>
+                            {errors.meal && <span style={errorTextStyle}>{isRTL ? 'يرجى اختيار وجبة' : 'Please select a meal'}</span>}
+                          </div>
+                        )}
+
+                        <PartyStepper value={partySize} onChange={handlePartySizeChange} label={isRTL ? 'عدد الضيوف (بما فيهم أنت)' : 'Number of guests (including you)'} isRTL={isRTL} C={C} />
+
+                        {/* Companions */}
+                        {Array.from({ length: Math.max(0, partySize - 1) }).map((_, i) => (
+                          <div key={i} style={cardOuter}>
+                            <div style={cardInner}>
+                              <span style={{ ...eyebrowStyle, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: alpha(C.maroon, 0.12), color: C.maroon, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>{i + 2}</span>
+                                {isRTL ? `الضيف رقم ${i + 2}` : `Guest ${i + 2}`}
+                              </span>
+                              <input placeholder={isRTL ? 'الاسم الكامل' : 'Full name'} value={additionalGuests[i]?.fullName || ''} onChange={(e) => updateAdditionalGuest(i, { fullName: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                              <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => updateAdditionalGuest(i, { email: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                              <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => updateAdditionalGuest(i, { phone: v })} defaultCountry={isRTL ? 'eg' : 'us'} />
+                              {mealOptions && mealOptions.length > 0 && (
+                                <div>
+                                  <span style={{ ...labelStyle, opacity: 0.7 }}>🍽 {isRTL ? 'الوجبة' : 'Meal'}</span>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {mealOptions.map((opt) => {
+                                      const sel = additionalGuests[i]?.mealSelection === opt;
+                                      return <button type="button" key={opt} aria-pressed={sel} onClick={() => updateAdditionalGuest(i, { mealSelection: opt })} style={pillStyle(sel, { size: 'sm' })}>{opt}</button>;
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                              <input placeholder={isRTL ? 'حساسية أو قيود غذائية (اختياري)' : 'Allergies / dietary notes (optional)'} value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                              {guestScopedQuestions.map((field) => (
+                                <ThemedField key={field.id} label={field.field_label} required={field.is_required} error={errors[`companion_${i}_field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
+                                  {companionControl(i, field)}
+                                </ThemedField>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        {/* Allergies */}
+                        <div style={cardOuter}>
+                          <div style={cardInner}>
+                            <span style={eyebrowStyle}>⚠ {isRTL ? 'الحساسية وقيود الطعام' : 'Food allergies & intolerances'}</span>
+                            <p style={{ fontSize: '12px', color: C.ink, opacity: 0.65, margin: 0, lineHeight: 1.5 }}>
+                              {isRTL ? 'من المهم معرفة أي قيود غذائية — اختر ما ينطبق:' : 'It helps us to know any dietary restrictions. Select all that apply:'}
+                            </p>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                              {ALLERGY_OPTIONS.map((opt) => (
+                                <button type="button" key={opt} aria-pressed={allergies.includes(opt)} onClick={() => toggleAllergy(opt)} style={pillStyle(allergies.includes(opt), { size: 'sm' })}>
+                                  {allergies.includes(opt) ? '✓ ' : ''}{opt}
+                                </button>
+                              ))}
+                            </div>
+                            <input placeholder={isRTL ? 'حساسية أخرى أو قيود' : 'Other allergies or restrictions'} value={otherAllergy} onChange={(e) => setOtherAllergy(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                          </div>
+                        </div>
+
+                        <ThemedField label={`🎵 ${isRTL ? 'اقتراح أغنية للحفلة' : 'Song request for the party'}`} labelColor={C.ink}>
+                          <input placeholder={isRTL ? 'مثال: أغنية مفضلة' : 'E.g. "Dancing Queen" by ABBA'} value={songRequest} onChange={(e) => setSongRequest(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                        </ThemedField>
+
+                        {/* Attending-only custom questions */}
+                        {attendingQuestions.length > 0 && (
+                          <div style={cardOuter}>
+                            <div style={cardInner}>
+                              <span style={eyebrowStyle}>{isRTL ? 'تفاصيل الحضور' : 'A few details for your visit'}</span>
+                              {attendingQuestions.map((field) => (
+                                <ThemedField key={field.id} label={field.field_label} required={field.is_required} error={errors[`field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
+                                  {primaryControl(field)}
+                                </ThemedField>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Message — for every response */}
+                <ThemedField label={isRTL ? 'رسالة للعروسين (اختياري)' : 'Message for the couple (optional)'} labelColor={C.ink}>
+                  <textarea rows={3} placeholder={isRTL ? 'اكتب لنا بضع كلمات...' : 'Write us a few words...'} value={message} onChange={(e) => setMessage(e.target.value)} style={{ ...fieldStyle, resize: 'vertical' }} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                </ThemedField>
+
+                {turnstileEnabled && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                    <TurnstileWidget
+                      ref={turnstileRef}
+                      onVerify={(token) => { setCaptchaToken(token); setCaptchaLoadError(false); clearError('captcha'); }}
+                      onExpire={() => setCaptchaToken(null)}
+                      onError={() => { setCaptchaToken(null); setCaptchaLoadError(true); }}
+                    />
+                    {errors.captcha && (
+                      <span style={{ ...errorTextStyle, textAlign: 'center' }}>
+                        {captchaLoadError
+                          ? (isRTL ? 'تعذّر تحميل التحقق الأمني. حاول تعطيل مانع الإعلانات أو تغيير الشبكة ثم أعد تحميل الصفحة.' : "The security check couldn't load — try disabling an ad-blocker or switching networks, then reload the page.")
+                          : (isRTL ? 'يرجى إكمال التحقق الأمني.' : 'Please complete the security check.')}
+                      </span>
+                    )}
                   </div>
                 )}
-                <input
-                  placeholder={isRTL ? 'حساسية أو قيود غذائية (اختياري)' : 'Allergies / dietary notes (optional)'}
-                  value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })}
-                  style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur}
-                />
-                {/* Per-guest custom questions (scope='guest') — asked of each companion. */}
-                {guestScopedQuestions.map((field) => (
-                  <FormField
-                    key={field.id}
-                    label={field.field_label}
-                    required={field.is_required}
-                    error={errors[`companion_${i}_field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null}
-                  >
-                    {companionControl(i, field)}
-                  </FormField>
-                ))}
+
+                {Object.keys(errors).length > 0 && (
+                  <p style={{ fontSize: '12px', color: ERR, margin: 0, textAlign: 'center', fontWeight: 600 }}>
+                    {isRTL ? 'يرجى مراجعة الحقول المطلوبة بالأعلى.' : 'Please review the highlighted fields above.'}
+                  </p>
+                )}
+
+                <motion.button
+                  type="button" onClick={handleSubmit} disabled={submitting}
+                  whileHover={submitting ? undefined : { y: -2 }} whileTap={submitting ? undefined : { scale: 0.99 }}
+                  style={{
+                    width: '100%', padding: '16px', borderRadius: '14px', border: 'none',
+                    background: submitting ? alpha(C.maroon, 0.55) : `linear-gradient(150deg, ${C.maroon}, ${C.maroonDeep})`,
+                    color: '#FFFCF6', fontWeight: 700, fontSize: '15px', letterSpacing: '0.03em',
+                    cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)',
+                    boxShadow: submitting ? 'none' : `0 16px 34px -16px ${alpha(C.maroon, 0.7)}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  }}
+                >
+                  {submitting && (
+                    <motion.span aria-hidden animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
+                      style={{ width: '16px', height: '16px', border: '2px solid rgba(255,252,246,0.4)', borderTopColor: '#FFFCF6', borderRadius: '50%' }} />
+                  )}
+                  {submitting
+                    ? (isRTL ? 'جارٍ الإرسال...' : 'Sending...')
+                    : attending === 'no' ? (isRTL ? 'إرسال الاعتذار' : 'Send my reply') : (isRTL ? 'تأكيد الحضور' : 'Send RSVP')}
+                </motion.button>
               </div>
-            ))}
-
-            <div>
-              <label style={labelStyle}>⚠ {isRTL ? 'الحساسية وقيود الطعام' : 'Food allergies and intolerances'}</label>
-              <p style={{ fontSize: '12px', color: C.ink, opacity: 0.7, margin: '0 0 10px' }}>
-                {isRTL ? 'من المهم جدًا معرفة أي قيود غذائية:' : 'It is very important for us to know any dietary restrictions. Select all that apply:'}
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {ALLERGY_OPTIONS.map((opt) => (
-                  <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: C.ink, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={allergies.includes(opt)} onChange={() => toggleAllergy(opt)} />
-                    {opt}
-                  </label>
-                ))}
-              </div>
-              <input
-                placeholder={isRTL ? 'حساسية أخرى أو قيود' : 'Other allergies or restrictions'}
-                value={otherAllergy} onChange={(e) => setOtherAllergy(e.target.value)}
-                style={{ ...fieldStyle, marginTop: '10px' }} onFocus={onFieldFocus} onBlur={onFieldBlur}
-              />
-            </div>
-
-            <FormField label={`🎵 ${isRTL ? 'اقتراح أغنية للحفلة' : 'Song request for the party'}`}>
-              <input placeholder={isRTL ? 'مثال: أغنية مفضلة' : 'E.g. "Dancing Queen" by ABBA'} value={songRequest} onChange={(e) => setSongRequest(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-            </FormField>
-
-            {/* "If Attending" custom questions from the Form Builder — shown only
-                to attendees (the 'always' ones already appear above). */}
-            {attendingQuestions.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '4px', paddingTop: '18px', borderTop: `1px solid ${C.border}` }}>
-                <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.maroon, opacity: 0.9 }}>
-                  {isRTL ? 'تفاصيل الحضور' : 'A few details for your visit'}
-                </span>
-                {attendingQuestions.map((field) => (
-                  <FormField
-                    key={field.id}
-                    label={field.field_label}
-                    required={field.is_required}
-                    error={errors[`field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null}
-                  >
-                    {primaryControl(field)}
-                  </FormField>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        <FormField label={isRTL ? 'رسالة للعروسين (اختياري)' : 'Message for the couple (optional)'}>
-          <textarea rows={3} placeholder={isRTL ? 'اكتب لنا بضع كلمات...' : 'Write us a few words...'} value={message} onChange={(e) => setMessage(e.target.value)} style={{ ...fieldStyle, resize: 'vertical' }} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-        </FormField>
-
-        {Object.keys(errors).length > 0 && (
-          <p style={{ fontSize: '12px', color: '#C45E5E', margin: 0 }}>
-            {isRTL ? 'يرجى ملء جميع الحقول المطلوبة.' : 'Please fill in all required fields.'}
-          </p>
-        )}
-
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          style={{
-            width: '100%', padding: '15px', borderRadius: '12px', border: 'none',
-            background: submitting ? '#A9A08C' : C.maroon, color: '#FFF', fontWeight: 700, fontSize: '14px',
-            cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)', letterSpacing: '0.02em',
-          }}
-        >
-          {submitting ? (isRTL ? 'جارٍ الإرسال...' : 'Sending...') : (isRTL ? 'إرسال الرد' : 'Send RSVP')}
-        </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      <style jsx>{`
+        /* Stop iOS Safari from zooming in whenever a sub-16px field gains focus —
+           the single biggest mobile RSVP annoyance. Scoped to this section via the
+           SnapShell's #ha-rsvp wrapper so it can't leak to other sections. */
+        @media (max-width: 640px) {
+          :global(#ha-rsvp input),
+          :global(#ha-rsvp select),
+          :global(#ha-rsvp textarea) { font-size: 16px !important; }
+        }
+        /* Stack the yes/no choice on phones; tighten the cards on the smallest. */
+        @media (max-width: 460px) {
+          :global(.ha-attend-grid) { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 360px) {
+          :global(.ha-attend-grid) button { min-height: 92px !important; padding: 15px !important; }
+        }
+      `}</style>
     </SectionShell>
   );
 }

@@ -497,7 +497,8 @@ const getPublicEventBySlug = async (req, res, next) => {
           // 24h seating-reveal wait — see RsvpWizard.js's seatingRevealed calc.
           createdByOrganizer: partyRecord.created_by_organizer === true,
           additionalGuests: companions.map((g) => ({
-            id: g.id, fullName: g.full_name || '', mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
+            id: g.id, fullName: g.full_name || '', email: g.email || '', phone: g.phone || '',
+            mealSelection: g.meal_selection || '', dietaryNotes: g.dietary_notes || '',
           })),
           // Lets a returning "yes" guest see/save their real entrance QR from the
           // locked card, not just in the fleeting moment right after they submit.
