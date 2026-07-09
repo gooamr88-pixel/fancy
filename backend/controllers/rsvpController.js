@@ -105,19 +105,30 @@ const submitPublicRSVP = async (req, res, next) => {
   if (partyId) {
     const { data: existingParty } = await supabase
       .from('rsvp_parties')
-      .select('response, events(slug, allow_guest_edits)')
+      .select('response, events(slug, allow_guest_edits, rsvp_deadline)')
       .eq('id', partyId)
       .maybeSingle();
 
-    if (
-      existingParty?.events?.slug === slug &&
-      ['yes', 'no', 'maybe'].includes(existingParty.response) &&
-      !existingParty.events?.allow_guest_edits
-    ) {
+    const ev = existingParty?.events;
+    // Only an EDIT to an already-answered party is gated here — a first-time
+    // response (still 'pending', or no partyId) is never blocked by this.
+    const editingAnswered = ev?.slug === slug && ['yes', 'no', 'maybe'].includes(existingParty.response);
+
+    if (editingAnswered && !ev?.allow_guest_edits) {
       return sendFail(res, {
         status: 403,
         error: 'RESPONSE_EDITS_DISABLED',
         message: 'The organizer has disabled changes to RSVPs after submission. Please contact them directly to update your response.',
+      });
+    }
+    // Even when edits are allowed, they close at the RSVP deadline — matching the
+    // organizer-facing promise ("guests can update their RSVP ... until the RSVP
+    // deadline"). Enforced server-side so a direct API call can't slip past it.
+    if (editingAnswered && ev?.allow_guest_edits && ev?.rsvp_deadline && new Date() > new Date(ev.rsvp_deadline)) {
+      return sendFail(res, {
+        status: 403,
+        error: 'RESPONSE_EDITS_CLOSED',
+        message: 'The deadline to change your RSVP has passed. Please contact the host to make any changes.',
       });
     }
   }

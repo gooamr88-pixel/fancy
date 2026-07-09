@@ -108,6 +108,10 @@ const STATUS_META = {
 function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset, seatingView, seatingLoading }) {
   const meta = STATUS_META[guest?.response] || STATUS_META.yes;
   const name = guest?.guest_name || '';
+  // Edits are allowed "until the RSVP deadline" — honor both the host toggle and
+  // the date client-side (the backend also rejects a late edit: RESPONSE_EDITS_CLOSED).
+  const deadlinePassed = !!event?.rsvp_deadline && new Date() > new Date(event.rsvp_deadline);
+  const canEdit = allowEdits && !deadlinePassed;
   return (
     <Centered>
       <ScaleIn>
@@ -173,7 +177,7 @@ function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset, seat
           )}
 
           <div style={{ borderTop: '1px solid #F0ECE3', marginTop: '24px', paddingTop: '20px' }}>
-            {allowEdits ? (
+            {canEdit ? (
               <>
                 <p style={{ fontSize: '12px', color: '#A09A91', lineHeight: 1.6, marginBottom: '14px' }}>
                   {isRTL ? 'تغيّرت خططك؟ يمكنك تحديث ردك قبل الموعد النهائي.' : 'Plans changed? You can update your response before the deadline.'}
@@ -182,6 +186,10 @@ function RsvpLockedCard({ event, guest, allowEdits, isRTL, onEdit, onReset, seat
                   {isRTL ? 'تحديث ردّي' : 'Update my response'}
                 </PremiumButton>
               </>
+            ) : allowEdits ? (
+              <p style={{ fontSize: '12px', color: '#A09A91', lineHeight: 1.6 }}>
+                {isRTL ? 'انتهى موعد تعديل الردود. يُرجى التواصل مع المضيف لأي تغيير.' : 'The deadline to change your response has passed — please reach out to your host directly.'}
+              </p>
             ) : (
               <p style={{ fontSize: '12px', color: '#A09A91', lineHeight: 1.6 }}>
                 {isRTL ? 'هل تحتاج إلى تعديل ردك؟ يُرجى التواصل مع المضيف مباشرةً.' : 'Need to change your response? Please reach out to your host directly.'}

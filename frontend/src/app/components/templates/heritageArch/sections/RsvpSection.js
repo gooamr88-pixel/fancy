@@ -9,6 +9,7 @@ import PhoneNumberInput from '../../../PhoneNumberInput';
 import TurnstileWidget, { turnstileEnabled } from '../../../guest/TurnstileWidget';
 import { normalizeToE164 } from '../../../../utils/phone';
 import { useIdempotentRsvpSubmit } from '../../../guest/rsvp/useIdempotentRsvpSubmit';
+import { rememberGuest } from '../../../guest/rsvp/useRsvpResolver';
 import { getCelebrationPreset } from '../../../../utils/patternCelebration';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DiamondDivider } from '../shared';
@@ -183,7 +184,6 @@ function AttendanceChoice({ value, onSelect, C, isRTL }) {
 
 export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions: mealOptionsProp, isRTL, trackEvent }) {
   const C = useFullPageTheme();
-  const locked = hasResponded && !allowGuestEdits;
 
   // ── Themed input chrome (burgundy palette, not GuestUI's gold) ──
   const fieldStyle = {
@@ -232,6 +232,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const [message, setMessage] = useState('');
   const [smsConsent, setSmsConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [errors, setErrors] = useState({});
   const [customAnswers, setCustomAnswers] = useState({});
 
@@ -247,14 +248,26 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const [submittedPartyId, setSubmittedPartyId] = useState(null);
 
   const { submit, submitting } = useIdempotentRsvpSubmit({
-    onSuccess: (data) => { if (data?.qrToken) setQrToken(data.qrToken); if (data?.partyId) setSubmittedPartyId(data.partyId); setSubmitted(true); },
+    onSuccess: (data) => {
+      if (data?.qrToken) setQrToken(data.qrToken);
+      // Remember this device's party id so a return visit resolves to the
+      // already-registered card instead of a blank, re-submittable form.
+      if (data?.partyId) { setSubmittedPartyId(data.partyId); rememberGuest(slug, data.partyId); }
+      setSubmitted(true);
+    },
     onLocked: () => setSubmitted(true),
   });
 
+  // A returning guest who already responded lands on the confirmation card, NOT a
+  // fresh form — unless they explicitly tap "Update my response". A fresh submit
+  // shows the same card. This is what surfaces "you're already registered" and
+  // stops the silent re-registration on every visit.
+  const showConfirmation = submitted || (hasResponded && !editing);
+
   // Analytics — fire once when the form is actually presented.
   useEffect(() => {
-    if (!locked) trackEvent?.('rsvp_started');
-  }, [trackEvent, locked]);
+    if (!showConfirmation) trackEvent?.('rsvp_started');
+  }, [trackEvent, showConfirmation]);
 
   // Prefill from the guest's existing RSVP once it resolves (EventPageClient paints
   // from the SSR snapshot with guestRsvp still null, then fills it after refetch —
@@ -308,12 +321,12 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const seatingRevealed = guestRsvp?.createdByOrganizer === true || (event?.event_date ? isSeatingRevealed(event.event_date) : false);
   const seatingPartyId = submittedPartyId || guestRsvp?.id || null;
   useEffect(() => {
-    if ((locked || submitted) && isYesResponse && seatingRevealed && seatingPartyId && seatingFetchedFor.current !== seatingPartyId) {
+    if (showConfirmation && isYesResponse && seatingRevealed && seatingPartyId && seatingFetchedFor.current !== seatingPartyId) {
       seatingFetchedFor.current = seatingPartyId;
       seatingApi.fetchSeatingMap(seatingPartyId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locked, submitted, isYesResponse, seatingRevealed, seatingPartyId]);
+  }, [showConfirmation, isYesResponse, seatingRevealed, seatingPartyId]);
 
   // Bring the revealed detail block into view when the guest picks an answer, so
   // it's obvious something new appeared below the (now-answered) choice.
@@ -551,7 +564,12 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   };
 
   /* ═══════════════════════════ SUCCESS / LOCKED ═══════════════════════════ */
-  if (locked || submitted) {
+  if (showConfirmation) {
+    const returning = hasResponded && !submitted; // already-registered, not a fresh submit
+    // The organizer's "allow guests to change their response" promise is "... until
+    // the RSVP deadline", so the edit affordance honors both the toggle and the date.
+    const deadlinePassed = !!event?.rsvp_deadline && new Date() > new Date(event.rsvp_deadline);
+    const canEdit = allowGuestEdits && !deadlinePassed;
     const isYes = attending === 'yes' || (!!guestRsvp?.response && guestRsvp.response !== 'no');
     const label = responseStatus?.label || (isYes ? (isRTL ? 'تأكيد الحضور' : 'Attending') : (isRTL ? 'الاعتذار عن الحضور' : 'Declined'));
     const celebration = getCelebrationPreset(event?.template_type);
@@ -587,13 +605,19 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
               )}
             </motion.div>
 
-            <SectionHeading isRTL={isRTL} style={{ marginBottom: '4px' }}>{isRTL ? 'شكراً لك' : 'Thank you'}</SectionHeading>
+            <SectionHeading isRTL={isRTL} style={{ marginBottom: '4px' }}>
+              {returning ? (isRTL ? 'أنت مسجّل بالفعل' : "You're already registered") : (isRTL ? 'شكراً لك' : 'Thank you')}
+            </SectionHeading>
             <DiamondDivider />
 
             <p style={{ fontSize: '15px', color: C.ink, opacity: 0.85, maxWidth: '360px', lineHeight: 1.75, margin: '4px 0 0' }}>
-              {isYes
-                ? (isRTL ? 'يسعدنا انضمامكم إلينا — تم تسجيل ردكم بنجاح.' : "We're so happy you'll be joining us — your response is recorded.")
-                : (isRTL ? 'شكراً لإعلامنا. سنفتقد وجودكم، ونتمنى لكم كل الخير.' : "Thank you for letting us know — you'll be missed, and we wish you all the best.")}
+              {returning
+                ? (isYes
+                    ? (isRTL ? 'لدينا ردك بالفعل — نتطلّع لرؤيتك!' : "We already have your response on file — we can't wait to see you.")
+                    : (isRTL ? 'لدينا ردك بالفعل. شكراً لإعلامنا.' : 'We already have your response on file. Thanks for letting us know.'))
+                : (isYes
+                    ? (isRTL ? 'يسعدنا انضمامكم إلينا — تم تسجيل ردكم بنجاح.' : "We're so happy you'll be joining us — your response is recorded.")
+                    : (isRTL ? 'شكراً لإعلامنا. سنفتقد وجودكم، ونتمنى لكم كل الخير.' : "Thank you for letting us know — you'll be missed, and we wish you all the best."))}
             </p>
 
             <div style={{ marginTop: '16px', padding: '9px 20px', borderRadius: '999px', background: C.cream, border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -605,6 +629,38 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
               <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '24px' }}>
                 <CalendarButton event={event} isRTL={isRTL} />
                 <ShareButton title={event.title} text={event.description} isRTL={isRTL} />
+              </div>
+            )}
+
+            {/* Returning guest: an explicit edit affordance (host-gated) — never a
+                silent re-registration. */}
+            {returning && (
+              <div style={{ marginTop: '20px', paddingTop: '18px', borderTop: `1px solid ${C.border}`, width: '100%' }}>
+                {canEdit ? (
+                  <>
+                    <p style={{ fontSize: '12px', color: C.ink, opacity: 0.6, lineHeight: 1.6, margin: '0 0 12px' }}>
+                      {isRTL ? 'تغيّرت خططك؟ يمكنك تحديث ردك قبل الموعد النهائي.' : 'Plans changed? You can update your response before the deadline.'}
+                    </p>
+                    <motion.button
+                      type="button" onClick={() => setEditing(true)} whileTap={{ scale: 0.98 }}
+                      style={{
+                        padding: '11px 24px', borderRadius: '999px', cursor: 'pointer',
+                        border: `1.5px solid ${C.maroon}`, background: 'transparent', color: C.maroon,
+                        fontWeight: 700, fontSize: '13px', fontFamily: 'var(--font-sans)',
+                      }}
+                    >
+                      {isRTL ? 'تحديث ردّي' : 'Update my response'}
+                    </motion.button>
+                  </>
+                ) : allowGuestEdits ? (
+                  <p style={{ fontSize: '12px', color: C.ink, opacity: 0.6, lineHeight: 1.6, margin: 0 }}>
+                    {isRTL ? 'انتهى موعد تعديل الردود. يُرجى التواصل مع المضيف لأي تغيير.' : 'The deadline to change your response has passed — please contact your host for any changes.'}
+                  </p>
+                ) : (
+                  <p style={{ fontSize: '12px', color: C.ink, opacity: 0.6, lineHeight: 1.6, margin: 0 }}>
+                    {isRTL ? 'لتغيير ردك، يُرجى التواصل مع المضيف مباشرةً.' : 'Need to change your response? Please contact your host directly.'}
+                  </p>
+                )}
               </div>
             )}
           </div>

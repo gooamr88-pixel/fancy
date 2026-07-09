@@ -95,6 +95,19 @@ const partyLookup = (response, allowGuestEdits) => (s) =>
     ? { data: { response, events: { slug: 'wedding', allow_guest_edits: allowGuestEdits } } }
     : {};
 
+test('editing an answered party after the RSVP deadline is rejected (403 RESPONSE_EDITS_CLOSED), even with edits allowed', async () => {
+  mock.setResolver((s) => {
+    if (s.table === 'rsvp_parties' && s.terminal === 'maybeSingle') {
+      return { data: { response: 'yes', events: { slug: 'wedding', allow_guest_edits: true, rsvp_deadline: '2000-01-01T00:00:00Z' } } };
+    }
+    return {};
+  });
+  const { res } = await invoke(submitPublicRSVP, req({ partyId: 'party-1', guestName: 'A', email: 'a@x.com', response: 'no' }));
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.error, 'RESPONSE_EDITS_CLOSED');
+  assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
+});
+
 test('editing an already-answered party is rejected (403, no RPC) when the organizer disabled edits', async () => {
   mock.setResolver(partyLookup('yes', false));
   const { res } = await invoke(submitPublicRSVP, req({ partyId: 'party-1', guestName: 'A', email: 'a@x.com', response: 'no' }));
