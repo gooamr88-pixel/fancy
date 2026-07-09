@@ -45,6 +45,30 @@ const WEDDING_STYLE_TEMPLATE_KEYS = [
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
 ];
 
+/**
+ * Client-side mirror of the backend's event-date ordering rules
+ * (eventController.updateEvent): the end must not precede the start, and the
+ * RSVP deadline must fall on or before the event date. Catches the mistake
+ * before any request goes out — so the organizer gets an instant message
+ * instead of a failed round-trip 400. Returns a user-facing message for the
+ * first violated rule, or null when the dates are consistent. A blank end date
+ * or deadline is optional and skips its own check. Comparisons use the same
+ * `new Date(...)` parsing the server uses, keeping client and server verdicts
+ * in lockstep (equal end==start and deadline==event are allowed, matching the
+ * server's strict `<` / `>` checks).
+ */
+function getDateOrderError(eventDate, eventEndDate, rsvpDeadline) {
+  if (!eventDate) return null; // presence is validated separately
+  const start = new Date(eventDate);
+  if (eventEndDate && new Date(eventEndDate) < start) {
+    return 'The end date must be on or after the start date.';
+  }
+  if (rsvpDeadline && new Date(rsvpDeadline) > start) {
+    return 'The RSVP deadline must be on or before the event date.';
+  }
+  return null;
+}
+
 /* ═══════════════════════════════════════════════════════
    CURATED TEMPLATE DEFINITIONS
    ═══════════════════════════════════════════════════════ */
@@ -442,6 +466,21 @@ export default function CreateEventWizard() {
       }
     }
   }, []);
+
+  /* ═══ Surface every form/save error to the organizer as a toast ═══
+     The wizard is one very long single-page form and the inline error banner
+     lives INSIDE the individual step components — the Configure step (where the
+     title/URL/date validations and the backend save happen) renders no banner
+     at all, so a rejected save (e.g. the API refusing an end date that precedes
+     the start date) set `error` but showed the organizer nothing. Mirroring the
+     error state into a toast guarantees it's seen no matter which step they're
+     on or how far they've scrolled. Existing banners stay where they render. */
+  useEffect(() => { if (error) toast.error(error); }, [error]);
+  // Payment/credit failures already render an inline banner on the Payment step,
+  // but mirror them to a toast too so every wizard error reaches the organizer
+  // through the same channel, wherever they are in the flow.
+  useEffect(() => { if (payError) toast.error(payError); }, [payError]);
+  useEffect(() => { if (creditError) toast.error(creditError); }, [creditError]);
 
   /* ═══ Resume an existing DRAFT (Dashboard → Drafts → Continue setup) ═══
      ?draft=<eventId> hydrates every event field from the saved draft and drops the
@@ -1193,6 +1232,14 @@ export default function CreateEventWizard() {
       setError('Please choose an available event URL.');
       return;
     }
+    // Catch backwards dates before the round-trip — the server would reject
+    // these with a 400 anyway, but a local check gives the organizer an instant
+    // toast instead of a silent failed request.
+    const dateError = getDateOrderError(eventDate, eventEndDate, rsvpDeadline);
+    if (dateError) {
+      setError(dateError);
+      return;
+    }
     // Guard: block navigation while any media upload is still in flight, so the
     // organizer can't advance before the file lands in storage (and the upload's
     // own state update doesn't race with ensureDraftEvent's payload below).
@@ -1228,7 +1275,7 @@ export default function CreateEventWizard() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, title, slug, eventDate, slugStatus, musicUploading, coverImageUploading, galleryUploading, sealUploading, invitationBgUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, templateType, customConfig, ensureDraftEvent, goNext]);
+  }, [submitting, title, slug, eventDate, eventEndDate, rsvpDeadline, slugStatus, musicUploading, coverImageUploading, galleryUploading, sealUploading, invitationBgUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, templateType, customConfig, ensureDraftEvent, goNext]);
 
   /* ═══ Save the event as a draft and exit to the dashboard Drafts section ═══
      Persists everything entered so far (creates the draft if needed, else PATCHes)
@@ -1243,6 +1290,11 @@ export default function CreateEventWizard() {
       setError('Please choose an available event URL.');
       return;
     }
+    const dateError = getDateOrderError(eventDate, eventEndDate, rsvpDeadline);
+    if (dateError) {
+      setError(dateError);
+      return;
+    }
     setSavingDraft(true);
     setError('');
     try {
@@ -1255,7 +1307,7 @@ export default function CreateEventWizard() {
       else setError(err.message || 'Could not save your draft. Please try again.');
       setSavingDraft(false);
     }
-  }, [savingDraft, submitting, title, slug, eventDate, slugStatus, ensureDraftEvent]);
+  }, [savingDraft, submitting, title, slug, eventDate, eventEndDate, rsvpDeadline, slugStatus, ensureDraftEvent]);
 
   /* ═══ Payment handlers ═══ */
   const handlePayStripe = useCallback(async () => {
