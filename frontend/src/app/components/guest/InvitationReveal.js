@@ -2,27 +2,24 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { lighten, darken, alpha } from "../../utils/color";
-import { getCelebrationPreset } from "../../utils/patternCelebration";
-import { FloatingParticles } from "./GuestAnimations";
-import WaxSeal3D from "./WaxSeal3D";
+import { lighten, darken, alpha, mix, luminance } from "../../utils/color";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    InvitationReveal — "The Unsealing"
 
-   ONE cinematic opening shared by both guest reveals (replaces the old
-   GuestEnvelopeReveal + DigitalEnvelope):
+   ONE cinematic opening shared by both guest reveals:
 
      • mode="invitation"  first thing a guest sees on the event page /[slug].
      • mode="rsvp"        gates the RSVP route; seal personalised with the
                           guest's own name; per-session "seen" memory.
 
-   A candlelit envelope holds a REAL 3D metallic wax seal (WaxSeal3D, WebGL2).
-   Tap the seal → it cracks → the envelope unfolds on a 3D gold-lined hinge →
-   a large invitation card rises out → the overlay dissolves into the live page.
+   A styled flatlay: a botanical envelope with a ribbon-tied wax seal rests
+   on a sunlit wood table among loose eucalyptus and baby's-breath. Tap the
+   seal to lift the flap, reveal the watercolour liner, and let a wreathed
+   invitation card rise, come into focus, and dissolve into the live page.
 
-   Everything is generated — NO image uploads. The seal's metal + the scene's
-   gold are derived from the event's own custom_colors.
+   Everything is generated — NO image uploads. Every material (foliage,
+   paper, wax, ribbon) is tinted from the event's own custom_colors.
 
    CONTRACT (kept stable for callers + tests):
      • data-testid="guest-envelope-reveal" on the root
@@ -68,23 +65,48 @@ function guestSealText(guestName) {
   return raw.split(/\s+/).map((w) => w.charAt(0)).join("").slice(0, 3).toUpperCase();
 }
 
-/* Four engraved corner flourishes for a stationery card. */
-function CornerOrnaments({ color }) {
-  const corners = [
-    { top: 10, left: 10, rotate: "0deg" },
-    { top: 10, right: 10, rotate: "90deg" },
-    { bottom: 10, right: 10, rotate: "180deg" },
-    { bottom: 10, left: 10, rotate: "270deg" },
-  ];
-  return corners.map((pos, i) => (
-    <svg key={i} width="30" height="30" viewBox="0 0 40 40" aria-hidden
-      style={{ position: "absolute", top: pos.top, bottom: pos.bottom, left: pos.left, right: pos.right, transform: `rotate(${pos.rotate})`, opacity: 0.55, pointerEvents: "none" }}>
-      <path d="M3 3 Q3 12 8 18 Q14 24 22 26" fill="none" stroke={color} strokeWidth="0.9" />
-      <path d="M3 3 Q12 3 18 8 Q24 14 26 22" fill="none" stroke={color} strokeWidth="0.9" />
-      <circle cx="3" cy="3" r="1.5" fill={color} />
-    </svg>
-  ));
+/* ─── Botanical palette derived from the event's own custom_colors ───
+   Clamped to a legible mid-tone band so any organizer color reads as
+   real foliage/wax/ribbon against the bright paper, never washed out
+   or muddy. The wood table + card stock stay a constant sunlit neutral —
+   only the "product" (envelope, wax, ribbon, greenery) carries the brand. */
+function buildBotanicalPalette(customColors) {
+  const c = customColors || {};
+  let accent = c.primary || c.secondary || "#5f8154";
+  let gold = c.secondary || c.accent || "#c6a24d";
+
+  const aLum = luminance(accent);
+  if (aLum > 0.72) accent = darken(accent, 0.35);
+  else if (aLum < 0.16) accent = lighten(accent, 0.3);
+
+  const gLum = luminance(gold);
+  if (gLum > 0.85) gold = darken(gold, 0.2);
+  else if (gLum < 0.22) gold = lighten(gold, 0.35);
+
+  return {
+    wood: "#e3d3b8", woodHi: "#f0e3ce", woodLo: "#c9b48f",
+    paper: mix(accent, "#f2ecd8", 0.74), paperHi: mix(accent, "#f8f3e2", 0.84), paperLo: mix(accent, "#dccfa8", 0.55),
+    seam: mix(accent, "#c9b48f", 0.4),
+    linerLite: lighten(accent, 0.6), linerMid: accent, linerDeep: darken(accent, 0.32),
+    card: "#fbf8ef", cardHi: "#fffefa", cardEdge: mix(gold, "#fbf8ef", 0.3),
+    ink: mix(darken(accent, 0.5), "#2c2c20", 0.45), inkSoft: mix(accent, "#5c5c48", 0.55),
+    wax: gold, waxHi: lighten(gold, 0.32), waxLo: darken(gold, 0.36),
+    accent, gold, goldHi: lighten(gold, 0.26),
+    stamp: darken(accent, 0.22),
+    ribbon: darken(accent, 0.1), ribbonDk: darken(accent, 0.3),
+    bloom: mix(gold, "#fff8ea", 0.7),
+  };
 }
+
+const STAGE_CLASSES = {
+  preload: [],
+  settled: ["ir2-settled"],
+  rest: ["ir2-settled", "ir2-rest"],
+  pressing: ["ir2-settled", "ir2-pressing"],
+  opening: ["ir2-settled", "ir2-opening", "ir2-lift"],
+  rise: ["ir2-settled", "ir2-opening", "ir2-lift", "ir2-rise"],
+  grow: ["ir2-settled", "ir2-opening", "ir2-lift", "ir2-grow"],
+};
 
 export default function InvitationReveal({
   event,
@@ -97,33 +119,30 @@ export default function InvitationReveal({
 }) {
   const prefersReduced = useReducedMotion();
 
-  // 0 preload · 1 settle · 2 rest · 3 pressing · 4 opening · 5 done
-  const [stage, setStage] = useState(0);
+  const [stage, setStage] = useState("preload");
   const [lang, setLang] = useState(langProp || "en");
   const timers = useRef([]);
   const finishedRef = useRef(false);
   const startedRef = useRef(false);
 
-  const colors = event?.custom_colors || {};
-  const metal = colors.secondary || colors.primary || "#e0b24e";
-  const gold = colors.secondary || "#e7c778";
-  const P = useMemo(() => ({
-    metal,
-    g1: lighten(gold, 0.5),
-    g2: gold,
-    g3: darken(gold, 0.22),
-    g4: darken(gold, 0.45),
-    ink: "#f3ead6",
-    soft: "#c9b48c",
-    paperInk: "#2a2011",
-  }), [metal, gold]);
+  const P = useMemo(() => buildBotanicalPalette(event?.custom_colors), [event?.custom_colors]);
+  const paletteVars = useMemo(() => ({
+    "--wood": P.wood, "--wood-hi": P.woodHi, "--wood-lo": P.woodLo,
+    "--paper": P.paper, "--paper-hi": P.paperHi, "--paper-lo": P.paperLo, "--seam": P.seam,
+    "--liner-lite": P.linerLite, "--liner-mid": P.linerMid, "--liner-deep": P.linerDeep,
+    "--card": P.card, "--card-hi": P.cardHi, "--card-edge": P.cardEdge,
+    "--ink": P.ink, "--ink-soft": P.inkSoft,
+    "--wax": P.wax, "--wax-hi": P.waxHi, "--wax-lo": P.waxLo,
+    "--accent": P.accent, "--gold": P.gold, "--gold-hi": P.goldHi, "--stamp": P.stamp,
+    "--ribbon": P.ribbon, "--ribbon-dk": P.ribbonDk, "--bloom": P.bloom,
+  }), [P]);
 
   const td = event?.template_data || {};
   const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
   const gSeal = mode === "rsvp" ? guestSealText(guestName) : null;
   const sealText = gSeal || identity.sealText;
-  const ambient = useMemo(() => getCelebrationPreset(event?.template_type), [event?.template_type]);
+  const sealFontSize = sealText.length <= 2 ? 28 : sealText.length <= 4 ? 21 : sealText.length <= 7 ? 15 : sealText.length <= 10 ? 11 : 9;
 
   /* Per-session "seen" memory (rsvp mode). */
   const seenKey = sessionKey ? `fancy_envelope_seen_${sessionKey}` : null;
@@ -142,8 +161,8 @@ export default function InvitationReveal({
   }, []);
 
   const copy = {
-    en: { eyebrow: "You are invited", tap: "Tap the seal to open", special: "You are invited to our special day", enter: "View invitation", join: "request the honour of your presence" },
-    ar: { eyebrow: "أنت مدعو", tap: "اضغط على الختم", special: "أنت مدعوّ ليومنا المميّز", enter: "عرض الدعوة", join: "يشرّفنا حضوركم" },
+    en: { eyebrow: "You are invited", tap: "Tap the seal to open", special: "You are invited to our special day", enter: "View invitation", join: "request the honour of your presence", details: "View Details" },
+    ar: { eyebrow: "أنت مدعو", tap: "اضغط على الختم", special: "أنت مدعوّ ليومنا المميّز", enter: "عرض الدعوة", join: "يشرّفنا حضوركم", details: "عرض التفاصيل" },
   }[lang];
   const isRTL = lang === "ar";
   const arTitle = event?.title_ar || td.title_ar;
@@ -153,11 +172,9 @@ export default function InvitationReveal({
     : "";
   const locationStr = event?.location_name || "";
 
-  /* Paper + grain textures (data-URIs, built once). */
-  const paper = useMemo(() =>
-    "var(--ir-paper-noise), linear-gradient(158deg,#f3e9d1,#ddcba6 72%,#ccb787)", []);
   const noiseVars = useMemo(() => ({
-    "--ir-paper-noise": "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.06 0'/></filter><rect width='120' height='120' filter='url(%23p)'/></svg>\")",
+    "--ir-paper-noise": "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/></filter><rect width='140' height='140' filter='url(%23p)'/></svg>\")",
+    "--ir-wood-noise": "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='560' height='200'><filter id='w'><feTurbulence type='fractalNoise' baseFrequency='0.011 0.085' numOctaves='4' seed='4'/><feColorMatrix type='matrix' values='0 0 0 0 0.40 0 0 0 0 0.30 0 0 0 0 0.18 0 0 0 0.10 0'/></filter><rect width='560' height='200' filter='url(%23w)'/></svg>\")",
   }), []);
 
   /* ─── Sequence control ─── */
@@ -168,50 +185,73 @@ export default function InvitationReveal({
     finishedRef.current = true;
     clearTimers();
     markSeen();
-    setStage(5);
     onComplete && onComplete();
   }, [clearTimers, markSeen, onComplete]);
 
   const openSeal = useCallback(() => {
     if (startedRef.current || finishedRef.current) return;
     startedRef.current = true;
+    clearTimers(); // cancel any still-pending intro timers (e.g. the resting-prompt timer)
     musicRef?.current?.play().catch((err) => console.error("Background music playback failed:", err));
-    setStage(3);                      // seal cracks
-    after(640, () => setStage(4));    // envelope unfolds, card rises, light
-    after(1780, () => finish());      // dissolve into the live page
-  }, [after, finish, musicRef]);
+    setStage("pressing");
+    after(400, () => setStage("opening"));
+    after(1300, () => setStage("rise"));
+    after(2550, () => setStage("grow"));
+    after(3550, finish);
+  }, [after, clearTimers, finish, musicRef]);
 
   useEffect(() => {
     if (prefersReduced || alreadySeen) return;
-    after(120, () => setStage(1));
-    after(920, () => setStage(2));
+    after(150, () => setStage("settled"));
+    after(1150, () => setStage("rest"));
     return clearTimers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (alreadySeen) return null;
 
-  /* ═══ Reduced-motion fallback — a static luxury card, no choreography. ═══ */
+  /* ═══ Reduced-motion fallback — a static bright card, no choreography. ═══ */
   if (prefersReduced) {
     return (
       <motion.div
         data-testid="guest-envelope-reveal" role="dialog" aria-label="Open your invitation"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}
-        dir={isRTL ? "rtl" : "ltr"} style={{ ...overlayBase, background: SCENE_BG }}
+        dir={isRTL ? "rtl" : "ltr"}
+        style={{ ...overlayBase, ...paletteVars, background: `linear-gradient(180deg, ${P.woodHi}, ${P.wood} 46%, ${P.woodLo})` }}
       >
         <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation" style={skipStyle(P)}>
           Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span>
         </button>
-        <div style={{ position: "relative", width: "100%", maxWidth: 420, textAlign: "center", padding: "44px 30px", borderRadius: 12, color: P.paperInk, backgroundColor: "#e9dfc6", backgroundImage: paper, backgroundSize: "120px 120px, cover", border: `1px solid ${alpha(P.g4, 0.5)}`, boxShadow: "0 40px 90px -30px #000, inset 0 0 0 1px rgba(255,255,255,.3)", ...noiseVars }}>
-          <CornerOrnaments color={P.g3} />
-          <div style={{ width: 128, height: 128, margin: "0 auto 16px", position: "relative" }}>
-            <WaxSeal3D text={sealText} color={metal} interactive={false} animate={false} />
+        <div style={{
+          position: "relative", width: "100%", maxWidth: 420, textAlign: "center", padding: "44px 30px",
+          borderRadius: 8, color: P.ink, backgroundColor: P.card,
+          backgroundImage: `radial-gradient(120% 90% at 50% 0%, ${P.cardHi}, ${P.card} 76%)`,
+          border: `1px solid ${alpha(P.gold, 0.4)}`,
+          boxShadow: "0 40px 90px -30px rgba(40,30,16,.45), inset 0 0 0 1px rgba(255,255,255,.4)",
+        }}>
+          <div style={{ width: 76, height: 76, margin: "0 auto 18px", position: "relative" }}>
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <defs>
+                <radialGradient id="ir2rm-wax" cx="37%" cy="31%" r="78%">
+                  <stop offset="0%" stopColor={P.waxHi} />
+                  <stop offset="48%" stopColor={P.wax} />
+                  <stop offset="100%" stopColor={P.waxLo} />
+                </radialGradient>
+              </defs>
+              <path d="M50 3 C61 3 63 12 72 15 C83 18 84 30 89 38 C95 47 90 56 91 66 C92 78 82 80 74 87 C65 94 57 90 50 92 C42 90 34 95 26 87 C17 79 9 79 9 66 C9 55 5 47 11 38 C16 30 17 18 28 15 C37 12 39 3 50 3 Z" fill="url(#ir2rm-wax)" />
+              <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} fill={P.waxLo} opacity=".85" letterSpacing="1">{sealText}</text>
+            </svg>
           </div>
-          <div style={{ fontSize: 10.5, letterSpacing: "0.36em", textTransform: "uppercase", color: P.g4, fontWeight: 700 }}>{copy.eyebrow}</div>
-          <h1 style={{ fontFamily: "var(--font-serif), Georgia, serif", fontSize: "clamp(26px,7vw,38px)", margin: "12px 0 6px", color: "#3a2a12", fontWeight: 500 }}>{displayTitle}</h1>
-          <p style={{ fontFamily: "var(--font-serif), Georgia, serif", fontStyle: "italic", fontSize: 14, color: "#6a5a3c", margin: 0 }}>{copy.join}</p>
-          {dateStr && <div style={{ marginTop: 18, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: "#4a3a20", fontWeight: 600 }}>{dateStr}</div>}
-          <button type="button" onClick={() => { musicRef?.current?.play().catch(() => {}); finish(); }} style={enterBtnStyle(P)}>
+          <div style={{ fontSize: 10.5, letterSpacing: "0.36em", textTransform: "uppercase", color: P.accent, fontWeight: 700 }}>{copy.eyebrow}</div>
+          <h1 style={{ fontFamily: "var(--font-serif), Georgia, serif", fontSize: "clamp(26px,7vw,38px)", margin: "12px 0 6px", color: P.ink, fontWeight: 500 }}>{displayTitle}</h1>
+          <p style={{ fontFamily: "var(--font-serif), Georgia, serif", fontStyle: "italic", fontSize: 14, color: P.inkSoft, margin: 0 }}>{copy.join}</p>
+          {dateStr && <div style={{ marginTop: 18, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: P.inkSoft, fontWeight: 600 }}>{dateStr}</div>}
+          <button type="button" onClick={() => { musicRef?.current?.play().catch(() => {}); finish(); }} style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center", marginTop: 24, padding: "14px 32px", borderRadius: 999,
+            border: "none", background: `linear-gradient(180deg, ${P.goldHi}, ${P.gold})`, color: "#2c2010",
+            fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer",
+            boxShadow: `0 12px 28px ${alpha(P.gold, 0.35)}, inset 0 1px 0 rgba(255,255,255,.5)`,
+          }}>
             {copy.enter} <span aria-hidden style={{ marginInlineStart: 8 }}>{isRTL ? "←" : "→"}</span>
           </button>
         </div>
@@ -219,30 +259,152 @@ export default function InvitationReveal({
     );
   }
 
-  const pressing = stage === 3;
-  const opening = stage >= 4;
-  const sceneClass = `ir-scene${pressing ? " pressing" : ""}${opening ? " opening" : ""}`;
+  const rootClassName = ["ir2-root", ...(STAGE_CLASSES[stage] || [])].join(" ");
 
   return (
     <motion.div
       data-testid="guest-envelope-reveal" role="dialog" aria-label="Open your invitation"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.35, transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] } }}
+      exit={{ opacity: 0, scale: 1.04, transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] } }}
       transition={{ duration: 0.6 }}
       dir={isRTL ? "rtl" : "ltr"}
-      className={sceneClass}
-      style={{ ...overlayBase, background: SCENE_BG, ...noiseVars }}
+      className={rootClassName}
+      style={{ ...overlayBase, ...paletteVars, ...noiseVars }}
     >
       <style dangerouslySetInnerHTML={{ __html: REVEAL_CSS }} />
-      <div className="ir-flicker" aria-hidden />
 
-      {/* ambient particles matched to the event */}
-      <motion.div aria-hidden initial={false} animate={{ opacity: opening ? 0 : 1 }} transition={{ duration: 0.6 }} style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none" }}>
-        <FloatingParticles count={18} color={ambient.ambientColor || P.g2} shape={ambient.ambient} />
-      </motion.div>
+      {/* shared botanical + flourish artwork, tinted from the palette above */}
+      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+        <defs>
+          <filter id="ir2-wc" x="-22%" y="-22%" width="144%" height="144%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="11" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" />
+            <feGaussianBlur stdDeviation="0.55" />
+          </filter>
+          <linearGradient id="ir2-leafG" x1="0.12" y1="0" x2="0.85" y2="1">
+            <stop offset="0%" style={{ stopColor: "var(--liner-lite)" }} />
+            <stop offset="52%" style={{ stopColor: "var(--liner-mid)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--liner-deep)" }} />
+          </linearGradient>
+          <radialGradient id="ir2-waxg" cx="37%" cy="31%" r="78%">
+            <stop offset="0%" style={{ stopColor: "var(--wax-hi)" }} />
+            <stop offset="48%" style={{ stopColor: "var(--wax)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--wax-lo)" }} />
+          </radialGradient>
+
+          <symbol id="ir2-leaf" viewBox="0 0 22 28">
+            <path d="M11 0 C18 2 22 9 22 15 C22 23 16 28 11 28 C6 28 0 23 0 15 C0 9 4 2 11 0 Z" fill="url(#ir2-leafG)" style={{ stroke: "var(--liner-deep)" }} strokeWidth=".6" strokeOpacity=".28" />
+            <path d="M11 3 C15 4 18 9 18 14 C18 19 15 22 11 22 C9 22 6 20 6 15 C6 10 8 5 11 3 Z" style={{ fill: "var(--liner-lite)" }} opacity=".4" />
+            <path d="M11 4 C11 12 11 19 11 25" fill="none" style={{ stroke: "var(--liner-deep)" }} strokeWidth=".7" opacity=".26" />
+          </symbol>
+          <symbol id="ir2-leafs" viewBox="0 0 14 34">
+            <path d="M7 0 C11 6 12 15 7 34 C2 15 3 6 7 0 Z" fill="url(#ir2-leafG)" style={{ stroke: "var(--liner-deep)" }} strokeWidth=".5" strokeOpacity=".26" />
+            <path d="M7 3 C7 12 7 22 7 31" fill="none" style={{ stroke: "var(--liner-deep)" }} strokeWidth=".6" opacity=".24" />
+          </symbol>
+          <symbol id="ir2-leaf-mono" viewBox="0 0 22 28">
+            <path d="M11 0 C18 2 22 9 22 15 C22 23 16 28 11 28 C6 28 0 23 0 15 C0 9 4 2 11 0 Z" fill="currentColor" />
+            <path d="M11 4 C11 12 11 19 11 25" fill="none" stroke="currentColor" strokeWidth=".6" opacity=".45" />
+          </symbol>
+          <symbol id="ir2-flower" viewBox="0 0 40 40">
+            <g filter="url(#ir2-wc)">
+              <circle cx="20" cy="13" r="8.4" style={{ fill: "var(--bloom)" }} opacity=".92" />
+              <circle cx="11" cy="21" r="8.2" style={{ fill: "var(--bloom)" }} opacity=".88" />
+              <circle cx="29" cy="21" r="8.2" style={{ fill: "var(--bloom)" }} opacity=".88" />
+              <circle cx="14" cy="30" r="7.4" style={{ fill: "var(--bloom)" }} opacity=".82" />
+              <circle cx="26" cy="30" r="7.4" style={{ fill: "var(--bloom)" }} opacity=".82" />
+              <circle cx="20" cy="23" r="5.6" style={{ fill: "var(--gold)" }} opacity=".55" />
+              <circle cx="20" cy="23" r="2.4" style={{ fill: "var(--gold-hi)" }} opacity=".8" />
+            </g>
+          </symbol>
+          <symbol id="ir2-babysbreath" viewBox="0 0 60 90">
+            <path d="M30 88 C30 60 26 40 20 20 M30 60 C34 48 40 40 46 30 M28 50 C22 42 16 36 8 30 M30 40 C30 28 28 18 24 6"
+              fill="none" stroke="currentColor" strokeWidth="1" opacity=".5" />
+            <circle cx="20" cy="18" r="2.6" fill="currentColor" opacity=".85" />
+            <circle cx="14" cy="24" r="2" fill="currentColor" opacity=".7" />
+            <circle cx="46" cy="28" r="2.4" fill="currentColor" opacity=".8" />
+            <circle cx="50" cy="22" r="1.8" fill="currentColor" opacity=".65" />
+            <circle cx="8" cy="28" r="2.2" fill="currentColor" opacity=".75" />
+            <circle cx="4" cy="22" r="1.6" fill="currentColor" opacity=".6" />
+            <circle cx="24" cy="4" r="2.4" fill="currentColor" opacity=".8" />
+            <circle cx="28" cy="10" r="1.8" fill="currentColor" opacity=".65" />
+            <circle cx="24" cy="52" r="1.8" fill="currentColor" opacity=".6" />
+          </symbol>
+
+          <symbol id="ir2-sprig" viewBox="0 0 220 262">
+            <g filter="url(#ir2-wc)">
+              <path d="M176 260 C150 212 150 150 120 100 C100 66 92 40 80 14" fill="none" stroke="currentColor" strokeWidth="2.6" opacity=".38" />
+              <circle cx="168" cy="238" r="3.4" fill="currentColor" opacity=".55" />
+              <circle cx="176" cy="230" r="2.8" fill="currentColor" opacity=".5" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(150 206) rotate(-48) scale(1.55)" opacity=".9" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(178 196) rotate(52) scale(1.5)" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(132 168) rotate(-44) scale(1.4)" opacity=".92" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(160 158) rotate(56) scale(1.36)" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(114 132) rotate(-40) scale(1.24)" opacity=".92" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(142 122) rotate(58) scale(1.2)" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(100 98) rotate(-34) scale(1.08)" opacity=".9" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(124 90) rotate(60) scale(1.02)" />
+              <use href="#ir2-leafs" width="14" height="34" transform="translate(92 66) rotate(-26) scale(.92)" opacity=".88" />
+              <use href="#ir2-leafs" width="14" height="34" transform="translate(110 58) rotate(54) scale(.84)" />
+              <use href="#ir2-leafs" width="14" height="34" transform="translate(84 30) rotate(8) scale(.74)" opacity=".85" />
+            </g>
+          </symbol>
+
+          <symbol id="ir2-wreath" viewBox="0 0 300 300">
+            <g filter="url(#ir2-wc)">
+              <use href="#ir2-flower" width="30" height="30" transform="translate(135 10) rotate(0)" />
+              <use href="#ir2-leaf" width="20" height="26" transform="translate(198 26) rotate(32) scale(1.1)" />
+              <use href="#ir2-leaf" width="20" height="26" transform="translate(242 68) rotate(60) scale(1.15)" />
+              <use href="#ir2-babysbreath" width="24" height="38" transform="translate(258 128) rotate(90)" />
+              <use href="#ir2-flower" width="28" height="28" transform="translate(238 208) rotate(120) scale(.95)" />
+              <use href="#ir2-leaf" width="20" height="26" transform="translate(198 254) rotate(148) scale(1.1)" />
+              <use href="#ir2-leaf" width="20" height="26" transform="translate(140 270) rotate(180) scale(1.15)" />
+              <use href="#ir2-leaf" width="20" height="26" transform="translate(84 254) rotate(212) scale(1.1)" />
+              <use href="#ir2-flower" width="28" height="28" transform="translate(38 206) rotate(240) scale(.95)" />
+              <use href="#ir2-babysbreath" width="24" height="38" transform="translate(22 118) rotate(270)" />
+              <use href="#ir2-leaf" width="20" height="26" transform="translate(42 66) rotate(300) scale(1.1)" />
+              <use href="#ir2-leaf" width="20" height="26" transform="translate(84 24) rotate(328) scale(1.1)" />
+              <use href="#ir2-leaf" width="15" height="20" transform="translate(182 50) rotate(45) scale(.9)" opacity=".85" />
+              <use href="#ir2-leaf" width="15" height="20" transform="translate(182 220) rotate(135) scale(.9)" opacity=".85" />
+              <use href="#ir2-leaf" width="15" height="20" transform="translate(98 220) rotate(225) scale(.9)" opacity=".85" />
+              <use href="#ir2-leaf" width="15" height="20" transform="translate(98 50) rotate(315) scale(.9)" opacity=".85" />
+            </g>
+          </symbol>
+
+          <symbol id="ir2-flourish-corner" viewBox="0 0 90 90">
+            <path d="M6,52 C6,26 26,6 52,6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            <path d="M52,6 C64,6 71,9.5 73,16 C75,21.6 70,25.6 64,23" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            <path d="M6,52 C6,64 9.5,71 16,73 C21.6,75 25.6,70 23,64" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            <circle cx="73" cy="16" r="1.6" fill="currentColor" />
+            <circle cx="16" cy="73" r="1.6" fill="currentColor" />
+            <use href="#ir2-leaf" width="16" height="20" transform="translate(22 22) rotate(-45) scale(.95)" opacity=".85" />
+          </symbol>
+
+          <symbol id="ir2-flourish-divider" viewBox="0 0 220 24">
+            <path d="M4,16 C22,4 36,22 54,12 C64,6 74,9 84,11" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity=".9" />
+            <path d="M216,16 C198,4 184,22 166,12 C156,6 146,9 136,11" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity=".9" />
+            <circle cx="4" cy="16" r="1.7" fill="currentColor" opacity=".75" />
+            <circle cx="216" cy="16" r="1.7" fill="currentColor" opacity=".75" />
+            <rect x="106.5" y="8.5" width="7" height="7" transform="rotate(45 110 12)" fill="currentColor" />
+          </symbol>
+
+          <symbol id="ir2-bow" viewBox="0 0 100 70">
+            <path d="M50 30 C50 30 20 8 8 20 C-2 32 12 48 50 34" fill="currentColor" opacity=".92" />
+            <path d="M50 30 C50 30 80 8 92 20 C102 32 88 48 50 34" fill="currentColor" opacity=".92" />
+            <path d="M45 32 L34 68 L46 58 L50 34 Z" fill="currentColor" opacity=".85" />
+            <path d="M55 32 L66 68 L54 58 L50 34 Z" fill="currentColor" opacity=".85" />
+            <ellipse cx="50" cy="32" rx="9" ry="6.5" fill="currentColor" />
+            <ellipse cx="50" cy="32" rx="9" ry="6.5" fill="#000" opacity=".14" />
+          </symbol>
+        </defs>
+      </svg>
+
+      <div className="ir2-grain" aria-hidden />
+      <div className="ir2-daylight" aria-hidden />
+      <div className="ir2-vignette" aria-hidden />
+      <div className="ir2-grade" aria-hidden />
 
       {/* language chip */}
-      <div style={{ position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineEnd: 16, zIndex: 8 }}>
+      <div style={{ position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineEnd: 16, zIndex: 20 }}>
         <button type="button" onClick={() => hasArabic && setLang((l) => (l === "en" ? "ar" : "en"))} aria-label={hasArabic ? "Toggle language" : "Language"} style={langChipStyle(!!hasArabic, P)}>
           <span aria-hidden style={{ fontSize: 15, opacity: 0.7 }}>🌐</span>
           <span style={{ fontWeight: 700, letterSpacing: "0.04em" }}>{lang === "en" ? "EN" : "ع"}</span>
@@ -253,161 +415,346 @@ export default function InvitationReveal({
         Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span>
       </button>
 
-      {/* eyebrow + title */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: stage >= 1 && !opening ? 1 : 0, y: stage >= 1 && !opening ? 0 : 10 }}
-        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-        style={{ position: "relative", zIndex: 4, textAlign: "center", marginBottom: "clamp(14px,3vh,26px)", padding: "0 24px" }}
-      >
-        <span style={{ display: "block", fontFamily: "var(--font-sans)", fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.42em", fontWeight: 700, color: P.g2, marginBottom: 9 }}>
-          {mode === "rsvp" && guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}
-        </span>
-        <h1 style={{ fontFamily: "var(--font-serif), Georgia, serif", fontSize: "clamp(20px,4.8vw,30px)", fontWeight: 500, lineHeight: 1.15, color: "#efe2c4", margin: 0, textShadow: "0 2px 18px rgba(0,0,0,.6)" }}>
-          {displayTitle}
-        </h1>
-      </motion.div>
+      <div className="ir2-scene">
+        {/* styled flatlay props scattered on the table */}
+        <svg className="ir2-table-prop tp1" viewBox="0 0 220 262" style={{ color: "var(--liner-mid)" }} aria-hidden><use href="#ir2-sprig" width="220" height="262" /></svg>
+        <svg className="ir2-table-prop tp2" viewBox="0 0 60 90" style={{ color: "var(--liner-deep)" }} aria-hidden><use href="#ir2-babysbreath" width="60" height="90" /></svg>
+        <svg className="ir2-table-prop tp3" viewBox="0 0 220 262" style={{ color: "var(--liner-deep)" }} aria-hidden><use href="#ir2-sprig" width="220" height="262" /></svg>
+        <svg className="ir2-table-prop tp4" viewBox="0 0 60 90" style={{ color: "var(--liner-mid)" }} aria-hidden><use href="#ir2-babysbreath" width="60" height="90" /></svg>
 
-      {/* ── the envelope ── */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.92, y: 14 }}
-        animate={{ opacity: stage >= 1 ? 1 : 0, scale: stage >= 1 ? 1 : 0.92, y: stage >= 1 ? 0 : 14 }}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-        className="ir-envStage"
-        onClick={openSeal}
-      >
-        <div className="ir-glow" aria-hidden />
-        <div className="ir-env">
-          <div className="ir-pocket ir-paper" aria-hidden />
-          <div className="ir-card ir-paper">
-            <div className="ir-cardInner">
-              <div className="ir-crest" aria-hidden>✦</div>
-              <div className="ir-cn-ov">{copy.eyebrow}</div>
-              <div className="ir-cn-nm">{displayTitle}</div>
-              {dateStr && <div className="ir-cn-dt">{dateStr}</div>}
-              {locationStr && <div className="ir-cn-loc">{locationStr}</div>}
+        <div className="ir2-env-wrap">
+          <div className="ir2-floaty">
+            <div className="ir2-bloom" aria-hidden />
+            <div className="ir2-contact" aria-hidden />
+
+            <div
+              className="ir2-envelope"
+              role="button" tabIndex={0}
+              aria-label="Tap to open your invitation"
+              onClick={openSeal}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSeal(); } }}
+            >
+              <div className="ir2-liner">
+                <svg viewBox="0 0 200 104" preserveAspectRatio="xMidYMax slice" style={{ color: "var(--liner-deep)" }} aria-hidden>
+                  <use href="#ir2-sprig" width="220" height="262" transform="translate(-26 6) scale(.6)" />
+                  <use href="#ir2-sprig" width="220" height="262" transform="translate(214 8) scale(-.56,.56)" />
+                </svg>
+              </div>
+
+              <div className="ir2-card-vellum ir2-deckle" aria-hidden />
+
+              <div className="ir2-card ir2-deckle">
+                <div className="ir2-card-inner">
+                  <div className="ir2-card-frame" />
+                  <div className="ir2-card-frame-inner" />
+                  <svg className="ir2-c-wreath" viewBox="0 0 300 300" style={{ color: "var(--liner-mid)" }} aria-hidden><use href="#ir2-wreath" width="300" height="300" /></svg>
+                  <svg className="ir2-flourish-corner tl" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+                  <svg className="ir2-flourish-corner tr" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+                  <svg className="ir2-flourish-corner bl" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+                  <svg className="ir2-flourish-corner br" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+
+                  <div className="ir2-card-content">
+                    <div className="ir2-fl-row">
+                      <span className="ir2-fl-line" />
+                      <div className="ir2-c-eyebrow">{mode === "rsvp" && guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
+                      <span className="ir2-fl-line" />
+                    </div>
+                    <div className="ir2-c-names">{displayTitle}</div>
+                    <svg className="ir2-c-divider" viewBox="0 0 220 24" aria-hidden>
+                      <use href="#ir2-flourish-divider" width="220" height="24" style={{ color: "var(--gold)" }} />
+                      <use href="#ir2-leaf" width="13" height="17" x="78" y="0" transform="rotate(96 84.5 8.5)" style={{ color: "var(--liner-mid)" }} opacity=".85" />
+                      <use href="#ir2-leaf" width="13" height="17" x="129" y="0" transform="rotate(-96 135.5 8.5)" style={{ color: "var(--liner-mid)" }} opacity=".85" />
+                    </svg>
+                    {dateStr && <div className="ir2-c-date">{dateStr}</div>}
+                    <div className="ir2-c-extra">
+                      {locationStr && <div className="ir2-c-venue">{locationStr}</div>}
+                      <button type="button" className="ir2-c-btn" onClick={finish}>{copy.details}</button>
+                    </div>
+                  </div>
+                  <div className="ir2-card-foil" aria-hidden />
+                </div>
+              </div>
+
+              <div className="ir2-body ir2-paper-tex" />
+
+              <svg className="ir2-flourish-corner env bl" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+              <svg className="ir2-flourish-corner env br" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+
+              <div className="ir2-stamp">
+                <svg viewBox="0 0 60 74" aria-hidden>
+                  <rect x="1" y="1" width="58" height="72" rx="2" style={{ fill: "var(--card-hi)", stroke: "var(--paper-lo)" }} strokeWidth="2.2" strokeDasharray="1.6 2.2" />
+                  <rect x="5" y="5" width="50" height="64" rx="1" style={{ fill: "var(--stamp)" }} opacity=".94" />
+                  <use href="#ir2-sprig" width="220" height="262" transform="translate(9 6) scale(.19)" style={{ color: "#eef4ea" }} />
+                  <circle cx="45" cy="19" r="10" fill="none" stroke="#eef4ea" strokeWidth="1" opacity=".5" />
+                  <text x="30" y="66" textAnchor="middle" fontFamily="var(--font-serif)" fontSize="6.5" fill="#eef4ea" opacity=".85" letterSpacing="1">FOREVER</text>
+                </svg>
+              </div>
+
+              <div className="ir2-addr">
+                <div className="ir2-addr-hi">{copy.eyebrow}</div>
+                <div className="ir2-addr-to">{displayTitle}</div>
+              </div>
+
+              <div className="ir2-flap-shadow" />
+              <div className="ir2-flap">
+                <div className="ir2-flap-face front ir2-paper-tex" />
+                <div className="ir2-flap-face back" />
+              </div>
+
+              <div className="ir2-ribbon-band" />
+              <svg className="ir2-bow" viewBox="0 0 100 70" style={{ color: "var(--ribbon)" }} aria-hidden><use href="#ir2-bow" width="100" height="70" /></svg>
+
+              <div className="ir2-seal">
+                <svg viewBox="0 0 100 100" aria-hidden>
+                  <path d="M50 3 C61 3 63 12 72 15 C83 18 84 30 89 38 C95 47 90 56 91 66 C92 78 82 80 74 87 C65 94 57 90 50 92 C42 90 34 95 26 87 C17 79 9 79 9 66 C9 55 5 47 11 38 C16 30 17 18 28 15 C37 12 39 3 50 3 Z" fill="url(#ir2-waxg)" />
+                  <ellipse cx="40" cy="34" rx="16" ry="11" fill="#fff" opacity=".14" />
+                  <circle cx="50" cy="50" r="34" fill="none" style={{ stroke: "var(--wax-lo)" }} strokeWidth="1.2" opacity=".5" />
+                  <circle cx="50" cy="50" r="38" fill="none" style={{ stroke: "var(--wax-hi)" }} strokeWidth="1" opacity=".38" />
+                  <use href="#ir2-leaf-mono" width="9" height="12" transform="translate(29 63) rotate(198) scale(.82)" style={{ color: "var(--wax-lo)" }} opacity=".5" />
+                  <use href="#ir2-leaf-mono" width="9" height="12" transform="translate(26 55) rotate(213) scale(.78)" style={{ color: "var(--wax-lo)" }} opacity=".55" />
+                  <use href="#ir2-leaf-mono" width="9" height="12" transform="translate(26 47) rotate(228) scale(.73)" style={{ color: "var(--wax-lo)" }} opacity=".58" />
+                  <use href="#ir2-leaf-mono" width="9" height="12" transform="translate(29 40) rotate(243) scale(.68)" style={{ color: "var(--wax-lo)" }} opacity=".6" />
+                  <use href="#ir2-leaf-mono" width="9" height="12" transform="translate(71 63) rotate(-18) scale(.82)" style={{ color: "var(--wax-lo)" }} opacity=".5" />
+                  <use href="#ir2-leaf-mono" width="9" height="12" transform="translate(74 55) rotate(-33) scale(.78)" style={{ color: "var(--wax-lo)" }} opacity=".55" />
+                  <use href="#ir2-leaf-mono" width="9" height="12" transform="translate(74 47) rotate(-48) scale(.73)" style={{ color: "var(--wax-lo)" }} opacity=".58" />
+                  <use href="#ir2-leaf-mono" width="9" height="12" transform="translate(71 40) rotate(-63) scale(.68)" style={{ color: "var(--wax-lo)" }} opacity=".6" />
+                  <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} style={{ fill: "var(--wax-lo)" }} opacity=".82" letterSpacing="1">{sealText}</text>
+                  <text x="49" y="52" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} style={{ fill: "var(--wax-hi)" }} opacity=".42" letterSpacing="1">{sealText}</text>
+                </svg>
+                <div className="ir2-seal-sheen" />
+              </div>
             </div>
           </div>
-          <div className="ir-front" aria-hidden>
-            <svg viewBox="0 0 340 197" preserveAspectRatio="none">
-              <defs><linearGradient id="irpf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#e9dcbe" /><stop offset="1" stopColor="#cbb488" /></linearGradient></defs>
-              <path d="M0,0 L162,120 L0,197 Z" fill="#e2d2ac" />
-              <path d="M340,0 L178,120 L340,197 Z" fill="#e2d2ac" />
-              <path d="M0,197 L170,86 L340,197 Z" fill="url(#irpf)" />
-              <path d="M0,197 L170,86 L340,197 Z" fill="none" stroke="rgba(90,60,30,.16)" strokeWidth="1" />
-            </svg>
-          </div>
-          <div className="ir-flapShadow" aria-hidden />
-          <div className="ir-flap" aria-hidden><div className="ir-flapFace ir-paper" /></div>
-          <div className="ir-sealMount">
-            <WaxSeal3D text={sealText} color={metal} breaking={stage >= 3} interactive={stage < 3} />
-          </div>
+
+          <AnimatePresence>
+            {stage === "rest" && (
+              <motion.div
+                key="prompt"
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6, transition: { duration: 0.3 } }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="ir2-prompt"
+              >
+                <div className="ir2-prompt-pill"><span aria-hidden style={{ fontSize: 12 }}>✦</span> {copy.tap}</div>
+                <p className="ir2-prompt-sub">{copy.special}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </motion.div>
-
-      {/* volumetric gold light on open */}
-      <div className="ir-rays" aria-hidden />
-      <div className="ir-bloom" aria-hidden />
-
-      {/* resting prompt */}
-      <AnimatePresence>
-        {stage === 2 && (
-          <motion.div key="p" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6, transition: { duration: 0.3 } }} transition={{ duration: 0.6, delay: 0.2 }}
-            style={{ position: "relative", zIndex: 4, textAlign: "center", marginTop: "clamp(16px,4vh,30px)", padding: "0 24px" }}>
-            <div className="ir-prompt" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 20px", borderRadius: 999, background: "rgba(255,246,224,.06)", border: `1px solid ${alpha(P.g2, 0.32)}`, backdropFilter: "blur(6px)" }}>
-              <span aria-hidden style={{ fontSize: 12 }}>✦</span>
-              <span style={{ fontFamily: "var(--font-sans)", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: P.g1 }}>{copy.tap}</span>
-            </div>
-            <p style={{ fontFamily: "var(--font-serif), Georgia, serif", fontStyle: "italic", fontSize: 13, color: P.soft, marginTop: 14 }}>{copy.special}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      </div>
     </motion.div>
   );
 }
 
 /* ─── shared styles ─── */
-const SCENE_BG = "radial-gradient(65% 55% at 50% 34%, #33220f 0%, #1a1310 46%, #0b0809 78%, #07060a 100%)";
 const overlayBase = {
   position: "fixed", inset: 0, zIndex: 1000, overflow: "hidden",
   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
   fontFamily: "var(--font-sans)", padding: 24,
 };
 const skipStyle = (P) => ({
-  position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineStart: 20, zIndex: 8,
+  position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineStart: 20, zIndex: 20,
   display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", minHeight: 44, borderRadius: 999,
-  border: `1px solid ${alpha(P.g2, 0.3)}`, background: "rgba(255,246,224,.06)", backdropFilter: "blur(8px)",
-  color: P.g1, fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", cursor: "pointer", fontFamily: "var(--font-sans)",
+  border: `1px solid ${alpha(P.gold, 0.4)}`, background: "rgba(255,255,255,.6)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+  color: P.ink, fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", cursor: "pointer", fontFamily: "var(--font-sans)",
 });
 const langChipStyle = (active, P) => ({
   display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", minHeight: 44, borderRadius: 999,
-  border: `1px solid ${alpha(P.g2, 0.25)}`, background: "rgba(255,246,224,.06)", backdropFilter: "blur(8px)",
-  color: P.g1, fontSize: 13, fontFamily: "var(--font-sans)", cursor: active ? "pointer" : "default",
-});
-const enterBtnStyle = (P) => ({
-  display: "inline-flex", alignItems: "center", justifyContent: "center", marginTop: 24, padding: "14px 32px", borderRadius: 999,
-  border: "none", background: `linear-gradient(180deg, ${P.g1}, ${P.g3})`, color: "#241a06",
-  fontFamily: "var(--font-sans)", fontSize: 12, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer",
-  boxShadow: `0 12px 28px ${alpha(P.g3, 0.4)}, inset 0 1px 0 rgba(255,255,255,.5)`,
+  border: `1px solid ${alpha(P.gold, 0.35)}`, background: "rgba(255,255,255,.6)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+  color: P.ink, fontSize: 13, fontFamily: "var(--font-sans)", cursor: active ? "pointer" : "default",
 });
 
 const REVEAL_CSS = `
-.ir-flicker{ position:absolute; inset:0; z-index:1; pointer-events:none;
-  background:radial-gradient(42% 36% at 50% 34%, rgba(255,206,130,.16), transparent 70%); animation:irFlicker 5s ease-in-out infinite; }
-@keyframes irFlicker{ 0%,100%{opacity:.85} 42%{opacity:1} 55%{opacity:.78} 70%{opacity:.95} }
+.ir2-root{
+  position:fixed; inset:0; overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-family:var(--font-sans); padding:24px;
+  background:
+    radial-gradient(120% 100% at 50% -6%, var(--wood-hi), transparent 55%),
+    linear-gradient(180deg, var(--wood-hi), var(--wood) 46%, var(--wood-lo));
+}
+.ir2-grain{ position:absolute; inset:0; pointer-events:none; opacity:.5; mix-blend-mode:multiply;
+  background-image:var(--ir-wood-noise); background-size:560px 100%; }
+.ir2-daylight{ position:absolute; inset:0; pointer-events:none; mix-blend-mode:screen; opacity:.6;
+  background:radial-gradient(60% 45% at 32% 14%, rgba(255,250,235,.75), transparent 60%); }
+.ir2-vignette{ position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(88% 74% at 50% 48%, transparent 58%, rgba(70,50,26,.17)); }
+.ir2-grade{ position:absolute; inset:0; pointer-events:none; mix-blend-mode:soft-light; opacity:.55;
+  background:linear-gradient(133deg, rgba(255,246,218,.55) 0%, transparent 38%, transparent 64%, rgba(36,46,66,.2) 100%); }
 
-.ir-paper{ background-color:#e9dfc6; background-image:var(--ir-paper-noise), linear-gradient(158deg,#f3e9d1,#ddcba6 72%,#ccb787);
-  background-blend-mode:multiply,normal; background-size:120px 120px, cover; }
+.ir2-fl-row{ display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:.55em; }
+.ir2-fl-line{ position:relative; width:26px; height:1px; background:var(--gold); opacity:.6; }
+.ir2-fl-line::after{ content:""; position:absolute; top:50%; width:4px; height:4px; background:var(--gold);
+  transform:translateY(-50%) rotate(45deg); opacity:.9; }
+.ir2-fl-row .ir2-fl-line:first-child::after{ right:-2px; }
+.ir2-fl-row .ir2-fl-line:last-child::after{ left:-2px; }
 
-.ir-envStage{ position:relative; z-index:3; width:min(86vw,330px); aspect-ratio:340/326; perspective:1500px; cursor:pointer; }
-.ir-glow{ position:absolute; inset:-16%; border-radius:50%; z-index:-1; pointer-events:none;
-  background:radial-gradient(circle,rgba(255,206,120,.3),transparent 66%); filter:blur(16px); animation:irHalo 5s ease-in-out infinite; }
-@keyframes irHalo{ 0%,100%{opacity:.55} 50%{opacity:.85} }
-.ir-env{ position:absolute; inset:0; transform-style:preserve-3d; transition:transform 1s cubic-bezier(.22,1,.36,1); }
-.ir-scene.opening .ir-env{ transform:translateY(6px) scale(.985); }
-.ir-pocket{ position:absolute; left:0; right:0; bottom:0; height:62%; border-radius:5px 5px 13px 13px;
-  box-shadow:0 36px 68px -18px rgba(0,0,0,.78), inset 0 0 30px rgba(90,60,30,.22); }
-.ir-pocket::after{ content:""; position:absolute; inset:6px 6px 42% 6px; border-radius:4px 4px 0 0;
-  background:linear-gradient(135deg,#8a6a24,#fff2c4 24%,#c69a45 48%,#fff5d6 64%,#8a6a24 86%,#e7c778); opacity:0; transition:opacity .5s ease .35s; box-shadow:inset 0 0 26px rgba(120,80,20,.35); }
-.ir-scene.opening .ir-pocket::after{ opacity:.92; }
-.ir-card{ position:absolute; left:8%; right:8%; bottom:9px; height:96%; border-radius:7px; overflow:hidden; z-index:2;
-  transform:translateY(0) scale(.965); transform-origin:bottom center;
-  box-shadow:0 24px 54px -20px rgba(0,0,0,.7), inset 0 0 0 1px rgba(160,120,60,.28); transition:transform 1.15s cubic-bezier(.16,1,.3,1); }
-.ir-scene.opening .ir-card{ transform:translateY(-50%) scale(1); z-index:8; }
-.ir-cardInner{ position:absolute; top:0; left:0; right:0; padding:20px 16px 0; text-align:center; color:#2a2011; }
-.ir-crest{ font-size:16px; color:#a9863d; }
-.ir-cn-ov{ font-size:8px; letter-spacing:.3em; text-transform:uppercase; color:#9a8358; font-weight:700; margin-top:8px; }
-.ir-cn-nm{ font-family:var(--font-serif),Georgia,serif; font-size:clamp(15px,4.4vw,21px); margin:7px 0 4px; color:#2a2011; line-height:1.15; }
-.ir-cn-dt{ font-size:9px; letter-spacing:.1em; color:#7a6a4a; }
-.ir-cn-loc{ font-size:8.5px; letter-spacing:.06em; color:#8a7a58; margin-top:2px; }
-.ir-front{ position:absolute; left:0; right:0; bottom:0; height:62%; z-index:3; pointer-events:none; }
-.ir-front svg{ width:100%; height:100%; display:block; filter:drop-shadow(0 -2px 6px rgba(70,45,18,.22)); }
-.ir-flapShadow{ position:absolute; left:8%; right:8%; top:33%; height:28%; z-index:5; pointer-events:none;
-  background:radial-gradient(60% 100% at 50% 0,rgba(0,0,0,.5),transparent 72%); opacity:0; transition:opacity .5s ease; }
-.ir-scene.opening .ir-flapShadow{ opacity:.5; }
-.ir-flap{ position:absolute; left:0; right:0; top:0; height:53%; transform-origin:50% 100%; transform-style:preserve-3d; z-index:7;
-  transition:transform 1s cubic-bezier(.62,-0.15,.2,1); }
-.ir-scene.opening .ir-flap{ transform:rotateX(160deg); }
-.ir-flapFace{ position:absolute; inset:0; clip-path:polygon(0 0,100% 0,50% 100%); box-shadow:0 8px 18px rgba(0,0,0,.35); }
-.ir-sealMount{ position:absolute; left:50%; top:47%; width:37%; aspect-ratio:1; transform:translate(-50%,-50%); z-index:9;
-  filter:drop-shadow(0 12px 18px rgba(0,0,0,.55)); transition:opacity .55s ease, transform .7s cubic-bezier(.4,0,.2,1); }
-.ir-scene.opening .ir-sealMount{ opacity:0; transform:translate(-50%,-84%) scale(.6); pointer-events:none; }
+.ir2-scene{ position:relative; z-index:3; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
 
-.ir-rays,.ir-bloom{ position:absolute; top:44%; left:50%; transform:translate(-50%,-50%); z-index:2; pointer-events:none; opacity:0; transition:opacity 1s ease; }
-.ir-rays{ width:150vw; height:150vw; max-width:900px; max-height:900px;
-  background:repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,226,158,0) 0deg, rgba(255,226,158,.5) 3deg, rgba(255,226,158,0) 8deg);
-  -webkit-mask-image:radial-gradient(circle,#000 6%,rgba(0,0,0,.4) 34%,transparent 66%); mask-image:radial-gradient(circle,#000 6%,rgba(0,0,0,.4) 34%,transparent 66%);
-  animation:irSpin 26s linear infinite; }
-.ir-bloom{ width:80vw; height:80vw; max-width:520px; max-height:520px; filter:blur(8px);
-  background:radial-gradient(circle at 50% 45%, #fff7e0 0%, rgba(247,205,114,.45) 26%, transparent 62%); }
-@keyframes irSpin{ to{ transform:translate(-50%,-50%) rotate(360deg) } }
-.ir-scene.opening .ir-rays{ opacity:.8; }
-.ir-scene.opening .ir-bloom{ opacity:1; }
+.ir2-table-prop{ position:absolute; height:auto; pointer-events:none; z-index:2; opacity:.8;
+  filter:blur(1.6px); transition:opacity .7s ease; }
+.ir2-table-prop.tp1{ width:min(32vw,230px); left:1%; bottom:6%; transform:rotate(-27deg); }
+.ir2-table-prop.tp2{ width:min(11vw,84px); left:15%; bottom:24%; transform:rotate(18deg); opacity:.72; }
+.ir2-table-prop.tp3{ width:min(27vw,196px); right:-2%; top:6%; transform:rotate(158deg) scaleX(-1); }
+.ir2-table-prop.tp4{ width:min(9vw,66px); right:16%; top:22%; transform:rotate(-30deg); opacity:.68; }
+.ir2-root.ir2-grow .ir2-table-prop{ opacity:0; }
 
-.ir-prompt{ animation:irNudge 2.2s ease-in-out infinite; }
-@keyframes irNudge{ 0%,100%{transform:translateY(0);opacity:.82} 50%{transform:translateY(-3px);opacity:1} }
+.ir2-env-wrap{ position:relative; z-index:3; width:min(88vw,486px); perspective:1900px; transform:translate(-3%,-1%); }
+.ir2-floaty{ position:relative; transform-style:preserve-3d; animation:ir2Floaty 8s ease-in-out infinite; }
+@keyframes ir2Floaty{ 0%,100%{ transform:translateY(0) rotateX(3deg) rotateZ(-.3deg); } 50%{ transform:translateY(-7px) rotateX(6deg) rotateZ(.3deg); } }
+.ir2-root.ir2-opening .ir2-floaty{ animation-play-state:paused; }
+
+.ir2-bloom{ position:absolute; left:50%; top:44%; width:120%; aspect-ratio:1; transform:translate(-50%,-50%); z-index:0; pointer-events:none;
+  background:radial-gradient(circle, color-mix(in srgb,var(--card-hi) 90%, #fff) 0%, transparent 58%); filter:blur(10px); opacity:0; transition:opacity 1s ease; }
+.ir2-root.ir2-rise .ir2-bloom, .ir2-root.ir2-grow .ir2-bloom{ opacity:.9; }
+
+.ir2-envelope{ position:relative; width:100%; aspect-ratio:1.52/1; transform-style:preserve-3d;
+  transition:transform 1.35s cubic-bezier(.16,1,.3,1), opacity 1s ease;
+  opacity:0; transform:translateY(24px) rotate(-7deg) scale(.93); cursor:pointer; }
+.ir2-root.ir2-settled .ir2-envelope{ opacity:1; transform:translateY(0) rotate(-4deg) scale(1); }
+.ir2-root.ir2-rest .ir2-envelope{ transform:translateY(0) rotate(0deg) scale(1); }
+.ir2-root.ir2-lift .ir2-envelope{ transform:translateY(8px) rotate(0deg) scale(.975); }
+
+.ir2-contact{ position:absolute; left:4%; right:4%; bottom:-9%; height:22%; z-index:-1;
+  background:radial-gradient(58% 100% at 50% 38%, rgba(74,52,26,.42), transparent 72%); filter:blur(16px);
+  transition:opacity .9s ease, transform 1.2s ease; }
+.ir2-root.ir2-opening .ir2-contact{ opacity:.7; transform:scaleX(1.05); }
+
+.ir2-paper-tex{ background-color:var(--paper);
+  background-image:var(--ir-paper-noise), linear-gradient(150deg,var(--paper-hi),var(--paper) 52%,var(--paper-lo));
+  background-blend-mode:multiply,normal; background-size:130px 130px, cover; }
+
+.ir2-body{ position:absolute; inset:0; border-radius:8px; z-index:2;
+  box-shadow:0 24px 50px -22px rgba(60,44,22,.5), inset 0 1px 0 rgba(255,255,255,.5), inset 0 0 40px rgba(90,70,40,.07);
+  transition:filter .9s ease; }
+.ir2-body::before{ content:""; position:absolute; inset:0; border-radius:8px; pointer-events:none;
+  background:radial-gradient(72% 62% at 28% 20%, rgba(255,255,255,.5), transparent 60%); }
+.ir2-root.ir2-rise .ir2-body, .ir2-root.ir2-grow .ir2-body{ filter:blur(2.4px); }
+
+.ir2-flourish-corner{ position:absolute; width:16%; height:auto; pointer-events:none; }
+.ir2-flourish-corner.env{ width:12%; z-index:4; opacity:.4; transition:opacity .4s ease; }
+.ir2-flourish-corner.env.bl{ bottom:5%; left:5.5%; transform:scaleY(-1); }
+.ir2-flourish-corner.env.br{ bottom:5%; right:5.5%; transform:scale(-1,-1); }
+.ir2-root.ir2-opening .ir2-flourish-corner.env{ opacity:0; }
+
+.ir2-ribbon-band{ position:absolute; left:50%; top:2%; bottom:2%; width:9%; transform:translateX(-50%); z-index:7;
+  background:linear-gradient(90deg, var(--ribbon-dk), var(--ribbon) 30%, var(--ribbon) 70%, var(--ribbon-dk));
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08), 0 3px 8px rgba(40,30,16,.25);
+  transition:opacity .5s ease, transform .7s cubic-bezier(.4,0,.2,1); }
+.ir2-root.ir2-opening .ir2-ribbon-band{ opacity:0; transform:translateX(-50%) scaleY(.7); }
+.ir2-bow{ position:absolute; left:50%; top:47%; width:32%; aspect-ratio:100/70; transform:translate(-50%,-50%); z-index:8;
+  transition:transform .8s cubic-bezier(.5,0,.2,1), opacity .7s ease;
+  filter:drop-shadow(0 5px 9px rgba(60,34,14,.4)); }
+.ir2-root.ir2-pressing .ir2-bow{ transform:translate(-50%,-50%) scale(.95); }
+.ir2-root.ir2-opening .ir2-bow{ transform:translate(-50%,-94%) scale(.55) rotate(11deg); opacity:0; }
+
+.ir2-deckle{ clip-path:polygon(
+    0% 1%, 16% 0.3%, 34% 1%, 52% 0.2%, 70% 0.9%, 86% 0.2%, 100% 1%,
+    99.3% 18%, 100% 38%, 99.4% 58%, 100% 78%, 99.3% 93%, 100% 99%,
+    84% 99.3%, 66% 100%, 48% 99.2%, 30% 100%, 14% 99.4%, 0% 99%,
+    0.5% 82%, 0% 62%, 0.6% 42%, 0% 24%, 0.5% 10%, 0% 3%); }
+
+.ir2-card-vellum{ position:absolute; left:8%; right:8%; top:7%; bottom:7%; z-index:1; border-radius:5px; overflow:hidden;
+  transform-origin:center center; transform:translateY(2%) scale(.98); opacity:0;
+  background:color-mix(in srgb, var(--card) 55%, transparent);
+  box-shadow:0 18px 40px -20px rgba(60,44,22,.4), inset 0 0 0 1px color-mix(in srgb, var(--card-edge) 70%, transparent);
+  transition:transform 1.5s cubic-bezier(.16,1,.3,1), opacity .5s ease, filter .9s ease; }
+.ir2-root.ir2-rise .ir2-card-vellum{ opacity:.85; transform:translateY(-66%) translate(10px,7px) scale(1); filter:blur(.8px); }
+.ir2-root.ir2-grow .ir2-card-vellum{ opacity:.85; transform:translateY(-66%) translate(17px,13px) scale(1.82); filter:blur(.8px); }
+
+.ir2-card{ position:absolute; left:8%; right:8%; top:7%; bottom:7%; z-index:1; border-radius:5px; overflow:hidden;
+  transform-origin:center center; transform:translateY(2%) scale(.98); opacity:0; background:var(--card);
+  box-shadow:0 22px 46px -20px rgba(60,44,22,.55), inset 0 0 0 1px var(--card-edge);
+  transition:transform 1.5s cubic-bezier(.16,1,.3,1), opacity .5s ease; }
+.ir2-root.ir2-rise .ir2-card{ opacity:1; transform:translateY(-66%) scale(1); z-index:8; }
+.ir2-root.ir2-grow .ir2-card{ opacity:1; transform:translateY(-66%) scale(1.82); z-index:8; }
+
+.ir2-card-inner{ position:absolute; inset:0;
+  background:radial-gradient(125% 96% at 50% 0%, var(--card-hi), var(--card) 76%); }
+.ir2-card-frame{ position:absolute; inset:6.4%; border:1px solid color-mix(in srgb,var(--gold) 50%, transparent); border-radius:2px; pointer-events:none; z-index:0; }
+.ir2-card-frame-inner{ position:absolute; inset:8.6%; border:1px solid color-mix(in srgb,var(--gold) 26%, transparent); border-radius:1px; pointer-events:none; z-index:0; }
+.ir2-c-wreath{ position:absolute; inset:9%; z-index:1; pointer-events:none; }
+.ir2-card .ir2-flourish-corner{ width:15%; opacity:.95; z-index:3; }
+.ir2-card .ir2-flourish-corner.tl{ top:6%; left:6%; }
+.ir2-card .ir2-flourish-corner.tr{ top:6%; right:6%; transform:scaleX(-1); }
+.ir2-card .ir2-flourish-corner.bl{ bottom:6%; left:6%; transform:scaleY(-1); }
+.ir2-card .ir2-flourish-corner.br{ bottom:6%; right:6%; transform:scale(-1,-1); }
+
+.ir2-card-content{ position:relative; z-index:2; width:100%; height:100%; padding:10% 11%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.ir2-c-names{ font-family:var(--font-serif), Georgia, serif; color:var(--ink); font-weight:500; font-size:clamp(13px,3.4vw,18px); margin:0 0 .5em; letter-spacing:.07em; word-break:break-word; }
+.ir2-c-divider{ display:block; width:150px; max-width:58%; height:16px; margin:0 auto .8em; }
+.ir2-c-date{ font-size:9px; letter-spacing:.24em; text-transform:uppercase; color:var(--ink-soft); line-height:1.85; }
+.ir2-c-extra{ max-height:0; opacity:0; overflow:hidden; transition:max-height .8s ease, opacity .5s ease .2s; }
+.ir2-root.ir2-grow .ir2-c-extra{ max-height:130px; opacity:1; }
+.ir2-c-venue{ font-size:8px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); line-height:2; margin-top:1em; }
+.ir2-c-btn{ appearance:none; font-family:var(--font-sans); display:inline-block; margin-top:1em; padding:7px 18px; border:1px solid var(--accent); background:transparent; color:var(--accent);
+  font-size:7.5px; letter-spacing:.26em; text-transform:uppercase; font-weight:700; border-radius:2px; cursor:pointer; }
+.ir2-c-eyebrow{ font-family:var(--font-serif), Georgia, serif; font-size:clamp(15px,4vw,22px); color:var(--ink); letter-spacing:.03em; }
+
+.ir2-card-foil{ position:absolute; inset:0; z-index:4; pointer-events:none; mix-blend-mode:overlay; opacity:.6;
+  background:linear-gradient(115deg, transparent 34%, rgba(255,255,255,.95) 48%, transparent 62%);
+  background-size:280% 280%; background-position:-50% -50%;
+  transition:background-position 1.6s ease .15s; }
+.ir2-root.ir2-grow .ir2-card-foil{ background-position:150% 150%; }
+
+.ir2-liner{ position:absolute; left:2%; right:2%; top:1.5%; height:52%; z-index:1; border-radius:8px 8px 0 0; overflow:hidden;
+  opacity:0; transition:opacity .6s ease .1s, filter .9s ease;
+  background:linear-gradient(180deg, color-mix(in srgb,var(--liner-lite) 46%, var(--card)), var(--card)); }
+.ir2-root.ir2-opening .ir2-liner{ opacity:1; }
+.ir2-root.ir2-rise .ir2-liner, .ir2-root.ir2-grow .ir2-liner{ filter:blur(2.4px); }
+.ir2-liner svg{ position:absolute; inset:0; width:100%; height:100%; }
+
+.ir2-flap{ position:absolute; left:0; right:0; top:0; height:52%; z-index:6; transform-origin:50% 0%;
+  transform-style:preserve-3d; transform:rotateX(0deg); transition:transform 1.25s cubic-bezier(.62,-0.02,.2,1), z-index 0s linear .55s; }
+.ir2-root.ir2-opening .ir2-flap{ transform:rotateX(-170deg); z-index:0; }
+.ir2-flap-face{ position:absolute; inset:0; clip-path:polygon(0 0,100% 0,50% 100%); backface-visibility:hidden;
+  border-radius:8px 8px 0 0; box-shadow:0 5px 12px rgba(60,44,22,.24); }
+.ir2-flap-face.front::after{ content:""; position:absolute; inset:0; clip-path:polygon(0 0,100% 0,50% 100%);
+  background:linear-gradient(180deg, rgba(255,255,255,.28), transparent 46%); }
+.ir2-flap-face.back{ transform:rotateX(180deg); background:linear-gradient(180deg, color-mix(in srgb,var(--liner-lite) 48%, var(--card)), var(--card)); }
+.ir2-flap-shadow{ position:absolute; left:0; right:0; top:0; height:52%; z-index:5; pointer-events:none;
+  background:linear-gradient(180deg, rgba(60,44,22,.12), transparent 80%); clip-path:polygon(0 0,100% 0,50% 100%);
+  opacity:1; transition:opacity .5s ease; }
+.ir2-root.ir2-opening .ir2-flap-shadow{ opacity:0; }
+
+.ir2-seal{ position:absolute; left:50%; top:47%; width:20%; aspect-ratio:1; transform:translate(-50%,-50%); z-index:9;
+  transition:transform .8s cubic-bezier(.5,0,.2,1), opacity .7s ease; filter:drop-shadow(0 7px 11px rgba(60,34,14,.5)); }
+.ir2-root.ir2-pressing .ir2-seal{ transform:translate(-50%,-50%) scale(.94); }
+.ir2-root.ir2-opening .ir2-seal{ transform:translate(-50%,-98%) scale(.6) rotate(-8deg); opacity:0; }
+.ir2-seal svg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+.ir2-seal-sheen{ position:absolute; inset:6%; border-radius:50%; overflow:hidden; pointer-events:none; }
+.ir2-seal-sheen::before{ content:""; position:absolute; inset:-40%;
+  background:linear-gradient(116deg, transparent 42%, rgba(255,255,255,.5) 50%, transparent 58%);
+  transform:translateX(-60%); animation:ir2Sheen 5s ease-in-out infinite; }
+@keyframes ir2Sheen{ 0%,72%{ transform:translateX(-60%) } 86%{ transform:translateX(60%) } 100%{ transform:translateX(60%) } }
+.ir2-root.ir2-opening .ir2-seal-sheen::before{ animation-play-state:paused; }
+
+.ir2-stamp{ position:absolute; top:9%; right:9%; width:15%; z-index:4; transform:rotate(4deg); transition:opacity .5s ease; }
+.ir2-root.ir2-opening .ir2-stamp{ opacity:0; }
+.ir2-stamp svg{ width:100%; height:auto; display:block; filter:drop-shadow(0 2px 3px rgba(60,44,22,.28)); }
+
+.ir2-addr{ position:absolute; left:12%; top:60%; z-index:4; text-align:start; line-height:1.05; transition:opacity .45s ease; }
+.ir2-root.ir2-opening .ir2-addr{ opacity:0; }
+.ir2-addr-hi{ font-family:var(--font-script), cursive; font-size:clamp(22px,6vw,32px); color:var(--ink); }
+.ir2-addr-to{ font-family:var(--font-serif), Georgia, serif; font-size:clamp(11px,3vw,14px); color:var(--ink-soft); letter-spacing:.04em; margin-top:1px; }
+.ir2-root[dir="rtl"] .ir2-addr-hi{ font-family:var(--font-arabic-display), var(--font-serif), serif; }
+.ir2-root[dir="rtl"] .ir2-c-names{ font-family:var(--font-arabic-display), var(--font-serif), serif; }
+
+.ir2-prompt{ position:relative; z-index:12; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
+  margin-top:clamp(16px,4vh,30px); padding:0 24px; }
+.ir2-prompt-pill{ display:inline-flex; align-items:center; gap:8px; padding:9px 18px; border-radius:999px;
+  background:rgba(255,255,255,.6); border:1px solid color-mix(in srgb,var(--accent) 36%, transparent);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  font-family:var(--font-sans); font-size:10px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); animation:ir2Nudge 2.4s ease-in-out infinite; }
+@keyframes ir2Nudge{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-4px) } }
+.ir2-prompt-sub{ font-family:var(--font-serif), Georgia, serif; font-style:italic; font-size:13px; color:var(--ink-soft); margin:10px 0 0; }
 
 @media (prefers-reduced-motion:reduce){
-  .ir-flicker,.ir-glow,.ir-rays,.ir-prompt{ animation:none !important; }
+  .ir2-floaty{ animation:none; }
+  .ir2-prompt-pill{ animation:none; }
+  .ir2-seal-sheen::before{ animation:none; }
+  .ir2-envelope,.ir2-card,.ir2-card-vellum,.ir2-card-foil,.ir2-flap,.ir2-seal,.ir2-bow,.ir2-ribbon-band,.ir2-body,.ir2-liner{ transition-duration:.001ms !important; }
+  .ir2-body,.ir2-liner,.ir2-card-vellum{ filter:none !important; }
 }
 `;
