@@ -47,38 +47,6 @@ function toLocalDateString(dateStr) {
   } catch { return ''; }
 }
 
-/* Image upload + preview, shared by the seal and invitation-background fields. */
-function SealUpload({ url, onUpload, onClear, busy, previewFit = 'contain' }) {
-  return (
-    <>
-      <label style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, cursor: busy ? 'wait' : 'pointer',
-        padding: '8px 16px', borderRadius: 8, border: `1px solid ${COLORS.gold}`, color: COLORS.gold,
-        fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
-        opacity: busy ? 0.6 : 1,
-      }}>
-        {busy ? 'Uploading…' : '⬆ Upload image'}
-        <input type="file" accept="image/*" onChange={onUpload} disabled={busy} style={{ display: 'none' }} />
-      </label>
-      <span style={{ fontSize: 11, color: COLORS.stone, marginLeft: 10, fontFamily: 'var(--font-sans)' }}>PNG, JPG, WebP • Max 8MB</span>
-      {url && (
-        <div style={{
-          borderRadius: 12, overflow: 'hidden', border: `1px solid ${COLORS.border}`,
-          height: 140, background: COLORS.softBg, marginTop: 10, position: 'relative',
-        }}>
-          <img src={url} alt="Preview" style={{ width: '100%', height: '100%', objectFit: previewFit }}
-            onError={(e) => { e.target.style.display = 'none'; }} />
-          <button type="button" onClick={onClear} aria-label="Remove image" style={{
-            position: 'absolute', top: 6, right: 6, width: 26, height: 26, borderRadius: '50%',
-            border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer',
-            fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>×</button>
-        </div>
-      )}
-    </>
-  );
-}
-
 export default function EventSettings({ eventId, event, onEventUpdated, onEventDeleted }) {
   const [form, setForm] = useState({
     title: '', description: '', event_date: '', event_end_date: '', location_name: '', location_address: '',
@@ -105,7 +73,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     proposalStory: '', giftRegistry: '',
     celebrant: '', age: '', partyTheme: '',
     honoree: '', program: '', sponsorPackages: '',
-    seal_text: '', seal_image_url: '', invitation_bg_url: '',
+    seal_text: '',
     title_ar: '', description_ar: '', dress_code_ar: '',
     ha_schedule_day1: [], ha_schedule_day2: [],
     ha_venue_day1_name: '', ha_venue_day1_address: '', ha_venue_day1_lat: null, ha_venue_day1_lng: null, ha_venue_day1_image: '',
@@ -128,8 +96,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const [musicUploading, setMusicUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
-  const [sealUploading, setSealUploading] = useState(false);
-  const [invitationBgUploading, setInvitationBgUploading] = useState(false);
   const [haVenueUploading, setHaVenueUploading] = useState({}); // { day1: bool, day2: bool }
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -311,23 +277,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     setSuccess(false);
   };
 
-  const handleSealUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSealUploading(true);
-    const url = await uploadFile(file, 'seal');
-    if (url) { setTemplateData(prev => ({ ...prev, seal_image_url: url })); setSuccess(false); }
-    setSealUploading(false);
-  };
-
-  const handleInvitationBgUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setInvitationBgUploading(true);
-    const url = await uploadFile(file, 'invitation-bg');
-    if (url) { setTemplateData(prev => ({ ...prev, invitation_bg_url: url })); setSuccess(false); }
-    setInvitationBgUploading(false);
-  };
 
   // Prefill the form whenever the `event` prop is replaced (mirrors the
   // previous `useEffect(..., [event])` exactly — comparing the object
@@ -420,8 +369,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         program: event.template_data?.program || '',
         sponsorPackages: event.template_data?.sponsorPackages || '',
         seal_text: event.template_data?.seal_text || '',
-        seal_image_url: event.template_data?.seal_image_url || '',
-        invitation_bg_url: event.template_data?.invitation_bg_url || '',
         title_ar: event.template_data?.title_ar || '',
         description_ar: event.template_data?.description_ar || '',
         dress_code_ar: event.template_data?.dress_code_ar || '',
@@ -1522,7 +1469,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </span>
         </h3>
         <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
-          These power the cinematic envelope guests unseal when they open the link. Leave blank to use the elegant auto-generated bronze seal and arabesque stationery.
+          This powers the cinematic wax seal guests unseal when they open the link. Leave blank to use your event name — the seal, stationery and gold light are all generated automatically and coloured to match your event.
         </p>
 
         <div style={fieldGroupStyle}>
@@ -1532,16 +1479,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
             onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
           />
-        </div>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Custom Seal Artwork</label>
-          <SealUpload url={templateData.seal_image_url} onUpload={handleSealUpload} onClear={() => setTemplateData(prev => ({ ...prev, seal_image_url: '' }))} busy={sealUploading} previewFit="contain" />
-        </div>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Invitation Background</label>
-          <SealUpload url={templateData.invitation_bg_url} onUpload={handleInvitationBgUpload} onClear={() => setTemplateData(prev => ({ ...prev, invitation_bg_url: '' }))} busy={invitationBgUploading} previewFit="cover" />
         </div>
       </div>
       )}

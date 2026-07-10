@@ -414,8 +414,6 @@ export default function CreateEventWizard() {
   const [musicUploading, setMusicUploading] = useState(false);
   const [galleryUrls, setGalleryUrls] = useState([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
-  const [sealUploading, setSealUploading] = useState(false);
-  const [invitationBgUploading, setInvitationBgUploading] = useState(false);
   const [haVenueDay1Uploading, setHaVenueDay1Uploading] = useState(false);
   const [haVenueDay2Uploading, setHaVenueDay2Uploading] = useState(false);
 
@@ -901,8 +899,10 @@ export default function CreateEventWizard() {
     }
   }, []);
 
-  /* ═══ Invitation seal + background uploads → stored in template_data so the
-       guest's cinematic envelope reveal renders the organizer's exact art ═══ */
+  /* ═══ Shared invitation-asset uploader → stores a public URL in template_data.
+       Used by the Heritage Arch per-day venue photos below. (The invitation
+       seal/background image uploads were removed — the wax seal, stationery and
+       gold light are now fully generated and coloured to the event.) ═══ */
   const uploadInvitationAsset = useCallback(async (file, folder, tdKey, setBusy) => {
     if (!file) return;
     if (file.size > 8 * 1024 * 1024) {
@@ -927,14 +927,6 @@ export default function CreateEventWizard() {
       setBusy(false);
     }
   }, []);
-
-  const handleSealImageUpload = useCallback((e) => {
-    uploadInvitationAsset(e.target.files?.[0], 'seals', 'seal_image_url', setSealUploading);
-  }, [uploadInvitationAsset]);
-
-  const handleInvitationBgUpload = useCallback((e) => {
-    uploadInvitationAsset(e.target.files?.[0], 'invitation-bg', 'invitation_bg_url', setInvitationBgUploading);
-  }, [uploadInvitationAsset]);
 
   // Heritage Arch per-day venue photos — uploaded to storage (replaces the old
   // paste-a-URL fields). ImageUploadField hands us a File directly.
@@ -1244,7 +1236,7 @@ export default function CreateEventWizard() {
     // Guard: block navigation while any media upload is still in flight, so the
     // organizer can't advance before the file lands in storage (and the upload's
     // own state update doesn't race with ensureDraftEvent's payload below).
-    if (musicUploading || coverImageUploading || galleryUploading || sealUploading || invitationBgUploading) {
+    if (musicUploading || coverImageUploading || galleryUploading) {
       setError('Please wait for your file uploads to finish before continuing.');
       return;
     }
@@ -1276,7 +1268,7 @@ export default function CreateEventWizard() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, title, slug, eventDate, eventEndDate, rsvpDeadline, slugStatus, musicUploading, coverImageUploading, galleryUploading, sealUploading, invitationBgUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, templateType, customConfig, ensureDraftEvent, goNext]);
+  }, [submitting, title, slug, eventDate, eventEndDate, rsvpDeadline, slugStatus, musicUploading, coverImageUploading, galleryUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, templateType, customConfig, ensureDraftEvent, goNext]);
 
   /* ═══ Save the event as a draft and exit to the dashboard Drafts section ═══
      Persists everything entered so far (creates the draft if needed, else PATCHes)
@@ -1654,8 +1646,6 @@ export default function CreateEventWizard() {
               locationAddress={locationAddress} setLocationAddress={setLocationAddress}
               onPlaceSelect={handlePlaceSelect}
               templateData={templateData} setTemplateData={setTemplateData}
-              onSealImageUpload={handleSealImageUpload} sealUploading={sealUploading}
-              onInvitationBgUpload={handleInvitationBgUpload} invitationBgUploading={invitationBgUploading}
               onHaVenueDay1Upload={handleHaVenueDay1Upload} haVenueDay1Uploading={haVenueDay1Uploading}
               onHaVenueDay2Upload={handleHaVenueDay2Upload} haVenueDay2Uploading={haVenueDay2Uploading}
               onRowImageUpload={uploadRowImage}

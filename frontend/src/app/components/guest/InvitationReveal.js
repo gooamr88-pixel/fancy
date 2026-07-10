@@ -1,35 +1,35 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion, useMotionValue, useTransform } from "framer-motion";
+import { lighten, darken, alpha } from "../../utils/color";
+import { getCelebrationPreset } from "../../utils/patternCelebration";
+import { FloatingParticles, ConfettiExplosion } from "./GuestAnimations";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   GuestEnvelopeReveal — the cinematic, one-time luxury invitation opening.
+   InvitationReveal — "The Unsealing"
 
-   This is the first thing a real guest sees when they open their /[slug] link.
-   It is a full-screen, mobile-first sequence designed to feel like unsealing a
-   physical, hand-pressed wedding invitation:
+   ONE cinematic, fully-generated wax-seal opening, shared by both guest-facing
+   reveals (it replaces the old GuestEnvelopeReveal + DigitalEnvelope):
 
-     1. PRELOAD      soft ivory bloom, brand flourish fades in
-     2. PAPER        embossed arabesque stationery + folded envelope flaps
-     3. SEAL FOCUS   a bronze metallic medallion with a light-reflection sweep
-     4. ACTIVATION   tap → the seal warms bronze → gold, glow + rising dust
-     5. OPENING      the four paper flaps peel back on real 3D hinges
-     6. LIGHT        volumetric golden light blooms from inside the envelope
-     7. REVEAL       the invitation lockup (REAL event data) rises on parallax
-     8. HANDOFF      the overlay dissolves seamlessly into the live event page
+     • mode="invitation"  the first thing a guest sees on the event page /[slug].
+                          Dissolves into the live invitation page underneath.
+     • mode="rsvp"        gates the RSVP route /[slug]/rsvp. The seal is
+                          personalised with the guest's own name; on open it
+                          cross-dissolves into the RSVP form beneath it.
 
-   CONTRACT (must stay stable — EventPageClient depends on it):
-     • props: { event, onComplete }
-     • renders a fixed overlay above the page (z 1000); page markup untouched
+   Everything is generated as crisp SVG/CSS vectors — there are NO image
+   uploads. The wax + light palette is derived from the event's own
+   custom_colors, so every event unseals into its own colour story instead of
+   a single fixed bronze.
+
+   The 7 beats: settle → seal focus → press (crack) → unseal (flap lifts on a
+   3D gold-lined hinge) → light (god-rays + bloom) → handoff → done.
+
+   CONTRACT (kept stable for callers + tests):
      • data-testid="guest-envelope-reveal" on the root
      • data-testid="guest-envelope-skip" on the always-available skip control
      • calls onComplete() exactly once when finished or skipped
-
-   The parent (EventPageClient) plays this on every page load, regardless of
-   channel (email link, raw URL, QR scan) or prior visits — there is no
-   "seen before" memory. Reduced-motion preference is still handled here
-   internally (a static, instantly-skippable fallback card).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ─── Radial-symmetry geometry for the seal (computed once at module load) ─── */
@@ -41,65 +41,65 @@ const GUILLOCHE_TICKS = Array.from({ length: 48 }, (_, i) => i * 7.5);
 
 const PETAL_PATH = "M110 30 C 129 53 127 75 110 89 C 93 75 91 53 110 30 Z";
 const PETAL_VEIN = "M110 41 C 119 55 119 70 110 83 C 101 70 101 55 110 41 Z";
-// Smaller secondary petal, offset between the primaries to densify the mandala.
 const PETAL_PATH_SM = "M110 50 C 121 64 120 78 110 88 C 100 78 99 64 110 50 Z";
 
-/* Two complete metal "skins" for the medallion, cross-faded on activation so the
-   bronze→gold morph stays perfectly registered (identical geometry underneath). */
-const METAL = {
-  bronze: {
-    disc: ["#d8b884", "#b07e44", "#7c5024", "#4a2c12"],
-    bevel: ["#f1d8aa", "#7c5024"],
-    orn: ["#e7c79a", "#b07e44", "#5f3d1c"],
-    ornStroke: "#3f2810",
-    center: ["#5a3a1c", "#321f0f"],
-    mono: "#f3dcae",
-  },
-  gold: {
-    disc: ["#fff3cf", "#f3cd72", "#caa033", "#7e601a"],
-    bevel: ["#fffbe9", "#b6892a"],
-    orn: ["#fff7df", "#f2cf6a", "#9c7b22"],
-    ornStroke: "#7a5c16",
-    center: ["#b08e36", "#6e521a"],
-    mono: "#fff6cf",
-  },
-};
+const isArabic = (s) => typeof s === "string" && /[؀-ۿ]/.test(s);
 
-/* Build a maps deep-link to the venue. Prefers exact coordinates, falls back to
-   the venue name/address. Uses Apple Maps on iOS, Google Maps elsewhere. */
-function buildDirectionsUrl(event) {
-  const hasCoords = event?.location_lat != null && event?.location_lng != null;
-  const dest = hasCoords
-    ? `${event.location_lat},${event.location_lng}`
-    : encodeURIComponent([event?.location_name, event?.location_address].filter(Boolean).join(', '));
-  if (!dest) return null;
-  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
-  return isIOS ? `https://maps.apple.com/?daddr=${dest}` : `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+/* ─── Wax + gold palette derived from the event's own colours ───────────────
+   Primary drives the wax dome; secondary (the accent) drives the gilded
+   monogram, rims and the light bloom, so the seal always feels bespoke. */
+function buildWaxPalette(primary, secondary) {
+  const p = primary || "#B8944F";
+  const s = secondary || lighten(p, 0.3);
+  return {
+    // wax body
+    waxLite: lighten(p, 0.34),
+    waxMid: p,
+    waxDeep: darken(p, 0.5),
+    waxEdge: darken(p, 0.72),
+    // gilded accents + light
+    gold: s,
+    goldLite: lighten(s, 0.5),
+    goldDeep: darken(s, 0.28),
+    goldShadow: darken(s, 0.55),
+    goldBright: lighten(s, 0.42),
+    // grounds
+    ivory: lighten(s, 0.84),
+    ivoryDeep: lighten(s, 0.72),
+    champagne: lighten(s, 0.3),
+    champagneLt: lighten(s, 0.55),
+    white: "#FFFCEF",
+    ink: darken(p, 0.62),
+  };
 }
 
-/* Build the embeddable map URL. Uses the Google Maps Embed API when a key is
-   configured (works from either coordinates or a free-text address), otherwise
-   falls back to a keyless OpenStreetMap embed, which needs coordinates. */
-function buildMapEmbedSrc(event) {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const hasCoords = event?.location_lat != null && event?.location_lng != null;
-  const query = hasCoords
-    ? `${event.location_lat},${event.location_lng}`
-    : [event?.location_name, event?.location_address].filter(Boolean).join(', ');
-  if (!query) return null;
-  if (apiKey) {
-    return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(query)}&zoom=15`;
-  }
-  if (hasCoords) {
-    const { location_lat: lat, location_lng: lng } = event;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.008},${lat - 0.006},${lng + 0.008},${lat + 0.006}&layer=mapnik&marker=${lat},${lng}`;
-  }
-  return null;
+/* Two full "skins" for the seal — a resting wax skin and a lit/molten skin —
+   cross-faded on activation over identical geometry so the morph stays
+   perfectly registered. */
+function buildSkins(P) {
+  return {
+    rest: {
+      disc: [P.waxLite, P.waxMid, P.waxDeep, P.waxEdge],
+      bevel: [P.goldLite, P.goldDeep],
+      orn: [lighten(P.waxLite, 0.12), P.waxLite, P.waxMid],
+      ornStroke: P.waxEdge,
+      center: [P.waxDeep, P.waxEdge],
+      mono: [P.goldLite, P.gold, P.goldDeep],
+      monoStroke: P.goldShadow,
+    },
+    lit: {
+      disc: [lighten(P.waxLite, 0.24), lighten(P.waxMid, 0.18), P.waxMid, P.waxDeep],
+      bevel: [P.white, P.gold],
+      orn: [P.goldLite, P.gold, P.goldDeep],
+      ornStroke: P.goldShadow,
+      center: [darken(P.gold, 0.15), P.goldDeep],
+      mono: [P.white, P.goldLite, P.gold],
+      monoStroke: P.goldShadow,
+    },
+  };
 }
 
 /* ─── Name + monogram derivation from real event data ─── */
-const isArabic = (s) => typeof s === "string" && /[؀-ۿ]/.test(s);
-
 function deriveIdentity(event, lang) {
   const td = event?.template_data || {};
   const a = (td.groom_name || td.partner1Name || td.partner1 || td.celebrant || td.honoree || td.company || "").trim();
@@ -111,9 +111,9 @@ function deriveIdentity(event, lang) {
   else full = (lang === "ar" && (event?.title_ar || td.title_ar)) ? (event?.title_ar || td.title_ar) : (event?.title || "");
 
   // Seal centrepiece — organizer override (`template_data.seal_text`) wins, so an
-  // Arabic event can show its exact calligraphic name (e.g. حسن). Otherwise we
-  // derive it from real event data: an Arabic name renders as a calligraphic
-  // word, a Latin event as a refined monogram.
+  // Arabic event can show its exact calligraphic name. Otherwise derived from
+  // real event data: an Arabic name renders as a calligraphic word, a Latin
+  // event as a refined monogram.
   let sealText = (td.seal_text || "").trim();
   if (!sealText) {
     const arabicSource = [a, b, event?.title_ar, td.title_ar, event?.title].find((s) => isArabic(s));
@@ -133,7 +133,15 @@ function deriveIdentity(event, lang) {
   return { full: full || "You're Invited", sealText, sealArabic: isArabic(sealText) };
 }
 
-/* Small detail presenter row for the invitation card */
+/* Collapse a long guest name to legible initials for the seal centre. */
+function guestSealText(guestName) {
+  const raw = (guestName || "").trim();
+  if (!raw) return null;
+  if (raw.length <= 12) return raw;
+  return raw.split(/\s+/).map((w) => w.charAt(0)).join("").slice(0, 3).toUpperCase();
+}
+
+/* Small detail presenter row for the reduced-motion stationery card */
 function DetailRow({ icon, label, value }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, textAlign: 'left', padding: '0 6px' }}>
@@ -170,11 +178,10 @@ function CornerOrnaments({ color }) {
   ));
 }
 
-/* ─── The medallion artwork — one metal skin (bronze or gold) ─── */
+/* ─── The wax seal artwork — one skin (rest or lit) ─── */
 /* `uid` keeps every instance's gradient ids unique (no cross-SVG collisions). */
-function MedallionSkin({ skin, uid, text, arabic }) {
-  const m = METAL[skin];
-  const s = `${skin}-${uid}`;
+function MedallionSkin({ skin, name, uid, text, arabic }) {
+  const s = `${name}-${uid}`;
   const len = (text || "").length;
   const sealFontSize = arabic
     ? (len <= 3 ? 52 : len <= 5 ? 42 : 32)
@@ -183,49 +190,54 @@ function MedallionSkin({ skin, uid, text, arabic }) {
     <g>
       <defs>
         <radialGradient id={`disc-${s}`} cx="38%" cy="32%" r="78%">
-          <stop offset="0%" stopColor={m.disc[0]} />
-          <stop offset="42%" stopColor={m.disc[1]} />
-          <stop offset="76%" stopColor={m.disc[2]} />
-          <stop offset="100%" stopColor={m.disc[3]} />
+          <stop offset="0%" stopColor={skin.disc[0]} />
+          <stop offset="42%" stopColor={skin.disc[1]} />
+          <stop offset="76%" stopColor={skin.disc[2]} />
+          <stop offset="100%" stopColor={skin.disc[3]} />
         </radialGradient>
         <linearGradient id={`bevel-${s}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={m.bevel[0]} />
-          <stop offset="50%" stopColor={m.bevel[1]} />
-          <stop offset="100%" stopColor={m.bevel[0]} />
+          <stop offset="0%" stopColor={skin.bevel[0]} />
+          <stop offset="50%" stopColor={skin.bevel[1]} />
+          <stop offset="100%" stopColor={skin.bevel[0]} />
         </linearGradient>
         <linearGradient id={`orn-${s}`} x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stopColor={m.orn[0]} />
-          <stop offset="52%" stopColor={m.orn[1]} />
-          <stop offset="100%" stopColor={m.orn[2]} />
+          <stop offset="0%" stopColor={skin.orn[0]} />
+          <stop offset="52%" stopColor={skin.orn[1]} />
+          <stop offset="100%" stopColor={skin.orn[2]} />
         </linearGradient>
         <radialGradient id={`center-${s}`} cx="50%" cy="38%" r="72%">
-          <stop offset="0%" stopColor={m.center[0]} />
-          <stop offset="100%" stopColor={m.center[1]} />
+          <stop offset="0%" stopColor={skin.center[0]} />
+          <stop offset="100%" stopColor={skin.center[1]} />
         </radialGradient>
+        <linearGradient id={`mono-${s}`} x1="50%" y1="0%" x2="50%" y2="100%">
+          <stop offset="0%" stopColor={skin.mono[0]} />
+          <stop offset="55%" stopColor={skin.mono[1]} />
+          <stop offset="100%" stopColor={skin.mono[2]} />
+        </linearGradient>
       </defs>
 
-      {/* Disc + beveled rim */}
+      {/* Disc + gilded beveled rim */}
       <circle cx={C} cy={C} r="104" fill={`url(#disc-${s})`} stroke={`url(#bevel-${s})`} strokeWidth="3.5" />
-      <circle cx={C} cy={C} r="99" fill="none" stroke={m.ornStroke} strokeOpacity="0.35" strokeWidth="0.8" />
-      <circle cx={C} cy={C} r="96.5" fill="none" stroke={m.orn[0]} strokeOpacity="0.5" strokeWidth="0.8" />
+      <circle cx={C} cy={C} r="99" fill="none" stroke={skin.ornStroke} strokeOpacity="0.35" strokeWidth="0.8" />
+      <circle cx={C} cy={C} r="96.5" fill="none" stroke={skin.orn[0]} strokeOpacity="0.5" strokeWidth="0.8" />
 
       {/* Outer bead band */}
       {BAND_BEADS.map((deg) => (
         <rect
           key={`bead-${deg}`}
           x="106" y="13.5" width="8" height="8" rx="1.4"
-          fill={`url(#orn-${s})`} stroke={m.ornStroke} strokeOpacity="0.4" strokeWidth="0.5"
+          fill={`url(#orn-${s})`} stroke={skin.ornStroke} strokeOpacity="0.4" strokeWidth="0.5"
           transform={`rotate(${deg} ${C} ${C}) rotate(45 110 17.5)`}
         />
       ))}
 
       {/* Guilloché double-ring with fine ticks */}
-      <circle cx={C} cy={C} r="84" fill="none" stroke={m.orn[1]} strokeOpacity="0.4" strokeWidth="1" />
-      <circle cx={C} cy={C} r="79" fill="none" stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.8" />
+      <circle cx={C} cy={C} r="84" fill="none" stroke={skin.orn[1]} strokeOpacity="0.4" strokeWidth="1" />
+      <circle cx={C} cy={C} r="79" fill="none" stroke={skin.ornStroke} strokeOpacity="0.3" strokeWidth="0.8" />
       {GUILLOCHE_TICKS.map((deg) => (
         <line
           key={`tick-${deg}`}
-          x1={C} y1="26.5" x2={C} y2="31" stroke={m.orn[0]} strokeOpacity="0.4" strokeWidth="0.7"
+          x1={C} y1="26.5" x2={C} y2="31" stroke={skin.orn[0]} strokeOpacity="0.4" strokeWidth="0.7"
           transform={`rotate(${deg} ${C} ${C})`}
         />
       ))}
@@ -233,24 +245,23 @@ function MedallionSkin({ skin, uid, text, arabic }) {
       {/* Inner mandala — 12 ogee petals + inner veins */}
       {INNER_PETALS.map((deg) => (
         <g key={`petal-${deg}`} transform={`rotate(${deg} ${C} ${C})`}>
-          <path d={PETAL_PATH} fill={`url(#orn-${s})`} stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.7" />
-          <path d={PETAL_VEIN} fill="none" stroke={m.ornStroke} strokeOpacity="0.2" strokeWidth="0.6" />
+          <path d={PETAL_PATH} fill={`url(#orn-${s})`} stroke={skin.ornStroke} strokeOpacity="0.3" strokeWidth="0.7" />
+          <path d={PETAL_VEIN} fill="none" stroke={skin.ornStroke} strokeOpacity="0.2" strokeWidth="0.6" />
         </g>
       ))}
-      {/* Secondary petal layer, interleaved between the primaries */}
       {ACCENT_DOTS.map((deg) => (
-        <path key={`pet2-${deg}`} d={PETAL_PATH_SM} fill={`url(#orn-${s})`} fillOpacity="0.9" stroke={m.ornStroke} strokeOpacity="0.3" strokeWidth="0.5" transform={`rotate(${deg} ${C} ${C})`} />
+        <path key={`pet2-${deg}`} d={PETAL_PATH_SM} fill={`url(#orn-${s})`} fillOpacity="0.9" stroke={skin.ornStroke} strokeOpacity="0.3" strokeWidth="0.5" transform={`rotate(${deg} ${C} ${C})`} />
       ))}
       {ACCENT_DOTS.map((deg) => (
-        <circle key={`dot-${deg}`} cx={C} cy="44" r="1.9" fill={m.orn[0]} transform={`rotate(${deg} ${C} ${C})`} />
+        <circle key={`dot-${deg}`} cx={C} cy="44" r="1.9" fill={skin.orn[0]} transform={`rotate(${deg} ${C} ${C})`} />
       ))}
 
-      {/* Centre cartouche + monogram */}
-      <circle cx={C} cy={C} r="31" fill={`url(#center-${s})`} stroke={m.orn[1]} strokeOpacity="0.85" strokeWidth="1.4" />
-      <circle cx={C} cy={C} r="27" fill="none" stroke={m.ornStroke} strokeOpacity="0.6" strokeWidth="0.7" />
+      {/* Centre cartouche + gilded monogram */}
+      <circle cx={C} cy={C} r="31" fill={`url(#center-${s})`} stroke={skin.orn[1]} strokeOpacity="0.85" strokeWidth="1.4" />
+      <circle cx={C} cy={C} r="27" fill="none" stroke={skin.ornStroke} strokeOpacity="0.6" strokeWidth="0.7" />
       <text
-        x={C} y={C} textAnchor="middle" dominantBaseline="central" fill={m.mono}
-        stroke={m.ornStroke} strokeWidth="0.6" strokeOpacity="0.5"
+        x={C} y={C} textAnchor="middle" dominantBaseline="central" fill={`url(#mono-${s})`}
+        stroke={skin.monoStroke} strokeWidth="0.6" strokeOpacity="0.5"
         style={{
           fontFamily: arabic ? "var(--font-arabic-display), 'Aref Ruqaa', serif" : "var(--font-serif), serif",
           fontSize: sealFontSize,
@@ -265,9 +276,8 @@ function MedallionSkin({ skin, uid, text, arabic }) {
   );
 }
 
-/* ─── A single peel-away envelope flap (one of four) ─── */
-function Flap({ side, open, patternUrl, delay }) {
-  // Each flap is a triangle hinged on its OUTER edge; the tip meets the seal.
+/* ─── A single peel-away envelope flap (one of four), gold-lined underside ─── */
+function Flap({ side, open, patternUrl, delay, gold }) {
   const cfg = {
     top: {
       style: { top: 0, left: 0, right: 0, height: "50%", transformOrigin: "top center", clipPath: "polygon(0 0, 100% 0, 50% 100%)" },
@@ -314,45 +324,89 @@ function Flap({ side, open, patternUrl, delay }) {
       }}
     >
       <div style={{ position: "absolute", inset: 0, background: cfg.crease, clipPath: cfg.style.clipPath, pointerEvents: "none" }} />
+      {/* Gold-foil lining, only seen as the flap peels back */}
+      <div style={{ position: "absolute", inset: 0, background: gold, clipPath: cfg.style.clipPath, opacity: open ? 0.9 : 0, mixBlendMode: "overlay", transition: "opacity 0.5s ease", pointerEvents: "none" }} />
     </motion.div>
   );
 }
 
-export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
+export default function InvitationReveal({
+  event,
+  mode = "invitation",
+  guestName = "",
+  musicRef,
+  sessionKey = null,
+  lang: langProp = null,
+  onComplete,
+}) {
   const prefersReduced = useReducedMotion();
 
   // stage: 0 preload · 1 paper · 2 seal-focus(resting) · 3 activating · 4 opening · 5 light · 6 reveal · 7 done
   const [stage, setStage] = useState(0);
-  const [lang, setLang] = useState("en");
+  const [lang, setLang] = useState(langProp || "en");
 
   const timers = useRef([]);
   const finishedRef = useRef(false);
   const startedRef = useRef(false);
 
   const colors = event?.custom_colors || {};
+  const P = useMemo(() => buildWaxPalette(colors.primary, colors.secondary), [colors.primary, colors.secondary]);
+  const skins = useMemo(() => buildSkins(P), [P]);
   const theme = {
     primary: colors.primary || "#B8944F",
     secondary: colors.secondary || "#D7BE80",
-    deep: "#3a2a14",
+    deep: P.ink,
   };
 
-  /* DB-driven invitation artwork (stored per-event in template_data). When the
-     organizer has uploaded their exact seal / background, we render that art
-     pixel-for-pixel; otherwise we fall back to the rich generated vector. */
   const td = event?.template_data || {};
-
   const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
 
-  const sealImg = td.seal_image_url || null;
-  const sealGoldImg = td.seal_image_gold_url || sealImg;
-  const bgImg = td.invitation_bg_url || null;
+  // In rsvp mode the seal is personalised with the guest's own name.
+  const gSeal = mode === "rsvp" ? guestSealText(guestName) : null;
+  const sealText = gSeal || identity.sealText;
+  const sealArabic = isArabic(sealText);
+
+  // Ambient atmosphere (petals / snow / gold dust) matched to this event.
+  const ambient = useMemo(() => getCelebrationPreset(event?.template_type), [event?.template_type]);
+
+  /* Per-session "seen" memory (rsvp mode) so a return visit within the session
+     doesn't replay the full sequence. Omit sessionKey to always replay. */
+  const seenStorageKey = sessionKey ? `fancy_envelope_seen_${sessionKey}` : null;
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
+  const markSeen = useCallback(() => {
+    if (!seenStorageKey || typeof window === "undefined") return;
+    try { window.sessionStorage.setItem(seenStorageKey, "1"); } catch { /* storage unavailable */ }
+  }, [seenStorageKey]);
+  const [alreadySeen] = useState(
+    () => !!(seenStorageKey && typeof window !== "undefined" && (() => { try { return window.sessionStorage.getItem(seenStorageKey) === "1"; } catch { return false; } })())
+  );
+  useEffect(() => {
+    if (alreadySeen) onCompleteRef.current && onCompleteRef.current();
+    // Only ever runs once, on mount, for the "already seen" check.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* Magnetic tilt: the seal leans toward the finger before it's tapped, like a
+     real medallion catching the light. Disabled once activation begins. */
+  const tiltX = useMotionValue(0);
+  const tiltY = useMotionValue(0);
+  const sealRotateX = useTransform(tiltY, [-0.5, 0.5], [10, -10]);
+  const sealRotateY = useTransform(tiltX, [-0.5, 0.5], [-10, 10]);
+  const handleTilt = useCallback((e) => {
+    if (stage >= 3) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    tiltX.set((e.clientX - rect.left) / rect.width - 0.5);
+    tiltY.set((e.clientY - rect.top) / rect.height - 0.5);
+  }, [tiltX, tiltY, stage]);
+  const resetTilt = useCallback(() => { tiltX.set(0); tiltY.set(0); }, [tiltX, tiltY]);
 
   const copy = {
     en: {
       eyebrow: "You are invited",
       special: "You are invited for our special day",
-      tap: "Tap to open",
+      tap: "Tap the seal",
       enter: "View invitation",
       join: "We would be honoured by your presence",
     },
@@ -368,7 +422,6 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
   const isRTL = lang === "ar";
   const arTitle = event?.title_ar || td.title_ar;
   const displayTitle = isRTL && arTitle ? arTitle : event?.title;
-  const displayName = isRTL && arTitle && !event?.template_data?.groom_name ? arTitle : identity.full;
   const dateStr = event?.event_date
     ? new Date(event.event_date).toLocaleDateString(isRTL ? "ar-EG" : "en-US", {
         weekday: "long", day: "numeric", month: "long", year: "numeric",
@@ -378,10 +431,13 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
   const locationStr = event?.location_name || "";
 
   /* Tileable embossed-arabesque stationery, encoded once as a data-URI so the
-     same paper texture paints the backdrop AND every envelope flap. */
+     same paper texture paints the backdrop AND every envelope flap. Tinted to
+     the event's wax colour. */
+  const patternHex = (theme.primary || "#b8944f").replace("#", "");
   const patternUrl = useMemo(() => {
+    const stroke = `%23${patternHex}`;
     const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='46' height='46' viewBox='0 0 46 46'>`
-      + `<g fill='none' stroke='%23b8944f' stroke-opacity='0.18' stroke-width='0.9'>`
+      + `<g fill='none' stroke='${stroke}' stroke-opacity='0.18' stroke-width='0.9'>`
       + `<rect x='9' y='9' width='28' height='28'/>`
       + `<rect x='9' y='9' width='28' height='28' transform='rotate(45 23 23)'/>`
       + `<rect x='15' y='15' width='16' height='16'/>`
@@ -396,7 +452,9 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
       + `<rect x='9.6' y='9.6' width='28' height='28' transform='rotate(45 23.6 23.6)'/>`
       + `</g></svg>`;
     return `url("data:image/svg+xml,${svg}")`;
-  }, []);
+  }, [patternHex]);
+
+  const goldLining = `linear-gradient(135deg, ${P.goldDeep}, ${P.goldLite} 24%, ${P.gold} 46%, ${P.champagneLt} 64%, ${P.goldDeep} 84%, ${P.gold})`;
 
   /* ─── Sequence control ─── */
   const clearTimers = useCallback(() => {
@@ -412,42 +470,42 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
     if (finishedRef.current) return;
     finishedRef.current = true;
     clearTimers();
+    markSeen();
     setStage(7);
     onComplete && onComplete();
-  }, [clearTimers, onComplete]);
+  }, [clearTimers, markSeen, onComplete]);
 
   // Drive the cinematic opening once the guest activates the seal. Guarded by a
-  // ref so the idle auto-open can never restart an in-progress sequence.
+  // ref so nothing can restart an in-progress sequence.
   const openSeal = useCallback(() => {
     if (startedRef.current || finishedRef.current) return;
     startedRef.current = true;
+    resetTilt();
     // Started synchronously inside the tap so the browser counts it as a real
-    // user gesture; logged (not thrown) when this fires from the idle auto-open,
-    // where autoplay-without-gesture is expected to be blocked.
+    // user gesture (autoplay). Logged, not thrown, if blocked.
     musicRef?.current?.play().catch((err) => console.error('Background music playback failed:', err));
-    setStage(3);                       // ACTIVATION — bronze → gold, glow, dust
+    setStage(3);                       // ACTIVATION — wax → molten, glow, dust
     after(620, () => setStage(4));     // OPENING — flaps peel back
     after(1180, () => setStage(5));    // LIGHT — golden volumetric bloom
-    after(1820, () => finish());       // straight through to event details — no intermediate card
-  }, [after, finish, musicRef]);
+    after(1820, () => finish());       // dissolve straight into the page/form beneath
+  }, [after, finish, musicRef, resetTilt]);
 
   /* Choreography after mount: preload → paper → seal focus (resting). Opening
-     itself only ever happens from the guest's own tap on the seal — no idle
-     auto-open timer here. */
+     only ever happens from the guest's own tap on the seal. */
   useEffect(() => {
     if (prefersReduced) return; // reduced-motion: render the static fallback only
+    if (alreadySeen) return;
     after(120, () => setStage(1));   // PAPER stationery + flaps settle in
     after(900, () => setStage(2));   // SEAL FOCUS — resting, awaiting a tap
     return clearTimers;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Already opened this session — hand off immediately, render nothing.
+  if (alreadySeen) return null;
 
-  /* ═══ Reduced-motion fallback: a full luxury stationery card, just without the
-     envelope-opening choreography. Large-scale parallax/spin is avoided, but
-     low-amplitude opacity/glow ambience and a one-shot entrance still ship —
-     this screen is the only thing many guests (and any tooling that forces
-     prefers-reduced-motion) ever actually see, so it has to carry the brand. */
+  /* ═══ Reduced-motion fallback: a full luxury stationery card, without the
+     envelope-opening choreography. ═══ */
   if (prefersReduced) {
     return (
       <motion.div
@@ -459,48 +517,43 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.5 }}
         dir={isRTL ? "rtl" : "ltr"}
-        style={{ ...overlayBase, background: "radial-gradient(125% 95% at 50% 24%, #fffdf8 0%, #faf3e2 38%, #ecdcb4 70%, #d9bf8c 100%)" }}
+        style={{ ...overlayBase, background: `radial-gradient(125% 95% at 50% 24%, ${P.white} 0%, ${P.ivory} 38%, ${P.ivoryDeep} 70%, ${P.champagne} 100%)` }}
       >
         <style dangerouslySetInnerHTML={{ __html: RM_CSS }} />
 
-        {/* Slow gold aurora sheen */}
-        <div aria-hidden className="rm-aurora" style={{ position: "absolute", inset: 0, background: `linear-gradient(120deg, transparent 20%, ${theme.secondary}33 45%, transparent 70%)`, pointerEvents: "none" }} />
-        {/* Embossed arabesque stationery texture + warm vignette */}
+        <div aria-hidden className="rm-aurora" style={{ position: "absolute", inset: 0, background: `linear-gradient(120deg, transparent 20%, ${alpha(P.gold, 0.2)} 45%, transparent 70%)`, pointerEvents: "none" }} />
         <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: 0.3, mixBlendMode: "multiply", pointerEvents: "none" }} />
-        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(62% 52% at 50% 26%, rgba(255,255,255,0.55), transparent 70%), radial-gradient(120% 120% at 50% 100%, rgba(110,80,35,0.22), transparent 60%)", pointerEvents: "none" }} />
-        {/* Twinkling gold dust scattered across the backdrop */}
+        <div aria-hidden style={{ position: "absolute", inset: 0, background: `radial-gradient(62% 52% at 50% 26%, ${alpha(P.white, 0.55)}, transparent 70%), radial-gradient(120% 120% at 50% 100%, ${alpha(P.waxDeep, 0.22)}, transparent 60%)`, pointerEvents: "none" }} />
         {SPARKLES.map((s, i) => (
-          <span key={i} aria-hidden className="rm-twinkle" style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, borderRadius: "50%", background: i % 2 ? theme.secondary : "#ffe6a0", boxShadow: "0 0 6px rgba(255,220,140,0.8)", animationDelay: `${s.delay}s`, pointerEvents: "none" }} />
+          <span key={i} aria-hidden className="rm-twinkle" style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, borderRadius: "50%", background: i % 2 ? P.gold : P.goldBright, boxShadow: `0 0 6px ${alpha(P.goldBright, 0.8)}`, animationDelay: `${s.delay}s`, pointerEvents: "none" }} />
         ))}
 
-        {/* Top-end language chip — mirrors the live event page composition */}
         <div style={{ position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineEnd: 16, zIndex: 6 }}>
           <button
             type="button"
             onClick={() => hasArabic && setLang((l) => (l === "en" ? "ar" : "en"))}
             aria-label={hasArabic ? "Toggle language" : "Language"}
-            style={langChipStyle(!!hasArabic)}
+            style={langChipStyle(!!hasArabic, P)}
           >
             <span aria-hidden style={{ fontSize: 15, opacity: 0.7 }}>🌐</span>
             <span style={{ fontWeight: 700, letterSpacing: "0.04em" }}>{lang === "en" ? "EN" : "ع"}</span>
           </button>
         </div>
 
-        <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation" style={skipStyle}>
+        <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation" style={skipStyle(P)}>
           Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span>
         </button>
 
-        {/* ── The stationery card ── */}
         <motion.div
           initial="hidden"
           animate="show"
           variants={{ hidden: {}, show: { transition: { staggerChildren: 0.1, delayChildren: 0.2 } } }}
           style={{
             position: "relative", zIndex: 2, width: "100%", maxWidth: 440,
-            background: "linear-gradient(155deg, rgba(255,253,248,0.94), rgba(250,239,219,0.9))",
-            border: `1px solid ${theme.primary}38`,
+            background: `linear-gradient(155deg, ${alpha(P.white, 0.94)}, ${alpha(P.ivory, 0.9)})`,
+            border: `1px solid ${alpha(theme.primary, 0.22)}`,
             borderRadius: 24,
-            boxShadow: "0 34px 76px -22px rgba(70,45,18,0.38), inset 0 1px 0 rgba(255,255,255,0.65)",
+            boxShadow: `0 34px 76px -22px ${alpha(P.waxDeep, 0.38)}, inset 0 1px 0 ${alpha(P.white, 0.65)}`,
             padding: "40px 28px 34px",
             backdropFilter: "blur(6px)",
             WebkitBackdropFilter: "blur(6px)",
@@ -509,20 +562,18 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
           }}
         >
           <CornerOrnaments color={theme.primary} />
-          <div aria-hidden style={{ position: "absolute", inset: 9, border: `0.6px solid ${theme.primary}26`, borderRadius: 17, pointerEvents: "none" }} />
+          <div aria-hidden style={{ position: "absolute", inset: 9, border: `0.6px solid ${alpha(theme.primary, 0.15)}`, borderRadius: 17, pointerEvents: "none" }} />
 
-          {/* Seal medallion: soft halo + one-shot shimmer sweep on mount */}
           <motion.div variants={fadeUp} style={{ position: "relative", display: "inline-block" }}>
-            <div aria-hidden className="rm-halo" style={{ position: "absolute", inset: "-26%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,221,130,0.55) 0%, rgba(255,200,90,0.22) 46%, transparent 72%)", filter: "blur(5px)" }} />
-            <svg width="138" height="138" viewBox="0 0 220 220" role="img" aria-label="Invitation seal" style={{ position: "relative", display: "block", filter: "drop-shadow(0 14px 26px rgba(90,60,20,0.32))" }}>
-              <MedallionSkin skin="gold" uid="rm" text={identity.sealText} arabic={identity.sealArabic} />
+            <div aria-hidden className="rm-halo" style={{ position: "absolute", inset: "-26%", borderRadius: "50%", background: `radial-gradient(circle, ${alpha(P.goldBright, 0.55)} 0%, ${alpha(P.gold, 0.22)} 46%, transparent 72%)`, filter: "blur(5px)" }} />
+            <svg width="138" height="138" viewBox="0 0 220 220" role="img" aria-label="Invitation seal" style={{ position: "relative", display: "block", filter: `drop-shadow(0 14px 26px ${alpha(P.waxDeep, 0.32)})` }}>
+              <MedallionSkin skin={skins.lit} name="lit" uid="rm" text={sealText} arabic={sealArabic} />
             </svg>
             <div aria-hidden style={{ position: "absolute", inset: 0, borderRadius: "50%", overflow: "hidden", pointerEvents: "none" }}>
               <div className="rm-sheen" />
             </div>
           </motion.div>
 
-          {/* Eyebrow flanked by hairline flourishes */}
           <motion.div variants={fadeUp} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "22px 0 12px" }}>
             <span aria-hidden style={{ height: 1, width: 28, background: `linear-gradient(90deg, transparent, ${theme.primary})` }} />
             <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, letterSpacing: "0.34em", textTransform: "uppercase", color: theme.primary, fontWeight: 700 }}>
@@ -531,12 +582,12 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
             <span aria-hidden style={{ height: 1, width: 28, background: `linear-gradient(270deg, transparent, ${theme.primary})` }} />
           </motion.div>
 
-          <motion.h1 variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,7vw,34px)", color: "#2a1f12", margin: 0, fontWeight: 500, lineHeight: 1.22, textShadow: "0 1px 0 rgba(255,255,255,0.7)" }}>
+          <motion.h1 variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(24px,7vw,34px)", color: P.ink, margin: 0, fontWeight: 500, lineHeight: 1.22, textShadow: `0 1px 0 ${alpha(P.white, 0.7)}` }}>
             {displayTitle}
           </motion.h1>
 
           {copy.join && (
-            <motion.p variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 14, color: "#8a7350", margin: "12px 0 0", letterSpacing: "0.02em" }}>
+            <motion.p variants={fadeUp} style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 14, color: darken(theme.primary, 0.2), margin: "12px 0 0", letterSpacing: "0.02em" }}>
               {copy.join}
             </motion.p>
           )}
@@ -544,9 +595,9 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
           {(dateStr || locationStr) && (
             <>
               <motion.div variants={fadeUp} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, margin: "20px 0" }}>
-                <span aria-hidden style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+                <span aria-hidden style={{ height: 1, width: 26, background: alpha(theme.primary, 0.33) }} />
                 <span style={{ fontSize: 15, color: theme.primary }}>✦</span>
-                <span aria-hidden style={{ height: 1, width: 26, background: `${theme.primary}55` }} />
+                <span aria-hidden style={{ height: 1, width: 26, background: alpha(theme.primary, 0.33) }} />
               </motion.div>
               <motion.div variants={fadeUp} style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 6 }}>
                 {dateStr && <DetailRow icon="📅" label={isRTL ? "التاريخ" : "When"} value={dateStr} />}
@@ -559,7 +610,7 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
             <motion.button
               type="button"
               onClick={() => { musicRef?.current?.play().catch((err) => console.error('Background music playback failed:', err)); finish(); }}
-              whileHover={{ scale: 1.035, boxShadow: `0 16px 34px ${theme.primary}55, inset 0 1px 0 rgba(255,255,255,0.45)` }}
+              whileHover={{ scale: 1.035, boxShadow: `0 16px 34px ${alpha(theme.primary, 0.33)}, inset 0 1px 0 ${alpha(P.white, 0.45)}` }}
               whileTap={{ scale: 0.97 }}
               style={enterBtnStyle(theme)}
             >
@@ -589,34 +640,40 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
       exit={{ opacity: 0, transition: { duration: 0.7, ease: [0.4, 0, 0.2, 1] } }}
       transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
       dir={isRTL ? "rtl" : "ltr"}
-      style={{ ...overlayBase, background: "radial-gradient(130% 100% at 50% 32%, #fcf8ef 0%, #f4ecda 52%, #e9ddc4 100%)" }}
+      style={{ ...overlayBase, background: `radial-gradient(130% 100% at 50% 32%, ${P.white} 0%, ${P.ivory} 52%, ${P.ivoryDeep} 100%)` }}
     >
       <style dangerouslySetInnerHTML={{ __html: REVEAL_CSS }} />
 
-      {/* Embossed arabesque stationery wash + warm vignette. Uses the organizer's
-          uploaded background when present, else the generated arabesque tile. */}
-      {bgImg ? (
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `url(${bgImg})`, backgroundSize: "cover", backgroundPosition: "center", opacity: lit ? 0.18 : 1, transition: "opacity 0.8s ease" }} />
-      ) : (
-        <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: lit ? 0.12 : 0.55, transition: "opacity 0.8s ease" }} />
-      )}
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(70% 60% at 50% 38%, rgba(255,255,255,0.35), transparent 70%), radial-gradient(120% 120% at 50% 100%, rgba(120,90,45,0.16), transparent 60%)", pointerEvents: "none" }} />
+      {/* Ambient atmosphere matched to this event (petals / snow / gold dust) */}
+      <motion.div
+        aria-hidden
+        initial={false}
+        animate={{ opacity: lit ? 0 : 1 }}
+        transition={{ duration: 0.6 }}
+        style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none" }}
+      >
+        <FloatingParticles count={20} color={ambient.ambientColor || theme.secondary} shape={ambient.ambient} />
+      </motion.div>
 
-      {/* Top-right language chip — mirrors the live event page composition */}
+      {/* Embossed arabesque stationery wash + warm vignette */}
+      <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: patternUrl, backgroundSize: "46px 46px", opacity: lit ? 0.12 : 0.5, transition: "opacity 0.8s ease" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: `radial-gradient(70% 60% at 50% 38%, ${alpha(P.white, 0.35)}, transparent 70%), radial-gradient(120% 120% at 50% 100%, ${alpha(P.waxDeep, 0.14)}, transparent 60%)`, pointerEvents: "none" }} />
+
+      {/* Top-end language chip */}
       <div style={{ position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineEnd: 16, zIndex: 6 }}>
         <button
           type="button"
           onClick={() => hasArabic && setLang((l) => (l === "en" ? "ar" : "en"))}
           aria-label={hasArabic ? "Toggle language" : "Language"}
-          style={langChipStyle(!!hasArabic)}
+          style={langChipStyle(!!hasArabic, P)}
         >
           <span aria-hidden style={{ fontSize: 15, opacity: 0.7 }}>🌐</span>
           <span style={{ fontWeight: 700, letterSpacing: "0.04em" }}>{lang === "en" ? "EN" : "ع"}</span>
         </button>
       </div>
 
-      {/* Skip — always available, never blocks the page beneath */}
-      <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation animation" style={skipStyle}>
+      {/* Skip — always available */}
+      <button type="button" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation animation" style={skipStyle(P)}>
         Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span>
       </button>
 
@@ -628,10 +685,10 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
         style={{ position: "relative", zIndex: 4, textAlign: "center", marginBottom: "clamp(20px,5vh,40px)", maxWidth: 520, padding: "0 24px" }}
       >
         <span style={{ display: "block", fontFamily: "var(--font-sans)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.42em", fontWeight: 700, color: theme.primary, marginBottom: 12, paddingInlineStart: "0.42em" }}>
-          {copy.eyebrow}
+          {mode === "rsvp" && guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}
         </span>
         {displayTitle && (
-          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(22px,6.4vw,34px)", fontWeight: 500, lineHeight: 1.18, color: "#2c2113", margin: 0, textShadow: "0 1px 0 rgba(255,255,255,0.6)" }}>
+          <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(22px,6.4vw,34px)", fontWeight: 500, lineHeight: 1.18, color: P.ink, margin: 0, textShadow: `0 1px 0 ${alpha(P.white, 0.6)}` }}>
             {displayTitle}
           </h1>
         )}
@@ -644,12 +701,11 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
         transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         style={{ position: "relative", zIndex: 3, width: stageSize, height: stageSize, perspective: "1400px", WebkitPerspective: "1400px" }}
       >
-        {/* Interior panel revealed when the flaps open (warm light pool) */}
-        <div aria-hidden style={{ position: "absolute", inset: "8%", borderRadius: 10, background: "radial-gradient(60% 60% at 50% 45%, #fff7e3 0%, #f3e2bd 60%, #e6cf9f 100%)", boxShadow: "inset 0 0 40px rgba(150,110,55,0.25)" }} />
+        {/* Interior panel revealed when the flaps open (warm, gold-lined light pool) */}
+        <div aria-hidden style={{ position: "absolute", inset: "8%", borderRadius: 10, background: `radial-gradient(60% 60% at 50% 45%, ${P.white} 0%, ${P.champagneLt} 60%, ${P.champagne} 100%)`, boxShadow: `inset 0 0 0 2px ${alpha(P.gold, 0.4)}, inset 0 0 40px ${alpha(P.waxMid, 0.25)}` }} />
 
         {/* ── Volumetric golden light from inside the envelope ── */}
         <div aria-hidden style={{ position: "absolute", inset: "-60%", display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none", zIndex: 2 }}>
-          {/* Sunburst rays — framer scales the wrapper, CSS spins the inner layer */}
           <motion.div
             initial={false}
             animate={{ opacity: lit ? 0.9 : 0, scale: lit ? 1.15 : 0.5 }}
@@ -660,22 +716,21 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
               className="ger-rays"
               style={{
                 width: "100%", height: "100%", borderRadius: "50%",
-                background: "repeating-conic-gradient(from 0deg at 50% 50%, rgba(255,233,170,0) 0deg, rgba(255,233,170,0.55) 3deg, rgba(255,233,170,0) 7deg)",
+                background: `repeating-conic-gradient(from 0deg at 50% 50%, ${alpha(P.goldBright, 0)} 0deg, ${alpha(P.goldBright, 0.55)} 3deg, ${alpha(P.goldBright, 0)} 7deg)`,
                 WebkitMaskImage: "radial-gradient(circle, #000 8%, rgba(0,0,0,0.5) 38%, transparent 70%)",
                 maskImage: "radial-gradient(circle, #000 8%, rgba(0,0,0,0.5) 38%, transparent 70%)",
               }}
             />
           </motion.div>
-          {/* Core bloom */}
           <motion.div
             initial={false}
             animate={{ opacity: lit ? 1 : 0, scale: revealing ? 1.5 : lit ? 1 : 0.3 }}
             transition={{ duration: 1.2, ease: "easeOut" }}
-            style={{ position: "absolute", width: "62%", height: "62%", borderRadius: "50%", background: "radial-gradient(circle, #ffffff 0%, #fff1c4 26%, rgba(247,205,114,0.55) 52%, transparent 74%)", filter: "blur(6px)" }}
+            style={{ position: "absolute", width: "62%", height: "62%", borderRadius: "50%", background: `radial-gradient(circle, ${P.white} 0%, ${alpha(P.goldBright, 0.8)} 26%, ${alpha(P.gold, 0.55)} 52%, transparent 74%)`, filter: "blur(6px)" }}
           />
         </div>
 
-        {/* Downward chevron beam echoing the reference's V of light */}
+        {/* Downward chevron beam */}
         <motion.div
           aria-hidden
           initial={false}
@@ -684,23 +739,30 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
           style={{
             position: "absolute", left: "50%", top: "52%", width: "78%", height: "90%",
             transformOrigin: "top center", zIndex: 2,
-            background: "linear-gradient(180deg, rgba(255,239,190,0.85) 0%, rgba(255,224,150,0.35) 40%, transparent 78%)",
+            background: `linear-gradient(180deg, ${alpha(P.goldBright, 0.85)} 0%, ${alpha(P.gold, 0.35)} 40%, transparent 78%)`,
             clipPath: "polygon(50% 0, 100% 0, 50% 100%, 0 0)", filter: "blur(7px)", pointerEvents: "none",
           }}
         />
 
-        {/* Four peel-away flaps */}
+        {/* Four peel-away flaps with gold-foil lining */}
         <div style={{ position: "absolute", inset: 0, transformStyle: "preserve-3d", WebkitTransformStyle: "preserve-3d", zIndex: 3 }}>
-          <Flap side="top" open={opening} patternUrl={patternUrl} delay={0} />
-          <Flap side="left" open={opening} patternUrl={patternUrl} delay={0.06} />
-          <Flap side="right" open={opening} patternUrl={patternUrl} delay={0.06} />
-          <Flap side="bottom" open={opening} patternUrl={patternUrl} delay={0.12} />
+          <Flap side="top" open={opening} patternUrl={patternUrl} delay={0} gold={goldLining} />
+          <Flap side="left" open={opening} patternUrl={patternUrl} delay={0.06} gold={goldLining} />
+          <Flap side="right" open={opening} patternUrl={patternUrl} delay={0.06} gold={goldLining} />
+          <Flap side="bottom" open={opening} patternUrl={patternUrl} delay={0.12} gold={goldLining} />
         </div>
 
-        {/* ── The seal medallion (centred via inset so framer-motion can own transform) ── */}
+        {/* Themed ignition burst as the seal floods with light */}
+        {stage === 5 && (
+          <ConfettiExplosion active duration={1300} particleCount={40} spread={0.6} colors={ambient.colors} shapes={ambient.shapes} />
+        )}
+
+        {/* ── The wax seal (centred via inset so framer-motion owns transform) ── */}
         <motion.button
           type="button"
           onClick={openSeal}
+          onPointerMove={handleTilt}
+          onPointerLeave={resetTilt}
           aria-label={copy.tap}
           disabled={stage >= 3}
           initial={false}
@@ -721,7 +783,7 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
             border: "none", background: "transparent", padding: 0,
             cursor: stage >= 3 ? "default" : "pointer",
             WebkitTapHighlightColor: "transparent",
-            filter: "drop-shadow(0 14px 22px rgba(70,45,18,0.34))",
+            filter: `drop-shadow(0 14px 22px ${alpha(P.waxDeep, 0.34)})`,
           }}
         >
           {/* Glow halo behind the seal (ramps up on activation) */}
@@ -731,64 +793,47 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
             initial={false}
             animate={{ opacity: stage >= 3 ? 1 : 0, scale: stage >= 3 ? 1.35 : 1.0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            style={{ position: "absolute", inset: "-26%", borderRadius: "50%", background: "radial-gradient(circle, rgba(255,221,130,0.7) 0%, rgba(255,200,90,0.32) 45%, transparent 72%)", pointerEvents: "none", filter: "blur(3px)" }}
+            style={{ position: "absolute", inset: "-26%", borderRadius: "50%", background: `radial-gradient(circle, ${alpha(P.goldBright, 0.7)} 0%, ${alpha(P.gold, 0.32)} 45%, transparent 72%)`, pointerEvents: "none", filter: "blur(3px)" }}
           />
 
-          {/* The medallion: bronze base with a gold skin cross-faded on top.
-              Renders the organizer's uploaded artwork when set, else the vector. */}
-          <div className={stage === 2 ? "ger-breathe" : ""} style={{ position: "relative", width: "100%", height: "100%" }}>
-            {sealImg ? (
-              <>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={sealImg} alt="Invitation seal" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", zIndex: 1 }} />
-                <motion.img
-                  src={sealGoldImg} alt="" aria-hidden
-                  initial={false}
-                  animate={{ opacity: stage >= 3 ? 1 : 0 }}
-                  transition={{ duration: 0.85, ease: "easeInOut" }}
-                  style={{
-                    position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain", zIndex: 2,
-                    // If no dedicated gold asset, warm the bronze one into gold.
-                    filter: sealGoldImg === sealImg ? "brightness(1.32) saturate(1.45) drop-shadow(0 0 14px rgba(255,200,90,0.55))" : "drop-shadow(0 0 14px rgba(255,200,90,0.55))",
-                  }}
-                />
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 220 220" width="100%" height="100%" style={{ display: "block", position: "relative", zIndex: 1 }} role="img" aria-label="Invitation wax seal">
-                  <MedallionSkin skin="bronze" uid="main" text={identity.sealText} arabic={identity.sealArabic} />
-                </svg>
-                <motion.svg
-                  viewBox="0 0 220 220" width="100%" height="100%"
-                  initial={false}
-                  animate={{ opacity: stage >= 3 ? 1 : 0 }}
-                  transition={{ duration: 0.85, ease: "easeInOut" }}
-                  style={{ display: "block", position: "absolute", inset: 0, zIndex: 2 }}
-                  aria-hidden
-                >
-                  <MedallionSkin skin="gold" uid="main" text={identity.sealText} arabic={identity.sealArabic} />
-                </motion.svg>
-              </>
-            )}
+          {/* The medallion: resting wax skin with a molten skin cross-faded on top.
+              Magnetic tilt applied to the inner wrapper. */}
+          <motion.div
+            className={stage === 2 ? "ger-breathe" : ""}
+            style={{ position: "relative", width: "100%", height: "100%", rotateX: sealRotateX, rotateY: sealRotateY, transformStyle: "preserve-3d" }}
+          >
+            <svg viewBox="0 0 220 220" width="100%" height="100%" style={{ display: "block", position: "relative", zIndex: 1 }} role="img" aria-label="Invitation wax seal">
+              <MedallionSkin skin={skins.rest} name="rest" uid="main" text={sealText} arabic={sealArabic} />
+            </svg>
+            <motion.svg
+              viewBox="0 0 220 220" width="100%" height="100%"
+              initial={false}
+              animate={{ opacity: stage >= 3 ? 1 : 0 }}
+              transition={{ duration: 0.85, ease: "easeInOut" }}
+              style={{ display: "block", position: "absolute", inset: 0, zIndex: 2 }}
+              aria-hidden
+            >
+              <MedallionSkin skin={skins.lit} name="lit" uid="main" text={sealText} arabic={sealArabic} />
+            </motion.svg>
 
-            {/* Light-reflection sweep across the metal */}
+            {/* Light-reflection sweep across the wax */}
             <div aria-hidden style={{ position: "absolute", inset: 0, borderRadius: "50%", overflow: "hidden", zIndex: 3, pointerEvents: "none" }}>
               <div className={stage <= 2 ? "ger-sheen" : "ger-sheen ger-sheen-burst"} />
             </div>
-          </div>
+          </motion.div>
         </motion.button>
 
         {/* Rising gold dust on activation */}
         {stage >= 3 && !revealing && (
           <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 5 }}>
             {DUST.map((d, i) => (
-              <span key={i} className="ger-dust" style={{ left: `${d.x}%`, bottom: "44%", width: d.s, height: d.s, animationDelay: `${d.delay}s`, background: i % 2 ? theme.secondary : "#ffe6a0" }} />
+              <span key={i} className="ger-dust" style={{ left: `${d.x}%`, bottom: "44%", width: d.s, height: d.s, animationDelay: `${d.delay}s`, background: i % 2 ? P.gold : P.goldBright }} />
             ))}
           </div>
         )}
       </motion.div>
 
-      {/* ── Resting prompts (hidden once opening begins) ── */}
+      {/* ── Resting prompt (hidden once opening begins) ── */}
       <AnimatePresence>
         {stage === 2 && (
           <motion.div
@@ -799,13 +844,13 @@ export default function GuestEnvelopeReveal({ event, onComplete, musicRef }) {
             transition={{ duration: 0.6, delay: 0.2 }}
             style={{ position: "relative", zIndex: 4, textAlign: "center", marginTop: "clamp(22px,5vh,40px)", padding: "0 24px" }}
           >
-            <div className="ger-prompt" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 20px", borderRadius: 999, background: "rgba(255,255,255,0.6)", border: "1px solid rgba(184,148,79,0.3)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", boxShadow: "0 6px 20px rgba(120,90,45,0.12)" }}>
+            <div className="ger-prompt" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "9px 20px", borderRadius: 999, background: alpha(P.white, 0.6), border: `1px solid ${alpha(theme.primary, 0.3)}`, backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", boxShadow: `0 6px 20px ${alpha(P.waxMid, 0.12)}` }}>
               <span aria-hidden style={{ fontSize: 13 }}>✦</span>
               <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 700, letterSpacing: "0.22em", textTransform: "uppercase", color: theme.deep }}>
                 {copy.tap}
               </span>
             </div>
-            <p style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 13, color: "#8a7350", marginTop: 16, letterSpacing: "0.04em" }}>
+            <p style={{ fontFamily: "var(--font-serif)", fontStyle: "italic", fontSize: 13, color: darken(theme.primary, 0.15), marginTop: 16, letterSpacing: "0.04em" }}>
               {copy.special}
             </p>
           </motion.div>
@@ -830,7 +875,7 @@ const overlayBase = {
   padding: "24px",
 };
 
-const skipStyle = {
+const skipStyle = (P) => ({
   position: "absolute",
   top: "max(16px, env(safe-area-inset-top))",
   insetInlineStart: 20,
@@ -839,34 +884,36 @@ const skipStyle = {
   alignItems: "center",
   gap: 6,
   padding: "8px 16px",
+  minHeight: 44,
   borderRadius: 999,
-  border: "1px solid rgba(120,90,45,0.22)",
-  background: "rgba(255,255,255,0.5)",
+  border: `1px solid ${alpha(P.waxDeep, 0.22)}`,
+  background: alpha(P.white, 0.5),
   backdropFilter: "blur(8px)",
   WebkitBackdropFilter: "blur(8px)",
-  color: "#6f5a3a",
+  color: P.ink,
   fontSize: 12,
   fontWeight: 600,
   letterSpacing: "0.04em",
   cursor: "pointer",
   fontFamily: "var(--font-sans)",
-};
+});
 
-const langChipStyle = (active) => ({
+const langChipStyle = (active, P) => ({
   display: "inline-flex",
   alignItems: "center",
   gap: 8,
   padding: "8px 14px",
+  minHeight: 44,
   borderRadius: 999,
-  border: "1px solid rgba(120,90,45,0.18)",
-  background: "rgba(255,255,255,0.62)",
+  border: `1px solid ${alpha(P.waxDeep, 0.18)}`,
+  background: alpha(P.white, 0.62),
   backdropFilter: "blur(8px)",
   WebkitBackdropFilter: "blur(8px)",
-  color: "#5a4a30",
+  color: P.ink,
   fontSize: 13,
   fontFamily: "var(--font-sans)",
   cursor: active ? "pointer" : "default",
-  boxShadow: "0 4px 14px rgba(120,90,45,0.1)",
+  boxShadow: `0 4px 14px ${alpha(P.waxMid, 0.1)}`,
 });
 
 const enterBtnStyle = (theme) => ({
@@ -875,8 +922,8 @@ const enterBtnStyle = (theme) => ({
   justifyContent: "center",
   padding: "16px 38px",
   borderRadius: 999,
-  border: `1px solid ${theme.secondary || "#D7BE80"}99`,
-  background: `linear-gradient(135deg, ${theme.secondary || "#D7BE80"} 0%, ${theme.primary} 55%, #8a6d2e 100%)`,
+  border: `1px solid ${alpha(theme.secondary || "#D7BE80", 0.6)}`,
+  background: `linear-gradient(135deg, ${theme.secondary || "#D7BE80"} 0%, ${theme.primary} 55%, ${darken(theme.primary, 0.25)} 100%)`,
   color: "#fffdf6",
   fontFamily: "var(--font-sans)",
   fontSize: 13,
@@ -884,11 +931,9 @@ const enterBtnStyle = (theme) => ({
   letterSpacing: "0.16em",
   textTransform: "uppercase",
   cursor: "pointer",
-  boxShadow: `0 10px 28px ${theme.primary}40, inset 0 1px 0 rgba(255,255,255,0.4)`,
+  boxShadow: `0 10px 28px ${alpha(theme.primary, 0.25)}, inset 0 1px 0 rgba(255,255,255,0.4)`,
 });
 
-/* One-shot fade/rise used by the reduced-motion fallback's stagger — small
-   enough offset that it stays clear of vestibular-motion triggers. */
 const fadeUp = {
   hidden: { opacity: 0, y: 14 },
   show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } },
@@ -909,8 +954,7 @@ const SPARKLES = [
   { x: 78, y: 90, s: 4, delay: 1.3 }, { x: 64, y: 5, s: 3, delay: 0.45 },
 ];
 
-/* Low-amplitude ambient CSS for the reduced-motion fallback — opacity/glow
-   only, no large-scale translation, rotation, or parallax. */
+/* Low-amplitude ambient CSS for the reduced-motion fallback */
 const RM_CSS = `
 @keyframes rmAurora { 0%,100% { opacity: 0.5; } 50% { opacity: 0.9; } }
 .rm-aurora { animation: rmAurora 9s ease-in-out infinite; }

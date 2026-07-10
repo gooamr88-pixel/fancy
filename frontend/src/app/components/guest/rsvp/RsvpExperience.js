@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
-import DigitalEnvelope from '../DigitalEnvelope';
+import InvitationReveal from '../InvitationReveal';
 import GuestPassCard from '../GuestPassGenerator';
 import { GlassmorphismCard, PremiumButton, CalendarButton, ShareButton } from '../GuestUI';
 import { ScaleIn, FadeInUp, ShimmerPlaceholder, ConfettiExplosion } from '../GuestAnimations';
@@ -269,15 +269,13 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
   if (engine.phase === 'unavailable')   return <StatusCard icon={<SearchIcon size={34} strokeWidth={1.5} />} title={isRTL ? 'الدعوة غير متاحة' : 'Invitation Unavailable'} message={engine.error || (isRTL ? 'تعذّر العثور على هذه الدعوة.' : 'This invitation could not be found.')} />;
 
   const envelopeOverlay = envelopeOpen && engine.event ? (
-    <DigitalEnvelope
+    <InvitationReveal
+      mode="rsvp"
+      event={engine.event}
       guestName={engine.guest?.guest_name || ''}
-      eventTitle={engine.event.title}
-      isRTL={isRTL}
-      themeColor={engine.event?.custom_colors?.primary || '#B8944F'}
-      secondaryColor={engine.event?.custom_colors?.secondary || null}
-      pattern={engine.event?.template_type}
-      slug={engine.event?.slug}
-      onOpen={closeEnvelope}
+      lang={lang}
+      sessionKey={engine.event?.slug}
+      onComplete={closeEnvelope}
     />
   ) : null;
 

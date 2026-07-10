@@ -33,7 +33,7 @@ import {
   inputFocus,
   inputBlur,
 } from '../components/guest/GuestUI';
-import GuestEnvelopeReveal from '../components/templates/GuestEnvelopeReveal';
+import InvitationReveal from '../components/guest/InvitationReveal';
 import InvitationCard from '../components/templates/InvitationCard';
 import RsvpExperience from '../components/guest/rsvp/RsvpExperience';
 import RsvpWizard from './rsvp/RsvpWizard';
@@ -887,9 +887,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             straight into the sections with no envelope. */}
         <AnimatePresence>
           {showReveal && event.template_type !== 'heritageArch' && (
-            <GuestEnvelopeReveal
+            <InvitationReveal
               key="guest-reveal"
+              mode="invitation"
               event={event}
+              lang={lang}
               onComplete={handleRevealComplete}
               musicRef={musicRef}
             />
@@ -943,9 +945,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           page tree below is rendered untouched underneath it. */}
       <AnimatePresence>
         {showReveal && (
-          <GuestEnvelopeReveal
+          <InvitationReveal
             key="guest-reveal"
+            mode="invitation"
             event={event}
+            lang={lang}
             onComplete={handleRevealComplete}
             musicRef={musicRef}
           />
