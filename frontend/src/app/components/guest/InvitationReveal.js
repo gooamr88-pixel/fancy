@@ -195,9 +195,9 @@ export default function InvitationReveal({
     musicRef?.current?.play().catch((err) => console.error("Background music playback failed:", err));
     setStage("pressing");
     after(400, () => setStage("opening"));
-    after(1300, () => setStage("rise"));
-    after(2550, () => setStage("grow"));
-    after(3550, finish);
+    after(1300, () => setStage("rise"));    // 1.6s rise transition, completes ~2900
+    after(3000, () => setStage("grow"));    // starts only once rise has fully settled
+    after(4400, finish);                    // a beat to admire the grown card before dissolving
   }, [after, clearTimers, finish, musicRef]);
 
   useEffect(() => {
@@ -228,6 +228,7 @@ export default function InvitationReveal({
           backgroundImage: `radial-gradient(120% 90% at 50% 0%, ${P.cardHi}, ${P.card} 76%)`,
           border: `1px solid ${alpha(P.gold, 0.4)}`,
           boxShadow: "0 40px 90px -30px rgba(40,30,16,.45), inset 0 0 0 1px rgba(255,255,255,.4)",
+          maxHeight: "calc(100dvh - 48px)", overflowY: "auto",
         }}>
           <div style={{ width: 76, height: 76, margin: "0 auto 18px", position: "relative" }}>
             <svg viewBox="0 0 100 100" aria-hidden="true">
@@ -441,37 +442,41 @@ export default function InvitationReveal({
                 </svg>
               </div>
 
-              <div className="ir2-card-vellum ir2-deckle" aria-hidden />
+              <div className="ir2-card-vellum-wrap">
+                <div className="ir2-card-vellum ir2-deckle" aria-hidden />
+              </div>
 
-              <div className="ir2-card ir2-deckle">
-                <div className="ir2-card-inner">
-                  <div className="ir2-card-frame" />
-                  <div className="ir2-card-frame-inner" />
-                  <svg className="ir2-c-wreath" viewBox="0 0 300 300" style={{ color: "var(--liner-mid)" }} aria-hidden><use href="#ir2-wreath" width="300" height="300" /></svg>
-                  <svg className="ir2-flourish-corner tl" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
-                  <svg className="ir2-flourish-corner tr" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
-                  <svg className="ir2-flourish-corner bl" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
-                  <svg className="ir2-flourish-corner br" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+              <div className="ir2-card-wrap">
+                <div className="ir2-card ir2-deckle">
+                  <div className="ir2-card-inner">
+                    <div className="ir2-card-frame" />
+                    <div className="ir2-card-frame-inner" />
+                    <svg className="ir2-c-wreath" viewBox="0 0 300 300" style={{ color: "var(--liner-mid)" }} aria-hidden><use href="#ir2-wreath" width="300" height="300" /></svg>
+                    <svg className="ir2-flourish-corner tl" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+                    <svg className="ir2-flourish-corner tr" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+                    <svg className="ir2-flourish-corner bl" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
+                    <svg className="ir2-flourish-corner br" viewBox="0 0 90 90" style={{ color: "var(--gold)" }} aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
 
-                  <div className="ir2-card-content">
-                    <div className="ir2-fl-row">
-                      <span className="ir2-fl-line" />
-                      <div className="ir2-c-eyebrow">{mode === "rsvp" && guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
-                      <span className="ir2-fl-line" />
+                    <div className="ir2-card-content">
+                      <div className="ir2-fl-row">
+                        <span className="ir2-fl-line" />
+                        <div className="ir2-c-eyebrow">{mode === "rsvp" && guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
+                        <span className="ir2-fl-line" />
+                      </div>
+                      <div className="ir2-c-names">{displayTitle}</div>
+                      <svg className="ir2-c-divider" viewBox="0 0 220 24" aria-hidden>
+                        <use href="#ir2-flourish-divider" width="220" height="24" style={{ color: "var(--gold)" }} />
+                        <use href="#ir2-leaf" width="13" height="17" x="78" y="0" transform="rotate(96 84.5 8.5)" style={{ color: "var(--liner-mid)" }} opacity=".85" />
+                        <use href="#ir2-leaf" width="13" height="17" x="129" y="0" transform="rotate(-96 135.5 8.5)" style={{ color: "var(--liner-mid)" }} opacity=".85" />
+                      </svg>
+                      {dateStr && <div className="ir2-c-date">{dateStr}</div>}
+                      <div className="ir2-c-extra">
+                        {locationStr && <div className="ir2-c-venue">{locationStr}</div>}
+                        <button type="button" className="ir2-c-btn" onClick={finish}>{copy.details}</button>
+                      </div>
                     </div>
-                    <div className="ir2-c-names">{displayTitle}</div>
-                    <svg className="ir2-c-divider" viewBox="0 0 220 24" aria-hidden>
-                      <use href="#ir2-flourish-divider" width="220" height="24" style={{ color: "var(--gold)" }} />
-                      <use href="#ir2-leaf" width="13" height="17" x="78" y="0" transform="rotate(96 84.5 8.5)" style={{ color: "var(--liner-mid)" }} opacity=".85" />
-                      <use href="#ir2-leaf" width="13" height="17" x="129" y="0" transform="rotate(-96 135.5 8.5)" style={{ color: "var(--liner-mid)" }} opacity=".85" />
-                    </svg>
-                    {dateStr && <div className="ir2-c-date">{dateStr}</div>}
-                    <div className="ir2-c-extra">
-                      {locationStr && <div className="ir2-c-venue">{locationStr}</div>}
-                      <button type="button" className="ir2-c-btn" onClick={finish}>{copy.details}</button>
-                    </div>
+                    <div className="ir2-card-foil" aria-hidden />
                   </div>
-                  <div className="ir2-card-foil" aria-hidden />
                 </div>
               </div>
 
@@ -550,7 +555,8 @@ export default function InvitationReveal({
 const overlayBase = {
   position: "fixed", inset: 0, zIndex: 1000, overflow: "hidden",
   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-  fontFamily: "var(--font-sans)", padding: 24,
+  fontFamily: "var(--font-sans)",
+  padding: "max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left))",
 };
 const skipStyle = (P) => ({
   position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineStart: 20, zIndex: 20,
@@ -568,7 +574,7 @@ const REVEAL_CSS = `
 .ir2-root{
   position:fixed; inset:0; overflow:hidden;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-family:var(--font-sans); padding:24px;
+  font-family:var(--font-sans);
   background:
     radial-gradient(120% 100% at 50% -6%, var(--wood-hi), transparent 55%),
     linear-gradient(180deg, var(--wood-hi), var(--wood) 46%, var(--wood-lo));
@@ -589,7 +595,7 @@ const REVEAL_CSS = `
 .ir2-fl-row .ir2-fl-line:first-child::after{ right:-2px; }
 .ir2-fl-row .ir2-fl-line:last-child::after{ left:-2px; }
 
-.ir2-scene{ position:relative; z-index:3; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+.ir2-scene{ position:relative; z-index:3; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 
 .ir2-table-prop{ position:absolute; height:auto; pointer-events:none; z-index:2; opacity:.8;
   filter:blur(1.6px); transition:opacity .7s ease; }
@@ -599,7 +605,13 @@ const REVEAL_CSS = `
 .ir2-table-prop.tp4{ width:min(9vw,66px); right:16%; top:22%; transform:rotate(-30deg); opacity:.68; }
 .ir2-root.ir2-grow .ir2-table-prop{ opacity:0; }
 
-.ir2-env-wrap{ position:relative; z-index:3; width:min(88vw,486px); perspective:1900px; transform:translate(-3%,-1%); }
+.ir2-env-wrap{ position:relative; z-index:3; perspective:1900px; transform:translate(-3%,-1%);
+  /* width is capped by both viewport width AND height so a short/landscape
+     phone never forces the envelope + prompt to overflow top-to-bottom;
+     the plain min() is a fallback for browsers without dvh support. */
+  width:min(88vw,486px);
+  width:min(88vw,486px,calc(56dvh * 1.52));
+}
 .ir2-floaty{ position:relative; transform-style:preserve-3d; animation:ir2Floaty 8s ease-in-out infinite; }
 @keyframes ir2Floaty{ 0%,100%{ transform:translateY(0) rotateX(3deg) rotateZ(-.3deg); } 50%{ transform:translateY(-7px) rotateX(6deg) rotateZ(.3deg); } }
 .ir2-root.ir2-opening .ir2-floaty{ animation-play-state:paused; }
@@ -654,20 +666,36 @@ const REVEAL_CSS = `
     84% 99.3%, 66% 100%, 48% 99.2%, 30% 100%, 14% 99.4%, 0% 99%,
     0.5% 82%, 0% 62%, 0.6% 42%, 0% 24%, 0.5% 10%, 0% 3%); }
 
-.ir2-card-vellum{ position:absolute; left:8%; right:8%; top:7%; bottom:7%; z-index:1; border-radius:5px; overflow:hidden;
-  transform-origin:center center; transform:translateY(2%) scale(.98); opacity:0;
+/* ── card emergence: a synced clip-path + tilt "slides out from under the
+   flap" instead of a fade, so it reads as a physical object being drawn out
+   rather than materialising mid-air. Each phase (rise, then grow) completes
+   its own transition fully before the next begins — no mid-flight retarget. */
+.ir2-card-vellum-wrap{ position:absolute; left:8%; right:8%; top:7%; bottom:7%; z-index:1;
+  transform-origin:center center; opacity:0;
+  transform:translateY(2%) scale(.98) rotateX(-12deg);
+  clip-path:inset(0 0 100% 0); }
+.ir2-root.ir2-rise .ir2-card-vellum-wrap{ opacity:.85; clip-path:inset(0 0 0% 0);
+  transform:translateY(-66%) translate(10px,7px) scale(1) rotateX(0deg);
+  transition:transform 1.6s cubic-bezier(.16,1,.3,1) .05s, clip-path 1.6s cubic-bezier(.16,1,.3,1) .05s, opacity .3s ease .05s; }
+.ir2-root.ir2-grow .ir2-card-vellum-wrap{ opacity:.85; clip-path:inset(0 0 0% 0); filter:blur(.8px);
+  transform:translateY(-66%) translate(17px,13px) scale(1.82) rotateX(0deg);
+  transition:transform 1.1s cubic-bezier(.16,1,.3,1) .05s, opacity .3s ease, filter .9s ease; }
+.ir2-card-vellum{ position:absolute; inset:0; border-radius:5px; overflow:hidden;
   background:color-mix(in srgb, var(--card) 55%, transparent);
-  box-shadow:0 18px 40px -20px rgba(60,44,22,.4), inset 0 0 0 1px color-mix(in srgb, var(--card-edge) 70%, transparent);
-  transition:transform 1.5s cubic-bezier(.16,1,.3,1), opacity .5s ease, filter .9s ease; }
-.ir2-root.ir2-rise .ir2-card-vellum{ opacity:.85; transform:translateY(-66%) translate(10px,7px) scale(1); filter:blur(.8px); }
-.ir2-root.ir2-grow .ir2-card-vellum{ opacity:.85; transform:translateY(-66%) translate(17px,13px) scale(1.82); filter:blur(.8px); }
+  box-shadow:0 18px 40px -20px rgba(60,44,22,.4), inset 0 0 0 1px color-mix(in srgb, var(--card-edge) 70%, transparent); }
 
-.ir2-card{ position:absolute; left:8%; right:8%; top:7%; bottom:7%; z-index:1; border-radius:5px; overflow:hidden;
-  transform-origin:center center; transform:translateY(2%) scale(.98); opacity:0; background:var(--card);
-  box-shadow:0 22px 46px -20px rgba(60,44,22,.55), inset 0 0 0 1px var(--card-edge);
-  transition:transform 1.5s cubic-bezier(.16,1,.3,1), opacity .5s ease; }
-.ir2-root.ir2-rise .ir2-card{ opacity:1; transform:translateY(-66%) scale(1); z-index:8; }
-.ir2-root.ir2-grow .ir2-card{ opacity:1; transform:translateY(-66%) scale(1.82); z-index:8; }
+.ir2-card-wrap{ position:absolute; left:8%; right:8%; top:7%; bottom:7%; z-index:1;
+  transform-origin:center center;
+  transform:translateY(2%) scale(.98) rotateX(-12deg);
+  clip-path:inset(0 0 100% 0); }
+.ir2-root.ir2-rise .ir2-card-wrap{ z-index:8; clip-path:inset(0 0 0% 0);
+  transform:translateY(-66%) scale(1) rotateX(0deg);
+  transition:transform 1.6s cubic-bezier(.16,1,.3,1), clip-path 1.6s cubic-bezier(.16,1,.3,1), z-index 0s linear .2s; }
+.ir2-root.ir2-grow .ir2-card-wrap{ z-index:8; clip-path:inset(0 0 0% 0);
+  transform:translateY(-66%) scale(1.82) rotateX(0deg);
+  transition:transform 1.1s cubic-bezier(.16,1,.3,1); }
+.ir2-card{ position:absolute; inset:0; border-radius:5px; overflow:hidden; background:var(--card);
+  box-shadow:0 22px 46px -20px rgba(60,44,22,.55), inset 0 0 0 1px var(--card-edge); }
 
 .ir2-card-inner{ position:absolute; inset:0;
   background:radial-gradient(125% 96% at 50% 0%, var(--card-hi), var(--card) 76%); }
@@ -688,8 +716,8 @@ const REVEAL_CSS = `
 .ir2-c-extra{ max-height:0; opacity:0; overflow:hidden; transition:max-height .8s ease, opacity .5s ease .2s; }
 .ir2-root.ir2-grow .ir2-c-extra{ max-height:130px; opacity:1; }
 .ir2-c-venue{ font-size:8px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft); line-height:2; margin-top:1em; }
-.ir2-c-btn{ appearance:none; font-family:var(--font-sans); display:inline-block; margin-top:1em; padding:7px 18px; border:1px solid var(--accent); background:transparent; color:var(--accent);
-  font-size:7.5px; letter-spacing:.26em; text-transform:uppercase; font-weight:700; border-radius:2px; cursor:pointer; }
+.ir2-c-btn{ appearance:none; font-family:var(--font-sans); display:inline-block; margin-top:1em; padding:9px 22px; border:1px solid var(--accent); background:transparent; color:var(--accent);
+  font-size:9px; letter-spacing:.24em; text-transform:uppercase; font-weight:700; border-radius:2px; cursor:pointer; }
 .ir2-c-eyebrow{ font-family:var(--font-serif), Georgia, serif; font-size:clamp(15px,4vw,22px); color:var(--ink); letter-spacing:.03em; }
 
 .ir2-card-foil{ position:absolute; inset:0; z-index:4; pointer-events:none; mix-blend-mode:overlay; opacity:.6;
@@ -742,7 +770,9 @@ const REVEAL_CSS = `
 .ir2-root[dir="rtl"] .ir2-c-names{ font-family:var(--font-arabic-display), var(--font-serif), serif; }
 
 .ir2-prompt{ position:relative; z-index:12; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
-  margin-top:clamp(16px,4vh,30px); padding:0 24px; }
+  margin-top:clamp(16px,4vh,30px);
+  margin-top:clamp(16px,4dvh,30px);
+  padding:0 24px; }
 .ir2-prompt-pill{ display:inline-flex; align-items:center; gap:8px; padding:9px 18px; border-radius:999px;
   background:rgba(255,255,255,.6); border:1px solid color-mix(in srgb,var(--accent) 36%, transparent);
   -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
@@ -750,11 +780,19 @@ const REVEAL_CSS = `
 @keyframes ir2Nudge{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-4px) } }
 .ir2-prompt-sub{ font-family:var(--font-serif), Georgia, serif; font-style:italic; font-size:13px; color:var(--ink-soft); margin:10px 0 0; }
 
+@media (max-width:640px){
+  /* the desktop-tuned 1.82x close-up bleeds a lot of the decorative frame
+     off-screen on phone-width viewports; a slightly gentler zoom keeps the
+     card's edge intentionally near the frame instead of aggressively clipped. */
+  .ir2-root.ir2-grow .ir2-card-wrap{ transform:translateY(-66%) scale(1.6) rotateX(0deg); }
+  .ir2-root.ir2-grow .ir2-card-vellum-wrap{ transform:translateY(-66%) translate(15px,11px) scale(1.6) rotateX(0deg); }
+}
+
 @media (prefers-reduced-motion:reduce){
   .ir2-floaty{ animation:none; }
   .ir2-prompt-pill{ animation:none; }
   .ir2-seal-sheen::before{ animation:none; }
-  .ir2-envelope,.ir2-card,.ir2-card-vellum,.ir2-card-foil,.ir2-flap,.ir2-seal,.ir2-bow,.ir2-ribbon-band,.ir2-body,.ir2-liner{ transition-duration:.001ms !important; }
-  .ir2-body,.ir2-liner,.ir2-card-vellum{ filter:none !important; }
+  .ir2-envelope,.ir2-card-wrap,.ir2-card-vellum-wrap,.ir2-card-foil,.ir2-flap,.ir2-seal,.ir2-bow,.ir2-ribbon-band,.ir2-body,.ir2-liner{ transition-duration:.001ms !important; }
+  .ir2-body,.ir2-liner,.ir2-card-vellum-wrap{ filter:none !important; }
 }
 `;
