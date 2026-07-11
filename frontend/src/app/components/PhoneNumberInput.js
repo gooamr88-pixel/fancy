@@ -31,7 +31,16 @@ export default function PhoneNumberInput({
         defaultCountry={defaultCountry}
         preferredCountries={preferredCountries}
         value={value || ''}
-        onChange={(phone) => onChange?.(phone)}
+        onChange={(phone, meta) => {
+          // react-international-phone prefills (and reports via onChange) the bare
+          // "+<dialCode>" as soon as the field mounts/country changes, even though
+          // the guest hasn't typed a digit — every caller's validation treats an
+          // empty string as "not entered", so a bare dial code must collapse to ''
+          // or an untouched-but-optional phone field gets flagged as invalid.
+          const dialCode = meta?.country?.dialCode;
+          const isBareDialCode = !!dialCode && phone === `+${dialCode}`;
+          onChange?.(isBareDialCode ? '' : phone);
+        }}
         placeholder={placeholder}
         disabled={disabled}
         required={required}

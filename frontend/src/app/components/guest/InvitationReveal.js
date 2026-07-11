@@ -140,7 +140,11 @@ export default function InvitationReveal({
   const td = event?.template_data || {};
   const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
-  const gSeal = mode === "rsvp" ? guestSealText(guestName) : null;
+  // A known guest (resolved from their personal link/token — private events,
+  // or a public event's per-guest invite) is personalised the same way in
+  // either mode: the seal, the card's welcome line, and the envelope's own
+  // handwritten-style address line all carry their name instead of generic copy.
+  const gSeal = guestSealText(guestName);
   const sealText = gSeal || identity.sealText;
   const sealFontSize = sealText.length <= 2 ? 28 : sealText.length <= 4 ? 21 : sealText.length <= 7 ? 15 : sealText.length <= 10 ? 11 : 9;
 
@@ -243,7 +247,7 @@ export default function InvitationReveal({
               <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} fill={P.waxLo} opacity=".85" letterSpacing="1">{sealText}</text>
             </svg>
           </div>
-          <div style={{ fontSize: 10.5, letterSpacing: "0.36em", textTransform: "uppercase", color: P.accent, fontWeight: 700 }}>{copy.eyebrow}</div>
+          <div style={{ fontSize: 10.5, letterSpacing: "0.36em", textTransform: "uppercase", color: P.accent, fontWeight: 700 }}>{guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
           <h1 style={{ fontFamily: "var(--font-serif), Georgia, serif", fontSize: "clamp(26px,7vw,38px)", margin: "12px 0 6px", color: P.ink, fontWeight: 500 }}>{displayTitle}</h1>
           <p style={{ fontFamily: "var(--font-serif), Georgia, serif", fontStyle: "italic", fontSize: 14, color: P.inkSoft, margin: 0 }}>{copy.join}</p>
           {dateStr && <div style={{ marginTop: 18, fontSize: 12, letterSpacing: "0.2em", textTransform: "uppercase", color: P.inkSoft, fontWeight: 600 }}>{dateStr}</div>}
@@ -460,7 +464,7 @@ export default function InvitationReveal({
                     <div className="ir2-card-content">
                       <div className="ir2-fl-row">
                         <span className="ir2-fl-line" />
-                        <div className="ir2-c-eyebrow">{mode === "rsvp" && guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
+                        <div className="ir2-c-eyebrow">{guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
                         <span className="ir2-fl-line" />
                       </div>
                       <div className="ir2-c-names">{displayTitle}</div>
@@ -496,7 +500,7 @@ export default function InvitationReveal({
               </div>
 
               <div className="ir2-addr">
-                <div className="ir2-addr-hi">{copy.eyebrow}</div>
+                <div className="ir2-addr-hi">{guestName || copy.eyebrow}</div>
                 <div className="ir2-addr-to">{displayTitle}</div>
               </div>
 

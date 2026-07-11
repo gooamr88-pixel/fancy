@@ -4,6 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DiamondDivider, ScrollToRsvpHint } from '../shared';
+import { FloatingParticles } from '../../../guest/GuestAnimations';
 
 // The event's cover photo, given its own framed slide. The template card is now
 // the hero centerpiece, so the photo lives here as a tasteful standalone moment
@@ -45,6 +46,10 @@ export default function CoverPhotoSection({ imageUrl, isRTL }) {
           aria-hidden="true"
           style={{ position: 'absolute', inset: '10px', border: `1px solid rgba(255,255,255,0.35)`, borderRadius: '10px', pointerEvents: 'none' }}
         />
+        {/* Small gold bokeh circles drifting over the photo — same ambient
+            particle system used for the hero stage, scoped to this frame and
+            tinted from the event's own palette so it never fights the photo. */}
+        <FloatingParticles count={18} color={C.gold} shape="circle" />
       </motion.div>
 
       <ScrollToRsvpHint isRTL={isRTL} />

@@ -891,6 +891,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
               key="guest-reveal"
               mode="invitation"
               event={event}
+              guestName={guestRsvp?.guest_name || ''}
               lang={lang}
               onComplete={handleRevealComplete}
               musicRef={musicRef}
@@ -949,6 +950,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             key="guest-reveal"
             mode="invitation"
             event={event}
+            guestName={guestRsvp?.guest_name || ''}
             lang={lang}
             onComplete={handleRevealComplete}
             musicRef={musicRef}
@@ -1295,6 +1297,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                       alt="Event Cover"
                     />
                     <div aria-hidden="true" style={{ position: 'absolute', inset: '10px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '10px', pointerEvents: 'none' }} />
+                    {/* Small gold bokeh circles drifting over the photo — same ambient
+                        particle system as the hero stage above, scoped to this frame. */}
+                    <FloatingParticles count={18} color={themeColor === '#191B1E' ? '#B8944F' : themeColor} shape="circle" />
                   </motion.div>
                 </div>
               </ScaleIn>

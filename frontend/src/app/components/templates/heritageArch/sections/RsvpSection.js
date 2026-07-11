@@ -228,10 +228,13 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const [allergies, setAllergies] = useState([]);
   const [otherAllergy, setOtherAllergy] = useState('');
   const [meal, setMeal] = useState('');
-  const [songRequest, setSongRequest] = useState('');
   const [message, setMessage] = useState('');
   const [smsConsent, setSmsConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  // A resubmit the backend rejected as a duplicate (same email/phone already has
+  // a response on file). Distinct from `submitted` — a locked attempt wrote
+  // nothing, so it must never be treated as a fresh success.
+  const [locked, setLocked] = useState(false);
   const [editing, setEditing] = useState(false);
   const [errors, setErrors] = useState({});
   const [customAnswers, setCustomAnswers] = useState({});
@@ -255,14 +258,18 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       if (data?.partyId) { setSubmittedPartyId(data.partyId); rememberGuest(slug, data.partyId); }
       setSubmitted(true);
     },
-    onLocked: () => setSubmitted(true),
+    // The RPC rejected this as a duplicate — nothing was written. Flag it as
+    // `locked`, NOT `submitted`, so the confirmation screen below renders the
+    // "already registered" copy (with the edit affordance) instead of quietly
+    // claiming a fresh success for a response that was never saved.
+    onLocked: () => setLocked(true),
   });
 
   // A returning guest who already responded lands on the confirmation card, NOT a
-  // fresh form — unless they explicitly tap "Update my response". A fresh submit
-  // shows the same card. This is what surfaces "you're already registered" and
-  // stops the silent re-registration on every visit.
-  const showConfirmation = submitted || (hasResponded && !editing);
+  // fresh form — unless they explicitly tap "Update my response". A resubmit the
+  // backend locked as a duplicate lands here too (locked), while a genuine fresh
+  // submit (submitted) always shows the card regardless of editing state.
+  const showConfirmation = submitted || ((hasResponded || locked) && !editing);
 
   // Analytics — fire once when the form is actually presented.
   useEffect(() => {
@@ -299,14 +306,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       if (other) setOtherAllergy((prev) => prev || other);
     }
     if (guestRsvp.notes) {
-      let song = '';
-      const rest = [];
-      String(guestRsvp.notes).split('\n\n').forEach((b) => {
-        const m = b.match(/^🎵 Song request:\s*([\s\S]*)$/);
-        if (m && !song) song = m[1].trim(); else rest.push(b);
-      });
-      if (song) setSongRequest((prev) => prev || song);
-      if (rest.length) setMessage((prev) => prev || rest.join('\n\n'));
+      setMessage((prev) => prev || guestRsvp.notes);
     }
   }, [guestRsvp]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -535,8 +535,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
     const isAttending = attending === 'yes';
     const dietaryNotes = [...allergies, otherAllergy.trim()].filter(Boolean).join(', ') || null;
-    const notes = [songRequest.trim() ? `🎵 Song request: ${songRequest.trim()}` : null, message.trim() || null]
-      .filter(Boolean).join('\n\n') || null;
+    const notes = message.trim() || null;
     const normalizedPhone = phone.trim() ? (normalizeToE164(phone) || phone) : undefined;
 
     const body = {
@@ -565,7 +564,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
   /* ═══════════════════════════ SUCCESS / LOCKED ═══════════════════════════ */
   if (showConfirmation) {
-    const returning = hasResponded && !submitted; // already-registered, not a fresh submit
+    const returning = (hasResponded || locked) && !submitted; // already-registered, not a fresh submit
     // The organizer's "allow guests to change their response" promise is "... until
     // the RSVP deadline", so the edit affordance honors both the toggle and the date.
     const deadlinePassed = !!event?.rsvp_deadline && new Date() > new Date(event.rsvp_deadline);
@@ -881,10 +880,6 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                             <input placeholder={isRTL ? 'حساسية أخرى أو قيود' : 'Other allergies or restrictions'} value={otherAllergy} onChange={(e) => setOtherAllergy(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                           </div>
                         </div>
-
-                        <ThemedField label={`🎵 ${isRTL ? 'اقتراح أغنية للحفلة' : 'Song request for the party'}`} labelColor={C.ink}>
-                          <input placeholder={isRTL ? 'مثال: أغنية مفضلة' : 'E.g. "Dancing Queen" by ABBA'} value={songRequest} onChange={(e) => setSongRequest(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                        </ThemedField>
 
                         {/* Attending-only custom questions */}
                         {attendingQuestions.length > 0 && (
