@@ -79,17 +79,23 @@ const WEDDING_VARIANT_TEMPLATES = [
 
 // The full-viewport, snap-scrolled page shell (HeritageArchPage) — originally
 // only Heritage Arch — is now the guest experience for the wedding-style
-// templates and engagement, all of which map cleanly onto its sections
-// (couple names, story, venues, gift registry, etc.). Each renders the same
+// templates, engagement, AND custom, all of which map cleanly onto its
+// sections (couple/host name, story, venues, gift registry, etc. — the hero
+// falls back to the event title when there's no couple, so custom events like
+// a birthday or baby shower render correctly too). Each renders the same
 // sections recolored to its own custom_colors palette (see buildPalette), with
-// the envelope reveal still playing first.
+// the envelope reveal still playing first. Every section is individually
+// toggleable by the organizer (template_data.enabledSections — see
+// HeritageArchPage), which is how "custom" gets every feature from every
+// event type with the ability to freely add or remove any of them.
 //
-// corporate / birthday / gala / custom intentionally stay on the continuous-
-// scroll layout below: their content fields (agenda/speakers/sponsors,
-// honoree/program, celebrant details) have no section in the full-page engine,
-// so routing them here would drop that content from the guest page.
+// corporate / birthday / gala intentionally stay on the continuous-scroll
+// layout below: their content fields (agenda/speakers/sponsors, honoree/
+// program, celebrant details) have no section in the full-page engine, and
+// they're retired from the organizer picker — kept only so already-existing
+// events of those types keep rendering.
 const FULL_PAGE_TEMPLATES = new Set([
-  ...WEDDING_VARIANT_TEMPLATES, 'wedding', 'engagement',
+  ...WEDDING_VARIANT_TEMPLATES, 'wedding', 'engagement', 'custom',
 ]);
 
 const templateLabels = {

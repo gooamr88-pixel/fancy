@@ -124,16 +124,16 @@ const reassignSeat = async (req, res, next) => {
       seatsRemainingNewTable: data.seats_remaining_new_table,
     });
 
-    // Auto-fire updated QR ticket email on successful reassignment
-    try {
-      await invitationService.sendQrTicketEmail(eventId, rsvpId);
-    } catch (emailErr) {
-      logger.error({ err: emailErr, rsvpId }, 'Failed to auto-send updated QR ticket email');
-    }
+    // Deliberately NOT auto-emailing here. Only the guest's first seating
+    // assignment sends automatically (see assignSeat / saveSeatingBatch);
+    // every move after that is silent by design, so an organizer rearranging
+    // a table doesn't spam already-seated guests. The organizer can notify
+    // the guest of a change with the explicit "resend" action (POST
+    // /notifications/send-qr-ticket) whenever they actually want to.
 
     return res.status(200).json({
       success: true,
-      message: 'Guest reassigned to table successfully. Updated QR ticket email triggered.',
+      message: 'Guest reassigned to table successfully.',
       data
     });
   } catch (err) {
@@ -277,6 +277,20 @@ const saveSeatingBatch = async (req, res, next) => {
 
     // 3. Broadcast (fire-and-forget REST broadcast — no per-request socket).
     broadcast(eventId, 'seating_update', { batch: true, results });
+
+    // Auto-fire the seating-location email, but ONLY for guests newly seated
+    // in this batch (action === 'assign' — they had no table before). Batch
+    // reassignments are deliberately silent, same as reassignSeat above, so
+    // dragging an already-seated guest to a different table doesn't re-email
+    // them; the organizer uses the explicit resend action for that. Fired
+    // without awaiting so a large batch doesn't hold up the response.
+    results
+      .filter((r) => r.action === 'assign' && r.success)
+      .forEach((r) => {
+        invitationService.sendQrTicketEmail(eventId, r.rsvpId).catch((emailErr) => {
+          logger.error({ err: emailErr, rsvpId: r.rsvpId }, 'Failed to auto-send QR ticket email (batch)');
+        });
+      });
 
     // Check if there was any failure in the batch
     const failures = results.filter(r => !r.success);

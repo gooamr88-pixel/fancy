@@ -17,7 +17,12 @@ export function SectionShell({ children, background, style = {}, center = true }
   return (
     <div
       style={{
-        minHeight: '100dvh',
+        // Was a hard 100dvh on every section regardless of content — a short
+        // section (e.g. Getting There's two-line paragraph) still forced a
+        // full screen of mostly-empty space around it. A smaller floor still
+        // gives each section room to breathe; content-heavy sections (FAQ,
+        // Accommodation…) already exceed it on their own.
+        minHeight: '60dvh',
         width: '100%',
         display: 'flex',
         flexDirection: 'column',
@@ -25,7 +30,10 @@ export function SectionShell({ children, background, style = {}, center = true }
         justifyContent: 'center',
         position: 'relative',
         background: background || C.background,
-        padding: `96px ${SECTION_PADDING} 80px`,
+        // Vertical padding now scales with viewport height instead of a fixed
+        // 96/80px, which ate a much bigger share of a short phone screen than
+        // a tall desktop one.
+        padding: `clamp(56px, 12vh, 96px) ${SECTION_PADDING} clamp(48px, 10vh, 80px)`,
         boxSizing: 'border-box',
         fontFamily: 'var(--font-sans)',
         color: C.ink,
@@ -66,24 +74,34 @@ export function DiamondDivider({ color }) {
   );
 }
 
-export function DayTabs({ value, onChange, isRTL, dayLabels }) {
+// A day's own label (from Stage 2's Days editor) always wins; the numbered
+// fallback only kicks in for legacy events that predate per-day labels.
+function dayTabLabel(day, index, isRTL) {
+  if (day?.label) return day.label;
+  return isRTL ? `اليوم ${index + 1}` : `Day ${index + 1}`;
+}
+
+// Renders one tab per day — for a single-day event (the common case) there's
+// nothing to switch between, so the tab row doesn't render at all.
+export function DayTabs({ days, activeIndex, onChange, isRTL }) {
   const C = useFullPageTheme();
+  if (!Array.isArray(days) || days.length <= 1) return null;
   return (
-    <div style={{ display: 'flex', gap: '8px', marginBottom: '36px' }}>
-      {['day1', 'day2'].map((d, i) => (
+    <div style={{ display: 'flex', gap: '8px', marginBottom: '36px', flexWrap: 'wrap', justifyContent: 'center' }}>
+      {days.map((day, i) => (
         <button
-          key={d}
+          key={i}
           type="button"
-          onClick={() => onChange(d)}
+          onClick={() => onChange(i)}
           style={{
             padding: '10px 22px', borderRadius: '999px', border: 'none', cursor: 'pointer',
             fontFamily: 'var(--font-serif)', fontSize: '15px',
-            background: value === d ? C.paper : 'transparent',
-            color: C.maroon, fontWeight: value === d ? 700 : 500,
+            background: activeIndex === i ? C.paper : 'transparent',
+            color: C.maroon, fontWeight: activeIndex === i ? 700 : 500,
             transition: 'background 0.25s ease',
           }}
         >
-          {dayLabels?.[i] || (d === 'day1' ? (isRTL ? 'اليوم الأول' : 'Day 1') : (isRTL ? 'اليوم الثاني' : 'Day 2'))}
+          {dayTabLabel(day, i, isRTL)}
         </button>
       ))}
     </div>
@@ -286,6 +304,11 @@ export function VineLine({ itemCount, color }) {
 export function MapEmbed({ lat, lng, address, height = '300px' }) {
   const C = useFullPageTheme();
   const hasCoords = lat != null && lng != null;
+  // A venue with neither coordinates nor an address (e.g. only a name was
+  // typed and never picked from the search) has nothing to point a map at —
+  // rendering the iframe anyway loads Google's embed with an empty `q=`,
+  // which shows as a blank/broken map instead of just not appearing.
+  if (!hasCoords && !address?.trim()) return null;
   const query = hasCoords ? `${lat},${lng}` : encodeURIComponent(address || '');
   const src = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     ? `https://www.google.com/maps/embed/v1/place?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&q=${query}&zoom=14`

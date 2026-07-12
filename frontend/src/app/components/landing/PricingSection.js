@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-
-// Shown only if the pricing API is unreachable, so the section never renders empty.
-const FALLBACK_PLANS = [
+// Static content — deliberately not fetched from the backend or admin
+// dashboard, so this section always renders the same plans regardless of what's
+// configured for checkout. Update these by hand if pricing changes.
+const PLANS = [
   {
     name: 'Starter', price: 'Free', priceSuffix: '', recommended: false,
     features: ['1 Event', 'Up to 50 guests', 'Basic RSVP form', 'Email notifications'],
@@ -23,42 +22,6 @@ const FALLBACK_PLANS = [
     buttonText: 'Contact Sales', buttonVariant: 'outline', href: '/contact',
   },
 ];
-
-/**
- * Normalizes an admin-configured pricing tier (from /payments/public-pricing)
- * into the display shape this section renders. Keeps price/feature presentation
- * in sync with what's shown at event creation and charged at checkout.
- */
-function tierToPlan(tier) {
-  let price;
-  let priceSuffix = '';
-  if (tier.is_custom) {
-    price = tier.price_label || 'Custom';
-  } else if (!tier.price_cents) {
-    price = tier.price_label || 'Free';
-  } else {
-    const dollars = tier.price_cents / 100;
-    price = tier.price_label || `$${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}`;
-    priceSuffix = '/event';
-  }
-
-  // Surface the guest cap as a feature when the admin hasn't already listed one.
-  const features = Array.isArray(tier.features) ? [...tier.features] : [];
-  if (!tier.is_custom && tier.max_guests > 0 && !features.some(f => /guest/i.test(f))) {
-    features.unshift(`Up to ${tier.max_guests} guests`);
-  }
-
-  return {
-    name: tier.name,
-    price,
-    priceSuffix,
-    recommended: tier.recommended === true,
-    features,
-    buttonText: tier.cta_label || (tier.is_custom ? 'Contact Sales' : 'Get Started'),
-    buttonVariant: tier.recommended ? 'filled' : 'outline',
-    href: tier.is_custom ? '/contact' : '/register',
-  };
-}
 
 function PricingCard({ plan }) {
   const cardStyle = {
@@ -247,23 +210,7 @@ function PricingCard({ plan }) {
 }
 
 export default function PricingSection() {
-  const [plans, setPlans] = useState(FALLBACK_PLANS);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_URL}/payments/public-pricing`);
-        const data = await res.json();
-        if (!cancelled && data?.success && Array.isArray(data.tiers) && data.tiers.length) {
-          setPlans(data.tiers.map(tierToPlan));
-        }
-      } catch {
-        // Keep the fallback plans on any network/parse error.
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  const plans = PLANS;
 
   return (
     <section

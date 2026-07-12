@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useModalA11y } from '../../hooks/useModalA11y';
+import { formatTableLabel } from '../../utils/tableLabel';
 
 /**
  * Fullscreen, pannable + zoomable viewer for the guest's seating chart.
@@ -207,7 +208,7 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
             {isRTL ? 'خريطة الجلوس' : 'Seating chart'}
           </span>
           <strong style={{ display: 'block', fontSize: '16px', fontFamily: 'var(--font-serif)', fontWeight: 600 }}>
-            {myTableName ? (isRTL ? `طاولتك: ${myTableName}` : `Your table: ${myTableName}`) : (isRTL ? 'حدد طاولتك من الخريطة' : 'Find your table')}
+            {myTableName ? (isRTL ? `مكان جلوسك: ${formatTableLabel(myTableName, isRTL)}` : `Your assigned seating: ${formatTableLabel(myTableName, isRTL)}`) : (isRTL ? 'حدد طاولتك من الخريطة' : 'Find your table')}
           </strong>
         </div>
         <button

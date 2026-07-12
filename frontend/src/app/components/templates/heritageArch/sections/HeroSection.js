@@ -20,7 +20,7 @@ function CornerFlourish({ color, style }) {
 }
 
 export default function HeroSection({
-  partner1, partner2, title, tagline, dateLine,
+  partner1, partner2, title, tagline, dateLine, timeLine, titleAr,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
   isRTL, t,
 }) {
@@ -29,7 +29,10 @@ export default function HeroSection({
   // Wedding-style templates show the two partner names; every other template
   // (corporate/gala/birthday…) has no couple, so the hero shows the event title.
   const hasCouple = !!(partner1 && partner2);
-  const displayName = hasCouple ? `${partner1} & ${partner2}` : (title || partner1 || partner2);
+  // An Arabic title override (typed in the wizard/EventSettings) replaces
+  // whatever the English heading would've been — including the "A & B" couple
+  // line — the same way the classic template's invitation card already does.
+  const displayName = (isRTL && titleAr) ? titleAr : (hasCouple ? `${partner1} & ${partner2}` : (title || partner1 || partner2));
   const displayTagline = tagline || (hasCouple ? (isRTL ? 'يسعدنا زواجنا' : 'We are getting married') : '');
 
   return (
@@ -122,6 +125,14 @@ export default function HeroSection({
             letterSpacing: '0.06em', marginTop: '30px', color: C.maroonDeep,
           }}>
             {dateLine}
+          </p>
+        )}
+        {timeLine && (
+          <p style={{
+            fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600,
+            letterSpacing: '0.08em', marginTop: '6px', color: C.maroonDeep, opacity: 0.75,
+          }}>
+            {(t?.starting_at || (isRTL ? 'يبدأ في تمام الساعة' : 'Starting at'))} {timeLine}
           </p>
         )}
       </motion.div>

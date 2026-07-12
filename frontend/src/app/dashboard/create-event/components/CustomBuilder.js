@@ -1,24 +1,19 @@
 'use client';
-import { toast } from '../../../utils/toast';
 
 import React from 'react';
 
 /* ═══════════════════════════════════════════════════════════════
    CustomBuilder — the guided "design your own page" panel for the
    Custom template. Every control updates `config` via onChange and is
-   reflected live in the phone simulator.
+   reflected live in the phone simulator. Content (which kind of event
+   this is, and the fields/sections that follow from it) lives on the
+   next step — this panel stays focused on look & feel.
    ═══════════════════════════════════════════════════════════════ */
 
 const FONTS = [
   { key: 'serif', label: 'Elegant', css: 'var(--font-serif)' },
   { key: 'sans', label: 'Modern', css: 'var(--font-sans)' },
   { key: 'script', label: 'Romantic', css: 'var(--font-script)' },
-];
-
-const OCCASIONS = [
-  { key: 'graduation', label: 'Graduation', emoji: '🎓', phrase: 'our graduation' },
-  { key: 'farewell', label: 'Farewell', emoji: '👋', phrase: 'our farewell' },
-  { key: 'other', label: 'Other', emoji: '✨', phrase: null },
 ];
 
 const PALETTES = [
@@ -34,37 +29,6 @@ const labelStyle = {
   fontSize: 9, fontWeight: 700, color: '#77736A', textTransform: 'uppercase',
   letterSpacing: '0.08em', fontFamily: 'var(--font-sans)', marginBottom: 6, display: 'block',
 };
-const inputStyle = {
-  width: '100%', boxSizing: 'border-box', background: '#FFFFFF', border: '1px solid #E8E2D6',
-  borderRadius: 8, padding: '8px 11px', fontSize: 12.5, color: '#191B1E', outline: 'none', fontFamily: 'var(--font-sans)',
-};
-
-function Toggle({ label, on, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
-        width: '100%', padding: '9px 12px', borderRadius: 10, cursor: 'pointer',
-        background: on ? 'rgba(184,148,79,0.07)' : '#fff',
-        border: `1px solid ${on ? 'rgba(184,148,79,0.3)' : '#E8E2D6'}`,
-        fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, color: '#191B1E',
-        transition: 'all 0.2s',
-      }}
-    >
-      {label}
-      <span style={{
-        width: 34, height: 19, borderRadius: 999, position: 'relative', flexShrink: 0,
-        background: on ? '#B8944F' : '#D1CFC9', transition: 'background 0.25s',
-      }}>
-        <span style={{
-          position: 'absolute', top: 2, left: on ? 17 : 2, width: 15, height: 15, borderRadius: '50%',
-          background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.25s cubic-bezier(0.16,1,0.3,1)',
-        }} />
-      </span>
-    </button>
-  );
-}
 
 function ColorField({ label, value, onChange }) {
   return (
@@ -80,9 +44,6 @@ function ColorField({ label, value, onChange }) {
 }
 
 export default function CustomBuilder({ config, onChange }) {
-  const sections = config.sections || {};
-  const toggleSection = (key) => onChange({ sections: { [key]: !sections[key] } });
-
   return (
     <div style={{
       background: 'rgba(255,255,255,0.85)', border: '1px solid rgba(184,148,79,0.18)',
@@ -152,113 +113,21 @@ export default function CustomBuilder({ config, onChange }) {
         </div>
       </div>
 
-      {/* Occasion type — drives the "We are inviting you to our…" invite line */}
-      <div>
-        <label style={labelStyle}>Occasion</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {OCCASIONS.map(o => {
-            const active = config.occasionType === o.key;
-            return (
-              <button key={o.key} onClick={() => onChange({ occasionType: o.key })}
-                style={{
-                  flex: 1, padding: '8px 6px', borderRadius: 10, cursor: 'pointer',
-                  border: `1.5px solid ${active ? '#B8944F' : '#E8E2D6'}`,
-                  background: active ? 'rgba(184,148,79,0.08)' : '#fff', transition: 'all 0.2s',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                }}>
-                <span style={{ fontSize: 16, lineHeight: 1 }}>{o.emoji}</span>
-                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, fontWeight: 600, color: active ? '#B8944F' : '#77736A' }}>{o.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        {config.occasionType === 'other' && (
-          <input
-            style={{ ...inputStyle, marginTop: 8 }}
-            value={config.occasionLabel || ''}
-            onChange={e => onChange({ occasionLabel: e.target.value })}
-            placeholder="e.g. our housewarming"
-          />
-        )}
-        {config.occasionType && (
-          <p style={{ margin: '6px 0 0', fontFamily: 'var(--font-sans)', fontSize: 10.5, color: '#77736A', fontStyle: 'italic' }}>
-            Invite line will read: “We are inviting you to {
-              OCCASIONS.find(o => o.key === config.occasionType)?.phrase
-                || config.occasionLabel
-                || 'our celebration'
-            }”
-          </p>
-        )}
-      </div>
-
-      {/* Headline + CTA */}
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <label style={labelStyle}>Headline</label>
-          <input style={inputStyle} value={config.headline || ''} onChange={e => onChange({ headline: e.target.value })} placeholder="You’re Invited" />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label style={labelStyle}>RSVP Button Label</label>
-          <input style={inputStyle} value={config.ctaLabel || ''} onChange={e => onChange({ ctaLabel: e.target.value })} placeholder="RSVP Now" />
-        </div>
-      </div>
-
-      {/* Cover image */}
-      <div>
-        <label style={labelStyle}>Cover Image (optional)</label>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <label style={{
-            display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
-            padding: '7px 10px', borderRadius: 8, border: '1px solid #B8944F', color: '#B8944F',
-            fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
-            flexShrink: 0,
-          }}>
-            ⬆ Upload
-            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              if (file.size > 8 * 1024 * 1024) { toast.error('File exceeds 8MB.'); return; }
-              try {
-                const { supabase } = await import('../../../utils/supabaseClient');
-                if (!supabase) throw new Error('Storage not configured');
-                const ext = file.name.split('.').pop();
-                const filePath = `covers/custom-${Date.now()}.${ext}`;
-                const { error: err } = await supabase.storage.from('event-assets').upload(filePath, file, { cacheControl: '3600', upsert: true });
-                if (err) throw err;
-                const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
-                onChange({ coverImageUrl: publicUrl });
-              } catch (err) {
-                console.error('Cover upload failed:', err);
-                toast.error('Cover image upload failed. Please try again.');
-              }
-            }} />
-          </label>
-        </div>
-        {config.coverImageUrl && (
-          <div style={{
-            marginTop: 8, borderRadius: 10, overflow: 'hidden', height: 80,
-            border: '1px solid #E8E2D6', position: 'relative', background: '#FAFAF8',
-          }}>
-            <img src={config.coverImageUrl} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={e => { e.target.style.display = 'none'; }} />
-            <button type="button" onClick={() => onChange({ coverImageUrl: '' })}
-              style={{
-                position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: '50%',
-                border: 'none', background: 'rgba(25,27,30,0.7)', color: '#fff', cursor: 'pointer',
-                fontSize: 12, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>×</button>
-          </div>
-        )}
-      </div>
-
-      {/* Section toggles */}
-      <div>
-        <label style={labelStyle}>Sections</label>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <Toggle label="Event details" on={!!sections.details} onClick={() => toggleSection('details')} />
-          <Toggle label="Photo gallery" on={!!sections.gallery} onClick={() => toggleSection('gallery')} />
-          <Toggle label="Message the host" on={!!sections.messageHost} onClick={() => toggleSection('messageHost')} />
-        </div>
+      {/* What kind of event this is (wedding / engagement / celebration / baby
+          shower), the fields that follow from it, cover image, and every
+          content section (schedule, venues, accommodation, FAQ, gift list,
+          gallery, dress code and more) are configured with real data and
+          individually toggled on the next step — Custom gets every feature
+          every other template has, so there's a lot to fit; this panel stays
+          focused on look & feel. */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
+        borderRadius: 10, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.15)',
+      }}>
+        <span style={{ fontSize: 14 }}>✚</span>
+        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: '#77736A', lineHeight: 1.4 }}>
+          Choose what kind of event this is, add your story, schedule, venues, gift list, FAQ and any other section on the next step — everything is optional and yours to switch on or off.
+        </span>
       </div>
     </div>
   );

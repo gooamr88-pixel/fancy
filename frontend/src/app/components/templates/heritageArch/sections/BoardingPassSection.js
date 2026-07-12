@@ -25,7 +25,11 @@ export default function BoardingPassSection({ destination, dateISO, initials, fl
   const mm = d ? String(d.getUTCMonth() + 1).padStart(2, '0') : '--';
   const yyyy = d ? String(d.getUTCFullYear()) : '----';
   const seat = `${dd}.${mm}`;
-  const cityCode = (destination || 'LOVE').replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase() || 'LOV';
+  // Stripping to A-Z silently empties out for a non-Latin destination (e.g. an
+  // Arabic city name) — falls back to the raw first 3 characters of whatever
+  // was actually typed instead of always collapsing to the generic "LOV".
+  const lettersOnly = (destination || '').replace(/[^a-zA-Z]/g, '');
+  const cityCode = (lettersOnly || (destination || '').trim() || 'LOVE').slice(0, 3).toUpperCase() || 'LOV';
   const flight = flightCode || 'WED01';
   const barcodeText = `${cityCode}${dd}${mm}${yyyy}`;
 

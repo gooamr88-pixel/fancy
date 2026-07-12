@@ -25,29 +25,31 @@ const footerLinks = {
 };
 
 function FooterLink({ text, href }) {
+  // Color is inline (not scoped `<style jsx>`) — when this styled a `next/link`
+  // via a scoped className, the color rule silently failed to attach in
+  // production (Turbopack build), leaving every footer link the same near-
+  // black as the background and effectively invisible. Hover/focus state is
+  // plain React state for the same reason — no dependency on style scoping
+  // that wraps a Link.
+  const [active, setActive] = useState(false);
   return (
     <Link
       href={href}
-      className="footer-link"
+      onMouseEnter={() => setActive(true)}
+      onMouseLeave={() => setActive(false)}
+      onFocus={() => setActive(true)}
+      onBlur={() => setActive(false)}
       style={{
         fontFamily: 'var(--font-sans)',
         fontSize: '14px',
         textDecoration: 'none',
         lineHeight: '2.2',
         display: 'block',
+        color: active ? '#B8944F' : 'rgba(255, 255, 255, 0.6)',
+        transition: 'color 0.25s ease',
       }}
     >
       {text}
-      <style jsx>{`
-        .footer-link {
-          color: rgba(255, 255, 255, 0.6);
-          transition: color 0.25s ease;
-        }
-        .footer-link:hover,
-        .footer-link:focus-visible {
-          color: #B8944F;
-        }
-      `}</style>
     </Link>
   );
 }
@@ -197,7 +199,7 @@ export default function FooterSection() {
               style={{
                 fontFamily: 'var(--font-sans)',
                 fontSize: '14px',
-                color: 'rgba(255, 255, 255, 0.5)',
+                color: 'rgba(255, 255, 255, 0.65)',
                 lineHeight: '1.7',
                 maxWidth: '240px',
               }}
@@ -216,7 +218,7 @@ export default function FooterSection() {
                   fontWeight: '700',
                   letterSpacing: '2px',
                   textTransform: 'uppercase',
-                  color: 'rgba(255, 255, 255, 0.35)',
+                  color: 'rgba(255, 255, 255, 0.7)',
                   marginBottom: '20px',
                 }}
               >
@@ -237,7 +239,7 @@ export default function FooterSection() {
                 fontWeight: '700',
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
-                color: 'rgba(255, 255, 255, 0.35)',
+                color: 'rgba(255, 255, 255, 0.7)',
                 marginBottom: '20px',
               }}
             >
@@ -247,7 +249,7 @@ export default function FooterSection() {
               style={{
                 fontFamily: 'var(--font-sans)',
                 fontSize: '14px',
-                color: 'rgba(255, 255, 255, 0.5)',
+                color: 'rgba(255, 255, 255, 0.65)',
                 lineHeight: '1.6',
                 marginBottom: '16px',
               }}
@@ -337,7 +339,7 @@ export default function FooterSection() {
             style={{
               fontFamily: 'var(--font-sans)',
               fontSize: '13px',
-              color: 'rgba(255, 255, 255, 0.35)',
+              color: 'rgba(255, 255, 255, 0.7)',
             }}
           >
             © {new Date().getFullYear()} Fancy RSVP. All rights reserved.
@@ -374,7 +376,7 @@ export default function FooterSection() {
 
       <style jsx>{`
         input::placeholder {
-          color: rgba(255, 255, 255, 0.3);
+          color: rgba(255, 255, 255, 0.45);
         }
         .footer-subscribe-btn {
           background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);

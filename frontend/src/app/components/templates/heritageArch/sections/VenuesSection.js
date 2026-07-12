@@ -4,15 +4,15 @@ import React, { useState } from 'react';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DayTabs, ScrollToRsvpHint, MapEmbed, getDirectionsUrl } from '../shared';
 
-export default function VenuesSection({ venues, isRTL, t }) {
+export default function VenuesSection({ days, isRTL, t }) {
   const C = useFullPageTheme();
-  const [day, setDay] = useState('day1');
-  const venue = (venues && venues[day]) || {};
+  const [dayIndex, setDayIndex] = useState(0);
+  const venue = days?.[dayIndex]?.venue || {};
 
   return (
     <SectionShell>
       <SectionHeading isRTL={isRTL}>{isRTL ? 'الأماكن' : 'Venues'}</SectionHeading>
-      <DayTabs value={day} onChange={setDay} isRTL={isRTL} />
+      <DayTabs days={days} activeIndex={dayIndex} onChange={setDayIndex} isRTL={isRTL} />
 
       <div style={{ width: '100%', maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
         {venue.image && (

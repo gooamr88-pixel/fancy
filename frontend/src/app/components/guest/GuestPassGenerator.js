@@ -2,6 +2,7 @@
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { formatTableLabel } from '../../utils/tableLabel';
 
 /* ═══════════════════════════════════════════════════════════════
    FANCY RSVP — Premium Guest Pass / Ticket Generator
@@ -271,9 +272,9 @@ export default function GuestPassCard({
                 {tableName && (
                   <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
                     <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
-                      {isRTL ? 'الطاولة' : 'Table'}
+                      {isRTL ? 'مكان جلوسك' : 'Your assigned seating'}
                     </span>
-                    <span style={{ fontSize: '17px', fontWeight: 800, color: themeColor, fontFamily: 'var(--font-sans)' }}>{tableName}</span>
+                    <span style={{ fontSize: '17px', fontWeight: 800, color: themeColor, fontFamily: 'var(--font-sans)' }}>{formatTableLabel(tableName, isRTL)}</span>
                   </div>
                 )}
               </div>

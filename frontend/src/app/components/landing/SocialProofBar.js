@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 // --- Counter Animation Config ---
-// Fallback shown immediately and whenever the admin-configured values can't be
-// fetched — kept in sync with super_admin_config.landing_stats' DB default.
+// Static content — deliberately not fetched from the backend or admin
+// dashboard. Update these by hand if the numbers change.
 const DEFAULT_STATS = [
   { target: 10000, suffix: '+', label: 'Events Created', decimals: 0 },
   { target: 50000, suffix: '+', label: 'Guests Managed', decimals: 0 },
@@ -163,17 +163,7 @@ function HorizontalDivider() {
 export default function SocialProofBar() {
   const sectionRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
-  const [stats, setStats] = useState(DEFAULT_STATS);
-
-  useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-    fetch(`${apiUrl}/public/landing-stats`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data?.stats) && data.stats.length) setStats(data.stats);
-      })
-      .catch(() => {}); // keep DEFAULT_STATS on any failure — never block the landing page on this
-  }, []);
+  const stats = DEFAULT_STATS;
 
   useEffect(() => {
     const node = sectionRef.current;

@@ -607,3 +607,37 @@ h3 {
   height: 100dvh;
 }
 
+/* ── Seating map print export ──────────────────────────────────────────────
+   The organizer dashboard's seating-map page renders a hidden static export
+   view (.print-seating-chart) alongside the interactive canvas. On screen
+   it's invisible; triggering window.print() there swaps to this rule set,
+   which hides everything else in the app and shows only the export view —
+   so printing (or "Print to PDF") produces a clean chart with no toolbar,
+   sidebar, or edit handles. Kept in the global stylesheet rather than a
+   component-scoped <style jsx> block, since scoped styles inside a nested
+   (non-default-export) component were found not to reliably compile in this
+   build (see FooterLink in FooterSection.js for the same issue). */
+.print-seating-chart {
+  display: none;
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-seating-chart,
+  .print-seating-chart * {
+    visibility: visible;
+  }
+  .print-seating-chart {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+}
+

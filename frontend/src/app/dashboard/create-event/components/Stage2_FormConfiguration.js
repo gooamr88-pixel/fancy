@@ -7,7 +7,8 @@ import InlineFormBuilder from './InlineFormBuilder';
 import { DressCodeVisualizer } from '../../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../../utils/youtube';
 import RepeatableListEditor from '../../components/RepeatableListEditor';
-import ImageUploadField from '../../components/ImageUploadField';
+import DaysEditor from './DaysEditor';
+import { getHaDays } from '../../../utils/haDays';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -28,12 +29,47 @@ const WEDDING_STYLE_TEMPLATE_KEYS = [
 ];
 
 // Templates rendered as the full-page snap-scroll guest experience — the
-// wedding-style templates plus engagement, which all map onto the same ha_*
-// section fields (corporate/birthday/gala/custom keep the continuous-scroll
-// layout and their own content fields).
+// wedding-style templates, engagement, and custom, which all map onto the
+// same ha_* section fields (corporate/birthday/gala keep the continuous-
+// scroll layout and their own content fields).
 // Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
-const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement'];
+const FULL_PAGE_TEMPLATE_KEYS = [...WEDDING_STYLE_TEMPLATE_KEYS, 'engagement', 'custom'];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
+
+// Every optional guest-page section, independently toggleable per event via
+// template_data.enabledSections — lets the organizer add or remove any
+// feature from any event type (wedding, engagement, celebration, baby
+// shower…) regardless of which curated template they started from. A
+// section left at its default (no explicit false) still auto-hides on the
+// guest page when its data is empty, exactly as before.
+const SECTION_TOGGLES = [
+  { key: 'story', label: 'Our Story', icon: '📖', hint: 'Love story / proposal story / about-us text' },
+  { key: 'schedule', label: 'Schedule', icon: '🕐', hint: 'Day 1 / Day 2 timeline' },
+  { key: 'venues', label: 'Venues', icon: '📍', hint: 'Day 1 / Day 2 venue maps' },
+  { key: 'dresscode', label: 'Dress Code', icon: '👔', hint: '' },
+  { key: 'accommodation', label: 'Accommodation', icon: '🏨', hint: 'Hotel list' },
+  { key: 'menu', label: 'Menu', icon: '🍽️', hint: 'Courses' },
+  { key: 'giftlist', label: 'Gift List', icon: '🎁', hint: 'Registry link + bank details' },
+  { key: 'faq', label: 'FAQ', icon: '❓', hint: '' },
+  { key: 'gallery', label: 'Photo Gallery', icon: '🖼️', hint: '' },
+  { key: 'invited', label: '"Invited To" City Map', icon: '🗺️', hint: '' },
+  { key: 'boarding', label: 'Boarding Pass', icon: '🎫', hint: 'Playful travel-themed detail card' },
+  { key: 'thingstodo', label: 'Things To Do', icon: '🧭', hint: 'Local recommendations' },
+  { key: 'gettingthere', label: 'Getting There', icon: '🚗', hint: 'Transport / parking notes' },
+];
+
+// Custom's "what kind of event is this?" picker — shapes which fields show
+// below and how the guest page's hero name/tagline reads. Wedding and
+// Engagement here reuse the exact same fields as the dedicated Wedding/
+// Engagement templates (so an organizer who wants full design freedom for a
+// wedding isn't missing anything); Celebration and Baby Shower get their own,
+// since neither has a "couple".
+const CUSTOM_CATEGORIES = [
+  { key: 'wedding', label: 'Wedding', icon: '💍' },
+  { key: 'engagement', label: 'Engagement', icon: '💎' },
+  { key: 'celebration', label: 'Celebration', icon: '🎉' },
+  { key: 'babyShower', label: 'Baby Shower', icon: '🍼' },
+];
 
 const PRIVACY_MODES = [
   { key: 'public', label: 'Public Link', icon: '🌐', desc: 'Anyone with the link can RSVP' },
@@ -121,6 +157,7 @@ function Field({ label: lbl, required, hint, children, style: wrapStyle, htmlFor
 
 export default function Stage2_FormConfiguration({
   templateType, templates,
+  customColors, setCustomColors,
   title, setTitle, slug, setSlug,
   slugStatus, suggestedSlug,
   description, setDescription,
@@ -130,8 +167,6 @@ export default function Stage2_FormConfiguration({
   locationAddress, setLocationAddress,
   onPlaceSelect,
   templateData, setTemplateData,
-  onHaVenueDay1Upload, haVenueDay1Uploading,
-  onHaVenueDay2Upload, haVenueDay2Uploading,
   onRowImageUpload,
   dressCode, setDressCode,
   rsvpDeadline, setRsvpDeadline,
@@ -153,7 +188,43 @@ export default function Stage2_FormConfiguration({
   const [customDressMode, setCustomDressMode] = useState(!!dressCode && !DRESS_CODES.includes(dressCode));
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
-  const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading || haVenueDay1Uploading || haVenueDay2Uploading);
+  const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading);
+
+  // Per-section on/off — defaults to true (auto-hide-when-empty, unchanged)
+  // until the organizer explicitly flips a section off.
+  const enabledSections = templateData.enabledSections || {};
+  const isSectionOn = (key) => enabledSections[key] !== false;
+  const toggleSection = (key) => setTemplateData(d => ({
+    ...d,
+    enabledSections: { ...(d.enabledSections || {}), [key]: !isSectionOn(key) },
+  }));
+
+  // Section arrangement — the order the organizer drags/moves sections into
+  // here is the order they appear on the guest page (between the fixed Hero/
+  // Countdown opening and the RSVP close). Falls back to the default order
+  // (and picks up any new section keys shipped after an event was last
+  // saved) so nothing is ever silently dropped from the list.
+  const savedOrder = Array.isArray(templateData.sectionOrder) ? templateData.sectionOrder : [];
+  const allSectionKeys = SECTION_TOGGLES.map(s => s.key);
+  const orderedSectionKeys = [
+    ...savedOrder.filter(k => allSectionKeys.includes(k)),
+    ...allSectionKeys.filter(k => !savedOrder.includes(k)),
+  ];
+  const moveSection = (key, dir) => {
+    const idx = orderedSectionKeys.indexOf(key);
+    const j = idx + dir;
+    if (j < 0 || j >= orderedSectionKeys.length) return;
+    const next = orderedSectionKeys.slice();
+    [next[idx], next[j]] = [next[j], next[idx]];
+    setTemplateData(d => ({ ...d, sectionOrder: next }));
+  };
+
+  // Custom's event-category choice — 'wedding' | 'engagement' | 'celebration'
+  // | 'babyShower' | '' (not chosen yet). Wedding/engagement categories reuse
+  // the same couple-name fields the dedicated templates use.
+  const customCategory = templateData.custom_category || '';
+  const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType)
+    || (templateType === 'custom' && (customCategory === 'wedding' || customCategory === 'engagement'));
 
   // Ceremony/reception venue pickers behave like the main Venue field: a plain-
   // address prediction (as opposed to a named venue) has no distinct `place.name`
@@ -171,21 +242,6 @@ export default function Stage2_FormConfiguration({
   }));
   const onCeremonyPlaceSelect = makePlaceSelectHandler('ceremony');
   const onReceptionPlaceSelect = makePlaceSelectHandler('reception');
-
-  // Heritage Arch's own per-day venue fields (ha_venue_dayN_*) — kept separate
-  // from ceremony/reception since Day 1 of a multi-day site isn't necessarily
-  // "the ceremony" (could be a henna night, welcome dinner, etc.).
-  const makeHaVenuePlaceSelectHandler = (day) => (place) => setTemplateData(d => ({
-    ...d,
-    [`ha_venue_${day}_name`]: place.name && place.name !== place.address
-      ? place.name
-      : (place.address ? place.address.split(',')[0] : d[`ha_venue_${day}_name`]),
-    [`ha_venue_${day}_address`]: place.address,
-    [`ha_venue_${day}_lat`]: place.lat,
-    [`ha_venue_${day}_lng`]: place.lng,
-  }));
-  const onHaVenueDay1Select = makeHaVenuePlaceSelectHandler('day1');
-  const onHaVenueDay2Select = makeHaVenuePlaceSelectHandler('day2');
 
   // "Invited to" city — captures coordinates too, so the world-map pin in the
   // Invited-To section actually points at this city instead of silently
@@ -233,6 +289,12 @@ export default function Stage2_FormConfiguration({
               onFocus={onFocus} onBlur={onBlur} />
           </Field>
 
+          <Field label="🌐 Arabic Title" hint="Optional — shown when a guest switches the page to Arabic">
+            <input type="text" dir="rtl" value={td('title_ar')} onChange={e => setTd('title_ar')(e.target.value)}
+              placeholder="عنوان الفعالية بالعربي" style={{ ...iStyle, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
+              onFocus={onFocus} onBlur={onBlur} />
+          </Field>
+
           <Field label="Event URL" required hint={
             slugStatus === 'checking' ? '⏳ Checking availability...' :
             slugStatus === 'available' ? '✅ This URL is available!' :
@@ -261,6 +323,13 @@ export default function Stage2_FormConfiguration({
             <textarea value={description} onChange={e => setDescription(e.target.value)}
               rows={3} placeholder="Tell guests about your event…"
               style={{ ...iStyle, resize: 'vertical', minHeight: 80 }}
+              onFocus={onFocus} onBlur={onBlur} />
+          </Field>
+
+          <Field label="🌐 Arabic Description" hint="Optional">
+            <textarea dir="rtl" value={td('description_ar')} onChange={e => setTd('description_ar')(e.target.value)}
+              rows={3} placeholder="وصف الفعالية بالعربي"
+              style={{ ...iStyle, resize: 'vertical', minHeight: 80, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
               onFocus={onFocus} onBlur={onBlur} />
           </Field>
 
@@ -297,9 +366,62 @@ export default function Stage2_FormConfiguration({
         </Section>
 
         {/* ═══ Section B: Template-Specific ═══ */}
-        {templateType !== 'custom' && (
+        {(
           <Section title={`${tpl.icon} ${tpl.label} Details`} icon="🎨">
-            {WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType) && (
+            {(templateType === 'wedding' || templateType === 'engagement') && customColors && setCustomColors && (
+              <div style={{
+                marginBottom: 18, padding: 14, borderRadius: 12,
+                background: C.softBg, border: `1px solid ${C.border}`,
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-sans)', marginBottom: 10 }}>
+                  🎨 Design &amp; Colors — override the preset above with any color you like
+                </div>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                  {[
+                    { key: 'primary', label: 'Primary' },
+                    { key: 'secondary', label: 'Secondary' },
+                    { key: 'accent', label: 'Accent' },
+                    { key: 'background', label: 'Background' },
+                  ].map(({ key, label }) => (
+                    <div key={key}>
+                      <label style={lblStyle}>{label}</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${C.border}`, borderRadius: 8, padding: '5px 8px', background: C.white }}>
+                        <input type="color" value={customColors[key] || '#B8944F'}
+                          onChange={e => setCustomColors(prev => ({ ...prev, [key]: e.target.value }))}
+                          style={{ width: 26, height: 26, border: 'none', background: 'none', padding: 0, cursor: 'pointer', borderRadius: 6 }} />
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, textTransform: 'uppercase' }}>{customColors[key]}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {templateType === 'custom' && (
+              <div style={{ marginBottom: 18 }}>
+                <label style={lblStyle}>What kind of event is this?</label>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                  {CUSTOM_CATEGORIES.map(({ key, label, icon }) => {
+                    const active = customCategory === key;
+                    return (
+                      <button key={key} type="button" onClick={() => setTd('custom_category')(key)}
+                        style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                          padding: '10px 6px', borderRadius: 10, cursor: 'pointer',
+                          border: `1.5px solid ${active ? C.gold : C.border}`,
+                          background: active ? 'rgba(184,148,79,0.08)' : C.white,
+                        }}>
+                        <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
+                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: active ? C.gold : C.stone }}>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{ fontSize: 10, color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
+                  Shapes the fields below and the name/tagline on your guest page — change it any time.
+                </p>
+              </div>
+            )}
+            {showCoupleFields && (
               <>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                   <Field label="Partner 1 Name">
@@ -375,12 +497,62 @@ export default function Stage2_FormConfiguration({
                   <input type="url" value={td('giftRegistry')} onChange={e => setTd('giftRegistry')(e.target.value)}
                     placeholder="https://registry.example.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
-                <Field label="Guest Accommodations" hint={templateType === 'heritageArch' ? 'Shown to guests only as a fallback note, and only if no hotels are added in the Accommodation list below' : undefined}>
+                <Field label="Guest Accommodations" hint={isFullPage(templateType) ? 'Shown to guests only as a fallback note, and only if no hotels are added in the Accommodation list below' : undefined}>
                   <textarea value={td('accommodations')} onChange={e => setTd('accommodations')(e.target.value)}
                     rows={2} placeholder="Hotel blocks, parking info…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
               </>
+            )}
+
+            {templateType === 'custom' && customCategory === 'celebration' && (
+              <>
+                <Field label="Who's being celebrated?" hint="Shown as the name on your guest page — a person, a couple, or a family">
+                  <input type="text" value={td('custom_honoree')} onChange={e => setTd('custom_honoree')(e.target.value)}
+                    placeholder="e.g. Sarah, or The Martinez Family" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+                <Field label="What's the occasion?" hint="Shown as the tagline under the name, e.g. Turning 30, 10th Anniversary">
+                  <input type="text" value={td('custom_milestone')} onChange={e => setTd('custom_milestone')(e.target.value)}
+                    placeholder="e.g. Turning 30" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+              </>
+            )}
+
+            {templateType === 'custom' && customCategory === 'babyShower' && (
+              <>
+                <Field label="Parent(s)-to-be" hint="Shown as the name on your guest page">
+                  <input type="text" value={td('custom_parents')} onChange={e => setTd('custom_parents')(e.target.value)}
+                    placeholder="e.g. Sarah & Michael" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <Field label="Baby's Name (optional)" hint="Leave blank if not revealed yet">
+                    <input type="text" value={td('custom_baby_name')} onChange={e => setTd('custom_baby_name')(e.target.value)}
+                      placeholder="Leave blank if unrevealed" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                  <Field label="Due Date / Theme" hint="Shown as the tagline, e.g. Due June 2026, or Oh Baby! A Gender Reveal">
+                    <input type="text" value={td('custom_baby_due')} onChange={e => setTd('custom_baby_due')(e.target.value)}
+                      placeholder="e.g. Due June 2026" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                  </Field>
+                </div>
+              </>
+            )}
+
+            {/* Wedding/engagement already collect this via the Partner 1/2 Email
+                fields above (same underlying template_data.partner1_email/
+                partner2_email the backend emails on every RSVP) — this covers
+                the categories that don't have a "couple": celebration, baby
+                shower, and a plain custom event with no category chosen yet. */}
+            {isFullPage(templateType) && !showCoupleFields && (
+              <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <Field label="Notify by Email" hint="Optional — this person also gets an email every time a guest RSVPs">
+                  <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
+                    placeholder="host@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+                <Field label="Also Notify (optional)" hint="A second person who should also get an email every time a guest RSVPs">
+                  <input type="email" value={td('partner2_email')} onChange={e => setTd('partner2_email')(e.target.value)}
+                    placeholder="co-host@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
+              </div>
             )}
 
             {isFullPage(templateType) && (
@@ -398,87 +570,26 @@ export default function Stage2_FormConfiguration({
                     guest RSVP + backend read) — the old duplicate ha_meal_options
                     input was removed from here to end the two-places confusion. */}
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16 }}>
-                  <Field label={'"You\'re Invited To" City'} htmlFor="s2-ha-invited-to" hint="Search and pick a city — its map pin uses this location, not Day 1's venue">
+                  <Field label={'"You\'re Invited To" City'} htmlFor="s2-ha-invited-to" hint="Search and pick a city — its map pin uses this location, not your first day's venue">
                     <PlacesAutocomplete
                       id="s2-ha-invited-to"
                       value={td('ha_invited_to_city')}
-                      onChange={setTd('ha_invited_to_city')}
+                      // Retyping the city without picking a fresh suggestion must clear the
+                      // old lat/lng — otherwise the guest page's map pin silently keeps
+                      // pointing at whatever city was last actually selected, while the
+                      // label text shows the new (unrelated) name typed here.
+                      onChange={(val) => setTemplateData(d => ({ ...d, ha_invited_to_city: val, ha_invited_to_lat: null, ha_invited_to_lng: null }))}
                       onPlaceSelect={onHaInvitedToPlaceSelect}
                       placeholder="Miami"
                       style={iStyle}
                     />
                   </Field>
                 </div>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-                  <Field label="Day 1 Venue" htmlFor="s2-ha-venue-day1" hint="Where Day 1 of the celebration takes place">
-                    <PlacesAutocomplete
-                      id="s2-ha-venue-day1"
-                      value={td('ha_venue_day1_name')}
-                      onChange={setTd('ha_venue_day1_name')}
-                      onPlaceSelect={onHaVenueDay1Select}
-                      placeholder="Search for Day 1's venue…"
-                      style={iStyle}
-                    />
-                  </Field>
-                  <Field label="Day 1 Venue Photo">
-                    <ImageUploadField
-                      value={td('ha_venue_day1_image')}
-                      uploading={haVenueDay1Uploading}
-                      onUpload={(file) => onHaVenueDay1Upload?.(file)}
-                      onClear={() => setTd('ha_venue_day1_image')('')}
-                    />
-                  </Field>
-                </div>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-                  <Field label="Day 2 Venue" htmlFor="s2-ha-venue-day2" hint="Where Day 2 of the celebration takes place">
-                    <PlacesAutocomplete
-                      id="s2-ha-venue-day2"
-                      value={td('ha_venue_day2_name')}
-                      onChange={setTd('ha_venue_day2_name')}
-                      onPlaceSelect={onHaVenueDay2Select}
-                      placeholder="Search for Day 2's venue…"
-                      style={iStyle}
-                    />
-                  </Field>
-                  <Field label="Day 2 Venue Photo">
-                    <ImageUploadField
-                      value={td('ha_venue_day2_image')}
-                      uploading={haVenueDay2Uploading}
-                      onUpload={(file) => onHaVenueDay2Upload?.(file)}
-                      onClear={() => setTd('ha_venue_day2_image')('')}
-                    />
-                  </Field>
-                </div>
-                <Field label="Day 1 Schedule">
-                  <RepeatableListEditor
-                    items={Array.isArray(templateData.ha_schedule_day1) ? templateData.ha_schedule_day1 : []}
-                    onChange={(items) => setTemplateData(d => ({ ...d, ha_schedule_day1: items }))}
-                    addLabel="+ Add schedule item"
-                    emptyLabel="No Day 1 schedule items yet — a sample schedule shows on the guest page until you add some."
-                    columns={[
-                      { key: 'time', label: 'Time', placeholder: '14:00' },
-                      { key: 'label', label: 'Label', placeholder: 'Lunch' },
-                      { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
-                        { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
-                        { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
-                      ] },
-                    ]}
-                  />
-                </Field>
-                <Field label="Day 2 Schedule">
-                  <RepeatableListEditor
-                    items={Array.isArray(templateData.ha_schedule_day2) ? templateData.ha_schedule_day2 : []}
-                    onChange={(items) => setTemplateData(d => ({ ...d, ha_schedule_day2: items }))}
-                    addLabel="+ Add schedule item"
-                    emptyLabel="No Day 2 schedule items yet — a sample schedule shows on the guest page until you add some."
-                    columns={[
-                      { key: 'time', label: 'Time', placeholder: '20:00' },
-                      { key: 'label', label: 'Label', placeholder: 'Wedding' },
-                      { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
-                        { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
-                        { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
-                      ] },
-                    ]}
+                <Field label="Days, Venues &amp; Schedule" hint="Most events are one day — add more only if yours has several (e.g. a henna night, then the wedding, then a reception)">
+                  <DaysEditor
+                    days={Array.isArray(templateData.ha_days) ? templateData.ha_days : getHaDays(templateData)}
+                    onChange={(nextDays) => setTemplateData(d => ({ ...d, ha_days: nextDays }))}
+                    onUploadImage={onRowImageUpload}
                   />
                 </Field>
                 <Field label="Accommodation">
@@ -684,6 +795,67 @@ export default function Stage2_FormConfiguration({
                 </Field>
               </>
             )}
+
+            {isFullPage(templateType) && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-sans)', marginBottom: 4 }}>
+                  ✚ Sections — add, remove, and arrange any feature
+                </div>
+                <p style={{ fontSize: 11.5, color: C.stone, fontFamily: 'var(--font-sans)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                  Every section below is available on every template, in the order you set here (between your opening and the RSVP). Fill one in above to show it — switch it off even if it has content to hide it — and use ↑ / ↓ to reorder.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {orderedSectionKeys.map((key, idx) => {
+                    const { label, icon, hint } = SECTION_TOGGLES.find(s => s.key === key);
+                    const on = isSectionOn(key);
+                    return (
+                      <div key={key} title={hint || label}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '8px 10px 8px 12px', borderRadius: 10,
+                          background: on ? 'rgba(184,148,79,0.07)' : C.white,
+                          border: `1px solid ${on ? 'rgba(184,148,79,0.3)' : C.border}`,
+                        }}>
+                        <span style={{
+                          fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 700, color: C.stone,
+                          width: 16, textAlign: 'center', flexShrink: 0,
+                        }}>{idx + 1}</span>
+                        <button type="button" onClick={() => moveSection(key, -1)} disabled={idx === 0} aria-label="Move up"
+                          style={{
+                            width: 22, height: 22, borderRadius: 6, border: `1px solid ${C.border}`, background: C.white,
+                            color: idx === 0 ? '#CFC8BB' : C.stone, cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                            fontSize: 11, lineHeight: 1, flexShrink: 0,
+                          }}>↑</button>
+                        <button type="button" onClick={() => moveSection(key, 1)} disabled={idx === orderedSectionKeys.length - 1} aria-label="Move down"
+                          style={{
+                            width: 22, height: 22, borderRadius: 6, border: `1px solid ${C.border}`, background: C.white,
+                            color: idx === orderedSectionKeys.length - 1 ? '#CFC8BB' : C.stone,
+                            cursor: idx === orderedSectionKeys.length - 1 ? 'not-allowed' : 'pointer',
+                            fontSize: 11, lineHeight: 1, flexShrink: 0,
+                          }}>↓</button>
+                        <button type="button" onClick={() => toggleSection(key)}
+                          style={{
+                            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                            padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left',
+                            fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 600, color: C.charcoal,
+                          }}>
+                          <span>{icon} {label}</span>
+                          <span style={{
+                            width: 32, height: 18, borderRadius: 999, position: 'relative', flexShrink: 0,
+                            background: on ? C.gold : '#D1CFC9', transition: 'background 0.2s',
+                          }}>
+                            <span style={{
+                              position: 'absolute', top: 2, left: on ? 16 : 2, width: 14, height: 14, borderRadius: '50%',
+                              background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s',
+                            }} />
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </Section>
         )}
 
@@ -757,6 +929,12 @@ export default function Stage2_FormConfiguration({
                 <DressCodeVisualizer dressCodeText={dressCode} isRTL={false} />
               </div>
             )}
+          </Field>
+
+          <Field label="🌐 Arabic Dress Code" hint="Optional">
+            <input type="text" dir="rtl" value={td('dress_code_ar')} onChange={e => setTd('dress_code_ar')(e.target.value)}
+              placeholder="ملابس رسمية، كاجوال..." style={{ ...iStyle, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
+              onFocus={onFocus} onBlur={onBlur} />
           </Field>
 
           <Field label="RSVP Response Deadline" hint="Guests cannot RSVP after this date">

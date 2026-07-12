@@ -598,6 +598,12 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                 background: `linear-gradient(90deg, transparent 0%, ${lighten(secondaryColor, 0.3)} 30%, ${themeColor} 50%, ${lighten(secondaryColor, 0.3)} 70%, transparent 100%)`,
                 backgroundSize: '200% 100%', animation: 'shimmer 3s linear infinite',
               }} />
+            {!submitted && event?.rsvp_deadline && (
+              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
+                style={{ fontSize: '11.5px', fontWeight: 600, color: lighten(secondaryColor, 0.35), margin: '12px 0 0', fontFamily: 'var(--font-sans)' }}>
+                {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+              </motion.p>
+            )}
           </div>
 
           <div style={{ padding: '28px 32px 32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>

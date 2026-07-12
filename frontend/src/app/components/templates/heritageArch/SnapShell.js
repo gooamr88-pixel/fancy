@@ -77,11 +77,10 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
             key={s.id}
             id={s.id}
             data-ha-section
-            style={{ minHeight: '100dvh', position: 'relative' }}
+            style={{ position: 'relative' }}
           >
             <div
               style={{
-                minHeight: '100dvh',
                 opacity: show ? 1 : 0,
                 transform: show ? 'none' : 'translateY(22px)',
                 transition: reduceMotion ? undefined : 'opacity 0.55s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1)',

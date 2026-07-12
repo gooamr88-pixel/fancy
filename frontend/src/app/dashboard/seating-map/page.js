@@ -10,6 +10,8 @@ import { useIsClient } from '../../utils/useIsClient';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', danger: '#C45E5E' };
+// Shared style for the "Select All ▾" menu's Type/Capacity <select> controls.
+const selectMenuInputStyle = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 8px', fontSize: 12, outline: 'none', marginTop: 3, background: C.white, color: C.charcoal, fontFamily: 'var(--font-sans, sans-serif)' };
 
 /* ════════════════════════════════════════════════════════════════
    World / element catalog
@@ -157,10 +159,34 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
   a.el === b.el && a.occupied === b.occupied && a.names === b.names && a.selected === b.selected && a.showHandles === b.showHandles && a.dragOver === b.dragOver
 ));
 
+/* ── "Select All ▾" menu row — a shape/category filter, with its count. ── */
+function SelectMenuItem({ label, count, onClick }) {
+  const disabled = !count;
+  return (
+    <button
+      type="button" onClick={onClick} disabled={disabled}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+        width: '100%', textAlign: 'left', background: 'none', border: 'none', borderRadius: 6,
+        padding: '7px 9px', fontSize: 12, fontFamily: 'var(--font-sans, sans-serif)',
+        color: disabled ? C.border : C.charcoal, cursor: disabled ? 'not-allowed' : 'pointer',
+      }}
+      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = 'rgba(184,148,79,0.08)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; }}
+    >
+      <span>{label}</span>
+      <span style={{ fontSize: 10, color: C.stone, fontWeight: 700 }}>{count || 0}</span>
+    </button>
+  );
+}
+function SelectMenuDivider() {
+  return <div style={{ height: 1, background: C.border, margin: '4px 2px' }} />;
+}
+
 /* ════════════════════════════════════════════════════════════════
    Virtualized guest list (renders only the visible window)
    ════════════════════════════════════════════════════════════════ */
-function VirtualGuestList({ items, height, onDragStartGuest, onTapGuest, armedGuestId, onReachEnd, loading, emptyText }) {
+function VirtualGuestList({ items, height, onDragStartGuest, onTapGuest, armedGuestId, onReachEnd, loading, emptyText, onResendGuest, resendingId, pendingIds }) {
   const [scrollTop, setScrollTop] = useState(0);
   const ref = useRef(null);
 
@@ -208,11 +234,40 @@ function VirtualGuestList({ items, height, onDragStartGuest, onTapGuest, armedGu
                 <span style={{ fontWeight: 600, color: C.charcoal, display: 'block', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.guest_name}</span>
                 <span style={{ fontSize: 11, color: C.stone }}>Party of {g.party_size}</span>
               </div>
-              {armed ? (
-                <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>Tap a table</span>
-              ) : (
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={C.stone} strokeWidth={2}><path strokeLinecap="round" d="M4 8h16M4 16h16" /></svg>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                {armed ? (
+                  <span style={{ fontSize: 10, fontWeight: 700, color: C.gold, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tap a table</span>
+                ) : (
+                  <>
+                    {/* Seated guests already got their location email automatically on
+                        first assignment — any further change is manual, via this resend,
+                        so the guest isn't re-emailed every time a table gets nudged. Hidden
+                        while a move is staged but unsaved — the backend still has the old
+                        table, so resending now would email the wrong assignment. */}
+                    {g.tableId && onResendGuest && !pendingIds?.has(g.id) && (
+                      <button
+                        type="button"
+                        title="Resend seating location email"
+                        aria-label="Resend seating location email"
+                        onClick={(e) => { e.stopPropagation(); onResendGuest(g); }}
+                        disabled={resendingId === g.id}
+                        style={{
+                          width: 26, height: 26, borderRadius: 7, border: `1px solid ${C.border}`,
+                          background: C.white, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: resendingId === g.id ? 'wait' : 'pointer', flexShrink: 0,
+                        }}
+                      >
+                        {resendingId === g.id ? (
+                          <span style={{ width: 10, height: 10, border: `2px solid ${C.border}`, borderTopColor: C.gold, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        ) : (
+                          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke={C.stone} strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l9 6 9-6M4 6h16a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V7a1 1 0 011-1z" /></svg>
+                        )}
+                      </button>
+                    )}
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke={C.stone} strokeWidth={2}><path strokeLinecap="round" d="M4 8h16M4 16h16" /></svg>
+                  </>
+                )}
+              </div>
             </div>
           );
         })}
@@ -239,6 +294,7 @@ export default function SeatingMapPage() {
   const [error, setError] = useState(null);
   const [eventIsPaid, setEventIsPaid] = useState(null); // null = loading, true/false = known
   const [hasSeatingFeature, setHasSeatingFeature] = useState(null); // null = loading, true/false = known
+  const [eventTitle, setEventTitle] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [elements, setElements] = useState([]);          // tables + zones
@@ -278,6 +334,10 @@ export default function SeatingMapPage() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('unseated');      // unseated | seated | all
 
+  // Guest whose "resend seating location email" is in flight (disables that
+  // row's button + shows a spinner while the request is out).
+  const [resendingId, setResendingId] = useState(null);
+
   // selected table's seated members (fetched on demand)
   const [tableGuests, setTableGuests] = useState([]);
 
@@ -295,6 +355,8 @@ export default function SeatingMapPage() {
   const [dragPos, setDragPos] = useState(null);          // { id, x, y } during element move
   const dragPosRef = useRef(null);                       // mirrors dragPos for pointerup closure
   const [selectedIds, setSelectedIds] = useState(() => new Set()); // multi-select (Select All, Ctrl/Cmd/Shift-click, + group move)
+  const [selectMenuOpen, setSelectMenuOpen] = useState(false);     // "Select All ▾" filter menu (by category/shape)
+  const selectMenuRef = useRef(null);
   const [groupDragPos, setGroupDragPos] = useState(null); // Map id -> {x,y} during group move
   const groupDragPosRef = useRef(null);                  // mirrors groupDragPos for pointerup closure
   const [dragOverId, setDragOverId] = useState(null);
@@ -323,6 +385,7 @@ export default function SeatingMapPage() {
         const res = await fetch(`${API_URL}/events/${eventId}`, { credentials: 'include' });
         const data = await res.json();
         if (data?.event) {
+          setEventTitle(data.event.title || '');
           setEventIsPaid(!!data.event.is_paid || !!data.event.manual_override);
           // is_paid alone used to be the whole gate here — a paid organizer on a
           // tier that excludes seating_map could still reach this page directly
@@ -483,6 +546,9 @@ export default function SeatingMapPage() {
     return m;
   }, [elements, pending]);
 
+  /* ── derived: guest ids with an unsaved seating change staged ── */
+  const pendingIds = useMemo(() => new Set(Object.keys(pending)), [pending]);
+
   /* ── derived: guest list with pending overrides applied + filter ── */
   const effectiveGuests = useMemo(() => {
     return guests
@@ -591,6 +657,34 @@ export default function SeatingMapPage() {
   const onTapGuest = useCallback((g) => {
     setArmedGuest(prev => (prev && prev.id === g.id) ? null : g);
   }, []);
+
+  // Manually resend the seating-location email — the first assignment emails
+  // automatically, but every change after that is deliberately silent (see
+  // saveSeatingBatch on the backend), so this is how the organizer notifies a
+  // guest after a later move, or if the guest just asks again.
+  const handleResendGuest = useCallback(async (guest) => {
+    if (resendingId) return;
+    setResendingId(guest.id);
+    try {
+      const res = await fetch(`${API_URL}/events/${eventId}/notifications/send-qr-ticket`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ rsvpId: guest.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) {
+        toast.success(`Seating location resent to ${guest.guest_name}.`);
+      } else {
+        toast.error(data.message || 'Could not resend the email.');
+      }
+    } catch {
+      toast.error('Could not resend the email.');
+    } finally {
+      setResendingId(null);
+    }
+  }, [eventId, resendingId]);
+
   const onTapAssign = useCallback((tableId) => {
     if (!armedGuest) return false;
     const from = pending[armedGuest.id] ? pending[armedGuest.id].to : (armedGuest.tableId || '');
@@ -646,11 +740,64 @@ export default function SeatingMapPage() {
   const selectAll = useCallback(() => {
     setSelectedId(null);
     setSelectedIds(new Set(elements.map(e => e.id)));
+    setSelectMenuOpen(false);
   }, [elements]);
+
+  // "Select All ▾" narrowed to one shape, or to every table / every zone —
+  // the plain Select All above still grabs literally everything.
+  const selectByFilter = useCallback((predicate) => {
+    setSelectedId(null);
+    setSelectedIds(new Set(elements.filter(predicate).map(e => e.id)));
+    setSelectMenuOpen(false);
+  }, [elements]);
+
+  // "Select All ▾" → Filter & Select — combines a type filter (any / all
+  // tables / all zones / one specific shape) with a seat-capacity filter
+  // (any / an exact seat count), so e.g. "Round Table" + "8 seats" selects
+  // only the 8-seat round tables. Capacity is meaningless for zones (they
+  // have no max_capacity), so it's ignored whenever the chosen type resolves
+  // to zones only.
+  const [filterType, setFilterType] = useState('any');
+  const [filterCapacity, setFilterCapacity] = useState('any');
+
+  const matchesTypeCapacity = useCallback((el) => {
+    const typeOk = filterType === 'any' ? true
+      : filterType === 'table' ? shapeMeta(el.shape).cat === 'table'
+      : filterType === 'zone' ? shapeMeta(el.shape).cat === 'zone'
+      : (el.shape === 'rectangular' ? 'rectangle' : el.shape) === filterType;
+    const capOk = filterCapacity === 'any' || Number(el.max_capacity) === Number(filterCapacity);
+    return typeOk && capOk;
+  }, [filterType, filterCapacity]);
+
+  // Only seat counts that actually exist among the current tables, so the
+  // dropdown never offers a capacity that would always select nothing.
+  const capacityOptions = useMemo(() => {
+    const set = new Set();
+    elements.forEach((el) => { if (shapeMeta(el.shape).cat === 'table' && el.max_capacity) set.add(Number(el.max_capacity)); });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [elements]);
+
+  // Live preview of how many elements the current type+capacity combo
+  // matches, shown right on the Select button before it's clicked.
+  const filteredCount = useMemo(() => elements.filter(matchesTypeCapacity).length, [elements, matchesTypeCapacity]);
+
+  const applyTypeCapacityFilter = useCallback(() => {
+    selectByFilter(matchesTypeCapacity);
+  }, [selectByFilter, matchesTypeCapacity]);
 
   const clearSelection = useCallback(() => {
     setSelectedIds(new Set());
   }, []);
+
+  // Close the "Select All ▾" menu on an outside click/tap.
+  useEffect(() => {
+    if (!selectMenuOpen) return;
+    const onPointerDown = (e) => {
+      if (selectMenuRef.current && !selectMenuRef.current.contains(e.target)) setSelectMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [selectMenuOpen]);
 
   const onResizeStart = useCallback((e, id) => {
     e.stopPropagation();
@@ -685,8 +832,12 @@ export default function SeatingMapPage() {
     } catch { /* non-fatal; layout save will reconcile */ }
   }, [eventId]);
 
-  /* ── one-click 90° rotate (lets a rectangle/oval/banquet/head table flip
-     between a lengthwise and widthwise layout without free-drag precision) ── */
+  /* ── one-click 90° rotate — lets a rectangle/oval/banquet/head table flip
+     between a lengthwise and widthwise layout, or a non-square zone (stage,
+     bar, DJ booth, entrance, custom area) flip orientation, without needing
+     free-drag precision. Square-ish elements hide the button entirely (see
+     the elWidth/elHeight guard at the call site) since a 90° turn on those
+     looks identical. ── */
   const rotateSelected = useCallback(() => {
     if (!selectedId) return;
     const el = elements.find(x => x.id === selectedId);
@@ -1002,7 +1153,7 @@ export default function SeatingMapPage() {
     if (!selected || saving) return;
     const meta = shapeMeta(selected.shape);
     const body = {
-      tableName: meta.cat === 'table' ? String(getNextTableNumber(elements)) : `${selected.table_name} (Copy)`,
+      tableName: meta.cat === 'table' ? String(getNextTableNumber(elements)) : getUniqueCopyName(elements, selected.table_name),
       shape: selected.shape,
       elementType: selected.element_type || meta.cat,
       x: clamp((Number(selected.position_x) || 0) + 3, 2, 90),
@@ -1295,6 +1446,14 @@ export default function SeatingMapPage() {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {pendingCount > 0 && <button onClick={() => saveSeating()} disabled={saving} style={{ ...btn, background: C.gold, color: C.white }}>{saving ? 'Saving…' : `Save Seating (${pendingCount})`}</button>}
           {layoutDirty && <button onClick={saveLayout} disabled={saving} style={{ ...btn, background: C.white, border: `1px solid ${C.gold}`, color: C.gold }}>Save Layout</button>}
+          <button
+            onClick={() => window.print()}
+            title="Print or save as PDF — a clean chart with no toolbar or edit handles"
+            style={{ ...btn, background: 'transparent', border: `1px solid ${C.gold}`, color: C.gold, display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+            Print / Export
+          </button>
           <button onClick={() => setShowLogoutModal(true)} style={{ ...btn, background: 'transparent', border: `1px solid ${C.border}`, color: C.stone }}>Sign Out</button>
         </div>
       </div>
@@ -1339,6 +1498,9 @@ export default function SeatingMapPage() {
             armedGuestId={armedGuest?.id}
             onReachEnd={() => { if (!guestLoading && guests.length < guestTotal) fetchGuests(guestPage + 1, false); }}
             emptyText={filter === 'unseated' ? 'Everyone is seated 🎉' : 'No guests found.'}
+            onResendGuest={handleResendGuest}
+            resendingId={resendingId}
+            pendingIds={pendingIds}
           />
         </div>
 
@@ -1374,12 +1536,85 @@ export default function SeatingMapPage() {
                   {selectedIds.size} selected · Deselect
                 </button>
               ) : (
-                <button onClick={selectAll} disabled={elements.length === 0} style={{
-                  ...btn, background: C.white, border: `1px solid ${C.border}`, color: elements.length === 0 ? C.border : C.charcoal, padding: '6px 12px',
-                  cursor: elements.length === 0 ? 'not-allowed' : 'pointer',
-                }} title="Select every table & zone — drag any one to move them all together. Ctrl/Cmd/Shift-click individual elements on the canvas to select only those.">
-                  Select All
-                </button>
+                <div ref={selectMenuRef} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setSelectMenuOpen(v => !v)}
+                    disabled={elements.length === 0}
+                    style={{
+                      ...btn, background: C.white, border: `1px solid ${C.border}`, color: elements.length === 0 ? C.border : C.charcoal, padding: '6px 12px',
+                      cursor: elements.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                    }}
+                    title="Select every table & zone, or narrow it to just tables, zones, or one shape (e.g. round tables only). Ctrl/Cmd/Shift-click individual elements on the canvas to select only those."
+                  >
+                    Select All
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: selectMenuOpen ? 'rotate(180deg)' : undefined }}><polyline points="6 9 12 15 18 9" /></svg>
+                  </button>
+                  {selectMenuOpen && (
+                    <div style={{
+                      position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 20, minWidth: 210,
+                      background: C.white, border: `1px solid ${C.border}`, borderRadius: 10,
+                      boxShadow: '0 12px 30px rgba(0,0,0,0.14)', padding: 6, display: 'flex', flexDirection: 'column', gap: 1,
+                    }}>
+                      <SelectMenuItem label="Everything" count={elements.length} onClick={selectAll} />
+                      <SelectMenuDivider />
+                      <div style={{ padding: '4px 9px 2px', fontSize: 10, color: C.stone, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Filter & Select
+                      </div>
+                      <div style={{ padding: '4px 9px 6px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <label style={{ fontSize: 10, color: C.stone, fontWeight: 600, display: 'block' }}>
+                          Type of element
+                          <select
+                            value={filterType}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setFilterType(v);
+                              const isZoneType = v === 'zone' || SHAPES[v]?.cat === 'zone';
+                              if (isZoneType) setFilterCapacity('any');
+                            }}
+                            style={selectMenuInputStyle}
+                          >
+                            <option value="any">Any type</option>
+                            <option value="table">All Tables</option>
+                            <option value="zone">All Zones</option>
+                            <optgroup label="Tables">
+                              {Object.entries(SHAPES).filter(([, m]) => m.cat === 'table').map(([key, meta]) => (
+                                <option key={key} value={key}>{meta.label}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Zones">
+                              {Object.entries(SHAPES).filter(([, m]) => m.cat === 'zone').map(([key, meta]) => (
+                                <option key={key} value={key}>{meta.icon} {meta.label}</option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        </label>
+                        <label style={{ fontSize: 10, color: C.stone, fontWeight: 600, display: 'block' }}>
+                          Seat capacity
+                          <select
+                            value={filterCapacity}
+                            onChange={(e) => setFilterCapacity(e.target.value)}
+                            disabled={filterType === 'zone' || SHAPES[filterType]?.cat === 'zone'}
+                            style={selectMenuInputStyle}
+                          >
+                            <option value="any">Any capacity</option>
+                            {capacityOptions.map((c) => <option key={c} value={c}>{c} seats</option>)}
+                          </select>
+                        </label>
+                        <button
+                          onClick={applyTypeCapacityFilter}
+                          disabled={filteredCount === 0}
+                          style={{
+                            ...btn, background: filteredCount === 0 ? C.white : C.gold, color: filteredCount === 0 ? C.border : C.white,
+                            border: `1px solid ${filteredCount === 0 ? C.border : C.gold}`, padding: '7px 10px', fontSize: 11,
+                            cursor: filteredCount === 0 ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          Select {filteredCount} element{filteredCount === 1 ? '' : 's'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1481,10 +1716,10 @@ export default function SeatingMapPage() {
                 {isZone(selected) && ` • ${Math.round(elWidth(selected))}×${Math.round(elHeight(selected))}`}
                 {` • ${Math.round(Number(selected.rotation) || 0)}°`}
               </div>
-              {!isZone(selected) && elWidth(selected) !== elHeight(selected) && (
+              {elWidth(selected) !== elHeight(selected) && (
                 <button onClick={rotateSelected} disabled={saving} style={{ ...btn, background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.2)', color: C.gold, padding: '7px 10px', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 4v6h-6" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                  Rotate 90° (lengthwise / widthwise)
+                  {isZone(selected) ? 'Rotate 90°' : 'Rotate 90° (lengthwise / widthwise)'}
                 </button>
               )}
               <div style={{ display: 'flex', gap: 8 }}>
@@ -1518,6 +1753,10 @@ export default function SeatingMapPage() {
 
       {/* Add element modal */}
       {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} view={view} saving={saving} elements={elements} />}
+
+      {/* Print/export view — invisible on screen, shown only by window.print()
+          (see .print-seating-chart in globals.css). */}
+      <PrintSeatingChart eventTitle={eventTitle} elements={elements} namesByTable={namesByTable} />
 
       <style jsx>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -1572,7 +1811,10 @@ function generateNumberedName(baseName, index, startNum) {
 }
 
 /* Tables are always identified by a plain unique number (no names) — find the
-   next free one from whatever's already on the canvas. */
+   next free one from whatever's already on the canvas. Scans EVERY table
+   element regardless of its specific shape (round, rectangle, banquet, …) —
+   they all share cat: 'table', so a round table numbered 3 and a rectangle
+   table numbered 3 can never coexist. */
 function getNextTableNumber(elements) {
   let max = 0;
   (elements || []).forEach(el => {
@@ -1582,6 +1824,119 @@ function getNextTableNumber(elements) {
     }
   });
   return max + 1;
+}
+
+/* Zones (Stage, Bar, DJ Booth, …) default to their type label, which isn't
+   unique on its own — a second "Bar" would otherwise collide with the first
+   (the backend now rejects that outright). Suffixes a number only once the
+   plain label is already taken, so the first of a kind stays clean. */
+function getUniqueZoneName(elements, baseLabel) {
+  const used = new Set((elements || []).map(el => (el.table_name || '').trim().toLowerCase()));
+  if (!used.has(baseLabel.trim().toLowerCase())) return baseLabel;
+  let n = 2;
+  while (used.has(`${baseLabel} ${n}`.trim().toLowerCase())) n++;
+  return `${baseLabel} ${n}`;
+}
+
+/* Same idea for the "Duplicate" action — the old fixed "(Copy)" suffix
+   collided with itself on a second duplicate of the same element (also now
+   rejected by the backend); this finds the next free "(Copy N)". */
+function getUniqueCopyName(elements, baseName) {
+  const used = new Set((elements || []).map(el => (el.table_name || '').trim().toLowerCase()));
+  const first = `${baseName} (Copy)`;
+  if (!used.has(first.trim().toLowerCase())) return first;
+  let n = 2;
+  let candidate;
+  do {
+    candidate = `${baseName} (Copy ${n})`;
+    n++;
+  } while (used.has(candidate.trim().toLowerCase()));
+  return candidate;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Print / export view — a clean, static rendering of the layout for
+   window.print() (see the .print-seating-chart rules in globals.css). Not
+   the interactive canvas: no zoom/pan, no drag handles, no toolbar — every
+   element is placed by its saved world position, tightly cropped to
+   whatever's actually on the map instead of the full pannable world, so the
+   printed chart fills the page.
+   ════════════════════════════════════════════════════════════════ */
+function PrintSeatingChart({ eventTitle, elements, namesByTable }) {
+  if (!elements || elements.length === 0) return null;
+
+  const PAD = 60;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  elements.forEach((el) => {
+    const w = elWidth(el);
+    const h = elHeight(el);
+    const x = ((Number(el.position_x) || 0) / 100) * WORLD_W;
+    const y = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+    minX = Math.min(minX, x - w / 2);
+    minY = Math.min(minY, y - h / 2);
+    maxX = Math.max(maxX, x + w / 2);
+    maxY = Math.max(maxY, y + h / 2);
+  });
+  minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD;
+  const boxW = Math.max(1, maxX - minX);
+  const boxH = Math.max(1, maxY - minY);
+
+  return (
+    <div className="print-seating-chart">
+      <div style={{ textAlign: 'center', marginBottom: 16, fontFamily: 'var(--font-sans, sans-serif)' }}>
+        <h1 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 22, fontWeight: 600, margin: 0, color: C.charcoal }}>
+          {eventTitle || 'Seating Chart'}
+        </h1>
+        <p style={{ fontSize: 11, color: C.stone, margin: '4px 0 0' }}>
+          Seating Chart · Printed {new Date().toLocaleDateString()}
+        </p>
+      </div>
+      <div style={{ position: 'relative', width: '100%', aspectRatio: `${boxW} / ${boxH}` }}>
+        {elements.map((el) => {
+          const zone = isZone(el);
+          const meta = shapeMeta(el.shape);
+          const w = elWidth(el);
+          const h = elHeight(el);
+          const x = ((Number(el.position_x) || 0) / 100) * WORLD_W;
+          const y = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+          const leftPct = ((x - w / 2 - minX) / boxW) * 100;
+          const topPct = ((y - h / 2 - minY) / boxH) * 100;
+          const widthPct = (w / boxW) * 100;
+          const heightPct = (h / boxH) * 100;
+          const names = namesByTable[el.id] || [];
+          return (
+            <div
+              key={el.id}
+              style={{
+                position: 'absolute',
+                left: `${leftPct}%`, top: `${topPct}%`,
+                width: `${widthPct}%`, height: `${heightPct}%`,
+                borderRadius: meta.round ? '50%' : (zone ? 6 : 8),
+                border: `1.5px solid ${zone ? (el.color || meta.color || '#999999') : C.charcoal}`,
+                background: zone ? `${el.color || meta.color || '#999999'}1A` : '#FFFFFF',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', padding: 2, textAlign: 'center', boxSizing: 'border-box',
+                transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+              }}
+            >
+              {zone ? (
+                <span style={{ fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-sans, sans-serif)' }}>
+                  {meta.icon} {el.table_name}
+                </span>
+              ) : (
+                <>
+                  <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'var(--font-sans, sans-serif)', color: C.charcoal }}>{el.table_name}</span>
+                  {names.length > 0 && (
+                    <span style={{ fontSize: 6.5, lineHeight: 1.25, color: '#444444', fontFamily: 'var(--font-sans, sans-serif)' }}>{names.join(', ')}</span>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1615,7 +1970,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
     setCustomColor(SHAPES[s].color || '');
     setCustomWidth(String(SHAPES[s].w));
     setCustomHeight(String(SHAPES[s].h));
-    if (!name.trim()) setName(SHAPES[s].cat === 'table' ? String(nextTableNumber) : SHAPES[s].label);
+    if (!name.trim()) setName(SHAPES[s].cat === 'table' ? String(nextTableNumber) : getUniqueZoneName(elements, SHAPES[s].label));
   };
 
   const tables = Object.entries(SHAPES).filter(([, m]) => m.cat === 'table');

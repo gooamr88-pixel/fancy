@@ -10,6 +10,23 @@ const ALL_SHAPES = [...TABLE_SHAPES, ...ZONE_SHAPES];
 const toNum = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
 
 /**
+ * True name/number uniqueness lives here, not on the client — the seating-map
+ * UI only SUGGESTS the next free table number, but nothing stops an organizer
+ * from typing one that collides, or renaming an element into a clash. Checked
+ * across ALL elements in the event regardless of shape/category (a table and
+ * a zone showing the same label is just as confusing as two tables sharing a
+ * number), case-insensitively so "Bar" and "bar" don't coexist.
+ */
+async function hasNameCollision(eventId, name, excludeId) {
+  let query = supabase.from('tables').select('id, table_name').eq('event_id', eventId);
+  if (excludeId) query = query.neq('id', excludeId);
+  const { data, error } = await query;
+  if (error) throw error;
+  const normalized = name.trim().toLowerCase();
+  return (data || []).some((row) => (row.table_name || '').trim().toLowerCase() === normalized);
+}
+
+/**
  * Creates a new seating element (table or venue zone) for an event.
  * POST /api/v1/events/:eventId/tables
  */
@@ -41,6 +58,14 @@ const createTable = async (req, res, next) => {
   }
 
   try {
+    if (await hasNameCollision(eventId, tableName)) {
+      return res.status(409).json({
+        success: false,
+        error: 'DUPLICATE_NAME',
+        message: `"${tableName.trim()}" is already used by another element on this seating map. Choose a different number or name.`
+      });
+    }
+
     const { data: table, error } = await supabase
       .from('tables')
       .insert({
@@ -299,6 +324,14 @@ const updateTable = async (req, res, next) => {
   updates.updated_at = new Date();
 
   try {
+    if (updates.table_name !== undefined && await hasNameCollision(eventId, updates.table_name, tableId)) {
+      return res.status(409).json({
+        success: false,
+        error: 'DUPLICATE_NAME',
+        message: `"${updates.table_name}" is already used by another element on this seating map. Choose a different number or name.`
+      });
+    }
+
     // If reducing capacity, check current occupancy
     if (updates.max_capacity) {
       const { data: assignments } = await supabase
@@ -357,17 +390,29 @@ const duplicateTable = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'TABLE_NOT_FOUND', message: 'Source table not found.' });
     }
 
-    // Fetch existing tables count for naming
-    const { count: existingCount } = await supabase
+    // Fetch existing tables (for the naming count AND to keep copy names
+    // collision-free — "(Copy 1)" already existing shouldn't get reused).
+    const { data: existingRows, count: existingCount } = await supabase
       .from('tables')
-      .select('*', { count: 'exact', head: true })
+      .select('table_name', { count: 'exact' })
       .eq('event_id', eventId);
+    const usedNames = new Set((existingRows || []).map((r) => (r.table_name || '').trim().toLowerCase()));
+    const nextFreeCopyName = (base) => {
+      let n = 1;
+      let candidate;
+      do {
+        candidate = `${base} (Copy ${n})`;
+        n += 1;
+      } while (usedNames.has(candidate.trim().toLowerCase()));
+      usedNames.add(candidate.trim().toLowerCase());
+      return candidate;
+    };
 
     const insertRows = [];
     for (let i = 0; i < copies; i++) {
       insertRows.push({
         event_id: eventId,
-        table_name: `${source.table_name} (Copy ${i + 1})`,
+        table_name: nextFreeCopyName(source.table_name),
         element_type: source.element_type || 'table',
         max_capacity: source.max_capacity,
         shape: source.shape,

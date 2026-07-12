@@ -724,6 +724,16 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
             : (isRTL ? 'يسعدنا أن نعرف إن كنت ستشاركنا الاحتفال.' : "We'd love to know if you'll be celebrating with us.")}
         </motion.p>
 
+        {event?.rsvp_deadline && (
+          <motion.p {...reveal} style={{
+            fontSize: '12.5px', fontWeight: 700, letterSpacing: '0.02em', color: C.maroon,
+            textAlign: 'center', margin: '-8px 0 22px', fontFamily: 'var(--font-sans)',
+          }}>
+            {isRTL ? 'يرجى الرد بحلول' : 'Kindly reply by'}{' '}
+            {new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+          </motion.p>
+        )}
+
         {/* ── The decision: coming or not ── */}
         <div style={{ width: '100%' }}>
           <label style={{ ...labelStyle, textAlign: 'center', opacity: 1, marginBottom: '12px', fontSize: '13px' }}>

@@ -10,6 +10,8 @@ import { extractYouTubeId } from '../../utils/youtube';
 import RepeatableListEditor from './RepeatableListEditor';
 import TagListEditor, { toTagArray } from './TagListEditor';
 import ImageUploadField from './ImageUploadField';
+import DaysEditor from '../create-event/components/DaysEditor';
+import { getHaDays } from '../../utils/haDays';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -27,13 +29,20 @@ const FULL_PAGE_TEMPLATE_KEYS = [
 ];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 
+// Event date/time is stored and rendered everywhere as a "floating" wall-clock
+// time — every guest-facing display formats it with timeZone: 'UTC' so the
+// digits shown are exactly the digits the organizer typed, with no real
+// timezone conversion. These two helpers must read those same UTC digits back
+// (not the browser's local time) or the prefilled field silently disagrees
+// with what guests actually see, and re-saving it shifts the real value by
+// the organizer's own UTC offset.
 function toLocalDatetimeString(dateStr) {
   if (!dateStr) return '';
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
     const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
   } catch { return ''; }
 }
 
@@ -43,7 +52,7 @@ function toLocalDateString(dateStr) {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
     const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   } catch { return ''; }
 }
 
@@ -75,6 +84,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     honoree: '', program: '', sponsorPackages: '',
     seal_text: '',
     title_ar: '', description_ar: '', dress_code_ar: '',
+    ha_days: [],
+    // Legacy pre-DaysEditor shape — no longer editable here (superseded by
+    // ha_days below), kept only so an old event's values round-trip on save
+    // instead of being silently dropped.
     ha_schedule_day1: [], ha_schedule_day2: [],
     ha_venue_day1_name: '', ha_venue_day1_address: '', ha_venue_day1_lat: null, ha_venue_day1_lng: null, ha_venue_day1_image: '',
     ha_venue_day2_name: '', ha_venue_day2_address: '', ha_venue_day2_lat: null, ha_venue_day2_lng: null, ha_venue_day2_image: '',
@@ -96,7 +109,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const [musicUploading, setMusicUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
-  const [haVenueUploading, setHaVenueUploading] = useState({}); // { day1: bool, day2: bool }
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -242,22 +254,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     }
   };
 
-  // Heritage Arch per-day venue photo upload (replaces the old paste-a-URL
-  // fields). `day` is 'day1' | 'day2'; stores the public URL in template_data.
-  const handleHaVenueUpload = async (file, day) => {
-    if (!file) return;
-    setHaVenueUploading(prev => ({ ...prev, [day]: true }));
-    try {
-      const url = await uploadFile(file, 'venues');
-      if (url) {
-        setTemplateData(prev => ({ ...prev, [`ha_venue_${day}_image`]: url }));
-        setSuccess(false);
-      }
-    } finally {
-      setHaVenueUploading(prev => ({ ...prev, [day]: false }));
-    }
-  };
-
   const handleGalleryUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
@@ -372,7 +368,12 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         title_ar: event.template_data?.title_ar || '',
         description_ar: event.template_data?.description_ar || '',
         dress_code_ar: event.template_data?.dress_code_ar || '',
-        // Heritage Arch template — full-page multi-day site content.
+        // Heritage Arch template — full-page multi-day site content. ha_days is
+        // the live source the guest page actually reads (getHaDays prioritizes
+        // it over the legacy day1/day2 fields below) — synthesized from those
+        // legacy fields on first load if the event predates ha_days, so an old
+        // event's Day 1/2 venues appear pre-filled here instead of blank.
+        ha_days: Array.isArray(event.template_data?.ha_days) ? event.template_data.ha_days : getHaDays(event.template_data || {}),
         ha_schedule_day1: Array.isArray(event.template_data?.ha_schedule_day1) ? event.template_data.ha_schedule_day1 : [],
         ha_schedule_day2: Array.isArray(event.template_data?.ha_schedule_day2) ? event.template_data.ha_schedule_day2 : [],
         ha_venue_day1_name: event.template_data?.ha_venue_day1_name || '',
@@ -428,21 +429,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     setSuccess(false);
   };
 
-  // Heritage Arch's own per-day venue fields — Day 1 isn't necessarily "the
-  // ceremony", so these are kept independent from the ceremony/reception pair.
-  const makeHaVenuePlaceSelectHandler = (day) => (place) => {
-    setTemplateData(prev => ({
-      ...prev,
-      [`ha_venue_${day}_name`]: place.name && place.name !== place.address
-        ? place.name
-        : (place.address ? place.address.split(',')[0] : prev[`ha_venue_${day}_name`]),
-      [`ha_venue_${day}_address`]: place.address,
-      [`ha_venue_${day}_lat`]: place.lat,
-      [`ha_venue_${day}_lng`]: place.lng,
-    }));
-    setSuccess(false);
-  };
-
   // "Invited to" city — captures coordinates so the world-map pin actually
   // points at this city instead of silently reusing Day 1's venue coordinates.
   const onHaInvitedToPlaceSelect = (place) => {
@@ -472,10 +458,17 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     setSaving(true); setError(''); setSuccess(false);
     try {
       const body = { ...form };
-      // Convert all dates to ISO strings for consistent backend parsing
-      if (body.event_date) body.event_date = new Date(body.event_date).toISOString();
-      if (body.event_end_date) body.event_end_date = new Date(body.event_end_date).toISOString();
-      if (body.rsvp_deadline) body.rsvp_deadline = new Date(body.rsvp_deadline).toISOString();
+      // Append the UTC suffix directly instead of routing through `new
+      // Date(...).toISOString()` — that constructor reads a plain "YYYY-MM-
+      // DDTHH:mm" string as the BROWSER's local time and converts it, silently
+      // shifting the stored value by the organizer's own UTC offset every time
+      // the event was saved (compounding on repeated edits). The digits typed
+      // into the field are the wall-clock time guests are meant to see, so
+      // they must be preserved verbatim — matching toLocalDatetimeString above
+      // and the create-event wizard, which never converts them either.
+      if (body.event_date) body.event_date = `${body.event_date}:00.000Z`;
+      if (body.event_end_date) body.event_end_date = `${body.event_end_date}:00.000Z`;
+      if (body.rsvp_deadline) body.rsvp_deadline = `${body.rsvp_deadline}T00:00:00.000Z`;
       // access_password now always starts blank (the server never sends the
       // stored hash back — see withResolvedTier), so only include it when the
       // organizer actually typed a new one; otherwise omit it entirely so
@@ -841,92 +834,24 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <PlacesAutocomplete
                 id="es-ha-invited-to"
                 value={templateData.ha_invited_to_city}
-                onChange={(val) => setTemplateData(prev => ({ ...prev, ha_invited_to_city: val }))}
+                // Retyping the city without picking a fresh suggestion must clear the
+                // old lat/lng — otherwise the guest page's map pin silently keeps
+                // pointing at whatever city was last actually selected, while the
+                // label text shows the new (unrelated) name typed here.
+                onChange={(val) => setTemplateData(prev => ({ ...prev, ha_invited_to_city: val, ha_invited_to_lat: null, ha_invited_to_lng: null }))}
                 onPlaceSelect={onHaInvitedToPlaceSelect}
                 placeholder="Miami"
               />
               <span style={hintStyle}>Search and pick a city — its map pin uses this location, not Day 1&apos;s venue</span>
             </div>
 
-            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle} htmlFor="es-ha-venue-day1">Day 1 Venue</label>
-                <PlacesAutocomplete
-                  id="es-ha-venue-day1"
-                  value={templateData.ha_venue_day1_name}
-                  onChange={(val) => setTemplateData(prev => ({ ...prev, ha_venue_day1_name: val }))}
-                  onPlaceSelect={makeHaVenuePlaceSelectHandler('day1')}
-                  placeholder="Search for Day 1's venue..."
-                />
-                <span style={hintStyle}>Where Day 1 of the celebration takes place</span>
-              </div>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Day 1 Venue Photo</label>
-                <ImageUploadField
-                  value={templateData.ha_venue_day1_image}
-                  uploading={!!haVenueUploading.day1}
-                  onUpload={(file) => handleHaVenueUpload(file, 'day1')}
-                  onClear={() => setTemplateData(prev => ({ ...prev, ha_venue_day1_image: '' }))}
-                />
-              </div>
-            </div>
-
-            <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle} htmlFor="es-ha-venue-day2">Day 2 Venue</label>
-                <PlacesAutocomplete
-                  id="es-ha-venue-day2"
-                  value={templateData.ha_venue_day2_name}
-                  onChange={(val) => setTemplateData(prev => ({ ...prev, ha_venue_day2_name: val }))}
-                  onPlaceSelect={makeHaVenuePlaceSelectHandler('day2')}
-                  placeholder="Search for Day 2's venue..."
-                />
-                <span style={hintStyle}>Where Day 2 of the celebration takes place</span>
-              </div>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Day 2 Venue Photo</label>
-                <ImageUploadField
-                  value={templateData.ha_venue_day2_image}
-                  uploading={!!haVenueUploading.day2}
-                  onUpload={(file) => handleHaVenueUpload(file, 'day2')}
-                  onClear={() => setTemplateData(prev => ({ ...prev, ha_venue_day2_image: '' }))}
-                />
-              </div>
-            </div>
-
             <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Day 1 Schedule</label>
-              <RepeatableListEditor
-                items={templateData.ha_schedule_day1}
-                onChange={(items) => setTemplateData(prev => ({ ...prev, ha_schedule_day1: items }))}
-                addLabel="+ Add schedule item"
-                emptyLabel="No Day 1 schedule items yet — falls back to a sample schedule on the guest page."
-                columns={[
-                  { key: 'time', label: 'Time', placeholder: '14:00' },
-                  { key: 'label', label: 'Label', placeholder: 'Lunch' },
-                  { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
-                    { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
-                    { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
-                  ] },
-                ]}
-              />
-            </div>
-
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Day 2 Schedule</label>
-              <RepeatableListEditor
-                items={templateData.ha_schedule_day2}
-                onChange={(items) => setTemplateData(prev => ({ ...prev, ha_schedule_day2: items }))}
-                addLabel="+ Add schedule item"
-                emptyLabel="No Day 2 schedule items yet — falls back to a sample schedule on the guest page."
-                columns={[
-                  { key: 'time', label: 'Time', placeholder: '20:00' },
-                  { key: 'label', label: 'Label', placeholder: 'Wedding' },
-                  { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
-                    { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
-                    { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
-                  ] },
-                ]}
+              <label style={labelStyle}>Days, Venues &amp; Schedule</label>
+              <span style={hintStyle}>Most events are one day — add more only if yours has several (e.g. a henna night, then the wedding, then a reception)</span>
+              <DaysEditor
+                days={templateData.ha_days}
+                onChange={(nextDays) => { setTemplateData(prev => ({ ...prev, ha_days: nextDays })); setSuccess(false); }}
+                onUploadImage={(file) => uploadFile(file, 'venues')}
               />
             </div>
 

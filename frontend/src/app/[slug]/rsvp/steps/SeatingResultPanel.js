@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import SeatingMiniMap from '../SeatingMiniMap';
 import SeatingMapFullscreen from '../SeatingMapFullscreen';
 import { UtensilsIcon, WarningIcon } from '../../../components/guest/RsvpIcons';
+import { formatTableLabel } from '../../../utils/tableLabel';
 
 /**
  * Shows the guest's table + a highlighted map + the companions THEY brought.
@@ -42,13 +43,13 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
             fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1.2px',
             color: '#77736A', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)',
           }}>
-            {isRTL ? 'طاولتك' : 'Your table'}
+            {isRTL ? 'مكان جلوسك' : 'Your assigned seating'}
           </span>
           <strong style={{
             fontSize: '18px', color: assigned ? '#B8944F' : '#A09A91',
             fontFamily: 'var(--font-serif)',
           }}>
-            {assigned ? view.myTableName : (isRTL ? 'لم تُخصّص بعد' : 'Not assigned yet')}
+            {assigned ? formatTableLabel(view.myTableName, isRTL) : (isRTL ? 'لم تُخصّص بعد' : 'Not assigned yet')}
           </strong>
         </div>
         {onBack && (

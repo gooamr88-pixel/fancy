@@ -72,22 +72,21 @@ function getDateOrderError(eventDate, eventEndDate, rsvpDeadline) {
 /* ═══════════════════════════════════════════════════════
    CURATED TEMPLATE DEFINITIONS
    ═══════════════════════════════════════════════════════ */
-/* Three premium, curated templates. The retired categories (corporate,
-   birthday, gala) are intentionally absent from the picker — their render
-   patterns still live in the guest renderer so existing events keep working. */
+/* Exactly three templates in the picker: Wedding, Engagement, Custom. The
+   retired categories (corporate, birthday, gala, and the wedding-style
+   variants — tuscany, marrakesh, kyoto, nordic, havana, estate, roseAtelier,
+   orchid, clay, alpine, coastal, heritageArch) are intentionally absent from
+   the picker — their render patterns still live in the guest renderer so
+   existing events keep working. All three templates share the same
+   full-page guest experience (see FULL_PAGE_TEMPLATES in EventPageClient.js)
+   with every optional section (story, schedule, venues, accommodation, menu,
+   gift list, FAQ, gallery, dress code, things-to-do, getting-there,
+   invited-to-city, boarding pass) available and independently toggleable —
+   see the "Sections" panel in Stage 2 and enabledSections in HeritageArchPage.
+   Wedding & Engagement additionally expose full custom color pickers (not
+   just the curated presets below) so every template gets equal design,
+   color, and content control. */
 const TEMPLATES = [
-  {
-    key: 'engagement', label: 'Eternal Love', icon: '💎', tier: 'Engagement',
-    tagline: 'Romantic · Luxury',
-    desc: 'An elegant, romantic invitation with soft gradients, shimmering accents and gentle motion — built to make the moment feel unforgettable.',
-    presets: [
-      { name: 'Blush Gold', primary: '#D4A574', secondary: '#F5E6D3', accent: '#D4A574', background: '#FFFCF8' },
-      { name: 'Champagne Sparkle', primary: '#C5A059', secondary: '#FDF0CD', accent: '#C5A059', background: '#FFFDF5' },
-      { name: 'Sage Garden', primary: '#6B8E6B', secondary: '#D5E8D5', accent: '#6B8E6B', background: '#F8FAF8' },
-    ],
-    specs: ['Animated Rings & Particles', 'Soft Gradient Card', 'Premium Typography', 'Interactive RSVP'],
-    fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
-  },
   {
     key: 'wedding', label: 'Royale Wedding', icon: '💍', tier: 'Wedding',
     tagline: 'Cinematic · Gold',
@@ -97,148 +96,32 @@ const TEMPLATES = [
       { name: 'Emerald Ivy', primary: '#1B6B3A', secondary: '#A3D5A5', accent: '#1B6B3A', background: '#F5FAF7' },
       { name: 'Burgundy Velvet', primary: '#800020', secondary: '#F2C9D0', accent: '#800020', background: '#FFF8F9' },
     ],
-    specs: ['Cinematic Envelope Reveal', 'Modern Glassmorphism', 'Gold Accents', 'RSVP + Meal Selection'],
+    specs: ['Cinematic Envelope Reveal', 'Modern Glassmorphism', 'Gold Accents', 'RSVP + Meal Selection', 'Every Section Toggleable'],
     fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   {
-    key: 'tuscany', label: 'Tuscan Vineyard', icon: '🕊️', tier: 'Wedding',
-    tagline: 'Romantic · Countryside',
-    desc: 'A softly romantic countryside invitation — parchment tones, an olive wax seal, and a hand-lettered feel for garden and villa weddings.',
+    key: 'engagement', label: 'Eternal Love', icon: '💎', tier: 'Engagement',
+    tagline: 'Romantic · Luxury',
+    desc: 'An elegant, romantic invitation with soft gradients, shimmering accents and gentle motion — built to make the moment feel unforgettable.',
     presets: [
-      { name: 'Olive Grove', primary: '#6B7A4F', secondary: '#C9B896', accent: '#6B7A4F', background: '#F8F3E6' },
-      { name: 'Terracotta Dusk', primary: '#A15C3E', secondary: '#E3C9A8', accent: '#A15C3E', background: '#FBF4EA' },
-      { name: 'Sage & Cream', primary: '#8A9A6E', secondary: '#EFE8D3', accent: '#8A9A6E', background: '#FCFAF3' },
-      { name: 'Burgundy Romance', primary: '#6B1E2E', secondary: '#E8C7CE', accent: '#6B1E2E', background: '#FBF3F2' },
+      { name: 'Blush Gold', primary: '#D4A574', secondary: '#F5E6D3', accent: '#D4A574', background: '#FFFCF8' },
+      { name: 'Champagne Sparkle', primary: '#C5A059', secondary: '#FDF0CD', accent: '#C5A059', background: '#FFFDF5' },
+      { name: 'Sage Garden', primary: '#6B8E6B', secondary: '#D5E8D5', accent: '#6B8E6B', background: '#F8FAF8' },
     ],
-    specs: ['Wax Seal Reveal', 'Parchment Card', 'Hand-Lettered Script', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'marrakesh', label: 'Marrakesh Nights', icon: '🌙', tier: 'Wedding',
-    tagline: 'Moroccan · Riad Evening',
-    desc: 'A jewel-toned riad evening — indigo night sky, zellige star motifs and a keyhole arch, for weddings with warm, worldly glamour.',
-    presets: [
-      { name: 'Indigo & Gold', primary: '#C2673A', secondary: '#D9A94E', accent: '#D9A94E', background: '#1B2A4A' },
-      { name: 'Saffron Night', primary: '#B5502F', secondary: '#E8B75E', accent: '#E8B75E', background: '#1F1B3A' },
-    ],
-    specs: ['Zellige Star Motifs', 'Keyhole Arch Frame', 'Jewel-Tone Palette', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'kyoto', label: 'Kyoto Blossom', icon: '🌸', tier: 'Wedding',
-    tagline: 'Japanese · Minimal',
-    desc: 'Quiet, spacious minimalism — a single sakura branch, a hanko stamp monogram, and generous negative space.',
-    presets: [
-      { name: 'Sakura Blush', primary: '#B23A48', secondary: '#D98B92', accent: '#B23A48', background: '#F7EFEE' },
-      { name: 'Ink & Stone', primary: '#2B2B2B', secondary: '#8A7B73', accent: '#2B2B2B', background: '#F3EFEA' },
-    ],
-    specs: ['Hand-Drawn Sakura Branch', 'Hanko Stamp Monogram', 'Generous Whitespace', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'nordic', label: 'Nordic Frost', icon: '❄️', tier: 'Wedding',
-    tagline: 'Scandinavian · Minimal',
-    desc: 'Crisp and unadorned — icy blue-greys, a single line-art pine, and clean, confident type for a modern winter wedding.',
-    presets: [
-      { name: 'Fjord Blue', primary: '#33495D', secondary: '#9FB4C4', accent: '#33495D', background: '#EFF3F5' },
-      { name: 'Glacier White', primary: '#5C6F7A', secondary: '#C7D3D8', accent: '#5C6F7A', background: '#F6F8F9' },
-    ],
-    specs: ['Line-Art Pine Motif', 'Ultra-Clean Typography', 'Generous Whitespace', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'havana', label: 'Havana Sunset', icon: '🌴', tier: 'Wedding',
-    tagline: 'Tropical · Retro',
-    desc: 'A vivid coral-to-turquoise postcard — palm silhouettes, a sunburst stamp and retro script, for a joyful beach or garden fiesta.',
-    presets: [
-      { name: 'Coral Turquoise', primary: '#FF7A59', secondary: '#2EC4B6', accent: '#FF7A59', background: '#FFF8ED' },
-    ],
-    specs: ['Palm Silhouette Corners', 'Retro Script Names', 'Postage-Stamp Badge', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'estate', label: 'Old Money Estate', icon: '🎩', tier: 'Wedding',
-    tagline: 'Preppy · Heritage',
-    desc: 'A crest, a pinstripe frame and small-caps typography — quietly formal, for country-club and estate-garden weddings.',
-    presets: [
-      { name: 'Navy Crest', primary: '#1B2A41', secondary: '#2F4538', accent: '#1B2A41', background: '#F3EEE1' },
-      { name: 'Hunter Green', primary: '#2F4538', secondary: '#8B6F1F', accent: '#2F4538', background: '#F5F1E4' },
-    ],
-    specs: ['Monogram Crest', 'Pinstripe Double Border', 'Small-Caps Typography', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'roseAtelier', label: 'Rosé Atelier', icon: '🎀', tier: 'Wedding',
-    tagline: 'French · Chic',
-    desc: 'Dusty rose and champagne, a delicate ribbon-bow motif and Parisian script — modern French wedding-atelier chic.',
-    presets: [
-      { name: 'Dusty Rose', primary: '#C98A93', secondary: '#E9D8C5', accent: '#C98A93', background: '#FBF6F2' },
-    ],
-    specs: ['Ribbon-Bow Motif', 'Parisian Script Names', 'Delicate Hairline Frame', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'orchid', label: 'Midnight Orchid', icon: '🌺', tier: 'Wedding',
-    tagline: 'Moody · Botanical Luxury',
-    desc: 'Deep plum-black with a gilded orchid stem climbing one edge — dramatic, romantic, for an intimate evening celebration.',
-    presets: [
-      { name: 'Plum & Gold', primary: '#8E4FA3', secondary: '#C9A24B', accent: '#C9A24B', background: '#1B1023' },
-    ],
-    specs: ['Gilded Orchid Line-Art', 'Dramatic Dark Palette', 'Metallic Script Names', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'clay', label: 'Copper & Clay', icon: '☀️', tier: 'Wedding',
-    tagline: 'Desert · Boho',
-    desc: 'Warm sand and terracotta, a radiating sunburst motif and dotted dividers — earthy, boho warmth for a desert celebration.',
-    presets: [
-      { name: 'Terracotta Sun', primary: '#B5502F', secondary: '#7A4A32', accent: '#B5502F', background: '#EDE0CB' },
-    ],
-    specs: ['Radiating Sunburst Motif', 'Dotted Divider Line', 'Earthy Warm Palette', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'alpine', label: 'Alpine Pine', icon: '🌲', tier: 'Wedding',
-    tagline: 'Rustic · Winter Lodge',
-    desc: 'Deep pine green with hand-drawn pine-branch corners — a cozy, rustic feel for a winter cabin or lodge wedding.',
-    presets: [
-      { name: 'Pine & Cream', primary: '#7A2E2E', secondary: '#D9C9A3', accent: '#D9C9A3', background: '#22392F' },
-    ],
-    specs: ['Pine-Branch Corner Motif', 'Cozy Lodge Palette', 'Hand-Lettered Script', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'coastal', label: 'Coastal Linen', icon: '🌊', tier: 'Wedding',
-    tagline: 'Nautical · Relaxed',
-    desc: 'Seafoam and sand with a gentle wave-line motif and rope-knot divider — relaxed, breezy elegance for a seaside wedding.',
-    presets: [
-      { name: 'Seafoam & Sand', primary: '#2B5F5A', secondary: '#C9B896', accent: '#2B5F5A', background: '#E8F3EF' },
-    ],
-    specs: ['Wave-Line Motif', 'Rope-Knot Divider', 'Relaxed Linen Palette', 'RSVP + Meal Selection'],
-    fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
-  },
-  {
-    key: 'heritageArch', label: 'Heritage Arch', icon: '🕌', tier: 'Wedding',
-    tagline: 'Full-Page · Multi-Day',
-    desc: 'A full-page, one-section-per-screen wedding site with a temple-arch hero, a tabbed two-day schedule, per-day venue maps, accommodation, FAQ, and an all-in-one RSVP form.',
-    presets: [
-      { name: 'Ivory & Burgundy', primary: '#7A1E2C', secondary: '#D9BE8F', accent: '#7A1E2C', background: '#F7F1E4' },
-      { name: 'Parchment & Wine', primary: '#5C1A2A', secondary: '#C9A24B', accent: '#5C1A2A', background: '#F3ECDD' },
-    ],
-    specs: ['Full-Viewport Snap Sections', 'Day 1 / Day 2 Schedule & Venues', 'Accommodation Carousel', 'FAQ + Gallery + RSVP'],
-    fields: ['Partner Names', 'Two-Day Schedule', 'Venues per Day', 'Accommodation', 'FAQ'],
+    specs: ['Animated Rings & Particles', 'Soft Gradient Card', 'Premium Typography', 'Interactive RSVP', 'Every Section Toggleable'],
+    fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
   },
   {
     key: 'custom', label: 'Custom Canvas', icon: '✨', tier: 'Build your own',
     tagline: 'Fully editable',
-    desc: 'Start from a clean slate and design your own page — colors, typography, background, cover image, CTA and sections, all updating live as you build.',
+    desc: 'Start from a clean slate — every feature from every event type (wedding, engagement, celebration, baby shower and more) is available here. Pick your own colors, typography and cover image, then add or remove any section freely: schedule, venues, accommodation, menu, gift list, FAQ, gallery, dress code, things to do, and more.',
     presets: [
       { name: 'Clean Linen', primary: '#8B7355', secondary: '#D4C5A9', accent: '#8B7355', background: '#FAF8F5' },
       { name: 'Warm Cream', primary: '#A0845C', secondary: '#E8D5B7', accent: '#A0845C', background: '#FFFCF5' },
       { name: 'Obsidian Slate', primary: '#475569', secondary: '#94A3B8', accent: '#475569', background: '#F8FAFC' },
     ],
-    specs: ['Editable Colors & Fonts', 'Custom Cover Image', 'Editable CTA', 'Toggle Sections'],
-    fields: ['Custom Questionnaire'],
+    specs: ['Editable Colors & Fonts', 'Custom Cover Image', 'Every Feature, Toggle Anything', 'Full-Page Guest Experience'],
+    fields: ['Any Section You Choose'],
   },
 ];
 
@@ -246,14 +129,17 @@ const TEMPLATES = [
    handleTemplateSelect to drop a previous type's fields (e.g. wedding's
    loveStory) when the organizer switches to a type that doesn't use them,
    instead of silently carrying them over into the new type's submission. */
-// The full-page guest experience's own section fields (schedule/venues per day,
+// The full-page guest experience's own section fields (a flexible list of
+// days — each with its own venue and schedule, see ha_days/DaysEditor —
 // accommodation & FAQ lists, meal options, invited-to city, menu, things-to-do,
 // getting-there, gift bank details, boarding-pass override). Shared by EVERY
-// full-page template so switching template type never wipes them.
+// full-page template so switching template type never wipes them. The legacy
+// ha_schedule_day1/day2 and ha_venue_day1/day2_* keys are deliberately left
+// out of every template's list now (see getHaDays) — that makes them "not
+// template-specific" to handleTemplateSelect below, so they're never pruned
+// on a template switch and existing events keep rendering from them.
 const HA_SECTION_FIELD_KEYS = [
-  'ha_schedule_day1', 'ha_schedule_day2',
-  'ha_venue_day1_name', 'ha_venue_day1_address', 'ha_venue_day1_lat', 'ha_venue_day1_lng', 'ha_venue_day1_image',
-  'ha_venue_day2_name', 'ha_venue_day2_address', 'ha_venue_day2_lat', 'ha_venue_day2_lng', 'ha_venue_day2_image',
+  'ha_days',
   'ha_accommodation', 'ha_faq', 'ha_meal_options', 'ha_invited_to_city', 'ha_invited_to_lat', 'ha_invited_to_lng', 'ha_our_story',
   'ha_menu_courses', 'ha_things_to_do', 'ha_getting_there',
   'ha_gift_bank_name', 'ha_gift_account_name', 'ha_gift_iban', 'ha_gift_registry_label', 'ha_gift_message',
@@ -266,11 +152,28 @@ const WEDDING_FIELD_KEYS = [
   'giftRegistry', 'accommodations',
   ...HA_SECTION_FIELD_KEYS,
 ];
+// Custom's own "what kind of event is this?" picker (Stage 2) — wedding,
+// engagement, celebration, or baby shower — drives which of these fields
+// show and how the guest page's hero name/tagline reads. Wedding/engagement
+// reuse the same partner-name fields the dedicated Wedding/Engagement
+// templates use; celebration and baby shower get their own since neither
+// has a "couple".
+const CUSTOM_CATEGORY_FIELD_KEYS = [
+  'custom_category',
+  'partner1', 'partner2', 'partner1_email', 'partner2_email', 'loveStory', 'proposalStory',
+  'custom_honoree', 'custom_milestone',
+  'custom_parents', 'custom_baby_name', 'custom_baby_due',
+];
 const TEMPLATE_TYPE_FIELD_KEYS = {
   wedding: WEDDING_FIELD_KEYS,
   // engagement is a full-page template, so it keeps the ha_* section fields;
   // corporate/birthday/gala render continuous-scroll and use only their own.
   engagement: ['partner1', 'partner2', 'partner1_email', 'partner2_email', 'proposalStory', 'giftRegistry', ...HA_SECTION_FIELD_KEYS],
+  // Custom is also a full-page template — it gets the same ha_* section fields
+  // (schedule, venues, accommodation, FAQ, menu, gift list, etc.) as wedding
+  // and engagement, so the organizer can freely fill in and toggle any
+  // feature from any event type without losing data when switching templates.
+  custom: ['giftRegistry', ...HA_SECTION_FIELD_KEYS, ...CUSTOM_CATEGORY_FIELD_KEYS],
   corporate: ['company', 'agenda', 'speakers', 'sponsors', 'networkingNotes'],
   birthday: ['celebrant', 'age', 'partyTheme', 'giftRegistry'],
   gala: ['honoree', 'program', 'sponsorPackages'],
@@ -280,17 +183,15 @@ const TEMPLATE_TYPE_FIELD_KEYS = {
 // or from "wedding" itself, must not wipe already-entered partner/ceremony data.
 WEDDING_STYLE_TEMPLATE_KEYS.forEach(key => { TEMPLATE_TYPE_FIELD_KEYS[key] = WEDDING_FIELD_KEYS; });
 
-/* Defaults for the guided Custom builder (Template #3). */
+/* Defaults for the guided Custom builder (Template #3) — design only. The
+   event's title, cover image, and content (including what kind of event
+   this is) are configured on Step 2 like every other template. */
 const DEFAULT_CUSTOM_CONFIG = {
   headingFont: 'serif',          // serif | sans | script
   primary: '#8B7355',
   secondary: '#D4C5A9',
   accent: '#8B7355',
   background: '#FAF8F5',
-  headline: 'You’re Invited',
-  ctaLabel: 'RSVP Now',
-  coverImageUrl: '',
-  sections: { details: true, gallery: true, messageHost: true },
 };
 
 const STEPS = [
@@ -414,8 +315,6 @@ export default function CreateEventWizard() {
   const [musicUploading, setMusicUploading] = useState(false);
   const [galleryUrls, setGalleryUrls] = useState([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
-  const [haVenueDay1Uploading, setHaVenueDay1Uploading] = useState(false);
-  const [haVenueDay2Uploading, setHaVenueDay2Uploading] = useState(false);
 
   /* ─── Custom Colors (derived from preset) ─── */
   const [customColors, setCustomColors] = useState({
@@ -899,44 +798,6 @@ export default function CreateEventWizard() {
     }
   }, []);
 
-  /* ═══ Shared invitation-asset uploader → stores a public URL in template_data.
-       Used by the Heritage Arch per-day venue photos below. (The invitation
-       seal/background image uploads were removed — the wax seal, stationery and
-       gold light are now fully generated and coloured to the event.) ═══ */
-  const uploadInvitationAsset = useCallback(async (file, folder, tdKey, setBusy) => {
-    if (!file) return;
-    if (file.size > 8 * 1024 * 1024) {
-      toast.error('File exceeds 8MB. Please use a smaller file.');
-      return;
-    }
-    setBusy(true);
-    try {
-      if (!supabase) throw new Error('Storage client not configured.');
-      const ext = file.name.split('.').pop();
-      const filePath = `${folder}/wizard-${Date.now()}.${ext}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('event-assets')
-        .upload(filePath, file, { cacheControl: '3600', upsert: true });
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
-      setTemplateData((d) => ({ ...d, [tdKey]: publicUrl }));
-    } catch (err) {
-      console.error('Invitation asset upload failed:', err);
-      toast.error('File upload failed. Please try again.');
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  // Heritage Arch per-day venue photos — uploaded to storage (replaces the old
-  // paste-a-URL fields). ImageUploadField hands us a File directly.
-  const handleHaVenueDay1Upload = useCallback((file) => {
-    uploadInvitationAsset(file, 'venues', 'ha_venue_day1_image', setHaVenueDay1Uploading);
-  }, [uploadInvitationAsset]);
-  const handleHaVenueDay2Upload = useCallback((file) => {
-    uploadInvitationAsset(file, 'venues', 'ha_venue_day2_image', setHaVenueDay2Uploading);
-  }, [uploadInvitationAsset]);
-
   // Generic single-image upload that RETURNS the public URL (rather than writing
   // a fixed template_data key) — used by list rows like Accommodation hotels so
   // each row's photo becomes a real upload instead of a pasted URL.
@@ -1246,8 +1107,7 @@ export default function CreateEventWizard() {
     const hasBase64Media =
       (coverImageUrl && coverImageUrl.startsWith('data:')) ||
       (backgroundMusicUrl && backgroundMusicUrl.startsWith('data:')) ||
-      galleryUrls.some(u => u.startsWith('data:')) ||
-      (templateType === 'custom' && customConfig.coverImageUrl && customConfig.coverImageUrl.startsWith('data:'));
+      galleryUrls.some(u => u.startsWith('data:'));
     if (hasBase64Media) {
       setError('Some uploaded files could not be saved to storage. Please re-upload them before continuing.');
       return;
@@ -1268,7 +1128,7 @@ export default function CreateEventWizard() {
     } finally {
       setSubmitting(false);
     }
-  }, [submitting, title, slug, eventDate, eventEndDate, rsvpDeadline, slugStatus, musicUploading, coverImageUploading, galleryUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, templateType, customConfig, ensureDraftEvent, goNext]);
+  }, [submitting, title, slug, eventDate, eventEndDate, rsvpDeadline, slugStatus, musicUploading, coverImageUploading, galleryUploading, coverImageUrl, backgroundMusicUrl, galleryUrls, ensureDraftEvent, goNext]);
 
   /* ═══ Save the event as a draft and exit to the dashboard Drafts section ═══
      Persists everything entered so far (creates the draft if needed, else PATCHes)
@@ -1635,6 +1495,7 @@ export default function CreateEventWizard() {
             <Stage2_FormConfiguration
               templateType={templateType}
               templates={TEMPLATES}
+              customColors={customColors} setCustomColors={setCustomColors}
               title={title} setTitle={setTitle}
               slug={slug} setSlug={handleSlugChange}
               slugStatus={slugStatus}
@@ -1646,8 +1507,6 @@ export default function CreateEventWizard() {
               locationAddress={locationAddress} setLocationAddress={setLocationAddress}
               onPlaceSelect={handlePlaceSelect}
               templateData={templateData} setTemplateData={setTemplateData}
-              onHaVenueDay1Upload={handleHaVenueDay1Upload} haVenueDay1Uploading={haVenueDay1Uploading}
-              onHaVenueDay2Upload={handleHaVenueDay2Upload} haVenueDay2Uploading={haVenueDay2Uploading}
               onRowImageUpload={uploadRowImage}
               dressCode={dressCode} setDressCode={setDressCode}
               rsvpDeadline={rsvpDeadline} setRsvpDeadline={setRsvpDeadline}

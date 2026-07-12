@@ -36,8 +36,13 @@ export async function generateMetadata({ params }) {
   const title = `${event.title} | Fancy RSVP`;
   const description = event.description || `RSVP to ${event.title} on Fancy RSVP.`;
   const canonicalUrl = `https://fancyrsvp.com/${slug}`;
-  const images = event.cover_image_url
-    ? [{ url: event.cover_image_url, width: 1200, height: 630, alt: event.title }]
+  // Cache-bust with updated_at so Facebook/WhatsApp re-scrape the current cover image
+  // instead of serving a stale preview from their own link cache after it changes.
+  const ogImageUrl = event.cover_image_url
+    ? `${event.cover_image_url}${event.cover_image_url.includes('?') ? '&' : '?'}v=${encodeURIComponent(event.updated_at || '')}`
+    : null;
+  const images = ogImageUrl
+    ? [{ url: ogImageUrl, width: 1200, height: 630, alt: event.title }]
     : [{ url: 'https://fancyrsvp.com/og-image.png', width: 1200, height: 630, alt: 'Fancy RSVP' }];
 
   return {

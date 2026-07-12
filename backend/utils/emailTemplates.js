@@ -25,6 +25,34 @@ const escapeHtml = (str) => {
     .replace(/'/g, '&#039;');
 };
 
+/**
+ * Table names set on the organizer's seating map are typically a bare number
+ * (e.g. "5") — shown alone, especially in a large font, that reads
+ * ambiguously (a quantity? a code?). Prefixing "Table" makes it unambiguous;
+ * skipped when the organizer already gave the table a descriptive name
+ * (e.g. "Rose Garden") since prefixing there would just be noise.
+ */
+const formatTableLabel = (tableName) => {
+  const trimmed = String(tableName || '').trim();
+  if (!trimmed) return '';
+  return /^\d+$/.test(trimmed) ? `Table ${trimmed}` : trimmed;
+};
+
+/**
+ * A tappable "Get Directions" link for the venue, so a guest can actually
+ * navigate there instead of just reading an address. Prefers exact
+ * coordinates (set when the organizer picked the venue from the address
+ * autocomplete); falls back to a text search on the address/name for venues
+ * saved before coordinates were captured.
+ */
+const buildMapsUrl = (event) => {
+  if (event?.location_lat != null && event?.location_lng != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${event.location_lat},${event.location_lng}`;
+  }
+  const query = event?.location_address || event?.location_name;
+  return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : null;
+};
+
 // Shared bulletproof resolver (splits commas, repairs typos, first valid https origin).
 const { getPublicBaseUrl } = require('./publicUrl');
 
@@ -372,6 +400,7 @@ const getCompanionRSVPConfirmationTemplate = (companionName, mainGuestName, even
 /** Entry pass: QR ticket + table assignment. */
 const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticketUrl) => {
   const partySize = rsvp.party_size || 1;
+  const formattedTable = formatTableLabel(tableName);
   const formattedDate = formatEventDate(event.event_date);
   const hasLocation = event.location_name || event.location_address;
 
@@ -381,10 +410,12 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticke
     </div>
   ` : '';
 
+  const mapsUrl = buildMapsUrl(event);
   const locationHtml = hasLocation ? `
     <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">
       📍 <strong>Venue:</strong> ${escapeHtml(event.location_name || '')}
       ${event.location_address ? `<br/><span style="font-size:12px; color:${BRAND.stone}; opacity:0.85;">${escapeHtml(event.location_address)}</span>` : ''}
+      ${mapsUrl ? `<br/><a href="${mapsUrl}" style="font-size:12px; font-weight:700; color:${BRAND.gold}; text-decoration:underline;">Get Directions &rarr;</a>` : ''}
     </div>
   ` : '';
 
@@ -394,12 +425,12 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticke
     heading: escapeHtml(event.title),
     contentHtml: `
       ${greeting(rsvp.guest_name)}
-      ${para('Your table assignment is finalized. Please present this pass at the entrance check-in desk.')}
+      ${para(`Your assigned seating will be on <strong style="color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</strong>. Please present this pass at the entrance check-in desk.`)}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
         <tr><td align="center" style="background-color:${BRAND.ivory}; border:1px solid ${BRAND.border}; border-radius:16px; padding:26px 20px;">
-          <div style="font-family:${SANS}; font-size:10px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; color:${BRAND.stone}; margin-bottom:8px;">Your Assigned Seating</div>
+          <div style="font-family:${SANS}; font-size:10px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; color:${BRAND.stone}; margin-bottom:8px;">Your Seat Is At</div>
           ${zoneName ? `<div style="font-family:${SANS}; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:${BRAND.gold}; margin-bottom:4px;">Zone: ${escapeHtml(zoneName)}</div>` : ''}
-          <div style="font-family:${SERIF}; font-size:34px; font-weight:bold; color:${BRAND.charcoal};">${escapeHtml(tableName)}</div>
+          <div style="font-family:${SERIF}; font-size:34px; font-weight:bold; color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</div>
           <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">Party of ${partySize}</div>
           
           ${dateHtml}
@@ -578,7 +609,7 @@ const getEventReminderTemplate = (rsvp, event, opts = {}) => {
   const rows = [];
   if (formattedDate) rows.push(['When', escapeHtml(formattedDate)]);
   if (where) rows.push(['Where', escapeHtml(where)]);
-  if (opts.tableName) rows.push(['Your Table', escapeHtml(opts.tableName), BRAND.gold]);
+  if (opts.tableName) rows.push(['Your assigned seating', escapeHtml(formatTableLabel(opts.tableName)), BRAND.gold]);
   return emailShell({
     preheader: `See you soon at ${event.title}`,
     eyebrow: 'See you soon',

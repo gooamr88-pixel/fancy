@@ -5,10 +5,10 @@ import { motion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DayTabs, ScrollToRsvpHint, ICONS, VineLine } from '../shared';
 
-export default function ScheduleSection({ schedule, isRTL }) {
+export default function ScheduleSection({ days, isRTL }) {
   const C = useFullPageTheme();
-  const [day, setDay] = useState('day1');
-  const items = (schedule && schedule[day]) || [];
+  const [dayIndex, setDayIndex] = useState(0);
+  const items = days?.[dayIndex]?.schedule || [];
 
   return (
     <SectionShell>
@@ -16,7 +16,7 @@ export default function ScheduleSection({ schedule, isRTL }) {
         {isRTL ? 'ماذا خططنا لكم' : 'What we have planned for you'}
       </SectionHeading>
 
-      <DayTabs value={day} onChange={setDay} isRTL={isRTL} />
+      <DayTabs days={days} activeIndex={dayIndex} onChange={setDayIndex} isRTL={isRTL} />
 
       <div style={{ position: 'relative', width: '100%', maxWidth: '520px' }}>
         <VineLine itemCount={items.length} color={C.gold} />
@@ -24,7 +24,7 @@ export default function ScheduleSection({ schedule, isRTL }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '48px', padding: '12px 0' }}>
           {items.map((item, i) => (
             <motion.div
-              key={`${day}-${i}`}
+              key={`${dayIndex}-${i}`}
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}

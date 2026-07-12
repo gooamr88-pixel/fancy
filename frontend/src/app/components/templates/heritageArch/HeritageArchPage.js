@@ -4,6 +4,7 @@ import React from 'react';
 import SnapShell from './SnapShell';
 import { FullPageThemeProvider, buildPalette } from './theme';
 import { HERITAGE_ARCH_DEFAULTS as D } from './defaultContent';
+import { getHaDays } from '../../../utils/haDays';
 import HeroSection from './sections/HeroSection';
 import CoverPhotoSection from './sections/CoverPhotoSection';
 import CountdownSection from './sections/CountdownSection';
@@ -32,6 +33,18 @@ function formatDateLine(startISO, endISO, isRTL) {
   return `${start} - ${end}`;
 }
 
+// Event time — separate from the date line so a multi-day range (which already
+// reads as "START - END") never has a single time awkwardly glued onto it.
+function formatTimeLine(startISO, isRTL) {
+  if (!startISO) return null;
+  const d = new Date(startISO);
+  // A bare DATE-only value (no clock component supplied at creation) serializes
+  // to local midnight — showing "12:00 AM" for those would read as a real start
+  // time instead of "no time set," so this is intentionally hidden then.
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0) return null;
+  return d.toLocaleTimeString(isRTL ? 'ar-EG' : 'en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+}
+
 function parseMealOptions(raw, isPreview) {
   if (Array.isArray(raw) && raw.length > 0) return raw;
   if (typeof raw === 'string' && raw.trim()) return raw.split(',').map((s) => s.trim()).filter(Boolean);
@@ -46,6 +59,12 @@ export default function HeritageArchPage({
 }) {
   const td = event.template_data || {};
   const customColors = event.custom_colors || {};
+  // Explicit per-section on/off, set by the organizer in Stage 2's "Sections"
+  // panel. Defaults to true (unset === shown) so existing events — which never
+  // set this — keep their current auto-hide-when-empty behavior; an organizer
+  // can still force a section off even when it has content.
+  const enabledSections = td.enabledSections || {};
+  const sectionOn = (key) => enabledSections[key] !== false;
   // Derived section palette — Heritage Arch returns its own fixed burgundy/cream
   // constants (guarded in buildPalette); every other template gets a palette
   // derived from its custom_colors so the same sections recolor per event.
@@ -58,27 +77,58 @@ export default function HeritageArchPage({
   const partner1 = td.groom_name || td.partner1Name || td.partner1 || demo(D.partner1) || '';
   const partner2 = td.bride_name || td.partner2Name || td.partner2 || demo(D.partner2) || '';
   const dateLine = formatDateLine(event.event_date, event.event_end_date, isRTL);
+  // Only shown for a single-day event — a start/end range already reads as a
+  // full span, and gluing one clock time onto it would misleadingly imply
+  // the whole range starts then.
+  const timeLine = !event.event_end_date ? formatTimeLine(event.event_date, isRTL) : null;
 
-  const venueDay1 = {
-    name: td.ha_venue_day1_name || td.ceremony_venue_name || event.location_name || demo(D.venues.day1.name) || '',
-    address: td.ha_venue_day1_address || td.ceremony_venue_address || event.location_address || demo(D.venues.day1.address) || '',
-    lat: td.ha_venue_day1_lat ?? td.ceremony_lat ?? event.location_lat ?? (isPreview ? D.venues.day1.lat : null),
-    lng: td.ha_venue_day1_lng ?? td.ceremony_lng ?? event.location_lng ?? (isPreview ? D.venues.day1.lng : null),
-    image: td.ha_venue_day1_image || event.cover_image_url || null,
-  };
-  const venueDay2 = {
-    name: td.ha_venue_day2_name || td.reception_venue_name || demo(D.venues.day2.name) || '',
-    address: td.ha_venue_day2_address || td.reception_venue_address || demo(D.venues.day2.address) || '',
-    lat: td.ha_venue_day2_lat ?? td.reception_lat ?? (isPreview ? D.venues.day2.lat : null),
-    lng: td.ha_venue_day2_lng ?? td.reception_lng ?? (isPreview ? D.venues.day2.lng : null),
-    image: td.ha_venue_day2_image || null,
-  };
-  const hasVenues = !!(venueDay1.name || venueDay1.address || venueDay2.name || venueDay2.address);
+  // Custom's "what kind of event is this?" category (Stage 2) drives the hero
+  // name/tagline for the two categories with no "couple" — wedding/engagement
+  // categories already work via partner1/partner2 above. Both fall back to
+  // the event's own title when the organizer hasn't named a celebrant/parents
+  // yet, exactly like every other template does.
+  const customCategory = event.template_type === 'custom' ? (td.custom_category || '') : '';
+  const heroTitle = customCategory === 'celebration' ? (td.custom_honoree || event.title)
+    : customCategory === 'babyShower' ? (td.custom_parents || event.title)
+    : event.title;
+  // Arabic override typed in the wizard/EventSettings — same field the classic
+  // template's InvitationCard and InvitationReveal envelope already read; this
+  // full-page hero was the one place still stuck on the English title/dress
+  // code even with the page switched to Arabic.
+  const titleAr = event.title_ar || td.title_ar || null;
+  const heroTagline = customCategory === 'celebration'
+    ? (td.custom_milestone || (isRTL ? 'يسعدنا احتفالنا معكم' : 'Join us to celebrate'))
+    : customCategory === 'babyShower'
+    ? (td.custom_baby_name ? (isRTL ? `نستقبل قدوم ${td.custom_baby_name}` : `Welcoming ${td.custom_baby_name}`) : (td.custom_baby_due || (isRTL ? 'ينتظرنا مولود جديد' : "We're expecting!")))
+    : '';
 
-  const scheduleDay1 = Array.isArray(td.ha_schedule_day1) && td.ha_schedule_day1.length > 0 ? td.ha_schedule_day1 : (isPreview ? D.schedule.day1 : []);
-  const scheduleDay2 = Array.isArray(td.ha_schedule_day2) && td.ha_schedule_day2.length > 0 ? td.ha_schedule_day2 : (isPreview ? D.schedule.day2 : []);
-  const schedule = { day1: scheduleDay1, day2: scheduleDay2 };
-  const hasSchedule = scheduleDay1.length > 0 || scheduleDay2.length > 0;
+  // A flexible list of days — one for a single-day event, two, three, or
+  // more — each with its own venue and schedule. Falls back to the older
+  // fixed day1/day2 fields for events saved before this was dynamic, then to
+  // the plain ceremony/location fields, then (preview only) to demo content,
+  // so every event still shows something reasonable.
+  let haDays = getHaDays(td);
+  if (haDays.length === 0 && isPreview) {
+    haDays = [
+      { label: 'Day 1', schedule: D.schedule.day1, venue: { name: D.venues.day1.name, address: D.venues.day1.address, lat: D.venues.day1.lat, lng: D.venues.day1.lng, image: null } },
+      { label: 'Day 2', schedule: D.schedule.day2, venue: { name: D.venues.day2.name, address: D.venues.day2.address, lat: D.venues.day2.lat, lng: D.venues.day2.lng, image: null } },
+    ];
+  }
+  if (haDays.length === 0 && !isPreview) {
+    const fallbackVenue = {
+      name: td.ceremony_venue_name || event.location_name || '',
+      address: td.ceremony_venue_address || event.location_address || '',
+      lat: td.ceremony_lat ?? event.location_lat ?? null,
+      lng: td.ceremony_lng ?? event.location_lng ?? null,
+      image: event.cover_image_url || null,
+    };
+    if (fallbackVenue.name || fallbackVenue.address) {
+      haDays = [{ label: '', schedule: [], venue: fallbackVenue }];
+    }
+  }
+  const primaryVenue = haDays[0]?.venue || {};
+  const hasVenues = haDays.some((d) => d.venue?.name || d.venue?.address);
+  const hasSchedule = haDays.some((d) => Array.isArray(d.schedule) && d.schedule.length > 0);
 
   // Structured ha_accommodation (this template's own list editor) wins; the
   // plain-text `accommodations` field organizers may have already filled in
@@ -91,14 +141,14 @@ export default function HeritageArchPage({
   const faq = Array.isArray(td.ha_faq) && td.ha_faq.length > 0 ? td.ha_faq : (isPreview ? D.faq : []);
   const hasFaq = faq.length > 0;
   const ourStory = td.ha_our_story || td.loveStory || td.proposalStory || demo(D.ourStory) || '';
-  const dressCode = event.dress_code || demo(D.dressCode) || '';
+  const dressCode = (isRTL && td.dress_code_ar) || event.dress_code || demo(D.dressCode) || '';
   const invitedToCity = td.ha_invited_to_city || (event.location_name ? event.location_name.split(',')[0] : (isPreview ? D.invitedToCity : ''));
   // The map pin uses the city's own coordinates when the organizer picked one
   // via the address search (ha_invited_to_lat/lng); only falls back to Day 1's
   // venue when no city coordinates were ever captured, so a custom "invited to"
   // city never shows a pin sitting on a different, unrelated location.
-  const invitedToLat = td.ha_invited_to_lat ?? venueDay1.lat;
-  const invitedToLng = td.ha_invited_to_lng ?? venueDay1.lng;
+  const invitedToLat = td.ha_invited_to_lat ?? primaryVenue.lat;
+  const invitedToLng = td.ha_invited_to_lng ?? primaryVenue.lng;
   const mealOptions = parseMealOptions(td.ha_meal_options, isPreview);
   const galleryImages = Array.isArray(event.gallery_urls) && event.gallery_urls.length > 0 ? event.gallery_urls : [];
   const dressCodeSwatches = [customColors.primary, customColors.secondary].filter(Boolean);
@@ -121,18 +171,67 @@ export default function HeritageArchPage({
     .filter(Boolean)
     .join('♡') || null;
 
-  // Sections are assembled in the reference screenshots' order. Hero + Countdown
-  // + RSVP always render; every content section in between is pushed only when
-  // it has real data (or in preview) — same pattern as Gallery — so an
-  // unconfigured event shows a clean short page instead of blank full-viewport
-  // slides (with dead dots in the side nav) or placeholder content.
+  // Sections are assembled Hero + Countdown (+ Cover Photo) first, RSVP last —
+  // both fixed anchors. Every content section in between is keyed by the same
+  // SECTION_TOGGLES key Stage 2's "Sections" panel uses, built only when it
+  // has real data (or in preview) — same pattern as Gallery — then reordered
+  // by the organizer's saved sectionOrder (see the ↑/↓ arrangement controls),
+  // falling back to this default order for anyone who never touched it.
+  const middleSections = {};
+  if (hasSchedule && sectionOn('schedule')) {
+    middleSections.schedule = { id: 'ha-schedule', content: <ScheduleSection days={haDays} isRTL={isRTL} /> };
+  }
+  if (hasVenues && sectionOn('venues')) {
+    middleSections.venues = { id: 'ha-venues', content: <VenuesSection days={haDays} isRTL={isRTL} t={t} /> };
+  }
+  if (dressCode && sectionOn('dresscode')) {
+    middleSections.dresscode = { id: 'ha-dresscode', content: <DressCodeSection dressCode={dressCode} colors={{ swatches: dressCodeSwatches }} isRTL={isRTL} /> };
+  }
+  if (ourStory && sectionOn('story')) {
+    middleSections.story = { id: 'ha-story', content: <OurStorySection story={ourStory} isRTL={isRTL} /> };
+  }
+  if (hasAccommodation && sectionOn('accommodation')) {
+    middleSections.accommodation = { id: 'ha-accommodation', content: <AccommodationSection hotels={accommodation} note={accommodationNote} isRTL={isRTL} /> };
+  }
+  if (menuCourses.length > 0 && sectionOn('menu')) {
+    middleSections.menu = { id: 'ha-menu', content: <MenuSection courses={menuCourses} isRTL={isRTL} /> };
+  }
+  if (hasGiftList && sectionOn('giftlist')) {
+    middleSections.giftlist = { id: 'ha-giftlist', content: <GiftListSection registryUrl={giftRegistry} registryLabel={td.ha_gift_registry_label} bank={giftBank} message={td.ha_gift_message} isRTL={isRTL} /> };
+  }
+  if (hasFaq && sectionOn('faq')) {
+    middleSections.faq = { id: 'ha-faq', content: <FaqSection items={faq} isRTL={isRTL} /> };
+  }
+  if (galleryImages.length > 0 && sectionOn('gallery')) {
+    middleSections.gallery = { id: 'ha-gallery', content: <GallerySection images={galleryImages} isRTL={isRTL} /> };
+  }
+  if (invitedToCity && sectionOn('invited')) {
+    middleSections.invited = { id: 'ha-invited', content: <InvitedToSection city={invitedToCity} lat={invitedToLat} lng={invitedToLng} isRTL={isRTL} /> };
+  }
+  if (event.event_date && invitedToCity && sectionOn('boarding')) {
+    middleSections.boarding = { id: 'ha-boarding', content: <BoardingPassSection destination={invitedToCity} dateISO={event.event_date} initials={boardingInitials} flightCode={td.ha_boarding_flight_code} isRTL={isRTL} /> };
+  }
+  if (thingsToDo.length > 0 && sectionOn('thingstodo')) {
+    middleSections.thingstodo = { id: 'ha-thingstodo', content: <ThingsToDoSection items={thingsToDo} isRTL={isRTL} /> };
+  }
+  if (gettingThere.trim() && sectionOn('gettingthere')) {
+    middleSections.gettingthere = { id: 'ha-gettingthere', content: <GettingThereSection text={gettingThere} isRTL={isRTL} /> };
+  }
+
+  const DEFAULT_SECTION_ORDER = ['schedule', 'venues', 'dresscode', 'story', 'accommodation', 'menu', 'giftlist', 'faq', 'gallery', 'invited', 'boarding', 'thingstodo', 'gettingthere'];
+  const savedOrder = Array.isArray(td.sectionOrder) ? td.sectionOrder : [];
+  const resolvedOrder = [
+    ...savedOrder.filter((k) => middleSections[k]),
+    ...DEFAULT_SECTION_ORDER.filter((k) => middleSections[k] && !savedOrder.includes(k)),
+  ];
+
   const sections = [
     {
       id: 'ha-hero',
       content: (
         <HeroSection
-          partner1={partner1} partner2={partner2} title={event.title}
-          tagline={isPreview ? D.tagline : ''} dateLine={dateLine}
+          partner1={partner1} partner2={partner2} title={heroTitle}
+          tagline={isPreview ? D.tagline : heroTagline} dateLine={dateLine} timeLine={timeLine} titleAr={titleAr}
           invitationPattern={invitationPattern} invitationTheme={invitationTheme}
           invitationGuestName={invitationGuestName} invitationData={invitationData}
           isRTL={isRTL} t={t}
@@ -148,44 +247,8 @@ export default function HeritageArchPage({
     sections.push({ id: 'ha-cover-photo', content: <CoverPhotoSection imageUrl={event.cover_image_url} isRTL={isRTL} /> });
   }
 
-  if (hasSchedule) {
-    sections.push({ id: 'ha-schedule', content: <ScheduleSection schedule={schedule} isRTL={isRTL} /> });
-  }
-  if (hasVenues) {
-    sections.push({ id: 'ha-venues', content: <VenuesSection venues={{ day1: venueDay1, day2: venueDay2 }} isRTL={isRTL} t={t} /> });
-  }
-  if (dressCode) {
-    sections.push({ id: 'ha-dresscode', content: <DressCodeSection dressCode={dressCode} colors={{ swatches: dressCodeSwatches }} isRTL={isRTL} /> });
-  }
-  if (ourStory) {
-    sections.push({ id: 'ha-story', content: <OurStorySection story={ourStory} isRTL={isRTL} /> });
-  }
-  if (hasAccommodation) {
-    sections.push({ id: 'ha-accommodation', content: <AccommodationSection hotels={accommodation} note={accommodationNote} isRTL={isRTL} /> });
-  }
-  if (menuCourses.length > 0) {
-    sections.push({ id: 'ha-menu', content: <MenuSection courses={menuCourses} isRTL={isRTL} /> });
-  }
-  if (hasGiftList) {
-    sections.push({ id: 'ha-giftlist', content: <GiftListSection registryUrl={giftRegistry} registryLabel={td.ha_gift_registry_label} bank={giftBank} message={td.ha_gift_message} isRTL={isRTL} /> });
-  }
-  if (hasFaq) {
-    sections.push({ id: 'ha-faq', content: <FaqSection items={faq} isRTL={isRTL} /> });
-  }
-  if (galleryImages.length > 0) {
-    sections.push({ id: 'ha-gallery', content: <GallerySection images={galleryImages} isRTL={isRTL} /> });
-  }
-  if (invitedToCity) {
-    sections.push({ id: 'ha-invited', content: <InvitedToSection city={invitedToCity} lat={invitedToLat} lng={invitedToLng} isRTL={isRTL} /> });
-  }
-  if (event.event_date && invitedToCity) {
-    sections.push({ id: 'ha-boarding', content: <BoardingPassSection destination={invitedToCity} dateISO={event.event_date} initials={boardingInitials} flightCode={td.ha_boarding_flight_code} isRTL={isRTL} /> });
-  }
-  if (thingsToDo.length > 0) {
-    sections.push({ id: 'ha-thingstodo', content: <ThingsToDoSection items={thingsToDo} isRTL={isRTL} /> });
-  }
-  if (gettingThere.trim()) {
-    sections.push({ id: 'ha-gettingthere', content: <GettingThereSection text={gettingThere} isRTL={isRTL} /> });
+  for (const key of resolvedOrder) {
+    sections.push(middleSections[key]);
   }
 
   sections.push({

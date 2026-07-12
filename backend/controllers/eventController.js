@@ -418,6 +418,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         allow_guest_edits,
         track_guest_side,
         tier_remove_watermark,
+        updated_at,
         custom_form_fields(*)
       `)
       .eq('slug', slug)
