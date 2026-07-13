@@ -488,7 +488,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         {/* ═══ Footer / Action ═══ */}
         <div style={{
           padding: '16px 28px 20px', borderTop: `1px solid ${COLORS.border}`,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
         }}>
           <span style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
             <strong style={{ color: COLORS.charcoal }}>{selectedIds.size}</strong> guest{selectedIds.size !== 1 ? 's' : ''} selected

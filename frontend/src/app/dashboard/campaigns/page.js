@@ -437,7 +437,7 @@ export default function CampaignsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: C.ivory, color: C.charcoal, padding: 32, fontFamily: 'var(--font-sans)' }}>
+    <div className="camp-page" style={{ minHeight: '100vh', background: C.ivory, color: C.charcoal, padding: 32, fontFamily: 'var(--font-sans)' }}>
 
       {/* ─── Stripe purchase return banner ─── */}
       {purchaseNotice && (
@@ -948,6 +948,7 @@ export default function CampaignsPage() {
         }
         @media (max-width: 640px) {
           .camp-wallet-grid { grid-template-columns: 1fr !important; }
+          .camp-page { padding: 16px !important; }
         }
       `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />

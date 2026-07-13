@@ -4,6 +4,31 @@ This guide details the step-by-step process to deploy the **Fancy RSVP** platfor
 
 ---
 
+## 🔁 Deploying a Code Update (do this every time, not just on first setup)
+
+`git pull` + `pm2 restart` is **not enough** for frontend changes. The frontend
+runs via `next start`, which serves a pre-built `.next/` folder — it does not
+compile source on the fly. `pm2 restart` only restarts the Node process
+against whatever `.next/` build already exists; skipping the build step means
+your frontend changes never actually go live, no matter how many times you
+redeploy. (The backend has no build step, so `git pull` + `pm2 restart
+fancy-rsvp-backend` alone is fine for backend-only changes.)
+
+From the project root on the server:
+```bash
+git pull
+npm install
+npm run build --workspace=frontend
+pm2 restart ecosystem.config.js
+```
+
+Or simply run the script that does exactly this:
+```bash
+bash deployment/redeploy.sh
+```
+
+---
+
 ## 🛠️ Step 1: Install Server Prerequisites
 
 Connect to your Hostinger VPS via SSH and run the following commands to install Node.js, PM2, Nginx, and Certbot:

@@ -490,6 +490,8 @@ export default function LoginPage() {
           cursor: pointer;
           padding: 4px;
           display: flex;
+          align-items: center;
+          justify-content: center;
           opacity: 0.6;
           transition: opacity 0.2s;
         }

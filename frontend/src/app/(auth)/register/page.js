@@ -579,7 +579,7 @@ const sharedStyles = `
   .auth-input::placeholder { color: #B5B0A7; }
   .auth-password-wrapper { position: relative; }
   .auth-password-wrapper .auth-input { padding-right: 48px; }
-  .auth-eye-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; display: flex; opacity: 0.6; transition: opacity 0.2s; }
+  .auth-eye-btn { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.2s; }
   .auth-eye-btn:hover { opacity: 1; }
   .auth-field-hint { font-size: 11.5px; color: var(--muted-stone); margin: 6px 0 0; line-height: 1.4; }
   .auth-field-error { display: block; font-size: 11.5px; color: #DC2626; margin: 6px 0 0; line-height: 1.4; }

@@ -1283,7 +1283,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '16px', marginTop: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
           <FontPicker
             label="Heading Font"
             value={form.font_heading}

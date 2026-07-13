@@ -1430,7 +1430,7 @@ export default function SeatingMapPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: C.white, color: C.charcoal, padding: 24, userSelect: 'none', fontFamily: 'var(--font-sans)' }}>
+    <div className="sm-page" style={{ minHeight: '100vh', background: C.white, color: C.charcoal, padding: 24, userSelect: 'none', fontFamily: 'var(--font-sans)' }}>
       {/* Header */}
       <div style={{ maxWidth: 1480, margin: '0 auto', borderBottom: `1px solid ${C.border}`, paddingBottom: 20, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div>
@@ -1507,7 +1507,7 @@ export default function SeatingMapPage() {
 
         {/* ── Center: canvas ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ background: C.white, padding: '8px 14px', borderRadius: 10, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div className="sm-canvas-toolbar" style={{ background: C.white, padding: '8px 14px', borderRadius: 10, border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={() => setShowAdd(true)} style={{ ...btn, background: C.gold, color: C.white, padding: '6px 14px' }}>+ Add Element</button>
               <button onClick={undo} disabled={historyIndex <= 0} style={{
@@ -1770,6 +1770,14 @@ export default function SeatingMapPage() {
         @media (max-width: 900px) {
           .seating-layout-grid { grid-template-columns: 1fr !important; }
           .seating-guestlist-panel { height: 360px !important; }
+        }
+        /* Canvas toolbar buttons (Undo/Redo/Select All/Snap to Grid/zoom) are
+           sized for a mouse (~28-34px tall) — bump to a real touch target and
+           trim the page's flat 24px padding, which eats a lot of a 320-375px
+           phone's width. */
+        @media (max-width: 640px) {
+          .sm-page { padding: 12px !important; }
+          .sm-canvas-toolbar button { min-height: 40px !important; padding: 8px 14px !important; }
         }
       `}</style>
       <LogoutModal isOpen={showLogoutModal} onClose={() => setShowLogoutModal(false)} onConfirm={logout} />

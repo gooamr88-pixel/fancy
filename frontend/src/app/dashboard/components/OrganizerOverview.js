@@ -47,10 +47,31 @@ const GLOBAL_STYLES = `
   grid-template-columns: 1fr 1fr;
   gap: 24px;
 }
+.ov-skeleton-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.ov-skeleton-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 @media (max-width: 900px) {
   .ov-charts-grid,
   .ov-bottom-grid {
     grid-template-columns: 1fr;
+  }
+  .ov-skeleton-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .ov-skeleton-stats {
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
 }
 `;
@@ -77,8 +98,7 @@ function LoadingSkeleton() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
       {/* Header skeleton */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      <div className="ov-skeleton-header" style={{
         paddingBottom: 20, borderBottom: '1px solid #F0ECE3',
       }}>
         <div>
@@ -89,7 +109,7 @@ function LoadingSkeleton() {
       </div>
 
       {/* Stat cards skeleton */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      <div className="ov-skeleton-stats">
         {[1, 2, 3, 4, 5, 6].map((i) => (
           <div key={i} style={{
             background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: 16,
@@ -104,7 +124,7 @@ function LoadingSkeleton() {
       </div>
 
       {/* Charts skeleton */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+      <div className="ov-charts-grid">
         {[1, 2].map((i) => (
           <div key={i} style={{
             background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: 16, padding: 28,
@@ -117,7 +137,7 @@ function LoadingSkeleton() {
       </div>
 
       {/* Bottom skeleton */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+      <div className="ov-bottom-grid">
         {[1, 2].map((i) => (
           <div key={i} style={{
             background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: 16, padding: 28,
@@ -214,7 +234,7 @@ function WelcomeHeader() {
     <div
       className="ov-section"
       style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
         paddingBottom: 24, borderBottom: '1px solid #F0ECE3', marginBottom: 4,
         animationDelay: '0ms',
       }}
