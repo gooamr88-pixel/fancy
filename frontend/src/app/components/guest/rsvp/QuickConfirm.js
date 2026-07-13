@@ -181,7 +181,7 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
 }
 
 const Shell = ({ children, isRTL }) => (
-  <div dir={isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100vh', background: 'linear-gradient(165deg,#F8F4EC,#EDE5D4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+  <div dir={isRTL ? 'rtl' : 'ltr'} style={{ minHeight: '100dvh', background: 'linear-gradient(165deg,#F8F4EC,#EDE5D4)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
     <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 120, damping: 16 }} style={{ maxWidth: '500px', width: '100%' }}>
       <GlassmorphismCard bg="rgba(255,255,255,0.9)" blur={20} hoverable={false} style={{ padding: '44px 36px', borderRadius: '24px' }}>
         {children}

@@ -939,12 +939,25 @@ const googleAuth = async (req, res, next) => {
     const isNewAccount = !org;
 
     if (org) {
-      // Existing account → ensure it's verified (Google already verified the email)
+      // Existing account → ensure it's verified (Google already verified the email).
       if (!org.email_verified) {
+        // SECURITY (account pre-hijacking): an account that is still UNVERIFIED at
+        // this point may carry a password_hash that was set before anyone proved
+        // ownership of the email — e.g. an attacker who pre-registered the victim's
+        // address with their own password, betting the real owner would later sign
+        // in with Google (which auto-verifies and activates the account). If we only
+        // flip email_verified, that attacker password keeps working forever. Wipe
+        // any such credential so only Google — or a fresh, email-verified reset —
+        // can authenticate, and revoke any sessions the pre-registration opened.
         await supabase
           .from('organizations')
-          .update({ email_verified: true })
+          .update({ email_verified: true, password_hash: null })
           .eq('email', email);
+        try {
+          await revokeAllForUser(org.owner_user_id);
+        } catch (revokeErr) {
+          logger.warn({ err: revokeErr, email }, 'googleAuth: failed to revoke sessions on account activation');
+        }
       }
     } else {
       // New account → create it with no password, email pre-verified

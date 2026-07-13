@@ -525,13 +525,13 @@ export default function RegisterPage() {
 const sharedStyles = `
   .auth-page {
     display: flex;
-    min-height: 100vh;
+    min-height: 100dvh;
     font-family: var(--font-sans), Lato, sans-serif;
   }
   .auth-image-panel {
     position: relative;
     width: 50%;
-    min-height: 100vh;
+    min-height: 100dvh;
     background: url('/images/auth-bg.png') center/cover no-repeat;
     display: flex;
     align-items: center;
@@ -553,7 +553,7 @@ const sharedStyles = `
   .auth-shimmer { width: 60px; height: 1px; margin: 0 auto; background: linear-gradient(90deg, transparent, #D7BE80, #B8944F, #D7BE80, transparent); background-size: 200% 100%; animation: shimmer 3s linear infinite; }
 
   .auth-form-panel {
-    width: 50%; min-height: 100vh; background: #FFFFFF;
+    width: 50%; min-height: 100dvh; background: #FFFFFF;
     display: flex; align-items: center; justify-content: center; padding: 48px 40px;
   }
   .auth-form-container {
@@ -616,7 +616,7 @@ const sharedStyles = `
   @media (max-width: 768px) {
     .auth-page { flex-direction: column; }
     .auth-image-panel { display: none; }
-    .auth-form-panel { width: 100%; min-height: 100vh; background: linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 40%); padding: 40px 24px; }
+    .auth-form-panel { width: 100%; min-height: 100dvh; background: linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 40%); padding: 40px 24px; }
     .auth-mobile-logo { display: flex; }
     .auth-mobile-logo .auth-brand-fancy { color: #B8944F; font-size: 36px; }
     .auth-mobile-logo .auth-brand-rsvp { color: #191B1E; font-size: 24px; letter-spacing: 3px; }

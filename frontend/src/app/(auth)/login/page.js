@@ -289,7 +289,7 @@ export default function LoginPage() {
       <style jsx>{`
         .auth-page {
           display: flex;
-          min-height: 100vh;
+          min-height: 100dvh;
           font-family: var(--font-sans), Lato, sans-serif;
         }
 
@@ -297,7 +297,7 @@ export default function LoginPage() {
         .auth-image-panel {
           position: relative;
           width: 50%;
-          min-height: 100vh;
+          min-height: 100dvh;
           background: url('/images/auth-bg.png') center/cover no-repeat;
           display: flex;
           align-items: center;
@@ -365,7 +365,7 @@ export default function LoginPage() {
         /* ── Right Form Panel ── */
         .auth-form-panel {
           width: 50%;
-          min-height: 100vh;
+          min-height: 100dvh;
           background: #FFFFFF;
           display: flex;
           align-items: center;
@@ -597,7 +597,7 @@ export default function LoginPage() {
           .auth-image-panel { display: none; }
           .auth-form-panel {
             width: 100%;
-            min-height: 100vh;
+            min-height: 100dvh;
             background: linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 40%);
             padding: 40px 24px;
           }

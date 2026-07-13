@@ -14,6 +14,13 @@ const labelStyle = {
   fontSize: '11px', color: '#77736A', fontWeight: 600, display: 'block', marginBottom: '4px', fontFamily: 'var(--font-sans)',
 };
 
+// When the guest is asked this question. Mirrors the create-event InlineFormBuilder
+// and the only values the backend + DB CHECK constraint accept ('always'|'attending').
+const CONDITIONS = [
+  { value: 'always', label: 'Always Show', color: '#3B9B6D', bg: 'rgba(59,155,109,0.08)' },
+  { value: 'attending', label: 'If Attending', color: '#3B82F6', bg: 'rgba(59,130,246,0.08)' },
+];
+
 export default function FormBuilder({ eventId }) {
   const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +37,11 @@ export default function FormBuilder({ eventId }) {
   // never exposed a way to actually set it — every question silently defaulted
   // to 'party', so a per-guest question could never be asked of each companion.
   const [scope, setScope] = useState('party');
+  // 'always' (asked on every response, e.g. a song request) vs 'attending' (only
+  // when the guest is coming). Persisted since the "Always Show" migration; this
+  // dashboard builder previously had no UI for it, so a question created/edited
+  // here could never be set to 'always'.
+  const [condition, setCondition] = useState('attending');
   const [editingId, setEditingId] = useState(null); // null = add mode; a field id = editing that field
   // True when the open form is the dedicated meal-options shortcut — locks the field
   // key to MEAL_FIELD_KEY so the guest RSVP wizard's findMealField() picks it up.
@@ -66,7 +78,7 @@ export default function FormBuilder({ eventId }) {
 
   const resetForm = () => {
     setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false);
-    setEditingId(null); setIsMealField(false); setScope('party'); setShowAddForm(false);
+    setEditingId(null); setIsMealField(false); setScope('party'); setCondition('attending'); setShowAddForm(false);
   };
 
   const startAdd = () => {
@@ -74,6 +86,7 @@ export default function FormBuilder({ eventId }) {
     setLabel(''); setKey(''); setType('text'); setOptionsString(''); setIsRequired(false);
     setIsMealField(false);
     setScope('party');
+    setCondition('attending');
     setShowAddForm(true);
   };
 
@@ -88,6 +101,7 @@ export default function FormBuilder({ eventId }) {
     setOptionsString('');
     setIsRequired(true);
     setIsMealField(true);
+    setCondition('attending');
     setShowAddForm(true);
   };
 
@@ -101,6 +115,7 @@ export default function FormBuilder({ eventId }) {
     setIsRequired(!!f.is_required);
     setIsMealField(!!findMealField([f]));
     setScope(f.scope === 'guest' ? 'guest' : 'party');
+    setCondition(f.condition === 'always' ? 'always' : 'attending');
     setShowAddForm(true);
   };
 
@@ -123,8 +138,8 @@ export default function FormBuilder({ eventId }) {
           credentials: 'include',
           // The field key is immutable — only sent when creating.
           body: JSON.stringify(isEdit
-            ? { fieldLabel: label, fieldType: type, options, isRequired, scope }
-            : { fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length, isMealField, scope }),
+            ? { fieldLabel: label, fieldType: type, options, isRequired, scope, condition }
+            : { fieldKey: key, fieldLabel: label, fieldType: type, options, isRequired, sortOrder: fields.length, isMealField, scope, condition }),
         }
       );
       const data = await res.json();
@@ -278,6 +293,29 @@ export default function FormBuilder({ eventId }) {
             </div>
           )}
 
+          {/* Meal questions are inherently attending-only (you only pick a dish if
+              you're coming), so the condition toggle only applies to generic questions. */}
+          {!isMealField && (
+            <div>
+              <label style={labelStyle}>Show This Question</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {CONDITIONS.map(c => (
+                  <button key={c.value} type="button" onClick={() => setCondition(c.value)}
+                    style={{
+                      padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
+                      fontFamily: 'var(--font-sans)', cursor: 'pointer', transition: 'all 0.2s ease',
+                      border: condition === c.value ? `1.5px solid ${c.color}` : '1px solid #E8E2D6',
+                      background: condition === c.value ? c.bg : '#FFFFFF',
+                      color: condition === c.value ? c.color : '#77736A',
+                    }}>{c.label}</button>
+                ))}
+              </div>
+              <span style={{ fontSize: '10px', color: '#A09A91', display: 'block', marginTop: '4px' }}>
+                “Always Show” asks the question on every reply (even declines); “If Attending” only when the guest is coming.
+              </span>
+            </div>
+          )}
+
           {TYPES_WITH_OPTIONS.includes(type) && (
             <div>
               <label style={labelStyle}>{isMealField ? 'Meal Choices (Comma-separated)' : 'Choice Options (Comma-separated)'}</label>
@@ -297,11 +335,16 @@ export default function FormBuilder({ eventId }) {
       {/* Field Rows */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {fields.length > 0 ? (
+          // Wrap-safe row: a long label plus up to three badges and the
+          // key/type/options meta line easily exceeds a phone's width. Without
+          // flexWrap (and minWidth:0 so the text column may actually shrink) the
+          // row overflowed and body{overflow-x:hidden} clipped the edit/delete
+          // buttons right off the card.
           fields.map(f => (
-            <div key={f.id} style={{ background: '#FAFAF8', padding: '16px', border: '1px solid #F0ECE3', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'border-color 0.2s' }}
+            <div key={f.id} style={{ background: '#FAFAF8', padding: '16px', border: '1px solid #F0ECE3', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', transition: 'border-color 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,148,79,0.3)'} onMouseLeave={e => e.currentTarget.style.borderColor = '#F0ECE3'}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 200px', minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>{f.field_label}</span>
                   {f.is_required && (
                     <span style={{ fontSize: '9px', background: 'rgba(184,148,79,0.1)', color: '#B8944F', border: '1px solid rgba(184,148,79,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Required</span>
@@ -309,8 +352,11 @@ export default function FormBuilder({ eventId }) {
                   {f.scope === 'guest' && !findMealField([f]) && (
                     <span style={{ fontSize: '9px', background: 'rgba(99,102,241,0.1)', color: '#6366F1', border: '1px solid rgba(99,102,241,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Per Guest</span>
                   )}
+                  {f.condition === 'always' && !findMealField([f]) && (
+                    <span style={{ fontSize: '9px', background: 'rgba(59,155,109,0.1)', color: '#3B9B6D', border: '1px solid rgba(59,155,109,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Always</span>
+                  )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '10px', color: '#A09A91', fontWeight: 500, fontFamily: 'monospace' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', minWidth: 0, overflowWrap: 'anywhere', fontSize: '10px', color: '#A09A91', fontWeight: 500, fontFamily: 'monospace' }}>
                   <span>key: {f.field_key}</span>
                   <span>•</span>
                   <span>type: {f.field_type}</span>

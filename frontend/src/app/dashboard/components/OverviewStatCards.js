@@ -282,7 +282,7 @@ function StatCard({
       </div>
 
       {/* ── Value ── */}
-      <div style={{
+      <div className="osc-value" style={{
         fontFamily: 'var(--font-serif)',
         fontSize: 36,
         fontWeight: 700,
@@ -344,16 +344,27 @@ const keyframesCSS = `
     .osc-rsvp-span { grid-column: span 2 !important; }
   }
 
+  /* Small phones: two compact cards per row instead of one giant card each —
+     six full-width cards made the overview an endless heavy stack. The RSVP
+     card keeps the full row (it carries the three progress bars). Trim the
+     card padding and the 36px value so the denser grid still breathes. */
   @media (max-width: 640px) {
     .osc-grid {
-      grid-template-columns: 1fr;
-      gap: 14px;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
     }
-    .osc-rsvp-span { grid-column: span 1 !important; }
+    .osc-rsvp-span { grid-column: 1 / -1 !important; }
+    .osc-grid > div { padding: 16px 15px 15px !important; }
+    .osc-value { font-size: 27px !important; }
     .osc-rsvp-bars {
       flex-direction: column !important;
       gap: 10px !important;
     }
+  }
+  /* Very narrow (small/older phones): fall back to a single column so the
+     compact cards never get uncomfortably cramped. */
+  @media (max-width: 380px) {
+    .osc-grid { grid-template-columns: 1fr; }
   }
 `;
 

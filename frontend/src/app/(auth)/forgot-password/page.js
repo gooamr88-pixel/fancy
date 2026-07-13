@@ -358,13 +358,13 @@ export default function ForgotPasswordPage() {
 
       <style jsx>{`
         .auth-page {
-          display: flex; min-height: 100vh;
+          display: flex; min-height: 100dvh;
           font-family: var(--font-sans), Lato, sans-serif;
         }
 
         /* ── Left Panel ── */
         .auth-image-panel {
-          position: relative; width: 50%; min-height: 100vh;
+          position: relative; width: 50%; min-height: 100dvh;
           background: url('/images/auth-bg.png') center/cover no-repeat;
           display: flex; align-items: center; justify-content: center;
         }
@@ -385,7 +385,7 @@ export default function ForgotPasswordPage() {
 
         /* ── Right Panel ── */
         .auth-form-panel {
-          width: 50%; min-height: 100vh; background: #FFFFFF;
+          width: 50%; min-height: 100dvh; background: #FFFFFF;
           display: flex; align-items: center; justify-content: center; padding: 48px 40px;
         }
         .auth-form-container {
@@ -493,7 +493,7 @@ export default function ForgotPasswordPage() {
         @media (max-width: 768px) {
           .auth-page { flex-direction: column; }
           .auth-image-panel { display: none; }
-          .auth-form-panel { width: 100%; min-height: 100vh; background: linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 40%); padding: 40px 24px; }
+          .auth-form-panel { width: 100%; min-height: 100dvh; background: linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 40%); padding: 40px 24px; }
           .auth-mobile-logo { display: flex; }
           .auth-mobile-logo .auth-brand-fancy { color: #B8944F; font-size: 36px; }
           .auth-mobile-logo .auth-brand-rsvp { color: #191B1E; font-size: 24px; letter-spacing: 3px; }

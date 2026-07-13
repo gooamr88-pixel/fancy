@@ -4572,6 +4572,6 @@ CREATE TABLE IF NOT EXISTS public.contact_submissions (
 CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON public.contact_submissions(created_at DESC);
 
 -- ─────────────────────────────────────────────────────────────────────────
--- 20260723000000_organizer_added_seating_reveal.sql
+-- 20260723010000_organizer_added_seating_reveal.sql
 -- ─────────────────────────────────────────────────────────────────────────
 ALTER TABLE public.rsvp_parties ADD COLUMN IF NOT EXISTS created_by_organizer BOOLEAN NOT NULL DEFAULT false;

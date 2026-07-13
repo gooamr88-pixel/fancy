@@ -156,7 +156,12 @@ const CSS = `
   box-shadow:0 8px 32px rgba(184,148,79,0.35);
 }
 @media(max-width:640px){
-  .evt2-cover { width:80px; min-height:100px; }
+  /* The side-by-side cover + content row left only ~245px for the title, date,
+     status and THREE action buttons — everything wrapped into a cramped column.
+     Stack the cover as a full-width banner on top so the content gets the entire
+     card width and the action row can breathe. */
+  .evt2-top { flex-direction:column; }
+  .evt2-cover { width:100%; min-height:120px; }
   .evt2-actions { flex-wrap:wrap; }
   .evt2-tab-card { padding:16px !important; }
 }

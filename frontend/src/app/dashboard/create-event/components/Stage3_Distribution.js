@@ -72,7 +72,7 @@ export default function Stage3_Distribution({
   ];
 
   return (
-    <div style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
+    <div className="s3-page" style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 36 }}>
         <div style={{
@@ -459,11 +459,11 @@ export default function Stage3_Distribution({
         padding: '16px 24px', paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 8px))', zIndex: 50,
         display: 'flex', justifyContent: 'center',
       }}>
-        <div style={{
+        <div className="s3-footer-inner" style={{
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', maxWidth: 860, width: '100%',
         }}>
-          <button onClick={onBack} style={{
+          <button onClick={onBack} className="s3-footer-btn" style={{
             height: 48, padding: '0 24px',
             background: 'none', border: `1.5px solid ${C.charcoal}`,
             borderRadius: 12, fontFamily: 'var(--font-sans)',
@@ -479,7 +479,7 @@ export default function Stage3_Distribution({
           </button>
 
           <button onClick={onSubmit} disabled={submitting}
-            className="s3-cta"
+            className="s3-cta s3-footer-btn"
             style={{
               height: 56, padding: '0 40px',
               background: submitting ? '#B0B0B0' : 'linear-gradient(135deg, #B8944F, #a6833f)',
@@ -515,6 +515,16 @@ export default function Stage3_Distribution({
       </div>
 
       <style jsx>{`
+        /* Back (~107px) + the wide "Publish Event" CTA (~206px) + 48px padding
+           overruns a 360px Android, and body{overflow-x:hidden} clips instead of
+           scrolling — so the button that actually publishes the event fell off the
+           screen. Stack full-width, primary on top (same as Stage2/StagePayment). */
+        @media (max-width: 600px) {
+          .s3-footer-inner { flex-direction: column-reverse !important; align-items: stretch !important; gap: 10px !important; }
+          .s3-footer-btn { width: 100% !important; justify-content: center !important; }
+          /* Clear the now-taller stacked footer so the last card isn't hidden behind it. */
+          .s3-page { padding: 32px 16px 220px !important; }
+        }
         .s3-shimmer {
           position: absolute; top: 0; left: -100%;
           width: 100%; height: 100%;

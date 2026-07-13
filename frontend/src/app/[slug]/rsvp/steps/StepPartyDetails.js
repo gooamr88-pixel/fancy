@@ -598,6 +598,18 @@ export default function StepPartyDetails({
           </div>
         </>
       )}
+
+      {/* The companion rows above reuse .name-title-row / .email-phone-row, but
+          they render in THIS scope — not renderHostDetailsCard's — so they need
+          their own copy of the mobile single-column collapse. styled-jsx scopes
+          a <style jsx> to the render function it sits in, so the host card's
+          block (see renderHostDetailsCard) never reached these. */}
+      <style jsx>{`
+        @media (max-width: 640px) {
+          .name-title-row { grid-template-columns: 1fr !important; }
+          .email-phone-row { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

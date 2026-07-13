@@ -6,7 +6,12 @@ if (!process.env.UV_THREADPOOL_SIZE) {
   process.env.UV_THREADPOOL_SIZE = '16';
 }
 
-require('dotenv').config({ override: true });
+// Load .env WITHOUT override so real environment variables always win. In
+// production pm2 sets NODE_ENV/PORT/UV_THREADPOOL_SIZE via ecosystem.config.js;
+// `override: true` let a stale backend/.env silently clobber those (e.g. flip
+// NODE_ENV back to development, disabling secure cookies). dotenv only fills in
+// keys that aren't already present in the environment, so nothing is lost.
+require('dotenv').config();
 const app = require('./app');
 const logger = require('./utils/logger');
 

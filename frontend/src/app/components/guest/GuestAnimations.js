@@ -433,7 +433,9 @@ export function ConfettiExplosion({ active = false, duration = 4000, particleCou
       ref={canvasRef}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
-        pointerEvents: 'none', width: '100vw', height: '100vh',
+        // 100% (not 100vw) so the fixed overlay never counts the scrollbar width
+        // and adds phantom horizontal scroll; 100dvh tracks the mobile viewport.
+        pointerEvents: 'none', width: '100%', height: '100dvh',
       }}
     />
   );

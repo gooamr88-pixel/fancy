@@ -220,60 +220,6 @@ function ErrorState({ message, onRetry }) {
   );
 }
 
-/* ═══ Section Header ═══ */
-function WelcomeHeader() {
-  const now = new Date();
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  const dateStr = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
-
-  return (
-    <div
-      className="ov-section"
-      style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-        paddingBottom: 24, borderBottom: '1px solid #F0ECE3', marginBottom: 4,
-        animationDelay: '0ms',
-      }}
-    >
-      <div>
-        <h1 style={{
-          fontFamily: 'var(--font-serif)', fontSize: 24, fontWeight: 700,
-          color: '#191B1E', margin: 0, lineHeight: 1.3,
-        }}>
-          Dashboard Overview
-        </h1>
-        <p style={{
-          fontFamily: 'var(--font-sans)', fontSize: 13, color: '#77736A',
-          margin: '6px 0 0', fontWeight: 400, letterSpacing: '0.01em',
-        }}>
-          Real-time insights across all your events
-        </p>
-      </div>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        background: '#FAFAF8', border: '1px solid #E8E2D6',
-        borderRadius: 20, padding: '8px 16px',
-      }}>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <rect x="1.5" y="2.5" width="13" height="12" rx="2" stroke="#B8944F" strokeWidth="1.2" fill="none" />
-          <path d="M1.5 6.5h13" stroke="#B8944F" strokeWidth="1.2" />
-          <path d="M5 1v3" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
-          <path d="M11 1v3" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
-        </svg>
-        <span style={{
-          fontFamily: 'var(--font-sans)', fontSize: 12, color: '#77736A', fontWeight: 500,
-        }}>
-          {dateStr}
-        </span>
-      </div>
-    </div>
-  );
-}
-
 /* ═══ Check-In Kiosk Banner ═══ */
 function CheckInBanner() {
   const [hovered, setHovered] = useState(false);
@@ -396,8 +342,9 @@ export default function OrganizerOverview() {
     <div style={{ padding: 0 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
 
-        {/* ── Header ── */}
-        <WelcomeHeader />
+        {/* Page title/subtitle come from the shared sticky top-bar (dashboard
+            page.js) — a second in-content header here just duplicated it and, on
+            mobile, ate the whole first screen before any real data. */}
 
         {/* ── Check-In Kiosk CTA ── */}
         <CheckInBanner />

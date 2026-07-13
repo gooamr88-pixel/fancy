@@ -27,10 +27,13 @@ const FIELD_TYPES = [
   { value: 'url', label: 'URL' },
 ];
 
+// Only the two values the backend + DB actually support (custom_form_fields
+// CHECK constraint and fieldController both allow only 'always' | 'attending').
+// An earlier 'declining' option was a phantom — the RPC never rendered/stored it
+// and updateField rejected it — so it's removed to keep every layer consistent.
 const CONDITIONS = [
   { value: 'always', label: 'Always Show', color: '#3B9B6D', bg: 'rgba(59,155,109,0.08)' },
   { value: 'attending', label: 'If Attending', color: '#3B82F6', bg: 'rgba(59,130,246,0.08)' },
-  { value: 'declining', label: 'If Declining', color: '#E88F4F', bg: 'rgba(232,143,79,0.08)' },
 ];
 
 const iStyle = {
@@ -362,12 +365,16 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
                   background: C.white, padding: 16,
                   border: `1px solid ${C.border}`, borderRadius: 12,
                   display: 'flex', justifyContent: 'space-between',
-                  alignItems: 'center', transition: 'border-color 0.2s',
+                  alignItems: 'center', flexWrap: 'wrap', gap: 12,
+                  transition: 'border-color 0.2s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(184,148,79,0.3)'}
                 onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* flex/minWidth:0 so the text column can actually shrink — otherwise
+                    a long label + options list pushed the edit/delete buttons past the
+                    card edge on a phone, where overflow-x:hidden clips them away. */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 200px', minWidth: 0 }}>
                   {/* Label + badges */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{

@@ -344,7 +344,7 @@ export default function CheckInPage() {
 
   if (!authReady || loading) {
     return (
-      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100dvh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: '48px', height: '48px', border: `3px solid ${C.border}`, borderTop: `3px solid ${C.gold}`, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
           <p style={{ color: C.stone, fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 300 }}>Loading check-in console...</p>
@@ -355,7 +355,7 @@ export default function CheckInPage() {
 
   if (error) {
     return (
-      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div style={{ minHeight: '100dvh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
         <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: '48px 32px', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
           <Icon name="plug" size={44} color="#C45E5E" strokeWidth={1.3} />
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#C45E5E', marginTop: '12px' }}>Backend Connection Error</h2>
@@ -369,7 +369,7 @@ export default function CheckInPage() {
   return (
     <>
     <ImpersonationBanner />
-    <div style={{ minHeight: '100vh', background: '#FAFAF8', color: C.charcoal, padding: '32px', fontFamily: 'var(--font-sans)' }}>
+    <div className="checkin-page" style={{ minHeight: '100dvh', background: '#FAFAF8', color: C.charcoal, padding: '32px', fontFamily: 'var(--font-sans)' }}>
 
       {!isOnline && (
         <div style={{
@@ -397,7 +397,7 @@ export default function CheckInPage() {
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div style={{ ...cardStyle, padding: '12px 20px', textAlign: 'center' }}>
             <span style={{ fontSize: '10px', color: C.stone, display: 'block', fontWeight: 600 }}>Total Checked-In</span>
             <span style={{ fontSize: '20px', fontWeight: 900, color: C.gold }}>{totalArrivals} Arrivals</span>
@@ -652,7 +652,14 @@ export default function CheckInPage() {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes shrink { from { width: 100%; } to { width: 0%; } }
         @media (max-width: 768px) {
+          /* The page had a hard 32px padding with no mobile override — 64px of a
+             375px phone spent on empty margins before any content. */
+          .checkin-page { padding: 16px !important; }
           .checkin-grid { grid-template-columns: 1fr !important; }
+          /* Large phones in landscape / small tablets (481–768px): drop the
+             3-up detail grid to 2 columns instead of leaving three cramped
+             slivers, then to a single column below. */
+          .checkin-detail-grid { grid-template-columns: 1fr 1fr !important; }
         }
         @media (max-width: 480px) {
           .checkin-detail-grid { grid-template-columns: 1fr !important; }

@@ -453,8 +453,8 @@ export default function ConfigPage() {
 
                 {/* Selected Tier Configuration Card */}
                 {currentTier ? (
-                  <div style={{ ...card, padding: 28 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${T.border}`, paddingBottom: 14, marginBottom: 20 }}>
+                  <div className="cfg-tier-card" style={{ ...card, padding: 28, minWidth: 0 }}>
+                    <div className="cfg-tier-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${T.border}`, paddingBottom: 14, marginBottom: 20 }}>
                       <div>
                         <h3 style={{ fontSize: 15, fontWeight: 800, color: T.text900, margin: 0 }}>Configure Tier: {currentTier.name}</h3>
                         <p style={{ fontSize: 12, color: T.text500, margin: '2px 0 0' }}>Plan limits, core parameters, pricing labels, and gated features registry.</p>
@@ -689,13 +689,23 @@ export default function ConfigPage() {
           </Button>
         </div>
 
-        <style jsx>{`
+        {/* `global` is load-bearing, not cosmetic: the OUTER tiers grid
+            (200px list + 1fr editor) lives on a <motion.div>, and styled-jsx does
+            not reliably stamp its scoping class onto custom components — only onto
+            plain DOM elements. Scoped, the rule silently missed that one grid, so
+            the tiers editor kept its 200px sidebar on a phone and the actual
+            editing column collapsed to ~120px. A global rule applies regardless of
+            element type; the cfg- prefix keeps it from colliding with anything. */}
+        <style jsx global>{`
           /* MOB-9: every fixed multi-column field grid on this page (tiers
              split, tier fields, offline-payment rows, landing-stat rows —
              the last one 5 columns wide) had no breakpoint at all, making the
              pricing/tiers editor genuinely unusable below ~600px. */
           @media (max-width: 640px) {
             .cfg-responsive-grid { grid-template-columns: 1fr !important; }
+            /* Title + "Delete Tier" was a no-wrap space-between row. */
+            .cfg-tier-head { flex-wrap: wrap; gap: 12px; }
+            .cfg-tier-card { padding: 18px !important; }
           }
         `}</style>
       </form>

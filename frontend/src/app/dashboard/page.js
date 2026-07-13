@@ -518,22 +518,12 @@ export default function DashboardPage() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: COLORS.white, fontFamily: 'var(--font-sans)' }}>
 
-      {/* ═══ MOBILE HAMBURGER TOGGLE ═══ */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label="Toggle navigation menu"
-        style={{
-          display: 'none', position: 'fixed', top: '16px', left: '16px', zIndex: 60,
-          width: '40px', height: '40px', borderRadius: '8px', border: `1px solid ${COLORS.border}`,
-          background: COLORS.white, cursor: 'pointer', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        }}
-        className="sidebar-toggle"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={COLORS.charcoal} strokeWidth="2">
-          {sidebarOpen ? <path d="M18 6L6 18M6 6l12 12" /> : <><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></>}
-        </svg>
-      </button>
+      {/* The old top-left floating hamburger lived here. It was removed: it was a
+          detached white chip overlapping the sticky glass top-bar (and forcing a
+          72px padding hack to avoid the title), AND it was redundant — the bottom
+          tab bar's "More" opens the very same drawer from a far better thumb
+          position (see the tab bar's own comment below). The drawer is now closed
+          via the X in its header or by tapping the overlay. */}
 
       {/* ═══ SIDEBAR OVERLAY (mobile) ═══ */}
       {sidebarOpen && (
@@ -589,7 +579,23 @@ export default function DashboardPage() {
         transition: 'transform 0.3s ease',
       }}>
         {/* Logo */}
-        <div style={{ padding: '24px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
+        <div style={{ padding: '24px 20px', borderBottom: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+          {/* Mobile-only dismiss for the off-canvas drawer (desktop keeps the
+              sidebar permanently docked, so it has nothing to close). */}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close navigation menu"
+            className="sidebar-close"
+            style={{
+              display: 'none', order: 2, width: '36px', height: '36px', flexShrink: 0,
+              borderRadius: '8px', border: `1px solid ${COLORS.border}`, background: COLORS.white,
+              cursor: 'pointer', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COLORS.charcoal} strokeWidth="2" strokeLinecap="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
             <svg
               width="24"
@@ -1534,11 +1540,13 @@ export default function DashboardPage() {
           font-weight: 600;
         }
         @media (max-width: 1024px) {
-          .sidebar-toggle { display: flex !important; }
+          .sidebar-close { display: flex !important; }
           .sidebar-overlay { display: block !important; }
           .dashboard-sidebar { transform: ${sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'}; }
           main { margin-left: 0 !important; padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important; }
-          .top-bar { padding-left: 72px !important; padding-right: 16px !important; }
+          /* Was padding-left:72px to dodge the old floating hamburger; that button
+             is gone, so the header title gets the full width back. */
+          .top-bar { padding-left: 16px !important; padding-right: 16px !important; }
           .content-container { padding: 16px !important; }
           .dashboard-bottom-tabbar { display: flex !important; }
           .action-btn-divider { display: none !important; }

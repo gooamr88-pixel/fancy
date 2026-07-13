@@ -120,7 +120,7 @@ export default function StagePayment({
   };
 
   return (
-    <div style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
+    <div className="sp-page" style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{
@@ -584,8 +584,8 @@ export default function StagePayment({
         borderTop: `1px solid ${C.border}`, padding: '16px 24px', paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 8px))', zIndex: 50,
         display: 'flex', justifyContent: 'center',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 860, width: '100%' }}>
-          <button onClick={onBack} disabled={processing} style={{
+        <div className="sp-footer-inner" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: 860, width: '100%' }}>
+          <button onClick={onBack} disabled={processing} className="sp-footer-btn" style={{
             height: 48, padding: '0 24px', background: 'none',
             border: `1.5px solid ${C.charcoal}`, borderRadius: 12,
             fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700, color: C.charcoal,
@@ -595,9 +595,9 @@ export default function StagePayment({
             Back
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className="sp-footer-actions" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             {!isPaid && onSkip && (
-              <button onClick={onSkip} disabled={processing} style={{
+              <button onClick={onSkip} disabled={processing} className="sp-footer-btn" style={{
                 background: 'none', border: 'none', color: C.stone,
                 fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
                 cursor: processing ? 'not-allowed' : 'pointer', textDecoration: 'underline',
@@ -609,7 +609,7 @@ export default function StagePayment({
               // Paid/confirmed events can proceed; unpaid require a submitted manual ref.
               const continueReady = isPaid || paymentConfirmed || !!manualRef;
               return (
-                <button onClick={onContinue} disabled={processing || !continueReady} style={{
+                <button onClick={onContinue} disabled={processing || !continueReady} className="sp-footer-btn" style={{
                   height: 52, padding: '0 32px',
                   background: (processing || !continueReady) ? '#C9C4BA' : 'linear-gradient(135deg, #B8944F, #a6833f)',
                   color: C.white, border: 'none', borderRadius: 14,
@@ -625,6 +625,22 @@ export default function StagePayment({
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        /* Same failure Stage2's footer already fixed: Back + "Skip & pay later"
+           + Continue is a no-wrap row ~380px wide plus 48px padding, and
+           body{overflow-x:hidden} CLIPS rather than scrolls — so on any phone the
+           Continue button (the only way to actually pay) was pushed off-screen and
+           became untappable. Stack full-width, Continue on top as the primary
+           action, and grow the page's bottom padding to clear the now-taller
+           fixed footer so the last tier card isn't hidden behind it. */
+        @media (max-width: 600px) {
+          .sp-footer-inner { flex-direction: column-reverse !important; align-items: stretch !important; gap: 10px !important; }
+          .sp-footer-actions { flex-direction: column-reverse !important; align-items: stretch !important; width: 100% !important; gap: 10px !important; }
+          .sp-footer-btn { width: 100% !important; justify-content: center !important; }
+          .sp-page { padding: 32px 16px 240px !important; }
+        }
+      `}</style>
     </div>
   );
 }

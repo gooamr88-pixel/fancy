@@ -14,7 +14,7 @@ const DEFAULT_STEP_LABELS = ['Templates', 'Configure', 'Distribute'];
 export default function WizardShell({ step, onStepClick, children, labels }) {
   const STEP_LABELS = labels && labels.length ? labels : DEFAULT_STEP_LABELS;
   return (
-    <div style={{ minHeight: '100vh', background: C.lightBg }}>
+    <div style={{ minHeight: '100dvh', background: C.lightBg }}>
       {/* ═══ TOP BAR ═══ */}
       <div className="wz-topbar" style={{
         position: 'sticky', top: 0, zIndex: 100,
@@ -44,10 +44,13 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
           }}>Fancy</span>
         </div>
 
-        {/* Center: Step Indicator */}
+        {/* Center: Step Indicator (desktop). On a phone the five circles + four
+            connectors need ~242px and the labels were hidden entirely — so you got
+            five anonymous dots crammed against the logo, overflowing below ~350px
+            with no idea which step you were on. Swapped for .wz-mobile-progress. */}
         <div className="wz-steps" style={{
           display: 'flex', alignItems: 'center', gap: 0,
-          justifyContent: 'center', flex: '2 1 0',
+          justifyContent: 'center', flex: '2 1 0', minWidth: 0,
         }}>
           {STEP_LABELS.map((label, i) => (
             <React.Fragment key={i}>
@@ -116,8 +119,36 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
           ))}
         </div>
 
-        {/* Right: spacer */}
-        <div style={{ flex: '1 1 0', minWidth: 0 }} />
+        {/* Center: compact progress (mobile only). Names the step you're actually
+            on — which the desktop circle-chain hid on small screens — and can never
+            overflow, since it's text + a fluid bar rather than a fixed-width chain. */}
+        <div className="wz-mobile-progress" style={{
+          display: 'none', flex: '2 1 0', minWidth: 0,
+          flexDirection: 'column', justifyContent: 'center', gap: 5,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, fontFamily: 'var(--font-sans)' }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#77736A', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+              {step + 1}/{STEP_LABELS.length}
+            </span>
+            <span style={{
+              fontSize: 12, fontWeight: 700, color: C.gold, letterSpacing: '0.04em', textTransform: 'uppercase',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
+            }}>
+              {STEP_LABELS[step]}
+            </span>
+          </div>
+          <div style={{ height: 3, borderRadius: 2, background: '#E8E2D6', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', borderRadius: 2,
+              background: `linear-gradient(90deg, ${C.gold}, #D7BE80)`,
+              width: `${((step + 1) / STEP_LABELS.length) * 100}%`,
+              transition: 'width 0.5s cubic-bezier(0.16,1,0.3,1)',
+            }} />
+          </div>
+        </div>
+
+        {/* Right: spacer (desktop only — on mobile the progress bar takes the room) */}
+        <div className="wz-spacer" style={{ flex: '1 1 0', minWidth: 0 }} />
       </div>
 
       {/* ═══ CONTENT ═══ */}
@@ -132,16 +163,14 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
         }
 
         @media (max-width: 768px) {
-          .wz-step-label { display: none !important; }
-          .wz-topbar { padding: 0 12px !important; height: 52px !important; }
+          /* Drop the fixed-width circle chain entirely and give the room to a
+             fluid "3/5 · CONFIGURE" + progress bar, which names the current step
+             and cannot overflow at any width. */
+          .wz-steps { display: none !important; }
+          .wz-spacer { display: none !important; }
+          .wz-mobile-progress { display: flex !important; }
+          .wz-topbar { padding: 0 14px !important; height: 56px !important; }
           .wz-logo { font-size: 18px !important; }
-          .wz-connector { width: 24px !important; margin: 0 2px !important; margin-bottom: 0 !important; }
-          .wz-circle { width: 26px !important; height: 26px !important; font-size: 11px !important; }
-        }
-
-        @media (max-width: 400px) {
-          .wz-connector { width: 16px !important; }
-          .wz-circle { width: 24px !important; height: 24px !important; font-size: 10px !important; }
         }
       `}</style>
     </div>

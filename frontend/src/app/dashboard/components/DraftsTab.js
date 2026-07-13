@@ -260,7 +260,7 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
             const isPending = !!pendingPay;
             return (
             <div key={ev.id} style={{ background: C.white, border: `1px solid ${isPending ? 'rgba(184,148,79,0.35)' : C.border}`, borderRadius: 16, padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                 {isPending ? (
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5,

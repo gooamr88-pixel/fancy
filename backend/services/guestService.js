@@ -216,10 +216,16 @@ async function getPartyForPublicResolve(partyId) {
 
 /** Name search for the public "find my invitation" surface. Min 2 chars enforced by the caller. */
 async function searchPartiesPublic(eventId, term, limit = 10) {
-  // SEC C7: Only fetch PII-free columns for the public surface.
+  // SEC C7: Only fetch PII-free columns for the public surface — with the sole
+  // exception of the primary contact's `email`, which we need server-side (and
+  // NEVER return to the client) to decide whether this party's id is safe to
+  // expose. add_guest_to_party always creates a primary-contact row even for a
+  // host-imported, email-less guest, so "a primary exists" is NOT a proxy for
+  // "self-registered with an email" — using it as one leaked every host-imported
+  // party's id (a capability that resolves to their QR ticket / seating view).
   const { data, error } = await supabase
     .from('rsvp_parties')
-    .select('id, label, response, guests(id, full_name, is_primary_contact)')
+    .select('id, label, response, guests(id, full_name, is_primary_contact, email)')
     .eq('event_id', eventId)
     .ilike('label', `%${escapeLikePattern(term)}%`)
     .limit(limit);
@@ -228,11 +234,11 @@ async function searchPartiesPublic(eventId, term, limit = 10) {
 
   return (data || []).map((item) => {
     const allGuests = item.guests || [];
-    // We no longer fetch email in this query, so we check if the primary
-    // contact exists (the claimable-party logic still works because
-    // email-less parties are host-imported and withhold the id).
     const primary = allGuests.find((g) => g.is_primary_contact);
-    const hasEmail = !!primary; // presence of a primary contact implies email was set at import
+    // Only a party whose primary contact actually has an email on file is
+    // self-claimable (updating it still requires a matching email), so only then
+    // is exposing the id safe. Email-less host-imported parties withhold it.
+    const hasEmail = !!(primary && primary.email);
     return {
       // Only expose the partyId when the primary contact has an email — updating
       // such a record still requires a matching email, so the id is safe to
