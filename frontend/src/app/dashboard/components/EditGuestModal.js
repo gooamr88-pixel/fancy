@@ -199,7 +199,8 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
       style={{
         position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
         justifyContent: 'center', background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(6px)',
-        WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease',
+        WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease', padding: '16px',
+        boxSizing: 'border-box',
       }}
     >
       <div
@@ -257,7 +258,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="eg-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={labelStyle}>Email</label>
                 <input value={formData.email} onChange={handleChange('email')} type="email"
@@ -272,7 +273,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="eg-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={labelStyle}>Party Size</label>
                 <select value={formData.party_size} onChange={handlePartySizeChange} style={{ ...inputStyle, cursor: 'pointer' }}>
@@ -317,7 +318,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <label style={labelStyle}>Additional Guests</label>
                 {companions.map((c, idx) => (
-                  <div key={c.id || idx} style={{
+                  <div key={c.id || idx} className="eg-companion-row" style={{
                     display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px',
                     padding: '10px', borderRadius: '8px', border: `1px solid ${COLORS.border}`, background: COLORS.softBg,
                   }}>
@@ -404,6 +405,10 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 640px) {
+          .eg-row { grid-template-columns: 1fr !important; }
+          .eg-companion-row { grid-template-columns: 1fr !important; }
+        }
       `}</style>
     </div>
   );

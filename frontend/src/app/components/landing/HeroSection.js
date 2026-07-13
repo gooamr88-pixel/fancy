@@ -218,7 +218,7 @@ export default function HeroSection() {
               letterSpacing: "-0.3px",
             }}
           >
-            Weddings, custom, and eternal love.
+            Weddings, custom, and engagements.
           </h2>
 
           {/* Occasion Cards Grid */}
@@ -265,8 +265,8 @@ export default function HeroSection() {
                     <path d="M8 19C8 16.8 9.8 15 12 15C13.3 15 14.2 15.6 14.8 16.3M14.8 26.2C14.2 26.2 8 22.8 8 19C8 18 8.3 17 9 16.2" stroke="#D7BE80" strokeWidth="1.2" strokeLinecap="round" />
                   </svg>
                 ),
-                title: "Eternal Love",
-                desc: "Toast to love with beautiful, eternal pages.",
+                title: "Engagement",
+                desc: "Announce the proposal with elegant engagement pages.",
               },
             ].map((card) => (
               <div key={card.title} className="occasion-card">

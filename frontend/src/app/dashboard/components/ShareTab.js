@@ -38,7 +38,7 @@ export default function ShareTab({ event }) {
   }
 
   return (
-    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
+    <div className="share-tab-card" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28 }}>
       <div style={{ borderBottom: '1px solid #F0ECE3', paddingBottom: 18, marginBottom: 22 }}>
         <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 700, color: C.charcoal, margin: 0 }}>
           Share &amp; QR Code
@@ -49,6 +49,12 @@ export default function ShareTab({ event }) {
         </p>
       </div>
       <EventSharePanel event={event} />
+
+      <style jsx>{`
+        @media (max-width: 640px) {
+          .share-tab-card { padding: 16px; }
+        }
+      `}</style>
     </div>
   );
 }

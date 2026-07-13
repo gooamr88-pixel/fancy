@@ -10,6 +10,7 @@ import ImpersonationBanner from '../components/ImpersonationBanner';
 import { useIsClient } from '../utils/useIsClient';
 import { playAccept, playError, buzz } from '../utils/sound';
 import Icon from '../components/icons/Icon';
+import SeatingMiniMap from '../[slug]/rsvp/SeatingMiniMap';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -30,7 +31,12 @@ export default function CheckInPage() {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState(null);
+  // Full venue layout (tables + zones) for the active event — fetched once
+  // per event, then reused to highlight whichever guest is selected on a
+  // wayfinding map, so staff can see exactly where to point them.
+  const [seatingElements, setSeatingElements] = useState([]);
   const [qrTokenInput, setQrTokenInput] = useState('');
   const [scanStatus, setScanStatus] = useState(null);
   const [totalArrivals, setTotalArrivals] = useState(0);
@@ -42,6 +48,8 @@ export default function CheckInPage() {
   const [eventId, setEventId] = useState('');
   const [eventIdSeeded, setEventIdSeeded] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
   // isClient gates every localStorage read below until we're past hydration
   // (SSR has no localStorage, and reading it before hydration would produce a
   // client/server markup mismatch). authReady replaces the old authReady +
@@ -130,14 +138,36 @@ export default function CheckInPage() {
     (async () => { await fetchCheckInSummary(); })();
   }, [fetchCheckInSummary, eventId]);
 
-  // Clearing the results the instant the query goes empty is a pure
-  // reset-on-change — adjusted during render rather than via an effect. The
-  // actual debounced search fetch (which genuinely needs to wait/subscribe)
-  // stays in its own effect below.
+  // Full venue layout, fetched once per active event (not per guest) — the
+  // wayfinding map below just re-highlights whichever table the currently
+  // selected guest is assigned to. ?include=all pulls in venue zones (bar,
+  // entrance, dance floor…) alongside tables, same as the organizer's own
+  // seating-map editor, so staff get real landmarks to orient by.
+  useEffect(() => {
+    if (!eventId || !authReady) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/events/${eventId}/tables?include=all`, { credentials: 'include' });
+        const data = await res.json();
+        if (!cancelled && data.success) setSeatingElements(data.tables || []);
+      } catch { /* wayfinding map is a nice-to-have — search/check-in still work without it */ }
+    })();
+    return () => { cancelled = true; };
+  }, [eventId, authReady]);
+
+  // Clearing the results the instant the query goes empty (and flagging a
+  // non-empty query as "searching" right away, before the debounce below
+  // even fires) is a pure reset-on-change — adjusted during render rather
+  // than via an effect. This is what lets the "no guest found" state below
+  // only ever appear once a search has actually completed, never as a flash
+  // between keystrokes. The actual debounced search fetch (which genuinely
+  // needs to wait/subscribe) stays in its own effect below.
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery);
   if (searchQuery !== prevSearchQuery) {
     setPrevSearchQuery(searchQuery);
-    if (!searchQuery.trim()) setSearchResults([]);
+    if (!searchQuery.trim()) { setSearchResults([]); setSearching(false); }
+    else setSearching(true);
   }
 
   useEffect(() => {
@@ -148,6 +178,7 @@ export default function CheckInPage() {
         const data = await res.json();
         if (data.success) setSearchResults(data.data?.results || []);
       } catch (err) { /* search failed silently */ }
+      finally { setSearching(false); }
     }, 300);
     return () => clearTimeout(delaySearch);
   }, [searchQuery, eventId, authReady]);
@@ -174,7 +205,7 @@ export default function CheckInPage() {
     manualCheckInInFlight.current = true;
     setManualCheckInBusy(true);
     try {
-      const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ partyId, checkedInBy: 'Tablet Front-Desk' }) });
+      const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/manual`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ partyId }) });
       const data = await res.json(); if (!res.ok) throw new Error(data.message || 'Check-in failed');
       if (data.success) {
         const result = data.data;
@@ -213,7 +244,7 @@ export default function CheckInPage() {
     // while still accepting a raw pasted token for tickets emailed before this change.
     const token = extractTicketToken(scannedToken);
     try {
-      const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token, checkedInBy: 'Kiosk Camera' }) });
+      const res = await fetchWithRetry(`${API_URL}/events/${eventId}/checkin/scan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ token }) });
       const data = await res.json();
       if (!res.ok) { playError(); buzz([40, 30, 40]); setScanStatus({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setOverlayData({ type: 'error', message: data.message || 'QR Ticket signature verification failed.' }); setShowConfirmOverlay(true); return; }
       if (data.success) {
@@ -239,7 +270,60 @@ export default function CheckInPage() {
 
   const handleQRScanSubmit = async (e) => { e.preventDefault(); if (!qrTokenInput.trim()) return; await handleQRScan(qrTokenInput); setQrTokenInput(''); };
 
-  useEffect(() => { let html5QrcodeScanner; if (cameraActive) { import('html5-qrcode').then((module) => { const Html5QrcodeScanner = module.Html5QrcodeScanner; html5QrcodeScanner = new Html5QrcodeScanner("qr-reader", { fps: 10, qrbox: { width: 250, height: 250 }, rememberLastUsedCamera: true }, false); html5QrcodeScanner.render(async (decodedText) => { await handleQRScan(decodedText); setCameraActive(false); }, () => {}); }).catch(err => console.error("Failed to load html5-qrcode:", err)); } return () => { if (html5QrcodeScanner) html5QrcodeScanner.clear().catch(err => console.error("Failed to clear scanner:", err)); }; }, [cameraActive, handleQRScan]);
+  const startCameraScanner = () => { setCameraStarting(true); setCameraError(null); setCameraActive(true); };
+
+  // Html5QrcodeScanner (the library's full stock widget) shows its own
+  // generic "camera vs. file, request permissions" chooser screen before
+  // ever touching the camera — confusing on a kiosk that only ever wants the
+  // camera. Html5Qrcode (the bare engine) instead requests the camera the
+  // moment scanning is turned on, with our own status/error UI below.
+  useEffect(() => {
+    if (!cameraActive) return undefined;
+    let cancelled = false;
+    let instance = null;
+
+    const onDecoded = async (decodedText) => {
+      await handleQRScan(decodedText);
+      setCameraActive(false);
+    };
+
+    import('html5-qrcode').then(async ({ Html5Qrcode }) => {
+      if (cancelled) return;
+      instance = new Html5Qrcode('qr-reader', { verbose: false });
+      const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+      try {
+        // The rear/environment camera is what an install actually wants at a
+        // check-in desk — this is also what triggers the browser's native
+        // permission prompt directly, immediately, on the first attempt.
+        await instance.start({ facingMode: 'environment' }, config, onDecoded, () => {});
+        if (!cancelled) setCameraStarting(false);
+      } catch (err) {
+        if (cancelled) return;
+        // No "environment"-facing camera (common on laptops/desktops with a
+        // single front webcam) — fall back to whatever camera exists.
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (!cameras || cameras.length === 0) throw new Error('NO_CAMERA');
+          await instance.start(cameras[cameras.length - 1].id, config, onDecoded, () => {});
+          if (!cancelled) setCameraStarting(false);
+        } catch (fallbackErr) {
+          if (cancelled) return;
+          setCameraStarting(false);
+          const msg = String(fallbackErr?.message || fallbackErr || '');
+          setCameraError(
+            /NO_CAMERA|NotFoundError/i.test(msg) ? 'No camera found on this device.'
+              : /NotAllowedError|Permission/i.test(msg) ? 'Camera access was denied. Allow camera permission for this site in your browser settings, then try again.'
+              : 'Could not start the camera. Check your browser/site camera permissions and try again.'
+          );
+        }
+      }
+    }).catch(() => { if (!cancelled) { setCameraStarting(false); setCameraError('Could not load the camera scanner.'); } });
+
+    return () => {
+      cancelled = true;
+      if (instance) instance.stop().then(() => instance.clear()).catch(() => {});
+    };
+  }, [cameraActive, handleQRScan]);
 
   // MOB-16: this kiosk is meant to run for hours at a venue door — without a
   // wake lock the device sleeps mid-shift, forcing staff to unlock and
@@ -337,14 +421,33 @@ export default function CheckInPage() {
             <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '18px', fontWeight: 500 }}>QR Ticket Validation</h3>
             <p style={{ fontSize: '12px', color: C.stone, lineHeight: 1.6 }}>Verify credentials using device camera scanning or token string submission below.</p>
             <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')} wrapperStyle={{ display: 'flex', width: '100%' }}>
-              <button type="button" onClick={() => setCameraActive(!cameraActive)}
+              <button type="button" onClick={() => (cameraActive ? setCameraActive(false) : startCameraScanner())}
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: cameraActive ? '#C45E5E' : C.gold, color: C.white, transition: 'all 0.3s' }}>
                 <Icon name={cameraActive ? 'stop' : 'camera'} size={15} strokeWidth={1.6} /> {cameraActive ? 'Stop Camera Scanner' : 'Open Camera Scanner'}
               </button>
             </FeatureGate>
             {cameraActive && (
-              <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px', display: 'flex', justifyContent: 'center' }}>
-                <div id="qr-reader" style={{ width: '100%', maxWidth: '360px', borderRadius: '8px', overflow: 'hidden' }} />
+              <div style={{ background: C.ivory, padding: '16px', border: `1px solid ${C.border}`, borderRadius: '10px' }}>
+                {cameraStarting && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '28px 0' }}>
+                    <div style={{ width: '26px', height: '26px', border: `2.5px solid ${C.border}`, borderTop: `2.5px solid ${C.gold}`, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                    <p style={{ fontSize: '12px', color: C.stone, margin: 0 }}>Requesting camera access…</p>
+                  </div>
+                )}
+                {cameraError && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '24px 12px', textAlign: 'center' }}>
+                    <Icon name="warning" size={28} color="#C45E5E" strokeWidth={1.4} />
+                    <p style={{ fontSize: '13px', fontWeight: 700, color: '#C45E5E', margin: 0 }}>Camera unavailable</p>
+                    <p style={{ fontSize: '12px', color: C.stone, margin: 0, lineHeight: 1.6, maxWidth: '320px' }}>{cameraError}</p>
+                    <button type="button" onClick={() => { setCameraActive(false); setTimeout(startCameraScanner, 50); }}
+                      style={{ marginTop: '4px', padding: '8px 18px', borderRadius: '8px', border: `1px solid ${C.gold}`, background: 'transparent', color: C.gold, fontSize: '12px', fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                      Try Again
+                    </button>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'center', visibility: (cameraStarting || cameraError) ? 'hidden' : 'visible', height: (cameraStarting || cameraError) ? 0 : 'auto', overflow: 'hidden' }}>
+                  <div id="qr-reader" style={{ width: '100%', maxWidth: '360px', borderRadius: '8px', overflow: 'hidden' }} />
+                </div>
               </div>
             )}
             <form onSubmit={handleQRScanSubmit} style={{ display: 'flex', gap: '10px', paddingTop: '8px' }}>
@@ -383,6 +486,25 @@ export default function CheckInPage() {
                       </span>
                     </div>
                   ))}
+                </div>
+              )}
+              {searchQuery.trim() && searchResults.length === 0 && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '8px', background: C.white, border: `1px solid ${C.border}`, borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.08)', zIndex: 20, padding: '28px 20px', textAlign: 'center' }}>
+                  {searching ? (
+                    <>
+                      <div style={{ width: '22px', height: '22px', border: `2.5px solid ${C.border}`, borderTop: `2.5px solid ${C.gold}`, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 10px' }} />
+                      <p style={{ fontSize: '12px', color: C.stone, margin: 0 }}>Searching…</p>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="search" size={26} color="#CFC8BB" strokeWidth={1.4} />
+                      <p style={{ fontSize: '14px', fontWeight: 700, color: C.charcoal, margin: '10px 0 4px' }}>No guest found</p>
+                      <p style={{ fontSize: '12px', color: C.stone, margin: 0, lineHeight: 1.6 }}>
+                        No one matches &ldquo;<strong>{searchQuery.trim()}</strong>&rdquo; on this event&apos;s guest list.<br />
+                        Double-check the spelling, or ask for the name the invitation was sent under.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -424,6 +546,17 @@ export default function CheckInPage() {
                   )}
                 </div>
               </div>
+              {selectedGuest.tableId && seatingElements.length > 0 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, fontWeight: 700 }}>Guide to Seat</span>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: C.gold, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Icon name="mapPin" size={12} strokeWidth={1.8} /> {selectedGuest.tableName}
+                    </span>
+                  </div>
+                  <SeatingMiniMap tables={seatingElements} myTableId={selectedGuest.tableId} youLabel={selectedGuest.guestName} />
+                </div>
+              )}
               {!selectedGuest.isCheckedIn && (
                 <>
                   {selectedGuest.tableName === 'Unassigned' && (

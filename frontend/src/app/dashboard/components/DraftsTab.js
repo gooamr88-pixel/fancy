@@ -57,7 +57,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(8px)',
         WebkitBackdropFilter: 'blur(8px)',
-        animation: 'draftModalFadeIn 0.2s ease',
+        animation: 'draftModalFadeIn 0.2s ease', padding: '16px', boxSizing: 'border-box',
       }}
     >
       <div

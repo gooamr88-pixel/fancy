@@ -123,7 +123,8 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
       style={{
         position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
         justifyContent: 'center', background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(6px)',
-        WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease',
+        WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease', padding: '16px',
+        boxSizing: 'border-box',
       }}
     >
       <div
@@ -181,7 +182,7 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
             </div>
 
             {/* Email & Phone row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="ag-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={labelStyle}>Email *</label>
                 <input value={formData.email} onChange={handleChange('email')} type="email"
@@ -198,7 +199,7 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
             </div>
 
             {/* Party Size & Response row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="ag-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={labelStyle}>Party Size</label>
                 <select value={formData.party_size} onChange={handleChange('party_size')} style={{ ...inputStyle, cursor: 'pointer' }}>
@@ -300,6 +301,9 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 640px) {
+          .ag-row { grid-template-columns: 1fr !important; }
+        }
       `}</style>
     </div>
   );

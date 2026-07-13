@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
 import OverviewStatCards from './OverviewStatCards';
 import RsvpProgressDonut from './RsvpProgressDonut';
@@ -253,6 +254,61 @@ function WelcomeHeader() {
   );
 }
 
+/* ═══ Check-In Kiosk Banner ═══ */
+function CheckInBanner() {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      className="ov-section"
+      style={{
+        animationDelay: '50ms',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24,
+        flexWrap: 'wrap',
+        background: 'linear-gradient(135deg, #191B1E 0%, #2A2D33 100%)',
+        borderRadius: 18, padding: '22px 28px',
+        boxShadow: '0 8px 32px rgba(25,27,30,0.18)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+          background: 'linear-gradient(135deg, #D7BE80, #B8944F)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#191B1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </div>
+        <div>
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, color: '#FFFFFF', margin: 0 }}>
+            Ready for guests to arrive?
+          </h2>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: '#B8B4A8', margin: '4px 0 0', lineHeight: 1.6 }}>
+            Open the check-in kiosk to scan tickets or search guests by name at the door.
+          </p>
+        </div>
+      </div>
+      <Link
+        href="/checkin"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0,
+          padding: '11px 22px', borderRadius: 30, textDecoration: 'none',
+          background: hovered ? 'linear-gradient(135deg, #a6833f, #B8944F)' : 'linear-gradient(135deg, #D7BE80, #B8944F)',
+          color: '#191B1E', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+          transition: 'all 0.25s ease', transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+          boxShadow: hovered ? '0 8px 22px rgba(184,148,79,0.35)' : '0 4px 14px rgba(184,148,79,0.2)',
+        }}
+      >
+        Open Check-In Kiosk
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+      </Link>
+    </div>
+  );
+}
+
 /* ═══ Main Component ═══ */
 export default function OrganizerOverview() {
   const [data, setData] = useState(null);
@@ -322,6 +378,9 @@ export default function OrganizerOverview() {
 
         {/* ── Header ── */}
         <WelcomeHeader />
+
+        {/* ── Check-In Kiosk CTA ── */}
+        <CheckInBanner />
 
         {/* ── Stat Cards ── */}
         <div className="ov-section" style={{ animationDelay: '100ms' }}>

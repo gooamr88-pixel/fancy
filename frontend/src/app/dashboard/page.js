@@ -879,6 +879,32 @@ export default function DashboardPage() {
                   </Link>
                 )}
 
+                <Link
+                  href="/checkin"
+                  id="btn-open-checkin"
+                  style={{
+                    padding: '9px 18px',
+                    background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+                    color: COLORS.white,
+                    border: 'none',
+                    borderRadius: '30px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 4px 15px rgba(184, 148, 79, 0.25)',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(184, 148, 79, 0.4)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 15px rgba(184, 148, 79, 0.25)'; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  Check-In
+                </Link>
+
                 <FeatureGate tierFeatures={activeEvent?.tier_features} isPaid={!!activeEvent?.is_paid} feature="seating_map" onUpgrade={() => { setActiveTab('events'); }}>
                 <Link
                   href="/dashboard/seating-map"
@@ -907,7 +933,7 @@ export default function DashboardPage() {
                 </Link>
                 </FeatureGate>
 
-                <div style={{ width: '1px', height: '20px', background: COLORS.border, margin: '0 4px' }} />
+                <div className="action-btn-divider" style={{ width: '1px', height: '20px', background: COLORS.border, margin: '0 4px' }} />
 
                 {activeTab === 'guests' && (
                   <FeatureGate tierFeatures={activeEvent?.tier_features} isPaid={!!activeEvent?.is_paid} feature="import_guests_csv" onUpgrade={() => { setActiveTab('events'); }}>
@@ -1515,6 +1541,7 @@ export default function DashboardPage() {
           .top-bar { padding-left: 72px !important; padding-right: 16px !important; }
           .content-container { padding: 16px !important; }
           .dashboard-bottom-tabbar { display: flex !important; }
+          .action-btn-divider { display: none !important; }
         }
         @media (max-width: 900px) {
           .seating-form-grid { grid-template-columns: 1fr !important; }

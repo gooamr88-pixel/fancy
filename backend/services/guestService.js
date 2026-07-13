@@ -754,7 +754,7 @@ async function searchGuestsForCheckin(eventId, term, limit = 10) {
     .select(`
       id, label, response,
       guests(id, full_name, meal_selection, dietary_notes),
-      seating_assignments(tables(table_name)),
+      seating_assignments(tables(id, table_name)),
       check_ins(id, checked_in_at, guest_id)
     `)
     .eq('event_id', eventId)
@@ -773,6 +773,10 @@ async function searchGuestsForCheckin(eventId, term, limit = 10) {
       partySize: totalGuests,
       response: p.response,
       tableName: seating?.tables?.table_name || 'Unassigned',
+      // Real table id (not just its display name) — lets the check-in kiosk
+      // highlight the exact table on a wayfinding map, matching by id rather
+      // than the fragile/ambiguous table_name string.
+      tableId: seating?.tables?.id || null,
       isCheckedIn: checkedInCount > 0,
       checkedInCount,
       totalGuests,

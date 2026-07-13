@@ -3,27 +3,6 @@
 export default function FeaturesSection() {
   const features = [
     {
-      title: 'Real-Time RSVP Tracking',
-      description:
-        'Monitor responses as they arrive with live dashboards, instant notifications, and detailed guest analytics.',
-      icon: (
-        <svg
-          width="26"
-          height="26"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M16 3H8a2 2 0 0 0-2 2v16l2-1.5L10 21l2-1.5L14 21l2-1.5L18 21V5a2 2 0 0 0-2-2Z" />
-          <path d="M9.5 10.5l1.5 1.5 3.5-3.5" />
-          <line x1="9" y1="15" x2="15" y2="15" />
-        </svg>
-      ),
-    },
-    {
       title: 'Smart Seating Management',
       description:
         'Drag-and-drop seating charts with capacity validation, party grouping, and instant reassignment.',
@@ -123,30 +102,6 @@ export default function FeaturesSection() {
         </svg>
       ),
     },
-    {
-      title: 'Analytics Dashboard',
-      description:
-        'Comprehensive event insights with trend charts, response breakdowns, and exportable guest reports.',
-      icon: (
-        <svg
-          width="26"
-          height="26"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="4" y1="20" x2="4" y2="13" />
-          <line x1="8.5" y1="20" x2="8.5" y2="9" />
-          <line x1="13" y1="20" x2="13" y2="15" />
-          <line x1="17.5" y1="20" x2="17.5" y2="7" />
-          <polyline points="3 10 8.5 5 13 9 21 3" />
-          <polyline points="17 3 21 3 21 7" />
-        </svg>
-      ),
-    },
   ];
 
   return (
@@ -224,8 +179,10 @@ export default function FeaturesSection() {
 
         .features-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(2, 1fr);
           gap: 24px;
+          max-width: 860px;
+          margin: 0 auto;
         }
 
         .feature-card {
@@ -273,10 +230,6 @@ export default function FeaturesSection() {
         }
 
         @media (max-width: 1024px) {
-          .features-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
           .features-heading {
             font-size: 36px;
           }

@@ -11,7 +11,7 @@ const { broadcast } = require('../utils/realtime');
  */
 const scanCheckIn = async (req, res, next) => {
   const { eventId } = req.params;
-  const { token, checkedInBy } = req.body;
+  const { token } = req.body;
 
   if (!token) return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'token is required.' });
 
@@ -39,7 +39,11 @@ const scanCheckIn = async (req, res, next) => {
 
     const tableName = assignment?.tables?.table_name || decoded.tableName || 'Unassigned';
 
-    const result = await guestService.checkInParty(eventId, decoded.partyId, { method: 'qr_scan', checkedInBy: checkedInBy || null });
+    // checked_in_by is a uuid FK to auth.users — always the authenticated
+    // staff member from the verified session, never a client-supplied value
+    // (the kiosk previously sent a plain device label like "Kiosk Camera"
+    // here, which isn't a valid uuid and crashed the insert).
+    const result = await guestService.checkInParty(eventId, decoded.partyId, { method: 'qr_scan', checkedInBy: req.user?.id || null });
 
     if (!result.success) {
       if (result.error === 'ALREADY_CHECKED_IN') {
@@ -75,7 +79,7 @@ const scanCheckIn = async (req, res, next) => {
  */
 const manualCheckIn = async (req, res, next) => {
   const { eventId } = req.params;
-  const { partyId, checkedInBy } = req.body;
+  const { partyId } = req.body;
 
   if (!partyId) return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'partyId is required.' });
 
@@ -85,7 +89,11 @@ const manualCheckIn = async (req, res, next) => {
     if (partyError || !party) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND', message: 'Guest not found.' });
 
     const tableName = party.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
-    const result = await guestService.checkInParty(eventId, partyId, { method: 'manual_search', checkedInBy: checkedInBy || null });
+    // checked_in_by is a uuid FK to auth.users — always the authenticated
+    // staff member from the verified session, never a client-supplied value
+    // (the kiosk previously sent a plain device label like "Tablet
+    // Front-Desk" here, which isn't a valid uuid and crashed the insert).
+    const result = await guestService.checkInParty(eventId, partyId, { method: 'manual_search', checkedInBy: req.user?.id || null });
 
     if (!result.success) {
       if (result.error === 'ALREADY_CHECKED_IN') return sendFail(res, { status: 409, error: 'ALREADY_CHECKED_IN', message: 'Guest already checked in.' });

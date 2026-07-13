@@ -252,6 +252,7 @@ export default function PricingSection() {
 
         {/* Cards */}
         <div
+          className="pricing-section-cards"
           style={{
             display: 'flex',
             gap: '28px',
@@ -273,9 +274,19 @@ export default function PricingSection() {
 
       <style jsx>{`
         @media (max-width: 900px) {
-          section > div > div:last-child {
+          .pricing-section-cards {
             flex-direction: column;
             align-items: center;
+          }
+        }
+        @media (max-width: 640px) {
+          section#pricing {
+            padding: 64px 20px !important;
+          }
+          .pricing-section-cards :global(.pricing-section-card) {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
           }
         }
       `}</style>

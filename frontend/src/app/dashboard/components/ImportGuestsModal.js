@@ -149,7 +149,8 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
       style={{
         position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center',
         justifyContent: 'center', background: 'rgba(25, 27, 30, 0.45)', backdropFilter: 'blur(6px)',
-        WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease',
+        WebkitBackdropFilter: 'blur(6px)', animation: 'fadeIn 0.2s ease', padding: '16px',
+        boxSizing: 'border-box',
       }}
     >
       <div

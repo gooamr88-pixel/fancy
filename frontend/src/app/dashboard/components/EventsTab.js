@@ -158,6 +158,7 @@ const CSS = `
 @media(max-width:640px){
   .evt2-cover { width:80px; min-height:100px; }
   .evt2-actions { flex-wrap:wrap; }
+  .evt2-tab-card { padding:16px !important; }
 }
 `;
 
@@ -1149,7 +1150,7 @@ export default function EventsTab({ events = [], activeEventId, onSelectEvent, o
   }, [onRefresh]);
 
   return (
-    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="evt2-tab-card" style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 28, display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderBottom: '1px solid #F0ECE3', paddingBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
