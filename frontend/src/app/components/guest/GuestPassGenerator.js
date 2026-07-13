@@ -235,9 +235,9 @@ export default function GuestPassCard({
 
           <Perforation isRTL={isRTL} />
 
-          <div style={{ display: 'flex' }}>
+          <div className="gp-front-row" style={{ display: 'flex' }}>
             {/* Main stub */}
-            <div style={{ flex: '1 1 65%', padding: '26px 26px 22px', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+            <div className="gp-main-stub" style={{ flex: '1 1 65%', padding: '26px 26px 22px', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                 <div style={{ minWidth: 0 }}>
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)', fontWeight: 700, fontFamily: 'var(--font-sans)' }}>
@@ -281,7 +281,7 @@ export default function GuestPassCard({
             </div>
 
             {/* QR stub */}
-            <div style={{
+            <div className="gp-qr-stub" style={{
               flex: '0 0 35%', padding: '22px 14px', display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'rgba(255,255,255,0.02)',
             }}>
@@ -386,6 +386,21 @@ export default function GuestPassCard({
           </div>
         </motion.div>
       </motion.div>
+
+      <style jsx>{`
+        /* The QR stub's fixed 112px QR code + its own padding needs ~152px,
+           but its 35% flex-basis only clears that on a ~435px+ wide card —
+           on real phone widths (320-414px) the row silently clips the title,
+           guest name, and status badge instead of scrolling (the card has
+           overflow:hidden). Stack the QR full-width below the details
+           instead of shrinking it, since a shrunk QR risks becoming
+           unscannable at the door. */
+        @media (max-width: 420px) {
+          .gp-front-row { flex-direction: column; }
+          .gp-main-stub { flex: 1 1 auto; }
+          .gp-qr-stub { flex: 1 1 auto; width: 100%; padding: 18px 14px 24px; border-top: 1px dashed rgba(255,255,255,0.1); }
+        }
+      `}</style>
     </div>
   );
 }

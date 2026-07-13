@@ -1,0 +1,25 @@
+-- ════════════════════════════════════════════════════════════════════════
+-- FIX: every check-in (manual search AND QR scan) has been failing with a
+-- 500 error in production, even after redeploying the app code fix that
+-- looked identical to a prior, already-shipped bug.
+--
+-- Root cause: check_ins.checked_in_by carries a FK to auth.users(id), but
+-- this app's organizer accounts are NOT Supabase Auth users. register()
+-- (backend/controllers/authController.js) mints its own crypto.randomUUID()
+-- and stores it as organizations.owner_user_id; auth.users in this project
+-- is only ever populated for platform admins (admin_users.user_id). The
+-- authenticated organizer's req.user.id (used as checked_in_by since the
+-- earlier "Tablet Front-Desk is not a uuid" fix) is that organizations
+-- UUID, which has no row in auth.users — so every check-in insert violates
+-- check_ins_checked_in_by_fkey (Postgres 23503), masked by the generic
+-- production error handler as "An unexpected error occurred on the
+-- server", indistinguishable from the original bug this fix replaced.
+--
+-- Fix: drop the FK. checked_in_by is purely an audit/attribution field —
+-- backend/utils/excelHelper.js exports it as a raw value and nothing in
+-- the app ever joins it against auth.users — so it doesn't need
+-- referential integrity against a table this app's organizer identity
+-- doesn't actually live in. The column stays a plain nullable uuid.
+-- ════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE public.check_ins DROP CONSTRAINT IF EXISTS check_ins_checked_in_by_fkey;

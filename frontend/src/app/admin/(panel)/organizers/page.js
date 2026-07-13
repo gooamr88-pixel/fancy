@@ -144,7 +144,7 @@ export default function OrganizersPage() {
                 <StatusBadge status={orgDetails?.status || 'active'} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px', color: T.text700 }}>
+              <div className="org-detail-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '12px', color: T.text700 }}>
                 <div>
                   <span style={{ display: 'block', color: T.text400, fontSize: '10px', textTransform: 'uppercase', fontWeight: 700 }}>Joined Date</span>
                   <span style={{ fontWeight: 600 }}>{new Date(selectedOrg.createdAt).toLocaleDateString()}</span>
@@ -154,6 +154,11 @@ export default function OrganizersPage() {
                   <span style={{ fontWeight: 600, color: T.success }}>{money(selectedOrg.lifetimeRevenueCents)}</span>
                 </div>
               </div>
+              <style jsx>{`
+                @media (max-width: 480px) {
+                  .org-detail-grid { grid-template-columns: 1fr !important; }
+                }
+              `}</style>
 
               {tempPassword && (
                 <div style={{ background: T.warningSoft, border: `1px dashed ${T.warning}`, borderRadius: '12px', padding: '14px' }}>

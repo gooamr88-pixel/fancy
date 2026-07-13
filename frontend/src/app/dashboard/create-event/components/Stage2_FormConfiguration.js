@@ -374,7 +374,7 @@ export default function Stage2_FormConfiguration({
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-sans)', marginBottom: 10 }}>
                   <Icon name="palette" size={13} strokeWidth={1.6} style={{ verticalAlign: '-2px', marginRight: 5 }} />Design &amp; Colors — override the preset above with any color you like
                 </div>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                <div className="s2-swatch-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   {[
                     { key: 'primary', label: 'Primary' },
                     { key: 'secondary', label: 'Secondary' },
@@ -820,16 +820,16 @@ export default function Stage2_FormConfiguration({
                         }}>{idx + 1}</span>
                         <button type="button" onClick={() => moveSection(key, -1)} disabled={idx === 0} aria-label="Move up"
                           style={{
-                            width: 22, height: 22, borderRadius: 6, border: `1px solid ${C.border}`, background: C.white,
+                            width: 32, height: 32, borderRadius: 6, border: `1px solid ${C.border}`, background: C.white,
                             color: idx === 0 ? '#CFC8BB' : C.stone, cursor: idx === 0 ? 'not-allowed' : 'pointer',
-                            fontSize: 11, lineHeight: 1, flexShrink: 0,
+                            fontSize: 12, lineHeight: 1, flexShrink: 0,
                           }}>↑</button>
                         <button type="button" onClick={() => moveSection(key, 1)} disabled={idx === orderedSectionKeys.length - 1} aria-label="Move down"
                           style={{
-                            width: 22, height: 22, borderRadius: 6, border: `1px solid ${C.border}`, background: C.white,
+                            width: 32, height: 32, borderRadius: 6, border: `1px solid ${C.border}`, background: C.white,
                             color: idx === orderedSectionKeys.length - 1 ? '#CFC8BB' : C.stone,
                             cursor: idx === orderedSectionKeys.length - 1 ? 'not-allowed' : 'pointer',
-                            fontSize: 11, lineHeight: 1, flexShrink: 0,
+                            fontSize: 12, lineHeight: 1, flexShrink: 0,
                           }}>↓</button>
                         <button type="button" onClick={() => toggleSection(key)}
                           style={{
@@ -1293,14 +1293,14 @@ export default function Stage2_FormConfiguration({
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)',
         borderTop: `1px solid ${C.border}`,
-        padding: '16px 24px', zIndex: 50,
+        padding: '16px 24px', paddingBottom: 'max(16px, calc(env(safe-area-inset-bottom) + 8px))', zIndex: 50,
         display: 'flex', justifyContent: 'center',
       }}>
-        <div style={{
+        <div className="s2-footer-inner" style={{
           display: 'flex', justifyContent: 'space-between',
           alignItems: 'center', maxWidth: 860, width: '100%',
         }}>
-          <button onClick={onBack} style={{
+          <button onClick={onBack} className="s2-footer-btn" style={{
             height: 48, padding: '0 24px',
             background: 'none', border: `1.5px solid ${C.charcoal}`,
             borderRadius: 12, fontFamily: 'var(--font-sans)',
@@ -1315,9 +1315,9 @@ export default function Stage2_FormConfiguration({
             Back
           </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="s2-footer-actions" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {onSaveDraft && (
-              <button onClick={onSaveDraft} type="button"
+              <button onClick={onSaveDraft} type="button" className="s2-footer-btn"
                 disabled={!title || !slug || !eventDate || savingDraft}
                 title="Save your progress and finish later from Dashboard → Drafts"
                 style={{
@@ -1335,7 +1335,7 @@ export default function Stage2_FormConfiguration({
               </button>
             )}
 
-            <button onClick={onNext} data-testid="wizard-next"
+            <button onClick={onNext} data-testid="wizard-next" className="s2-footer-btn"
             disabled={!title || !slug || !eventDate || anyMediaUploading}
             style={{
               height: 48, padding: '0 32px',
@@ -1360,6 +1360,17 @@ export default function Stage2_FormConfiguration({
           .s2-row { grid-template-columns: 1fr !important; }
           .s2-privacy { grid-template-columns: 1fr !important; }
           .s2-category-grid { grid-template-columns: repeat(3, 1fr) !important; }
+          .s2-swatch-row { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+        /* The 3-button footer (Back / Save as Draft / Continue) has no wrap
+           and body{overflow-x:hidden} clips rather than scrolls, so past
+           ~550px combined width "Continue" — the only way to advance the
+           wizard — gets pushed off-screen and becomes untappable. Stack it
+           full-width instead, Continue on top since it's the primary action. */
+        @media (max-width: 600px) {
+          .s2-footer-inner { flex-direction: column-reverse !important; align-items: stretch !important; gap: 10px !important; }
+          .s2-footer-actions { flex-direction: column-reverse !important; align-items: stretch !important; width: 100% !important; gap: 10px !important; }
+          .s2-footer-btn { width: 100% !important; justify-content: center !important; }
         }
       `}</style>
     </div>

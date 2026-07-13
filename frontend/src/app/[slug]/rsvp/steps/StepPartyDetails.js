@@ -239,6 +239,17 @@ export default function StepPartyDetails({
               </FormField>
             )}
           </div>
+
+          <style jsx>{`
+            @media (max-width: 640px) {
+              .name-title-row {
+                grid-template-columns: 1fr !important;
+              }
+              .email-phone-row {
+                grid-template-columns: 1fr !important;
+              }
+            }
+          `}</style>
         </div>
       </FadeInUp>
     );
@@ -587,17 +598,6 @@ export default function StepPartyDetails({
           </div>
         </>
       )}
-
-      <style jsx>{`
-        @media (max-width: 640px) {
-          .name-title-row {
-            grid-template-columns: 1fr !important;
-          }
-          .email-phone-row {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

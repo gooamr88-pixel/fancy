@@ -316,6 +316,8 @@ export default function ConfigPage() {
     alignItems: 'center',
     gap: 8,
     transition: 'all 0.2s ease',
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
   });
 
   if (loading) return <PageLoading label="Loading configuration…" />;
@@ -334,7 +336,7 @@ export default function ConfigPage() {
       </header>
 
       {/* Tabs Shell */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}`, marginBottom: 24, gap: 4 }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}`, marginBottom: 24, gap: 4, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <button type="button" onClick={() => setActiveTab('pricing')} style={tabStyle('pricing')}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><line x1="12" y1="4" x2="12" y2="20" /><line x1="2" y1="12" x2="22" y2="12" /></svg>
           Global Pricing

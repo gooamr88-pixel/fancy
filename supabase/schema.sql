@@ -2651,10 +2651,9 @@ ALTER TABLE ONLY public.admin_user_roles
 ALTER TABLE ONLY public.admin_users
     ADD CONSTRAINT admin_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
--- Name: check_ins check_ins_checked_in_by_fkey; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.check_ins
-    ADD CONSTRAINT check_ins_checked_in_by_fkey FOREIGN KEY (checked_in_by) REFERENCES auth.users(id);
+-- check_ins_checked_in_by_fkey dropped by migration
+-- 20260728000000_drop_checkin_actor_fk.sql — checked_in_by is a plain audit
+-- uuid; organizer ids live in organizations.owner_user_id, not auth.users.
 
 -- Name: check_ins check_ins_event_id_fkey; Type: FK CONSTRAINT; Schema: public
 

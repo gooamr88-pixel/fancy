@@ -39,7 +39,9 @@ const scanCheckIn = async (req, res, next) => {
 
     const tableName = assignment?.tables?.table_name || decoded.tableName || 'Unassigned';
 
-    // checked_in_by is a uuid FK to auth.users — always the authenticated
+    // checked_in_by is a plain audit uuid (no FK — organizer ids live in
+    // organizations.owner_user_id, not auth.users; see migration
+    // 20260728000000_drop_checkin_actor_fk.sql) — always the authenticated
     // staff member from the verified session, never a client-supplied value
     // (the kiosk previously sent a plain device label like "Kiosk Camera"
     // here, which isn't a valid uuid and crashed the insert).
@@ -89,7 +91,9 @@ const manualCheckIn = async (req, res, next) => {
     if (partyError || !party) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND', message: 'Guest not found.' });
 
     const tableName = party.seating_assignments?.[0]?.tables?.table_name || 'Unassigned';
-    // checked_in_by is a uuid FK to auth.users — always the authenticated
+    // checked_in_by is a plain audit uuid (no FK — organizer ids live in
+    // organizations.owner_user_id, not auth.users; see migration
+    // 20260728000000_drop_checkin_actor_fk.sql) — always the authenticated
     // staff member from the verified session, never a client-supplied value
     // (the kiosk previously sent a plain device label like "Tablet
     // Front-Desk" here, which isn't a valid uuid and crashed the insert).

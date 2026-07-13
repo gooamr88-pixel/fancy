@@ -32,7 +32,7 @@ export default function PaymentsPage() {
         </p>
       </header>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 18 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 18, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <Tab active={tab === 'payments'} onClick={() => setTab('payments')}>Payments</Tab>
         <Tab active={tab === 'disputes'} onClick={() => setTab('disputes')}>Disputes</Tab>
       </div>
@@ -273,6 +273,8 @@ function Tab({ active, onClick, children }) {
         fontSize: 13,
         fontWeight: 600,
         cursor: 'pointer',
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
       }}
     >
       {children}

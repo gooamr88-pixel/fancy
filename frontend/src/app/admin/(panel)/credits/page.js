@@ -174,7 +174,7 @@ function PackageCatalog() {
           <Button variant="primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</Button>
         </>}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="credit-pkg-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Type">
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={inputStyle} disabled={editing !== 'new'}>
               <option value="sms">SMS</option>
@@ -188,6 +188,11 @@ function PackageCatalog() {
           <Field label="Price (USD)"><input type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} style={inputStyle} /></Field>
           <Field label="Sort order"><input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} style={inputStyle} /></Field>
         </div>
+        <style jsx>{`
+          @media (max-width: 480px) {
+            .credit-pkg-grid { grid-template-columns: 1fr !important; }
+          }
+        `}</style>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: T.text700, cursor: 'pointer' }}>
           <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
           Active (available for purchase)

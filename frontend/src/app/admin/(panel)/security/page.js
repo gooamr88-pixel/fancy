@@ -52,9 +52,9 @@ export default function SecurityPage() {
         <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Sessions, anomalies and login monitoring.</p>
       </header>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: `1px solid ${T.border}` }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, borderBottom: `1px solid ${T.border}`, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         {tabs.map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)} style={{ border: 'none', background: 'transparent', padding: '10px 4px', marginRight: 12, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', color: tab === k ? T.primary : T.text500, borderBottom: tab === k ? `2px solid ${T.primary}` : '2px solid transparent' }}>{label}</button>
+          <button key={k} onClick={() => setTab(k)} style={{ border: 'none', background: 'transparent', padding: '10px 4px', marginRight: 12, fontSize: 13.5, fontWeight: 600, cursor: 'pointer', color: tab === k ? T.primary : T.text500, borderBottom: tab === k ? `2px solid ${T.primary}` : '2px solid transparent', flexShrink: 0, whiteSpace: 'nowrap' }}>{label}</button>
         ))}
       </div>
 

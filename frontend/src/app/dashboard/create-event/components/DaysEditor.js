@@ -18,9 +18,9 @@ const lbl = {
   letterSpacing: '0.05em', display: 'block', marginBottom: 4, fontFamily: 'var(--font-sans)',
 };
 const iconBtn = (disabled) => ({
-  width: 28, height: 28, borderRadius: 8, border: `1px solid ${C.border}`,
+  width: 36, height: 36, borderRadius: 8, border: `1px solid ${C.border}`,
   background: C.white, color: disabled ? '#CFC8BB' : C.stone, cursor: disabled ? 'not-allowed' : 'pointer',
-  fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
 });
 
 const SCHEDULE_ICON_OPTIONS = [
@@ -153,7 +153,7 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
           </div>
 
           <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+            <div className="de-venue-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
               <div>
                 <label style={lbl}>Venue</label>
                 <PlacesAutocomplete
@@ -209,6 +209,12 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
       >
         + Add a day
       </button>
+
+      <style jsx>{`
+        @media (max-width: 640px) {
+          .de-venue-row { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }
