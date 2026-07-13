@@ -4,6 +4,7 @@ import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import { usePublicPricing, formatTierPrice, tierCta, tierHref, tierGuestLine } from "../utils/usePublicPricing";
+import PlanRecommender from "./PlanRecommender";
 
 const faqData = [
   {
@@ -27,6 +28,38 @@ const faqData = [
     answer: "Contact our sales team with your organization's details — we review nonprofit and high-volume requests individually rather than through a fixed discount.",
   },
 ];
+
+/**
+ * Answers the single most ambiguous pricing question: what actually happens
+ * once an event's guest count exceeds the largest plan — is there a hidden
+ * overage fee, or is upgrading mandatory? Computed from the REAL live tiers
+ * (never a hardcoded tier name or guest number, which would silently drift
+ * the moment an admin edits pricing) so this can never contradict the cards
+ * rendered above it. There is no overage-billing mechanism anywhere in this
+ * product — the only two real outcomes are "upgrade to a higher tier" (price
+ * difference only) or "this needs a custom/Enterprise quote" — so the answer
+ * states both plainly instead of leaving the visitor to guess.
+ */
+function buildGuestCapFaq(tiers) {
+  if (!tiers || tiers.length === 0) return null;
+  const fixedTiers = tiers.filter((t) => !t.is_custom);
+  const largestFixed = [...fixedTiers].sort((a, b) => (b.max_guests || 0) - (a.max_guests || 0))[0];
+  if (!largestFixed) return null;
+  const customTier = tiers.find((t) => t.is_custom);
+  const capLine = tierGuestLine(largestFixed);
+  const noFeeSentence = "To be direct: there is no automatic per-guest overage fee anywhere on this platform — you are never charged extra without explicitly choosing to.";
+
+  if (customTier) {
+    return {
+      question: `My event has more guests than ${largestFixed.name} allows — do I get billed extra, or do I have to move to ${customTier.name}?`,
+      answer: `${noFeeSentence} Once an event reaches its plan's guest cap (${capLine} on ${largestFixed.name}), new RSVPs are simply paused until you upgrade — and upgrading only ever charges the difference between your current plan and the new one (see "Can I upgrade..." above). If your guest count will exceed every fixed plan, that's exactly what ${customTier.name} is for: a custom quote sized to your event, with the guest cap and price agreed before you commit. Select "${tierCta(customTier)}" on the ${customTier.name} card above to start that conversation.`,
+    };
+  }
+  return {
+    question: `My event has more guests than ${largestFixed.name} allows — do I get billed extra?`,
+    answer: `${noFeeSentence} Once an event reaches its plan's guest cap (${capLine} on ${largestFixed.name}, our largest available plan), new RSVPs are simply paused until you upgrade to a higher plan — upgrading only ever charges the price difference from your current plan (see "Can I upgrade..." above). If your event will exceed even our largest plan, contact us and we'll work out the right plan for it.`,
+  };
+}
 
 // Comparison features are now built dynamically from the loaded plans.
 
@@ -307,6 +340,13 @@ export default function PricingPage() {
     };
   });
 
+  // The guest-cap FAQ is spliced in right after "Can I upgrade..." (index 1)
+  // since it directly extends that answer — computed live, see buildGuestCapFaq.
+  const guestCapFaq = buildGuestCapFaq(tiers);
+  const allFaqData = guestCapFaq
+    ? [...faqData.slice(0, 2), guestCapFaq, ...faqData.slice(2)]
+    : faqData;
+
   // Comparison features are built dynamically from the loaded plans.
   const comparisonFeatures = (() => {
     const allFeatures = new Set();
@@ -398,6 +438,7 @@ export default function PricingPage() {
         {/* ════════════════════ PRICING CARDS ════════════════════ */}
         <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 48px 100px" }}>
           <h2 className="sr-only">Pricing Plans</h2>
+          {plans.length > 0 && <PlanRecommender tiers={tiers} />}
           {tiers === null && !error && (
             <p style={{ fontFamily: "var(--font-sans)", fontSize: "15px", color: "#5E5A52", textAlign: "center" }}>
               Loading plans…
@@ -564,7 +605,7 @@ export default function PricingPage() {
             </div>
 
             <div style={{ borderTop: "1px solid #E8E2D6" }}>
-              {faqData.map((item, i) => (
+              {allFaqData.map((item, i) => (
                 <FaqItem
                   key={i}
                   item={item}

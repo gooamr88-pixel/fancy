@@ -7,7 +7,7 @@ const { submitPublicRSVP, searchPublicGuests, verifyPublicSeating, getGuestById,
 const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
 const { handleSmsStatusCallback } = require('../controllers/campaignController');
-const { subscribeNewsletter, submitContactForm } = require('../controllers/marketingController');
+const { subscribeNewsletter, submitContactForm, getPublicTestimonials, getPublicPressMentions, getPublicBlogPosts, getPublicBlogPostBySlug } = require('../controllers/marketingController');
 const { verifyTurnstile } = require('../middleware/captcha');
 const { generateQRCodeBuffer } = require('../utils/qrHelper');
 const { getPlatformConfig } = require('../utils/configCache');
@@ -42,20 +42,41 @@ router.get('/landing-stats', async (req, res) => {
   }
 });
 
-// Footer newsletter signup
+// Real, admin-managed customer testimonials (published only) — see
+// controllers/admin/testimonialsController.js for the full CRUD surface.
+router.get('/testimonials', getPublicTestimonials);
+
+// Real, admin-managed "As Seen In" press mentions / trust badges (published
+// only) — see controllers/admin/pressMentionsController.js for full CRUD.
+router.get('/press-mentions', getPublicPressMentions);
+
+// Real, admin-managed blog (published only) — see
+// controllers/admin/blogController.js for the full CRUD surface.
+router.get('/blog', getPublicBlogPosts);
+router.get('/blog/:slug', getPublicBlogPostBySlug);
+
+// Footer + blog newsletter signup
 router.post('/newsletter-subscribe', [
   marketingFormLimiter,
   body('email').isEmail().normalizeEmail().withMessage('A valid email is required'),
+  body('source').optional().isIn(['footer', 'blog']).withMessage('Invalid source'),
   validate
 ], subscribeNewsletter);
 
-// Contact page form
+// Contact page form — also the target for the /solutions/* (Planners / Venues /
+// Corporate) inquiry forms, which pass the extra optional fields below plus a
+// `segment` so a qualified sales lead is distinguishable from a routine
+// support question (see marketingController.submitContactForm).
 router.post('/contact', [
   marketingFormLimiter,
   body('name').trim().notEmpty().isLength({ max: 200 }).withMessage('Name is required'),
   body('email').isEmail().normalizeEmail().withMessage('A valid email is required'),
   body('subject').trim().notEmpty().isLength({ max: 200 }).withMessage('Subject is required'),
   body('message').trim().notEmpty().isLength({ max: 5000 }).withMessage('Message is required'),
+  body('segment').optional({ values: 'falsy' }).isIn(['general', 'planners', 'venues', 'corporate']).withMessage('Invalid segment'),
+  body('company').optional({ values: 'falsy' }).trim().isLength({ max: 200 }).withMessage('Company name too long'),
+  body('phone').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Phone number too long'),
+  body('expectedGuests').optional({ values: 'falsy' }).trim().isLength({ max: 50 }).withMessage('Invalid guest volume'),
   validate
 ], submitContactForm);
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CalendarButton, ShareButton } from '../../../guest/GuestUI';
+import { LockIcon } from '../../../guest/RsvpIcons';
 import { ConfettiExplosion } from '../../../guest/GuestAnimations';
 import GuestPassCard from '../../../guest/GuestPassGenerator';
 import PhoneNumberInput from '../../../PhoneNumberInput';
@@ -937,6 +938,19 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                     {isRTL ? 'يرجى مراجعة الحقول المطلوبة بالأعلى.' : 'Please review the highlighted fields above.'}
                   </p>
                 )}
+
+                {/* Data-privacy reassurance, right before the final submit — same
+                    placement/reasoning as the wizard flow's own note. */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '12px 14px', borderRadius: '12px',
+                  background: C.cream, border: `1px solid ${C.border}`,
+                }}>
+                  <LockIcon size={16} strokeWidth={1.6} color={C.maroon} />
+                  <span style={{ fontSize: '11.5px', color: C.ink, opacity: 0.75, lineHeight: 1.5, fontFamily: 'var(--font-sans)' }}>
+                    {isRTL ? 'بياناتك محفوظة بسرية وأمان تام، ولا تُشارَك إلا مع المضيف.' : 'Your information is kept private and secure, and is only ever shared with your host.'}
+                  </span>
+                </div>
 
                 <motion.button
                   type="button" onClick={handleSubmit} disabled={submitting}

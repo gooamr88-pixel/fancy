@@ -39,7 +39,7 @@ export default function StagePayment({
   processing, error, onContinue, onBack, onSkip,
   paymentConfirmed = false, paymentNotice = '', verifying = false, onRecheckPayment,
   isPaid = false, currentTierName = '', currentTierMaxGuests = null,
-  stripeEnabled = true,
+  stripeEnabled = true, referralCreditCents = 0,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
   // When card payments are off (pre-live), the manual-transfer panel IS the flow —
@@ -87,10 +87,12 @@ export default function StagePayment({
   // upgrade payment exists. The backend (createCheckoutSession / initiateManualPayment)
   // computes this exact same way and is the source of truth for what's charged —
   // this is purely a transparent preview so the organizer sees it before paying.
-  const dueNowCents = (tierPriceCents) => {
-    if (currentPrice != null && tierPriceCents > currentPrice) return tierPriceCents - currentPrice;
-    return tierPriceCents;
-  };
+  const upgradeAdjustedCents = (tierPriceCents) => (currentPrice != null && tierPriceCents > currentPrice) ? tierPriceCents - currentPrice : tierPriceCents;
+  // REFERRAL-1: same read-only preview principle as the upgrade credit above —
+  // the backend (createCheckoutSession / initiateManualPayment) is the actual
+  // source of truth for the redeemed amount; this only mirrors it visually.
+  const referralDeductionFor = (tierPriceCents) => referralCreditCents > 0 ? Math.min(referralCreditCents, Math.max(0, upgradeAdjustedCents(tierPriceCents))) : 0;
+  const dueNowCents = (tierPriceCents) => Math.max(0, upgradeAdjustedCents(tierPriceCents) - referralDeductionFor(tierPriceCents));
   const isProratedTier = (tierPriceCents) => currentPrice != null && tierPriceCents > currentPrice;
   // Tiers shown in the selectable grid depend on the mode.
   // When upgrading, show ALL plans but mark the current one as locked.
@@ -302,6 +304,21 @@ export default function StagePayment({
         </div>
       )}
 
+      {/* Referral credit banner — the discount itself is applied server-side; this
+          is purely a heads-up so the price below doesn't come as a surprise. */}
+      {referralCreditCents > 0 && !showCurrentPlan && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
+          background: 'rgba(59,155,109,0.06)', border: '1px solid rgba(59,155,109,0.25)',
+          borderRadius: 12, padding: '12px 16px',
+        }}>
+          <span style={{ fontSize: 16, flexShrink: 0, lineHeight: '20px' }}>🎁</span>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal, fontWeight: 600, minWidth: 0, lineHeight: 1.5 }}>
+            You have {fmt(referralCreditCents)} in referral credit — it will be applied automatically to your payment below.
+          </span>
+        </div>
+      )}
+
       {/* Tier cards (selection / upgrade) */}
       {!showCurrentPlan && !showPendingPlan && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 28 }}>
@@ -371,6 +388,11 @@ export default function StagePayment({
               {!isDisabled && isProratedTier(tier.price_cents) && (
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, margin: '0 0 4px', textDecoration: 'line-through', opacity: 0.7 }}>
                   Full price {fmt(tier.price_cents)}
+                </p>
+              )}
+              {!isDisabled && referralDeductionFor(tier.price_cents) > 0 && (
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.success, margin: '0 0 4px', fontWeight: 600 }}>
+                  🎁 −{fmt(referralDeductionFor(tier.price_cents))} referral credit applied
                 </p>
               )}
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0 }}>
@@ -483,6 +505,11 @@ export default function StagePayment({
                     {isProratedTier(selectedTier.price_cents) && (
                       <span style={{ display: 'block', fontWeight: 400, color: C.stone, fontSize: 12, marginTop: 2 }}>
                         Full price {fmt(selectedTier.price_cents)} − {fmt(currentPrice)} already paid for your current plan
+                      </span>
+                    )}
+                    {referralDeductionFor(selectedTier.price_cents) > 0 && (
+                      <span style={{ display: 'block', fontWeight: 600, color: C.success, fontSize: 12, marginTop: 2 }}>
+                        🎁 −{fmt(referralDeductionFor(selectedTier.price_cents))} referral credit applied
                       </span>
                     )}
                   </span>

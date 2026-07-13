@@ -11,6 +11,7 @@ function getStripe() {
 }
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { reverseReferralForRefundedPayment } = require('./referralService');
 
 /**
  * Real refund execution (Master Plan §9 / fixes B1).
@@ -133,6 +134,12 @@ async function refundEventPayment(payment, { actorId, reason, amountCents } = {}
       .update({ is_paid: false, status: 'paused', updated_at: new Date().toISOString() })
       .eq('id', payment.event_id);
     if (evtErr) throw evtErr;
+
+    // Restore any referral credit this payment consumed and claw back the reward
+    // its conversion earned. Best-effort + idempotent with the webhook path — a
+    // failure here must never fault an already-issued refund. Requires the caller
+    // to have selected referral_credit_applied_cents on `payment`.
+    await reverseReferralForRefundedPayment(payment);
   }
 
   return { ok: true, stripeRefundId, amountCents: refundAmount, offline };

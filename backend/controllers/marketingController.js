@@ -12,15 +12,18 @@ const { escapeHtml } = require('../utils/emailTemplates');
  * write is already the durable record.
  */
 
-const NOTIFY_EMAIL = process.env.CONTACT_NOTIFY_EMAIL || 'support@fancyrsvp.com';
+const NOTIFY_EMAIL = process.env.CONTACT_NOTIFY_EMAIL || 'info@viamarketing.ca';
 
-/** POST /api/v1/public/newsletter-subscribe  body: { email } */
+const NEWSLETTER_SOURCES = ['footer', 'blog'];
+
+/** POST /api/v1/public/newsletter-subscribe  body: { email, source? } */
 const subscribeNewsletter = async (req, res, next) => {
   const email = (req.body.email || '').toLowerCase().trim();
+  const source = NEWSLETTER_SOURCES.includes(req.body.source) ? req.body.source : 'footer';
   try {
     const { error } = await supabase
       .from('newsletter_subscribers')
-      .insert({ email, source: 'footer' });
+      .insert({ email, source });
 
     // Already-subscribed is not an error from the visitor's point of view.
     if (error && error.code !== '23505') throw error;
@@ -37,23 +40,44 @@ const subscribeNewsletter = async (req, res, next) => {
   }
 };
 
-/** POST /api/v1/public/contact  body: { name, email, subject, message } */
+/**
+ * POST /api/v1/public/contact  body: { name, email, subject, message,
+ *   segment?, company?, phone?, expectedGuests? }
+ *
+ * Shared by the generic Contact page (segment omitted -> 'general') and the
+ * /solutions/* B2B inquiry forms (Planners / Venues / Corporate), which pass
+ * `segment` plus the optional company/phone/expectedGuests fields so a
+ * qualified sales lead is durably distinguishable from a routine support
+ * question — not just another row indistinguishable from the rest.
+ */
 const submitContactForm = async (req, res, next) => {
   const name = (req.body.name || '').trim();
   const email = (req.body.email || '').trim();
   const subject = (req.body.subject || '').trim();
   const message = (req.body.message || '').trim();
+  // Defence in depth: the route validator already restricts this to the known
+  // set, but never trust the body value verbatim into a CHECK-constrained column.
+  const ALLOWED_SEGMENTS = ['general', 'planners', 'venues', 'corporate'];
+  const segment = ALLOWED_SEGMENTS.includes(req.body.segment) ? req.body.segment : 'general';
+  const company = (req.body.company || '').trim() || null;
+  const phone = (req.body.phone || '').trim() || null;
+  const expectedGuests = (req.body.expectedGuests || '').trim() || null;
 
   try {
     const { error } = await supabase
       .from('contact_submissions')
-      .insert({ name, email, subject, message, ip: req.ip || null });
+      .insert({ name, email, subject, message, segment, company, phone, expected_guests: expectedGuests, ip: req.ip || null });
     if (error) throw error;
 
+    const segmentLabel = segment === 'general' ? null : segment.charAt(0).toUpperCase() + segment.slice(1);
     sendEmailViaBrevo(
       NOTIFY_EMAIL,
-      `New contact form message: ${subject}`,
-      `<p><strong>From:</strong> ${escapeHtml(name)} (${escapeHtml(email)})</p>
+      segmentLabel ? `New ${segmentLabel} inquiry: ${subject}` : `New contact form message: ${subject}`,
+      `${segmentLabel ? `<p><strong>Segment:</strong> ${escapeHtml(segmentLabel)}</p>` : ''}
+       <p><strong>From:</strong> ${escapeHtml(name)} (${escapeHtml(email)})</p>
+       ${company ? `<p><strong>Company:</strong> ${escapeHtml(company)}</p>` : ''}
+       ${phone ? `<p><strong>Phone:</strong> ${escapeHtml(phone)}</p>` : ''}
+       ${expectedGuests ? `<p><strong>Expected guests:</strong> ${escapeHtml(expectedGuests)}</p>` : ''}
        <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
        <p><strong>Message:</strong></p>
        <p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>`
@@ -65,4 +89,111 @@ const submitContactForm = async (req, res, next) => {
   }
 };
 
-module.exports = { subscribeNewsletter, submitContactForm };
+/**
+ * GET /api/v1/public/testimonials — published testimonials only, in display
+ * order. The counterpart to admin/testimonialsController.js's full CRUD;
+ * this is the ONLY read path the public landing page uses, so an
+ * unpublished (draft, or since-retracted) testimonial can never leak.
+ * Never exposes created_by/updated_by or timestamps — those are internal.
+ */
+const getPublicTestimonials = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('testimonials')
+      .select('id, name, role, quote, photo_url, initials, rating, verify_url')
+      .eq('is_published', true)
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
+    return res.json({ success: true, testimonials: data || [] });
+  } catch (err) {
+    // A landing-page decoration must never 500 the page — degrade to an
+    // empty list (the section hides itself client-side) rather than error,
+    // mirroring the /public/landing-stats endpoint's own fallback.
+    logger.warn({ err }, 'getPublicTestimonials: query failed, returning empty list');
+    return res.status(200).json({ success: false, testimonials: [] });
+  }
+};
+
+/**
+ * GET /api/v1/public/press-mentions — published "As Seen In" press mentions
+ * / trust badges only, in display order. The counterpart to
+ * admin/pressMentionsController.js's full CRUD. Never exposes
+ * created_by/updated_by or timestamps — those are internal.
+ */
+const getPublicPressMentions = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('press_mentions')
+      .select('id, publication_name, logo_url, article_url, headline')
+      .eq('is_published', true)
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
+    return res.json({ success: true, pressMentions: data || [] });
+  } catch (err) {
+    // A landing-page decoration must never 500 the page — degrade to an
+    // empty list (the section hides itself client-side) rather than error,
+    // mirroring getPublicTestimonials.
+    logger.warn({ err }, 'getPublicPressMentions: query failed, returning empty list');
+    return res.status(200).json({ success: false, pressMentions: [] });
+  }
+};
+
+/**
+ * GET /api/v1/public/blog — published posts only, newest first. Optional
+ * ?category= filter. The counterpart to admin/blogController.js's full CRUD.
+ * Never exposes content/meta fields not needed for a list card — the full
+ * body is only returned by getPublicBlogPostBySlug for the detail page.
+ */
+const getPublicBlogPosts = async (req, res) => {
+  try {
+    let query = supabase
+      .from('blog_posts')
+      .select('id, title, slug, excerpt, cover_image_url, category, author_name, published_at, read_time_minutes')
+      .eq('is_published', true)
+      .order('published_at', { ascending: false });
+
+    const category = (req.query.category || '').toString().trim();
+    if (category && category.toLowerCase() !== 'all') query = query.eq('category', category);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
+    return res.json({ success: true, posts: data || [] });
+  } catch (err) {
+    // A landing-page listing must never 500 the page — degrade to an empty
+    // list, mirroring getPublicTestimonials / getPublicPressMentions.
+    logger.warn({ err }, 'getPublicBlogPosts: query failed, returning empty list');
+    return res.status(200).json({ success: false, posts: [] });
+  }
+};
+
+/**
+ * GET /api/v1/public/blog/:slug — a single published post's full content.
+ * Unlike the decorative list/testimonials endpoints, a missing or unpublished
+ * slug is a genuine 404 (the page itself doesn't exist), not a soft-degrade.
+ */
+const getPublicBlogPostBySlug = async (req, res, next) => {
+  const slug = (req.params.slug || '').toString().trim();
+  try {
+    const { data, error } = await supabase
+      .from('blog_posts')
+      .select('id, title, slug, excerpt, content, cover_image_url, category, author_name, published_at, read_time_minutes, meta_title, meta_description')
+      .eq('slug', slug)
+      .eq('is_published', true)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'POST_NOT_FOUND', message: 'This article could not be found.' });
+
+    res.set('Cache-Control', 'public, max-age=60, s-maxage=60');
+    return res.json({ success: true, post: data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { subscribeNewsletter, submitContactForm, getPublicTestimonials, getPublicPressMentions, getPublicBlogPosts, getPublicBlogPostBySlug };

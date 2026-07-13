@@ -22,7 +22,7 @@ const faqs = [
   {
     question: 'Is there a limit on the number of guests?',
     answer:
-      'Our Starter plan supports up to 50 guests per event. Premium handles up to 500 guests with SMS capabilities, and Enterprise offers unlimited guests with dedicated support. See the Pricing section above for the exact, current limits on each plan.',
+      "Each plan has its own guest cap — see the Pricing page for the exact, current numbers. There's no automatic per-guest overage fee: if your event reaches its plan's cap, you simply upgrade to a higher tier and you're only charged the price difference. For an event larger than any listed plan, contact us for custom pricing.",
   },
   {
     question: 'Can guests update their RSVP after submitting?',

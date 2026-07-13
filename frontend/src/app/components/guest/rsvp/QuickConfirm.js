@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GlassmorphismCard, PremiumButton, AttendanceCard, PartySizeStepper, CalendarButton, ShareButton } from '../GuestUI';
 import { FadeInUp, ScaleIn, GlowPulse, ConfettiExplosion } from '../GuestAnimations';
-import { CalendarIcon, CheckIcon } from '../RsvpIcons';
+import { CalendarIcon, CheckIcon, LockIcon } from '../RsvpIcons';
 
 /**
  * QuickConfirm — the one-click email-token input surface, now a thin presentational
@@ -160,6 +160,16 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Brief privacy reassurance — QuickConfirm collects less (name-only
+          companions) than the full form, so a short one-liner rather than the
+          fuller note used on the wizard/full-page RSVP forms. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '14px' }}>
+        <LockIcon size={13} strokeWidth={1.6} color="#8A6D34" />
+        <span style={{ fontSize: '11px', color: '#77736A', fontFamily: 'inherit' }}>
+          {isRTL ? 'بياناتك محفوظة بسرية وأمان' : 'Your information stays private & secure'}
+        </span>
+      </div>
 
       <FadeInUp delay={0.45}>
         <GlowPulse color={(RESP[selected] || RESP.yes).color} intensity={0.22}>

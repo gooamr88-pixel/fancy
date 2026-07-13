@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getStripePaymentReceiptTemplate } = require('../utils/emailTemplates');
 const { getPlatformConfig } = require('../utils/configCache');
+const { captureReferralHold, spendReferralCredit, grantReferralRewardIfEligible, reverseReferralForRefundedPayment } = require('./referralService');
 
 /**
  * Single source of truth for fulfilling a completed Stripe Checkout Session.
@@ -56,25 +57,26 @@ const fulfillCheckoutSession = async (session) => {
     // refund needs a human decision) but do NOT activate the tier; flag it
     // for manual reconciliation instead of silently over-provisioning.
     let tierCapExceeded = false;
-    if (tierName) {
-      const { data: eventOrg } = await supabase.from('events').select('org_id').eq('id', event_id).maybeSingle();
-      if (eventOrg?.org_id) {
-        try {
-          const adminConfig = await getPlatformConfig();
-          const tier = adminConfig.pricing_tiers.find((t) => t.name.toLowerCase() === tierName.toLowerCase());
-          if (tier && Number(tier.max_events) > 0) {
-            const { count } = await supabase
-              .from('events')
-              .select('id', { count: 'exact', head: true })
-              .eq('org_id', eventOrg.org_id)
-              .eq('is_paid', true)
-              .ilike('tier_name', tier.name)
-              .neq('id', event_id);
-            if ((count || 0) >= tier.max_events) tierCapExceeded = true;
-          }
-        } catch (e) {
-          logger.warn({ err: e, eventId: event_id }, '[fulfill] tier cap re-check skipped (config fetch failed)');
+    // Also doubles as the org lookup for the referral-credit spend / reward-grant
+    // hooks further below — one read serves both, regardless of tierName.
+    const { data: eventOrgRow } = await supabase.from('events').select('org_id').eq('id', event_id).maybeSingle();
+    const eventOrgId = eventOrgRow?.org_id || null;
+    if (tierName && eventOrgId) {
+      try {
+        const adminConfig = await getPlatformConfig();
+        const tier = adminConfig.pricing_tiers.find((t) => t.name.toLowerCase() === tierName.toLowerCase());
+        if (tier && Number(tier.max_events) > 0) {
+          const { count } = await supabase
+            .from('events')
+            .select('id', { count: 'exact', head: true })
+            .eq('org_id', eventOrgId)
+            .eq('is_paid', true)
+            .ilike('tier_name', tier.name)
+            .neq('id', event_id);
+          if ((count || 0) >= tier.max_events) tierCapExceeded = true;
         }
+      } catch (e) {
+        logger.warn({ err: e, eventId: event_id }, '[fulfill] tier cap re-check skipped (config fetch failed)');
       }
     }
 
@@ -149,8 +151,18 @@ const fulfillCheckoutSession = async (session) => {
       }
     }
 
+    // REFERRAL-1: the credit was HELD at checkout-session creation
+    // (createCheckoutSession) — this is where the hold becomes a real spend, now
+    // that the payment is confirmed. Both the amount and the hold id are read back
+    // from Stripe's own metadata rather than re-querying the live balance, so the
+    // amount charged and the amount debited from the ledger always agree even if
+    // the balance moved in between.
+    const rawCreditApplied = session.metadata.referral_credit_applied_cents;
+    const referralCreditAppliedCents = rawCreditApplied !== undefined ? parseInt(rawCreditApplied, 10) || 0 : 0;
+    const referralHoldId = session.metadata.referral_hold_id || null;
+
     // Record the payment.
-    const { error: insertError } = await supabase.from('event_payments').insert({
+    const { data: insertedPayment, error: insertError } = await supabase.from('event_payments').insert({
       event_id,
       stripe_checkout_session_id: session.id,
       stripe_payment_intent_id: session.payment_intent,
@@ -158,8 +170,10 @@ const fulfillCheckoutSession = async (session) => {
       currency: session.currency,
       status: 'completed',
       payment_method: 'stripe',
+      referral_credit_applied_cents: referralCreditAppliedCents,
+      referral_hold_id: referralHoldId,
       completed_at: new Date().toISOString(),
-    });
+    }).select('id').single();
 
     if (insertError) {
       // A racing call (webhook vs verify) may insert first — treat the unique
@@ -168,6 +182,49 @@ const fulfillCheckoutSession = async (session) => {
         return { ok: true, type, alreadyProcessed: true, eventId: event_id };
       }
       throw insertError;
+    }
+
+    if (referralCreditAppliedCents > 0 && eventOrgId) {
+      const note = `Applied to ${tierName || 'plan'} activation (card payment)`;
+      let ok = false;
+      if (referralHoldId) {
+        // Capture the reservation cut at checkout. Idempotent — the webhook and
+        // the synchronous /payments/verify path both land here and race.
+        const capture = await captureReferralHold({ holdId: referralHoldId, paymentId: insertedPayment?.id || null, note });
+        ok = capture.captured;
+      } else {
+        // Legacy: a checkout session created BEFORE the holds migration carries a
+        // credit amount but no hold — write the spend directly.
+        try {
+          await spendReferralCredit({
+            orgId: eventOrgId,
+            amountCents: referralCreditAppliedCents,
+            eventId: event_id,
+            paymentId: insertedPayment?.id || null,
+            note,
+          });
+          ok = true;
+        } catch (e) {
+          logger.error({ err: e, eventId: event_id }, '[fulfill] legacy referral credit spend failed');
+        }
+      }
+      if (!ok) {
+        logger.error({ eventId: event_id, holdId: referralHoldId }, '[fulfill] referral credit capture failed — charged discounted but ledger not debited, needs reconciliation');
+        try {
+          await supabase.from('activity_logs').insert({
+            event_id,
+            action: 'referral_credit_capture_failed',
+            entity_type: 'event_payment',
+            metadata: { amount_cents: referralCreditAppliedCents, payment_id: insertedPayment?.id || null, hold_id: referralHoldId },
+          });
+        } catch { /* best-effort breadcrumb */ }
+      }
+    }
+
+    if (!isUpgrade && eventOrgId) {
+      grantReferralRewardIfEligible({ referredOrgId: eventOrgId, eventId: event_id }).catch((e) =>
+        logger.warn({ err: e, eventId: event_id }, '[fulfill] referral reward grant skipped')
+      );
     }
 
     // Audit log is best-effort — never fail fulfillment (and never make Stripe
@@ -262,7 +319,7 @@ const handleChargeRefunded = async (charge) => {
   // 1. Event fee refund → revert activation.
   const { data: payment } = await supabase
     .from('event_payments')
-    .select('id, event_id, status, amount_cents')
+    .select('id, event_id, status, amount_cents, referral_credit_applied_cents')
     .eq('stripe_payment_intent_id', paymentIntentId)
     .maybeSingle();
 
@@ -296,6 +353,11 @@ const handleChargeRefunded = async (charge) => {
         .update({ is_paid: false, status: 'paused', updated_at: new Date().toISOString() })
         .eq('id', payment.event_id);
       if (evtErr) throw evtErr;
+
+      // Restore consumed referral credit + claw back the earned reward. Idempotent
+      // with the admin-refund path (stripeRefundService) — whichever fires first
+      // wins, the other no-ops via the unique reversal indexes.
+      await reverseReferralForRefundedPayment(payment);
     }
 
     return { ok: true, type: 'event_fee', eventId: payment.event_id, fullRefund: isFullRefund };
@@ -361,13 +423,15 @@ const handleDisputeEvent = async (dispute) => {
   // Link to the originating payment via the charge's payment_intent when present.
   let paymentId = null;
   let eventId = null;
+  let disputedPayment = null;
   const paymentIntentId = dispute.payment_intent;
   if (paymentIntentId) {
     const { data: payment } = await supabase
       .from('event_payments')
-      .select('id, event_id')
+      .select('id, event_id, referral_credit_applied_cents')
       .eq('stripe_payment_intent_id', paymentIntentId)
       .maybeSingle();
+    disputedPayment = payment || null;
     paymentId = payment?.id || null;
     eventId = payment?.event_id || null;
   }
@@ -404,6 +468,10 @@ const handleDisputeEvent = async (dispute) => {
         .update({ is_paid: false, status: 'paused', updated_at: new Date().toISOString() })
         .eq('id', eventId);
       if (evtErr) throw evtErr;
+
+      // A lost chargeback is a confirmed loss of the funds, same as a full
+      // refund — restore consumed credit and claw back the earned reward.
+      if (disputedPayment) await reverseReferralForRefundedPayment(disputedPayment);
     } else if (activeDisputeStatuses.includes(dispute.status)) {
       const { error: evtErr } = await supabase
         .from('events')

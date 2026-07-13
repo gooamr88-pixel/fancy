@@ -65,6 +65,7 @@ export const translations = {
     companion_badge: 'Guest',
     companion_phone_label: 'Mobile',
     select_placeholder: 'Choose...',
+    privacy_note: 'Your information is kept private and secure, and is only ever shared with your host.',
   },
   ar: {
     invitation: 'بطاقة دعوة',
@@ -132,5 +133,6 @@ export const translations = {
     companion_badge: 'مرافق',
     companion_phone_label: 'الموبايل',
     select_placeholder: 'اختر...',
+    privacy_note: 'بياناتك محفوظة بسرية وأمان تام، ولا تُشارَك إلا مع المضيف.',
   }
 };

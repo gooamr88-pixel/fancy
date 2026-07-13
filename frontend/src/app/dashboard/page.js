@@ -28,6 +28,7 @@ import GuestsTab from './components/GuestsTab';
 import FeatureGate from './components/FeatureGate';
 import OrganizerOverview from './components/OrganizerOverview';
 import OrganizerProfile from './components/OrganizerProfile';
+import ReferralsTab from './components/ReferralsTab';
 import SendInvitationModal from './components/SendInvitationModal';
 
 /* ═══════════════════════════════════════════════
@@ -75,6 +76,9 @@ const sidebarNav = [
   )},
   { key: 'campaigns', label: 'SMS Campaigns', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+  )},
+  { key: 'referrals', label: 'Referrals', icon: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
   )},
   { key: 'profile', label: 'Profile', icon: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2"/></svg>
@@ -698,7 +702,7 @@ export default function DashboardPage() {
             transition: 'all 0.3s ease',
           }}
         >
-          {(activeTab === 'overview' || activeTab === 'events' || activeTab === 'drafts' || activeTab === 'profile') ? (
+          {(activeTab === 'overview' || activeTab === 'events' || activeTab === 'drafts' || activeTab === 'profile' || activeTab === 'referrals') ? (
             /* ── Overview / Events / Drafts / Profile: clean header, no event-specific controls ── */
             <>
               <div>
@@ -710,7 +714,7 @@ export default function DashboardPage() {
                   margin: 0,
                   letterSpacing: '-0.01em'
                 }}>
-                  {activeTab === 'overview' ? 'Dashboard Overview' : activeTab === 'drafts' ? 'Drafts' : activeTab === 'profile' ? 'Organizer Profile' : 'Your Events'}
+                  {activeTab === 'overview' ? 'Dashboard Overview' : activeTab === 'drafts' ? 'Drafts' : activeTab === 'profile' ? 'Organizer Profile' : activeTab === 'referrals' ? 'Referrals' : 'Your Events'}
                 </h1>
                 <p style={{
                   fontFamily: 'var(--font-sans)',
@@ -725,7 +729,9 @@ export default function DashboardPage() {
                       ? `${draftCount} draft${draftCount !== 1 ? 's' : ''} waiting to be finished`
                       : activeTab === 'profile'
                         ? 'Your account and organization details'
-                        : `You have ${liveCount} event${liveCount !== 1 ? 's' : ''}`}
+                        : activeTab === 'referrals'
+                          ? 'Earn credit by referring other organizers'
+                          : `You have ${liveCount} event${liveCount !== 1 ? 's' : ''}`}
                 </p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -1089,6 +1095,8 @@ export default function DashboardPage() {
 
           {activeTab === 'profile' ? (
             <OrganizerProfile events={events} forcePasswordReset={forcePasswordReset} onPasswordReset={() => setForcePasswordReset(false)} />
+          ) : activeTab === 'referrals' ? (
+            <ReferralsTab />
           ) : activeTab === 'settings' ? (
             <EventSettings eventId={eventId} event={activeEvent} onEventUpdated={(updated) => {
               setEvents(prev => prev.map(ev => ev.id === eventId ? { ...ev, ...updated } : ev));

@@ -1,364 +1,136 @@
-﻿"use client";
-import React, { useState, useEffect } from "react";
+"use client";
+import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import MobilePreview from "../components/templates/MobilePreview";
-import InvitationCard from "../components/templates/InvitationCard";
 import GoldDivider from "../components/GoldDivider";
-import { motion, AnimatePresence } from "framer-motion";
+import { TEMPLATES, TEMPLATE_PREVIEW_PATTERN } from "../utils/curatedTemplates";
 
-const categories = ["All", "Classic", "Modern", "Rustic", "Luxury", "Minimal", "Floral", "Wedding"];
+/**
+ * Real gallery — previously this page showed 16 hand-drawn "templates"
+ * (Timeless Elegance, Marrakesh Nights, Kyoto Blossom...) that don't
+ * correspond to anything a visitor can actually pick at signup: the real
+ * event-creation wizard only ever offered three (see utils/curatedTemplates.js
+ * — the 13 others are retired invitation-card patterns still rendered for
+ * pre-existing events, not a choosable product). A visitor could fall for one
+ * of those 13, click "Use Template," and land in a wizard where it doesn't
+ * exist. This page now shows exactly the same three templates, the same
+ * named color presets, and the same live MobilePreview simulator the wizard
+ * itself uses — nothing here is a promise the product can't keep.
+ */
 
-const themeColors = [
-  { 
-    id: "gold", 
-    name: "Royale Gold", 
-    primary: "#B8944F", 
-    secondary: "#D7BE80", 
-    accent: "#B8944F",
-    gradient: "linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)",
-    liningGradId: "goldGrad"
-  },
-  { 
-    id: "emerald", 
-    name: "Emerald Ivy", 
-    primary: "#064E3B", 
-    secondary: "#10B981", 
-    accent: "#10B981",
-    gradient: "linear-gradient(135deg, #064E3B 0%, #10B981 100%)",
-    liningGradId: "emeraldGrad"
-  },
-  { 
-    id: "burgundy", 
-    name: "Burgundy Rose", 
-    primary: "#722F37", 
-    secondary: "#E89FB0", 
-    accent: "#722F37",
-    gradient: "linear-gradient(135deg, #722F37 0%, #E89FB0 100%)",
-    liningGradId: "burgundyGrad"
+// Mirrors Stage1_TemplatesSimulator.js's own getLiningGradId exactly, so the
+// envelope lining here always matches what the wizard would actually render
+// for the same template + preset.
+function getLiningGradId(templateKey, presetIndex) {
+  if (templateKey === "wedding") {
+    return ["goldGrad", "emeraldGrad", "burgundyGrad"][presetIndex] || "goldGrad";
   }
-];
+  return "goldGrad";
+}
 
-const templates = [
-  {
-    name: "Timeless Elegance",
-    category: "Classic",
-    description: "A refined design with serif typography, cream tones, and delicate gold borders that exude sophistication.",
-    gradient: "linear-gradient(135deg, #F5E6D3 0%, #E8D5B7 30%, #D4C4A0 60%, #C9B896 100%)",
-    accent: "#8B7355",
-    pattern: "serif",
-  },
-  {
-    name: "Urban Edge",
-    category: "Modern",
-    description: "Bold geometric patterns meet clean lines. A contemporary take on event invitations with a dark palette.",
-    gradient: "linear-gradient(135deg, #2C3E50 0%, #34495E 30%, #4A6741 60%, #2C3E50 100%)",
-    accent: "#1ABC9C",
-    pattern: "geo",
-  },
-  {
-    name: "Woodland Romance",
-    category: "Rustic",
-    description: "Warm earth tones and organic textures create a cozy, intimate feeling perfect for barn and garden events.",
-    gradient: "linear-gradient(135deg, #D4A574 0%, #C4956A 30%, #A67B5B 60%, #8B6914 100%)",
-    accent: "#6B4226",
-    pattern: "organic",
-  },
-  {
-    name: "Grand Affair",
-    category: "Luxury",
-    description: "Opulent gold accents, rich dark backgrounds, and premium typography for the most prestigious occasions.",
-    gradient: "linear-gradient(135deg, #1A1A2E 0%, #16213E 30%, #0F3460 60%, #1A1A2E 100%)",
-    accent: "#E6C200",
-    pattern: "luxury",
-  },
-  {
-    name: "Pure & Simple",
-    category: "Minimal",
-    description: "Clean whitespace, subtle grays, and thoughtful typography let your content breathe with quiet confidence.",
-    gradient: "linear-gradient(135deg, #FAFAFA 0%, #F0F0F0 30%, #E8E8E8 60%, #F5F5F5 100%)",
-    accent: "#333333",
-    pattern: "minimal",
-  },
-  {
-    name: "Garden Party",
-    category: "Floral",
-    description: "Lush botanical illustrations and soft watercolor blooms create a romantic, garden-inspired invitation suite.",
-    gradient: "linear-gradient(135deg, #FDE1D3 0%, #E8B4B8 30%, #D4A0A7 60%, #F3D1DC 100%)",
-    accent: "#8B4A6B",
-    pattern: "floral",
-  },
-  {
-    name: "Tuscan Vineyard",
-    category: "Wedding",
-    description: "Parchment tones, an olive wax seal, and hand-lettered script for garden and villa weddings under the Italian sun.",
-    gradient: "linear-gradient(135deg, #F8F3E6 0%, #E9E0C6 30%, #C9B896 60%, #6B7A4F 100%)",
-    accent: "#6B7A4F",
-    pattern: "tuscany",
-  },
-  {
-    name: "Marrakesh Nights",
-    category: "Wedding",
-    description: "A jewel-toned riad evening — indigo night sky, zellige star motifs and a keyhole arch frame.",
-    gradient: "linear-gradient(135deg, #1B2A4A 0%, #223257 50%, #D9A94E 100%)",
-    accent: "#D9A94E",
-    pattern: "marrakesh",
-  },
-  {
-    name: "Kyoto Blossom",
-    category: "Wedding",
-    description: "Quiet, spacious Japanese minimalism — a single sakura branch and a hanko-stamp monogram.",
-    gradient: "linear-gradient(135deg, #F7EFEE 0%, #EDDEDC 50%, #B23A48 100%)",
-    accent: "#B23A48",
-    pattern: "kyoto",
-  },
-  {
-    name: "Nordic Frost",
-    category: "Wedding",
-    description: "Crisp Scandinavian minimalism — icy blue-greys and a single line-art pine.",
-    gradient: "linear-gradient(135deg, #EFF3F5 0%, #DEE6EA 50%, #33495D 100%)",
-    accent: "#33495D",
-    pattern: "nordic",
-  },
-  {
-    name: "Havana Sunset",
-    category: "Wedding",
-    description: "A vivid coral-to-turquoise postcard — palm silhouettes and a sunburst stamp for a joyful fiesta.",
-    gradient: "linear-gradient(135deg, #FF9A6C 0%, #FF7A59 35%, #2EC4B6 100%)",
-    accent: "#FF7A59",
-    pattern: "havana",
-  },
-  {
-    name: "Old Money Estate",
-    category: "Wedding",
-    description: "A crest, a pinstripe frame and small-caps typography — quietly formal heritage elegance.",
-    gradient: "linear-gradient(135deg, #F3EEE1 0%, #E4DCC7 50%, #1B2A41 100%)",
-    accent: "#1B2A41",
-    pattern: "estate",
-  },
-  {
-    name: "Rosé Atelier",
-    category: "Wedding",
-    description: "Dusty rose and champagne with a delicate ribbon-bow motif — modern French wedding-atelier chic.",
-    gradient: "linear-gradient(135deg, #FBF6F2 0%, #F3E2DC 100%)",
-    accent: "#C98A93",
-    pattern: "roseAtelier",
-  },
-  {
-    name: "Midnight Orchid",
-    category: "Luxury",
-    description: "Deep plum-black with a gilded orchid stem climbing one edge — dramatic, romantic luxury.",
-    gradient: "linear-gradient(135deg, #1B1023 0%, #24132E 55%, #C9A24B 100%)",
-    accent: "#C9A24B",
-    pattern: "orchid",
-  },
-  {
-    name: "Copper & Clay",
-    category: "Rustic",
-    description: "Warm sand and terracotta with a radiating sunburst motif — earthy, boho desert warmth.",
-    gradient: "linear-gradient(135deg, #EDE0CB 0%, #E6D5B8 50%, #B5502F 100%)",
-    accent: "#B5502F",
-    pattern: "clay",
-  },
-  {
-    name: "Alpine Pine",
-    category: "Rustic",
-    description: "Deep pine green with hand-drawn pine-branch corners — cozy winter lodge charm.",
-    gradient: "linear-gradient(135deg, #22392F 0%, #1B2E25 100%)",
-    accent: "#D9C9A3",
-    pattern: "alpine",
-  },
-  {
-    name: "Coastal Linen",
-    category: "Minimal",
-    description: "Seafoam and sand with a gentle wave-line motif and rope-knot divider — relaxed seaside elegance.",
-    gradient: "linear-gradient(135deg, #E8F3EF 0%, #E8DCC3 100%)",
-    accent: "#2B5F5A",
-    pattern: "coastal",
-  },
-];
-
-function TemplateCard({ template, onPreview, isSelected }) {
+function CheckItem({ children }) {
   return (
-    <div
-      onClick={() => onPreview(template)}
-      className={`template-card${isSelected ? " template-card-selected" : ""}`}
-      style={{
-        borderRadius: "16px",
-        overflow: "hidden",
-        background: "#FFFFFF",
-        cursor: "pointer",
-        position: "relative",
-      }}
-    >
-      {/* Preview area — the real InvitationCard art, so this gallery always
-          matches what organizers actually get, with zero duplicated markup. */}
-      <div
-        style={{
-          height: "240px",
-          background: template.gradient,
-          position: "relative",
-          overflow: "hidden",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{ width: "62%", aspectRatio: "210 / 290", borderRadius: "10px", overflow: "hidden", boxShadow: "0 14px 30px -12px rgba(0,0,0,0.35)" }}>
-          <InvitationCard template={{ pattern: template.pattern }} theme={{ primary: template.accent, secondary: template.accent }} />
-        </div>
+    <li style={{ display: "flex", alignItems: "center", gap: "10px", fontFamily: "var(--font-sans)", fontSize: "14px", color: "#5E5A52", padding: "6px 0" }}>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+        <circle cx="8" cy="8" r="8" fill="rgba(184,148,79,0.1)" />
+        <path d="M5 8l2 2 4-4" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {children}
+    </li>
+  );
+}
 
-        {/* Hover overlay */}
-        <div
-          className="template-hover-overlay"
-          style={{
-            position: "absolute",
-            inset: 0,
-            pointerEvents: "none",
-          }}
-        />
-      </div>
+function TemplateShowcase({ template, index }) {
+  const [presetIdx, setPresetIdx] = useState(0);
+  const preset = template.presets[presetIdx];
+  const pattern = TEMPLATE_PREVIEW_PATTERN[template.key];
+  const reversed = index % 2 === 1;
 
-      {/* Card info */}
-      <div style={{ padding: "24px 28px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-          <h3
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: "20px",
-              fontWeight: 600,
-              color: "#191B1E",
-              margin: 0,
-            }}
-          >
-            {template.name}
-          </h3>
-          <span
-            style={{
-              padding: "4px 14px",
-              borderRadius: "100px",
-              background: "rgba(184,148,79,0.08)",
-              border: "1px solid rgba(184,148,79,0.15)",
-              fontFamily: "var(--font-sans)",
-              fontSize: "11px",
-              fontWeight: 600,
-              color: "#B8944F",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-            }}
-          >
-            {template.category}
+  const previewTemplate = { name: template.label, pattern, accent: preset.accent };
+  const previewTheme = {
+    id: `${template.key}-${preset.name.toLowerCase().replace(/\s+/g, "-")}`,
+    primary: preset.primary,
+    secondary: preset.secondary,
+    accent: preset.accent,
+    liningGradId: getLiningGradId(template.key, presetIdx),
+  };
+
+  return (
+    <div className="tpl-showcase" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "64px", alignItems: "center", padding: "64px 0" }}>
+      <div className="tpl-copy" style={{ order: reversed ? 2 : 1 }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+          <span style={{ padding: "5px 16px", borderRadius: "100px", background: "rgba(184,148,79,0.08)", border: "1px solid rgba(184,148,79,0.2)", fontFamily: "var(--font-sans)", fontSize: "11px", fontWeight: 700, color: "#B8944F", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            {template.tier}
           </span>
+          <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", color: "#77736A", fontStyle: "italic" }}>{template.tagline}</span>
         </div>
-        <p
-          style={{
-            fontFamily: "var(--font-sans)",
-            fontSize: "14px",
-            color: "#5E5A52",
-            lineHeight: 1.6,
-            margin: 0,
-          }}
-        >
-          {template.description}
+
+        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(1.8rem, 3vw, 2.4rem)", fontWeight: 700, color: "#191B1E", marginBottom: "16px", lineHeight: 1.2 }}>
+          {template.label}
+        </h2>
+
+        <p style={{ fontFamily: "var(--font-sans)", fontSize: "15.5px", color: "#5E5A52", lineHeight: 1.75, marginBottom: "24px" }}>
+          {template.desc}
         </p>
+
+        <ul style={{ listStyle: "none", padding: 0, margin: "0 0 28px" }}>
+          {template.specs.map((s) => (
+            <CheckItem key={s}>{s}</CheckItem>
+          ))}
+        </ul>
+
+        {/* Real, selectable color presets — exactly what the wizard offers */}
+        <div style={{ marginBottom: "32px" }}>
+          <span style={{ fontFamily: "var(--font-sans)", fontSize: "12px", fontWeight: 700, color: "#191B1E", letterSpacing: "0.05em", textTransform: "uppercase", display: "block", marginBottom: "12px" }}>
+            Color Presets
+          </span>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            {template.presets.map((p, i) => {
+              const isActive = i === presetIdx;
+              return (
+                <button
+                  key={p.name}
+                  onClick={() => setPresetIdx(i)}
+                  aria-pressed={isActive}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "8px",
+                    padding: "8px 16px", borderRadius: "100px",
+                    border: isActive ? "2px solid #191B1E" : "1px solid #E8E2D6",
+                    background: isActive ? "rgba(25,27,30,0.02)" : "#FFFFFF",
+                    cursor: "pointer", transition: "all 0.25s ease",
+                    fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "#191B1E",
+                  }}
+                >
+                  <span style={{ width: "14px", height: "14px", borderRadius: "50%", background: `linear-gradient(135deg, ${p.primary}, ${p.secondary})`, border: "1px solid rgba(0,0,0,0.1)", flexShrink: 0 }} />
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <Link href="/register" className="btn-gold" style={{ display: "inline-block", padding: "14px 36px", fontSize: "14.5px", fontWeight: 700, borderRadius: "8px" }}>
+          Use {template.label}
+        </Link>
       </div>
 
-      {/* Action Buttons */}
-      <div style={{ padding: "0 28px 24px", display: "flex", gap: "12px", zIndex: 10 }}>
-        <Link 
-          href="/register" 
-          style={{ flex: 1, textDecoration: "none" }}
-          onClick={(e) => {
-            // Prevent bubbling to the card body onClick preview trigger
-            e.stopPropagation();
-          }}
-        >
-          <button
-            className="template-use-btn"
-            style={{
-              width: "100%",
-              color: "#FFFFFF",
-              border: "none",
-              padding: "10px 16px",
-              borderRadius: "8px",
-              fontFamily: "var(--font-sans)",
-              fontSize: "13px",
-              fontWeight: 700,
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(184,148,79,0.2)",
-            }}
-          >
-            Use Template
-          </button>
-        </Link>
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onPreview(template);
-          }}
-          className="template-preview-btn"
-          style={{
-            flex: 1,
-            border: "1px solid #E8E2D6",
-            padding: "10px 16px",
-            borderRadius: "8px",
-            fontFamily: "var(--font-sans)",
-            fontSize: "13px",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Live Preview
-        </button>
+      <div className="tpl-preview" style={{ order: reversed ? 1 : 2, display: "flex", justifyContent: "center" }}>
+        <div style={{ width: "100%", maxWidth: "300px" }}>
+          <MobilePreview template={previewTemplate} theme={previewTheme} />
+        </div>
       </div>
 
       <style jsx>{`
-        .template-card {
-          border: 1px solid #E8E2D6;
-          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
-          transform: translateY(0);
-          transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        @media (max-width: 900px) {
+          .tpl-showcase { grid-template-columns: 1fr !important; gap: 40px !important; padding: 40px 0 !important; }
+          .tpl-copy { order: 2 !important; }
+          .tpl-preview { order: 1 !important; }
         }
-        .template-card:hover,
-        .template-card:focus-within {
-          transform: translateY(-6px);
-        }
-        .template-card:not(.template-card-selected):hover,
-        .template-card:not(.template-card-selected):focus-within {
-          border: 1.5px solid #B8944F;
-          box-shadow: 0 20px 60px rgba(184, 148, 79, 0.12), 0 8px 24px rgba(0, 0, 0, 0.04);
-        }
-        .template-card-selected {
-          border: 2px solid #B8944F;
-          box-shadow: 0 12px 30px rgba(184, 148, 79, 0.15), 0 4px 12px rgba(0, 0, 0, 0.02);
-        }
-        .template-hover-overlay {
-          background: rgba(0, 0, 0, 0);
-          transition: all 0.4s ease;
-        }
-        .template-card:hover .template-hover-overlay,
-        .template-card:focus-within .template-hover-overlay {
-          background: rgba(0, 0, 0, 0.2);
-        }
-        .template-use-btn {
-          background-color: #B8944F;
-          transition: all 0.2s ease;
-        }
-        .template-use-btn:hover,
-        .template-use-btn:focus-visible {
-          background-color: #a6833f;
-        }
-        .template-preview-btn {
-          background-color: #FFFFFF;
-          color: #5E5A52;
-          transition: all 0.2s ease;
-        }
-        .template-preview-btn:hover,
-        .template-preview-btn:focus-visible {
-          background-color: #F8F4EC;
-          color: #191B1E;
+        @media (max-width: 480px) {
+          .tpl-showcase { gap: 28px !important; padding: 28px 0 !important; }
+          .btn-gold { width: 100% !important; text-align: center !important; }
         }
       `}</style>
     </div>
@@ -366,363 +138,61 @@ function TemplateCard({ template, onPreview, isSelected }) {
 }
 
 export default function TemplatesPage() {
-  const [activeCategory, setActiveCategory] = useState("All");
-  const [filterHover, setFilterHover] = useState(null);
-  const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
-  const [selectedThemeColor, setSelectedThemeColor] = useState(themeColors[0]);
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-  // Tracks the `lg:` breakpoint (1024px) reactively via matchMedia, instead of
-  // reading window.innerWidth once at click-time — a one-time read wouldn't
-  // notice an orientation change/resize between clicks.
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1023px)");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsMobileViewport(mq.matches);
-    const onChange = (e) => setIsMobileViewport(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  // Lock body scroll when mobile preview modal is open
-  useEffect(() => {
-    if (isPreviewModalOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isPreviewModalOpen]);
-
-  const filteredTemplates =
-    activeCategory === "All"
-      ? templates
-      : templates.filter((t) => t.category === activeCategory);
-
   return (
     <>
       <Navbar />
       <main style={{ paddingTop: "78px" }}>
         {/* ════════════════════ HERO ════════════════════ */}
-        <section
-          style={{
-            background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)",
-            padding: "100px 48px 80px",
-            textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
+        <section style={{ background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)", padding: "100px 48px 80px", textAlign: "center", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", bottom: "-30px", left: "5%", width: "100px", height: "100px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none" }} />
-
           <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-            <div
-              style={{
-                display: "inline-block",
-                padding: "8px 24px",
-                borderRadius: "100px",
-                background: "rgba(184, 148, 79, 0.08)",
-                border: "1px solid rgba(184, 148, 79, 0.15)",
-                marginBottom: "28px",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#B8944F",
-                  letterSpacing: "1.5px",
-                  textTransform: "uppercase",
-                }}
-              >
-                Template Gallery
-              </span>
+            <div style={{ display: "inline-block", padding: "8px 24px", borderRadius: "100px", background: "rgba(184, 148, 79, 0.08)", border: "1px solid rgba(184, 148, 79, 0.15)", marginBottom: "28px" }}>
+              <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 600, color: "#B8944F", letterSpacing: "1.5px", textTransform: "uppercase" }}>Template Gallery</span>
             </div>
-
-            <h1
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "clamp(2.4rem, 5vw, 3.8rem)",
-                fontWeight: 700,
-                color: "#191B1E",
-                lineHeight: 1.15,
-                marginBottom: "24px",
-                letterSpacing: "-1px",
-              }}
-            >
-              Beautiful{" "}
-              <span style={{ color: "#B8944F" }}>Templates</span>
+            <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(2.4rem, 5vw, 3.8rem)", fontWeight: 700, color: "#191B1E", lineHeight: 1.15, marginBottom: "24px", letterSpacing: "-1px" }}>
+              Beautiful <span style={{ color: "#B8944F" }}>Templates</span>
             </h1>
-
-            <p
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontSize: "19px",
-                lineHeight: 1.7,
-                color: "#5E5A52",
-                maxWidth: "540px",
-                margin: "0 auto",
-              }}
-            >
-              Choose from our curated collection of designer templates, each crafted to make your event feel truly special.
+            <p style={{ fontFamily: "var(--font-sans)", fontSize: "19px", lineHeight: 1.7, color: "#5E5A52", maxWidth: "560px", margin: "0 auto" }}>
+              Every template below is exactly what you get — the same live preview, the same color presets, the same editor you&apos;ll use after signing up.
             </p>
           </div>
         </section>
 
-        {/* ════════════════════ FILTER & GALLERY ════════════════════ */}
-        <section style={{ maxWidth: "1280px", margin: "0 auto", padding: "60px 24px 100px" }}>
-          <h2 className="sr-only">Browse and Customize Templates</h2>
-          {/* Filter Buttons */}
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              justifyContent: "center",
-              flexWrap: "wrap",
-              marginBottom: "56px",
-            }}
-          >
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                onMouseEnter={() => setFilterHover(cat)}
-                onMouseLeave={() => setFilterHover(null)}
-                style={{
-                  padding: "10px 24px",
-                  borderRadius: "100px",
-                  border: activeCategory === cat ? "1.5px solid #B8944F" : "1px solid #E8E2D6",
-                  background:
-                    activeCategory === cat
-                      ? "linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)"
-                      : filterHover === cat
-                      ? "rgba(184,148,79,0.04)"
-                      : "#FFFFFF",
-                  color: activeCategory === cat ? "#FFFFFF" : "#5E5A52",
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "14px",
-                  fontWeight: activeCategory === cat ? 700 : 500,
-                  cursor: "pointer",
-                  transition: "all 0.3s ease",
-                  letterSpacing: "0.3px",
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
+        {/* ════════════════════ TEMPLATE SHOWCASES ════════════════════ */}
+        <section className="tpl-section-tight" style={{ maxWidth: "1100px", margin: "0 auto", padding: "20px 48px 40px" }}>
+          <h2 className="sr-only">Browse Templates</h2>
           <GoldDivider variant="wide" />
-
-          {/* Theme Color Picker Section */}
-          <div 
-            style={{ 
-              marginTop: "40px",
-              marginBottom: "8px", 
-              background: "#FFFFFF", 
-              padding: "20px 24px", 
-              borderRadius: "16px", 
-              border: "1px solid #E8E2D6",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.015)"
-            }}
-          >
-            <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "17px", fontWeight: 650, color: "#191B1E", margin: "0 0 4px" }}>
-              Customize Invitation Theme Color
-            </h3>
-            <p style={{ fontFamily: "var(--font-sans)", fontSize: "12.5px", color: "#5E5A52", margin: "0 0 16px" }}>
-              Choose a color preset to customize the envelope lining, card accents, and buttons in the live simulator.
-            </p>
-            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
-              {themeColors.map((theme) => {
-                const isActive = selectedThemeColor.id === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    onClick={() => setSelectedThemeColor(theme)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "8px 18px",
-                      borderRadius: "100px",
-                      border: isActive ? "2px solid #191B1E" : "1px solid #E8E2D6",
-                      background: isActive ? "rgba(25,27,30,0.02)" : "#FFFFFF",
-                      cursor: "pointer",
-                      transition: "all 0.3s ease",
-                      fontFamily: "var(--font-sans)",
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "#191B1E"
-                    }}
-                  >
-                    <span 
-                      style={{ 
-                        width: "12px", 
-                        height: "12px", 
-                        borderRadius: "50%", 
-                        background: theme.gradient,
-                        border: "1px solid rgba(0,0,0,0.1)"
-                      }} 
-                    />
-                    {theme.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Responsive Layout with sticky preview simulator on desktop */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mt-14 items-start">
-            {/* Left: Templates Gallery Grid */}
-            <div className="lg:col-span-8">
-              <div
-                className="templates-grid"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "28px",
-                }}
-              >
-                {filteredTemplates.map((template) => (
-                  <TemplateCard 
-                    key={template.name} 
-                    template={template} 
-                    onPreview={(t) => {
-                      setSelectedTemplate(t);
-                      if (isMobileViewport) {
-                        setIsPreviewModalOpen(true);
-                      } else {
-                        const previewEl = document.getElementById("sticky-preview-section");
-                        if (previewEl) {
-                          previewEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
-                        }
-                      }
-                    }}
-                    isSelected={selectedTemplate.name === template.name}
-                  />
-                ))}
-              </div>
-
-              {/* Empty state */}
-              {filteredTemplates.length === 0 && (
-                <div style={{ textAlign: "center", padding: "80px 0" }}>
-                  <p style={{ fontFamily: "var(--font-sans)", fontSize: "17px", color: "#5E5A52" }}>
-                    No templates found in this category.
-                  </p>
-                </div>
+          {TEMPLATES.map((template, i) => (
+            <React.Fragment key={template.key}>
+              <TemplateShowcase template={template} index={i} />
+              {i < TEMPLATES.length - 1 && (
+                <div style={{ height: "1px", background: "linear-gradient(90deg, transparent, #E8E2D6, transparent)" }} />
               )}
-            </div>
-
-            {/* Right: Sticky Mobile Phone Preview Simulator */}
-            <div 
-              id="sticky-preview-section" 
-              className="hidden lg:block lg:col-span-4 sticky top-24"
-            >
-              <div className="flex flex-col items-center border border-[#E8E2D6] bg-[#FBF9F6] p-6 rounded-3xl inner-simulator-container">
-                <span className="text-[10px] font-bold uppercase tracking-[3px] mb-4 flex items-center gap-1.5" style={{ color: selectedThemeColor.accent }}>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Live Preview Simulator
-                </span>
-                <MobilePreview template={selectedTemplate} theme={selectedThemeColor} />
-                <p className="text-[11px] text-stone-400 font-sans mt-3 text-center max-w-[85%] leading-relaxed">
-                  Click <strong>&quot;Live Preview&quot;</strong> on any template card to load it here. Tap the envelope to test the unboxing flow.
-                </p>
-              </div>
-            </div>
-          </div>
+            </React.Fragment>
+          ))}
         </section>
 
         {/* ════════════════════ HOW IT WORKS ════════════════════ */}
         <section style={{ background: "#F8F4EC", padding: "100px 48px" }}>
           <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
             <div style={{ textAlign: "center", marginBottom: "64px" }}>
-              <h2
-                style={{
-                  fontFamily: "var(--font-serif)",
-                  fontSize: "40px",
-                  fontWeight: 700,
-                  color: "#191B1E",
-                  marginBottom: "16px",
-                }}
-              >
-                How It{" "}
-                <span style={{ color: "#B8944F" }}>Works</span>
+              <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "40px", fontWeight: 700, color: "#191B1E", marginBottom: "16px" }}>
+                How It <span style={{ color: "#B8944F" }}>Works</span>
               </h2>
-              <p
-                style={{
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "17px",
-                  color: "#5E5A52",
-                  lineHeight: 1.7,
-                }}
-              >
+              <p style={{ fontFamily: "var(--font-sans)", fontSize: "17px", color: "#5E5A52", lineHeight: 1.7 }}>
                 Three simple steps to a stunning event page.
               </p>
             </div>
-
-            <div
-              className="steps-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: "48px",
-              }}
-            >
+            <div className="steps-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "48px" }}>
               {[
-                {
-                  step: "01",
-                  title: "Choose a Template",
-                  desc: "Browse our curated collection and select the template that matches your event's style and personality.",
-                },
-                {
-                  step: "02",
-                  title: "Customize Everything",
-                  desc: "Personalize colors, fonts, images, and content. Our editor makes it easy to create something uniquely yours.",
-                },
-                {
-                  step: "03",
-                  title: "Share & Collect RSVPs",
-                  desc: "Publish your event page and share it with guests. Watch RSVPs roll in with real-time tracking.",
-                },
+                { step: "01", title: "Choose a Template", desc: "Pick Wedding, Engagement, or start from a blank Custom Canvas — pick a color preset or fully customize it." },
+                { step: "02", title: "Customize Everything", desc: "Personalize colors, fonts, images, and content. Our editor makes it easy to create something uniquely yours." },
+                { step: "03", title: "Share & Collect RSVPs", desc: "Publish your event page and share it with guests. Watch RSVPs roll in with real-time tracking." },
               ].map((item) => (
                 <div key={item.step} style={{ textAlign: "center" }}>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-serif)",
-                      fontSize: "48px",
-                      fontWeight: 700,
-                      color: "rgba(184,148,79,0.15)",
-                      marginBottom: "16px",
-                      lineHeight: 1,
-                    }}
-                  >
-                    {item.step}
-                  </div>
-                  <h3
-                    style={{
-                      fontFamily: "var(--font-serif)",
-                      fontSize: "22px",
-                      fontWeight: 600,
-                      color: "#191B1E",
-                      marginBottom: "12px",
-                    }}
-                  >
-                    {item.title}
-                  </h3>
-                  <p
-                    style={{
-                      fontFamily: "var(--font-sans)",
-                      fontSize: "15px",
-                      color: "#5E5A52",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {item.desc}
-                  </p>
+                  <div style={{ fontFamily: "var(--font-serif)", fontSize: "48px", fontWeight: 700, color: "rgba(184,148,79,0.15)", marginBottom: "16px", lineHeight: 1 }}>{item.step}</div>
+                  <h3 style={{ fontFamily: "var(--font-serif)", fontSize: "22px", fontWeight: 600, color: "#191B1E", marginBottom: "12px" }}>{item.title}</h3>
+                  <p style={{ fontFamily: "var(--font-sans)", fontSize: "15px", color: "#5E5A52", lineHeight: 1.7 }}>{item.desc}</p>
                 </div>
               ))}
             </div>
@@ -730,164 +200,42 @@ export default function TemplatesPage() {
         </section>
 
         {/* ════════════════════ CTA ════════════════════ */}
-        <section
-          style={{
-            background: "linear-gradient(135deg, #191B1E 0%, #2A2D32 100%)",
-            padding: "100px 48px",
-            textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "500px",
-              height: "500px",
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(184,148,79,0.08) 0%, transparent 70%)",
-              pointerEvents: "none",
-            }}
-          />
+        <section style={{ background: "linear-gradient(135deg, #191B1E 0%, #2A2D32 100%)", padding: "100px 48px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "500px", height: "500px", borderRadius: "50%", background: "radial-gradient(circle, rgba(184,148,79,0.08) 0%, transparent 70%)", pointerEvents: "none" }} />
           <div style={{ position: "relative", zIndex: 1, maxWidth: "600px", margin: "0 auto" }}>
-            <h2
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "44px",
-                fontWeight: 700,
-                color: "#FFFFFF",
-                marginBottom: "20px",
-                lineHeight: 1.2,
-              }}
-            >
-              Create Your{" "}
-              <span style={{ color: "#B8944F" }}>Dream Invitation</span>
+            <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "44px", fontWeight: 700, color: "#FFFFFF", marginBottom: "20px", lineHeight: 1.2 }}>
+              Create Your <span style={{ color: "#B8944F" }}>Dream Invitation</span>
             </h2>
-            <p
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontSize: "18px",
-                color: "rgba(255,255,255,0.6)",
-                marginBottom: "40px",
-                lineHeight: 1.7,
-              }}
-            >
+            <p style={{ fontFamily: "var(--font-sans)", fontSize: "18px", color: "rgba(255,255,255,0.6)", marginBottom: "40px", lineHeight: 1.7 }}>
               Start with a template and make it yours. Your event deserves to make a lasting first impression.
             </p>
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
-              <Link
-                href="/register"
-                className="btn-gold"
-                style={{
-                  padding: "16px 48px",
-                  fontSize: "16px",
-                  fontWeight: 700,
-                  borderRadius: "8px",
-                }}
-              >
+              <Link href="/register" className="btn-gold" style={{ padding: "16px 48px", fontSize: "16px", fontWeight: 700, borderRadius: "8px" }}>
                 Start Designing
               </Link>
-              <Link href="/pricing" className="btn-ghost-gold">
-                View Pricing
-              </Link>
+              <Link href="/pricing" className="btn-ghost-gold">View Pricing</Link>
             </div>
           </div>
         </section>
       </main>
       <FooterSection />
 
-      {/* Floating Preview Modal Overlay (Mobile/Tablet Viewports) */}
-      <AnimatePresence>
-        {isPreviewModalOpen && (
-          <div 
-            className="fixed inset-0 z-[100] bg-white lg:hidden flex flex-col"
-            style={{ pointerEvents: "auto" }}
-          >
-            {/* Elegant Floating Close Button */}
-            <button
-              onClick={() => setIsPreviewModalOpen(false)}
-              className="fixed top-4 right-4 z-[110] w-10 h-10 rounded-full bg-stone-900/40 hover:bg-stone-900/60 active:bg-stone-900/80 backdrop-blur-sm text-white flex items-center justify-center border border-white/20 cursor-pointer shadow-xl transition-all"
-              aria-label="Close Preview"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Immersive full-screen mobile view screen */}
-            <motion.div
-              className="flex-1 w-full h-full relative overflow-hidden bg-white"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 30 }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-            >
-              <MobilePreview template={selectedTemplate} theme={selectedThemeColor} isBare={true} />
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
       <style jsx>{`
-        .inner-simulator-container {
-          transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-        }
-
-        /* Desktop Sticky Simulator Scale Adjustments to prevent bottom-cropping */
-        @media (min-width: 1024px) and (max-height: 860px) {
-          .inner-simulator-container {
-            transform: scale(0.9);
-            transform-origin: top center;
-            margin-bottom: -50px;
-          }
-        }
-        @media (min-width: 1024px) and (max-height: 770px) {
-          .inner-simulator-container {
-            transform: scale(0.8);
-            transform-origin: top center;
-            margin-bottom: -100px;
-          }
-        }
-        @media (min-width: 1024px) and (max-height: 690px) {
-          .inner-simulator-container {
-            transform: scale(0.7);
-            transform-origin: top center;
-            margin-bottom: -150px;
-          }
-        }
-        @media (min-width: 1024px) and (max-height: 620px) {
-          .inner-simulator-container {
-            transform: scale(0.6);
-            transform-origin: top center;
-            margin-bottom: -200px;
-          }
-        }
-
-        @media (max-width: 1024px) {
-          .templates-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-        }
+        .steps-grid { }
         @media (max-width: 768px) {
-          .templates-grid {
-            grid-template-columns: 1fr !important;
-            max-width: 480px !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-          }
-          .steps-grid {
-            grid-template-columns: 1fr !important;
-            gap: 36px !important;
-          }
+          .steps-grid { grid-template-columns: 1fr !important; gap: 36px !important; }
         }
         @media (max-width: 640px) {
-          section {
-            padding-left: 20px !important;
-            padding-right: 20px !important;
-          }
+          section { padding-left: 20px !important; padding-right: 20px !important; padding-top: 56px !important; padding-bottom: 56px !important; }
+          /* This section already has a deliberately tight 20/40px wrapper —
+             the blanket 56px reduction above would INCREASE it, not shrink
+             it, since each TemplateShowcase inside carries its own padding. */
+          .tpl-section-tight { padding-top: 12px !important; padding-bottom: 24px !important; }
+          h1 { line-height: 1.2 !important; }
+          h2 { font-size: 28px !important; }
+        }
+        @media (max-width: 480px) {
+          .btn-gold, .btn-ghost-gold { width: 100% !important; }
         }
       `}</style>
     </>

@@ -118,7 +118,7 @@ const faqItems = [
   },
   {
     q: "Is there a limit on the number of guests?",
-    a: "Our Free plan supports up to 50 guests per event. The Professional plan expands this to 500 guests, and our Enterprise plan offers unlimited guests. All plans include real-time response tracking and guest list management tools.",
+    a: "Each plan has its own guest cap — see the Pricing page for the exact, current numbers. There's no automatic per-guest overage fee: if your event reaches its plan's cap, you simply upgrade to a higher tier and you're only charged the price difference. For an event larger than any listed plan, contact us for custom pricing. All plans include real-time response tracking and guest list management tools.",
   },
   {
     q: "Can I send follow-up reminders to guests?",

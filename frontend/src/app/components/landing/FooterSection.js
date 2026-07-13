@@ -10,9 +10,13 @@ const footerLinks = {
     { text: 'Templates', href: '/templates' },
     { text: 'Integrations', href: '/integrations' },
   ],
+  Solutions: [
+    { text: 'For Planners', href: '/solutions/planners' },
+    { text: 'For Venues', href: '/solutions/venues' },
+    { text: 'For Corporate', href: '/solutions/corporate' },
+  ],
   Company: [
     { text: 'About', href: '/about' },
-    { text: 'Blog', href: '/blog' },
     { text: 'Careers', href: '/careers' },
     { text: 'Press', href: '/press' },
   ],
@@ -160,7 +164,7 @@ export default function FooterSection() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr)',
+            gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr)',
             gap: '40px',
           }}
         >

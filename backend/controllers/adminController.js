@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const { parsePagination, applyPagination, buildListResponse, escapeOrSearchTerm } = require('../middleware/pagination');
 const { logAdminAction } = require('../middleware/adminAudit');
 const { refundEventPayment } = require('../services/stripeRefundService');
+const { releaseReferralHold } = require('../services/referralService');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getEventLiveTemplate, getPublicBaseUrl } = require('../utils/emailTemplates');
 const { getPlatformConfig } = require('../utils/configCache');
@@ -294,7 +295,7 @@ const refundPayment = async (req, res, next) => {
   try {
     const { data: payment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, event_id, status, amount_cents, refund_amount_cents, payment_method, stripe_payment_intent_id')
+      .select('id, event_id, status, amount_cents, refund_amount_cents, payment_method, stripe_payment_intent_id, referral_credit_applied_cents')
       .eq('id', paymentId)
       .single();
 
@@ -378,7 +379,7 @@ const declineManualPayment = async (req, res, next) => {
   try {
     const { data: payment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, event_id, status, amount_cents, payment_method')
+      .select('id, event_id, status, amount_cents, payment_method, referral_hold_id')
       .eq('id', paymentId)
       .single();
 
@@ -400,6 +401,11 @@ const declineManualPayment = async (req, res, next) => {
       .eq('id', paymentId);
 
     if (updateError) throw updateError;
+
+    // The money never arrived, so the referral credit this payment earmarked was
+    // never spent — hand it straight back rather than leaving it held until it
+    // expires. No-op when the payment had no credit applied.
+    await releaseReferralHold(payment.referral_hold_id);
 
     await supabase.from('activity_logs').insert({
       event_id: payment.event_id,

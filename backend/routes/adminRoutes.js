@@ -9,6 +9,10 @@ const creditRoutes = require('./admin/creditRoutes');
 const financeRoutes = require('./admin/financeRoutes');
 const userMgmtRoutes = require('./admin/userMgmtRoutes');
 const securityRoutes = require('./admin/securityRoutes');
+const testimonialsRoutes = require('./admin/testimonialsRoutes');
+const pressMentionsRoutes = require('./admin/pressMentionsRoutes');
+const blogRoutes = require('./admin/blogRoutes');
+const referralAdminRoutes = require('./admin/referralAdminRoutes');
 const {
   listPlatformUsers,
   setUserRole,
@@ -62,6 +66,14 @@ router.use('/rbac', rbacRoutes);
 // ── Phase 1: money — credit packages, finance ──
 router.use('/credits', creditRoutes);
 router.use('/finance', financeRoutes);
+
+// ── Landing CMS — testimonials + press mentions + blog management ──
+router.use('/testimonials', testimonialsRoutes);
+router.use('/press-mentions', pressMentionsRoutes);
+router.use('/blog', blogRoutes);
+
+// ── Marketing — referral / affiliate program oversight ──
+router.use('/referrals', referralAdminRoutes);
 
 // ── Phase 2: RBAC & security — user/organizer lifecycle, audit, security, health ──
 router.use('/', userMgmtRoutes);

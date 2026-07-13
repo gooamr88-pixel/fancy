@@ -1,6 +1,7 @@
 import dynamic from "next/dynamic";
 import Navbar from "./components/landing/Navbar";
 import HeroSection from "./components/landing/HeroSection";
+import PressBar from "./components/landing/PressBar";
 import SocialProofBar from "./components/landing/SocialProofBar";
 import RSVPFlowSection from "./components/landing/RSVPFlowSection";
 import FeaturesSection from "./components/landing/FeaturesSection";
@@ -62,6 +63,10 @@ export default function Home() {
       <main>
         {/* Hero — no scroll reveal (above fold, loads immediately) */}
         <HeroSection />
+
+        {/* As Seen In — real, admin-managed press mentions/trust badges
+            (see /admin/cms). Renders nothing until at least one is published. */}
+        <PressBar />
 
         {/* Social Proof — counters have their own IntersectionObserver */}
         <SocialProofBar />

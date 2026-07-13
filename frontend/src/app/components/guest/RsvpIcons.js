@@ -155,6 +155,17 @@ export function WarningIcon({ size = 24, color = 'currentColor', strokeWidth = 1
   );
 }
 
+export function LockIcon({ size = 24, color = 'currentColor', strokeWidth = 1.6 }) {
+  return (
+    <svg width={size} height={size} {...base} stroke={color} strokeWidth={strokeWidth}>
+      <rect x="4.5" y="10.5" width="15" height="10.5" rx="2" />
+      <path d="M7.5 10.5V7.2a4.5 4.5 0 0 1 9 0v3.3" />
+      <circle cx="12" cy="15" r="1.4" fill={color} stroke="none" />
+      <path d="M12 16.4v2.1" />
+    </svg>
+  );
+}
+
 export function CreditCardIcon({ size = 24, color = 'currentColor', strokeWidth = 1.6 }) {
   return (
     <svg width={size} height={size} {...base} stroke={color} strokeWidth={strokeWidth}>

@@ -1,36 +1,27 @@
 'use client';
 
-const testimonials = [
-  {
-    name: 'Sarah & Michael Torres',
-    role: 'Wedding · June 2025',
-    initials: 'ST',
-    quote:
-      'Fancy RSVP transformed our wedding planning. The seating chart alone saved us hours of work, and our guests loved how easy it was to RSVP. The real-time tracking gave us peace of mind.',
-  },
-  {
-    name: 'David Chen',
-    role: 'Corporate Gala · March 2025',
-    initials: 'DC',
-    quote:
-      'Managing 400 corporate guests used to be a nightmare. With Fancy RSVP, we had real-time check-ins, dietary tracking, and SMS reminders all in one place. Absolutely indispensable.',
-  },
-  {
-    name: 'Amira & James Okafor',
-    role: 'Engagement Party · January 2025',
-    initials: 'AO',
-    quote:
-      'The invitation designs were stunning — our guests kept complimenting them! The custom questionnaire feature helped us plan the perfect menu. Worth every penny.',
-  },
-];
+import { useTestimonials } from '../../utils/useTestimonials';
 
-function StarIcon() {
+/**
+ * Real, admin-managed testimonials only — previously this section hard-coded
+ * three fabricated reviews (fake names, fake quotes, fake event
+ * attributions) directly in this file. Now it fetches real rows from
+ * GET /public/testimonials (managed at /admin/cms), each with a genuine
+ * customer photo or initials avatar, a real star rating, and an optional
+ * "Verified Review" link back to the original review — nothing here is
+ * invented. If no testimonials have been published yet, the section renders
+ * nothing rather than show empty/placeholder cards.
+ */
+
+function StarIcon({ filled }) {
   return (
     <svg
       width="16"
       height="16"
       viewBox="0 0 16 16"
-      fill="#B8944F"
+      fill={filled ? '#B8944F' : 'none'}
+      stroke="#B8944F"
+      strokeWidth={filled ? 0 : 1}
       xmlns="http://www.w3.org/2000/svg"
     >
       <path d="M8 0.5L9.79 5.81L15.5 6.19L11.09 9.94L12.54 15.5L8 12.4L3.46 15.5L4.91 9.94L0.5 6.19L6.21 5.81L8 0.5Z" />
@@ -38,26 +29,48 @@ function StarIcon() {
   );
 }
 
-function TestimonialCard({ name, role, initials, quote }) {
+function VerifiedIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 12l2 2 4-4" />
+      <circle cx="12" cy="12" r="9" />
+    </svg>
+  );
+}
+
+function TestimonialCard({ name, role, initials, photo_url, quote, rating, verify_url }) {
+  const displayInitials = initials || (name || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  const stars = Math.min(5, Math.max(0, rating || 5));
+
   return (
     <div className="testimonial-card">
       <div className="card-top">
-        <span className="quote-mark">{'\u201C'}</span>
+        <span className="quote-mark">{'“'}</span>
         <p className="quote-text">{quote}</p>
       </div>
       <div className="card-bottom">
         <div className="divider" />
         <div className="reviewer-row">
-          <div className="avatar">{initials}</div>
+          {photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photo_url} alt={name} className="avatar-photo" />
+          ) : (
+            <div className="avatar">{displayInitials}</div>
+          )}
           <div className="reviewer-info">
             <span className="reviewer-name">{name}</span>
-            <span className="reviewer-role">{role}</span>
+            {role && <span className="reviewer-role">{role}</span>}
           </div>
         </div>
         <div className="stars-row">
-          {[...Array(5)].map((_, i) => (
-            <StarIcon key={i} />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <StarIcon key={i} filled={i <= stars} />
           ))}
+          {verify_url && (
+            <a href={verify_url} target="_blank" rel="noopener noreferrer" className="verify-link">
+              <VerifiedIcon /> Verified Review
+            </a>
+          )}
         </div>
       </div>
 
@@ -126,26 +139,54 @@ function TestimonialCard({ name, role, initials, quote }) {
           font-size: 15px;
           font-weight: 700;
         }
+        .avatar-photo {
+          width: 44px;
+          height: 44px;
+          min-width: 44px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 1px solid #E8E2D6;
+        }
         .reviewer-info {
           display: flex;
           flex-direction: column;
+          min-width: 0;
         }
         .reviewer-name {
           font-family: var(--font-sans);
           font-size: 14px;
           font-weight: 700;
           color: #191B1E;
+          overflow-wrap: break-word;
         }
         .reviewer-role {
           font-family: var(--font-sans);
           font-size: 12px;
           font-weight: 400;
           color: #77736A;
+          overflow-wrap: break-word;
         }
         .stars-row {
           display: flex;
+          align-items: center;
           gap: 3px;
           margin-top: 12px;
+          flex-wrap: wrap;
+        }
+        .verify-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          margin-left: 10px;
+          font-family: var(--font-sans);
+          font-size: 11px;
+          font-weight: 700;
+          color: #B8944F;
+          text-decoration: none;
+        }
+        .verify-link:hover,
+        .verify-link:focus-visible {
+          text-decoration: underline;
         }
       `}</style>
     </div>
@@ -153,6 +194,15 @@ function TestimonialCard({ name, role, initials, quote }) {
 }
 
 export default function TestimonialsSection() {
+  const { testimonials } = useTestimonials();
+
+  // Still loading (null) or nothing published yet — render nothing rather
+  // than a fake/empty section. This section sits below the fold (after
+  // Hero/SocialProof/RSVPFlow/Features/DashboardPreview on the landing
+  // page), so a late pop-in once real data loads causes no meaningful
+  // layout shift to above-fold content.
+  if (!testimonials || testimonials.length === 0) return null;
+
   return (
     <section className="testimonials-section">
       <div className="container">
@@ -160,14 +210,13 @@ export default function TestimonialsSection() {
           <span className="eyebrow">TESTIMONIALS</span>
           <h2 className="heading">Loved by Event Planners Everywhere</h2>
           <p className="subtext">
-            See why thousands of hosts trust Fancy RSVP for their most important
-            celebrations.
+            Real reviews from real hosts — click &quot;Verified Review&quot; on any card to see the original.
           </p>
         </div>
 
         <div className="cards-grid">
-          {testimonials.map((t, i) => (
-            <TestimonialCard key={i} {...t} />
+          {testimonials.map((t) => (
+            <TestimonialCard key={t.id} {...t} />
           ))}
         </div>
       </div>

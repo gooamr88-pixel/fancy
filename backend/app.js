@@ -205,6 +205,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const fieldRoutes = require('./routes/fieldRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const referralRoutes = require('./routes/referralRoutes');
 
 // Mount public routes
 app.use('/api/v1/public', publicRoutes);
@@ -222,6 +223,7 @@ app.use('/api/v1/events/:eventId/invitations', requireAuth, verifyEventOwner, in
 app.use('/api/v1/events/:eventId/fields', requireAuth, verifyEventOwner, fieldRoutes);
 app.use('/api/v1/events/:eventId/analytics', requireAuth, verifyEventOwner, analyticsRoutes);
 app.use('/api/v1/dashboard', requireAuth, dashboardRoutes);
+app.use('/api/v1/referrals', requireAuth, referralRoutes);
 app.use('/api/v1/events', requireAuth, eventRoutes);
 
 // Mount super admin control routes

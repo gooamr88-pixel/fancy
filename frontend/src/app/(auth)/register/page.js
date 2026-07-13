@@ -42,11 +42,31 @@ export default function RegisterPage() {
   const [resending, setResending] = useState(false);
   const cooldownRef = useRef(null);
 
+  // Referral attribution — read client-side (not next/navigation's useSearchParams,
+  // which would force this page into a Suspense boundary) so a "?ref=CODE" link
+  // silently rides along with the registration request. Mirrored into a ref
+  // too: the Google Sign-In callback below is a closure created once inside a
+  // mount-only effect, so it would otherwise forever see the initial ('') value.
+  const [refCode, setRefCode] = useState('');
+  const refCodeRef = useRef('');
+
   const router = useRouter();
 
   // Cleanup cooldown interval on unmount
   useEffect(() => {
     return () => { if (cooldownRef.current) clearInterval(cooldownRef.current); };
+  }, []);
+
+  useEffect(() => {
+    (() => {
+      try {
+        const ref = new URLSearchParams(window.location.search).get('ref');
+        if (ref && ref.trim()) {
+          refCodeRef.current = ref.trim();
+          setRefCode(ref.trim());
+        }
+      } catch { /* no-op — referral attribution is best-effort */ }
+    })();
   }, []);
 
   const startResendCooldown = () => {
@@ -82,7 +102,7 @@ export default function RegisterPage() {
       const name = `${firstName.trim()} ${lastName.trim()}`.trim();
       const data = await apiFetch('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ name, orgName, email, password })
+        body: JSON.stringify({ name, orgName, email, password, refCode })
       });
 
       if (data.success && data.requiresVerification) {
@@ -113,7 +133,7 @@ export default function RegisterPage() {
       const name = `${firstName.trim()} ${lastName.trim()}`.trim();
       const data = await apiFetch('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ name, orgName, email, password })
+        body: JSON.stringify({ name, orgName, email, password, refCode })
       });
       if (data.success) {
         setOtp('');
@@ -156,7 +176,7 @@ export default function RegisterPage() {
           try {
             const data = await apiFetch('/auth/google', {
               method: 'POST',
-              body: JSON.stringify({ credential: response.credential })
+              body: JSON.stringify({ credential: response.credential, refCode: refCodeRef.current })
             });
             if (data.success) {
               localStorage.setItem('org_id', data.organization.id);
@@ -422,6 +442,19 @@ export default function RegisterPage() {
 
           <h1 className="auth-heading">Create Your Account</h1>
           <p className="auth-subtext">Start planning your perfect event today</p>
+
+          {refCode && (
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 20,
+              padding: '10px 14px', borderRadius: 10,
+              background: 'rgba(184,148,79,0.08)', border: '1px solid rgba(184,148,79,0.2)',
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="2" style={{ flexShrink: 0, marginTop: 2 }}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="7" r="4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: 'var(--gold-cta)', fontWeight: 600, minWidth: 0, lineHeight: 1.5 }}>
+                You were referred by a friend — sign up and they&apos;ll earn a reward.
+              </span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="auth-form">
             <div className="auth-field-grid">

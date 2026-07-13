@@ -36,13 +36,13 @@ export const NAV_GROUPS = [
       { key: 'payments', label: 'Payments', href: '/admin/payments', perm: 'payments.view', ready: true },
       { key: 'credits', label: 'Credits', href: '/admin/credits', perm: 'credits.view', ready: true },
       { key: 'finance', label: 'Financial Center', href: '/admin/finance', perm: 'finance.view', ready: true },
-      { key: 'marketing', label: 'Marketing', href: '/admin/marketing', perm: 'marketing.view', ready: false },
+      { key: 'marketing', label: 'Marketing', href: '/admin/marketing', perm: 'marketing.view', ready: true },
     ],
   },
   {
     heading: 'Platform',
     items: [
-      { key: 'cms', label: 'Landing CMS', href: '/admin/cms', perm: 'cms.view', ready: false },
+      { key: 'cms', label: 'Landing CMS', href: '/admin/cms', perm: 'cms.view', ready: true },
       { key: 'config', label: 'Configuration', href: '/admin/config', perm: 'config.view', ready: true },
       { key: 'feature-flags', label: 'Feature Flags', href: '/admin/feature-flags', perm: 'flags.view', ready: false },
       { key: 'auth-config', label: 'Auth Settings', href: '/admin/auth-config', perm: 'authconfig.view', ready: false },

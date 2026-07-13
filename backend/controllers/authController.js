@@ -8,6 +8,7 @@ const { setAuthCookie, clearAuthCookie, COOKIE_NAME } = require('../middleware/a
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { newJti, recordSession, revokeByJti, revokeAllForUser, recordLogin } = require('../services/sessionService');
 const { getAccessContext } = require('../services/rbacService');
+const { generateUniqueReferralCode, resolveReferrerOrgId } = require('../services/referralService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('FATAL: JWT_SECRET environment variable is required');
@@ -152,7 +153,7 @@ const register = async (req, res, next) => {
     // Check if user already exists
     const { data: existingUser } = await supabase
       .from('organizations')
-      .select('id, email_verified')
+      .select('id, email_verified, referred_by_org_id')
       .eq('email', normalizedEmail)
       .limit(1);
 
@@ -176,23 +177,36 @@ const register = async (req, res, next) => {
     const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
     const otpExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
 
+    // Referral attribution: resolved once and stamped at account creation only —
+    // the referrer never changes after this, so it can't be gamed retroactively
+    // by a later "?ref=" visit. A bad/unknown code silently resolves to null
+    // rather than blocking registration.
+    const refCode = (req.body.refCode || '').toString().trim();
+    const referrerOrgId = refCode ? await resolveReferrerOrgId(refCode) : null;
+
     if (existingUser && existingUser.length > 0) {
-      // Update existing unverified record
+      // Update existing unverified record. Only attach a referrer if this
+      // pending registration didn't already have one — first touch wins.
+      const updatePayload = {
+        owner_user_id: userId,
+        name: orgName,
+        password_hash: passwordHash,
+        registration_otp: otpHash,
+        registration_otp_expires_at: otpExpiresAt,
+        otp_attempts: 0,
+        email_verified: false,
+      };
+      if (referrerOrgId && !existingUser[0].referred_by_org_id) {
+        updatePayload.referred_by_org_id = referrerOrgId;
+      }
       const { error: updateError } = await supabase
         .from('organizations')
-        .update({
-          owner_user_id: userId,
-          name: orgName,
-          password_hash: passwordHash,
-          registration_otp: otpHash,
-          registration_otp_expires_at: otpExpiresAt,
-          otp_attempts: 0,
-          email_verified: false,
-        })
+        .update(updatePayload)
         .eq('email', normalizedEmail);
       if (updateError) throw updateError;
     } else {
       // Create new organization in unverified state
+      const referralCode = await generateUniqueReferralCode();
       const { error: orgError } = await supabase
         .from('organizations')
         .insert({
@@ -204,6 +218,8 @@ const register = async (req, res, next) => {
           registration_otp_expires_at: otpExpiresAt,
           otp_attempts: 0,
           email_verified: false,
+          referral_code: referralCode,
+          referred_by_org_id: referrerOrgId,
         });
 
       if (orgError) throw orgError;
@@ -962,6 +978,11 @@ const googleAuth = async (req, res, next) => {
     } else {
       // New account → create it with no password, email pre-verified
       const newUserId = crypto.randomUUID();
+      const refCode = (req.body.refCode || '').toString().trim();
+      const [referrerOrgId, referralCode] = await Promise.all([
+        refCode ? resolveReferrerOrgId(refCode) : Promise.resolve(null),
+        generateUniqueReferralCode(),
+      ]);
       const { error: orgError } = await supabase
         .from('organizations')
         .insert({
@@ -970,6 +991,8 @@ const googleAuth = async (req, res, next) => {
           email,
           password_hash: null,
           email_verified: true,
+          referral_code: referralCode,
+          referred_by_org_id: referrerOrgId,
         });
       if (orgError) throw orgError;
 

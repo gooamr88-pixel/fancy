@@ -4,7 +4,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FadeInUp, StaggerChildren, StaggerItem, GlowPulse } from '../../../components/guest/GuestAnimations';
 import { PremiumButton, FormField, inputFocus, inputBlur } from '../../../components/guest/GuestUI';
-import { WarningIcon } from '../../../components/guest/RsvpIcons';
+import { WarningIcon, LockIcon } from '../../../components/guest/RsvpIcons';
 import { S } from '../styles';
 import { RsvpSectionHeading, RsvpDivider } from '../components';
 
@@ -273,6 +273,21 @@ export default function StepCustomQuestions({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Data-privacy reassurance — guests are asked for phone/email/dietary
+          details throughout this form but were never told what happens to it.
+          Placed right before the final submit, where the "am I safe handing
+          this over?" hesitation actually happens. */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '10px',
+        padding: '12px 14px', borderRadius: '12px',
+        background: '#F8F4EC', border: '1px solid #E8E2D6',
+      }}>
+        <LockIcon size={16} strokeWidth={1.6} color={themeColor} />
+        <span style={{ fontSize: '11.5px', color: '#5E5A52', lineHeight: 1.5, fontFamily: 'var(--font-sans)' }}>
+          {t.privacy_note}
+        </span>
+      </div>
 
       <RsvpDivider themeColor={themeColor} />
       <div style={{ display: 'flex', justifyContent: onBack ? 'space-between' : 'flex-end', paddingTop: '4px' }}>
