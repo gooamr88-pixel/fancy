@@ -5,7 +5,6 @@ import SocialProofBar from "./components/landing/SocialProofBar";
 import RSVPFlowSection from "./components/landing/RSVPFlowSection";
 import FeaturesSection from "./components/landing/FeaturesSection";
 import TestimonialsSection from "./components/landing/TestimonialsSection";
-import PricingSection from "./components/landing/PricingSection";
 import FAQSection from "./components/landing/FAQSection";
 import CTASection from "./components/landing/CTASection";
 import FooterSection from "./components/landing/FooterSection";
@@ -46,10 +45,9 @@ const jsonLd = {
   logo: 'https://fancyrsvp.com/logo.png',
   description: 'The all-in-one RSVP and guest management platform for weddings and special events.',
   sameAs: [
-    'https://twitter.com/fancyrsvp',
-    'https://instagram.com/fancyrsvp',
-    'https://linkedin.com/company/fancyrsvp',
-    'https://facebook.com/fancyrsvp',
+    'https://www.instagram.com/viamarketing.ca/',
+    'https://www.facebook.com/viamarketing.ca',
+    'https://twitter.com/viamarketingca',
   ],
 };
 
@@ -86,11 +84,6 @@ export default function Home() {
         {/* Testimonials — social proof */}
         <ScrollReveal direction="up" duration={800}>
           <TestimonialsSection />
-        </ScrollReveal>
-
-        {/* Pricing */}
-        <ScrollReveal direction="up" duration={800}>
-          <PricingSection />
         </ScrollReveal>
 
         {/* FAQ */}

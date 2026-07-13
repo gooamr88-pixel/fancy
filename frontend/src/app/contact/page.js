@@ -12,8 +12,9 @@ import FooterSection from "../components/landing/FooterSection";
 const contactCards = [
   {
     label: "Email Us",
-    value: "support@fancyrsvp.com",
-    detail: "We reply within 2 hours",
+    value: "info@viamarketing.ca",
+    detail: "We'll reply as soon as we can",
+    href: "mailto:info@viamarketing.ca",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="4" width="20" height="16" rx="2" />
@@ -22,19 +23,20 @@ const contactCards = [
     ),
   },
   {
-    label: "Call Us",
-    value: "+1 (888) 274-RSVP",
-    detail: "Mon – Fri, 9am – 6pm ET",
+    label: "Message Us",
+    value: "@viamarketing.ca",
+    detail: "DM us on Instagram",
+    href: "https://www.instagram.com/viamarketing.ca/",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M22 16.92V19.92C22 20.48 21.56 20.93 21 20.97C20.17 21.03 19.33 21 18.5 20.88C15.61 20.37 12.89 19.12 10.59 17.27L10.24 16.97C8.15 15.22 6.47 13.09 5.27 10.69L5.13 10.42C4.39 8.82 3.92 7.1 3.78 5.33C3.74 4.77 4.19 4.3 4.75 4.26L7.77 4.03C8.21 4 8.62 4.29 8.74 4.71L9.53 7.44C9.64 7.82 9.5 8.23 9.18 8.45L7.88 9.32C9.09 11.87 11.16 13.93 13.71 15.14L14.58 13.84C14.8 13.52 15.21 13.38 15.59 13.49L18.32 14.28C18.74 14.4 19.03 14.81 19 15.25" />
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
       </svg>
     ),
   },
   {
     label: "Visit Us",
-    value: "350 Fifth Avenue, Suite 4800",
-    detail: "New York, NY 10118",
+    value: "Mississauga, Ontario",
+    detail: "Canada",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 10C21 17 12 23 12 23S3 17 3 10C3 5.03 7.03 1 12 1S21 5.03 21 10Z" />
@@ -43,9 +45,9 @@ const contactCards = [
     ),
   },
   {
-    label: "Business Hours",
-    value: "Monday – Friday",
-    detail: "9:00 AM – 6:00 PM ET",
+    label: "Response Time",
+    value: "Within one business day",
+    detail: "Monday to Friday",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10" />
@@ -57,13 +59,8 @@ const contactCards = [
 
 const socialLinks = [
   {
-    name: "Twitter",
-    url: "https://twitter.com/fancyrsvp",
-    icon: <path d="M22 4s-1.3.8-3 1.2A4.8 4.8 0 0 0 12 8v1A10.5 10.5 0 0 1 3 4s-4 9 5 13a11.6 11.6 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.1-.9A7.7 7.7 0 0 0 22 4Z" />,
-  },
-  {
     name: "Instagram",
-    url: "https://instagram.com/fancyrsvp",
+    url: "https://www.instagram.com/viamarketing.ca/",
     icon: (
       <>
         <rect x="2" y="2" width="20" height="20" rx="5" />
@@ -72,20 +69,14 @@ const socialLinks = [
     ),
   },
   {
-    name: "LinkedIn",
-    url: "https://linkedin.com/company/fancyrsvp",
-    icon: (
-      <>
-        <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6Z" />
-        <rect x="2" y="9" width="4" height="12" />
-        <circle cx="4" cy="4" r="2" />
-      </>
-    ),
+    name: "Facebook",
+    url: "https://www.facebook.com/viamarketing.ca",
+    icon: <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />,
   },
   {
-    name: "Facebook",
-    url: "https://facebook.com/fancyrsvp",
-    icon: <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />,
+    name: "X",
+    url: "https://twitter.com/viamarketingca",
+    icon: <path d="M22 4s-1.3.8-3 1.2A4.8 4.8 0 0 0 12 8v1A10.5 10.5 0 0 1 3 4s-4 9 5 13a11.6 11.6 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.1-.9A7.7 7.7 0 0 0 22 4Z" />,
   },
 ];
 
@@ -138,7 +129,18 @@ function ContactInfoCard({ card }) {
             marginBottom: "2px",
           }}
         >
-          {card.value}
+          {card.href ? (
+            <a
+              href={card.href}
+              target={card.href.startsWith("http") ? "_blank" : undefined}
+              rel={card.href.startsWith("http") ? "noopener noreferrer" : undefined}
+              style={{ color: "inherit", textDecoration: "none" }}
+            >
+              {card.value}
+            </a>
+          ) : (
+            card.value
+          )}
         </p>
         <p
           style={{
@@ -652,7 +654,7 @@ export default function ContactPage() {
                       Our Headquarters
                     </p>
                     <p style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#5E5A52" }}>
-                      350 Fifth Avenue, New York
+                      Mississauga, Ontario
                     </p>
                   </div>
                 </div>
@@ -699,9 +701,9 @@ export default function ContactPage() {
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                   {[
-                    { label: "Address", value: "350 Fifth Avenue, Suite 4800, New York, NY 10118" },
-                    { label: "Phone", value: "+1 (888) 274-RSVP" },
-                    { label: "Hours", value: "Monday – Friday, 9:00 AM – 6:00 PM ET" },
+                    { label: "Address", value: "Mississauga, Ontario, Canada" },
+                    { label: "Instagram", value: "@viamarketing.ca" },
+                    { label: "Response", value: "Within one business day" },
                   ].map((item) => (
                     <div key={item.label} style={{ display: "flex", gap: "12px" }}>
                       <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "#B8944F", minWidth: "70px" }}>

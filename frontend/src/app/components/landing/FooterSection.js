@@ -342,33 +342,26 @@ export default function FooterSection() {
               color: 'rgba(255, 255, 255, 0.7)',
             }}
           >
-            © {new Date().getFullYear()} Fancy RSVP. All rights reserved.
+            © {new Date().getFullYear()} Via Marketing Group. All rights reserved.
           </p>
 
-          {/* Social icons */}
+          {/* Social icons — Via Marketing Group's actual accounts */}
           <div style={{ display: 'flex', gap: '10px' }}>
-            {/* Twitter / X */}
-            <SocialIcon label="Twitter" href="https://twitter.com/fancyrsvp">
-              <path d="M22 4s-1.3.8-3 1.2A4.8 4.8 0 0 0 12 8v1A10.5 10.5 0 0 1 3 4s-4 9 5 13a11.6 11.6 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.1-.9A7.7 7.7 0 0 0 22 4Z" />
-            </SocialIcon>
-
             {/* Instagram */}
-            <SocialIcon label="Instagram" href="https://instagram.com/fancyrsvp">
+            <SocialIcon label="Instagram" href="https://www.instagram.com/viamarketing.ca/">
               <rect x="2" y="2" width="20" height="20" rx="5" />
               <circle cx="12" cy="12" r="5" />
               <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none" />
             </SocialIcon>
 
-            {/* LinkedIn */}
-            <SocialIcon label="LinkedIn" href="https://linkedin.com/company/fancyrsvp">
-              <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6Z" />
-              <rect x="2" y="9" width="4" height="12" />
-              <circle cx="4" cy="4" r="2" />
+            {/* Facebook */}
+            <SocialIcon label="Facebook" href="https://www.facebook.com/viamarketing.ca">
+              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
             </SocialIcon>
 
-            {/* Facebook */}
-            <SocialIcon label="Facebook" href="https://facebook.com/fancyrsvp">
-              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
+            {/* X / Twitter */}
+            <SocialIcon label="X" href="https://twitter.com/viamarketingca">
+              <path d="M22 4s-1.3.8-3 1.2A4.8 4.8 0 0 0 12 8v1A10.5 10.5 0 0 1 3 4s-4 9 5 13a11.6 11.6 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.1-.9A7.7 7.7 0 0 0 22 4Z" />
             </SocialIcon>
           </div>
         </div>

@@ -248,7 +248,7 @@ function JobCard({ job }) {
         </div>
       </div>
       <a
-        href={`mailto:careers@fancyrsvp.com?subject=${encodeURIComponent("Application: " + job.title)}`}
+        href={`mailto:info@viamarketing.ca?subject=${encodeURIComponent("Application: " + job.title)}`}
         className="btn-gold"
         style={{
           padding: "12px 32px",
@@ -619,7 +619,7 @@ export default function CareersPage() {
               tell us how you&apos;d like to make an impact at Fancy RSVP.
             </p>
             <Link
-              href="mailto:careers@fancyrsvp.com"
+              href="mailto:info@viamarketing.ca"
               className="btn-gold"
               style={{ padding: "16px 44px", fontSize: "15px", borderRadius: "8px" }}
             >

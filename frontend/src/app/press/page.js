@@ -175,7 +175,7 @@ function MentionCard({ mention }) {
 function DownloadCard({ title, desc, icon }) {
   return (
     <a
-      href={`mailto:press@fancyrsvp.com?subject=${encodeURIComponent("Press Kit: " + title)}`}
+      href={`mailto:info@viamarketing.ca?subject=${encodeURIComponent("Press Kit: " + title)}`}
       className="download-card"
       style={{
         display: "block",
@@ -778,18 +778,18 @@ export default function PressPage() {
                 letterSpacing: "0.5px",
               }}
             >
-              press@fancyrsvp.com
+              info@viamarketing.ca
             </p>
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
               <Link
-                href="mailto:press@fancyrsvp.com"
+                href="mailto:info@viamarketing.ca"
                 className="btn-gold"
                 style={{ padding: "16px 40px", fontSize: "15px", borderRadius: "8px" }}
               >
                 Contact Press Team
               </Link>
               <a
-                href="mailto:press@fancyrsvp.com?subject=Press%20Kit%20Request"
+                href="mailto:info@viamarketing.ca?subject=Press%20Kit%20Request"
                 className="btn-outline"
                 style={{
                   padding: "16px 40px",
