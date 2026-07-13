@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
+import Icon from '../../../icons/Icon';
 
 /* Deterministic scattered confetti pieces (no physics/canvas) — a light,
    always-cheap decorative background matching the reference's gift page.
@@ -75,7 +76,7 @@ export default function GiftListSection({ registryUrl, registryLabel, bank, mess
       <ConfettiBackground />
 
       <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <span style={{ fontSize: '30px', marginBottom: '8px' }} aria-hidden="true">🎁</span>
+        <Icon name="gift" size={28} color={C.gold} strokeWidth={1.3} style={{ marginBottom: '8px' }} />
         <SectionHeading isRTL={isRTL}>{isRTL ? 'قائمة الهدايا' : 'Gift List'}</SectionHeading>
 
         <div style={{
@@ -97,7 +98,7 @@ export default function GiftListSection({ registryUrl, registryLabel, bank, mess
                 fontWeight: 700, fontSize: '15px', fontFamily: 'var(--font-sans)',
               }}
             >
-              <span aria-hidden="true">🎁</span>
+              <Icon name="gift" size={15} color="#FFFFFF" strokeWidth={1.6} />
               {registryLabel || (isRTL ? 'قائمة الهدايا' : 'Gift Registry')}
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />

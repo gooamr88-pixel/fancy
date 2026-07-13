@@ -8,6 +8,7 @@ import QRCode from 'qrcode';
 import { logout, apiFetch } from '../utils/apiClient';
 import LogoutModal from '../components/LogoutModal';
 import { useIsClient } from '../utils/useIsClient';
+import Icon from '../components/icons/Icon';
 import { useRealtimeRSVPs } from './hooks/useRealtimeRSVPs';
 import StatMetricsCard from './components/StatMetricsCard';
 import LiveActivityFeed from './components/LiveActivityFeed';
@@ -494,7 +495,7 @@ export default function DashboardPage() {
     return (
       <div style={{ minHeight: '100vh', background: COLORS.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
         <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center', background: COLORS.white, border: `1px solid ${COLORS.border}`, padding: '48px 32px', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-          <span style={{ fontSize: '48px' }}>🔌</span>
+          <Icon name="plug" size={44} color="#C45E5E" strokeWidth={1.3} />
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#C45E5E', marginTop: '12px' }}>Backend Connection Error</h2>
           <p style={{ color: COLORS.stone, marginTop: '12px', fontSize: '13px', lineHeight: 1.7, fontWeight: 300 }}>{error}</p>
           {/* Retry re-runs whichever load actually failed — previously this always

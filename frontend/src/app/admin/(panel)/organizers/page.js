@@ -10,6 +10,7 @@ import Modal, { Button, StatusBadge } from '../../_components/Modal';
 import { T } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
 import { money } from '../../_lib/format';
+import Icon from '../../../components/icons/Icon';
 
 export default function OrganizersPage() {
   const { showAlert, showConfirm, showToast } = useAlert();
@@ -176,7 +177,7 @@ export default function OrganizersPage() {
                       disabled={impersonating}
                       onClick={() => handleImpersonate(selectedOrg.ownerUserId)}
                     >
-                      {impersonating ? 'Redirection session active…' : '👤 Impersonate Organizer'}
+                      {impersonating ? 'Redirection session active…' : <><Icon name="person" size={14} strokeWidth={1.7} /> Impersonate Organizer</>}
                     </Button>
                   )}
 
@@ -186,7 +187,7 @@ export default function OrganizersPage() {
                         variant="default"
                         onClick={() => handleResetPassword(selectedOrg.ownerUserId)}
                       >
-                        🔑 Reset Password
+                        <Icon name="key" size={14} strokeWidth={1.7} /> Reset Password
                       </Button>
 
                       <Button
@@ -194,7 +195,7 @@ export default function OrganizersPage() {
                         disabled={changingStatus}
                         onClick={() => handleToggleSuspend(selectedOrg.ownerUserId, orgDetails?.status)}
                       >
-                        {changingStatus ? 'Updating…' : orgDetails?.status === 'banned' ? '🔓 Reactivate Account' : '🚫 Suspend Account'}
+                        {changingStatus ? 'Updating…' : orgDetails?.status === 'banned' ? <><Icon name="unlock" size={14} strokeWidth={1.7} /> Reactivate Account</> : <><Icon name="ban" size={14} strokeWidth={1.7} /> Suspend Account</>}
                       </Button>
                     </div>
                   )}

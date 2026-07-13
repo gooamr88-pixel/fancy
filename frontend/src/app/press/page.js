@@ -4,6 +4,7 @@ import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import GoldDivider from "../components/GoldDivider";
+import Icon from "../components/icons/Icon";
 
 /* ═══════════════════════════════════════════════════════════
    Press Page — Fancy RSVP
@@ -49,10 +50,10 @@ const mediaMentions = [
 ];
 
 const awards = [
-  { title: "Best Event Tech Startup", org: "EventTech Awards 2025", icon: "🏆" },
-  { title: "#1 Product of the Day", org: "Product Hunt", icon: "🥇" },
-  { title: "Best UX Design", org: "Webby Awards 2024", icon: "✨" },
-  { title: "Top 50 Startups to Watch", org: "Forbes 2025", icon: "🚀" },
+  { title: "Best Event Tech Startup", org: "EventTech Awards 2025", icon: "trophy" },
+  { title: "#1 Product of the Day", org: "Product Hunt", icon: "medal" },
+  { title: "Best UX Design", org: "Webby Awards 2024", icon: "sparkle" },
+  { title: "Top 50 Startups to Watch", org: "Forbes 2025", icon: "rocket" },
 ];
 
 const brandColors = [
@@ -690,7 +691,7 @@ export default function PressPage() {
                   }}
                   className="award-card"
                 >
-                  <div style={{ fontSize: "40px", marginBottom: "16px" }}>{award.icon}</div>
+                  <div style={{ marginBottom: "16px" }}><Icon name={award.icon} size={36} color="#B8944F" strokeWidth={1.2} /></div>
                   <h3
                     style={{
                       fontFamily: "var(--font-serif)",

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import GoldDivider from "../components/GoldDivider";
+import Icon from "../components/icons/Icon";
 
 const features = [
   {
@@ -415,27 +416,28 @@ export default function FeaturesPage() {
                 {
                   title: "Enterprise-Grade Security",
                   desc: "256-bit SSL encryption, GDPR compliance, and SOC 2 certification protect every guest's data.",
-                  icon: "🔒",
+                  icon: "lock",
                 },
                 {
                   title: "White-Glove Support",
                   desc: "Dedicated account managers for premium clients with 24/7 priority support and onboarding.",
-                  icon: "🤝",
+                  icon: "handshake",
                 },
                 {
                   title: "Lightning Fast",
                   desc: "Built on a globally distributed edge network for sub-200ms response times worldwide.",
-                  icon: "⚡",
+                  icon: "lightning",
                 },
               ].map((item) => (
                 <div key={item.title} style={{ textAlign: "center" }}>
                   <div
                     style={{
-                      fontSize: "40px",
+                      display: "flex",
+                      justifyContent: "center",
                       marginBottom: "20px",
                     }}
                   >
-                    {item.icon}
+                    <Icon name={item.icon} size={36} color="#B8944F" strokeWidth={1.2} />
                   </div>
                   <h3
                     style={{

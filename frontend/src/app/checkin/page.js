@@ -9,6 +9,7 @@ import FeatureGate from '../dashboard/components/FeatureGate';
 import ImpersonationBanner from '../components/ImpersonationBanner';
 import { useIsClient } from '../utils/useIsClient';
 import { playAccept, playError, buzz } from '../utils/sound';
+import Icon from '../components/icons/Icon';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF' };
@@ -157,17 +158,14 @@ export default function CheckInPage() {
   // pattern used elsewhere in this codebase for transient blips) smooths over
   // a brief blip instead of forcing staff to guess and re-tap, which risked
   // racing the ALREADY_CHECKED_IN guard.
-  const fetchWithRetry = async (url, options, attempt = 0) => {
+  const fetchWithRetry = useCallback(async (url, options) => {
     try {
       return await fetch(url, options);
     } catch (err) {
-      if (attempt === 0) {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        return fetchWithRetry(url, options, 1);
-      }
-      throw err;
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return fetch(url, options);
     }
-  };
+  }, []);
 
   const handleManualCheckIn = async (partyId) => {
     if (!authReady) return;
@@ -237,7 +235,7 @@ export default function CheckInPage() {
       qrCheckInInFlight.current = false;
       setQrCheckInBusy(false);
     }
-  }, [eventId, fetchCheckInSummary, isOnline]);
+  }, [eventId, fetchCheckInSummary, fetchWithRetry, isOnline]);
 
   const handleQRScanSubmit = async (e) => { e.preventDefault(); if (!qrTokenInput.trim()) return; await handleQRScan(qrTokenInput); setQrTokenInput(''); };
 
@@ -275,7 +273,7 @@ export default function CheckInPage() {
     return (
       <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
         <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: '48px 32px', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-          <span style={{ fontSize: '48px' }}>🔌</span>
+          <Icon name="plug" size={44} color="#C45E5E" strokeWidth={1.3} />
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#C45E5E', marginTop: '12px' }}>Backend Connection Error</h2>
           <p style={{ color: C.stone, marginTop: '12px', fontSize: '13px', lineHeight: 1.7, fontWeight: 300 }}>{error}</p>
           <button onClick={() => { setLoading(true); fetchCheckInSummary(); }} style={{ marginTop: '24px', padding: '12px 24px', background: C.gold, color: C.white, border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Retry Connection</button>
@@ -295,7 +293,7 @@ export default function CheckInPage() {
           background: 'rgba(196,94,94,0.08)', border: '1px solid rgba(196,94,94,0.2)', color: '#C45E5E',
           fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px',
         }}>
-          <span>📡</span> No internet connection — check-ins and QR scans won&apos;t work until you&apos;re back online.
+          <Icon name="noSignal" size={15} strokeWidth={1.6} /> No internet connection — check-ins and QR scans won&apos;t work until you&apos;re back online.
         </div>
       )}
 
@@ -341,7 +339,7 @@ export default function CheckInPage() {
             <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="qr_checkin" onUpgrade={() => router.push('/dashboard')} wrapperStyle={{ display: 'flex', width: '100%' }}>
               <button type="button" onClick={() => setCameraActive(!cameraActive)}
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: cameraActive ? '#C45E5E' : C.gold, color: C.white, transition: 'all 0.3s' }}>
-                {cameraActive ? '🛑 Stop Camera Scanner' : '📷 Open Camera Scanner'}
+                <Icon name={cameraActive ? 'stop' : 'camera'} size={15} strokeWidth={1.6} /> {cameraActive ? 'Stop Camera Scanner' : 'Open Camera Scanner'}
               </button>
             </FeatureGate>
             {cameraActive && (
@@ -399,7 +397,7 @@ export default function CheckInPage() {
                   <span style={{ fontSize: '11px', color: C.stone }}>{(selectedGuest.response || '').toUpperCase()} RESPONSE</span>
                 </div>
                 <span style={{ padding: '4px 14px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, background: selectedGuest.isCheckedIn ? 'rgba(184,148,79,0.1)' : C.ivory, color: selectedGuest.isCheckedIn ? C.gold : C.stone, border: `1px solid ${selectedGuest.isCheckedIn ? 'rgba(184,148,79,0.2)' : C.border}` }}>
-                  {selectedGuest.isCheckedIn ? '✅ Checked-In' : '⏳ Pending Arrival'}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><Icon name={selectedGuest.isCheckedIn ? 'check' : 'hourglass'} size={12} strokeWidth={1.8} /> {selectedGuest.isCheckedIn ? 'Checked-In' : 'Pending Arrival'}</span>
                 </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }} className="checkin-detail-grid">
@@ -430,7 +428,7 @@ export default function CheckInPage() {
                 <>
                   {selectedGuest.tableName === 'Unassigned' && (
                     <div style={{ padding: '10px 14px', borderRadius: '8px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.15)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#C45E5E', fontWeight: 500 }}>
-                      <span>⚠️</span> This guest has no table assignment. They will be checked in as a walk-in.
+                      <Icon name="warning" size={14} strokeWidth={1.6} /> This guest has no table assignment. They will be checked in as a walk-in.
                     </div>
                   )}
                   <FeatureGate tierFeatures={tierFeatures} isPaid={eventIsPaid} feature="manual_checkin" onUpgrade={() => router.push('/dashboard')} wrapperStyle={{ display: 'flex', width: '100%' }}>

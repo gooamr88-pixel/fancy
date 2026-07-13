@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { computeSmsSegments } from '../../../utils/smsSegments';
+import Icon from '../../../components/icons/Icon';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -54,17 +55,17 @@ export default function Stage3_Distribution({
 
   const methods = [
     {
-      key: 'link', icon: '🔗', locked: true,
+      key: 'link', icon: 'link', locked: true,
       title: 'Unique Invitation Link',
       desc: 'Share a personalized URL with your guests',
     },
     {
-      key: 'qr', icon: '📱',
+      key: 'qr', icon: 'mobile',
       title: 'QR Code',
       desc: 'Generate a scannable QR code for printed invitations',
     },
     {
-      key: 'sms', icon: '💬',
+      key: 'sms', icon: 'chat',
       title: 'SMS Invitations',
       desc: 'Send personalized text messages to your guest list',
     },
@@ -117,9 +118,9 @@ export default function Stage3_Distribution({
                   width: 52, height: 52, borderRadius: 14,
                   background: isActive ? 'rgba(184,148,79,0.08)' : C.ivory,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 24, flexShrink: 0,
+                  flexShrink: 0,
                   transition: 'background 0.2s',
-                }}>{m.icon}</div>
+                }}><Icon name={m.icon} size={20} strokeWidth={1.5} /></div>
 
                 {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -290,7 +291,7 @@ export default function Stage3_Distribution({
                           {/* UCS-2 (Arabic / emoji / accents) costs far more credits per guest. */}
                           {smsSeg.encoding === 'UCS-2' && (
                             <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)', borderRadius: 8, padding: '8px 10px' }}>
-                              <span style={{ fontSize: 12, lineHeight: 1.4 }}>⚠️</span>
+                              <Icon name="warning" size={13} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} />
                               <span style={{ fontSize: 10, color: C.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
                                 <strong>Arabic / special characters detected.</strong> Each SMS segment now holds only <strong>70 characters</strong> instead of 160, so this message can cost up to <strong>3× the credits</strong> per guest.
                               </span>
@@ -306,7 +307,7 @@ export default function Stage3_Distribution({
                             }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                <span style={{ fontSize: 18 }}>📨</span>
+                                <Icon name="sentMail" size={17} strokeWidth={1.5} />
                                 <div>
                                   <span style={{ fontSize: 11, color: C.stone, fontFamily: 'var(--font-sans)', display: 'block' }}>Available SMS credits <span style={{ color: C.gold, fontWeight: 700 }}>· this event</span></span>
                                   <span style={{ fontSize: 20, fontWeight: 800, color: C.charcoal, fontFamily: 'var(--font-sans)' }}>
@@ -383,7 +384,7 @@ export default function Stage3_Distribution({
                               </p>
                             )}
                             {creditError && (
-                              <p style={{ fontSize: 11, color: C.error, fontFamily: 'var(--font-sans)', margin: '8px 0 0', fontWeight: 600 }}>⚠️ {creditError}</p>
+                              <p style={{ fontSize: 11, color: C.error, fontFamily: 'var(--font-sans)', margin: '8px 0 0', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="warning" size={12} strokeWidth={1.7} /> {creditError}</p>
                             )}
                           </div>
                         </div>
@@ -414,19 +415,22 @@ export default function Stage3_Distribution({
             background: 'rgba(184,148,79,0.08)',
             color: C.gold, borderRadius: 6,
             padding: '4px 10px', fontFamily: 'var(--font-sans)',
-          }}>🎨 Template configured</span>
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+          }}><Icon name="palette" size={12} strokeWidth={1.8} /> Template configured</span>
           <span style={{
             fontSize: 11, fontWeight: 600,
             background: 'rgba(59,155,109,0.06)',
             color: C.success, borderRadius: 6,
             padding: '4px 10px', fontFamily: 'var(--font-sans)',
-          }}>📅 Date set</span>
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+          }}><Icon name="calendar" size={12} strokeWidth={1.8} /> Date set</span>
           <span style={{
             fontSize: 11, fontWeight: 600,
             background: 'rgba(59,130,246,0.06)',
             color: '#3B82F6', borderRadius: 6,
             padding: '4px 10px', fontFamily: 'var(--font-sans)',
-          }}>🚀 {Object.values(distributionMethods).filter(Boolean).length} method(s) selected</span>
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+          }}><Icon name="rocket" size={12} strokeWidth={1.8} /> {Object.values(distributionMethods).filter(Boolean).length} method(s) selected</span>
         </div>
         <p style={{
           fontFamily: 'var(--font-sans)', fontSize: 12,
@@ -443,8 +447,8 @@ export default function Stage3_Distribution({
           background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)',
           borderRadius: 10, padding: '12px 16px', marginTop: 16,
           color: C.error, fontFamily: 'var(--font-sans)', fontSize: 13,
-          fontWeight: 600,
-        }}>⚠️ {error}</div>
+          fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+        }}><Icon name="warning" size={14} strokeWidth={1.6} /> {error}</div>
       )}
 
       {/* ═══ ACTION FOOTER ═══ */}
@@ -504,7 +508,7 @@ export default function Stage3_Distribution({
                 Creating Your Event...
               </>
             ) : (
-              <>✨ Create Event</>
+              <><Icon name="sparkle" size={14} strokeWidth={1.6} /> Create Event</>
             )}
           </button>
         </div>

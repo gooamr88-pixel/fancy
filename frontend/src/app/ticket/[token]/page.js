@@ -17,6 +17,7 @@ import { useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { publicApiFetch, PublicApiError, API_URL } from '../../utils/publicApi';
 import SeatingResultPanel from '../../[slug]/rsvp/steps/SeatingResultPanel';
+import Icon from '../../components/icons/Icon';
 
 function TicketRoute({ token }) {
   const searchParams = useSearchParams();
@@ -87,7 +88,7 @@ function TicketRoute({ token }) {
               <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '8px' }}>{formattedDate}</p>
             )}
             {event?.location_name && (
-              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '2px' }}>📍 {event.location_name}</p>
+              <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}><Icon name="mapPin" size={12} strokeWidth={1.6} /> {event.location_name}</p>
             )}
           </div>
 
@@ -101,14 +102,14 @@ function TicketRoute({ token }) {
 
             {status === 'error' && (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <span style={{ fontSize: '36px' }}>⚠️</span>
+                <Icon name="warning" size={34} color="#C45E5E" strokeWidth={1.3} />
                 <p style={{ color: '#191B1E', fontSize: '14px', fontWeight: 600, marginTop: '12px' }}>{errorMessage}</p>
               </div>
             )}
 
             {status === 'locked' && (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <span style={{ fontSize: '36px' }}>🔒</span>
+                <Icon name="lock" size={34} color={themeColor} strokeWidth={1.3} />
                 <p style={{ color: '#191B1E', fontSize: '14px', fontWeight: 600, marginTop: '12px' }}>
                   {isRTL ? 'خريطة الجلوس لسه مش متاحة.' : "The seating chart isn't available yet."}
                 </p>

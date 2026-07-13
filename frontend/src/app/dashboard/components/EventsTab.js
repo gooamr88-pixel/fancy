@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
 import EventSharePanel from './EventSharePanel';
+import Icon from '../../components/icons/Icon';
 
 /* ═══ Design Tokens ═══ */
 const C = {
@@ -282,7 +283,7 @@ function MiniStat({ label, value, color, delay, icon }) {
 }
 
 /* ═══ Payment method icons ═══ */
-const METHOD_ICON = { bank: '🏦', wallet: '📱', instapay: '⚡', cash: '💵', paypal: '🅿️', other: '💳' };
+const METHOD_ICON = { bank: 'bank', wallet: 'mobile', instapay: 'lightning', cash: 'cash', paypal: 'wallet', other: 'creditCard' };
 
 function PayCopyBtn({ value }) {
   const [copied, setCopied] = useState(false);
@@ -455,7 +456,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
   if (pendingRef) {
     return (
       <div style={{ padding: '20px 24px', background: 'rgba(245,158,11,0.05)', border: `1px solid rgba(245,158,11,0.2)`, borderRadius: '12px', textAlign: 'center' }}>
-        <span style={{ fontSize: '32px' }}>⏳</span>
+        <Icon name="hourglass" size={30} color="#D97706" strokeWidth={1.3} />
         <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#D97706', margin: '8px 0 4px' }}>Payment Pending</h4>
         <p style={{ fontSize: '12px', color: C.stone, lineHeight: 1.5, margin: '0 0 16px', fontFamily: 'var(--font-sans)' }}>
           Your offline cash payment request has been submitted successfully. Please share this reference code with the coordinator for manual activation:
@@ -526,8 +527,9 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
               cursor: (processing || !selectedTier) ? 'not-allowed' : 'pointer',
               boxShadow: (processing || !selectedTier) ? 'none' : '0 4px 16px rgba(184,148,79,0.28)',
               transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
-            {processing ? 'Processing...' : `💳 ${isUpgrade ? 'Pay & Upgrade with Card' : 'Pay with Card'}${selectedTier ? ` · $${(dueNowCents(selectedTier.price_cents) / 100).toFixed(2)}` : ''}`}
+            {processing ? 'Processing...' : <><Icon name="creditCard" size={15} strokeWidth={1.6} /> {`${isUpgrade ? 'Pay & Upgrade with Card' : 'Pay with Card'}${selectedTier ? ` · $${(dueNowCents(selectedTier.price_cents) / 100).toFixed(2)}` : ''}`}</>}
           </button>
           <button onClick={() => setShowManual(true)} disabled={processing || !selectedTier}
             style={{
@@ -538,8 +540,9 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
               cursor: (processing || !selectedTier) ? 'not-allowed' : 'pointer',
               opacity: (processing || !selectedTier) ? 0.5 : 1,
               transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
-            🏦 Manual / Bank Transfer
+            <Icon name="bank" size={15} strokeWidth={1.6} /> Manual / Bank Transfer
           </button>
         </div>
       ) : (
@@ -589,7 +592,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
                       borderRadius: 12, padding: 14, cursor: 'pointer', transition: 'all 0.2s',
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: (m.details || m.instructions) ? 10 : 0 }}>
-                      <span style={{ fontSize: 18 }}>{METHOD_ICON[m.type] || METHOD_ICON.other}</span>
+                      <Icon name={METHOD_ICON[m.type] || METHOD_ICON.other} size={17} strokeWidth={1.5} />
                       <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, color: C.charcoal, flex: 1 }}>{m.label}</span>
                       <div style={{
                         width: 20, height: 20, borderRadius: '50%',
@@ -607,7 +610,7 @@ function EventPaymentPanel({ eventId, event, upgradeFromTier = null }) {
                       </div>
                     )}
                     {m.instructions && (
-                      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, margin: 0, lineHeight: 1.5 }}>ℹ️ {m.instructions}</p>
+                      <p style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: C.stone, margin: 0, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 5 }}><Icon name="info" size={12} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} /> {m.instructions}</p>
                     )}
                   </div>
                 );
@@ -751,8 +754,8 @@ function CurrentPlanBlock({ eventId, event }) {
       {/* Manual payment receipt */}
       {manualPayment && (
         <div style={{ marginTop: 14, padding: '14px 16px', background: '#FAFAF8', border: `1px solid ${C.border}`, borderRadius: 10 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: 'var(--font-sans)' }}>
-            💵 Manual Payment Receipt
+          <div style={{ fontSize: 10, fontWeight: 700, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Icon name="cash" size={12} strokeWidth={1.8} /> Manual Payment Receipt
           </div>
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 12, fontFamily: 'var(--font-sans)', color: C.charcoal }}>
             {manualPayment.reference_number && (
@@ -901,8 +904,8 @@ function ExpandedPanel({ eventId, event, onClose }) {
 
       {/* Share & QR Code Section */}
       <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
-          🔗 Share &amp; QR Code
+        <div style={{ fontSize: 10, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <Icon name="link" size={12} strokeWidth={1.8} /> Share &amp; QR Code
         </div>
         <EventSharePanel event={event} compact />
       </div>

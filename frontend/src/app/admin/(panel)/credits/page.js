@@ -10,6 +10,7 @@ import { PageLoading } from '../../_components/Spinner';
 import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
+import Icon from '../../../components/icons/Icon';
 import { money as fmt } from '../../_lib/format';
 import { Field } from '../../_components/Field';
 
@@ -127,7 +128,7 @@ function PackageCatalog() {
           package's price_cents here. Editing/creating a package below has NO
           effect on what's actually charged. */}
       <div style={{ ...card, padding: '10px 14px', marginBottom: 14, background: T.primarySoft, fontSize: 12, color: T.text700, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span>⚠️ These packages do not drive real pricing — organizers are charged from the SMS Rate + Markup settings, computed live per purchase.</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="warning" size={13} strokeWidth={1.7} /> These packages do not drive real pricing — organizers are charged from the SMS Rate + Markup settings, computed live per purchase.</span>
         <Link href="/admin/config" style={{ color: T.primary, fontWeight: 700, textDecoration: 'none' }}>Go to Pricing Settings →</Link>
       </div>
 

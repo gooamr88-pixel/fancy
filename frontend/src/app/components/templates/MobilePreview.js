@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import EnvelopeAnimation from "./EnvelopeAnimation";
 import RSVPBottomSheet from "./RSVPBottomSheet";
 import InvitationCard from "./InvitationCard";
+import Icon from "../icons/Icon";
 
 /* ═══════════════════════════════════════════════════════════════
    FitScaler — proportionally shrinks a fixed-size design to fit its
@@ -403,7 +404,7 @@ export default function MobilePreview({
                 onClick={() => setStep("envelope")}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-[15px] shrink-0" style={{ background: `linear-gradient(135deg, ${accentColor}, ${secondaryColor})` }}>✉️</div>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: `linear-gradient(135deg, ${accentColor}, ${secondaryColor})` }}><Icon name="envelope" size={15} strokeWidth={1.7} /></div>
                   <div className="flex flex-col flex-1 min-w-0">
                     <span className="text-[10px] font-bold text-stone-800 font-sans">Fancy Invitation</span>
                     <span className="text-[9px] text-stone-500 font-sans truncate">You&apos;ve received an invitation — tap to open</span>
@@ -470,12 +471,12 @@ export default function MobilePreview({
                 >
                   <span className="text-[8px] font-bold uppercase tracking-[2.5px] font-sans" style={{ color: accentColor }}>Event Details</span>
                   {[
-                    ["📅", "Saturday, October 24, 2026", "4:00 PM"],
-                    ["📍", "The Grand Ballroom", "Plaza Hotel, New York"],
-                    ["👗", "Dress code", "Black tie optional"],
+                    ["calendar", "Saturday, October 24, 2026", "4:00 PM"],
+                    ["mapPin", "The Grand Ballroom", "Plaza Hotel, New York"],
+                    ["dressCode", "Dress code", "Black tie optional"],
                   ].map(([icon, a, b]) => (
                     <div key={a} className="flex items-start gap-2">
-                      <span className="text-[12px] leading-none mt-0.5">{icon}</span>
+                      <span className="leading-none mt-0.5"><Icon name={icon} size={12} strokeWidth={1.7} /></span>
                       <div className="flex flex-col">
                         <span className="text-[10px] font-bold font-sans leading-tight" style={{ color: detailsCardText }}>{a}</span>
                         <span className="text-[8.5px] font-sans leading-tight" style={{ color: detailsCardSubtext }}>{b}</span>

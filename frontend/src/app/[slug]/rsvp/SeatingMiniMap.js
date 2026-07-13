@@ -1,6 +1,10 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
+import Icon from '../../components/icons/Icon';
+
+// Maps a zone's SHAPES key to an Icon.js glyph name.
+const ZONE_ICON = { stage: 'mic', dance_floor: 'discoBall', bar: 'cocktail', dj_booth: 'headphones', entrance: 'door', custom: 'star' };
 
 /* Mirrors the world/element model used by the organizer seating map
    (dashboard/seating-map). Read-only: it never shows who is seated where — only
@@ -15,12 +19,12 @@ const SHAPES = {
   rectangle:   { cat: 'table', w: 168, h: 84,  round: false },
   banquet:     { cat: 'table', w: 230, h: 80,  round: false },
   head:        { cat: 'table', w: 250, h: 76,  round: false },
-  stage:       { cat: 'zone',  w: 360, h: 150, icon: '🎤', color: '#3B3A55' },
-  dance_floor: { cat: 'zone',  w: 280, h: 280, icon: '🪩', color: '#6B5FA8' },
-  bar:         { cat: 'zone',  w: 240, h: 92,  icon: '🍸', color: '#9C5A3C' },
-  dj_booth:    { cat: 'zone',  w: 132, h: 112, icon: '🎧', color: '#2F5E8C' },
-  entrance:    { cat: 'zone',  w: 150, h: 70,  icon: '🚪', color: '#4A7C59' },
-  custom:      { cat: 'zone',  w: 190, h: 130, icon: '⭐', color: '#B8944F' },
+  stage:       { cat: 'zone',  w: 360, h: 150, color: '#3B3A55' },
+  dance_floor: { cat: 'zone',  w: 280, h: 280, color: '#6B5FA8' },
+  bar:         { cat: 'zone',  w: 240, h: 92,  color: '#9C5A3C' },
+  dj_booth:    { cat: 'zone',  w: 132, h: 112, color: '#2F5E8C' },
+  entrance:    { cat: 'zone',  w: 150, h: 70,  color: '#4A7C59' },
+  custom:      { cat: 'zone',  w: 190, h: 130, color: '#B8944F' },
 };
 
 const shapeMeta = (shape) => SHAPES[shape === 'rectangular' ? 'rectangle' : shape] || SHAPES.round;
@@ -103,9 +107,10 @@ export default function SeatingMiniMap({ tables, myTableId, youLabel = "You're h
                 fontSize: Math.max(7, Math.min(11, h / 3)), fontWeight: mine ? 800 : 600,
                 color: mine ? '#7A5C1E' : zone ? '#5b574e' : '#77736A',
                 lineHeight: 1.1, padding: '0 2px', overflow: 'hidden', maxWidth: '100%',
-                fontFamily: 'var(--font-sans)',
+                fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
               }}>
-                {zone ? (meta.icon || '') : ''}{zone ? ' ' : ''}{el.table_name}
+                {zone && ZONE_ICON[el.shape] && <Icon name={ZONE_ICON[el.shape]} size={Math.max(8, Math.min(11, h / 3))} strokeWidth={1.6} style={{ flexShrink: 0 }} />}
+                {el.table_name}
               </span>
               {mine && (
                 <span style={{

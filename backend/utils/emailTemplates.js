@@ -279,7 +279,7 @@ const getEmailVerificationTemplate = (name, otp) => emailShell({
     ${greeting(name)}
     ${para('Thank you for creating your account. Enter the verification code below to confirm your email and activate your account.')}
     ${codeBox(otp)}
-    ${noticeBox('⏳ This code expires in <strong>15 minutes</strong>.', 'warn')}
+    ${noticeBox('This code expires in <strong>15 minutes</strong>.', 'warn')}
     ${para("If you didn't create a Fancy RSVP account, you can safely ignore this email.", { size: 13, color: BRAND.stone, mb: 0 })}
   `,
 });
@@ -293,7 +293,7 @@ const getPasswordResetTemplate = (name, otp) => emailShell({
     ${greeting(name || 'Organizer')}
     ${para('We received a request to reset your password. Use the one-time code below to continue — it is valid for 15 minutes.')}
     ${codeBox(otp)}
-    ${noticeBox('🔒 Never share this code with anyone. Our team will never ask you for it.', 'warn')}
+    ${noticeBox('Never share this code with anyone. Our team will never ask you for it.', 'warn')}
     ${para("If you didn't request a password reset, your password is unchanged and you can safely ignore this email.", { size: 13, color: BRAND.stone, mb: 0 })}
   `,
 });
@@ -344,7 +344,7 @@ const getRSVPConfirmationTemplate = (rsvp, event) => {
       ${greeting(rsvp.guest_name)}
       ${para('Your RSVP has been successfully recorded. Here are the details we have on file:')}
       ${dataTable(rows)}
-      ${noticeBox('🎟️ Your table placement is being coordinated. You\'ll receive a separate email with your QR check-in pass once seating is finalized.', 'neutral')}
+      ${noticeBox('Your table placement is being coordinated. You\'ll receive a separate email with your QR check-in pass once seating is finalized.', 'neutral')}
       ${para('We look forward to celebrating with you.', { mb: 0 })}
     `,
   });
@@ -406,14 +406,14 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticke
 
   const dateHtml = formattedDate ? `
     <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:12px;">
-      📅 <strong>Date:</strong> ${escapeHtml(formattedDate)}
+      <strong>Date:</strong> ${escapeHtml(formattedDate)}
     </div>
   ` : '';
 
   const mapsUrl = buildMapsUrl(event);
   const locationHtml = hasLocation ? `
     <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">
-      📍 <strong>Venue:</strong> ${escapeHtml(event.location_name || '')}
+      <strong>Venue:</strong> ${escapeHtml(event.location_name || '')}
       ${event.location_address ? `<br/><span style="font-size:12px; color:${BRAND.stone}; opacity:0.85;">${escapeHtml(event.location_address)}</span>` : ''}
       ${mapsUrl ? `<br/><a href="${mapsUrl}" style="font-size:12px; font-weight:700; color:${BRAND.gold}; text-decoration:underline;">Get Directions &rarr;</a>` : ''}
     </div>
@@ -618,7 +618,7 @@ const getEventReminderTemplate = (rsvp, event, opts = {}) => {
       ${greeting(rsvp.guest_name)}
       ${para("Your event is almost here — we can't wait to celebrate with you. Here is everything you need:")}
       ${rows.length ? dataTable(rows) : ''}
-      ${opts.tableName ? '' : noticeBox('🎟️ Your table assignment and QR check-in pass will arrive in a separate email closer to the day.', 'neutral')}
+      ${opts.tableName ? '' : noticeBox('Your table assignment and QR check-in pass will arrive in a separate email closer to the day.', 'neutral')}
       ${para('See you there!', { mb: 0 })}
     `,
   });
@@ -767,7 +767,7 @@ const getPasswordChangedTemplate = (name) => emailShell({
   contentHtml: `
     ${greeting(name)}
     ${para('This confirms the password on your Fancy RSVP account was just changed. For your security, all other active sessions have been signed out.')}
-    ${noticeBox('🔒 If you did <strong>not</strong> make this change, reset your password immediately and contact support — your account may be at risk.', 'danger')}
+    ${noticeBox('If you did <strong>not</strong> make this change, reset your password immediately and contact support — your account may be at risk.', 'danger')}
     ${para('If this was you, no further action is needed.', { size: 13, color: BRAND.stone, mb: 0 })}
   `,
 });
@@ -786,7 +786,7 @@ const getNewSignInTemplate = (name, info = {}) => {
       ${greeting(name)}
       ${para('We noticed a sign-in to your Fancy RSVP account from a new device or location:')}
       ${rows.length ? dataTable(rows) : ''}
-      ${noticeBox('🔒 If this was you, you can ignore this email. If not, reset your password right away and review your active sessions.', 'warn')}
+      ${noticeBox('If this was you, you can ignore this email. If not, reset your password right away and review your active sessions.', 'warn')}
       ${para('We send these alerts to help keep your account secure.', { size: 13, color: BRAND.stone, mb: 0 })}
     `,
   });

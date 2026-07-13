@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import InvitationCard from '../../../components/templates/InvitationCard';
+import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
 
 /* ═══════════════════════════════════════════════════════════════
    TemplateCard — compact gallery card for the template-picker grid.
@@ -53,7 +54,7 @@ export default function TemplateCard({ template, isSelected, onSelect, index, ac
       <div className="tc-hero" style={{ background: `linear-gradient(155deg, ${preset?.background || '#FAF8F5'} 0%, #FFFFFF 130%)` }}>
         {isCustom ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }}>
-            <span style={{ fontSize: 24 }}>✨</span>
+            <EventCategoryIcon name="custom" size={22} color="#B8944F" strokeWidth={1.3} />
             <div style={{ display: 'flex', gap: 5 }}>
               {['#8B7355', '#D4C5A9', '#475569', '#A0845C'].map(c => (
                 <span key={c} style={{ width: 11, height: 11, borderRadius: 4, background: c, boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }} />

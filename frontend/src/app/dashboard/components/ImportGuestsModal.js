@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import { useModalA11y } from '../../hooks/useModalA11y';
+import Icon from '../../components/icons/Icon';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -295,8 +296,8 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                 </div>
                 {fileName ? (
                   <div>
-                    <p style={{ fontSize: '14px', fontWeight: 600, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', margin: '0 0 4px' }}>
-                      📄 {fileName}
+                    <p style={{ fontSize: '14px', fontWeight: 600, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', margin: '0 0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <Icon name="document" size={14} strokeWidth={1.6} /> {fileName}
                     </p>
                     <p style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)', margin: 0 }}>
                       Click to change file

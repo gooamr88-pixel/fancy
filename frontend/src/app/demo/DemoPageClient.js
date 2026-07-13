@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useIsClient } from '../utils/useIsClient';
+import Icon from '../components/icons/Icon';
 
 export default function DemoPage() {
   const [phase, setPhase] = useState('closed');
@@ -278,7 +279,7 @@ export default function DemoPage() {
                 </svg>
               </div>
             </div>
-            <p className="demo-tag">✨ Interactive Demo — <Link href="/register" className="demo-tag-link">Create Your Own Event</Link></p>
+            <p className="demo-tag"><Icon name="sparkle" size={12} strokeWidth={1.6} style={{ verticalAlign: '-2px', marginRight: '5px' }} />Interactive Demo — <Link href="/register" className="demo-tag-link">Create Your Own Event</Link></p>
           </div>
         </div>
       )}
@@ -304,10 +305,10 @@ export default function DemoPage() {
                 <h1 className="done-title">You&apos;re on the Guest List!</h1>
                 <p className="done-sub">Thank you, <strong>{guestName}</strong>. We can&apos;t wait to celebrate with you{guestCount > 1 ? ` and your ${guestCount - 1} guest${guestCount > 2 ? 's' : ''}` : ''}.</p>
                 <div className="done-summary">
-                  <div className="sum-item"><span>📅</span> Saturday, September 20th, 2025</div>
-                  <div className="sum-item"><span>📍</span> The Grand Rosewood Estate</div>
-                  <div className="sum-item"><span>👥</span> {guestCount} guest{guestCount > 1 ? 's' : ''}</div>
-                  {mealChoice && <div className="sum-item"><span>🍽️</span> {mealChoice === 'filet' ? 'Filet Mignon' : mealChoice === 'salmon' ? 'Pan-Seared Salmon' : 'Wild Mushroom Risotto'}</div>}
+                  <div className="sum-item"><Icon name="calendar" size={14} strokeWidth={1.6} /> Saturday, September 20th, 2025</div>
+                  <div className="sum-item"><Icon name="mapPin" size={14} strokeWidth={1.6} /> The Grand Rosewood Estate</div>
+                  <div className="sum-item"><Icon name="guests" size={14} strokeWidth={1.6} /> {guestCount} guest{guestCount > 1 ? 's' : ''}</div>
+                  {mealChoice && <div className="sum-item"><Icon name="restaurant" size={14} strokeWidth={1.6} /> {mealChoice === 'filet' ? 'Filet Mignon' : mealChoice === 'salmon' ? 'Pan-Seared Salmon' : 'Wild Mushroom Risotto'}</div>}
                 </div>
               </>
             ) : (

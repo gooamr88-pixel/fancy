@@ -4,6 +4,7 @@ import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import GoldDivider from "../components/GoldDivider";
+import Icon from "../components/icons/Icon";
 
 /* ═══════════════════════════════════════════════════════════
    Careers Page — Fancy RSVP
@@ -225,9 +226,9 @@ function JobCard({ job }) {
         </p>
         <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
           {[
-            { icon: "📂", text: job.department },
-            { icon: "📍", text: job.location },
-            { icon: "⏰", text: job.type },
+            { icon: "folder", text: job.department },
+            { icon: "mapPin", text: job.location },
+            { icon: "clock", text: job.type },
           ].map((meta) => (
             <span
               key={meta.text}
@@ -240,7 +241,7 @@ function JobCard({ job }) {
                 gap: "5px",
               }}
             >
-              <span style={{ fontSize: "14px" }}>{meta.icon}</span>
+              <Icon name={meta.icon} size={14} strokeWidth={1.6} />
               {meta.text}
             </span>
           ))}

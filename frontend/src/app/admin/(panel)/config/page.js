@@ -9,6 +9,7 @@ import { useAlert } from '../../_components/AlertContext';
 import { Field } from '../../_components/Field';
 import { PageLoading } from '../../_components/Spinner';
 import { ErrorState } from '../../_components/ErrorState';
+import Icon from '../../../components/icons/Icon';
 
 // ── Toggle Switch component ──
 function Toggle({ checked, onChange, disabled }) {
@@ -422,7 +423,7 @@ export default function ConfigPage() {
                       }}
                     >
                       <span>{tier.name}</span>
-                      {tier.recommended && <span style={{ fontSize: 10 }}>⭐</span>}
+                      {tier.recommended && <Icon name="star" size={11} strokeWidth={1.7} />}
                     </button>
                   ))}
                   <button
@@ -493,15 +494,15 @@ export default function ConfigPage() {
                     <div style={{ display: 'flex', gap: 20, marginBottom: 20, flexWrap: 'wrap', padding: '12px 16px', background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: T.radiusSm }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.text700, cursor: 'pointer', fontWeight: 600 }}>
                         <input type="checkbox" checked={currentTier.recommended === true} onChange={e => handleTierChange(selectedTierIdx, 'recommended', e.target.checked)} />
-                        ⭐ Most Popular
+                        <Icon name="star" size={13} strokeWidth={1.6} /> Most Popular
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.text700, cursor: 'pointer', fontWeight: 600 }}>
                         <input type="checkbox" checked={currentTier.is_custom === true} onChange={e => handleTierChange(selectedTierIdx, 'is_custom', e.target.checked)} />
-                        💼 Contact Sales / Custom Price
+                        <Icon name="creditCard" size={13} strokeWidth={1.6} /> Contact Sales / Custom Price
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.text700, cursor: 'pointer', fontWeight: 600 }}>
                         <input type="checkbox" checked={currentTier.remove_watermark === true} onChange={e => handleTierChange(selectedTierIdx, 'remove_watermark', e.target.checked)} />
-                        🚫 Remove Watermark
+                        <Icon name="ban" size={13} strokeWidth={1.6} /> Remove Watermark
                       </label>
                     </div>
 

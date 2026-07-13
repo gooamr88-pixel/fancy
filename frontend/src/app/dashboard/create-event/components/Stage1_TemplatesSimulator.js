@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react'
 import TemplateCard from './TemplateCard';
 import PhoneSimulator from './PhoneSimulator';
 import CustomBuilder from './CustomBuilder';
+import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
 
 /* ═══ Media-query hook (SSR-safe, no setState-in-effect) ═══ */
 const MOBILE_QUERY = '(max-width: 768px)';
@@ -148,7 +149,7 @@ function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
           gap: 2, padding: 3,
         }}>
           <div style={{ width: 14, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.5 }} />
-          <div style={{ fontSize: 8, lineHeight: 1 }}>{template.icon}</div>
+          <EventCategoryIcon name={template.key} size={9} color={chipVisual.accent} strokeWidth={1.6} />
           <div style={{ width: 18, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.3 }} />
           <div style={{ width: 10, height: 1, borderRadius: 1, background: chipVisual.accent, opacity: 0.2 }} />
         </div>

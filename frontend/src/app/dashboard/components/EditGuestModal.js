@@ -284,9 +284,9 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
               <div>
                 <label style={labelStyle}>Response</label>
                 <select value={formData.response} onChange={handleChange('response')} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="pending">⏳ Pending</option>
+                  <option value="pending">Pending</option>
                   <option value="yes">✓ Accepted</option>
-                  <option value="maybe">❓ Maybe</option>
+                  <option value="maybe">Maybe</option>
                   <option value="no">✗ Declined</option>
                 </select>
               </div>

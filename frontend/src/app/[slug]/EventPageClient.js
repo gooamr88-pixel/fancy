@@ -8,6 +8,7 @@ import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
 import { useIsClient } from '../utils/useIsClient';
 import { extractYouTubeId } from '../utils/youtube';
+import { publicApiFetch } from '../utils/publicApi';
 import {
   FadeInUp,
   StaggerChildren,
@@ -39,6 +40,7 @@ import RsvpExperience from '../components/guest/rsvp/RsvpExperience';
 import RsvpWizard from './rsvp/RsvpWizard';
 import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
 import HeritageArchPage from '../components/templates/heritageArch/HeritageArchPage';
+import Icon from '../components/icons/Icon';
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
@@ -341,6 +343,17 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const isDemoSlug = DEMO_SLUGS.has(slug);
   const [event, setEvent] = useState(() => initialEvent || (isDemoSlug ? getDemoEventData(slug) : null));
   const [guestRsvp, setGuestRsvp] = useState(null);
+  // Real seating-chart table assignment for this guest, if any — used by the
+  // Boarding Pass section so its "table" detail is the organizer's actual
+  // seating chart rather than a stylized stand-in. null while unrevealed/not
+  // yet assigned/not fetched; the boarding pass falls back to its stylized
+  // date-derived display in that case.
+  const [assignedTableName, setAssignedTableName] = useState(null);
+  // The same real, signed check-in ticket token used by the door scanner and
+  // the emailed ticket link (tokenService.signQrTicketForResponse) — only
+  // ever minted server-side for a confirmed "yes". Lets the Boarding Pass
+  // section show a genuinely scannable QR instead of decorative filler.
+  const [assignedQrToken, setAssignedQrToken] = useState(null);
   const [loading, setLoading] = useState(() => !initialEvent && !isDemoSlug);
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState({});
@@ -585,6 +598,31 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     fetchEventWithPasswordRef.current = (pw) => { setLoading(true); setError(null); fetchEvent(pw); };
   }, [fetchEvent]);
 
+  // Real seating-chart table assignment + real check-in QR token for the
+  // Boarding Pass section — a separate, lightweight fetch (not part of the
+  // main event payload) so it never blocks/delays the guest page render.
+  // Both stay null for an unidentified visitor (e.g. a "public" link opened
+  // on a device that has never RSVP'd here) — there is no guest to look up
+  // yet, so the boarding pass correctly falls back to its stylized display.
+  useEffect(() => {
+    if (!effectiveRsvpId) return;
+    let cancelled = false;
+    const fetchAssignedTable = async (attempt = 0) => {
+      try {
+        const data = await publicApiFetch(`/public/rsvp/guest/${effectiveRsvpId}`);
+        if (cancelled) return;
+        if (data.guest?.table_name) setAssignedTableName(data.guest.table_name);
+        if (data.guest?.qrToken) setAssignedQrToken(data.guest.qrToken);
+      } catch (err) {
+        // One quiet retry — a transient network blip shouldn't permanently
+        // hide a real table assignment behind the stylized fallback.
+        if (!cancelled && attempt === 0) setTimeout(() => fetchAssignedTable(1), 1500);
+      }
+    };
+    fetchAssignedTable();
+    return () => { cancelled = true; };
+  }, [effectiveRsvpId]);
+
   useEffect(() => {
     // The demo event is set via lazy initial state above — nothing to fetch.
     if (isDemoSlug) return;
@@ -698,7 +736,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
-              <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>💳</motion.span>
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ display: 'flex', justifyContent: 'center' }}><Icon name="creditCard" size={48} color="#B8944F" strokeWidth={1.3} /></motion.div>
               <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#B8944F', marginTop: '12px' }}>Event Unpaid</h1>
               <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>This Fancy RSVP event page is currently offline pending license activation.</p>
             </GlassmorphismCard>
@@ -715,7 +753,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
-              <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>🕊️</motion.span>
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ display: 'flex', justifyContent: 'center' }}><Icon name="dove" size={48} color="#B8944F" strokeWidth={1.3} /></motion.div>
               <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#B8944F', marginTop: '12px' }}>This Event Has Closed</h1>
               <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>RSVPs for this event are no longer being accepted. Please reach out to the host directly with any questions.</p>
             </GlassmorphismCard>
@@ -732,7 +770,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
-              <motion.span initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ fontSize: '48px', display: 'block' }}>✨</motion.span>
+              <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ display: 'flex', justifyContent: 'center' }}><Icon name="sparkle" size={44} color="#B8944F" strokeWidth={1.3} /></motion.div>
               <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#B8944F', marginTop: '12px' }}>Almost Ready</h1>
               <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>
                 This invitation is being given its final touches and will be live very soon. Please check back shortly.
@@ -752,7 +790,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <div style={{ width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.2 }} style={{ fontSize: '32px' }}>🔒</motion.span>
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.2 }}><Icon name="lock" size={30} color="#B8944F" strokeWidth={1.4} /></motion.div>
               </div>
               <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#191B1E' }}>Private Event</h1>
               <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>This event is private and can only be accessed through a direct invitation link from the host.</p>
@@ -772,7 +810,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
               <div style={{ width: '64px', height: '64px', margin: '0 auto 16px', borderRadius: '50%', background: 'rgba(184,148,79,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.15 }} style={{ fontSize: '32px' }}>🔐</motion.span>
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.15 }}><Icon name="lockKey" size={30} color="#B8944F" strokeWidth={1.4} /></motion.div>
               </div>
               <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#191B1E' }}>Password Protected</h1>
               <p style={{ color: '#77736A', marginTop: '12px', marginBottom: '24px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>This event requires a password to access. Please enter the password provided by the host.</p>
@@ -799,7 +837,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
-              <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.15 }} style={{ fontSize: '48px', display: 'block' }}>⏳</motion.span>
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.15 }} style={{ display: 'flex', justifyContent: 'center' }}><Icon name="hourglass" size={44} color="#B8944F" strokeWidth={1.3} /></motion.div>
               <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#191B1E', marginTop: '12px' }}>Not Live Yet</h1>
               <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>
                 This event isn’t active yet. If you’re the host, please complete the platform fee — your event goes live once payment is confirmed.
@@ -819,7 +857,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
           <ScaleIn>
             <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center' }}>
-              <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.1 }} style={{ fontSize: '56px', display: 'block' }}>🔍</motion.span>
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.1 }} style={{ display: 'flex', justifyContent: 'center' }}><Icon name="search" size={52} color="#B8944F" strokeWidth={1.2} /></motion.div>
               <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '28px', fontWeight: 600, color: '#191B1E', marginTop: '12px' }}>Event Not Found</h1>
               <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>The event link you clicked seems to be incorrect or has been archived by the host.</p>
               <Link href="/" style={{ display: 'inline-block', marginTop: '24px', padding: '12px 28px', background: '#B8944F', color: '#FFFFFF', borderRadius: '12px', textDecoration: 'none', fontWeight: 700, fontSize: '14px' }}>Go to Homepage</Link>
@@ -922,6 +960,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         <HeritageArchPage
           event={event}
           guestRsvp={guestRsvp}
+          assignedTableName={assignedTableName}
+          assignedQrToken={assignedQrToken}
           lang={lang}
           setLang={setLang}
           isRTL={isRTL}
@@ -1157,7 +1197,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                         boxShadow: `0 8px 25px ${themeColor}4D`
                       } : {}}
                     >
-                      {hasResponded ? (isRTL ? '✏️ تعديل ردّك' : '✏️ Update Response') : `✉️ ${t.rsvp_now}`}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <Icon name={hasResponded ? 'pencil' : 'envelope'} size={15} strokeWidth={1.6} />
+                        {hasResponded ? (isRTL ? 'تعديل ردّك' : 'Update Response') : t.rsvp_now}
+                      </span>
                     </MagneticButton>
                   </GlowPulse>
                   <CalendarButton event={event} isRTL={isRTL} variant="outline-gold" />
@@ -1230,7 +1273,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     </>
                   ) : (
                     <>
-                      <span style={{ fontSize: '1.2em' }}>📥</span>
+                      <Icon name="download" size={16} strokeWidth={1.6} />
                       <span>{isRTL ? 'تحميل بطاقة الدعوة' : 'Download Invitation'}</span>
                     </>
                   )}
@@ -1324,8 +1367,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   {/* When BentoCard */}
                   <StaggerItem>
                     <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)" style={{ height: '100%', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '12px' }}>
-                        📅 {t.when}
+                      <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+                        <Icon name="calendar" size={13} strokeWidth={1.6} /> {t.when}
                       </span>
                       <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
                         {new Date(event.event_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}
@@ -1339,14 +1382,14 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   {/* Where BentoCard */}
                   <StaggerItem>
                     <BentoCard bg="rgba(255,255,255,0.85)" border="rgba(255,255,255,0.6)" style={{ height: '100%', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'block', marginBottom: '12px' }}>
-                        📍 {t.where}
+                      <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+                        <Icon name="mapPin" size={13} strokeWidth={1.6} /> {t.where}
                       </span>
                       <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '8px' }}>{event.location_name}</span>
                       <span style={{ fontSize: '14px', color: '#77736A', display: 'block', marginBottom: '16px' }}>{event.location_address}</span>
                       {(event.location_lat && event.location_lng || event.location_address) && (
                         <MagneticButton variant="outline" size="sm" onClick={() => window.open(getDirectionsUrl(event.location_lat, event.location_lng, event.location_address, isClient), '_blank')}>
-                          🧭 {isRTL ? 'الاتجاهات' : 'Get Directions'}
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Icon name="compass" size={13} strokeWidth={1.6} /> {isRTL ? 'الاتجاهات' : 'Get Directions'}</span>
                         </MagneticButton>
                       )}
                     </BentoCard>
@@ -1363,8 +1406,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontFamily: 'var(--font-sans)',
                           }}
                         >
-                          <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700 }}>
-                            👔 {t.dress_code}
+                          <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Icon name="dressCode" size={13} strokeWidth={1.6} /> {t.dress_code}
                           </span>
                           <motion.span animate={{ rotate: dressCodeExpanded ? 180 : 0 }} transition={{ duration: 0.25 }} style={{ fontSize: '14px', color: themeColor }}>
                             ▼
@@ -1426,7 +1469,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 </div>
               ) : eventPassed && (
                 <div style={{ marginTop: '20px', textAlign: 'center', padding: '24px', borderRadius: '16px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)' }}>
-                  <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.2 }} style={{ fontSize: '28px', display: 'block', marginBottom: '8px' }}>⏰</motion.span>
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', delay: 0.2 }} style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Icon name="clock" size={26} color="#C45E5E" strokeWidth={1.4} /></motion.div>
                   <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#C45E5E' }}>
                     {lang === 'ar' ? 'لقد انتهت هذه الفعالية' : 'This event has already occurred'}
                   </h3>
@@ -1487,7 +1530,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                         {invitationData.ceremonyLine && (
                           <StaggerItem>
                             <div style={{ textAlign: 'center' }}>
-                              <span style={{ fontSize: '28px', display: 'block', marginBottom: '8px' }}>💒</span>
+                              <Icon name="chapel" size={26} color={themeColor} strokeWidth={1.4} style={{ display: 'block', margin: '0 auto 8px' }} />
                               <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
                                 {isRTL ? 'مراسم الزواج' : 'Ceremony'}
                               </span>
@@ -1498,7 +1541,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                         {invitationData.receptionLine && (
                           <StaggerItem>
                             <div style={{ textAlign: 'center' }}>
-                              <span style={{ fontSize: '28px', display: 'block', marginBottom: '8px' }}>🥂</span>
+                              <Icon name="toast" size={26} color={themeColor} strokeWidth={1.4} style={{ display: 'block', margin: '0 auto 8px' }} />
                               <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '6px' }}>
                                 {isRTL ? 'حفل الاستقبال' : 'Reception'}
                               </span>
@@ -1512,7 +1555,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     {/* Accommodations */}
                     {event.template_data.accommodations && (
                       <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
-                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '10px' }}>🏨 {isRTL ? 'الإقامة' : 'Accommodations'}</h4>
+                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="hotel" size={16} color="#191B1E" strokeWidth={1.5} /> {isRTL ? 'الإقامة' : 'Accommodations'}</h4>
                         <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{event.template_data.accommodations}</p>
                       </div>
                     )}
@@ -1525,7 +1568,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                         borderRadius: '14px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none',
                         transition: 'all 0.3s ease',
                       }}>
-                        🎁 {isRTL ? 'عرض قائمة الهدايا' : 'View Our Gift Registry'} →
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Icon name="gift" size={14} strokeWidth={1.5} /> {isRTL ? 'عرض قائمة الهدايا' : 'View Our Gift Registry'} →</span>
                       </a>
                     )}
                   </div>
@@ -1555,7 +1598,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     )}
                     {(event.template_data.registryUrl || event.template_data.giftRegistry) && (
                       <a href={event.template_data.registryUrl || event.template_data.giftRegistry} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(194,123,142,0.06)', border: '1px solid rgba(194,123,142,0.15)', borderRadius: '14px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
-                        🎁 {isRTL ? 'عرض قائمة الهدايا' : 'View Our Gift Registry'} →
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Icon name="gift" size={14} strokeWidth={1.5} /> {isRTL ? 'عرض قائمة الهدايا' : 'View Our Gift Registry'} →</span>
                       </a>
                     )}
                   </div>
@@ -1577,13 +1620,13 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     )}
                     {event.template_data.agenda && (
                       <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
-                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>📋 {isRTL ? 'أجندة الفعالية' : 'Event Agenda'}</h4>
+                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="clipboard" size={16} color="#191B1E" strokeWidth={1.5} /> {isRTL ? 'أجندة الفعالية' : 'Event Agenda'}</h4>
                         <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.agenda}</div>
                       </div>
                     )}
                     {event.template_data.speakers && (
                       <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
-                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🎤 {isRTL ? 'المتحدثون' : 'Speakers & Presenters'}</h4>
+                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="mic" size={16} color="#191B1E" strokeWidth={1.5} /> {isRTL ? 'المتحدثون' : 'Speakers & Presenters'}</h4>
                         <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.speakers}</div>
                       </div>
                     )}
@@ -1597,8 +1640,8 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     )}
                     {event.template_data.networkingNotes && (
                       <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
-                        <span style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.7 }}>
-                          🤝 {event.template_data.networkingNotes}
+                        <span style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.7, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                          <Icon name="handshake" size={15} strokeWidth={1.5} style={{ flexShrink: 0, marginTop: '1px' }} /> {event.template_data.networkingNotes}
                         </span>
                       </div>
                     )}
@@ -1614,7 +1657,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {(event.template_data.birthdayPersonName || event.template_data.celebrant) && (
                       <div style={{ textAlign: 'center' }}>
-                        <motion.span initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', delay: 0.3 }} style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>🎉</motion.span>
+                        <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', delay: 0.3 }} style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Icon name="partyPopper" size={30} color={themeColor} strokeWidth={1.4} /></motion.div>
                         <span style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: themeColor, display: 'block' }}>
                           {event.template_data.birthdayPersonName || event.template_data.celebrant}
                         </span>
@@ -1631,13 +1674,13 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     )}
                     {(event.template_data.theme || event.template_data.partyTheme) && (
                       <div style={{ textAlign: 'center', borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
-                        <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'block', marginBottom: '6px' }}>🎭 {isRTL ? 'ثيم الحفلة' : 'Party Theme'}</span>
+                        <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.15em', color: '#77736A', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}><Icon name="masks" size={13} strokeWidth={1.6} /> {isRTL ? 'ثيم الحفلة' : 'Party Theme'}</span>
                         <span style={{ fontSize: '15px', color: '#191B1E', fontWeight: 500 }}>{event.template_data.theme || event.template_data.partyTheme}</span>
                       </div>
                     )}
                     {(event.template_data.registryUrl || event.template_data.giftRegistry) && (
                       <a href={event.template_data.registryUrl || event.template_data.giftRegistry} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', padding: '14px', background: 'rgba(232,93,117,0.06)', border: '1px solid rgba(232,93,117,0.15)', borderRadius: '14px', color: themeColor, fontWeight: 600, fontSize: '13px', textDecoration: 'none' }}>
-                        🎁 {isRTL ? 'عرض قائمة الهدايا' : 'View Gift Registry'} →
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Icon name="gift" size={14} strokeWidth={1.5} /> {isRTL ? 'عرض قائمة الهدايا' : 'View Gift Registry'} →</span>
                       </a>
                     )}
                   </div>
@@ -1652,19 +1695,19 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {(event.template_data.honorees || event.template_data.honoree) && (
                       <div style={{ textAlign: 'center' }}>
-                        <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#B8944F', fontWeight: 700, display: 'block', marginBottom: '10px' }}>✨ {isRTL ? 'تكريم' : 'Honoring'}</span>
+                        <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.2em', color: '#B8944F', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', marginBottom: '10px' }}><Icon name="sparkle" size={12} strokeWidth={1.6} /> {isRTL ? 'تكريم' : 'Honoring'}</span>
                         <span style={{ fontFamily: 'var(--font-serif)', fontSize: '20px', fontWeight: 600, color: '#191B1E' }}>{event.template_data.honorees || event.template_data.honoree}</span>
                       </div>
                     )}
                     {event.template_data.program && (
                       <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
-                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🎶 {isRTL ? 'البرنامج والترفيه' : 'Program & Entertainment'}</h4>
+                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="music" size={16} color="#191B1E" strokeWidth={1.5} /> {isRTL ? 'البرنامج والترفيه' : 'Program & Entertainment'}</h4>
                         <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.program}</div>
                       </div>
                     )}
                     {(event.template_data.sponsorTiers || event.template_data.sponsorPackages) && (
                       <div style={{ borderTop: '1px solid #F0ECE3', paddingTop: '20px' }}>
-                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px' }}>🏆 {isRTL ? 'فئات الرعاة' : 'Sponsor Tiers'}</h4>
+                        <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: '#191B1E', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}><Icon name="trophy" size={16} color="#191B1E" strokeWidth={1.5} /> {isRTL ? 'فئات الرعاة' : 'Sponsor Tiers'}</h4>
                         <div style={{ fontSize: '14px', color: '#77736A', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{event.template_data.sponsorTiers || event.template_data.sponsorPackages}</div>
                       </div>
                     )}
@@ -1751,8 +1794,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 borderRadius: '14px', padding: '18px 24px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
               }}
             >
-              <span style={{ fontSize: '15px', fontWeight: 600, color: '#191B1E' }}>
-                📷📍 {isRTL ? 'صور الموقع والخريطة' : 'Photos & Location'}
+              <span style={{ fontSize: '15px', fontWeight: 600, color: '#191B1E', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ display: 'inline-flex', gap: '2px' }}><Icon name="camera" size={16} strokeWidth={1.5} /><Icon name="mapPin" size={16} strokeWidth={1.5} /></span>
+                {isRTL ? 'صور الموقع والخريطة' : 'Photos & Location'}
               </span>
               <motion.span animate={{ rotate: moreDetailsExpanded ? 180 : 0 }} transition={{ duration: 0.25 }} style={{ fontSize: '14px', color: themeColor }}>
                 ▼
@@ -1796,6 +1840,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                                     background: '#F0ECE3', position: 'relative',
                                   }}
                                 >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={url}
                                     alt={`Gallery photo ${i + 1}`}
@@ -1839,7 +1884,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                                 fontFamily: 'var(--font-sans)',
                               }}
                             >
-                              🧭 {isRTL ? 'الاتجاهات' : 'Get Directions'}
+                              <Icon name="compass" size={13} strokeWidth={1.6} /> {isRTL ? 'الاتجاهات' : 'Get Directions'}
                             </a>
                           </div>
                           <div style={{ borderRadius: '14px', overflow: 'hidden', height: '300px', border: '1px solid #E8E2D6' }}>
@@ -1861,7 +1906,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                           </div>
                           {event.location_address && (
                             <p style={{ fontSize: '13px', color: '#77736A', marginTop: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              📍 {event.location_address}
+                              <Icon name="mapPin" size={13} strokeWidth={1.6} /> {event.location_address}
                             </p>
                           )}
                         </GlassmorphismCard>
@@ -1971,7 +2016,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                           <span>{isRTL ? 'جاري التحميل...' : 'Downloading...'}</span>
                         </>
                       ) : (
-                        <span>📥 {isRTL ? 'تحميل الكارت' : 'Download Card'}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Icon name="download" size={14} strokeWidth={1.6} /> {isRTL ? 'تحميل الكارت' : 'Download Card'}</span>
                       )}
                     </button>
 

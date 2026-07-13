@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Icon from '../../../components/icons/Icon';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -10,7 +11,7 @@ const C = {
   error: '#C45E5E', success: '#3B9B6D',
 };
 
-const METHOD_ICON = { bank: '🏦', wallet: '📱', instapay: '⚡', cash: '💵', paypal: '🅿️', other: '💳' };
+const METHOD_ICON = { bank: 'bank', wallet: 'mobile', instapay: 'lightning', cash: 'cash', paypal: 'wallet', other: 'creditCard' };
 
 function CopyBtn({ value }) {
   const [copied, setCopied] = useState(false);
@@ -151,8 +152,9 @@ export default function StagePayment({
           background: 'rgba(184,148,79,0.06)', border: '1px solid rgba(184,148,79,0.25)',
           borderRadius: 12, padding: '14px 18px', marginBottom: 20,
           fontFamily: 'var(--font-sans)', fontSize: 14, color: C.charcoal, fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          ⏳ Confirming your payment…
+          <Icon name="hourglass" size={15} strokeWidth={1.6} /> Confirming your payment…
         </div>
       )}
 
@@ -436,9 +438,10 @@ export default function StagePayment({
                   fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
                   cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
                   boxShadow: (processing || !selectedTierName) ? 'none' : '0 4px 18px rgba(184,148,79,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
-                💳 Pay with Card{selectedTier ? ` · ${fmt(dueNowCents(selectedTier.price_cents))}` : ''}
+                <Icon name="creditCard" size={16} strokeWidth={1.6} /> Pay with Card{selectedTier ? ` · ${fmt(dueNowCents(selectedTier.price_cents))}` : ''}
               </button>
               <button
                 onClick={() => setShowManual(true)}
@@ -450,9 +453,10 @@ export default function StagePayment({
                   fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 700,
                   cursor: (processing || !selectedTierName) ? 'not-allowed' : 'pointer',
                   opacity: (processing || !selectedTierName) ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
-                🏦 Manual / Bank Transfer
+                <Icon name="bank" size={16} strokeWidth={1.6} /> Manual / Bank Transfer
               </button>
             </div>
           ) : (
@@ -505,7 +509,7 @@ export default function StagePayment({
                           borderRadius: 14, padding: 16, cursor: 'pointer', transition: 'all 0.2s',
                         }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: m.details || m.instructions ? 10 : 0 }}>
-                          <span style={{ fontSize: 18 }}>{METHOD_ICON[m.type] || METHOD_ICON.other}</span>
+                          <Icon name={METHOD_ICON[m.type] || METHOD_ICON.other} size={17} strokeWidth={1.5} />
                           <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 700, color: C.charcoal, flex: 1 }}>{m.label}</span>
                           <div style={{
                             width: 20, height: 20, borderRadius: '50%',
@@ -523,7 +527,7 @@ export default function StagePayment({
                           </div>
                         )}
                         {m.instructions && (
-                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0, lineHeight: 1.5 }}>ℹ️ {m.instructions}</p>
+                          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0, lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 5 }}><Icon name="info" size={13} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} /> {m.instructions}</p>
                         )}
                       </div>
                     );
@@ -569,7 +573,8 @@ export default function StagePayment({
           background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)',
           borderRadius: 10, padding: '12px 16px', marginTop: 16,
           color: C.error, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
-        }}>⚠️ {error}</div>
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}><Icon name="warning" size={14} strokeWidth={1.6} /> {error}</div>
       )}
 
       {/* Footer */}

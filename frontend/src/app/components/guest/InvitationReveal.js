@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { lighten, darken, alpha, mix, luminance } from "../../utils/color";
+import Icon from "../icons/Icon";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    InvitationReveal — "The Unsealing"
@@ -411,7 +412,7 @@ export default function InvitationReveal({
       {/* language chip */}
       <div style={{ position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineEnd: 16, zIndex: 20 }}>
         <button type="button" onClick={() => hasArabic && setLang((l) => (l === "en" ? "ar" : "en"))} aria-label={hasArabic ? "Toggle language" : "Language"} style={langChipStyle(!!hasArabic, P)}>
-          <span aria-hidden style={{ fontSize: 15, opacity: 0.7 }}>🌐</span>
+          <Icon name="globe" size={14} strokeWidth={1.6} style={{ opacity: 0.7 }} />
           <span style={{ fontWeight: 700, letterSpacing: "0.04em" }}>{lang === "en" ? "EN" : "ع"}</span>
         </button>
       </div>

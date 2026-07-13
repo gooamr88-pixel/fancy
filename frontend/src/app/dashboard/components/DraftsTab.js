@@ -1,6 +1,9 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from '../../utils/toast';
+import Icon from '../../components/icons/Icon';
 
 const C = {
   gold: '#B8944F', charcoal: '#191B1E', white: '#FFFFFF',
@@ -102,7 +105,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
             <div style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
             }}>
-              <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0, marginTop: 1 }}>⚠️</span>
+              <Icon name="warning" size={17} color="#8a6d2f" strokeWidth={1.5} style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
                 <p style={{
                   fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 700,
@@ -202,12 +205,13 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
  * instead of a plain "Draft" label.
  */
 export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
+  const router = useRouter();
   const [deleting, setDeleting] = useState(null);
   const [confirmEvent, setConfirmEvent] = useState(null); // event object to confirm deletion
   const drafts = (events || []).filter((e) => e && e.status === 'draft' && !e.is_paid);
 
   const continueDraft = (id) => {
-    if (typeof window !== 'undefined') window.location.href = `/dashboard/create-event?draft=${encodeURIComponent(id)}`;
+    router.push(`/dashboard/create-event?draft=${encodeURIComponent(id)}`);
   };
 
   const handleDeleteClick = (ev) => {
@@ -238,16 +242,16 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: C.stone, margin: 0, maxWidth: 560 }}>
           Events you&apos;ve started but not yet activated. Pick up right where you left off, or remove the ones you no longer need.
         </p>
-        <a href="/dashboard/create-event" style={goldBtn}>+ New Event</a>
+        <Link href="/dashboard/create-event" style={goldBtn}>+ New Event</Link>
       </div>
 
       {drafts.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '56px 24px', background: C.soft, border: `1px dashed ${C.border}`, borderRadius: 16 }}>
-          <div style={{ fontSize: 34 }}>📝</div>
+          <Icon name="pencil" size={32} color="#B8944F" strokeWidth={1.3} />
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: C.stone, margin: '10px 0 18px' }}>
             No drafts yet. Start an event and choose <strong>Save as Draft</strong> to continue it later.
           </p>
-          <a href="/dashboard/create-event" style={goldBtn}>Create Your First Event</a>
+          <Link href="/dashboard/create-event" style={goldBtn}>Create Your First Event</Link>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
@@ -275,9 +279,9 @@ export default function DraftsTab({ events = [], apiUrl, onRefresh }) {
               </div>
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: 0 }}>{ev.title || 'Untitled event'}</h3>
               <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {fmtDate(ev.event_date) && <span>📅 {fmtDate(ev.event_date)}</span>}
-                {ev.location_name && <span>📍 {ev.location_name}</span>}
-                {ev.slug && <span style={{ wordBreak: 'break-all' }}>🔗 /{ev.slug}</span>}
+                {fmtDate(ev.event_date) && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="calendar" size={12} strokeWidth={1.7} /> {fmtDate(ev.event_date)}</span>}
+                {ev.location_name && <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="mapPin" size={12} strokeWidth={1.7} /> {ev.location_name}</span>}
+                {ev.slug && <span style={{ wordBreak: 'break-all', display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="link" size={12} strokeWidth={1.7} style={{ flexShrink: 0 }} /> /{ev.slug}</span>}
               </div>
 
               {/* Pending payment info */}

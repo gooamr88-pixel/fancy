@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import Icon from '../icons/Icon';
 
 /* ═══════════════════════════════════════════════════════════════
    BRAND TOKENS
@@ -896,7 +897,8 @@ const DashboardPreviewSection = () => {
                   color: COLORS.stone,
                   marginBottom: 12,
                   boxSizing: 'border-box',
-                }}>🔍 Search guests…</div>
+                  display: 'flex', alignItems: 'center', gap: 5,
+                }}><Icon name="search" size={10} strokeWidth={1.8} /> Search guests…</div>
 
                 <GuestPanelItem name="Alexander Wright" assigned={false} />
                 <GuestPanelItem name="Sophia Martinez" assigned={false} />

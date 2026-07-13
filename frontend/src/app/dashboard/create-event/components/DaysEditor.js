@@ -24,8 +24,8 @@ const iconBtn = (disabled) => ({
 });
 
 const SCHEDULE_ICON_OPTIONS = [
-  { value: 'plate', label: '🍽️ Plate' }, { value: 'rings', label: '💍 Rings' },
-  { value: 'ornament', label: '🎊 Ornament' }, { value: 'watch', label: '⏰ Watch' }, { value: 'clock', label: '🕯️ Candle' },
+  { value: 'plate', label: 'Plate' }, { value: 'rings', label: 'Rings' },
+  { value: 'ornament', label: 'Ornament' }, { value: 'watch', label: 'Watch' }, { value: 'clock', label: 'Candle' },
 ];
 
 /* ═══════════════════════════════════════════════════════════════
@@ -42,6 +42,22 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
   const updateVenue = (idx, patch) => onChange(list.map((d, i) => (i === idx ? { ...d, venue: { ...(d.venue || {}), ...patch } } : d)));
   const addDay = () => onChange([...list, { label: `Day ${list.length + 1}`, schedule: [], venue: {} }]);
   const removeDay = (idx) => onChange(list.filter((_, i) => i !== idx));
+  // Explicit "how many days" quick-set — grows by appending blank days (never
+  // touches existing ones) or shrinks by trimming from the end. This is what
+  // actually determines whether the guest page shows day tabs at all:
+  // DayTabs (shared.js) renders nothing for a 1-day list, so picking "1 Day"
+  // here is exactly "appear as one day only" on the guest page.
+  const setDayCount = (n) => {
+    if (n === list.length) return;
+    if (n > list.length) {
+      const additions = Array.from({ length: n - list.length }, (_, i) => ({
+        label: `Day ${list.length + i + 1}`, schedule: [], venue: {},
+      }));
+      onChange([...list, ...additions]);
+    } else {
+      onChange(list.slice(0, n));
+    }
+  };
   const moveDay = (idx, dir) => {
     const j = idx + dir;
     if (j < 0 || j >= list.length) return;
@@ -72,9 +88,47 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div>
+        <label style={lbl}>How many days is your event?</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[1, 2, 3, 4].map((n) => {
+            const active = list.length === n;
+            return (
+              <button
+                key={n} type="button" onClick={() => setDayCount(n)}
+                style={{
+                  padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
+                  fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                  border: `1.5px solid ${active ? C.gold : C.border}`,
+                  background: active ? 'rgba(184,148,79,0.08)' : C.white,
+                  color: active ? C.gold : C.stone,
+                }}
+              >
+                {n} Day{n > 1 ? 's' : ''}
+              </button>
+            );
+          })}
+          <button
+            type="button" onClick={() => setDayCount(Math.max(5, list.length + 1))}
+            style={{
+              padding: '7px 14px', borderRadius: 999, cursor: 'pointer',
+              fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              border: `1.5px solid ${list.length >= 5 ? C.gold : C.border}`,
+              background: list.length >= 5 ? 'rgba(184,148,79,0.08)' : C.white,
+              color: list.length >= 5 ? C.gold : C.stone,
+            }}
+          >
+            {list.length > 5 ? `${list.length} Days` : '5+ Days'}
+          </button>
+        </div>
+        <p style={{ fontSize: 10, color: '#A09A91', margin: '6px 0 0', fontFamily: 'var(--font-sans)' }}>
+          A 1-day event shows no day tabs to guests — just its single schedule and venue. Switching this only adds or removes days at the end; it never touches what you&apos;ve already filled in.
+        </p>
+      </div>
+
       {list.length === 0 && (
         <p style={{ fontSize: 12, color: C.stone, margin: 0, fontFamily: 'var(--font-sans)' }}>
-          No days yet — add one for each day of your event. Most events only need one; multi-function celebrations can add as many as they need.
+          No days yet — pick a day count above, or add one below for each day of your event.
         </p>
       )}
 

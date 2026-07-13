@@ -3,6 +3,7 @@ import { toast } from '../../utils/toast';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { MEAL_FIELD_KEY, findMealField } from '../../utils/mealField';
+import Icon from '../../components/icons/Icon';
 
 const inputStyle = {
   width: '100%', boxSizing: 'border-box', background: '#FFFFFF', border: '1px solid #E8E2D6',
@@ -332,7 +333,7 @@ export default function FormBuilder({ eventId }) {
           ))
         ) : (
           <div style={{ textAlign: 'center', padding: '48px 0', background: '#F8F4EC', border: '1px solid #E8E2D6', borderRadius: '10px' }}>
-            <span style={{ fontSize: '28px' }}>📝</span>
+            <Icon name="pencil" size={26} color="#B8944F" strokeWidth={1.3} />
             <p style={{ fontSize: '12px', color: '#77736A', marginTop: '8px', fontFamily: 'var(--font-sans)' }}>No custom questions configured yet. The RSVP form will default to standard guest responses.</p>
           </div>
         )}

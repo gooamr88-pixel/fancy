@@ -5,7 +5,9 @@ import SnapShell from './SnapShell';
 import { FullPageThemeProvider, buildPalette } from './theme';
 import { HERITAGE_ARCH_DEFAULTS as D } from './defaultContent';
 import { getHaDays } from '../../../utils/haDays';
+import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
 import HeroSection from './sections/HeroSection';
+import AboutSection from './sections/AboutSection';
 import CoverPhotoSection from './sections/CoverPhotoSection';
 import CountdownSection from './sections/CountdownSection';
 import ScheduleSection from './sections/ScheduleSection';
@@ -55,7 +57,7 @@ export default function HeritageArchPage({
   event, guestRsvp, lang, setLang, isRTL, t, timeLeft, musicPlaying, toggleMusic,
   hasBackgroundMusic, hasResponded, responseStatus, allowGuestEdits, slug, effectiveRsvpId, trackEvent,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
-  isPreview = false,
+  assignedTableName, assignedQrToken, isPreview = false,
 }) {
   const td = event.template_data || {};
   const customColors = event.custom_colors || {};
@@ -83,24 +85,41 @@ export default function HeritageArchPage({
   const timeLine = !event.event_end_date ? formatTimeLine(event.event_date, isRTL) : null;
 
   // Custom's "what kind of event is this?" category (Stage 2) drives the hero
-  // name/tagline for the two categories with no "couple" — wedding/engagement
-  // categories already work via partner1/partner2 above. Both fall back to
+  // name/tagline for every category with no "couple" — wedding/engagement
+  // categories already work via partner1/partner2 above. All fall back to
   // the event's own title when the organizer hasn't named a celebrant/parents
   // yet, exactly like every other template does.
   const customCategory = event.template_type === 'custom' ? (td.custom_category || '') : '';
-  const heroTitle = customCategory === 'celebration' ? (td.custom_honoree || event.title)
-    : customCategory === 'babyShower' ? (td.custom_parents || event.title)
+  const customCategoryMeta = customCategory ? CUSTOM_CATEGORY_BY_KEY[customCategory] : null;
+  const isHonoreeCategory = customCategoryMeta?.kind === 'honoree';
+  const isBabyShowerCategory = customCategoryMeta?.kind === 'babyShower';
+  const heroTitle = isHonoreeCategory ? (td.custom_honoree || event.title)
+    : isBabyShowerCategory ? (td.custom_parents || event.title)
     : event.title;
   // Arabic override typed in the wizard/EventSettings — same field the classic
   // template's InvitationCard and InvitationReveal envelope already read; this
   // full-page hero was the one place still stuck on the English title/dress
   // code even with the page switched to Arabic.
   const titleAr = event.title_ar || td.title_ar || null;
-  const heroTagline = customCategory === 'celebration'
+  const heroTagline = isHonoreeCategory
     ? (td.custom_milestone || (isRTL ? 'يسعدنا احتفالنا معكم' : 'Join us to celebrate'))
-    : customCategory === 'babyShower'
+    : isBabyShowerCategory
     ? (td.custom_baby_name ? (isRTL ? `نستقبل قدوم ${td.custom_baby_name}` : `Welcoming ${td.custom_baby_name}`) : (td.custom_baby_due || (isRTL ? 'ينتظرنا مولود جديد' : "We're expecting!")))
+    // Vow Renewal reuses the same couple fields as Wedding/Engagement (kind
+    // 'couple'), but HeroSection's own built-in fallback tagline for a couple
+    // — "We are getting married" — is wrong here (they already are). Every
+    // other 'couple' category (wedding, engagement) leaves this empty so
+    // HeroSection's default still applies.
+    : customCategory === 'vowRenewal'
+    ? (isRTL ? 'نجدد نذورنا' : 'We are renewing our vows')
     : '';
+  // A small icon+label pill above the hero name so guests immediately see
+  // what kind of event this is (e.g. a graduation cap + "Graduation") —
+  // wedding/engagement skip this since the couple names + "getting married"
+  // tagline already make that obvious without it.
+  const categoryBadge = (isHonoreeCategory || isBabyShowerCategory) && customCategoryMeta
+    ? { iconName: customCategory, label: isRTL ? customCategoryMeta.labelAr : customCategoryMeta.label }
+    : null;
 
   // A flexible list of days — one for a single-day event, two, three, or
   // more — each with its own venue and schedule. Falls back to the older
@@ -142,6 +161,11 @@ export default function HeritageArchPage({
   const hasFaq = faq.length > 0;
   const ourStory = td.ha_our_story || td.loveStory || td.proposalStory || demo(D.ourStory) || '';
   const dressCode = (isRTL && td.dress_code_ar) || event.dress_code || demo(D.dressCode) || '';
+  // The event's own "Description" (Core Event Details) — previously computed
+  // nowhere in this full-page shell, so it silently never reached guests
+  // (wedding/engagement/every Custom Canvas category all render here). Same
+  // Arabic-override convention as title_ar/dress_code_ar above.
+  const description = (isRTL && td.description_ar) || event.description || '';
   const invitedToCity = td.ha_invited_to_city || (event.location_name ? event.location_name.split(',')[0] : (isPreview ? D.invitedToCity : ''));
   // The map pin uses the city's own coordinates when the organizer picked one
   // via the address search (ha_invited_to_lat/lng); only falls back to Day 1's
@@ -165,11 +189,16 @@ export default function HeritageArchPage({
   };
   const hasGiftList = !!(giftRegistry || giftBank.name || giftBank.iban);
   // Boarding-pass values are auto-derived from the event — no organizer input
-  // required beyond an optional flight-code override.
+  // required beyond an optional flight-code override. The "L♡V" couple-heart
+  // treatment only makes sense when there's an actual couple (wedding/
+  // engagement); every other custom category (corporate, graduation, gala…)
+  // falls back to plain initials from the honoree/event name instead.
   const boardingInitials = [partner1, partner2]
     .map((n) => (n ? n.trim().charAt(0).toUpperCase() : ''))
     .filter(Boolean)
-    .join('♡') || null;
+    .join('♡')
+    || (heroTitle ? heroTitle.trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') : null)
+    || null;
 
   // Sections are assembled Hero + Countdown (+ Cover Photo) first, RSVP last —
   // both fixed anchors. Every content section in between is keyed by the same
@@ -209,7 +238,17 @@ export default function HeritageArchPage({
     middleSections.invited = { id: 'ha-invited', content: <InvitedToSection city={invitedToCity} lat={invitedToLat} lng={invitedToLng} isRTL={isRTL} /> };
   }
   if (event.event_date && invitedToCity && sectionOn('boarding')) {
-    middleSections.boarding = { id: 'ha-boarding', content: <BoardingPassSection destination={invitedToCity} dateISO={event.event_date} initials={boardingInitials} flightCode={td.ha_boarding_flight_code} isRTL={isRTL} /> };
+    middleSections.boarding = {
+      id: 'ha-boarding',
+      content: (
+        <BoardingPassSection
+          destination={invitedToCity} dateISO={event.event_date} initials={boardingInitials}
+          flightCode={td.ha_boarding_flight_code} isRTL={isRTL} eventSlug={slug}
+          assignedTableName={assignedTableName} partySize={guestRsvp?.party_size}
+          qrToken={assignedQrToken}
+        />
+      ),
+    };
   }
   if (thingsToDo.length > 0 && sectionOn('thingstodo')) {
     middleSections.thingstodo = { id: 'ha-thingstodo', content: <ThingsToDoSection items={thingsToDo} isRTL={isRTL} /> };
@@ -234,6 +273,7 @@ export default function HeritageArchPage({
           tagline={isPreview ? D.tagline : heroTagline} dateLine={dateLine} timeLine={timeLine} titleAr={titleAr}
           invitationPattern={invitationPattern} invitationTheme={invitationTheme}
           invitationGuestName={invitationGuestName} invitationData={invitationData}
+          categoryBadge={isPreview ? null : categoryBadge}
           isRTL={isRTL} t={t}
         />
       ),
@@ -245,6 +285,13 @@ export default function HeritageArchPage({
   // its own framed slide — shown only when the organizer uploaded one.
   if (event.cover_image_url) {
     sections.push({ id: 'ha-cover-photo', content: <CoverPhotoSection imageUrl={event.cover_image_url} isRTL={isRTL} /> });
+  }
+
+  // Not part of SECTION_TOGGLES (like Cover Photo, this is core content, not
+  // an optional feature) — shows automatically whenever the organizer typed
+  // a description, gracefully hidden otherwise.
+  if (description.trim()) {
+    sections.push({ id: 'ha-about', content: <AboutSection text={description} isRTL={isRTL} /> });
   }
 
   for (const key of resolvedOrder) {

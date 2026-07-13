@@ -9,6 +9,7 @@ import LogoutModal from '../../components/LogoutModal';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { computeSmsSegments, renderTemplate } from '../../utils/smsSegments';
 import { useIsClient } from '../../utils/useIsClient';
+import Icon from '../../components/icons/Icon';
 
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8', error: '#C45E5E', success: '#3B9B6D' };
 
@@ -394,7 +395,7 @@ export default function CampaignsPage() {
     return (
       <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
         <div style={{ maxWidth: 440, width: '100%', textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: 32, borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
-          <span style={{ fontSize: 40 }}>🔌</span>
+          <Icon name="plug" size={36} color={C.error} strokeWidth={1.3} />
           <h2 style={{ fontSize: 20, fontWeight: 700, marginTop: 16, color: C.error, fontFamily: 'var(--font-serif)' }}>Backend Connection Error</h2>
           <p style={{ color: C.stone, marginTop: 8, fontSize: 13, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>{error}</p>
           <button 
@@ -519,7 +520,7 @@ export default function CampaignsPage() {
             </div>
             {/* Wallets are scoped per-event: credits bought here only spend on THIS event. */}
             <div style={{ gridColumn: '1 / -1', borderTop: `1px solid ${C.border}`, paddingTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <span style={{ fontSize: 13 }}>🔒</span>
+              <Icon name="lock" size={13} strokeWidth={1.6} />
               <span style={{ fontSize: 11, color: C.stone, fontWeight: 600, lineHeight: 1.5 }}>
                 This balance belongs to this event only — credits aren&apos;t shared across your other events.
               </span>
@@ -627,7 +628,7 @@ export default function CampaignsPage() {
                         same length costs far more credits. Surface this explicitly. */}
                     {segmentInfo.encoding === 'UCS-2' && (
                       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(196,94,94,0.06)', border: `1px solid rgba(196,94,94,0.25)`, borderRadius: 8, padding: '8px 10px' }}>
-                        <span style={{ fontSize: 12, lineHeight: 1.4 }}>⚠️</span>
+                        <Icon name="warning" size={13} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} />
                         <span style={{ fontSize: 10, color: C.charcoal, lineHeight: 1.6 }}>
                           <strong>Arabic / special characters detected.</strong> This switches the message to Unicode, where each SMS segment holds only <strong>70 characters</strong> (vs 160 for Latin text) — so it can cost up to <strong>3× the credits</strong> per guest. Use plain Latin text to keep messages to a single segment.
                         </span>
@@ -755,7 +756,10 @@ export default function CampaignsPage() {
                 border: `1px solid ${campaignReport.failed > 0 ? 'rgba(184,148,79,0.25)' : 'rgba(59,155,109,0.2)'}`,
                 color: campaignReport.failed > 0 ? C.charcoal : C.success,
               }}>
-                <strong>{campaignReport.failed > 0 ? '⚠ Campaign Finished' : '🟢 Campaign Dispatched'}:</strong>{' '}
+                <strong style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <Icon name={campaignReport.failed > 0 ? 'warning' : 'check'} size={13} strokeWidth={1.8} />
+                  {campaignReport.failed > 0 ? 'Campaign Finished' : 'Campaign Dispatched'}:
+                </strong>{' '}
                 {campaignReport.sent} sent{campaignReport.failed > 0 ? `, ${campaignReport.failed} failed (refunded)` : ''}
                 {campaignReport.skipped > 0 ? `, ${campaignReport.skipped} already sent` : ''}
                 {' '}· <strong>{campaignReport.credits}</strong> credit{campaignReport.credits !== 1 ? 's' : ''} used.
@@ -860,8 +864,8 @@ export default function CampaignsPage() {
             <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>
               SMS credits are used to send bulk mobile invitations to your guests. Volume discount of 12.5% is automatically applied on packages of 500 credits or more.
             </p>
-            <p style={{ fontSize: 11, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)', background: C.softBg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', margin: 0 }}>
-              🔒 These credits are added to <strong>this event&apos;s wallet only</strong> — each event keeps its own balance, so they can&apos;t be moved to or shared with another event.
+            <p style={{ fontSize: 11, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)', background: C.softBg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', margin: 0, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+              <Icon name="lock" size={12} strokeWidth={1.7} style={{ flexShrink: 0, marginTop: 2 }} /> These credits are added to <strong>this event&apos;s wallet only</strong> — each event keeps its own balance, so they can&apos;t be moved to or shared with another event.
             </p>
             <form onSubmit={handleBuySMSCredits} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>

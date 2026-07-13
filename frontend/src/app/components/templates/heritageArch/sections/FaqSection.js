@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
+import Icon from '../../../icons/Icon';
 
 export default function FaqSection({ items, isRTL }) {
   const C = useFullPageTheme();
@@ -11,7 +12,7 @@ export default function FaqSection({ items, isRTL }) {
 
   return (
     <SectionShell>
-      <span style={{ fontSize: '34px', marginBottom: '8px' }} aria-hidden="true">📜</span>
+      <Icon name="scroll" size={30} color={C.gold} strokeWidth={1.3} style={{ marginBottom: '8px' }} />
       <SectionHeading isRTL={isRTL}>{isRTL ? 'الأسئلة الشائعة' : 'FAQ'}</SectionHeading>
 
       <div style={{ width: '100%', maxWidth: '540px', display: 'flex', flexDirection: 'column', gap: '12px' }}>

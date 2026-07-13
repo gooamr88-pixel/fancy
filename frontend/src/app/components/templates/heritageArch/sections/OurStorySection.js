@@ -3,12 +3,13 @@
 import React from 'react';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
+import Icon from '../../../icons/Icon';
 
 export default function OurStorySection({ story, isRTL }) {
   const C = useFullPageTheme();
   return (
     <SectionShell>
-      <span style={{ fontSize: '34px', marginBottom: '8px' }} aria-hidden="true">📖</span>
+      <Icon name="book" size={30} color={C.gold} strokeWidth={1.3} style={{ marginBottom: '8px' }} />
       <SectionHeading isRTL={isRTL}>{isRTL ? 'قصتنا' : 'Our Story'}</SectionHeading>
 
       <p style={{

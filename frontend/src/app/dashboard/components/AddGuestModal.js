@@ -210,7 +210,7 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
               <div>
                 <label style={labelStyle}>Response</label>
                 <select value={formData.response} onChange={handleChange('response')} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="pending">⏳ Pending</option>
+                  <option value="pending">Pending</option>
                   <option value="yes">✓ Yes</option>
                   <option value="no">✗ No</option>
                 </select>

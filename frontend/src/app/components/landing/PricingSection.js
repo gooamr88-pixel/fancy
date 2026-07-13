@@ -1,27 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-
-// Static content — deliberately not fetched from the backend or admin
-// dashboard, so this section always renders the same plans regardless of what's
-// configured for checkout. Update these by hand if pricing changes.
-const PLANS = [
-  {
-    name: 'Starter', price: 'Free', priceSuffix: '', recommended: false,
-    features: ['1 Event', 'Up to 50 guests', 'Basic RSVP form', 'Email notifications'],
-    buttonText: 'Get Started', buttonVariant: 'outline', href: '/register',
-  },
-  {
-    name: 'Premium', price: '$29', priceSuffix: '/event', recommended: true,
-    features: ['Unlimited events', 'Up to 500 guests', 'Custom themes & branding', 'Seating charts', 'QR code check-in', 'Priority support'],
-    buttonText: 'Get Started', buttonVariant: 'filled', href: '/register',
-  },
-  {
-    name: 'Enterprise', price: 'Custom', priceSuffix: '', recommended: false,
-    features: ['Unlimited everything', 'Dedicated account manager', 'Custom integrations', 'White-label branding', 'API access', 'SLA & support'],
-    buttonText: 'Contact Sales', buttonVariant: 'outline', href: '/contact',
-  },
-];
+import { usePublicPricing, formatTierPrice, tierCta, tierHref, tierGuestLine } from '../../utils/usePublicPricing';
 
 function PricingCard({ plan }) {
   const cardStyle = {
@@ -210,7 +190,21 @@ function PricingCard({ plan }) {
 }
 
 export default function PricingSection() {
-  const plans = PLANS;
+  const { tiers, error } = usePublicPricing();
+
+  const plans = (tiers || []).map((tier) => {
+    const { price, period } = formatTierPrice(tier);
+    return {
+      name: tier.name,
+      price,
+      priceSuffix: period,
+      recommended: tier.recommended,
+      features: [tierGuestLine(tier), ...(tier.features || [])],
+      buttonText: tierCta(tier),
+      buttonVariant: tier.recommended ? 'filled' : 'outline',
+      href: tierHref(tier),
+    };
+  });
 
   return (
     <section
@@ -266,6 +260,11 @@ export default function PricingSection() {
             flexWrap: 'wrap',
           }}
         >
+          {plans.length === 0 && (
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '15px', color: '#5E5A52' }}>
+              {tiers === null && !error ? 'Loading plans…' : 'Pricing is temporarily unavailable.'}
+            </p>
+          )}
           {plans.map((plan) => (
             <PricingCard key={plan.name} plan={plan} />
           ))}

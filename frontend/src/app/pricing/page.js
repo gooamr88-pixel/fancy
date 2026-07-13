@@ -3,71 +3,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
-
-// Static content — deliberately not fetched from the backend or admin
-// dashboard, so this page always renders the same plans regardless of what's
-// configured for checkout. Update these by hand if pricing changes.
-const PLANS = [
-  {
-    name: "Starter",
-    price: "Free",
-    period: "",
-    description: "Perfect for small gatherings and personal events.",
-    highlight: false,
-    cta: "Get Started Free",
-    features: [
-      "Up to 50 guests",
-      "1 event at a time",
-      "Basic RSVP forms",
-      "Email notifications",
-      "Mobile responsive pages",
-      "Basic analytics dashboard",
-      "Community support",
-      "Fancy RSVP branding",
-    ],
-  },
-  {
-    name: "Premium",
-    price: "$29",
-    period: "/ event",
-    description: "Everything you need for elegant, memorable events.",
-    highlight: true,
-    badge: "Most Popular",
-    cta: "Start Free Trial",
-    features: [
-      "Unlimited guests",
-      "Up to 10 concurrent events",
-      "Custom RSVP form builder",
-      "Seating chart designer",
-      "Meal & dietary tracking",
-      "Real-time analytics & reports",
-      "Custom themes & branding",
-      "Priority email & chat support",
-      "QR code check-in",
-      "Guest export (CSV, PDF)",
-    ],
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    period: "",
-    description: "For agencies, venues, and large-scale event planners.",
-    highlight: false,
-    cta: "Contact Sales",
-    features: [
-      "Unlimited everything",
-      "White-label solution",
-      "Custom integrations & API",
-      "Dedicated account manager",
-      "SSO & team management",
-      "SLA guarantee (99.99%)",
-      "Custom onboarding",
-      "Phone & video support",
-      "Advanced security & compliance",
-      "Invoice billing",
-    ],
-  },
-];
+import { usePublicPricing, formatTierPrice, tierCta, tierHref, tierGuestLine } from "../utils/usePublicPricing";
 
 const faqData = [
   {
@@ -354,9 +290,24 @@ function FaqItem({ item, isOpen, onToggle }) {
 
 export default function PricingPage() {
   const [openFaq, setOpenFaq] = useState(0);
-  const plans = PLANS;
+  const { tiers, error } = usePublicPricing();
 
-  // Comparison features are built from the static plans above.
+  const plans = (tiers || []).map((tier) => {
+    const { price, period } = formatTierPrice(tier);
+    return {
+      name: tier.name,
+      price,
+      period,
+      description: tier.description,
+      highlight: tier.recommended,
+      badge: tier.recommended ? "Most Popular" : undefined,
+      cta: tierCta(tier),
+      href: tierHref(tier),
+      features: [tierGuestLine(tier), ...(tier.features || [])],
+    };
+  });
+
+  // Comparison features are built dynamically from the loaded plans.
   const comparisonFeatures = (() => {
     const allFeatures = new Set();
     for (const plan of plans) {
@@ -447,22 +398,36 @@ export default function PricingPage() {
         {/* ════════════════════ PRICING CARDS ════════════════════ */}
         <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 48px 100px" }}>
           <h2 className="sr-only">Pricing Plans</h2>
-          <div
-            className="pricing-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "28px",
-              alignItems: "start",
-            }}
-          >
-            {plans.map((plan) => (
-              <PricingCard key={plan.name} plan={plan} />
-            ))}
-          </div>
+          {tiers === null && !error && (
+            <p style={{ fontFamily: "var(--font-sans)", fontSize: "15px", color: "#5E5A52", textAlign: "center" }}>
+              Loading plans…
+            </p>
+          )}
+          {(error || (tiers && plans.length === 0)) && (
+            <p style={{ fontFamily: "var(--font-sans)", fontSize: "15px", color: "#5E5A52", textAlign: "center" }}>
+              Pricing is temporarily unavailable. Please{" "}
+              <Link href="/contact" style={{ color: "#B8944F" }}>contact us</Link> or check back shortly.
+            </p>
+          )}
+          {plans.length > 0 && (
+            <div
+              className="pricing-grid"
+              style={{
+                display: "grid",
+                gridTemplateColumns: `repeat(${plans.length}, 1fr)`,
+                gap: "28px",
+                alignItems: "start",
+              }}
+            >
+              {plans.map((plan) => (
+                <PricingCard key={plan.name} plan={plan} />
+              ))}
+            </div>
+          )}
         </section>
 
         {/* ════════════════════ COMPARISON TABLE ════════════════════ */}
+        {plans.length > 0 && (
         <section style={{ background: "#F8F4EC", padding: "100px 48px" }}>
           <div style={{ maxWidth: "900px", margin: "0 auto" }}>
             <div style={{ textAlign: "center", marginBottom: "56px" }}>
@@ -568,6 +533,7 @@ export default function PricingPage() {
             </div>
           </div>
         </section>
+        )}
 
         {/* ════════════════════ FAQ ════════════════════ */}
         <section style={{ padding: "100px 48px", background: "#FFFFFF" }}>

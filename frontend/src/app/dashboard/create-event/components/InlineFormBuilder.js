@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MEAL_FIELD_KEY, MEAL_FIELD_KEYS } from '../../../utils/mealField';
 import { toast } from '../../../utils/toast';
+import Icon from '../../../components/icons/Icon';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -451,7 +452,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
             background: C.ivory, border: `1px solid ${C.border}`,
             borderRadius: 10,
           }}>
-            <span style={{ fontSize: 28 }}>📝</span>
+            <Icon name="pencil" size={26} color="#B8944F" strokeWidth={1.3} />
             <p style={{
               fontSize: 12, color: C.stone, marginTop: 8,
               fontFamily: 'var(--font-sans)',

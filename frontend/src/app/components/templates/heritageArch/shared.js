@@ -255,12 +255,16 @@ export function DotNav({ count, active, onSelect, isRTL }) {
   );
 }
 
+// Maps a schedule item's organizer-picked icon key (see DaysEditor.js) to an
+// Icon.js glyph name — the item's "clock" value is actually the candle
+// option, kept for backwards compatibility with events saved before the
+// icons were renamed.
 export const ICONS = {
-  plate: '🍽️',
-  rings: '💍',
-  ornament: '🎊',
-  watch: '⏰',
-  clock: '🕯️',
+  plate: 'plate',
+  rings: 'rings',
+  ornament: 'confetti',
+  watch: 'clock',
+  clock: 'candle',
 };
 
 // A gently zig-zagging stem with small leaf pairs at each bend — replaces a

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Button } from './Modal';
 import { T } from './theme';
 import { useModalA11y } from '../../hooks/useModalA11y';
+import Icon from '../../components/icons/Icon';
 
 const AlertContext = createContext({
   showAlert: async () => {},
@@ -187,7 +188,7 @@ export function AlertProvider({ children }) {
             {t.type === 'error' ? (
               <span style={{ color: T.danger, fontWeight: 800 }}>✕</span>
             ) : t.type === 'warning' ? (
-              <span style={{ color: T.warning }}>⚠️</span>
+              <Icon name="warning" size={14} color={T.warning} strokeWidth={1.7} />
             ) : (
               <span style={{ color: T.success, fontWeight: 800 }}>✓</span>
             )}

@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { T } from './theme';
 import { NAV_GROUPS } from './nav';
+import Icon from '../../components/icons/Icon';
 
 /**
  * Permission-gated sidebar navigation for the admin shell (Foundation F3).
@@ -84,7 +85,7 @@ export default function Sidebar({ can, open, onNavigate, onLogout, onClose }) {
               </div>
               {visible.map((it) => {
                 const active = pathname === it.href;
-                const icon = ICONS[it.key] || <span style={{ fontSize: 14 }}>⚙️</span>;
+                const icon = ICONS[it.key] || <Icon name="gear" size={16} strokeWidth={1.6} />;
                 const inner = (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
                     <span 

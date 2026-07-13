@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DayTabs, ScrollToRsvpHint, ICONS, VineLine } from '../shared';
+import Icon from '../../../icons/Icon';
 
 export default function ScheduleSection({ days, isRTL }) {
   const C = useFullPageTheme();
@@ -41,9 +42,9 @@ export default function ScheduleSection({ days, isRTL }) {
               <div style={{
                 width: '38px', height: '38px', borderRadius: '50%', background: C.cream,
                 border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '18px', flexShrink: 0, zIndex: 1,
+                flexShrink: 0, zIndex: 1,
               }}>
-                {ICONS[item.icon] || '✦'}
+                <Icon name={ICONS[item.icon] || 'sparkle'} size={17} color={C.gold} strokeWidth={1.5} />
               </div>
               <div style={{ flex: 1 }} />
             </motion.div>

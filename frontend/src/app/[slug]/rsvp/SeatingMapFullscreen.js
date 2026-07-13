@@ -3,6 +3,10 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useModalA11y } from '../../hooks/useModalA11y';
 import { formatTableLabel } from '../../utils/tableLabel';
+import Icon from '../../components/icons/Icon';
+
+// Maps a zone's SHAPES key to an Icon.js glyph name.
+const ZONE_ICON = { stage: 'mic', dance_floor: 'discoBall', bar: 'cocktail', dj_booth: 'headphones', entrance: 'door', custom: 'star' };
 
 /**
  * Fullscreen, pannable + zoomable viewer for the guest's seating chart.
@@ -22,12 +26,12 @@ const SHAPES = {
   rectangle:   { cat: 'table', w: 168, h: 84,  round: false },
   banquet:     { cat: 'table', w: 230, h: 80,  round: false },
   head:        { cat: 'table', w: 250, h: 76,  round: false },
-  stage:       { cat: 'zone',  w: 360, h: 150, icon: '🎤', color: '#3B3A55' },
-  dance_floor: { cat: 'zone',  w: 280, h: 280, icon: '🪩', color: '#6B5FA8' },
-  bar:         { cat: 'zone',  w: 240, h: 92,  icon: '🍸', color: '#9C5A3C' },
-  dj_booth:    { cat: 'zone',  w: 132, h: 112, icon: '🎧', color: '#2F5E8C' },
-  entrance:    { cat: 'zone',  w: 150, h: 70,  icon: '🚪', color: '#4A7C59' },
-  custom:      { cat: 'zone',  w: 190, h: 130, icon: '⭐', color: '#B8944F' },
+  stage:       { cat: 'zone',  w: 360, h: 150, color: '#3B3A55' },
+  dance_floor: { cat: 'zone',  w: 280, h: 280, color: '#6B5FA8' },
+  bar:         { cat: 'zone',  w: 240, h: 92,  color: '#9C5A3C' },
+  dj_booth:    { cat: 'zone',  w: 132, h: 112, color: '#2F5E8C' },
+  entrance:    { cat: 'zone',  w: 150, h: 70,  color: '#4A7C59' },
+  custom:      { cat: 'zone',  w: 190, h: 130, color: '#B8944F' },
 };
 
 const GOLD = '#B8944F';
@@ -290,8 +294,10 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
                   lineHeight: 1.1, padding: '0 4px', maxWidth: '100%',
                   fontFamily: 'var(--font-sans)',
                   textShadow: zone && !mine ? '0 1px 2px rgba(0,0,0,0.45)' : 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                 }}>
-                  {zone ? (meta.icon || '') : ''}{zone ? ' ' : ''}{el.table_name}
+                  {zone && ZONE_ICON[el.shape] && <Icon name={ZONE_ICON[el.shape]} size={Math.max(11, Math.min(18, h / 5))} strokeWidth={1.6} style={{ flexShrink: 0 }} />}
+                  {el.table_name}
                 </span>
                 {mine && (
                   <>

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { useModalA11y } from '../../hooks/useModalA11y';
+import Icon from '../../components/icons/Icon';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -342,11 +343,11 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
           }}>
             {channel === 'email' ? (
               <>
-                <strong style={{ color: COLORS.success }}>📧 Email Invitations</strong> — Sends a beautifully designed email with Accept / Decline / Maybe buttons. Each guest gets a unique personalized link. <em>Free with your plan.</em>
+                <strong style={{ color: COLORS.success, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="envelope" size={13} strokeWidth={1.7} /> Email Invitations</strong> — Sends a beautifully designed email with Accept / Decline / Maybe buttons. Each guest gets a unique personalized link. <em>Free with your plan.</em>
               </>
             ) : (
               <>
-                <strong style={{ color: COLORS.indigo }}>💬 SMS Invitations</strong> — Sends a text message with a unique RSVP link to each selected guest who has a phone number. Uses <strong>this event&apos;s</strong> SMS credit balance (each event has its own wallet). Arabic or emoji messages cost more credits per guest. <em>For advanced options, use the <Link href="/dashboard/campaigns" style={{ color: COLORS.indigo, fontWeight: 700 }}>Campaign Manager</Link>.</em>
+                <strong style={{ color: COLORS.indigo, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="chat" size={13} strokeWidth={1.7} /> SMS Invitations</strong> — Sends a text message with a unique RSVP link to each selected guest who has a phone number. Uses <strong>this event&apos;s</strong> SMS credit balance (each event has its own wallet). Arabic or emoji messages cost more credits per guest. <em>For advanced options, use the <Link href="/dashboard/campaigns" style={{ color: COLORS.indigo, fontWeight: 700 }}>Campaign Manager</Link>.</em>
               </>
             )}
           </div>
@@ -460,7 +461,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
                   </>
                 )
               ) : isNotLive ? (
-                <><strong>⏳ Event not live yet</strong> — {result.message}</>
+                <><strong style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="hourglass" size={12} strokeWidth={1.8} /> Event not live yet</strong> — {result.message}</>
               ) : (
                 <><strong>Error:</strong> {result.message}</>
               )}

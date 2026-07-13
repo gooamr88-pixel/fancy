@@ -9,6 +9,9 @@ import { extractYouTubeId } from '../../../utils/youtube';
 import RepeatableListEditor from '../../components/RepeatableListEditor';
 import DaysEditor from './DaysEditor';
 import { getHaDays } from '../../../utils/haDays';
+import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
+import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
+import Icon from '../../../components/icons/Icon';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -43,38 +46,30 @@ const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
 // section left at its default (no explicit false) still auto-hides on the
 // guest page when its data is empty, exactly as before.
 const SECTION_TOGGLES = [
-  { key: 'story', label: 'Our Story', icon: '📖', hint: 'Love story / proposal story / about-us text' },
-  { key: 'schedule', label: 'Schedule', icon: '🕐', hint: 'Day 1 / Day 2 timeline' },
-  { key: 'venues', label: 'Venues', icon: '📍', hint: 'Day 1 / Day 2 venue maps' },
-  { key: 'dresscode', label: 'Dress Code', icon: '👔', hint: '' },
-  { key: 'accommodation', label: 'Accommodation', icon: '🏨', hint: 'Hotel list' },
-  { key: 'menu', label: 'Menu', icon: '🍽️', hint: 'Courses' },
-  { key: 'giftlist', label: 'Gift List', icon: '🎁', hint: 'Registry link + bank details' },
-  { key: 'faq', label: 'FAQ', icon: '❓', hint: '' },
-  { key: 'gallery', label: 'Photo Gallery', icon: '🖼️', hint: '' },
-  { key: 'invited', label: '"Invited To" City Map', icon: '🗺️', hint: '' },
-  { key: 'boarding', label: 'Boarding Pass', icon: '🎫', hint: 'Playful travel-themed detail card' },
-  { key: 'thingstodo', label: 'Things To Do', icon: '🧭', hint: 'Local recommendations' },
-  { key: 'gettingthere', label: 'Getting There', icon: '🚗', hint: 'Transport / parking notes' },
+  { key: 'story', label: 'Our Story', icon: 'book', hint: 'Love story / proposal story / about-us text' },
+  { key: 'schedule', label: 'Schedule', icon: 'clock', hint: 'Day 1 / Day 2 timeline' },
+  { key: 'venues', label: 'Venues', icon: 'mapPin', hint: 'Day 1 / Day 2 venue maps' },
+  { key: 'dresscode', label: 'Dress Code', icon: 'dressCode', hint: '' },
+  { key: 'accommodation', label: 'Accommodation', icon: 'hotel', hint: 'Hotel list' },
+  { key: 'menu', label: 'Menu', icon: 'restaurant', hint: 'Courses' },
+  { key: 'giftlist', label: 'Gift List', icon: 'gift', hint: 'Registry link + bank details' },
+  { key: 'faq', label: 'FAQ', icon: 'question', hint: '' },
+  { key: 'gallery', label: 'Photo Gallery', icon: 'gallery', hint: '' },
+  { key: 'invited', label: '"Invited To" City Map', icon: 'map', hint: '' },
+  { key: 'boarding', label: 'Boarding Pass', icon: 'ticket', hint: 'Playful travel-themed detail card' },
+  { key: 'thingstodo', label: 'Things To Do', icon: 'compass', hint: 'Local recommendations' },
+  { key: 'gettingthere', label: 'Getting There', icon: 'car', hint: 'Transport / parking notes' },
 ];
 
-// Custom's "what kind of event is this?" picker — shapes which fields show
-// below and how the guest page's hero name/tagline reads. Wedding and
-// Engagement here reuse the exact same fields as the dedicated Wedding/
-// Engagement templates (so an organizer who wants full design freedom for a
-// wedding isn't missing anything); Celebration and Baby Shower get their own,
-// since neither has a "couple".
-const CUSTOM_CATEGORIES = [
-  { key: 'wedding', label: 'Wedding', icon: '💍' },
-  { key: 'engagement', label: 'Engagement', icon: '💎' },
-  { key: 'celebration', label: 'Celebration', icon: '🎉' },
-  { key: 'babyShower', label: 'Baby Shower', icon: '🍼' },
-];
+// Custom's "what kind of event is this?" picker — imported from a shared file
+// (also used by the guest-facing HeritageArchPage) so the organizer's picker
+// and the guest page's hero name/tagline logic can never drift out of sync.
+// See customEventCategories.js for the full list and per-category field copy.
 
 const PRIVACY_MODES = [
-  { key: 'public', label: 'Public Link', icon: '🌐', desc: 'Anyone with the link can RSVP' },
-  { key: 'private', label: 'Private', icon: '🔒', desc: 'Guests must be on your list' },
-  { key: 'password', label: 'Passcode', icon: '🔐', desc: 'Requires a passcode to access' },
+  { key: 'public', label: 'Public Link', icon: 'globe', desc: 'Anyone with the link can RSVP' },
+  { key: 'private', label: 'Private', icon: 'lock', desc: 'Guests must be on your list' },
+  { key: 'password', label: 'Passcode', icon: 'lockKey', desc: 'Requires a passcode to access' },
 ];
 
 const iStyle = {
@@ -109,7 +104,7 @@ function Section({ title, icon, defaultOpen = true, children }) {
         gap: 10, padding: '18px 24px', background: 'none',
         border: 'none', cursor: 'pointer', textAlign: 'left',
       }}>
-        <span style={{ fontSize: 18 }}>{icon}</span>
+        <Icon name={icon} size={17} color={C.gold} strokeWidth={1.5} />
         <span style={{
           fontFamily: 'var(--font-serif)', fontSize: 16,
           fontWeight: 600, color: C.charcoal, flex: 1,
@@ -219,12 +214,15 @@ export default function Stage2_FormConfiguration({
     setTemplateData(d => ({ ...d, sectionOrder: next }));
   };
 
-  // Custom's event-category choice — 'wedding' | 'engagement' | 'celebration'
-  // | 'babyShower' | '' (not chosen yet). Wedding/engagement categories reuse
-  // the same couple-name fields the dedicated templates use.
+  // Custom's event-category choice — one of the CUSTOM_CATEGORIES keys, or ''
+  // (not chosen yet). `kind` decides which fields render below (see
+  // customEventCategories.js): 'couple' reuses the same partner-name fields
+  // the dedicated Wedding/Engagement templates use, 'honoree' shows the
+  // generic name+occasion fields, 'babyShower' shows its own fields.
   const customCategory = templateData.custom_category || '';
+  const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[customCategory] || null;
   const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(templateType)
-    || (templateType === 'custom' && (customCategory === 'wedding' || customCategory === 'engagement'));
+    || (templateType === 'custom' && customCategoryMeta?.kind === 'couple');
 
   // Ceremony/reception venue pickers behave like the main Venue field: a plain-
   // address prediction (as opposed to a named venue) has no distinct `place.name`
@@ -274,31 +272,31 @@ export default function Stage2_FormConfiguration({
         }}>Configure Your Event</h2>
         <p style={{
           fontFamily: 'var(--font-sans)', fontSize: 14,
-          color: C.stone, margin: '8px 0 0',
+          color: C.stone, margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          {tpl.icon} Using <strong>{tpl.label}</strong> template • Fill in the details for your event
+          <EventCategoryIcon name={tpl.key} size={13} color={C.stone} /> Using <strong>{tpl.label}</strong> template • Fill in the details for your event
         </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         {/* ═══ Section A: Core Details ═══ */}
-        <Section title="Core Event Details" icon="📅">
+        <Section title="Core Event Details" icon="calendar">
           <Field label="Event Title" required>
             <input type="text" value={title} onChange={e => setTitle(e.target.value)}
               placeholder="My Beautiful Event" style={iStyle}
               onFocus={onFocus} onBlur={onBlur} />
           </Field>
 
-          <Field label="🌐 Arabic Title" hint="Optional — shown when a guest switches the page to Arabic">
+          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Title</>} hint="Optional — shown when a guest switches the page to Arabic">
             <input type="text" dir="rtl" value={td('title_ar')} onChange={e => setTd('title_ar')(e.target.value)}
               placeholder="عنوان الفعالية بالعربي" style={{ ...iStyle, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
               onFocus={onFocus} onBlur={onBlur} />
           </Field>
 
           <Field label="Event URL" required hint={
-            slugStatus === 'checking' ? '⏳ Checking availability...' :
-            slugStatus === 'available' ? '✅ This URL is available!' :
-            slugStatus === 'taken' ? `❌ Taken. Try: ${suggestedSlug}` : null
+            slugStatus === 'checking' ? <><Icon name="hourglass" size={10} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 3 }} />Checking availability...</> :
+            slugStatus === 'available' ? <><Icon name="check" size={10} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 3 }} />This URL is available!</> :
+            slugStatus === 'taken' ? <><Icon name="cross" size={10} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 3 }} />Taken. Try: {suggestedSlug}</> : null
           }>
             <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
               <span style={{
@@ -326,7 +324,7 @@ export default function Stage2_FormConfiguration({
               onFocus={onFocus} onBlur={onBlur} />
           </Field>
 
-          <Field label="🌐 Arabic Description" hint="Optional">
+          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Description</>} hint="Optional">
             <textarea dir="rtl" value={td('description_ar')} onChange={e => setTd('description_ar')(e.target.value)}
               rows={3} placeholder="وصف الفعالية بالعربي"
               style={{ ...iStyle, resize: 'vertical', minHeight: 80, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
@@ -367,14 +365,14 @@ export default function Stage2_FormConfiguration({
 
         {/* ═══ Section B: Template-Specific ═══ */}
         {(
-          <Section title={`${tpl.icon} ${tpl.label} Details`} icon="🎨">
+          <Section title={`${tpl.label} Details`} icon="palette">
             {(templateType === 'wedding' || templateType === 'engagement') && customColors && setCustomColors && (
               <div style={{
                 marginBottom: 18, padding: 14, borderRadius: 12,
                 background: C.softBg, border: `1px solid ${C.border}`,
               }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-sans)', marginBottom: 10 }}>
-                  🎨 Design &amp; Colors — override the preset above with any color you like
+                  <Icon name="palette" size={13} strokeWidth={1.6} style={{ verticalAlign: '-2px', marginRight: 5 }} />Design &amp; Colors — override the preset above with any color you like
                 </div>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
                   {[
@@ -399,18 +397,18 @@ export default function Stage2_FormConfiguration({
             {templateType === 'custom' && (
               <div style={{ marginBottom: 18 }}>
                 <label style={lblStyle}>What kind of event is this?</label>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                  {CUSTOM_CATEGORIES.map(({ key, label, icon }) => {
+                <div className="s2-row s2-category-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+                  {CUSTOM_CATEGORIES.map(({ key, label }) => {
                     const active = customCategory === key;
                     return (
                       <button key={key} type="button" onClick={() => setTd('custom_category')(key)}
                         style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
                           padding: '10px 6px', borderRadius: 10, cursor: 'pointer',
                           border: `1.5px solid ${active ? C.gold : C.border}`,
                           background: active ? 'rgba(184,148,79,0.08)' : C.white,
                         }}>
-                        <span style={{ fontSize: 17, lineHeight: 1 }}>{icon}</span>
+                        <EventCategoryIcon name={key} size={17} color={active ? C.gold : C.stone} />
                         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: active ? C.gold : C.stone }}>{label}</span>
                       </button>
                     );
@@ -505,15 +503,15 @@ export default function Stage2_FormConfiguration({
               </>
             )}
 
-            {templateType === 'custom' && customCategory === 'celebration' && (
+            {templateType === 'custom' && customCategoryMeta?.kind === 'honoree' && (
               <>
-                <Field label="Who's being celebrated?" hint="Shown as the name on your guest page — a person, a couple, or a family">
+                <Field label={customCategoryMeta.honoreeLabel} hint={customCategoryMeta.honoreeHint}>
                   <input type="text" value={td('custom_honoree')} onChange={e => setTd('custom_honoree')(e.target.value)}
-                    placeholder="e.g. Sarah, or The Martinez Family" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                    placeholder={customCategoryMeta.honoreePlaceholder} style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
-                <Field label="What's the occasion?" hint="Shown as the tagline under the name, e.g. Turning 30, 10th Anniversary">
+                <Field label={customCategoryMeta.milestoneLabel} hint={customCategoryMeta.milestoneHint}>
                   <input type="text" value={td('custom_milestone')} onChange={e => setTd('custom_milestone')(e.target.value)}
-                    placeholder="e.g. Turning 30" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                    placeholder={customCategoryMeta.milestonePlaceholder} style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
               </>
             )}
@@ -645,10 +643,10 @@ export default function Stage2_FormConfiguration({
                     emptyLabel="No places yet — the Things to Do section stays hidden until you add one."
                     columns={[
                       { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
-                        { value: 'mountain', label: '⛰️ Nature/Walk' }, { value: 'food', label: '🍴 Restaurant' },
-                        { value: 'water', label: '🌊 Beach/Lake' }, { value: 'camera', label: '📷 Sightseeing' },
-                        { value: 'drink', label: '🍷 Bar/Café' }, { value: 'shopping', label: '🛍️ Shopping' },
-                        { value: 'landmark', label: '🏛️ Landmark' }, { value: 'star', label: '✦ Other' },
+                        { value: 'mountain', label: 'Nature/Walk' }, { value: 'food', label: 'Restaurant' },
+                        { value: 'water', label: 'Beach/Lake' }, { value: 'camera', label: 'Sightseeing' },
+                        { value: 'drink', label: 'Bar/Café' }, { value: 'shopping', label: 'Shopping' },
+                        { value: 'landmark', label: 'Landmark' }, { value: 'star', label: 'Other' },
                       ] },
                       { key: 'title', label: 'Title', placeholder: 'Walk by the lake' },
                       { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Why guests should go…' },
@@ -839,7 +837,7 @@ export default function Stage2_FormConfiguration({
                             padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left',
                             fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 600, color: C.charcoal,
                           }}>
-                          <span>{icon} {label}</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name={icon} size={13} strokeWidth={1.6} /> {label}</span>
                           <span style={{
                             width: 32, height: 18, borderRadius: 999, position: 'relative', flexShrink: 0,
                             background: on ? C.gold : '#D1CFC9', transition: 'background 0.2s',
@@ -865,7 +863,7 @@ export default function Stage2_FormConfiguration({
              [slug]/EventPageClient.js), so a seal configured here would never
              appear to its guests — hide the section for that template. */}
         {templateType !== 'heritageArch' && (
-        <Section title="Invitation Seal & Stationery" icon="✨">
+        <Section title="Invitation Seal & Stationery" icon="sparkle">
           <p style={{ fontSize: 12.5, color: C.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
             This powers the cinematic wax seal your guests unseal when they open the link.
             Leave it blank to use your event name — the seal, stationery and gold light are all generated automatically and coloured to match your event.
@@ -879,7 +877,7 @@ export default function Stage2_FormConfiguration({
         )}
 
         {/* ═══ Section C: Settings ═══ */}
-        <Section title="Event Settings" icon="⚙️">
+        <Section title="Event Settings" icon="gear">
           {/* Dress Code Pills */}
           <Field label="Dress Code">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -907,8 +905,9 @@ export default function Stage2_FormConfiguration({
                   background: customDressMode ? C.gold : C.white,
                   color: customDressMode ? C.white : C.stone,
                   transition: 'all 0.2s ease',
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
                 }}
-              >✏️ Custom…</button>
+              ><Icon name="pencil" size={12} strokeWidth={1.7} /> Custom…</button>
             </div>
             {customDressMode && (
               <input type="text" value={dressCode} onChange={e => setDressCode(e.target.value)}
@@ -923,15 +922,15 @@ export default function Stage2_FormConfiguration({
                 background: C.softBg,
                 border: `1px solid ${C.border}`
               }}>
-                <div style={{ fontSize: 11, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8, fontFamily: 'var(--font-sans)' }}>
-                  ✨ Guest Page Dress Code Preview
+                <div style={{ fontSize: 11, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Icon name="sparkle" size={11} strokeWidth={1.8} /> Guest Page Dress Code Preview
                 </div>
                 <DressCodeVisualizer dressCodeText={dressCode} isRTL={false} />
               </div>
             )}
           </Field>
 
-          <Field label="🌐 Arabic Dress Code" hint="Optional">
+          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Dress Code</>} hint="Optional">
             <input type="text" dir="rtl" value={td('dress_code_ar')} onChange={e => setTd('dress_code_ar')(e.target.value)}
               placeholder="ملابس رسمية، كاجوال..." style={{ ...iStyle, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
               onFocus={onFocus} onBlur={onBlur} />
@@ -957,7 +956,7 @@ export default function Stage2_FormConfiguration({
                     transform: privacyMode === pm.key ? 'scale(1.02)' : 'scale(1)',
                   }}
                 >
-                  <div style={{ fontSize: 24, marginBottom: 6 }}>{pm.icon}</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}><Icon name={pm.icon} size={22} color={C.gold} strokeWidth={1.4} /></div>
                   <div style={{
                     fontFamily: 'var(--font-sans)', fontSize: 13,
                     fontWeight: 700, color: C.charcoal,
@@ -1105,6 +1104,7 @@ export default function Stage2_FormConfiguration({
                 background: C.softBg, marginTop: 10,
                 position: 'relative',
               }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={coverImageUrl} alt="Cover preview"
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   onError={e => { e.target.style.display = 'none'; }} />
@@ -1189,7 +1189,7 @@ export default function Stage2_FormConfiguration({
             {backgroundMusicUrl && (
               extractYouTubeId(backgroundMusicUrl) ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: C.softBg, border: `1px solid ${C.border}` }}>
-                  <span style={{ fontSize: 16 }}>▶️</span>
+                  <Icon name="play" size={14} color={C.gold} strokeWidth={1.4} />
                   <span style={{ fontSize: 12, color: C.charcoal, fontFamily: 'var(--font-sans)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     YouTube song linked — guests tap the music icon to play it
                   </span>
@@ -1270,6 +1270,7 @@ export default function Stage2_FormConfiguration({
                     onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={e => { e.target.style.display = 'none'; }} />
                     <button type="button" onClick={() => onRemoveGalleryUrl?.(i)} title="Remove"
@@ -1282,7 +1283,7 @@ export default function Stage2_FormConfiguration({
         </Section>
 
         {/* ═══ Section D: Custom Questions ═══ */}
-        <Section title="Custom RSVP Questions" icon="❓">
+        <Section title="Custom RSVP Questions" icon="question">
           <InlineFormBuilder fields={customFields} onFieldsChange={onFieldsChange} />
         </Section>
       </div>
@@ -1358,6 +1359,7 @@ export default function Stage2_FormConfiguration({
         @media (max-width: 768px) {
           .s2-row { grid-template-columns: 1fr !important; }
           .s2-privacy { grid-template-columns: 1fr !important; }
+          .s2-category-grid { grid-template-columns: repeat(3, 1fr) !important; }
         }
       `}</style>
     </div>

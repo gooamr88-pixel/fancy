@@ -1,6 +1,7 @@
 'use client';
 
 import { T, card } from './theme';
+import Icon from '../../components/icons/Icon';
 
 /**
  * Reusable, responsive data table with the standard pagination contract
@@ -94,7 +95,7 @@ export default function DataTable({
             ) : !rows || rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} style={{ padding: '48px 20px', textAlign: 'center', color: T.text400 }}>
-                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>📭</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}><Icon name="emptyMailbox" size={22} color={T.text400} strokeWidth={1.4} /></div>
                   {emptyText}
                 </td>
               </tr>

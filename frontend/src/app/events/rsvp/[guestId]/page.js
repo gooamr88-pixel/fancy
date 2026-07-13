@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
+import Icon from '../../../components/icons/Icon';
 
 export default function GuestRSVPResolverPage({ params }) {
   const resolvedParams = use(params);
@@ -37,7 +38,7 @@ export default function GuestRSVPResolverPage({ params }) {
     return (
       <div style={{ minHeight: '100vh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
         <div style={{ maxWidth: '440px', width: '100%', textAlign: 'center', background: '#FFFFFF', border: '1px solid #E8E2D6', padding: '48px 32px', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
-          <span style={{ fontSize: '48px' }}>⚠️</span>
+          <Icon name="warning" size={44} color="#C45E5E" strokeWidth={1.3} />
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#C45E5E', marginTop: '12px' }}>Invalid Invitation Link</h1>
           <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>{error}</p>
         </div>

@@ -5,6 +5,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { DiamondDivider, ScrollToRsvpHint } from '../shared';
 import InvitationCard from '../../InvitationCard';
+import EventCategoryIcon from '../../../icons/EventCategoryIcon';
 
 // A small corner flourish drawn in the theme's gold — mirrored into each corner
 // of the stationery frame so the hero reads as an engraved invitation rather
@@ -22,7 +23,7 @@ function CornerFlourish({ color, style }) {
 export default function HeroSection({
   partner1, partner2, title, tagline, dateLine, timeLine, titleAr,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
-  isRTL, t,
+  categoryBadge, isRTL, t,
 }) {
   const C = useFullPageTheme();
   const reduce = useReducedMotion();
@@ -71,6 +72,19 @@ export default function HeroSection({
           maxWidth: '760px', width: '100%',
         }}
       >
+        {categoryBadge && (
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: 700,
+            letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold,
+            background: `${C.gold}14`, border: `1px solid ${C.gold}40`,
+            borderRadius: '100px', padding: '6px 16px', marginBottom: '16px',
+          }}>
+            <EventCategoryIcon name={categoryBadge.iconName} size={13} color={C.gold} strokeWidth={1.6} />
+            {categoryBadge.label}
+          </span>
+        )}
+
         {displayTagline && (
           <span style={{
             fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: 700,

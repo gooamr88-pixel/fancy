@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import EventSharePanel from './EventSharePanel';
+import Icon from '../../components/icons/Icon';
 
 const C = {
   gold: '#B8944F', charcoal: '#191B1E', stone: '#77736A',
@@ -24,7 +25,7 @@ export default function ShareTab({ event }) {
   if (!event) {
     return (
       <div style={{ textAlign: 'center', padding: '56px 24px', background: C.soft, border: `1px dashed ${C.border}`, borderRadius: 16 }}>
-        <div style={{ fontSize: 34 }}>🔗</div>
+        <Icon name="link" size={32} color="#B8944F" strokeWidth={1.3} />
         <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 600, color: C.charcoal, margin: '10px 0 6px' }}>
           Nothing to share yet
         </h3>

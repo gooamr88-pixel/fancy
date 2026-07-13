@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Icon from "../icons/Icon";
 
 /* ═══════════════════════════════════════════════════════════════
    InvitationCard — pure presentational invitation artwork.
@@ -928,7 +929,7 @@ export default function InvitationCard({ template, theme, guestName, config, dat
             <svg className="absolute bottom-0 left-0 pointer-events-none" width="60" height="55" viewBox="0 0 70 60" style={{ opacity: 0.32 }}>
               <path d="M5 60 Q8 40 20 30 Q10 28 2 20 Q14 22 22 28 Q18 16 22 6 Q26 18 24 30 Q34 22 44 20 Q34 28 26 32 Q20 40 18 60Z" fill="#0B3B36" />
             </svg>
-            <span className="absolute top-2 left-2 text-[10px]">☀️</span>
+            <span className="absolute top-2 left-2"><Icon name="sun" size={11} color="#FFF8ED" strokeWidth={1.6} /></span>
           </div>
           <div className="flex-1 flex flex-col justify-between p-3" style={{ color: "#7A3B2E" }}>
             <span className="text-[6.5px] uppercase tracking-[3px] font-sans font-semibold opacity-70">Fiesta de Amor</span>

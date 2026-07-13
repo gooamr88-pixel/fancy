@@ -8,6 +8,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { DressCodeVisualizer } from '../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../utils/youtube';
 import RepeatableListEditor from './RepeatableListEditor';
+import Icon from '../../components/icons/Icon';
 import TagListEditor, { toTagArray } from './TagListEditor';
 import ImageUploadField from './ImageUploadField';
 import DaysEditor from '../create-event/components/DaysEditor';
@@ -631,7 +632,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              🌐 Arabic Title <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional — shown when guest switches to Arabic)</span>
+              <Icon name="globe" size={12} strokeWidth={1.7} /> Arabic Title <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional — shown when guest switches to Arabic)</span>
             </span>
           </label>
           <input
@@ -657,7 +658,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              🌐 Arabic Description <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
+              <Icon name="globe" size={12} strokeWidth={1.7} /> Arabic Description <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
             </span>
           </label>
           <textarea
@@ -731,12 +732,12 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Event Type / Template</label>
           <select value={form.event_type} onChange={handleChange('event_type')} style={{ ...inputStyle, cursor: 'pointer' }}>
-            <option value="wedding">💍 Wedding</option>
-            <option value="corporate">💼 Corporate Event</option>
-            <option value="birthday">🎂 Birthday Party</option>
-            <option value="engagement">💎 Engagement Party</option>
-            <option value="gala">🍷 Gala / Dinner</option>
-            <option value="custom">✨ Custom Event</option>
+            <option value="wedding">Wedding</option>
+            <option value="corporate">Corporate Event</option>
+            <option value="birthday">Birthday Party</option>
+            <option value="engagement">Engagement Party</option>
+            <option value="gala">Gala / Dinner</option>
+            <option value="custom">Custom Event</option>
           </select>
         </div>
 
@@ -915,10 +916,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 emptyLabel="No places yet — the Things to Do section stays hidden until you add one."
                 columns={[
                   { key: 'icon', label: 'Icon', type: 'select', placeholder: 'Icon', options: [
-                    { value: 'mountain', label: '⛰️ Nature/Walk' }, { value: 'food', label: '🍴 Restaurant' },
-                    { value: 'water', label: '🌊 Beach/Lake' }, { value: 'camera', label: '📷 Sightseeing' },
-                    { value: 'drink', label: '🍷 Bar/Café' }, { value: 'shopping', label: '🛍️ Shopping' },
-                    { value: 'landmark', label: '🏛️ Landmark' }, { value: 'star', label: '✦ Other' },
+                    { value: 'mountain', label: 'Nature/Walk' }, { value: 'food', label: 'Restaurant' },
+                    { value: 'water', label: 'Beach/Lake' }, { value: 'camera', label: 'Sightseeing' },
+                    { value: 'drink', label: 'Bar/Café' }, { value: 'shopping', label: 'Shopping' },
+                    { value: 'landmark', label: 'Landmark' }, { value: 'star', label: 'Other' },
                   ] },
                   { key: 'title', label: 'Title', placeholder: 'Walk by the lake' },
                   { key: 'description', label: 'Description', type: 'textarea', placeholder: 'Why guests should go…' },
@@ -1090,9 +1091,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           <div style={fieldGroupStyle}>
             <label style={labelStyle}>Privacy Mode</label>
             <select value={form.privacy_mode} onChange={handleChange('privacy_mode')} style={{ ...inputStyle, cursor: 'pointer' }}>
-              <option value="public">🌐 Public</option>
-              <option value="private">🔒 Private (Invite Only)</option>
-              <option value="password">🔑 Password Protected</option>
+              <option value="public">Public</option>
+              <option value="private">Private (Invite Only)</option>
+              <option value="password">Password Protected</option>
             </select>
           </div>
           {form.privacy_mode === 'password' && (
@@ -1132,7 +1133,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              🌐 Arabic Dress Code <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
+              <Icon name="globe" size={12} strokeWidth={1.7} /> Arabic Dress Code <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
             </span>
           </label>
           <input
@@ -1154,8 +1155,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             background: COLORS.softBg,
             border: `1px solid ${COLORS.border}`
           }}>
-            <div style={{ fontSize: 11, color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8, fontFamily: 'var(--font-sans)' }}>
-              ✨ Guest Page Dress Code Preview
+            <div style={{ fontSize: 11, color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Icon name="sparkle" size={11} strokeWidth={1.8} /> Guest Page Dress Code Preview
             </div>
             <DressCodeVisualizer dressCodeText={form.dress_code} isRTL={false} />
           </div>
@@ -1211,6 +1212,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               border: `1px solid ${COLORS.border}`, height: '140px',
               background: COLORS.softBg, position: 'relative',
             }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={form.cover_image_url} alt="Cover preview"
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                 onError={(e) => { e.target.style.display = 'none'; }}
@@ -1249,6 +1251,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
               {form.gallery_urls.map((url, i) => (
                 <div key={i} style={{ position: 'relative', width: 84, height: 84, borderRadius: '10px', overflow: 'hidden', border: `1px solid ${COLORS.border}`, background: COLORS.softBg }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     onError={(e) => { e.target.style.display = 'none'; }} />
                   <button type="button" onClick={() => removeGalleryUrl(i)} title="Remove"
@@ -1362,7 +1365,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             {form.background_music_url && (
               extractYouTubeId(form.background_music_url) ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: COLORS.softBg, border: `1px solid ${COLORS.border}` }}>
-                  <span style={{ fontSize: '16px' }}>▶️</span>
+                  <Icon name="play" size={14} color={COLORS.gold} strokeWidth={1.4} />
                   <span style={{ fontSize: '12px', color: COLORS.charcoal, flex: 1 }}>YouTube song linked — guests tap the music icon to play it</span>
                 </div>
               ) : (

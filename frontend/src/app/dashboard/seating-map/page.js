@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { logout } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
 import { useIsClient } from '../../utils/useIsClient';
+import Icon from '../../components/icons/Icon';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', danger: '#C45E5E' };
@@ -35,12 +36,12 @@ const SHAPES = {
   banquet:     { label: 'Banquet Table',    cat: 'table', w: 230, h: 80,  seatable: true,  round: false, defaultCap: 12 },
   head:        { label: 'Head Table',       cat: 'table', w: 250, h: 76,  seatable: true,  round: false, defaultCap: 6 },
   // ── non-seating venue zones ──
-  stage:       { label: 'Stage',            cat: 'zone',  w: 360, h: 150, icon: '🎤', color: '#3B3A55' },
-  dance_floor: { label: 'Dance Floor',      cat: 'zone',  w: 280, h: 280, icon: '🪩', color: '#6B5FA8' },
-  bar:         { label: 'Bar',              cat: 'zone',  w: 240, h: 92,  icon: '🍸', color: '#9C5A3C' },
-  dj_booth:    { label: 'DJ Booth',         cat: 'zone',  w: 132, h: 112, icon: '🎧', color: '#2F5E8C' },
-  entrance:    { label: 'Entrance',         cat: 'zone',  w: 150, h: 70,  icon: '🚪', color: '#4A7C59' },
-  custom:      { label: 'Custom Area',      cat: 'zone',  w: 190, h: 130, icon: '⭐', color: '#B8944F' },
+  stage:       { label: 'Stage',            cat: 'zone',  w: 360, h: 150, icon: 'mic', color: '#3B3A55' },
+  dance_floor: { label: 'Dance Floor',      cat: 'zone',  w: 280, h: 280, icon: 'discoBall', color: '#6B5FA8' },
+  bar:         { label: 'Bar',              cat: 'zone',  w: 240, h: 92,  icon: 'cocktail', color: '#9C5A3C' },
+  dj_booth:    { label: 'DJ Booth',         cat: 'zone',  w: 132, h: 112, icon: 'headphones', color: '#2F5E8C' },
+  entrance:    { label: 'Entrance',         cat: 'zone',  w: 150, h: 70,  icon: 'door', color: '#4A7C59' },
+  custom:      { label: 'Custom Area',      cat: 'zone',  w: 190, h: 130, icon: 'star', color: '#B8944F' },
 };
 // Legacy alias from the original 2-shape model
 const shapeMeta = (shape) => SHAPES[shape === 'rectangular' ? 'rectangle' : shape] || SHAPES.round;
@@ -1360,7 +1361,7 @@ export default function SeatingMapPage() {
     return (
       <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ maxWidth: 440, textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: '48px 32px', borderRadius: 16 }}>
-          <span style={{ fontSize: 48 }}>🔌</span>
+          <Icon name="plug" size={44} color={C.danger} strokeWidth={1.3} />
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 600, color: C.danger, marginTop: 12 }}>Backend Connection Error</h2>
           <p style={{ color: C.stone, marginTop: 12, fontSize: 13 }}>{error}</p>
           <button onClick={() => { setLoading(true); loadLayout(); }} style={{ ...btn, marginTop: 24, background: C.gold, color: C.white }}>Retry</button>
@@ -1497,7 +1498,7 @@ export default function SeatingMapPage() {
             onTapGuest={onTapGuest}
             armedGuestId={armedGuest?.id}
             onReachEnd={() => { if (!guestLoading && guests.length < guestTotal) fetchGuests(guestPage + 1, false); }}
-            emptyText={filter === 'unseated' ? 'Everyone is seated 🎉' : 'No guests found.'}
+            emptyText={filter === 'unseated' ? 'Everyone is seated.' : 'No guests found.'}
             onResendGuest={handleResendGuest}
             resendingId={resendingId}
             pendingIds={pendingIds}
@@ -1583,7 +1584,7 @@ export default function SeatingMapPage() {
                             </optgroup>
                             <optgroup label="Zones">
                               {Object.entries(SHAPES).filter(([, m]) => m.cat === 'zone').map(([key, meta]) => (
-                                <option key={key} value={key}>{meta.icon} {meta.label}</option>
+                                <option key={key} value={key}>{meta.label}</option>
                               ))}
                             </optgroup>
                           </select>
@@ -1920,8 +1921,9 @@ function PrintSeatingChart({ eventTitle, elements, namesByTable }) {
               }}
             >
               {zone ? (
-                <span style={{ fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-sans, sans-serif)' }}>
-                  {meta.icon} {el.table_name}
+                <span style={{ fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-sans, sans-serif)', display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {meta.icon && <Icon name={meta.icon} size={9} strokeWidth={1.8} style={{ flexShrink: 0 }} />}
+                  {el.table_name}
                 </span>
               ) : (
                 <>
@@ -1935,6 +1937,35 @@ function PrintSeatingChart({ eventTitle, elements, namesByTable }) {
           );
         })}
       </div>
+
+      {/* A crowded or small table circle clips its inline guest-name text
+          (fontSize 6.5 inside overflow:hidden) long before a real table's
+          full guest list fits — this roster guarantees every seated guest is
+          actually legible on the printed/exported page, at normal reading
+          size, regardless of how tight the floor plan drawing is. */}
+      {(() => {
+        const roster = elements
+          .filter((el) => !isZone(el) && (namesByTable[el.id] || []).length > 0)
+          .map((el) => ({ id: el.id, name: el.table_name || 'Table', guests: namesByTable[el.id] }));
+        if (roster.length === 0) return null;
+        return (
+          <div style={{ marginTop: 32, breakBefore: 'page', fontFamily: 'var(--font-sans, sans-serif)' }}>
+            <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 18, fontWeight: 600, margin: '0 0 14px', color: C.charcoal, textAlign: 'center' }}>
+              Table Assignments
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 32px' }}>
+              {roster.map((t) => (
+                <div key={t.id} style={{ breakInside: 'avoid', paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ fontWeight: 800, fontSize: 12.5, color: C.charcoal, marginBottom: 3 }}>
+                    {t.name} <span style={{ fontWeight: 500, color: C.stone }}>({t.guests.length})</span>
+                  </div>
+                  <div style={{ fontSize: 11.5, lineHeight: 1.6, color: '#333333' }}>{t.guests.join(', ')}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2078,7 +2109,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
 
   const Tile = ({ s, m }) => (
     <button key={s} onClick={() => pick(s)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '10px 6px', borderRadius: 10, border: `1px solid ${shape === s ? C.gold : C.border}`, background: shape === s ? 'rgba(184,148,79,0.08)' : C.white, cursor: 'pointer', transition: 'all 0.15s' }}>
-      <span style={{ fontSize: 20 }}>{m.icon || (m.round ? '⬤' : '▭')}</span>
+      {m.icon ? <Icon name={m.icon} size={20} strokeWidth={1.4} /> : <span style={{ fontSize: 20 }}>{m.round ? '⬤' : '▭'}</span>}
       <span style={{ fontSize: 10, fontWeight: 600, color: C.charcoal, textAlign: 'center' }}>{m.label}</span>
     </button>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '../utils/apiClient';
 import { toast } from '../utils/toast';
+import Icon from './icons/Icon';
 
 /**
  * Persistent indicator + escape hatch for an active admin impersonation
@@ -54,7 +55,7 @@ export default function ImpersonationBanner() {
         borderBottom: '2px solid #B8944F', textAlign: 'center',
       }}
     >
-      <span>🔒 Admin impersonation active — {impersonatorEmail} is viewing this account.</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}><Icon name="lock" size={13} strokeWidth={1.7} /> Admin impersonation active — {impersonatorEmail} is viewing this account.</span>
       <button
         type="button"
         onClick={handleReturn}

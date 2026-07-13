@@ -88,7 +88,7 @@ function getDateOrderError(eventDate, eventEndDate, rsvpDeadline) {
    color, and content control. */
 const TEMPLATES = [
   {
-    key: 'wedding', label: 'Royale Wedding', icon: '💍', tier: 'Wedding',
+    key: 'wedding', label: 'Royale Wedding', tier: 'Wedding',
     tagline: 'Cinematic · Gold',
     desc: 'A high-end, cinematic wedding invitation with glassmorphism, elegant gold accents and a dynamic reveal — comparable to premium invitation platforms.',
     presets: [
@@ -100,7 +100,7 @@ const TEMPLATES = [
     fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   {
-    key: 'engagement', label: 'Eternal Love', icon: '💎', tier: 'Engagement',
+    key: 'engagement', label: 'Eternal Love', tier: 'Engagement',
     tagline: 'Romantic · Luxury',
     desc: 'An elegant, romantic invitation with soft gradients, shimmering accents and gentle motion — built to make the moment feel unforgettable.',
     presets: [
@@ -112,7 +112,7 @@ const TEMPLATES = [
     fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
   },
   {
-    key: 'custom', label: 'Custom Canvas', icon: '✨', tier: 'Build your own',
+    key: 'custom', label: 'Custom Canvas', tier: 'Build your own',
     tagline: 'Fully editable',
     desc: 'Start from a clean slate — every feature from every event type (wedding, engagement, celebration, baby shower and more) is available here. Pick your own colors, typography and cover image, then add or remove any section freely: schedule, venues, accommodation, menu, gift list, FAQ, gallery, dress code, things to do, and more.',
     presets: [
@@ -195,9 +195,9 @@ const DEFAULT_CUSTOM_CONFIG = {
 };
 
 const STEPS = [
-  { key: 'templates', label: 'Templates', icon: '🎨' },
-  { key: 'configure', label: 'Configure', icon: '📋' },
-  { key: 'distribute', label: 'Distribute', icon: '🚀' },
+  { key: 'templates', label: 'Templates' },
+  { key: 'configure', label: 'Configure' },
+  { key: 'distribute', label: 'Distribute' },
 ];
 
 /* ═══════════════════════════════════════════════════════

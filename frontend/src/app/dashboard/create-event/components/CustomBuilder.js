@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Icon from '../../../components/icons/Icon';
 
 /* ═══════════════════════════════════════════════════════════════
    CustomBuilder — the guided "design your own page" panel for the
@@ -51,7 +52,7 @@ export default function CustomBuilder({ config, onChange }) {
       display: 'flex', flexDirection: 'column', gap: 16,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 16 }}>🎨</span>
+        <Icon name="palette" size={15} color="#B8944F" strokeWidth={1.5} />
         <div>
           <h4 style={{ margin: 0, fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 600, color: '#191B1E' }}>Design your page</h4>
           <p style={{ margin: '1px 0 0', fontFamily: 'var(--font-sans)', fontSize: 11, color: '#77736A' }}>Every change previews live on the phone →</p>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Icon from '../../../components/icons/Icon';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -133,7 +134,8 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
           background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.2)',
           borderRadius: 10, padding: '10px 14px', marginBottom: 16,
           color: C.error, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
-        }}>⚠️ {error}</div>
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}><Icon name="warning" size={14} strokeWidth={1.6} /> {error}</div>
       )}
 
       {/* Table list */}
