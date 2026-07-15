@@ -22,7 +22,8 @@ function randomCode() {
 async function generateUniquePromoCode() {
   for (let attempt = 0; attempt < 8; attempt++) {
     const code = randomCode();
-    const { data } = await supabase.from('promo_codes').select('id').eq('code', code).limit(1);
+    const { data, error } = await supabase.from('promo_codes').select('id').eq('code', code).limit(1);
+    if (error) throw error;
     if (!data || data.length === 0) return code;
   }
   return `${randomCode().slice(0, 4)}${Date.now().toString(36).toUpperCase().slice(-4)}`;
@@ -105,7 +106,7 @@ async function redeemPromoCodeForEvent({ code, eventId, orgId, actorId }) {
     return { ok: false, error: 'ACTIVATION_FAILED', message: 'Your code was accepted, but activating your event failed. Please contact support.' };
   }
 
-  await supabase.from('activity_logs').insert({
+  const { error: activityLogError } = await supabase.from('activity_logs').insert({
     event_id: eventId,
     actor_id: actorId || null,
     action: 'event_promo_code_redeemed',
@@ -113,6 +114,9 @@ async function redeemPromoCodeForEvent({ code, eventId, orgId, actorId }) {
     entity_id: eventId,
     metadata: { code: code.toUpperCase().trim(), tier_name: updates.tier_name },
   });
+  if (activityLogError) {
+    logger.warn({ err: activityLogError, eventId }, '[promoCode] activity_logs insert failed (non-fatal)');
+  }
 
   if (prior && prior.status !== 'active') {
     const orgEmail = prior.organizations?.email;

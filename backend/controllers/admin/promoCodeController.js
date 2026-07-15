@@ -1,6 +1,6 @@
 const { supabase } = require('../../config/supabase');
 const logger = require('../../utils/logger');
-const { parsePagination, applyPagination, buildListResponse } = require('../../middleware/pagination');
+const { parsePagination, applyPagination, buildListResponse, escapeOrSearchTerm } = require('../../middleware/pagination');
 const { logAdminAction } = require('../../middleware/adminAudit');
 const { getPlatformConfig } = require('../../utils/configCache');
 const { generateUniquePromoCode } = require('../../services/promoCodeService');
@@ -27,20 +27,34 @@ async function findTier(tierName) {
   return (config.pricing_tiers || []).find((t) => (t.name || '').toLowerCase() === (tierName || '').toLowerCase()) || null;
 }
 
-/** GET /api/v1/admin/promo-codes?q=&status= (paginated) */
+/**
+ * GET /api/v1/admin/promo-codes?q=&status= (paginated)
+ *
+ * `status` is computed from is_active/expires_at/redemption_count, not a
+ * stored column, so it can't be pushed into the Supabase range/count query —
+ * filtering after a ranged fetch would make `count` (and therefore
+ * totalPages) reflect the pre-filter set while rows on other pages silently
+ * vanish. The promo_codes catalog is small and admin-managed, so instead we
+ * fetch every row matching the search term, then sort/filter/paginate here.
+ */
 const listPromoCodes = async (req, res, next) => {
   const p = parsePagination(req, { sortable: ['created_at', 'code', 'redemption_count'], defaultSort: 'created_at' });
   try {
-    let query = supabase.from('promo_codes').select('*', { count: 'exact' });
-    if (p.q) query = query.or(`code.ilike.%${p.q}%,description.ilike.%${p.q}%`);
+    let query = supabase.from('promo_codes').select('*');
+    if (p.q) {
+      const term = escapeOrSearchTerm(p.q);
+      query = query.or(`code.ilike.${term},description.ilike.${term}`);
+    }
+    query = query.order(p.sort, { ascending: p.order === 'asc' });
 
-    const { data, error, count } = await applyPagination(query, p);
+    const { data, error } = await query;
     if (error) throw error;
 
     const rows = (data || []).map((row) => ({ ...row, computedStatus: deriveStatus(row) }));
     const filtered = req.query.status ? rows.filter((r) => r.computedStatus === req.query.status) : rows;
+    const paged = filtered.slice(p.from, p.to + 1);
 
-    return res.json({ ...buildListResponse(filtered, p, count), promoCodes: filtered });
+    return res.json({ ...buildListResponse(paged, p, filtered.length), promoCodes: paged });
   } catch (err) {
     next(err);
   }
@@ -139,15 +153,12 @@ const createPromoCode = async (req, res, next) => {
   }
 
   let finalCode = (code || '').toString().trim().toUpperCase();
-  if (finalCode) {
-    if (!CODE_RE.test(finalCode)) {
-      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Code must be 3-32 characters: letters, numbers, and hyphens only.' });
-    }
-  } else {
-    finalCode = await generateUniquePromoCode();
+  if (finalCode && !CODE_RE.test(finalCode)) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Code must be 3-32 characters: letters, numbers, and hyphens only.' });
   }
 
   try {
+    if (!finalCode) finalCode = await generateUniquePromoCode();
     const { data, error } = await supabase
       .from('promo_codes')
       .insert({
@@ -223,7 +234,7 @@ const updatePromoCode = async (req, res, next) => {
   updates.updated_at = new Date().toISOString();
 
   try {
-    const { data, error } = await supabase.from('promo_codes').update(updates).eq('id', promoCodeId).select().single();
+    const { data, error } = await supabase.from('promo_codes').update(updates).eq('id', promoCodeId).select().maybeSingle();
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'PROMO_CODE_NOT_FOUND', message: 'Promo code not found.' });
     await logAdminAction(req, { action: 'promo_code.update', entityType: 'promo_code', entityId: promoCodeId, after: updates });

@@ -14,6 +14,16 @@ const {
 // coupons / campaigns / referrals") rather than minting a new permission key.
 const router = express.Router();
 
+// A malformed :promoCodeId would otherwise reach Postgres as an invalid uuid
+// literal and surface as a generic 500 instead of a clean client error.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+router.param('promoCodeId', (req, res, next, value) => {
+  if (!UUID_REGEX.test(value)) {
+    return res.status(400).json({ success: false, error: 'INVALID_PARAM', message: 'promoCodeId must be a valid UUID.' });
+  }
+  next();
+});
+
 router.get('/', requirePermission('marketing.view'), listPromoCodes);
 router.get('/stats', requirePermission('marketing.view'), getPromoCodeStats);
 router.post('/', requirePermission('marketing.manage'), createPromoCode);
