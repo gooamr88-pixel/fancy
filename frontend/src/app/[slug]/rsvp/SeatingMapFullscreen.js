@@ -108,21 +108,27 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
 
   const dialogRef = useModalA11y(true, { onClose });
 
-  // Zoom-at-cursor on wheel.
-  const onWheel = (e) => {
-    e.preventDefault();
+  // Zoom-at-cursor on wheel (non-passive listener attached manually to allow preventDefault).
+  useEffect(() => {
     const c = containerRef.current;
     if (!c) return;
-    const rect = c.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
-    const factor = Math.exp(-e.deltaY * 0.0015);
-    setView((v) => {
-      const next = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE);
-      const ratio = next / v.scale;
-      return { scale: next, tx: px - (px - v.tx) * ratio, ty: py - (py - v.ty) * ratio };
-    });
-  };
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const rect = c.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      setView((v) => {
+        const next = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE);
+        const ratio = next / v.scale;
+        return { scale: next, tx: px - (px - v.tx) * ratio, ty: py - (py - v.ty) * ratio };
+      });
+    };
+    c.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      c.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
 
   // Pan with mouse + single-touch.
   const onPointerDown = (e) => {
@@ -238,7 +244,6 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
           seating-map surface in the product shares one visual language. */}
       <div
         ref={containerRef}
-        onWheel={onWheel}
         onMouseDown={onPointerDown}
         onMouseMove={onPointerMove}
         onMouseUp={onPointerUp}
