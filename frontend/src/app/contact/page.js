@@ -35,8 +35,8 @@ const contactCards = [
   },
   {
     label: "Visit Us",
-    value: "Mississauga, Ontario",
-    detail: "Canada",
+    value: "California",
+    detail: "USA",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 10C21 17 12 23 12 23S3 17 3 10C3 5.03 7.03 1 12 1S21 5.03 21 10Z" />
@@ -72,11 +72,6 @@ const socialLinks = [
     name: "Facebook",
     url: "https://www.facebook.com/viamarketing.ca",
     icon: <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />,
-  },
-  {
-    name: "X",
-    url: "https://twitter.com/viamarketingca",
-    icon: <path d="M22 4s-1.3.8-3 1.2A4.8 4.8 0 0 0 12 8v1A10.5 10.5 0 0 1 3 4s-4 9 5 13a11.6 11.6 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.1-.9A7.7 7.7 0 0 0 22 4Z" />,
   },
 ];
 
@@ -349,7 +344,7 @@ export default function ContactPage() {
               margin: "0 auto",
             }}
           >
-            Have a question, suggestion, or just want to say hello? We&apos;d love to hear from you.
+            Have a question or suggestion? We&apos;d love to hear from you.
           </p>
         </section>
 
@@ -601,125 +596,6 @@ export default function ContactPage() {
           </div>
         </section>
 
-        {/* ── Office / Map Section ── */}
-        <section
-          style={{
-            background: "#FAF7F0",
-            padding: "80px 24px",
-          }}
-        >
-          <div
-            style={{
-              maxWidth: "1280px",
-              margin: "0 auto",
-              padding: "0 24px",
-            }}
-          >
-            <div className="office-grid">
-              {/* Map Placeholder */}
-              <div
-                style={{
-                  borderRadius: "16px",
-                  overflow: "hidden",
-                  border: "1px solid #E8E2D6",
-                  background: "#FFFFFF",
-                  minHeight: "320px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  position: "relative",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background: "linear-gradient(135deg, #F8F4EC 0%, #EDEAE3 100%)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "16px",
-                  }}
-                >
-                  <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-                    <circle cx="28" cy="24" r="18" stroke="#D7BE80" strokeWidth="1" fill="none" />
-                    <circle cx="28" cy="24" r="8" stroke="#B8944F" strokeWidth="1.5" fill="none" />
-                    <circle cx="28" cy="24" r="2" fill="#B8944F" />
-                    <path d="M28 42L28 50" stroke="#D7BE80" strokeWidth="1" />
-                    <circle cx="28" cy="52" r="2" fill="#D7BE80" />
-                  </svg>
-                  <div style={{ textAlign: "center" }}>
-                    <p style={{ fontFamily: "var(--font-serif)", fontSize: "18px", fontWeight: 600, color: "#191B1E", marginBottom: "4px" }}>
-                      Our Headquarters
-                    </p>
-                    <p style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#5E5A52" }}>
-                      Mississauga, Ontario
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Office Info */}
-              <div>
-                <span
-                  style={{
-                    fontFamily: "var(--font-sans)",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    letterSpacing: "3px",
-                    textTransform: "uppercase",
-                    color: "#B8944F",
-                    display: "block",
-                    marginBottom: "16px",
-                  }}
-                >
-                  Our Office
-                </span>
-                <h2
-                  style={{
-                    fontFamily: "var(--font-serif)",
-                    fontSize: "30px",
-                    fontWeight: 700,
-                    color: "#191B1E",
-                    marginBottom: "16px",
-                    lineHeight: 1.25,
-                  }}
-                >
-                  Come Say Hello
-                </h2>
-                <p
-                  style={{
-                    fontFamily: "var(--font-sans)",
-                    fontSize: "16px",
-                    color: "#5E5A52",
-                    lineHeight: 1.7,
-                    marginBottom: "28px",
-                  }}
-                >
-                  We&apos;d love to meet you in person! Our doors are always open for a coffee and a chat about how Fancy RSVP can elevate your next event. Schedule a visit or just drop by during business hours.
-                </p>
-                <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                  {[
-                    { label: "Address", value: "Mississauga, Ontario, Canada" },
-                    { label: "Instagram", value: "@viamarketing.ca" },
-                    { label: "Response", value: "Within one business day" },
-                  ].map((item) => (
-                    <div key={item.label} style={{ display: "flex", gap: "12px" }}>
-                      <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 700, color: "#B8944F", minWidth: "70px" }}>
-                        {item.label}
-                      </span>
-                      <span style={{ fontFamily: "var(--font-sans)", fontSize: "14px", color: "#191B1E" }}>
-                        {item.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* ── Help Center CTA ── */}
         <section
           style={{
@@ -794,12 +670,6 @@ export default function ContactPage() {
           gap: 36px;
           align-items: start;
         }
-        .office-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 48px;
-          align-items: center;
-        }
         .form-row {
           display: flex;
           gap: 20px;
@@ -814,10 +684,6 @@ export default function ContactPage() {
         @media (max-width: 1024px) {
           .contact-grid {
             grid-template-columns: 1fr !important;
-          }
-          .office-grid {
-            grid-template-columns: 1fr !important;
-            gap: 32px !important;
           }
         }
         @media (max-width: 768px) {

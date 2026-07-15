@@ -140,7 +140,7 @@ const sections = [
     content: [
       "If you have questions about these Terms of Service, please contact us through any of the following channels:",
       "**Email:** info@viamarketing.ca",
-      "**Mail:** Via Marketing Group, Attn: Legal, Mississauga, Ontario, Canada",
+      "**Mail:** Via Marketing Group, Attn: Legal, California, USA",
       "**Instagram:** instagram.com/viamarketing.ca",
       "For urgent legal matters, including DMCA takedown requests, subpoenas, or law enforcement inquiries, please contact info@viamarketing.ca with \"URGENT\" in the subject line.",
       "We encourage you to review these Terms regularly to stay informed about your rights and obligations when using Fancy RSVP.",

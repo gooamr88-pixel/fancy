@@ -4,7 +4,6 @@ import HeroSection from "./components/landing/HeroSection";
 import PressBar from "./components/landing/PressBar";
 import SocialProofBar from "./components/landing/SocialProofBar";
 import RSVPFlowSection from "./components/landing/RSVPFlowSection";
-import FeaturesSection from "./components/landing/FeaturesSection";
 import TestimonialsSection from "./components/landing/TestimonialsSection";
 import FAQSection from "./components/landing/FAQSection";
 import CTASection from "./components/landing/CTASection";
@@ -74,11 +73,6 @@ export default function Home() {
         {/* RSVP Flow — phone mockups slide in */}
         <ScrollReveal direction="up" duration={900}>
           <RSVPFlowSection />
-        </ScrollReveal>
-
-        {/* Features — cards with staggered reveal handled internally */}
-        <ScrollReveal direction="up" duration={800}>
-          <FeaturesSection />
         </ScrollReveal>
 
         {/* Dashboard Preview — the showpiece */}

@@ -5,10 +5,10 @@ import adminApi from '../../_lib/adminApi';
 import usePermissions from '../../_hooks/usePermissions';
 import DataTable from '../../_components/DataTable';
 import { PageLoading } from '../../_components/Spinner';
-import { Button } from '../../_components/Modal';
+import Modal, { Button } from '../../_components/Modal';
 import { T, card } from '../../_components/theme';
 import { useAlert } from '../../_components/AlertContext';
-import { Field } from '../../_components/Field';
+import { Field, Row } from '../../_components/Field';
 
 /**
  * Marketing — Referral Program oversight. Permissions marketing.view /
@@ -38,6 +38,19 @@ const STATUS_BADGE = {
   pending: { bg: T.surfaceAlt, color: T.text400, border: T.border, label: 'Pending' },
 };
 
+const INQUIRY_STATUS_BADGE = {
+  new: { bg: T.warningSoft, color: T.warningDark, border: 'rgba(245,158,11,0.2)', label: 'New' },
+  responded: { bg: T.successSoft, color: T.successDark, border: 'rgba(16,185,129,0.2)', label: 'Responded' },
+  closed: { bg: T.surfaceAlt, color: T.text400, border: T.border, label: 'Closed' },
+};
+
+const SEGMENT_LABEL = {
+  general: 'General',
+  planners: 'Planners',
+  venues: 'Venues',
+  corporate: 'Corporate',
+};
+
 export default function MarketingPage() {
   const { showAlert } = useAlert();
   const { can } = usePermissions();
@@ -54,6 +67,66 @@ export default function MarketingPage() {
 
   const [adjustForm, setAdjustForm] = useState({ orgId: '', amount: '', direction: 'grant', note: '' });
   const [adjusting, setAdjusting] = useState(false);
+
+  const [inquiries, setInquiries] = useState([]);
+  const [inquiriesLoading, setInquiriesLoading] = useState(true);
+  const [inquiriesError, setInquiriesError] = useState(null);
+  const [inquiriesNonce, setInquiriesNonce] = useState(0);
+  const reloadInquiries = useCallback(() => setInquiriesNonce((n) => n + 1), []);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      setInquiriesLoading(true);
+      try {
+        const res = await adminApi.get('/inquiries');
+        if (!ignore) {
+          setInquiries(res.inquiries || []);
+          setInquiriesError(null);
+        }
+      } catch (err) {
+        if (!ignore) setInquiriesError(err.message || 'Failed to load contact inquiries');
+      } finally {
+        if (!ignore) setInquiriesLoading(false);
+      }
+    })();
+    return () => { ignore = true; };
+  }, [inquiriesNonce]);
+
+  const openReply = (inquiry) => {
+    setReplyingTo(inquiry);
+    setReplyText('');
+  };
+
+  const submitReply = async () => {
+    if (!replyText.trim()) {
+      showAlert('Please write a response before sending.', 'Validation Error', 'warning');
+      return;
+    }
+    setSendingReply(true);
+    try {
+      await adminApi.post(`/inquiries/${replyingTo.id}/respond`, { message: replyText.trim() });
+      setReplyingTo(null);
+      setReplyText('');
+      reloadInquiries();
+    } catch (err) {
+      showAlert(err.message || 'Failed to send response.', 'Error', 'error');
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  const closeInquiry = async (id) => {
+    try {
+      await adminApi.patch(`/inquiries/${id}/status`, { status: 'closed' });
+      reloadInquiries();
+    } catch (err) {
+      showAlert(err.message || 'Failed to update status.', 'Error', 'error');
+    }
+  };
 
   useEffect(() => {
     let ignore = false;
@@ -118,9 +191,12 @@ export default function MarketingPage() {
   return (
     <div>
       <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Referral Program</h1>
-        <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Organizers earn platform credit when someone they refer becomes a paying customer.</p>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>Marketing</h1>
+        <p style={{ fontSize: 13, color: T.text500, margin: '4px 0 0' }}>Referral program oversight and public-facing contact inquiries.</p>
       </header>
+
+      <h2 style={{ fontSize: 17, fontWeight: 800, color: T.text900, margin: '0 0 4px', fontFamily: 'var(--font-serif)' }}>Referral Program</h2>
+      <p style={{ fontSize: 12, color: T.text400, margin: '0 0 14px' }}>Organizers earn platform credit when someone they refer becomes a paying customer.</p>
 
       {error && <p style={{ color: T.danger }}>{error}</p>}
       {loading ? (
@@ -251,6 +327,97 @@ export default function MarketingPage() {
           </section>
         </>
       )}
+
+      {/* Contact Inquiries — public Contact page + /solutions/* B2B lead forms */}
+      <section style={{ marginTop: 32 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text900, margin: '0 0 4px' }}>Contact Inquiries</h2>
+        <p style={{ fontSize: 12, color: T.text400, margin: '0 0 12px' }}>Every submission from the public Contact page and the Planners / Venues / Corporate inquiry forms. Replying emails the sender directly.</p>
+        {inquiriesError && <p style={{ color: T.danger, fontSize: 13 }}>{inquiriesError}</p>}
+        <DataTable
+          rows={inquiries}
+          loading={inquiriesLoading}
+          onRefresh={reloadInquiries}
+          emptyText="No inquiries yet."
+          rowKey={(r) => r.id}
+          columns={[
+            { key: 'createdAt', header: 'Received', render: (r) => r.created_at ? new Date(r.created_at).toLocaleString() : '—' },
+            { key: 'from', header: 'From', render: (r) => (
+              <div>
+                <div style={{ fontWeight: 700, color: T.text900 }}>{r.name}</div>
+                <div style={{ fontSize: 11, color: T.text400 }}>{r.email}</div>
+              </div>
+            ) },
+            { key: 'segment', header: 'Segment', render: (r) => SEGMENT_LABEL[r.segment] || r.segment },
+            { key: 'company', header: 'Company', render: (r) => r.company || '—' },
+            { key: 'phone', header: 'Phone', render: (r) => r.phone || '—' },
+            { key: 'expectedGuests', header: 'Expected Guests', render: (r) => r.expected_guests || '—' },
+            { key: 'message', header: 'Message', render: (r) => (
+              <span style={{ display: 'inline-block', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.message}>
+                {r.message}
+              </span>
+            ) },
+            { key: 'status', header: 'Status', render: (r) => {
+              const s = INQUIRY_STATUS_BADGE[r.status] || INQUIRY_STATUS_BADGE.new;
+              return (
+                <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+                  {s.label}
+                </span>
+              );
+            } },
+            { key: 'actions', header: '', render: (r) => (
+              manage ? (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button onClick={() => openReply(r)}>{r.status === 'new' ? 'Reply' : 'View / Reply'}</Button>
+                  {r.status !== 'closed' && <Button variant="ghost" onClick={() => closeInquiry(r.id)}>Close</Button>}
+                </div>
+              ) : null
+            ) },
+          ]}
+        />
+      </section>
+
+      {/* Reply modal */}
+      <Modal
+        open={!!replyingTo}
+        title={replyingTo ? `Reply to ${replyingTo.name}` : ''}
+        onClose={() => setReplyingTo(null)}
+        width={640}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setReplyingTo(null)}>Cancel</Button>
+            <Button variant="primary" disabled={sendingReply} onClick={submitReply}>{sendingReply ? 'Sending…' : 'Send Response'}</Button>
+          </>
+        }
+      >
+        {replyingTo && (
+          <div>
+            <Row label="Email">{replyingTo.email}</Row>
+            <Row label="Segment">{SEGMENT_LABEL[replyingTo.segment] || replyingTo.segment}</Row>
+            {replyingTo.company && <Row label="Company">{replyingTo.company}</Row>}
+            {replyingTo.phone && <Row label="Phone">{replyingTo.phone}</Row>}
+            {replyingTo.expected_guests && <Row label="Expected Guests">{replyingTo.expected_guests}</Row>}
+            <Row label="Subject">{replyingTo.subject}</Row>
+            <div style={{ margin: '12px 0', padding: 12, background: T.surfaceAlt, border: `1px solid ${T.border}`, borderRadius: T.radiusSm, fontSize: 13, color: T.text700, whiteSpace: 'pre-wrap' }}>
+              {replyingTo.message}
+            </div>
+            {replyingTo.admin_response && (
+              <div style={{ margin: '0 0 12px', padding: 12, background: T.successSoft, border: `1px solid rgba(16,185,129,0.2)`, borderRadius: T.radiusSm, fontSize: 12, color: T.text700 }}>
+                <strong style={{ color: T.successDark }}>Already replied</strong> {replyingTo.responded_at ? `on ${new Date(replyingTo.responded_at).toLocaleString()}` : ''}:
+                <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{replyingTo.admin_response}</div>
+              </div>
+            )}
+            <Field label="Your response">
+              <textarea
+                rows={5}
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Write a reply — it will be emailed directly to the sender."
+                style={{ ...inputStyle, resize: 'vertical', minHeight: 100, lineHeight: 1.6 }}
+              />
+            </Field>
+          </div>
+        )}
+      </Modal>
 
       <style jsx>{`
         @media (max-width: 640px) {

@@ -160,28 +160,6 @@ export default function CTASection() {
           >
             {!loading && isLoggedIn ? 'Go to Dashboard' : 'Get Started Free'}
           </Link>
-
-          {/* Secondary Button */}
-          <Link
-            href="/demo"
-            className="cta-secondary-btn"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px 40px',
-              color: '#FFFFFF',
-              fontSize: '14px',
-              fontWeight: 700,
-              fontFamily: 'var(--font-sans)',
-              borderRadius: '8px',
-              letterSpacing: '0.5px',
-              textDecoration: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            View Live Demo
-          </Link>
         </div>
 
         {/* Trust Line */}
@@ -230,17 +208,6 @@ export default function CTASection() {
         .cta-primary-btn:focus-visible {
           transform: translateY(-2px);
           box-shadow: 0 12px 32px rgba(184, 148, 79, 0.35);
-        }
-
-        .cta-secondary-btn {
-          background: transparent;
-          border: 1.5px solid rgba(255, 255, 255, 0.3);
-          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .cta-secondary-btn:hover,
-        .cta-secondary-btn:focus-visible {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 1);
         }
 
         /* Shimmer animation */

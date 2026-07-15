@@ -59,13 +59,6 @@ function deriveIdentity(event, lang) {
   return { full: full || "You're Invited", sealText };
 }
 
-function guestSealText(guestName) {
-  const raw = (guestName || "").trim();
-  if (!raw) return null;
-  if (raw.length <= 12) return raw;
-  return raw.split(/\s+/).map((w) => w.charAt(0)).join("").slice(0, 3).toUpperCase();
-}
-
 /* ─── Botanical palette derived from the event's own custom_colors ───
    Clamped to a legible mid-tone band so any organizer color reads as
    real foliage/wax/ribbon against the bright paper, never washed out
@@ -142,11 +135,12 @@ export default function InvitationReveal({
   const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
   // A known guest (resolved from their personal link/token — private events,
-  // or a public event's per-guest invite) is personalised the same way in
-  // either mode: the seal, the card's welcome line, and the envelope's own
-  // handwritten-style address line all carry their name instead of generic copy.
-  const gSeal = guestSealText(guestName);
-  const sealText = gSeal || identity.sealText;
+  // or a public event's per-guest invite) is personalised via the card's
+  // welcome line and the envelope's own handwritten-style address line —
+  // both carry their name instead of generic copy. The wax seal itself is
+  // deliberately NOT personalised: it always carries the couple/event's own
+  // monogram, the same for every guest, the way a real wax seal would.
+  const sealText = identity.sealText;
   const sealFontSize = sealText.length <= 2 ? 28 : sealText.length <= 4 ? 21 : sealText.length <= 7 ? 15 : sealText.length <= 10 ? 11 : 9;
 
   /* Per-session "seen" memory (rsvp mode). */
@@ -763,7 +757,15 @@ const REVEAL_CSS = `
 @keyframes ir2Sheen{ 0%,72%{ transform:translateX(-60%) } 86%{ transform:translateX(60%) } 100%{ transform:translateX(60%) } }
 .ir2-root.ir2-opening .ir2-seal-sheen::before{ animation-play-state:paused; }
 
-.ir2-stamp{ position:absolute; top:9%; right:9%; width:15%; z-index:4; transform:rotate(4deg); transition:opacity .5s ease; }
+/* z-index above .ir2-flap (6) and .ir2-flap-shadow (5): the stamp sits in the
+   top-right corner, which the closed flap's downward-pointing triangle
+   (clip-path polygon 0 0,100% 0,50% 100%) geometrically covers almost
+   entirely at that height — at z-index 4 (below the flap) only a sliver of
+   the stamp peeked out from under it, looking cropped. A real stamp is
+   affixed on top of the envelope paper, not tucked under the flap fold, so
+   raising it above the flap (but still below the wax seal at 9) fixes both
+   the visual logic and shows the whole stamp uncropped. */
+.ir2-stamp{ position:absolute; top:9%; right:9%; width:15%; z-index:8; transform:rotate(4deg); transition:opacity .5s ease; }
 .ir2-root.ir2-opening .ir2-stamp{ opacity:0; }
 .ir2-stamp svg{ width:100%; height:auto; display:block; filter:drop-shadow(0 2px 3px rgba(60,44,22,.28)); }
 

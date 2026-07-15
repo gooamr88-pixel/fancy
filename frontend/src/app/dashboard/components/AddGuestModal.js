@@ -14,7 +14,7 @@ const COLORS = {
 
 export default function AddGuestModal({ isOpen, onClose, eventId, event, customFields, onGuestAdded }) {
   const [formData, setFormData] = useState({
-    guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '',
+    guest_name: '', email: '', phone: '', party_size: 1, response: '', notes: '', side: '', meal: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -30,7 +30,7 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
   if (isOpen !== prevIsOpen) {
     setPrevIsOpen(isOpen);
     if (isOpen) {
-      setFormData({ guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '' });
+      setFormData({ guest_name: '', email: '', phone: '', party_size: 1, response: '', notes: '', side: '', meal: '' });
       setError('');
       setLoading(false);
     }
@@ -67,6 +67,16 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
       setError(formData.phone.trim()
         ? 'Enter a valid phone number (e.g. +1 555 123 4567).'
         : 'A phone number is required so this guest can receive SMS invitations.');
+      return;
+    }
+    // Every guest added here must carry a real RSVP response — an organizer
+    // adding someone by hand already knows whether they're coming, so there's
+    // no legitimate "no answer yet" case the way there is for a guest who
+    // hasn't opened their invitation. Leaving this on a silent "Pending"
+    // default meant guests could sit in the list indefinitely with no actual
+    // answer recorded.
+    if (!['yes', 'no', 'maybe'].includes(formData.response)) {
+      setError('Please select this guest’s response.');
       return;
     }
     setLoading(true);
@@ -209,11 +219,12 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Response</label>
-                <select value={formData.response} onChange={handleChange('response')} style={{ ...inputStyle, cursor: 'pointer' }}>
-                  <option value="pending">Pending</option>
+                <label style={labelStyle}>Response *</label>
+                <select value={formData.response} onChange={handleChange('response')} required style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="" disabled>Select a response</option>
                   <option value="yes">✓ Yes</option>
                   <option value="no">✗ No</option>
+                  <option value="maybe">? Maybe</option>
                 </select>
               </div>
             </div>

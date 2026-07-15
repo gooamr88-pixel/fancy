@@ -4,8 +4,50 @@ import React from 'react';
 import { CountdownDigit } from '../../../guest/GuestAnimations';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
+import Icon from '../../../icons/Icon';
 
-export default function CountdownSection({ timeLeft, isRTL }) {
+// A clearly delineated "Event Time" card — start time, and end time when the
+// organizer set one — so guests never have to hunt through the date line or
+// squint at small print to know when things actually begin and wrap up.
+function EventTimeCard({ startTime, endTime, isRTL }) {
+  const C = useFullPageTheme();
+  if (!startTime && !endTime) return null;
+  return (
+    <div
+      style={{
+        marginTop: '32px', display: 'inline-flex', alignItems: 'center', gap: '16px',
+        padding: '18px 30px', borderRadius: '18px',
+        background: C.cream, border: `1px solid ${C.gold}66`,
+        boxShadow: `0 10px 28px ${C.maroon}14`,
+      }}
+    >
+      <div style={{
+        width: '42px', height: '42px', borderRadius: '50%', flexShrink: 0,
+        background: `${C.gold}22`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Icon name="clock" size={19} color={C.maroon} strokeWidth={1.6} />
+      </div>
+      <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+        <div style={{
+          fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700,
+          letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold,
+        }}>
+          {isRTL ? 'وقت الفعالية' : 'Event Time'}
+        </div>
+        <div style={{
+          fontFamily: 'var(--font-serif)', fontSize: 'clamp(17px, 3vw, 21px)', fontWeight: 700,
+          color: C.maroon, marginTop: '2px',
+        }}>
+          {startTime && endTime
+            ? (isRTL ? `${startTime} – ${endTime}` : `${startTime} – ${endTime}`)
+            : (isRTL ? `يبدأ الساعة ${startTime || endTime}` : `Starts at ${startTime || endTime}`)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function CountdownSection({ timeLeft, isRTL, startTime, endTime }) {
   const C = useFullPageTheme();
   const units = [
     { key: 'days', value: timeLeft.days, label: isRTL ? 'أيام' : 'Days' },
@@ -28,6 +70,8 @@ export default function CountdownSection({ timeLeft, isRTL }) {
           </div>
         ))}
       </div>
+
+      <EventTimeCard startTime={startTime} endTime={endTime} isRTL={isRTL} />
 
       <ScrollToRsvpHint isRTL={isRTL} />
     </SectionShell>

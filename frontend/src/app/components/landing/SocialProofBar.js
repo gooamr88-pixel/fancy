@@ -1,15 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-
-// --- Counter Animation Config ---
-// Static content — deliberately not fetched from the backend or admin
-// dashboard. Update these by hand if the numbers change.
-const DEFAULT_STATS = [
-  { target: 10000, suffix: '+', label: 'Events Created', decimals: 0 },
-  { target: 50000, suffix: '+', label: 'Guests Managed', decimals: 0 },
-  { target: 99.9, suffix: '%', label: 'Platform Uptime', decimals: 1 },
-];
+import { useLandingStats } from '../../utils/useLandingStats';
 
 const ANIMATION_DURATION = 2000; // ms
 
@@ -27,11 +19,12 @@ function formatNumber(num, decimals) {
 // --- Animated Stat Counter ---
 function StatCounter({ target, suffix, label, decimals, shouldAnimate }) {
   const [displayValue, setDisplayValue] = useState(decimals > 0 ? '0.0' : '0');
-  const animatedRef = useRef(false);
 
+  // Re-runs if `target` changes after the initial animation — e.g. the real
+  // event/guest count arriving from useLandingStats just after mount, once
+  // the section is already in view and had animated toward the fallback number.
   useEffect(() => {
-    if (!shouldAnimate || animatedRef.current) return;
-    animatedRef.current = true;
+    if (!shouldAnimate) return;
 
     let startTime = null;
     let rafId;
@@ -163,7 +156,7 @@ function HorizontalDivider() {
 export default function SocialProofBar() {
   const sectionRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
-  const stats = DEFAULT_STATS;
+  const { stats } = useLandingStats();
 
   useEffect(() => {
     const node = sectionRef.current;

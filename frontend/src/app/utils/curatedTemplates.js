@@ -14,7 +14,7 @@
  * All three templates share the same full-page guest experience (see
  * FULL_PAGE_TEMPLATES in EventPageClient.js) with every optional section
  * (story, schedule, venues, accommodation, menu, gift list, FAQ, gallery,
- * dress code, things-to-do, getting-there, invited-to-city, boarding pass)
+ * dress code, things-to-do, getting-there, invited-to-city)
  * available and independently toggleable — see the "Sections" panel in
  * Stage 2 and enabledSections in HeritageArchPage. Wedding & Engagement
  * additionally expose full custom color pickers (not just the curated

@@ -15,7 +15,11 @@ const FONTS = [
   { key: 'serif', label: 'Elegant', css: 'var(--font-serif)' },
   { key: 'sans', label: 'Modern', css: 'var(--font-sans)' },
   { key: 'script', label: 'Romantic', css: 'var(--font-script)' },
+  { key: 'display', label: 'Bold', css: 'var(--font-display)' },
+  { key: 'minimal', label: 'Minimal', css: 'var(--font-minimal)' },
+  { key: 'whimsical', label: 'Whimsical', css: 'var(--font-whimsical)' },
 ];
+const SCRIPT_FONT_KEYS = new Set(['script', 'whimsical']);
 
 const PALETTES = [
   { name: 'Linen', primary: '#8B7355', secondary: '#D4C5A9', accent: '#8B7355', background: '#FAF8F5' },
@@ -95,18 +99,18 @@ export default function CustomBuilder({ config, onChange }) {
       {/* Typography */}
       <div>
         <label style={labelStyle}>Heading Typography</label>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {FONTS.map(f => {
             const active = config.headingFont === f.key;
             return (
               <button key={f.key} onClick={() => onChange({ headingFont: f.key })}
                 style={{
-                  flex: 1, padding: '8px 6px', borderRadius: 10, cursor: 'pointer',
+                  flex: '1 1 calc(33.333% - 6px)', minWidth: 64, padding: '8px 6px', borderRadius: 10, cursor: 'pointer',
                   border: `1.5px solid ${active ? '#B8944F' : '#E8E2D6'}`,
                   background: active ? 'rgba(184,148,79,0.08)' : '#fff', transition: 'all 0.2s',
                   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                 }}>
-                <span style={{ fontFamily: f.css, fontSize: f.key === 'script' ? 20 : 16, color: '#191B1E', lineHeight: 1 }}>Aa</span>
+                <span style={{ fontFamily: f.css, fontSize: SCRIPT_FONT_KEYS.has(f.key) ? 20 : 16, color: '#191B1E', lineHeight: 1 }}>Aa</span>
                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9.5, fontWeight: 600, color: active ? '#B8944F' : '#77736A' }}>{f.label}</span>
               </button>
             );

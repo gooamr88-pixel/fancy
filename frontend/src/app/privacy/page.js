@@ -142,7 +142,7 @@ const sections = [
     content: [
       "If you have any questions, concerns, or requests related to this Privacy Policy or our data practices, please contact us through any of the following channels:",
       "**Email:** info@viamarketing.ca",
-      "**Mail:** Via Marketing Group, Attn: Privacy, Mississauga, Ontario, Canada",
+      "**Mail:** Via Marketing Group, Attn: Privacy, California, USA",
       "**Data Protection Officer:** For GDPR-related inquiries, contact our DPO at info@viamarketing.ca",
       "We are committed to resolving any complaints about your privacy. If you feel we have not adequately addressed your concerns, you have the right to lodge a complaint with your local data protection supervisory authority.",
     ],

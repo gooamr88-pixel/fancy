@@ -40,12 +40,18 @@ export default function Toast({ toast, onClose, duration }) {
              organizer dashboard's title bar, ~92px) so it never lands on
              top of a page heading — kept in sync with ToastHost's viewport. */
           top: max(100px, calc(env(safe-area-inset-top) + 88px));
-          left: 50%;
-          transform: translateX(-50%);
+          right: max(20px, calc(env(safe-area-inset-right) + 16px));
           z-index: 100001;
           width: max-content;
-          max-width: min(420px, calc(100vw - 32px));
+          max-width: min(400px, calc(100vw - 32px));
           pointer-events: none;
+        }
+        @media (max-width: 480px) {
+          .toast-viewport {
+            left: 16px;
+            right: 16px;
+            max-width: none;
+          }
         }
       `}</style>
     </div>

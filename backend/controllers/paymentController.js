@@ -39,6 +39,7 @@ const {
   CARD_HOLD_TTL_MINUTES,
   MANUAL_HOLD_TTL_MINUTES,
 } = require('../services/referralService');
+const { redeemPromoCodeForEvent } = require('../services/promoCodeService');
 
 const { getAllowedOrigins } = require('../utils/publicUrl');
 
@@ -1400,6 +1401,60 @@ const getPublicPricing = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/v1/payments/events/:eventId/redeem-promo-code
+ *
+ * Self-service alternative to both createCheckoutSession and
+ * initiateManualPayment: an organizer with a valid super-admin-issued promo
+ * code publishes their event immediately, free, with no Stripe/manual
+ * payment and no wait for admin review. See promoCodeService for the
+ * atomic validate-and-record step and the actual event activation.
+ */
+const redeemPromoCode = async (req, res, next) => {
+  const { eventId } = req.params;
+  const { code } = req.body || {};
+
+  if (!code || !code.toString().trim()) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'A promo code is required.' });
+  }
+
+  try {
+    const { data: eventRow, error: eventError } = await supabase
+      .from('events')
+      .select('id, is_paid, status, org_id')
+      .eq('id', eventId)
+      .single();
+    if (eventError || !eventRow) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
+    }
+    if (eventRow.is_paid && eventRow.status === 'active') {
+      return res.status(409).json({ success: false, error: 'ALREADY_LIVE', message: 'This event is already live.' });
+    }
+
+    const result = await redeemPromoCodeForEvent({
+      code: code.toString().trim(),
+      eventId,
+      orgId: eventRow.org_id,
+      actorId: req.user?.id,
+    });
+
+    if (!result.ok) {
+      const statusByError = {
+        INVALID_CODE: 400,
+        CODE_INACTIVE: 400,
+        CODE_EXPIRED: 400,
+        CODE_LIMIT_REACHED: 409,
+        EVENT_ALREADY_REDEEMED: 409,
+      };
+      return res.status(statusByError[result.error] || 400).json({ success: false, error: result.error, message: result.message });
+    }
+
+    return res.json({ success: true, message: 'Promo code redeemed — your event is now live!', event: result.event });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   createCheckoutSession,
   purchaseSMSCredits,
@@ -1410,6 +1465,7 @@ module.exports = {
   getPricingConfig,
   getPublicPricing,
   initiateManualPayment,
-  getPendingPayments
+  getPendingPayments,
+  redeemPromoCode,
 };
 

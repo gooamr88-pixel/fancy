@@ -12,6 +12,7 @@ const { verifyTurnstile } = require('../middleware/captcha');
 const { generateQRCodeBuffer } = require('../utils/qrHelper');
 const { getPlatformConfig } = require('../utils/configCache');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
+const { supabase } = require('../config/supabase');
 
 const router = express.Router();
 
@@ -31,12 +32,34 @@ router.post('/sms/status', handleSmsStatusCallback);
 
 // Public landing-page stat counters (admin-editable via super_admin_config.landing_stats).
 // Reads the cached config and exposes ONLY this column — never the rest of the row
-// (pricing, payment methods, etc.) to anonymous clients.
+// (pricing, payment methods, etc.) to anonymous clients. Entries tagged
+// source: 'events_count' / 'guests_count' get their `target` overwritten with a
+// real COUNT(*) below rather than the admin-typed number — only genuinely
+// unmeasurable stats (e.g. uptime) stay purely admin-set.
 router.get('/landing-stats', async (req, res) => {
   try {
     const config = await getPlatformConfig();
+    const stats = config.landing_stats || [];
+
+    const needsEvents = stats.some(s => s.source === 'events_count');
+    const needsGuests = stats.some(s => s.source === 'guests_count');
+    const [eventsCount, guestsCount] = await Promise.all([
+      needsEvents ? supabase.from('events').select('*', { count: 'exact', head: true }) : null,
+      needsGuests ? supabase.from('guests').select('*', { count: 'exact', head: true }) : null,
+    ]);
+
+    const liveStats = stats.map((s) => {
+      if (s.source === 'events_count' && eventsCount && !eventsCount.error) {
+        return { ...s, target: eventsCount.count ?? s.target };
+      }
+      if (s.source === 'guests_count' && guestsCount && !guestsCount.error) {
+        return { ...s, target: guestsCount.count ?? s.target };
+      }
+      return s;
+    });
+
     res.set('Cache-Control', 'public, max-age=30');
-    return res.json({ success: true, stats: config.landing_stats || [] });
+    return res.json({ success: true, stats: liveStats });
   } catch (err) {
     return res.status(200).json({ success: false, stats: [] });
   }
@@ -75,8 +98,25 @@ router.post('/contact', [
   body('message').trim().notEmpty().isLength({ max: 5000 }).withMessage('Message is required'),
   body('segment').optional({ values: 'falsy' }).isIn(['general', 'planners', 'venues', 'corporate']).withMessage('Invalid segment'),
   body('company').optional({ values: 'falsy' }).trim().isLength({ max: 200 }).withMessage('Company name too long'),
-  body('phone').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Phone number too long'),
-  body('expectedGuests').optional({ values: 'falsy' }).trim().isLength({ max: 50 }).withMessage('Invalid guest volume'),
+  // Optional on the generic Contact page (segment omitted/'general'), but the
+  // /solutions/* B2B inquiry forms collect these and must not submit without them.
+  // The .custom() runs first (unconditionally) to enforce that; .optional()
+  // after it then preserves the exact prior skip-on-falsy behavior for the
+  // generic Contact page, which never sends these fields at all.
+  body('phone')
+    .custom((value, { req }) => {
+      const isB2B = req.body.segment && req.body.segment !== 'general';
+      if (isB2B && !String(value || '').trim()) throw new Error('Phone number is required');
+      return true;
+    })
+    .optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Phone number too long'),
+  body('expectedGuests')
+    .custom((value, { req }) => {
+      const isB2B = req.body.segment && req.body.segment !== 'general';
+      if (isB2B && !String(value || '').trim()) throw new Error('Expected guest volume is required');
+      return true;
+    })
+    .optional({ values: 'falsy' }).trim().isLength({ max: 50 }).withMessage('Invalid guest volume'),
   validate
 ], submitContactForm);
 

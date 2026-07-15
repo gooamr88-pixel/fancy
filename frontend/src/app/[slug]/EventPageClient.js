@@ -8,7 +8,6 @@ import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
 import { useIsClient } from '../utils/useIsClient';
 import { extractYouTubeId } from '../utils/youtube';
-import { publicApiFetch } from '../utils/publicApi';
 import {
   FadeInUp,
   StaggerChildren,
@@ -29,7 +28,6 @@ import {
   GalleryLightbox,
   CalendarButton,
   ShareButton,
-  DressCodeVisualizer,
   inputStyle,
   inputFocus,
   inputBlur,
@@ -124,13 +122,13 @@ WEDDING_VARIANT_TEMPLATES.forEach(key => {
   templateLabels.ar[key] = 'دعوة زفاف';
 });
 
-// The /demo and /demo-wedding routes render a fixed showcase event — fully
+// The /demo-wedding route renders a fixed showcase event — fully
 // deterministic from the slug, so it's provided via lazy initial state
 // instead of a "fetch" that only ever synchronously resolves. (It used to
 // live inside fetchEvent's async body as a same-tick early-return, which is
 // exactly the "setState before any await" pattern that trips up an effect
 // calling that function — see the mount-fetch effect below.)
-const DEMO_SLUGS = new Set(['demo-wedding', 'demo']);
+const DEMO_SLUGS = new Set(['demo-wedding']);
 function getDemoEventData(slug) {
   return {
     id: 'demo-uuid',
@@ -343,17 +341,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const isDemoSlug = DEMO_SLUGS.has(slug);
   const [event, setEvent] = useState(() => initialEvent || (isDemoSlug ? getDemoEventData(slug) : null));
   const [guestRsvp, setGuestRsvp] = useState(null);
-  // Real seating-chart table assignment for this guest, if any — used by the
-  // Boarding Pass section so its "table" detail is the organizer's actual
-  // seating chart rather than a stylized stand-in. null while unrevealed/not
-  // yet assigned/not fetched; the boarding pass falls back to its stylized
-  // date-derived display in that case.
-  const [assignedTableName, setAssignedTableName] = useState(null);
-  // The same real, signed check-in ticket token used by the door scanner and
-  // the emailed ticket link (tokenService.signQrTicketForResponse) — only
-  // ever minted server-side for a confirmed "yes". Lets the Boarding Pass
-  // section show a genuinely scannable QR instead of decorative filler.
-  const [assignedQrToken, setAssignedQrToken] = useState(null);
   const [loading, setLoading] = useState(() => !initialEvent && !isDemoSlug);
   const [error, setError] = useState(null);
   const [timeLeft, setTimeLeft] = useState({});
@@ -597,31 +584,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   useEffect(() => {
     fetchEventWithPasswordRef.current = (pw) => { setLoading(true); setError(null); fetchEvent(pw); };
   }, [fetchEvent]);
-
-  // Real seating-chart table assignment + real check-in QR token for the
-  // Boarding Pass section — a separate, lightweight fetch (not part of the
-  // main event payload) so it never blocks/delays the guest page render.
-  // Both stay null for an unidentified visitor (e.g. a "public" link opened
-  // on a device that has never RSVP'd here) — there is no guest to look up
-  // yet, so the boarding pass correctly falls back to its stylized display.
-  useEffect(() => {
-    if (!effectiveRsvpId) return;
-    let cancelled = false;
-    const fetchAssignedTable = async (attempt = 0) => {
-      try {
-        const data = await publicApiFetch(`/public/rsvp/guest/${effectiveRsvpId}`);
-        if (cancelled) return;
-        if (data.guest?.table_name) setAssignedTableName(data.guest.table_name);
-        if (data.guest?.qrToken) setAssignedQrToken(data.guest.qrToken);
-      } catch (err) {
-        // One quiet retry — a transient network blip shouldn't permanently
-        // hide a real table assignment behind the stylized fallback.
-        if (!cancelled && attempt === 0) setTimeout(() => fetchAssignedTable(1), 1500);
-      }
-    };
-    fetchAssignedTable();
-    return () => { cancelled = true; };
-  }, [effectiveRsvpId]);
 
   useEffect(() => {
     // The demo event is set via lazy initial state above — nothing to fetch.
@@ -960,8 +922,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         <HeritageArchPage
           event={event}
           guestRsvp={guestRsvp}
-          assignedTableName={assignedTableName}
-          assignedQrToken={assignedQrToken}
           lang={lang}
           setLang={setLang}
           isRTL={isRTL}
@@ -1370,11 +1330,24 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                       <span style={{ fontSize: '12px', color: themeColor, textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
                         <Icon name="calendar" size={13} strokeWidth={1.6} /> {t.when}
                       </span>
-                      <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '18px', color: '#191B1E', fontWeight: 600, display: 'block', marginBottom: '10px' }}>
                         {new Date(event.event_date).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}
                       </span>
-                      <span style={{ fontSize: '14px', color: '#77736A', display: 'block' }}>
-                        {t.starting_at} {new Date(event.event_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                      {/* Event Time — its own clearly bordered badge so start
+                          (and end, when the host set one) time never reads as
+                          an afterthought next to the date. */}
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '7px',
+                        padding: '7px 14px', borderRadius: '999px',
+                        background: `${themeColor}0F`, border: `1px solid ${themeColor}40`,
+                      }}>
+                        <Icon name="clock" size={13} color={themeColor} strokeWidth={1.8} />
+                        <span style={{ fontSize: '13px', color: '#191B1E', fontWeight: 700 }}>
+                          {new Date(event.event_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                          {event.event_end_date && (
+                            <> – {new Date(event.event_end_date).toLocaleTimeString(lang === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}</>
+                          )}
+                        </span>
                       </span>
                     </BentoCard>
                   </StaggerItem>
@@ -1425,8 +1398,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                               <span style={{ fontSize: '15px', color: '#77736A', fontStyle: 'italic', display: 'block', marginTop: '16px' }}>
                                 {localizedDressCode}
                               </span>
-                              {/* Beautiful 3D illustrated dress code guide */}
-                              <DressCodeVisualizer dressCodeText={event.dress_code} isRTL={isRTL} />
                             </motion.div>
                           )}
                         </AnimatePresence>
@@ -1760,10 +1731,22 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                     )}
                   </BentoCard>
                 ) : (
-                  <BentoCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '20px', padding: '36px 28px' }}>
+                  <BentoCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '18px', padding: '36px 28px' }}>
                     <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
-                    <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6 }}>
-                      {t.reply_by} <strong style={{ color: '#191B1E' }}>{event.rsvp_deadline ? new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { timeZone: 'UTC' }) : 'N/A'}</strong> {t.card_desc}
+                    {event.rsvp_deadline && (
+                      <div style={{
+                        display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '8px',
+                        padding: '9px 18px', borderRadius: '999px',
+                        background: `${themeColor}0F`, border: `1px solid ${themeColor}40`,
+                      }}>
+                        <Icon name="clock" size={13} color={themeColor} strokeWidth={1.8} />
+                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#191B1E' }}>
+                          {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                        </span>
+                      </div>
+                    )}
+                    <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6, margin: 0 }}>
+                      {t.card_desc}
                     </p>
                     <GlowPulse color={themeColor} intensity={0.25}>
                       <button type="button" onClick={scrollToRsvpSection} style={{

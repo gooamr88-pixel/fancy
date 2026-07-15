@@ -13,6 +13,136 @@ const C = {
 
 const METHOD_ICON = { bank: 'bank', wallet: 'mobile', instapay: 'lightning', cash: 'cash', paypal: 'wallet', other: 'creditCard' };
 
+/* Collapsed "Have a promo code?" link that expands into a redeem box. A
+   valid code publishes the event immediately — free, no Stripe/manual
+   payment, no admin review wait — via the onRedeem callback the wizard
+   provides (mirrors onPayStripe/onPayManual: this component never talks to
+   the API directly, the wizard owns that and updates isPaid/currentTierName
+   on success the same way a real payment would). */
+function PromoCodeBox({ onRedeem, processing }) {
+  const [expanded, setExpanded] = useState(false);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null); // { type: 'error'|'success', text }
+  const [focused, setFocused] = useState(false);
+
+  const submit = async () => {
+    if (!code.trim() || busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const result = await onRedeem(code.trim());
+      setMsg({ type: result?.ok ? 'success' : 'error', text: result?.message || (result?.ok ? 'Your event is now live!' : 'That code could not be redeemed.') });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="promo-trigger"
+        style={{
+          background: C.white, border: `1.5px dashed ${C.gold}`, borderRadius: 999,
+          color: C.gold, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', marginBottom: 20, display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '9px 16px 9px 9px', transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+      >
+        <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(184, 148, 79, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name="ticket" size={13} strokeWidth={1.8} />
+        </span>
+        Have a promo code?
+        <style jsx>{`
+          .promo-trigger:hover { background: rgba(184, 148, 79, 0.06); box-shadow: 0 4px 14px rgba(184, 148, 79, 0.16); transform: translateY(-1px); }
+        `}</style>
+      </button>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: 'linear-gradient(160deg, #FFFEFC 0%, #FBF6EA 100%)',
+        border: `1.5px dashed ${C.gold}`, borderRadius: 16, padding: 20, marginBottom: 24,
+        boxShadow: '0 2px 16px rgba(184, 148, 79, 0.08)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <span style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(184, 148, 79, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name="ticket" size={17} color={C.gold} strokeWidth={1.6} />
+        </span>
+        <div>
+          <h4 style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 600, color: C.charcoal, margin: 0 }}>Redeem a Promo Code</h4>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: '2px 0 0', lineHeight: 1.5 }}>
+            Publishes your event immediately — free, no payment, no review wait.
+          </p>
+        </div>
+      </div>
+      <div className="promo-row" style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+        <input
+          value={code}
+          onChange={(e) => { setCode(e.target.value.toUpperCase()); setMsg(null); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="e.g. FANCY2026"
+          disabled={busy || processing}
+          style={{
+            flex: '1 1 180px', height: 46, padding: '0 16px',
+            border: `1.5px solid ${focused ? C.gold : C.border}`, borderRadius: 10,
+            fontFamily: 'monospace', fontSize: 14, fontWeight: 700, letterSpacing: '0.06em', color: C.charcoal,
+            outline: 'none', boxSizing: 'border-box', background: C.white,
+            boxShadow: focused ? '0 0 0 3px rgba(184, 148, 79, 0.15)' : 'none',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || processing || !code.trim()}
+          className="promo-submit"
+          style={{
+            height: 46, padding: '0 24px', borderRadius: 10, border: 'none',
+            background: (busy || processing || !code.trim()) ? '#C9C4BA' : 'linear-gradient(135deg, #C5A86B, #A6833F)',
+            color: C.white, fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+            cursor: (busy || processing || !code.trim()) ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, whiteSpace: 'nowrap',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
+          {busy ? 'Redeeming…' : 'Redeem'}
+        </button>
+      </div>
+      {msg && (
+        <div
+          style={{
+            marginTop: 12, display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px',
+            borderRadius: 10, background: msg.type === 'success' ? 'rgba(59, 155, 109, 0.08)' : 'rgba(196, 94, 94, 0.08)',
+            border: `1px solid ${msg.type === 'success' ? 'rgba(59, 155, 109, 0.25)' : 'rgba(196, 94, 94, 0.25)'}`,
+          }}
+        >
+          <span style={{ flexShrink: 0, marginTop: 1 }}>
+            <Icon name={msg.type === 'success' ? 'check' : 'warning'} size={15} color={msg.type === 'success' ? C.success : C.error} strokeWidth={1.8} />
+          </span>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 600, color: msg.type === 'success' ? C.success : C.error, margin: 0, lineHeight: 1.5 }}>
+            {msg.text}
+          </p>
+        </div>
+      )}
+      <style jsx>{`
+        .promo-submit:not(:disabled):hover { filter: brightness(1.06); box-shadow: 0 6px 18px rgba(184, 148, 79, 0.3); transform: translateY(-1px); }
+        @media (max-width: 460px) {
+          .promo-row { flex-direction: column; }
+          .promo-row button { width: 100%; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function CopyBtn({ value }) {
   const [copied, setCopied] = useState(false);
   if (!value) return null;
@@ -39,7 +169,7 @@ export default function StagePayment({
   processing, error, onContinue, onBack, onSkip,
   paymentConfirmed = false, paymentNotice = '', verifying = false, onRecheckPayment,
   isPaid = false, currentTierName = '', currentTierMaxGuests = null,
-  stripeEnabled = true, referralCreditCents = 0,
+  stripeEnabled = true, referralCreditCents = 0, onRedeemPromoCode,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
   // When card payments are off (pre-live), the manual-transfer panel IS the flow —
@@ -317,6 +447,14 @@ export default function StagePayment({
             You have {fmt(referralCreditCents)} in referral credit — it will be applied automatically to your payment below.
           </span>
         </div>
+      )}
+
+      {/* Promo code — self-service alternative to paying at all. Only offered
+          on a fresh/unpaid event, not mid-upgrade (an already-active event
+          upgrading tiers is a real paid change, not something a free-publish
+          code is meant to cover). */}
+      {!showCurrentPlan && !showPendingPlan && !upgrading && onRedeemPromoCode && (
+        <PromoCodeBox onRedeem={onRedeemPromoCode} processing={processing} />
       )}
 
       {/* Tier cards (selection / upgrade) */}

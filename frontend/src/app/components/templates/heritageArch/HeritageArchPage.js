@@ -20,7 +20,6 @@ import GiftListSection from './sections/GiftListSection';
 import FaqSection from './sections/FaqSection';
 import GallerySection from './sections/GallerySection';
 import InvitedToSection from './sections/InvitedToSection';
-import BoardingPassSection from './sections/BoardingPassSection';
 import ThingsToDoSection from './sections/ThingsToDoSection';
 import GettingThereSection from './sections/GettingThereSection';
 import RsvpSection from './sections/RsvpSection';
@@ -57,7 +56,7 @@ export default function HeritageArchPage({
   event, guestRsvp, lang, setLang, isRTL, t, timeLeft, musicPlaying, toggleMusic,
   hasBackgroundMusic, hasResponded, responseStatus, allowGuestEdits, slug, effectiveRsvpId, trackEvent,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
-  assignedTableName, assignedQrToken, isPreview = false,
+  isPreview = false,
 }) {
   const td = event.template_data || {};
   const customColors = event.custom_colors || {};
@@ -83,6 +82,11 @@ export default function HeritageArchPage({
   // full span, and gluing one clock time onto it would misleadingly imply
   // the whole range starts then.
   const timeLine = !event.event_end_date ? formatTimeLine(event.event_date, isRTL) : null;
+  // Event start/end time — always computed (regardless of single- vs.
+  // multi-day) for the dedicated "Event Time" card in the Countdown section,
+  // so guests always see exactly when things begin and wrap up.
+  const startTimeLine = formatTimeLine(event.event_date, isRTL);
+  const endTimeLine = event.event_end_date ? formatTimeLine(event.event_end_date, isRTL) : null;
 
   // Custom's "what kind of event is this?" category (Stage 2) drives the hero
   // name/tagline for every category with no "couple" — wedding/engagement
@@ -175,7 +179,6 @@ export default function HeritageArchPage({
   const invitedToLng = td.ha_invited_to_lng ?? primaryVenue.lng;
   const mealOptions = parseMealOptions(td.ha_meal_options, isPreview);
   const galleryImages = Array.isArray(event.gallery_urls) && event.gallery_urls.length > 0 ? event.gallery_urls : [];
-  const dressCodeSwatches = [customColors.primary, customColors.secondary].filter(Boolean);
   const giftRegistry = td.registryUrl || td.giftRegistry || null;
 
   // ── New sections (Phase 1): all graceful-hide when their data is empty ──
@@ -188,17 +191,6 @@ export default function HeritageArchPage({
     iban: td.ha_gift_iban || '',
   };
   const hasGiftList = !!(giftRegistry || giftBank.name || giftBank.iban);
-  // Boarding-pass values are auto-derived from the event — no organizer input
-  // required beyond an optional flight-code override. The "L♡V" couple-heart
-  // treatment only makes sense when there's an actual couple (wedding/
-  // engagement); every other custom category (corporate, graduation, gala…)
-  // falls back to plain initials from the honoree/event name instead.
-  const boardingInitials = [partner1, partner2]
-    .map((n) => (n ? n.trim().charAt(0).toUpperCase() : ''))
-    .filter(Boolean)
-    .join('♡')
-    || (heroTitle ? heroTitle.trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') : null)
-    || null;
 
   // Sections are assembled Hero + Countdown (+ Cover Photo) first, RSVP last —
   // both fixed anchors. Every content section in between is keyed by the same
@@ -214,7 +206,7 @@ export default function HeritageArchPage({
     middleSections.venues = { id: 'ha-venues', content: <VenuesSection days={haDays} isRTL={isRTL} t={t} /> };
   }
   if (dressCode && sectionOn('dresscode')) {
-    middleSections.dresscode = { id: 'ha-dresscode', content: <DressCodeSection dressCode={dressCode} colors={{ swatches: dressCodeSwatches }} isRTL={isRTL} /> };
+    middleSections.dresscode = { id: 'ha-dresscode', content: <DressCodeSection dressCode={dressCode} isRTL={isRTL} /> };
   }
   if (ourStory && sectionOn('story')) {
     middleSections.story = { id: 'ha-story', content: <OurStorySection story={ourStory} isRTL={isRTL} /> };
@@ -237,19 +229,6 @@ export default function HeritageArchPage({
   if (invitedToCity && sectionOn('invited')) {
     middleSections.invited = { id: 'ha-invited', content: <InvitedToSection city={invitedToCity} lat={invitedToLat} lng={invitedToLng} isRTL={isRTL} /> };
   }
-  if (event.event_date && invitedToCity && sectionOn('boarding')) {
-    middleSections.boarding = {
-      id: 'ha-boarding',
-      content: (
-        <BoardingPassSection
-          destination={invitedToCity} dateISO={event.event_date} initials={boardingInitials}
-          flightCode={td.ha_boarding_flight_code} isRTL={isRTL} eventSlug={slug}
-          assignedTableName={assignedTableName} partySize={guestRsvp?.party_size}
-          qrToken={assignedQrToken}
-        />
-      ),
-    };
-  }
   if (thingsToDo.length > 0 && sectionOn('thingstodo')) {
     middleSections.thingstodo = { id: 'ha-thingstodo', content: <ThingsToDoSection items={thingsToDo} isRTL={isRTL} /> };
   }
@@ -257,7 +236,7 @@ export default function HeritageArchPage({
     middleSections.gettingthere = { id: 'ha-gettingthere', content: <GettingThereSection text={gettingThere} isRTL={isRTL} /> };
   }
 
-  const DEFAULT_SECTION_ORDER = ['schedule', 'venues', 'dresscode', 'story', 'accommodation', 'menu', 'giftlist', 'faq', 'gallery', 'invited', 'boarding', 'thingstodo', 'gettingthere'];
+  const DEFAULT_SECTION_ORDER = ['schedule', 'venues', 'dresscode', 'story', 'accommodation', 'menu', 'giftlist', 'faq', 'gallery', 'invited', 'thingstodo', 'gettingthere'];
   const savedOrder = Array.isArray(td.sectionOrder) ? td.sectionOrder : [];
   const resolvedOrder = [
     ...savedOrder.filter((k) => middleSections[k]),
@@ -278,7 +257,7 @@ export default function HeritageArchPage({
         />
       ),
     },
-    { id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} /> },
+    { id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} startTime={startTimeLine} endTime={endTimeLine} /> },
   ];
 
   // The cover photo, now that the template card is the hero centerpiece, gets

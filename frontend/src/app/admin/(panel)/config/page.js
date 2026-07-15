@@ -289,7 +289,7 @@ export default function ConfigPage() {
 
   const addStat = (e) => {
     e?.preventDefault?.();
-    setLandingStats(prev => [...prev, { label: 'New Stat', target: 0, suffix: '+', decimals: 0 }]);
+    setLandingStats(prev => [...prev, { label: 'New Stat', target: 0, suffix: '+', decimals: 0, source: 'static' }]);
   };
 
   const removeStat = async (idx) => {
@@ -632,8 +632,18 @@ export default function ConfigPage() {
                           <Field label="Label">
                             <input value={s.label} onChange={e => updateStat(idx, 'label', e.target.value)} style={inputStyle} />
                           </Field>
-                          <Field label="Value">
-                            <input type="number" step="any" value={s.target} onChange={e => updateStat(idx, 'target', e.target.value)} style={inputStyle} />
+                          <Field label={s.source === 'events_count' || s.source === 'guests_count' ? 'Value (live count)' : 'Value'}>
+                            {s.source === 'events_count' || s.source === 'guests_count' ? (
+                              <input
+                                type="text"
+                                value={s.source === 'events_count' ? 'Live events count' : 'Live guests count'}
+                                disabled
+                                title="This number is computed from real platform data at request time, not admin-set."
+                                style={{ ...inputStyle, color: T.text500, fontStyle: 'italic', cursor: 'not-allowed' }}
+                              />
+                            ) : (
+                              <input type="number" step="any" value={s.target} onChange={e => updateStat(idx, 'target', e.target.value)} style={inputStyle} />
+                            )}
                           </Field>
                           <Field label="Suffix (e.g. + or %)">
                             <input value={s.suffix} onChange={e => updateStat(idx, 'suffix', e.target.value)} style={inputStyle} />

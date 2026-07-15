@@ -362,11 +362,6 @@ export default function FooterSection() {
             <SocialIcon label="Facebook" href="https://www.facebook.com/viamarketing.ca">
               <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3Z" />
             </SocialIcon>
-
-            {/* X / Twitter */}
-            <SocialIcon label="X" href="https://twitter.com/viamarketingca">
-              <path d="M22 4s-1.3.8-3 1.2A4.8 4.8 0 0 0 12 8v1A10.5 10.5 0 0 1 3 4s-4 9 5 13a11.6 11.6 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.1-.9A7.7 7.7 0 0 0 22 4Z" />
-            </SocialIcon>
           </div>
         </div>
       </div>

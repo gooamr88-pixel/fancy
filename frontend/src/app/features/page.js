@@ -5,6 +5,7 @@ import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import GoldDivider from "../components/GoldDivider";
 import Icon from "../components/icons/Icon";
+import { useLandingStats, formatStatValue } from "../utils/useLandingStats";
 
 const features = [
   {
@@ -100,6 +101,103 @@ const features = [
         <circle cx="17" cy="17" r="3" stroke="#B8944F" strokeWidth="1" />
         <path d="M28 14l6 6" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
         <path d="M34 14l-6 6" stroke="#B8944F" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+  {
+    title: "SMS Campaigns",
+    description:
+      "Reach every guest instantly with segmented bulk messaging and live delivery tracking. Credits are billed transparently per message and automatically refunded for anything that fails to deliver.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <path d="M40 24c0 8.837-7.163 16-16 16-2.761 0-5.361-.698-7.625-1.925L8 40l2.4-7.2C8.88 30.2 8 27.2 8 24 8 15.163 15.163 8 24 8s16 7.163 16 16z" stroke="#B8944F" strokeWidth="1.5" strokeLinejoin="round" />
+        <circle cx="17" cy="24" r="1.8" fill="#B8944F" />
+        <circle cx="24" cy="24" r="1.8" fill="#B8944F" />
+        <circle cx="31" cy="24" r="1.8" fill="#B8944F" />
+        <path d="M32 12l3 3" stroke="#D7BE80" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="M36 9l2 2" stroke="#D7BE80" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
+      </svg>
+    ),
+  },
+  {
+    title: "QR Check-In",
+    description:
+      "Every guest carries a personal, scannable ticket. Check them in with a camera scan or name search at the door, or let them arrive themselves — either way it syncs to your dashboard in real time.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <rect x="8" y="8" width="14" height="14" rx="2" stroke="#B8944F" strokeWidth="1.5" />
+        <rect x="26" y="8" width="14" height="14" rx="2" stroke="#B8944F" strokeWidth="1.5" />
+        <rect x="8" y="26" width="14" height="14" rx="2" stroke="#B8944F" strokeWidth="1.5" />
+        <rect x="12" y="12" width="6" height="6" rx="1" fill="#B8944F" opacity="0.25" />
+        <rect x="30" y="12" width="6" height="6" rx="1" fill="#B8944F" opacity="0.25" />
+        <rect x="12" y="30" width="6" height="6" rx="1" fill="#B8944F" opacity="0.25" />
+        <path d="M27 31l5 5 7-9" stroke="#D7BE80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    title: "Bilingual Invitations",
+    description:
+      "Write your invitation title, description, and dress code in English and Arabic side by side. Guests get a genuine right-to-left layout, localized dates, and a one-tap language toggle.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="16" stroke="#B8944F" strokeWidth="1.5" />
+        <ellipse cx="24" cy="24" rx="7" ry="16" stroke="#D7BE80" strokeWidth="1.2" />
+        <path d="M8 24h32" stroke="#D7BE80" strokeWidth="1.2" />
+        <path d="M10.5 16h27M10.5 32h27" stroke="#D7BE80" strokeWidth="1" opacity="0.6" />
+      </svg>
+    ),
+  },
+  {
+    title: "Cinematic Invitation Reveal",
+    description:
+      "A tap-to-open wax seal sets the tone before guests even see your invite. It's a fully generated, personalized animation in your event's own colors and names — never a stock template.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <path d="M24 8l3.5 7.5L36 17l-6 6.5L31 32l-7-4-7 4 1-8.5L12 17l8.5-1.5L24 8z" stroke="#B8944F" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M18 32l-4 8 6-2 4 6 4-6 6 2-4-8" stroke="#D7BE80" strokeWidth="1.2" strokeLinejoin="round" />
+        <circle cx="24" cy="20" r="3" stroke="#B8944F" strokeWidth="1" />
+      </svg>
+    ),
+  },
+  {
+    title: "Automated Reminders",
+    description:
+      "The platform emails itself — RSVP nudges as your deadline nears, event reminders that include each guest's table once seating is revealed, and an automatic final headcount plus post-event recap sent straight to you.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <rect x="6" y="12" width="26" height="20" rx="3" stroke="#B8944F" strokeWidth="1.5" />
+        <path d="M6 14l13 10 13-10" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="34" cy="30" r="9" fill="#FDFCF9" stroke="#D7BE80" strokeWidth="1.5" />
+        <path d="M34 25v5l3.5 2" stroke="#B8944F" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  {
+    title: "Referral Rewards",
+    description:
+      "Invite other hosts to Fancy RSVP and earn real account credit once they become a paying customer — tracked transparently in a ledger-based dashboard with your own referral code and live status on every referral.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <circle cx="14" cy="24" r="6" stroke="#B8944F" strokeWidth="1.5" />
+        <circle cx="34" cy="24" r="6" stroke="#B8944F" strokeWidth="1.5" />
+        <path d="M20 20h10a4 4 0 0 1 4 4" stroke="#D7BE80" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+        <path d="M31 17l3 3-3 3" stroke="#D7BE80" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d="M28 28H18a4 4 0 0 1-4-4" stroke="#D7BE80" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+        <path d="M17 31l-3-3 3-3" stroke="#D7BE80" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
+    ),
+  },
+  {
+    title: "Private Seating Lookup",
+    description:
+      "Guests confirm their own seat with just their name and the last four digits of their phone number — no accounts, no guessing. Seating stays locked until your reveal time, and a search never confirms whether a name exists.",
+    icon: (
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <circle cx="20" cy="20" r="12" stroke="#B8944F" strokeWidth="1.5" />
+        <path d="M29 29l9 9" stroke="#B8944F" strokeWidth="1.8" strokeLinecap="round" />
+        <rect x="15" y="17" width="10" height="8" rx="1.5" stroke="#D7BE80" strokeWidth="1.2" />
+        <path d="M17 17v-2a3 3 0 0 1 6 0v2" stroke="#D7BE80" strokeWidth="1.2" fill="none" />
       </svg>
     ),
   },
@@ -221,6 +319,7 @@ function FeatureCard({ feature, index }) {
 }
 
 export default function FeaturesPage() {
+  const { stats } = useLandingStats();
   return (
     <>
       <Navbar />
@@ -335,17 +434,12 @@ export default function FeaturesPage() {
               maxWidth: "1200px",
               margin: "0 auto",
               display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
+              gridTemplateColumns: "repeat(3, 1fr)",
               gap: "40px",
               textAlign: "center",
             }}
           >
-            {[
-              { value: "50K+", label: "Events Created" },
-              { value: "2M+", label: "RSVPs Managed" },
-              { value: "99.9%", label: "Uptime" },
-              { value: "4.9★", label: "User Rating" },
-            ].map((stat) => (
+            {stats.map((stat) => (
               <div key={stat.label}>
                 <div
                   style={{
@@ -356,7 +450,7 @@ export default function FeaturesPage() {
                     marginBottom: "8px",
                   }}
                 >
-                  {stat.value}
+                  {formatStatValue(stat)}
                 </div>
                 <div
                   style={{

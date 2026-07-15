@@ -4,7 +4,7 @@ import { toast } from '../../utils/toast';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { logout } from '../../utils/apiClient';
+import { logout, apiFetch } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
 import { useIsClient } from '../../utils/useIsClient';
 import Icon from '../../components/icons/Icon';
@@ -29,19 +29,27 @@ const PAGE_SIZE = 100;     // server page size for guest list
 
 const SHAPES = {
   // ── seatable tables ──
-  round:       { label: 'Round Table',     cat: 'table', w: 96,  h: 96,  seatable: true,  round: true,  defaultCap: 8 },
+  round:       { label: 'Round Table',     cat: 'table', w: 96,  h: 96,  seatable: true,  round: true,  defaultCap: 10 },
   oval:        { label: 'Oval Table',       cat: 'table', w: 132, h: 86,  seatable: true,  round: true,  defaultCap: 10 },
-  square:      { label: 'Square Table',     cat: 'table', w: 96,  h: 96,  seatable: true,  round: false, defaultCap: 8 },
-  rectangle:   { label: 'Rectangle Table',  cat: 'table', w: 168, h: 84,  seatable: true,  round: false, defaultCap: 8 },
-  banquet:     { label: 'Banquet Table',    cat: 'table', w: 230, h: 80,  seatable: true,  round: false, defaultCap: 12 },
-  head:        { label: 'Head Table',       cat: 'table', w: 250, h: 76,  seatable: true,  round: false, defaultCap: 6 },
+  square:      { label: 'Square Table',     cat: 'table', w: 96,  h: 96,  seatable: true,  round: false, defaultCap: 10 },
+  rectangle:   { label: 'Rectangle Table',  cat: 'table', w: 168, h: 84,  seatable: true,  round: false, defaultCap: 10 },
+  banquet:     { label: 'Banquet Table',    cat: 'table', w: 230, h: 80,  seatable: true,  round: false, defaultCap: 10 },
+  head:        { label: 'Head Table',       cat: 'table', w: 250, h: 76,  seatable: true,  round: false, defaultCap: 10 },
   // ── non-seating venue zones ──
-  stage:       { label: 'Stage',            cat: 'zone',  w: 360, h: 150, icon: 'mic', color: '#3B3A55' },
-  dance_floor: { label: 'Dance Floor',      cat: 'zone',  w: 280, h: 280, icon: 'discoBall', color: '#6B5FA8' },
-  bar:         { label: 'Bar',              cat: 'zone',  w: 240, h: 92,  icon: 'cocktail', color: '#9C5A3C' },
-  dj_booth:    { label: 'DJ Booth',         cat: 'zone',  w: 132, h: 112, icon: 'headphones', color: '#2F5E8C' },
-  entrance:    { label: 'Entrance',         cat: 'zone',  w: 150, h: 70,  icon: 'door', color: '#4A7C59' },
-  custom:      { label: 'Custom Area',      cat: 'zone',  w: 190, h: 130, icon: 'star', color: '#B8944F' },
+  stage:         { label: 'Stage',            cat: 'zone',  w: 360, h: 150, icon: 'mic', color: '#3B3A55' },
+  dance_floor:   { label: 'Dance Floor',      cat: 'zone',  w: 280, h: 280, icon: 'discoBall', color: '#6B5FA8' },
+  bar:           { label: 'Bar',              cat: 'zone',  w: 240, h: 92,  icon: 'cocktail', color: '#9C5A3C' },
+  dj_booth:      { label: 'DJ Booth',         cat: 'zone',  w: 132, h: 112, icon: 'headphones', color: '#2F5E8C' },
+  entrance:      { label: 'Entrance',         cat: 'zone',  w: 150, h: 70,  icon: 'door', color: '#4A7C59' },
+  restroom:      { label: 'WC',               cat: 'zone',  w: 120, h: 100, icon: 'restroom', color: '#3C7A89' },
+  coat_check:    { label: 'Coat Check',       cat: 'zone',  w: 150, h: 90,  icon: 'coatHanger', color: '#6E5A46' },
+  gift_table:    { label: 'Gift Table',       cat: 'zone',  w: 150, h: 90,  icon: 'gift', color: '#B85C7A' },
+  cake_table:    { label: 'Cake Table',       cat: 'zone',  w: 130, h: 100, icon: 'cake', color: '#C97A9C' },
+  photo_booth:   { label: 'Photo Booth',      cat: 'zone',  w: 170, h: 130, icon: 'camera', color: '#4A6FA5' },
+  welcome_desk:  { label: 'Welcome Desk',     cat: 'zone',  w: 170, h: 85,  icon: 'clipboard', color: '#5A7A5E' },
+  buffet:        { label: 'Buffet',           cat: 'zone',  w: 220, h: 90,  icon: 'restaurant', color: '#A2662E' },
+  lounge:        { label: 'Lounge Area',      cat: 'zone',  w: 220, h: 160, icon: 'sofa', color: '#7D6A9A' },
+  custom:        { label: 'Custom Area',      cat: 'zone',  w: 190, h: 130, icon: 'star', color: '#B8944F' },
 };
 // Legacy alias from the original 2-shape model
 const shapeMeta = (shape) => SHAPES[shape === 'rectangular' ? 'rectangle' : shape] || SHAPES.round;
@@ -118,9 +126,15 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
       }}
     >
       {zone ? (
-        <>
-          <span style={{ fontSize: 13, fontWeight: 700, color: C.charcoal, maxWidth: '92%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pointerEvents: 'none', textAlign: 'center' }}>{el.table_name}</span>
-        </>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, maxWidth: '90%', pointerEvents: 'none' }}>
+          {meta.icon && <Icon name={meta.icon} size={16} color={color} strokeWidth={1.8} />}
+          <span style={{
+            fontSize: 13, fontWeight: 800, color: C.charcoal, textTransform: 'uppercase', letterSpacing: '0.03em',
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', textAlign: 'center',
+          }}>
+            {el.table_name}
+          </span>
+        </div>
       ) : (
         <>
           {renderSeats(el.shape, cap, occupied, w, h)}
@@ -296,6 +310,12 @@ export default function SeatingMapPage() {
   const [eventIsPaid, setEventIsPaid] = useState(null); // null = loading, true/false = known
   const [hasSeatingFeature, setHasSeatingFeature] = useState(null); // null = loading, true/false = known
   const [eventTitle, setEventTitle] = useState('');
+  const [eventDate, setEventDate] = useState(null);
+  // Organizer's own display name — shown on the printed/exported chart's
+  // letterhead ("Prepared for <organizer>") alongside the event name and the
+  // Fancy RSVP brand mark. Non-critical: the print header just omits it if
+  // this fetch fails, so it's kept out of the page's main loading/error gate.
+  const [organizerName, setOrganizerName] = useState('');
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const [elements, setElements] = useState([]);          // tables + zones
@@ -365,6 +385,14 @@ export default function SeatingMapPage() {
   const interaction = useRef(null);                      // { mode, id, ... }
   const movedIdsRef = useRef(new Set());                 // mirrors movedIds for loadLayout merge
   const dirtyGeometryRef = useRef({});                   // id -> { width, height, rotation } unsaved
+  // Shift-drag rubber-band select — { x0, y0, x1, y1 } in viewport-relative
+  // screen px while active, null otherwise. Mirrored to a ref so the
+  // pointerup handler (below) always reads the latest rectangle, same reason
+  // dragPos/groupDragPos are mirrored.
+  const [marquee, setMarquee] = useState(null);
+  const marqueeRef = useRef(null);
+  const elementsRef = useRef(elements);                  // lets pointerup read latest elements w/o re-binding the effect
+  const viewRef = useRef(view);                           // lets pointerup read the latest pan/zoom w/o re-binding the effect
 
   const selected = useMemo(() => elements.find(e => e.id === selectedId) || null, [elements, selectedId]);
 
@@ -387,6 +415,7 @@ export default function SeatingMapPage() {
         const data = await res.json();
         if (data?.event) {
           setEventTitle(data.event.title || '');
+          setEventDate(data.event.event_date || null);
           setEventIsPaid(!!data.event.is_paid || !!data.event.manual_override);
           // is_paid alone used to be the whole gate here — a paid organizer on a
           // tier that excludes seating_map could still reach this page directly
@@ -407,10 +436,26 @@ export default function SeatingMapPage() {
     })();
   }, [eventId]);
 
+  // Organizer's display name for the print/export letterhead — fetched once,
+  // independent of the event/layout data above.
+  useEffect(() => {
+    if (!isClient) return;
+    (async () => {
+      try {
+        const res = await apiFetch('/auth/profile');
+        const p = res.profile || res;
+        setOrganizerName(p?.name || '');
+      } catch { /* non-critical — the print header just omits the name */ }
+    })();
+  }, [isClient]);
+
   /* ── keep refs in sync ── */
   useEffect(() => { dragPosRef.current = dragPos; }, [dragPos]);
   useEffect(() => { groupDragPosRef.current = groupDragPos; }, [groupDragPos]);
   useEffect(() => { movedIdsRef.current = movedIds; }, [movedIds]);
+  useEffect(() => { marqueeRef.current = marquee; }, [marquee]);
+  useEffect(() => { elementsRef.current = elements; }, [elements]);
+  useEffect(() => { viewRef.current = view; }, [view]);
 
   /* ── load elements + summary (merges with local dirty state) ── */
   const loadLayout = useCallback(async () => {
@@ -815,8 +860,29 @@ export default function SeatingMapPage() {
   }, [elements]);
 
   const onCanvasPointerDown = useCallback((e) => {
-    // background → pan (and deselect)
     if (e.target.closest('[data-el-id]')) return;
+    if (e.button !== 0) return;
+
+    // Shift-drag on empty canvas → rubber-band (marquee) select, so a cluster
+    // of tables can be box-selected in one mouse gesture instead of Ctrl/Cmd-
+    // clicking each one individually. Plain drag still pans, unchanged —
+    // Shift is the same "selection" modifier already used for click-to-toggle
+    // below, just extended to a drag.
+    if (e.shiftKey) {
+      const rect = viewportRef.current.getBoundingClientRect();
+      const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+      setSelectedId(null);
+      // Cmd/Ctrl+Shift-drag adds to the existing selection instead of
+      // replacing it, mirroring how Cmd/Ctrl+click already adds one element.
+      if (!(e.ctrlKey || e.metaKey)) setSelectedIds(new Set());
+      const rectState = { x0: sx, y0: sy, x1: sx, y1: sy };
+      interaction.current = { mode: 'marquee', additive: e.ctrlKey || e.metaKey };
+      marqueeRef.current = rectState;
+      setMarquee(rectState);
+      return;
+    }
+
+    // background → pan (and deselect)
     setSelectedId(null);
     setSelectedIds(new Set());
     setPanning(true);
@@ -867,7 +933,10 @@ export default function SeatingMapPage() {
           finalY = Math.round(finalY / stepY) * stepY;
         }
 
-        const newPos = { id: it.id, x: clamp(finalX, 0, 97), y: clamp(finalY, 0, 97) };
+        // Full range, no inner margin — an element can be dragged flush to
+        // any edge or corner of the venue canvas instead of stopping a few
+        // percent short of it.
+        const newPos = { id: it.id, x: clamp(finalX, 0, 100), y: clamp(finalY, 0, 100) };
         dragPosRef.current = newPos;
         setDragPos(newPos);
       } else if (it.mode === 'group-move') {
@@ -885,7 +954,7 @@ export default function SeatingMapPage() {
         it.ids.forEach(id => {
           const o = it.origins[id];
           if (!o) return;
-          next.set(id, { x: clamp(o.x + dx, 0, 97), y: clamp(o.y + dy, 0, 97) });
+          next.set(id, { x: clamp(o.x + dx, 0, 100), y: clamp(o.y + dy, 0, 100) });
         });
         groupDragPosRef.current = next;
         setGroupDragPos(next);
@@ -904,6 +973,12 @@ export default function SeatingMapPage() {
       } else if (it.mode === 'rotate') {
         it.newRot = Math.round(it.origRot + (e.clientX - it.startX) * 0.5);
         setElements(prev => prev.map(el => el.id === it.id ? { ...el, rotation: it.newRot } : el));
+      } else if (it.mode === 'marquee') {
+        const rect = viewportRef.current.getBoundingClientRect();
+        const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+        const next = { x0: marqueeRef.current.x0, y0: marqueeRef.current.y0, x1: sx, y1: sy };
+        marqueeRef.current = next;
+        setMarquee(next);
       }
     };
     const onUp = async () => {
@@ -960,6 +1035,32 @@ export default function SeatingMapPage() {
         // Track dirty geometry so loadLayout() preserves it
         dirtyGeometryRef.current = { ...dirtyGeometryRef.current, [it.id]: { ...(dirtyGeometryRef.current[it.id] || {}), rotation: it.newRot } };
         persistGeometry(it.id, { rotation: it.newRot });
+      } else if (it.mode === 'marquee') {
+        const rect = marqueeRef.current;
+        marqueeRef.current = null;
+        setMarquee(null);
+        if (!rect) return;
+        const left = Math.min(rect.x0, rect.x1), right = Math.max(rect.x0, rect.x1);
+        const top = Math.min(rect.y0, rect.y1), bottom = Math.max(rect.y0, rect.y1);
+        // A tap with no real drag (e.g. an accidental Shift+click on empty
+        // canvas) shouldn't clear an existing selection someone was building.
+        if (right - left < 4 && bottom - top < 4) return;
+        const { scale, tx, ty } = viewRef.current;
+        const hits = elementsRef.current.filter((el) => {
+          const w = elWidth(el), h = elHeight(el);
+          const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
+          const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+          // Axis-aligned bounding box in world space (ignores rotation, same
+          // simplification most box-select tools use) converted to the same
+          // viewport-relative screen px the marquee rectangle was drawn in.
+          const elLeft = (cx - w / 2) * scale + tx;
+          const elRight = (cx + w / 2) * scale + tx;
+          const elTop = (cy - h / 2) * scale + ty;
+          const elBottom = (cy + h / 2) * scale + ty;
+          return elLeft < right && elRight > left && elTop < bottom && elBottom > top;
+        }).map((el) => el.id);
+        if (hits.length === 0) return;
+        setSelectedIds((prev) => (it.additive ? new Set([...prev, ...hits]) : new Set(hits)));
       }
     };
     window.addEventListener('pointermove', onMove);
@@ -1095,8 +1196,8 @@ export default function SeatingMapPage() {
           tableName: item.tableName || item.name,
           shape: item.shape,
           elementType: item.elementType || meta.cat,
-          x: item.x !== undefined ? item.x : clamp((-view.tx / view.scale) / WORLD_W * 100 + 8, 2, 90),
-          y: item.y !== undefined ? item.y : clamp((-view.ty / view.scale) / WORLD_H * 100 + 8, 2, 90),
+          x: item.x !== undefined ? item.x : clamp((-view.tx / view.scale) / WORLD_W * 100 + 8, 0, 100),
+          y: item.y !== undefined ? item.y : clamp((-view.ty / view.scale) / WORLD_H * 100 + 8, 0, 100),
         };
         if (body.elementType === 'table') body.maxCapacity = item.maxCapacity || item.capacity;
         else { body.width = item.width || meta.w; body.height = item.height || meta.h; body.color = item.color || meta.color; }
@@ -1150,18 +1251,25 @@ export default function SeatingMapPage() {
     // shortcut had no in-flight check, so OS key-repeat while the key was held (or a
     // fast double-click) fired one POST per keydown event — with no uniqueness
     // constraint on table_name, every one of those succeeded, creating dozens of
-    // identically-named "(Copy)" tables from a single held keypress.
+    // identically-named tables from a single held keypress.
     if (!selected || saving) return;
     const meta = shapeMeta(selected.shape);
+    // Every duplicate — table or zone — gets the next free NUMBER in sequence
+    // with everything already on the map, instead of a repeated "(Copy)"
+    // suffix: a table numbers off getNextTableNumber (same as a fresh table),
+    // and a zone reuses its own base label (stripping any trailing number
+    // first, so duplicating "Bar" *or* "Bar 2" both count against the same
+    // "Bar" family) and finds the next free "Bar N".
+    const zoneBaseLabel = selected.table_name?.match(/^(.*?)\s*\d+$/)?.[1]?.trim() || selected.table_name || meta.label;
     const body = {
-      tableName: meta.cat === 'table' ? String(getNextTableNumber(elements)) : getUniqueCopyName(elements, selected.table_name),
+      tableName: meta.cat === 'table' ? String(getNextTableNumber(elements)) : getUniqueZoneName(elements, zoneBaseLabel),
       shape: selected.shape,
       elementType: selected.element_type || meta.cat,
-      x: clamp((Number(selected.position_x) || 0) + 3, 2, 90),
-      y: clamp((Number(selected.position_y) || 0) + 3, 2, 90),
+      x: clamp((Number(selected.position_x) || 0) + 3, 0, 100),
+      y: clamp((Number(selected.position_y) || 0) + 3, 0, 100),
       rotation: Number(selected.rotation) || 0,
     };
-    if (meta.cat === 'table' || selected.max_capacity) body.maxCapacity = selected.max_capacity || meta.defaultCap || 8;
+    if (meta.cat === 'table' || selected.max_capacity) body.maxCapacity = selected.max_capacity || meta.defaultCap || 10;
     if (isZone(selected)) {
       body.width = elWidth(selected);
       body.height = elHeight(selected);
@@ -1174,7 +1282,10 @@ export default function SeatingMapPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to duplicate element');
-      loadLayout();
+      // Awaited (not fire-and-forget) so `elements` reflects this new element
+      // before the button re-enables — otherwise a fast second click could
+      // compute the same "next number" again off the stale list and collide.
+      await loadLayout();
     } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   }, [selected, saving, elements, eventId, loadLayout]);
@@ -1256,7 +1367,7 @@ export default function SeatingMapPage() {
         const currentY = pctToPx(selected.position_y, WORLD_H);
         let targetY = currentY - step;
         if (snapToGrid) targetY = Math.round(targetY / 32) * 32;
-        const newYPct = clamp((targetY / WORLD_H) * 100, 0, 97);
+        const newYPct = clamp((targetY / WORLD_H) * 100, 0, 100);
         
         setElements(prev => {
           const updated = prev.map(el => el.id === selected.id ? { ...el, position_y: newYPct } : el);
@@ -1274,7 +1385,7 @@ export default function SeatingMapPage() {
         const currentY = pctToPx(selected.position_y, WORLD_H);
         let targetY = currentY + step;
         if (snapToGrid) targetY = Math.round(targetY / 32) * 32;
-        const newYPct = clamp((targetY / WORLD_H) * 100, 0, 97);
+        const newYPct = clamp((targetY / WORLD_H) * 100, 0, 100);
         
         setElements(prev => {
           const updated = prev.map(el => el.id === selected.id ? { ...el, position_y: newYPct } : el);
@@ -1292,7 +1403,7 @@ export default function SeatingMapPage() {
         const currentX = pctToPx(selected.position_x, WORLD_W);
         let targetX = currentX - step;
         if (snapToGrid) targetX = Math.round(targetX / 32) * 32;
-        const newXPct = clamp((targetX / WORLD_W) * 100, 0, 97);
+        const newXPct = clamp((targetX / WORLD_W) * 100, 0, 100);
         
         setElements(prev => {
           const updated = prev.map(el => el.id === selected.id ? { ...el, position_x: newXPct } : el);
@@ -1310,7 +1421,7 @@ export default function SeatingMapPage() {
         const currentX = pctToPx(selected.position_x, WORLD_W);
         let targetX = currentX + step;
         if (snapToGrid) targetX = Math.round(targetX / 32) * 32;
-        const newXPct = clamp((targetX / WORLD_W) * 100, 0, 97);
+        const newXPct = clamp((targetX / WORLD_W) * 100, 0, 100);
         
         setElements(prev => {
           const updated = prev.map(el => el.id === selected.id ? { ...el, position_x: newXPct } : el);
@@ -1678,8 +1789,18 @@ export default function SeatingMapPage() {
                 <p style={{ color: C.stone, fontSize: 13, fontStyle: 'italic' }}>Click “Add Element” to place tables, a stage, dance floor and more.</p>
               </div>
             )}
+            {/* Shift-drag rubber-band select — drawn in the same viewport-
+                relative screen space it's hit-tested against on release. */}
+            {marquee && (
+              <div style={{
+                position: 'absolute', pointerEvents: 'none',
+                left: Math.min(marquee.x0, marquee.x1), top: Math.min(marquee.y0, marquee.y1),
+                width: Math.abs(marquee.x1 - marquee.x0), height: Math.abs(marquee.y1 - marquee.y0),
+                border: `1.5px dashed ${C.gold}`, background: 'rgba(184,148,79,0.10)', borderRadius: 3,
+              }} />
+            )}
           </div>
-          <p style={{ fontSize: 11, color: C.stone, textAlign: 'center' }}>Scroll to zoom · drag the background to pan · drag a guest onto a table to seat them · Ctrl/Cmd/Shift-click elements to select specific ones.</p>
+          <p style={{ fontSize: 11, color: C.stone, textAlign: 'center' }}>Scroll to zoom · drag the background to pan · drag a guest onto a table to seat them · Shift-drag or Ctrl/Cmd/Shift-click to select multiple, then drag any one to move the group.</p>
         </div>
 
         {/* ── Right: inspector ── */}
@@ -1757,7 +1878,7 @@ export default function SeatingMapPage() {
 
       {/* Print/export view — invisible on screen, shown only by window.print()
           (see .print-seating-chart in globals.css). */}
-      <PrintSeatingChart eventTitle={eventTitle} elements={elements} namesByTable={namesByTable} />
+      <PrintSeatingChart eventTitle={eventTitle} eventDate={eventDate} organizerName={organizerName} elements={elements} namesByTable={namesByTable} />
 
       <style jsx>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -1789,11 +1910,21 @@ export default function SeatingMapPage() {
    Smart helper for naming incrementing (letters/numbers)
    ════════════════════════════════════════════════════════════════ */
 function generateNumberedName(baseName, index, startNum) {
-  // 1. Check if name ends with a single letter (e.g. Table A or Table a). Increments
-  // like a spreadsheet column (A, B, … Z, AA, AB, …) so a batch larger than 26 never
-  // silently falls through to branch 3 and mixes letters with a number on the same
+  // 1. Check if name ends with a DELIBERATE letter suffix — a space then a
+  // single letter (e.g. "Table A", "Exit B"). Increments like a spreadsheet
+  // column (A, B, … Z, AA, AB, …) so a batch larger than 26 never silently
+  // falls through to branch 3 and mixes letters with a number on the same
   // name (e.g. the old code produced "Table A 27" once it ran past "Z").
-  const letterMatch = baseName.match(/^(.*?)\s*([a-zA-Z])$/);
+  //
+  // The space before the letter is REQUIRED (\s+, not \s*): an earlier
+  // version matched any trailing letter with no space needed at all, which
+  // means it fired on the last letter of an ordinary word — batch-adding
+  // zones named "Bar" or "WC" came out as "Ba r", "Ba s", "W D", "W E" …
+  // mangling the label instead of numbering it. Requiring the space means
+  // only names actually ending " <letter>" take this branch; plain words
+  // fall through to the number-suffix branch below ("Bar" → "Bar 2", "WC" →
+  // "WC 2"), which is what a zone label should do.
+  const letterMatch = baseName.match(/^(.*?)\s+([a-zA-Z])$/);
   if (letterMatch) {
     const prefix = letterMatch[1];
     const letter = letterMatch[2];
@@ -1847,34 +1978,64 @@ function getUniqueZoneName(elements, baseLabel) {
   return `${baseLabel} ${n}`;
 }
 
-/* Same idea for the "Duplicate" action — the old fixed "(Copy)" suffix
-   collided with itself on a second duplicate of the same element (also now
-   rejected by the backend); this finds the next free "(Copy N)". */
-function getUniqueCopyName(elements, baseName) {
-  const used = new Set((elements || []).map(el => (el.table_name || '').trim().toLowerCase()));
-  const first = `${baseName} (Copy)`;
-  if (!used.has(first.trim().toLowerCase())) return first;
-  let n = 2;
-  let candidate;
-  do {
-    candidate = `${baseName} (Copy ${n})`;
-    n++;
-  } while (used.has(candidate.trim().toLowerCase()));
-  return candidate;
+
+/* A branded letterhead repeated at the top of every printed/exported page —
+   Fancy's own wordmark (so the document is unmistakably a Fancy RSVP export,
+   not a bare screenshot), the event name, and who it was prepared for. */
+function PrintLetterhead({ eventTitle, organizerName, formattedDate }) {
+  const metaParts = [formattedDate, organizerName ? `Prepared for ${organizerName}` : null, `Printed ${new Date().toLocaleDateString()}`].filter(Boolean);
+  return (
+    <div style={{ textAlign: 'center', fontFamily: 'var(--font-sans, sans-serif)', flexShrink: 0 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.svg" alt="Fancy RSVP" style={{ height: 30, margin: '0 auto 10px', display: 'block' }} />
+      <h1 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 24, fontWeight: 600, margin: 0, color: C.charcoal }}>
+        {eventTitle || 'Seating Chart'}
+      </h1>
+      <p style={{ fontSize: 11, color: C.stone, margin: '5px 0 0', letterSpacing: '0.02em' }}>
+        {metaParts.join('  ·  ')}
+      </p>
+      <div style={{ width: 88, height: 2, margin: '10px auto 0', background: `linear-gradient(90deg, transparent, ${C.gold}, transparent)` }} />
+    </div>
+  );
+}
+
+/* Matching footer — small, quiet brand credit so a printed/exported page is
+   still identifiable as a Fancy RSVP document once separated from any cover
+   sheet, without competing with the letterhead above. */
+function PrintFooter() {
+  return (
+    <div style={{ textAlign: 'center', flexShrink: 0, fontFamily: 'var(--font-sans, sans-serif)' }}>
+      <div style={{ width: 88, height: 1, margin: '0 auto 8px', background: C.border }} />
+      <p style={{ fontSize: 9, color: C.stone, margin: 0, letterSpacing: '0.03em' }}>
+        Crafted with <span style={{ color: C.gold, fontWeight: 700 }}>Fancy RSVP</span>
+      </p>
+    </div>
+  );
 }
 
 /* ════════════════════════════════════════════════════════════════
    Print / export view — a clean, static rendering of the layout for
    window.print() (see the .print-seating-chart rules in globals.css). Not
-   the interactive canvas: no zoom/pan, no drag handles, no toolbar — every
-   element is placed by its saved world position, tightly cropped to
-   whatever's actually on the map instead of the full pannable world, so the
-   printed chart fills the page.
+   the interactive canvas: no zoom/pan, no drag handles, no toolbar.
+
+   The floor plan itself is drawn as one SVG with viewBox={minX minY boxW
+   boxH} and preserveAspectRatio="xMidYMid meet" — the same technique used
+   for scalable diagrams/icons everywhere — instead of the old percentage-
+   positioned <div> grid. That grid had no way to guarantee the whole
+   drawing fit one printable page: a tall, narrow arrangement of tables could
+   render taller than one sheet and get sliced across a page break mid-table.
+   An SVG viewBox scales the ENTIRE drawing uniformly to fit whatever box
+   contains it — the diagram frame below is height-bounded to one page via
+   `.print-diagram-frame`, so the chart always renders complete, to scale,
+   on a single sheet, however the tables are arranged. Guest names move to a
+   dedicated "Table Assignments" roster on the page(s) after — cramming full
+   name lists into small table shapes was both illegible and part of why the
+   floor plan itself looked cluttered rather than like a real venue chart.
    ════════════════════════════════════════════════════════════════ */
-function PrintSeatingChart({ eventTitle, elements, namesByTable }) {
+function PrintSeatingChart({ eventTitle, eventDate, organizerName, elements, namesByTable }) {
   if (!elements || elements.length === 0) return null;
 
-  const PAD = 60;
+  const PAD = 70;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   elements.forEach((el) => {
     const w = elWidth(el);
@@ -1890,90 +2051,107 @@ function PrintSeatingChart({ eventTitle, elements, namesByTable }) {
   const boxW = Math.max(1, maxX - minX);
   const boxH = Math.max(1, maxY - minY);
 
+  const formattedDate = eventDate
+    ? new Date(eventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    : null;
+
+  const roster = elements
+    .filter((el) => !isZone(el) && (namesByTable[el.id] || []).length > 0)
+    .map((el) => ({ id: el.id, name: el.table_name || 'Table', guests: namesByTable[el.id] }));
+
   return (
     <div className="print-seating-chart">
-      <div style={{ textAlign: 'center', marginBottom: 16, fontFamily: 'var(--font-sans, sans-serif)' }}>
-        <h1 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 22, fontWeight: 600, margin: 0, color: C.charcoal }}>
-          {eventTitle || 'Seating Chart'}
-        </h1>
-        <p style={{ fontSize: 11, color: C.stone, margin: '4px 0 0' }}>
-          Seating Chart · Printed {new Date().toLocaleDateString()}
-        </p>
-      </div>
-      <div style={{ position: 'relative', width: '100%', aspectRatio: `${boxW} / ${boxH}` }}>
-        {elements.map((el) => {
-          const zone = isZone(el);
-          const meta = shapeMeta(el.shape);
-          const w = elWidth(el);
-          const h = elHeight(el);
-          const x = ((Number(el.position_x) || 0) / 100) * WORLD_W;
-          const y = ((Number(el.position_y) || 0) / 100) * WORLD_H;
-          const leftPct = ((x - w / 2 - minX) / boxW) * 100;
-          const topPct = ((y - h / 2 - minY) / boxH) * 100;
-          const widthPct = (w / boxW) * 100;
-          const heightPct = (h / boxH) * 100;
-          const names = namesByTable[el.id] || [];
-          return (
-            <div
-              key={el.id}
-              style={{
-                position: 'absolute',
-                left: `${leftPct}%`, top: `${topPct}%`,
-                width: `${widthPct}%`, height: `${heightPct}%`,
-                borderRadius: meta.round ? '50%' : (zone ? 6 : 8),
-                border: `1.5px solid ${zone ? (el.color || meta.color || '#999999') : C.charcoal}`,
-                background: zone ? `${el.color || meta.color || '#999999'}1A` : '#FFFFFF',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                overflow: 'hidden', padding: 2, textAlign: 'center', boxSizing: 'border-box',
-                transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
-              }}
-            >
-              {zone ? (
-                <span style={{ fontSize: 9, fontWeight: 700, fontFamily: 'var(--font-sans, sans-serif)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {meta.icon && <Icon name={meta.icon} size={9} strokeWidth={1.8} style={{ flexShrink: 0 }} />}
-                  {el.table_name}
-                </span>
-              ) : (
-                <>
-                  <span style={{ fontWeight: 800, fontSize: 11, fontFamily: 'var(--font-sans, sans-serif)', color: C.charcoal }}>{el.table_name}</span>
-                  {names.length > 0 && (
-                    <span style={{ fontSize: 6.5, lineHeight: 1.25, color: '#444444', fontFamily: 'var(--font-sans, sans-serif)' }}>{names.join(', ')}</span>
-                  )}
-                </>
-              )}
-            </div>
-          );
-        })}
+      {/* ── Page 1: the floor plan, bounded to fit one sheet ── */}
+      <div className="print-map-page" style={{ display: 'flex', flexDirection: 'column', height: '94vh', breakAfter: roster.length > 0 ? 'page' : 'auto' }}>
+        <PrintLetterhead eventTitle={eventTitle} organizerName={organizerName} formattedDate={formattedDate} />
+
+        <div className="print-diagram-frame" style={{ flex: 1, minHeight: 0, margin: '14px 0', borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+          <svg
+            viewBox={`${minX} ${minY} ${boxW} ${boxH}`}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ width: '100%', height: '100%', display: 'block' }}
+          >
+            <defs>
+              <filter id="printElShadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#191B1E" floodOpacity="0.16" />
+              </filter>
+            </defs>
+            <rect x={minX} y={minY} width={boxW} height={boxH} fill="#FDFCF9" />
+            {elements.map((el) => {
+              const zone = isZone(el);
+              const meta = shapeMeta(el.shape);
+              const w = elWidth(el);
+              const h = elHeight(el);
+              const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
+              const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+              const rot = Number(el.rotation) || 0;
+              const names = namesByTable[el.id] || [];
+              const cap = el.max_capacity || 0;
+              const shapeColor = zone ? (el.color || meta.color || '#999999') : C.gold;
+
+              // A custom-typed zone label (the one free-text shape name an
+              // organizer can enter) has no length limit — clipped to the
+              // shape's own bounds so a long label can never visually spill
+              // across a neighboring table instead of just being cropped.
+              const clipId = `clip-${el.id}`;
+              return (
+                <g key={el.id}>
+                  {/* Shape rotates with the table; labels below stay upright
+                      regardless, so a rotated table is still legible on paper. */}
+                  <g transform={`translate(${cx} ${cy}) rotate(${rot})`} filter="url(#printElShadow)">
+                    {meta.round ? (
+                      <ellipse rx={w / 2} ry={h / 2} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={shapeColor} strokeWidth={zone ? 3 : 4} />
+                    ) : (
+                      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={zone ? 12 : 14} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={shapeColor} strokeWidth={zone ? 3 : 4} />
+                    )}
+                  </g>
+                  <defs>
+                    <clipPath id={clipId}>
+                      {meta.round ? <ellipse rx={w / 2 - 3} ry={h / 2 - 3} /> : <rect x={-w / 2 + 3} y={-h / 2 + 3} width={w - 6} height={h - 6} />}
+                    </clipPath>
+                  </defs>
+                  <g transform={`translate(${cx} ${cy})`} clipPath={`url(#${clipId})`} fontFamily="var(--font-sans, sans-serif)" textAnchor="middle">
+                    <text y={zone ? 8 : (cap > 0 ? -6 : 8)} fontSize={zone ? 24 : 32} fontWeight={800} fill={C.charcoal}>
+                      {el.table_name}
+                    </text>
+                    {!zone && cap > 0 && (
+                      <text y={22} fontSize={18} fontWeight={600} fill={names.length >= cap ? '#C45E5E' : C.stone}>
+                        {names.length} / {cap} seated
+                      </text>
+                    )}
+                  </g>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+
+        <PrintFooter />
       </div>
 
-      {/* A crowded or small table circle clips its inline guest-name text
-          (fontSize 6.5 inside overflow:hidden) long before a real table's
-          full guest list fits — this roster guarantees every seated guest is
-          actually legible on the printed/exported page, at normal reading
-          size, regardless of how tight the floor plan drawing is. */}
-      {(() => {
-        const roster = elements
-          .filter((el) => !isZone(el) && (namesByTable[el.id] || []).length > 0)
-          .map((el) => ({ id: el.id, name: el.table_name || 'Table', guests: namesByTable[el.id] }));
-        if (roster.length === 0) return null;
-        return (
-          <div style={{ marginTop: 32, breakBefore: 'page', fontFamily: 'var(--font-sans, sans-serif)' }}>
-            <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 18, fontWeight: 600, margin: '0 0 14px', color: C.charcoal, textAlign: 'center' }}>
-              Table Assignments
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 32px' }}>
-              {roster.map((t) => (
-                <div key={t.id} style={{ breakInside: 'avoid', paddingBottom: 8, borderBottom: `1px solid ${C.border}` }}>
-                  <div style={{ fontWeight: 800, fontSize: 12.5, color: C.charcoal, marginBottom: 3 }}>
-                    {t.name} <span style={{ fontWeight: 500, color: C.stone }}>({t.guests.length})</span>
-                  </div>
-                  <div style={{ fontSize: 11.5, lineHeight: 1.6, color: '#333333' }}>{t.guests.join(', ')}</div>
+      {/* ── Page 2+: full name-by-table roster — a crowded or small table
+          shape clips inline guest-name text long before a real table's full
+          guest list fits, so every seated guest gets a legible line here
+          instead, at normal reading size, regardless of floor-plan density. ── */}
+      {roster.length > 0 && (
+        <div className="print-roster-page" style={{ display: 'flex', flexDirection: 'column', minHeight: '90vh' }}>
+          <PrintLetterhead eventTitle={eventTitle} organizerName={organizerName} formattedDate={formattedDate} />
+          <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 18, fontWeight: 600, margin: '20px 0 14px', color: C.charcoal, textAlign: 'center', fontStyle: 'italic' }}>
+            Table Assignments
+          </h2>
+          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 32px', alignContent: 'start' }}>
+            {roster.map((t) => (
+              <div key={t.id} style={{ breakInside: 'avoid', padding: '10px 14px', borderRadius: 10, border: `1px solid ${C.border}`, background: '#FDFCF9' }}>
+                <div style={{ fontWeight: 800, fontSize: 12.5, color: C.charcoal, marginBottom: 3 }}>
+                  <span style={{ color: C.gold }}>{t.name}</span> <span style={{ fontWeight: 500, color: C.stone }}>({t.guests.length})</span>
                 </div>
-              ))}
-            </div>
+                <div style={{ fontSize: 11.5, lineHeight: 1.6, color: '#333333' }}>{t.guests.join(', ')}</div>
+              </div>
+            ))}
           </div>
-        );
-      })()}
+          <PrintFooter />
+        </div>
+      )}
     </div>
   );
 }
@@ -2005,7 +2183,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
 
   const pick = (s) => {
     setShape(s);
-    setCapacity(String(SHAPES[s].defaultCap || 8));
+    setCapacity(String(SHAPES[s].defaultCap || 10));
     setCustomColor(SHAPES[s].color || '');
     setCustomWidth(String(SHAPES[s].w));
     setCustomHeight(String(SHAPES[s].h));
@@ -2053,8 +2231,8 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
     const itemW = meta.cat === 'table' ? meta.w : (parseInt(customWidth) || meta.w);
     const itemH = meta.cat === 'table' ? meta.h : (parseInt(customHeight) || meta.h);
     
-    const startXPercent = clamp((-view.tx / view.scale) / WORLD_W * 100 + 8, 2, 90);
-    const startYPercent = clamp((-view.ty / view.scale) / WORLD_H * 100 + 8, 2, 90);
+    const startXPercent = clamp((-view.tx / view.scale) / WORLD_W * 100 + 8, 0, 100);
+    const startYPercent = clamp((-view.ty / view.scale) / WORLD_H * 100 + 8, 0, 100);
     const startXPx = startXPercent / 100 * WORLD_W;
     const startYPx = startYPercent / 100 * WORLD_H;
 
@@ -2075,8 +2253,8 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
         }
       }
 
-      const xPct = clamp((xPx / WORLD_W) * 100, 2, 98);
-      const yPct = clamp((yPx / WORLD_H) * 100, 2, 98);
+      const xPct = clamp((xPx / WORLD_W) * 100, 0, 100);
+      const yPct = clamp((yPx / WORLD_H) * 100, 0, 100);
 
       let finalName = name.trim();
       if (isMultiple && autoNumber) {
@@ -2135,7 +2313,7 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
         </div>
         <div>
           <span style={{ fontSize: 11, color: C.stone, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Venue Zones</span>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 8 }}>
             {zones.map(([s, m]) => <Tile key={s} s={s} m={m} />)}
           </div>
         </div>

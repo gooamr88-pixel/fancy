@@ -30,14 +30,20 @@
   /* Tier 1 — Headings: Elegant Serif Display. Arabic-script fallbacks appended so
      guest/event text in Arabic doesn't fall back to tofu when rendered through the
      Latin-only Playfair/Lato fonts instead of the dedicated --font-arabic stack. */
-  --font-serif: var(--font-playfair), 'Playfair Display', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
-  /* Tier 2 — Body & Buttons: Clean premium Sans-Serif */
-  --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, 'Noto Naskh Arabic', sans-serif;
+  --font-serif: var(--font-heading), 'Cormorant Garamond', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
+  /* Tier 2 — Body & Buttons: Formal Serif */
+  --font-sans: var(--font-body), 'EB Garamond', Georgia, 'Noto Naskh Arabic', serif;
   /* Tier 3 — Logo / Brand Moments: High-end Luxury Script */
   --font-script: 'Great Vibes', cursive;
   /* Tier 4 — Arabic: ornate calligraphic display (seal & titles) + naskh fallback */
   --font-arabic-display: var(--font-aref), 'Aref Ruqaa', 'Amiri', serif;
   --font-arabic: 'Amiri', 'Noto Naskh Arabic', 'Aref Ruqaa', serif;
+  /* Extra heading fonts — Custom template's typography picker only
+     (CustomBuilder.js), for organizers who want a look distinct from the
+     three core brand fonts above. */
+  --font-display: var(--font-playfair), Georgia, 'Noto Naskh Arabic', serif;
+  --font-minimal: var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif;
+  --font-whimsical: var(--font-dancing), 'Great Vibes', cursive;
 
   /* Admin Dashboard Light Theme (Default) */
   --admin-bg: #FAFAF8;
@@ -111,9 +117,12 @@
   --color-card-bg: var(--card-bg);
   --color-card-border: var(--card-border);
   --color-section-bg: var(--section-bg);
-  --font-serif: var(--font-playfair), 'Playfair Display', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
-  --font-sans: var(--font-lato), 'Lato', 'Inter', -apple-system, 'Noto Naskh Arabic', sans-serif;
+  --font-serif: var(--font-heading), 'Cormorant Garamond', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
+  --font-sans: var(--font-body), 'EB Garamond', Georgia, 'Noto Naskh Arabic', serif;
   --font-script: 'Great Vibes', cursive;
+  --font-display: var(--font-playfair), Georgia, 'Noto Naskh Arabic', serif;
+  --font-minimal: var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif;
+  --font-whimsical: var(--font-dancing), 'Great Vibes', cursive;
 }
 
 /* ─── Base Reset ─── */
@@ -634,6 +643,27 @@ h3 {
     left: 0;
     top: 0;
     width: 100%;
+  }
+  /* Chrome/Edge strip background fills, tints, and shadows from print output
+     by default ("Background graphics" off) — losing exactly the zone tints
+     and table shading that make the printed chart read as a real floor plan
+     instead of a bare wireframe. Forces them on regardless of that setting. */
+  .print-seating-chart,
+  .print-seating-chart * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  /* The floor-plan page is explicitly height-bounded (see .print-map-page
+     inline style in PrintSeatingChart) so the whole diagram always fits one
+     sheet — this is a safety net against a browser still trying to split it. */
+  .print-map-page {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-roster-page {
+    break-before: page;
+    page-break-before: always;
   }
   @page {
     size: landscape;

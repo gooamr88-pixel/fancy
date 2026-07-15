@@ -47,83 +47,109 @@ export default function ToastCard({ toast, onClose, duration }) {
           onCloseRef.current();
         }
       }}
-      initial={reduceMotion ? false : { opacity: 0, y: -14, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 0 }}
+      initial={reduceMotion ? false : { opacity: 0, x: 36, scale: 0.97 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 36, transition: { duration: 0.22 } }}
       transition={{ duration: reduceMotion ? 0.01 : 0.32, ease: [0.16, 1, 0.3, 1] }}
     >
       <span className="toast-icon" aria-hidden="true">
         {kind === 'success' ? (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.4">
             <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.4">
             <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
       </span>
       <span className="toast-message">{toast.message}</span>
       <button type="button" className="toast-close" onClick={onClose} aria-label="Dismiss">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
         </svg>
       </button>
 
+      {/* Premium dark charcoal shell shared by every kind (matches the site's
+          own hero/footer dark tone, not a generic UI-kit default) — only the
+          icon badge and left accent rule change color, so the brand identity
+          (charcoal + gold) stays intact regardless of message type, and the
+          card reads clearly against any page background it lands on. */}
       <style jsx>{`
         .toast {
           pointer-events: auto;
+          position: relative;
           display: flex;
           align-items: flex-start;
           gap: 12px;
-          padding: 14px 16px;
+          padding: 15px 16px 15px 18px;
           border-radius: 12px;
           font-size: 13.5px;
           font-weight: 500;
-          line-height: 1.45;
+          line-height: 1.5;
           font-family: var(--font-sans), Lato, sans-serif;
-          box-shadow: 0 12px 32px rgba(25, 27, 30, 0.18);
-          border: 1px solid transparent;
+          background: #21232A;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 20px 45px rgba(10, 10, 12, 0.4), 0 2px 8px rgba(10, 10, 12, 0.25);
+          color: #F3F0E8;
           cursor: grab;
           touch-action: pan-y;
+          overflow: hidden;
         }
         .toast:active {
           cursor: grabbing;
         }
-        .toast-error {
-          background: #FFF1F2;
-          border-color: #FECDD3;
-          color: #9F1239;
+        .toast::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 3px;
         }
-        .toast-success {
-          background: #ECFDF5;
-          border-color: #A7F3D0;
-          color: #065F46;
+        .toast-error::before {
+          background: #C45E5E;
+        }
+        .toast-success::before {
+          background: #3B9B6D;
         }
         .toast-icon {
           flex-shrink: 0;
           margin-top: 1px;
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
           display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .toast-error .toast-icon {
+          background: #C45E5E;
+        }
+        .toast-success .toast-icon {
+          background: #3B9B6D;
         }
         .toast-message {
           flex: 1;
           min-width: 0;
           word-break: break-word;
+          padding-top: 2px;
+          color: #F3F0E8;
         }
         .toast-close {
           flex-shrink: 0;
           background: none;
           border: none;
           padding: 2px;
-          margin: -2px -4px -2px 0;
+          margin: 0 -4px 0 0;
           cursor: pointer;
-          color: inherit;
-          opacity: 0.55;
+          color: #F3F0E8;
+          opacity: 0.5;
           display: flex;
           transition: opacity 0.2s;
         }
         .toast-close:hover {
-          opacity: 1;
+          opacity: 0.9;
         }
       `}</style>
     </motion.div>

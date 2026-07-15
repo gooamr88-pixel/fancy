@@ -37,6 +37,7 @@ export const NAV_GROUPS = [
       { key: 'credits', label: 'Credits', href: '/admin/credits', perm: 'credits.view', ready: true },
       { key: 'finance', label: 'Financial Center', href: '/admin/finance', perm: 'finance.view', ready: true },
       { key: 'marketing', label: 'Marketing', href: '/admin/marketing', perm: 'marketing.view', ready: true },
+      { key: 'promo-codes', label: 'Promo Codes', href: '/admin/promo-codes', perm: 'marketing.view', ready: true },
     ],
   },
   {

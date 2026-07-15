@@ -59,21 +59,6 @@ const values = [
   },
 ];
 
-const team = [
-  { initials: "SL", name: "Sarah Laurent", role: "Co-Founder & CEO", bio: "Former event planner turned tech visionary with 15 years in luxury hospitality." },
-  { initials: "JC", name: "James Chen", role: "Co-Founder & CTO", bio: "Full-stack architect who previously built platforms at Airbnb and Stripe." },
-  { initials: "EM", name: "Elena Martinez", role: "Head of Design", bio: "Award-winning designer specializing in luxury brand experiences and visual identity." },
-  { initials: "DP", name: "David Park", role: "Head of Product", bio: "Product strategist passionate about creating tools that delight and empower users." },
-];
-
-const milestones = [
-  { year: "2019", title: "The Spark", desc: "Fancy RSVP was born from a simple idea — what if RSVP experiences could be as elegant as the events they represent?" },
-  { year: "2020", title: "First Launch", desc: "We launched our beta to 500 couples. The response was overwhelming — 98% satisfaction in the first month." },
-  { year: "2021", title: "10,000 Events", desc: "Crossed the 10,000 event milestone. Partnerships with premium wedding venues across North America." },
-  { year: "2023", title: "Series A", desc: "Raised $12M in Series A funding to expand our platform with AI-powered event planning tools." },
-  { year: "2025", title: "Global Reach", desc: "Now serving 200,000+ events annually across 40 countries, with a team of 85 passionate creators." },
-];
-
 function ValueCard({ value }) {
   return (
     <div
@@ -123,96 +108,6 @@ function ValueCard({ value }) {
           border-color: #D7BE80;
           transform: translateY(-6px);
           box-shadow: 0 16px 48px rgba(184, 148, 79, 0.12);
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function TeamCard({ member }) {
-  return (
-    <div
-      className="team-card"
-      style={{
-        background: "#FFFFFF",
-        borderRadius: "16px",
-        padding: "40px 28px 32px",
-        textAlign: "center",
-      }}
-    >
-      {/* Avatar */}
-      <div
-        style={{
-          width: "80px",
-          height: "80px",
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, #B8944F 0%, #D7BE80 100%)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          margin: "0 auto 20px",
-          boxShadow: "0 4px 16px rgba(184,148,79,0.25)",
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "24px",
-            fontWeight: 700,
-            color: "#FFFFFF",
-            letterSpacing: "1px",
-          }}
-        >
-          {member.initials}
-        </span>
-      </div>
-      <h3
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontSize: "20px",
-          fontWeight: 600,
-          color: "#191B1E",
-          marginBottom: "4px",
-        }}
-      >
-        {member.name}
-      </h3>
-      <p
-        style={{
-          fontFamily: "var(--font-sans)",
-          fontSize: "13px",
-          fontWeight: 600,
-          color: "#B8944F",
-          letterSpacing: "0.5px",
-          textTransform: "uppercase",
-          marginBottom: "14px",
-        }}
-      >
-        {member.role}
-      </p>
-      <p
-        style={{
-          fontFamily: "var(--font-sans)",
-          fontSize: "14px",
-          color: "#5E5A52",
-          lineHeight: 1.7,
-        }}
-      >
-        {member.bio}
-      </p>
-
-      <style jsx>{`
-        .team-card {
-          border: 1px solid #E8E2D6;
-          transition: all 0.35s ease;
-          transform: translateY(0);
-          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
-        }
-        .team-card:hover,
-        .team-card:focus-within {
-          border-color: #D7BE80;
-          transform: translateY(-4px);
-          box-shadow: 0 12px 40px rgba(184, 148, 79, 0.1);
         }
       `}</style>
     </div>
@@ -455,177 +350,6 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ════════════ TEAM ════════════ */}
-        <section style={{ padding: "100px 48px", background: "#FFFFFF" }}>
-          <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
-            <div style={{ textAlign: "center", marginBottom: "60px" }}>
-              <GoldDivider />
-              <h2
-                style={{
-                  fontFamily: "var(--font-serif)",
-                  fontSize: "clamp(1.6rem, 3vw, 2.4rem)",
-                  fontWeight: 600,
-                  color: "#191B1E",
-                  marginTop: "8px",
-                  marginBottom: "16px",
-                }}
-              >
-                Meet the Team
-              </h2>
-              <p
-                style={{
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "17px",
-                  color: "#5E5A52",
-                  maxWidth: "560px",
-                  margin: "0 auto",
-                  lineHeight: 1.7,
-                }}
-              >
-                A passionate crew of designers, engineers, and event enthusiasts building the future of celebrations.
-              </p>
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
-                gap: "28px",
-              }}
-              className="team-grid"
-            >
-              {team.map((m) => (
-                <TeamCard key={m.name} member={m} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ════════════ TIMELINE ════════════ */}
-        <section style={{ padding: "100px 48px", background: "#F8F4EC" }}>
-          <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-            <div style={{ textAlign: "center", marginBottom: "64px" }}>
-              <GoldDivider />
-              <h2
-                style={{
-                  fontFamily: "var(--font-serif)",
-                  fontSize: "clamp(1.6rem, 3vw, 2.4rem)",
-                  fontWeight: 600,
-                  color: "#191B1E",
-                  marginTop: "8px",
-                  marginBottom: "16px",
-                }}
-              >
-                Our Journey
-              </h2>
-              <p
-                style={{
-                  fontFamily: "var(--font-sans)",
-                  fontSize: "17px",
-                  color: "#5E5A52",
-                  lineHeight: 1.7,
-                }}
-              >
-                From a spark of inspiration to a global platform.
-              </p>
-            </div>
-
-            {/* Timeline */}
-            <div style={{ position: "relative" }}>
-              {/* Vertical line */}
-              <div
-                style={{
-                  position: "absolute",
-                  left: "28px",
-                  top: "8px",
-                  bottom: "8px",
-                  width: "2px",
-                  background: "linear-gradient(180deg, #D7BE80, #E8E2D6)",
-                }}
-                className="timeline-line"
-              />
-              {milestones.map((m, i) => (
-                <div
-                  key={m.year}
-                  style={{
-                    display: "flex",
-                    gap: "28px",
-                    marginBottom: i < milestones.length - 1 ? "44px" : "0",
-                    position: "relative",
-                  }}
-                  className="timeline-item"
-                >
-                  {/* Dot */}
-                  <div
-                    style={{
-                      width: "58px",
-                      minWidth: "58px",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "16px",
-                        height: "16px",
-                        borderRadius: "50%",
-                        background: "#B8944F",
-                        border: "3px solid #F8F4EC",
-                        boxShadow: "0 0 0 2px #D7BE80",
-                        zIndex: 1,
-                      }}
-                    />
-                  </div>
-                  {/* Content */}
-                  <div
-                    style={{
-                      background: "#FFFFFF",
-                      border: "1px solid #E8E2D6",
-                      borderRadius: "14px",
-                      padding: "28px 32px",
-                      flex: 1,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontFamily: "var(--font-sans)",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        letterSpacing: "2px",
-                        color: "#B8944F",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {m.year}
-                    </span>
-                    <h3
-                      style={{
-                        fontFamily: "var(--font-serif)",
-                        fontSize: "20px",
-                        fontWeight: 600,
-                        color: "#191B1E",
-                        margin: "8px 0",
-                      }}
-                    >
-                      {m.title}
-                    </h3>
-                    <p
-                      style={{
-                        fontFamily: "var(--font-sans)",
-                        fontSize: "15px",
-                        color: "#5E5A52",
-                        lineHeight: 1.7,
-                      }}
-                    >
-                      {m.desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* ════════════ CTA ════════════ */}
         <section
           style={{
@@ -708,8 +432,7 @@ export default function AboutPage() {
           .mission-grid {
             gap: 48px !important;
           }
-          .values-grid,
-          .team-grid {
+          .values-grid {
             grid-template-columns: repeat(2, 1fr) !important;
           }
         }
@@ -718,22 +441,14 @@ export default function AboutPage() {
             grid-template-columns: 1fr !important;
             gap: 40px !important;
           }
-          .values-grid,
-          .team-grid {
+          .values-grid {
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 20px !important;
           }
-          .timeline-line {
-            left: 20px !important;
-          }
         }
         @media (max-width: 640px) {
-          .values-grid,
-          .team-grid {
+          .values-grid {
             grid-template-columns: 1fr !important;
-          }
-          .timeline-item {
-            gap: 16px !important;
           }
         }
       `}</style>

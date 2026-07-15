@@ -1,6 +1,6 @@
 const express = require('express');
 const { requireAuth, verifyEventOwner } = require('../middleware/auth');
-const { createCheckoutSession, purchaseSMSCredits, stripeWebhook, verifyCheckoutSession, getPricingConfig, getPublicPricing, initiateManualPayment } = require('../controllers/paymentController');
+const { createCheckoutSession, purchaseSMSCredits, stripeWebhook, verifyCheckoutSession, getPricingConfig, getPublicPricing, initiateManualPayment, redeemPromoCode } = require('../controllers/paymentController');
 
 const router = express.Router({ mergeParams: true });
 
@@ -18,6 +18,7 @@ router.get('/public-pricing', getPublicPricing);
 router.post('/events/:eventId/create-checkout', requireAuth, verifyEventOwner, createCheckoutSession);
 router.post('/events/:eventId/sms-credits', requireAuth, verifyEventOwner, purchaseSMSCredits);
 router.post('/events/:eventId/manual-payment', requireAuth, verifyEventOwner, initiateManualPayment);
+router.post('/events/:eventId/redeem-promo-code', requireAuth, verifyEventOwner, redeemPromoCode);
 
 // Allow organizers to fetch platform licensing and SMS config
 router.get('/pricing-config', requireAuth, getPricingConfig);

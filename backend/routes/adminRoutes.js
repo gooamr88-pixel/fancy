@@ -13,6 +13,8 @@ const testimonialsRoutes = require('./admin/testimonialsRoutes');
 const pressMentionsRoutes = require('./admin/pressMentionsRoutes');
 const blogRoutes = require('./admin/blogRoutes');
 const referralAdminRoutes = require('./admin/referralAdminRoutes');
+const contactInquiriesRoutes = require('./admin/contactInquiriesRoutes');
+const promoCodeRoutes = require('./admin/promoCodeRoutes');
 const {
   listPlatformUsers,
   setUserRole,
@@ -72,8 +74,10 @@ router.use('/testimonials', testimonialsRoutes);
 router.use('/press-mentions', pressMentionsRoutes);
 router.use('/blog', blogRoutes);
 
-// ── Marketing — referral / affiliate program oversight ──
+// ── Marketing — referral / affiliate program oversight, contact inquiries ──
 router.use('/referrals', referralAdminRoutes);
+router.use('/inquiries', contactInquiriesRoutes);
+router.use('/promo-codes', promoCodeRoutes);
 
 // ── Phase 2: RBAC & security — user/organizer lifecycle, audit, security, health ──
 router.use('/', userMgmtRoutes);

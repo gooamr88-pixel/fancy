@@ -177,10 +177,10 @@ export default function SolutionsInquiryForm({
           <div style={{ flex: 1 }}>
             <label style={labelStyle} htmlFor={`siq-phone-${segment}`}>Phone</label>
             <input
-              id={`siq-phone-${segment}`} type="tel" name="phone" autoComplete="tel"
+              id={`siq-phone-${segment}`} type="tel" name="phone" autoComplete="tel" required
               value={formData.phone} onChange={handleChange}
               onFocus={() => setFocusedField('phone')} onBlur={() => setFocusedField(null)}
-              placeholder="Optional" style={inputStyle('phone')}
+              placeholder="Your phone number" style={inputStyle('phone')}
             />
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function SolutionsInquiryForm({
         <div style={{ marginBottom: '16px' }}>
           <label style={labelStyle} htmlFor={`siq-guests-${segment}`}>Expected Guest Volume</label>
           <select
-            id={`siq-guests-${segment}`} name="expectedGuests"
+            id={`siq-guests-${segment}`} name="expectedGuests" required
             value={formData.expectedGuests} onChange={handleChange}
             onFocus={() => setFocusedField('expectedGuests')} onBlur={() => setFocusedField(null)}
             style={{
@@ -202,7 +202,7 @@ export default function SolutionsInquiryForm({
               color: formData.expectedGuests ? '#191B1E' : '#9E9A92',
             }}
           >
-            <option value="">Select a range (optional)</option>
+            <option value="">Select a range</option>
             {guestVolumeOptions.map((opt) => (
               <option key={opt} value={opt}>{opt}</option>
             ))}

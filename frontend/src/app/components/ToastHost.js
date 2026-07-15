@@ -41,15 +41,23 @@ export default function ToastHost() {
              a page heading — it was rendering at the very top of the
              viewport and covering the dashboard's title/back bar. */
           top: max(100px, calc(env(safe-area-inset-top) + 88px));
-          left: 50%;
-          transform: translateX(-50%);
+          right: max(20px, calc(env(safe-area-inset-right) + 16px));
           z-index: 100001;
           width: max-content;
-          max-width: min(420px, calc(100vw - 32px));
+          max-width: min(400px, calc(100vw - 32px));
           display: flex;
           flex-direction: column;
+          align-items: flex-end;
           gap: 10px;
           pointer-events: none;
+        }
+        @media (max-width: 480px) {
+          .toast-stack-viewport {
+            left: 16px;
+            right: 16px;
+            max-width: none;
+            align-items: stretch;
+          }
         }
       `}</style>
     </div>

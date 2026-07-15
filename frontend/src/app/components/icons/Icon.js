@@ -87,6 +87,11 @@ const PATHS = {
   info: <><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5" /><circle cx="12" cy="7.8" r="0.15" fill="currentColor" /></>,
   sun: <><circle cx="12" cy="12" r="4.2" /><path d="M12 3v2.2 M12 18.8V21 M3 12h2.2 M18.8 12H21 M5.6 5.6l1.6 1.6 M16.8 16.8l1.6 1.6 M5.6 18.4l1.6-1.6 M16.8 7.2l1.6-1.6" /></>,
   play: <path d="M6.5 4.5v15l13-7.5-13-7.5Z" />,
+  // ── Seating-map venue-zone glyphs ──
+  restroom: <><rect x="4" y="3" width="16" height="18" rx="2.5" /><circle cx="12" cy="9.3" r="2.3" /><path d="M8.3 17.5c.5-3 1.8-4.3 3.7-4.3s3.2 1.3 3.7 4.3" /></>,
+  coatHanger: <><circle cx="12" cy="4.3" r="1.3" /><path d="M12 5.6v1.6" /><path d="M12 7.2 3.5 15c-1 .8-.5 2.2.8 2.2h15.4c1.3 0 1.8-1.4.8-2.2L12 7.2Z" /><path d="M6 15.5h12" /></>,
+  cake: <><path d="M5 20.5V13a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7.5" /><path d="M3.5 20.5h17" /><path d="M9 11V8a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" /><path d="M12 7V4.3" /><path d="M12 4.3c-.9-.7-.9-1.5 0-2.3.9.8.9 1.6 0 2.3Z" /><path d="M5 16.5h14" /></>,
+  sofa: <><path d="M5 12.5V9a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v3.5" /><path d="M3.5 12.5h17v5a1.5 1.5 0 0 1-1.5 1.5h-14A1.5 1.5 0 0 1 3.5 17.5v-5Z" /><path d="M5 17v2.5 M19 17v2.5" /><path d="M3.5 13.5a1.5 1.5 0 0 0 0 3 M20.5 13.5a1.5 1.5 0 0 0 0 3" /></>,
 };
 
 export default function Icon({ name, size = 17, color = 'currentColor', strokeWidth = 1.5, style }) {

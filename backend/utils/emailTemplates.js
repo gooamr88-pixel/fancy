@@ -756,6 +756,23 @@ const getLowCreditsWarningTemplate = ({ orgName, event, remaining }) => emailShe
 });
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   MARKETING & INQUIRIES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** Admin reply to a public Contact page / /solutions/* B2B inquiry submission. */
+const getContactInquiryReplyTemplate = ({ name, subject, originalMessage, replyMessage }) => emailShell({
+  preheader: `Re: ${subject}`,
+  eyebrow: 'Fancy RSVP Team',
+  heading: `Re: ${escapeHtml(subject)}`,
+  contentHtml: `
+    ${greeting(name)}
+    ${para(escapeHtml(replyMessage).replace(/\n/g, '<br>'))}
+    ${noticeBox(`<strong>Your original message:</strong><br>${escapeHtml(originalMessage).replace(/\n/g, '<br>')}`, 'neutral')}
+    ${para('Thanks for reaching out to Fancy RSVP.', { size: 13, color: BRAND.stone, mb: 0 })}
+  `,
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
    SECURITY
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -815,6 +832,8 @@ module.exports = {
   getPostEventRecapTemplate,
   getPendingPaymentReminderTemplate,
   getLowCreditsWarningTemplate,
+  // Marketing & inquiries
+  getContactInquiryReplyTemplate,
   // Auth & security
   getEmailVerificationTemplate,
   getPasswordResetTemplate,

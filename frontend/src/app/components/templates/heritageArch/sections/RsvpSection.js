@@ -14,6 +14,7 @@ import { rememberGuest } from '../../../guest/rsvp/useRsvpResolver';
 import { getCelebrationPreset } from '../../../../utils/patternCelebration';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DiamondDivider } from '../shared';
+import Icon from '../../../icons/Icon';
 import { findMealField } from '../../../../utils/mealField';
 import { isSeatingRevealed } from '../../../../utils/seating';
 import { useSeatingLookup } from '../../../../[slug]/rsvp/hooks/useSeatingLookup';
@@ -294,10 +295,16 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     if (guestRsvp.party_size) setPartySize((prev) => (prev && prev !== 1 ? prev : guestRsvp.party_size));
     if (guestRsvp.primary_meal) setMeal((prev) => prev || guestRsvp.primary_meal);
     if (Array.isArray(guestRsvp.additionalGuests) && guestRsvp.additionalGuests.length > 0) {
-      setAdditionalGuests((prev) => (prev.some((g) => g.fullName) ? prev : guestRsvp.additionalGuests.map((g) => ({
-        fullName: g.fullName || '', email: g.email || '', phone: g.phone || '',
-        mealSelection: g.mealSelection || '', dietaryNotes: g.dietaryNotes || '', customAnswers: {},
-      }))));
+      setAdditionalGuests((prev) => (prev.some((g) => g.fullName) ? prev : guestRsvp.additionalGuests.map((g) => {
+        // Same known-pill / free-text split as the primary guest's dietary notes below.
+        const parts = String(g.dietaryNotes || '').split(',').map((s) => s.trim()).filter(Boolean);
+        const known = parts.filter((p) => ALLERGY_OPTIONS.includes(p));
+        const other = parts.filter((p) => !ALLERGY_OPTIONS.includes(p)).join(', ');
+        return {
+          fullName: g.fullName || '', email: g.email || '', phone: g.phone || '',
+          mealSelection: g.mealSelection || '', dietaryNotes: other, allergies: known, customAnswers: {},
+        };
+      })));
     }
     if (guestRsvp.primary_dietary_notes) {
       const parts = String(guestRsvp.primary_dietary_notes).split(',').map((s) => s.trim()).filter(Boolean);
@@ -339,6 +346,19 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   };
 
   const toggleAllergy = (opt) => setAllergies((prev) => (prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]));
+
+  // Same pill-selection pattern as the primary guest's allergies, scoped to one
+  // companion — kept as its own array on that companion (not merged into their
+  // free-text `dietaryNotes` until submit) so re-toggling a pill doesn't have to
+  // re-parse text back out of a string.
+  const toggleCompanionAllergy = (idx, opt) => {
+    setAdditionalGuests((prev) => {
+      const copy = [...prev];
+      const cur = copy[idx]?.allergies || [];
+      copy[idx] = { ...(copy[idx] || {}), allergies: cur.includes(opt) ? cur.filter((o) => o !== opt) : [...cur, opt] };
+      return copy;
+    });
+  };
 
   const updateAdditionalGuest = (idx, patch) => {
     setAdditionalGuests((prev) => {
@@ -550,7 +570,11 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       primaryGuestMeal: isAttending ? (meal || null) : null,
       primaryGuestDietaryNotes: isAttending ? dietaryNotes : null,
       additionalGuests: isAttending
-        ? additionalGuests.slice(0, partySize - 1).map((g) => ({ ...g, customAnswers: g.customAnswers || {} }))
+        ? additionalGuests.slice(0, partySize - 1).map((g) => ({
+            ...g,
+            dietaryNotes: [...(g.allergies || []), (g.dietaryNotes || '').trim()].filter(Boolean).join(', ') || null,
+            customAnswers: g.customAnswers || {},
+          }))
         : [],
       customAnswers: Object.keys(customAnswers)
         .filter((fieldId) => isAttending || alwaysQuestions.some((f) => f.id === fieldId))
@@ -726,13 +750,20 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
         </motion.p>
 
         {event?.rsvp_deadline && (
-          <motion.p {...reveal} style={{
-            fontSize: '12.5px', fontWeight: 700, letterSpacing: '0.02em', color: C.maroon,
-            textAlign: 'center', margin: '-8px 0 22px', fontFamily: 'var(--font-sans)',
+          <motion.div {...reveal} style={{
+            display: 'inline-flex', alignItems: 'center', gap: '10px',
+            margin: '-4px 0 24px', padding: '10px 22px', borderRadius: '999px',
+            background: `${C.maroon}0D`, border: `1px solid ${C.maroon}40`,
           }}>
-            {isRTL ? 'يرجى الرد بحلول' : 'Kindly reply by'}{' '}
-            {new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-          </motion.p>
+            <Icon name="clock" size={15} color={C.maroon} strokeWidth={1.8} />
+            <span style={{
+              fontSize: '13px', fontWeight: 700, letterSpacing: '0.02em', color: C.maroon,
+              fontFamily: 'var(--font-sans)',
+            }}>
+              {isRTL ? 'يرجى الرد بحلول' : 'RSVP by'}{' '}
+              {new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+            </span>
+          </motion.div>
         )}
 
         {/* ── The decision: coming or not ── */}
@@ -827,54 +858,9 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                       transition={{ duration: 0.4 }} style={{ overflow: 'hidden' }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                        {/* Meal */}
-                        {mealOptions && mealOptions.length > 0 && (
-                          <div style={{ padding: '18px', borderRadius: '18px', border: `1px solid ${errors.meal ? ERR : alpha(C.maroon, 0.28)}`, background: alpha(C.maroon, 0.05) }}>
-                            <label style={{ ...labelStyle, opacity: 1, marginBottom: 0 }}>🍽 {isRTL ? 'اختر وجبتك' : 'Choose your meal'}{mealField?.is_required && <span style={{ color: ERR }}> *</span>}</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
-                              {mealOptions.map((opt) => (
-                                <button type="button" key={opt} aria-pressed={meal === opt} onClick={() => { setMeal(opt); clearError('meal'); }} style={pillStyle(meal === opt)}>{opt}</button>
-                              ))}
-                            </div>
-                            {errors.meal && <span style={errorTextStyle}>{isRTL ? 'يرجى اختيار وجبة' : 'Please select a meal'}</span>}
-                          </div>
-                        )}
-
-                        <PartyStepper value={partySize} onChange={handlePartySizeChange} label={isRTL ? 'عدد الضيوف (بما فيهم أنت)' : 'Number of guests (including you)'} isRTL={isRTL} C={C} />
-
-                        {/* Companions */}
-                        {Array.from({ length: Math.max(0, partySize - 1) }).map((_, i) => (
-                          <div key={i} style={cardOuter}>
-                            <div style={cardInner}>
-                              <span style={{ ...eyebrowStyle, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: alpha(C.maroon, 0.12), color: C.maroon, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>{i + 2}</span>
-                                {isRTL ? `الضيف رقم ${i + 2}` : `Guest ${i + 2}`}
-                              </span>
-                              <input placeholder={isRTL ? 'الاسم الكامل' : 'Full name'} value={additionalGuests[i]?.fullName || ''} onChange={(e) => updateAdditionalGuest(i, { fullName: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                              <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => updateAdditionalGuest(i, { email: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                              <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => updateAdditionalGuest(i, { phone: v })} defaultCountry={isRTL ? 'eg' : 'us'} />
-                              {mealOptions && mealOptions.length > 0 && (
-                                <div>
-                                  <span style={{ ...labelStyle, opacity: 0.7 }}>🍽 {isRTL ? 'الوجبة' : 'Meal'}</span>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    {mealOptions.map((opt) => {
-                                      const sel = additionalGuests[i]?.mealSelection === opt;
-                                      return <button type="button" key={opt} aria-pressed={sel} onClick={() => updateAdditionalGuest(i, { mealSelection: opt })} style={pillStyle(sel, { size: 'sm' })}>{opt}</button>;
-                                    })}
-                                  </div>
-                                </div>
-                              )}
-                              <input placeholder={isRTL ? 'حساسية أو قيود غذائية (اختياري)' : 'Allergies / dietary notes (optional)'} value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                              {guestScopedQuestions.map((field) => (
-                                <ThemedField key={field.id} label={field.field_label} required={field.is_required} error={errors[`companion_${i}_field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
-                                  {companionControl(i, field)}
-                                </ThemedField>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
-
-                        {/* Allergies */}
+                        {/* Primary guest's allergies — right under their own details,
+                            ahead of meal/party/companions, instead of tacked on at
+                            the end of the whole attending block. */}
                         <div style={cardOuter}>
                           <div style={cardInner}>
                             <span style={eyebrowStyle}>⚠ {isRTL ? 'الحساسية وقيود الطعام' : 'Food allergies & intolerances'}</span>
@@ -891,6 +877,74 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                             <input placeholder={isRTL ? 'حساسية أخرى أو قيود' : 'Other allergies or restrictions'} value={otherAllergy} onChange={(e) => setOtherAllergy(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                           </div>
                         </div>
+
+                        {/* Meal */}
+                        {mealOptions && mealOptions.length > 0 && (
+                          <div style={{ padding: '18px', borderRadius: '18px', border: `1px solid ${errors.meal ? ERR : alpha(C.maroon, 0.28)}`, background: alpha(C.maroon, 0.05) }}>
+                            <label style={{ ...labelStyle, opacity: 1, marginBottom: 0 }}>🍽 {isRTL ? 'اختر وجبتك' : 'Choose your meal'}{mealField?.is_required && <span style={{ color: ERR }}> *</span>}</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
+                              {mealOptions.map((opt) => (
+                                <button type="button" key={opt} aria-pressed={meal === opt} onClick={() => { setMeal(opt); clearError('meal'); }} style={pillStyle(meal === opt)}>{opt}</button>
+                              ))}
+                            </div>
+                            {errors.meal && <span style={errorTextStyle}>{isRTL ? 'يرجى اختيار وجبة' : 'Please select a meal'}</span>}
+                          </div>
+                        )}
+
+                        <PartyStepper value={partySize} onChange={handlePartySizeChange} label={isRTL ? 'عدد الضيوف (بما فيهم أنت)' : 'Number of guests (including you)'} isRTL={isRTL} C={C} />
+
+                        {/* Companions — each guest's own form immediately followed by
+                            their own allergies rectangle, mirroring the primary
+                            guest's [details] → [allergies] pairing above. */}
+                        {Array.from({ length: Math.max(0, partySize - 1) }).map((_, i) => (
+                          <React.Fragment key={i}>
+                            <div style={cardOuter}>
+                              <div style={cardInner}>
+                                <span style={{ ...eyebrowStyle, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: alpha(C.maroon, 0.12), color: C.maroon, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>{i + 2}</span>
+                                  {isRTL ? `الضيف رقم ${i + 2}` : `Guest ${i + 2}`}
+                                </span>
+                                <input placeholder={isRTL ? 'الاسم الكامل' : 'Full name'} value={additionalGuests[i]?.fullName || ''} onChange={(e) => updateAdditionalGuest(i, { fullName: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                                <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => updateAdditionalGuest(i, { email: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                                <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => updateAdditionalGuest(i, { phone: v })} defaultCountry={isRTL ? 'eg' : 'us'} />
+                                {mealOptions && mealOptions.length > 0 && (
+                                  <div>
+                                    <span style={{ ...labelStyle, opacity: 0.7 }}>🍽 {isRTL ? 'الوجبة' : 'Meal'}</span>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                      {mealOptions.map((opt) => {
+                                        const sel = additionalGuests[i]?.mealSelection === opt;
+                                        return <button type="button" key={opt} aria-pressed={sel} onClick={() => updateAdditionalGuest(i, { mealSelection: opt })} style={pillStyle(sel, { size: 'sm' })}>{opt}</button>;
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {guestScopedQuestions.map((field) => (
+                                  <ThemedField key={field.id} label={field.field_label} required={field.is_required} error={errors[`companion_${i}_field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
+                                    {companionControl(i, field)}
+                                  </ThemedField>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* This companion's own allergies rectangle */}
+                            <div style={cardOuter}>
+                              <div style={cardInner}>
+                                <span style={eyebrowStyle}>⚠ {isRTL ? `الحساسية وقيود الطعام — الضيف ${i + 2}` : `Food allergies & intolerances — Guest ${i + 2}`}</span>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                  {ALLERGY_OPTIONS.map((opt) => {
+                                    const sel = (additionalGuests[i]?.allergies || []).includes(opt);
+                                    return (
+                                      <button type="button" key={opt} aria-pressed={sel} onClick={() => toggleCompanionAllergy(i, opt)} style={pillStyle(sel, { size: 'sm' })}>
+                                        {sel ? '✓ ' : ''}{opt}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                <input placeholder={isRTL ? 'حساسية أخرى أو قيود (اختياري)' : 'Other allergies or restrictions (optional)'} value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
+                              </div>
+                            </div>
+                          </React.Fragment>
+                        ))}
 
                         {/* Attending-only custom questions */}
                         {attendingQuestions.length > 0 && (

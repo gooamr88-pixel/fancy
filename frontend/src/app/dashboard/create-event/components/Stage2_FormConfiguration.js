@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlacesAutocomplete from '../../../../app/components/PlacesAutocomplete';
 import InlineFormBuilder from './InlineFormBuilder';
-import { DressCodeVisualizer } from '../../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../../utils/youtube';
 import RepeatableListEditor from '../../components/RepeatableListEditor';
 import DaysEditor from './DaysEditor';
@@ -56,7 +55,6 @@ const SECTION_TOGGLES = [
   { key: 'faq', label: 'FAQ', icon: 'question', hint: '' },
   { key: 'gallery', label: 'Photo Gallery', icon: 'gallery', hint: '' },
   { key: 'invited', label: '"Invited To" City Map', icon: 'map', hint: '' },
-  { key: 'boarding', label: 'Boarding Pass', icon: 'ticket', hint: 'Playful travel-themed detail card' },
   { key: 'thingstodo', label: 'Things To Do', icon: 'compass', hint: 'Local recommendations' },
   { key: 'gettingthere', label: 'Getting There', icon: 'car', hint: 'Transport / parking notes' },
 ];
@@ -138,11 +136,24 @@ function Section({ title, icon, defaultOpen = true, children }) {
 }
 
 /* ═══ Field wrapper ═══ */
+// Every field that isn't explicitly `required` gets the same "Optional" pill
+// next to its label — one consistent, distinctive marker instead of the
+// inconsistent mix of "(optional)" suffixes and "Optional — " hint prefixes
+// individual fields used to spell out (or, often, didn't) on their own.
 function Field({ label: lbl, required, hint, children, style: wrapStyle, htmlFor }) {
   return (
     <div style={{ marginBottom: 16, ...wrapStyle }}>
-      <label style={lblStyle} htmlFor={htmlFor}>
-        {lbl}{required && <span style={{ color: C.error, marginLeft: 2 }}>*</span>}
+      <label style={{ ...lblStyle, display: 'flex', alignItems: 'center', gap: 7 }} htmlFor={htmlFor}>
+        <span>{lbl}{required && <span style={{ color: C.error, marginLeft: 2 }}>*</span>}</span>
+        {!required && (
+          <span style={{
+            fontSize: 9, fontWeight: 700, color: C.gold, background: 'rgba(184,148,79,0.1)',
+            border: '1px solid rgba(184,148,79,0.3)', borderRadius: 4, padding: '1.5px 6px',
+            textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-sans)',
+          }}>
+            Optional
+          </span>
+        )}
       </label>
       {children}
       {hint && <span style={{ fontSize: 10, color: '#A09A91', display: 'block', marginTop: 4 }}>{hint}</span>}
@@ -287,7 +298,7 @@ export default function Stage2_FormConfiguration({
               onFocus={onFocus} onBlur={onBlur} />
           </Field>
 
-          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Title</>} hint="Optional — shown when a guest switches the page to Arabic">
+          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Title</>} hint="Shown when a guest switches the page to Arabic">
             <input type="text" dir="rtl" value={td('title_ar')} onChange={e => setTd('title_ar')(e.target.value)}
               placeholder="عنوان الفعالية بالعربي" style={{ ...iStyle, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
               onFocus={onFocus} onBlur={onBlur} />
@@ -324,7 +335,7 @@ export default function Stage2_FormConfiguration({
               onFocus={onFocus} onBlur={onBlur} />
           </Field>
 
-          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Description</>} hint="Optional">
+          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Description</>}>
             <textarea dir="rtl" value={td('description_ar')} onChange={e => setTd('description_ar')(e.target.value)}
               rows={3} placeholder="وصف الفعالية بالعربي"
               style={{ ...iStyle, resize: 'vertical', minHeight: 80, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
@@ -432,11 +443,11 @@ export default function Stage2_FormConfiguration({
                   </Field>
                 </div>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Partner 1 Email" hint="Optional — if set, this person also gets an email every time a guest RSVPs">
+                  <Field label="Partner 1 Email" hint="If set, this person also gets an email every time a guest RSVPs">
                     <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
                       placeholder="groom@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
-                  <Field label="Partner 2 Email" hint="Optional — if set, this person also gets an email every time a guest RSVPs">
+                  <Field label="Partner 2 Email" hint="If set, this person also gets an email every time a guest RSVPs">
                     <input type="email" value={td('partner2_email')} onChange={e => setTd('partner2_email')(e.target.value)}
                       placeholder="bride@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
@@ -523,7 +534,7 @@ export default function Stage2_FormConfiguration({
                     placeholder="e.g. Sarah & Michael" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Baby's Name (optional)" hint="Leave blank if not revealed yet">
+                  <Field label="Baby's Name" hint="Leave blank if not revealed yet">
                     <input type="text" value={td('custom_baby_name')} onChange={e => setTd('custom_baby_name')(e.target.value)}
                       placeholder="Leave blank if unrevealed" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
@@ -542,11 +553,11 @@ export default function Stage2_FormConfiguration({
                 shower, and a plain custom event with no category chosen yet. */}
             {isFullPage(templateType) && !showCoupleFields && (
               <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <Field label="Notify by Email" hint="Optional — this person also gets an email every time a guest RSVPs">
+                <Field label="Notify by Email" hint="This person also gets an email every time a guest RSVPs">
                   <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
                     placeholder="host@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
-                <Field label="Also Notify (optional)" hint="A second person who should also get an email every time a guest RSVPs">
+                <Field label="Also Notify" hint="A second person who should also get an email every time a guest RSVPs">
                   <input type="email" value={td('partner2_email')} onChange={e => setTd('partner2_email')(e.target.value)}
                     placeholder="co-host@email.com" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
@@ -658,16 +669,10 @@ export default function Stage2_FormConfiguration({
                     rows={3} placeholder="How to get there, parking, shuttle info…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
-                <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Gift Registry Button Label" hint="Text on the registry button, e.g. Amazon">
-                    <input type="text" value={td('ha_gift_registry_label')} onChange={e => setTd('ha_gift_registry_label')(e.target.value)}
-                      placeholder="Gift Registry" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                  </Field>
-                  <Field label="Optional Flight Code" hint="Shown on the Boarding Pass; auto if blank">
-                    <input type="text" value={td('ha_boarding_flight_code')} onChange={e => setTd('ha_boarding_flight_code')(e.target.value)}
-                      placeholder="WED01" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
-                  </Field>
-                </div>
+                <Field label="Gift Registry Button Label" hint="Text on the registry button, e.g. Amazon">
+                  <input type="text" value={td('ha_gift_registry_label')} onChange={e => setTd('ha_gift_registry_label')(e.target.value)}
+                    placeholder="Gift Registry" style={iStyle} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
                 <Field label="Gift Message" hint="Shown above the registry button / bank details">
                   <textarea value={td('ha_gift_message')} onChange={e => setTd('ha_gift_message')(e.target.value)}
                     rows={2} placeholder="Your presence is your gift, but contributions can go to…"
@@ -703,11 +708,11 @@ export default function Stage2_FormConfiguration({
                   </Field>
                 </div>
                 <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field label="Partner 1 Email" hint="Optional — if set, this person also gets an email every time a guest RSVPs">
+                  <Field label="Partner 1 Email" hint="If set, this person also gets an email every time a guest RSVPs">
                     <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}
                       style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
-                  <Field label="Partner 2 Email" hint="Optional — if set, this person also gets an email every time a guest RSVPs">
+                  <Field label="Partner 2 Email" hint="If set, this person also gets an email every time a guest RSVPs">
                     <input type="email" value={td('partner2_email')} onChange={e => setTd('partner2_email')(e.target.value)}
                       style={iStyle} onFocus={onFocus} onBlur={onBlur} />
                   </Field>
@@ -914,23 +919,9 @@ export default function Stage2_FormConfiguration({
                 placeholder="e.g. Everyone wears white" maxLength={80}
                 style={{ ...iStyle, marginTop: 10 }} onFocus={onFocus} onBlur={onBlur} />
             )}
-            {dressCode && (
-              <div style={{
-                marginTop: 16,
-                padding: '16px 20px 20px',
-                borderRadius: 12,
-                background: C.softBg,
-                border: `1px solid ${C.border}`
-              }}>
-                <div style={{ fontSize: 11, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Icon name="sparkle" size={11} strokeWidth={1.8} /> Guest Page Dress Code Preview
-                </div>
-                <DressCodeVisualizer dressCodeText={dressCode} isRTL={false} />
-              </div>
-            )}
           </Field>
 
-          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Dress Code</>} hint="Optional">
+          <Field label={<><Icon name="globe" size={11} strokeWidth={1.8} style={{ verticalAlign: '-1px', marginRight: 4 }} />Arabic Dress Code</>}>
             <input type="text" dir="rtl" value={td('dress_code_ar')} onChange={e => setTd('dress_code_ar')(e.target.value)}
               placeholder="ملابس رسمية، كاجوال..." style={{ ...iStyle, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
               onFocus={onFocus} onBlur={onBlur} />
@@ -1123,7 +1114,7 @@ export default function Stage2_FormConfiguration({
             )}
           </Field>
 
-          <Field label="Background Music (optional)">
+          <Field label="Background Music">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <label style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, cursor: musicUploading ? 'wait' : 'pointer',
@@ -1206,7 +1197,7 @@ export default function Stage2_FormConfiguration({
             )}
           </Field>
 
-          <Field label="Photo Gallery (optional)">
+          <Field label="Photo Gallery">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <label style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6, cursor: galleryUploading ? 'wait' : 'pointer',

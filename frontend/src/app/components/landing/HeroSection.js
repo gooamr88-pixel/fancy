@@ -236,10 +236,8 @@ export default function HeroSection() {
                 icon: (
                   <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                     <circle cx="20" cy="20" r="18" stroke="#D7BE80" strokeWidth="1" />
-                    <path d="M14 28C14 28 16 24 20 24C24 24 26 28 26 28" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" />
-                    <circle cx="15" cy="14" r="3" stroke="#B8944F" strokeWidth="1.2" fill="none" />
-                    <circle cx="25" cy="14" r="3" stroke="#B8944F" strokeWidth="1.2" fill="none" />
-                    <path d="M18 11L20 8L22 11" stroke="#D7BE80" strokeWidth="1" strokeLinecap="round" />
+                    <circle cx="16" cy="23" r="6" stroke="#B8944F" strokeWidth="1.5" />
+                    <circle cx="24" cy="23" r="6" stroke="#B8944F" strokeWidth="1.5" />
                   </svg>
                 ),
                 title: "Weddings",

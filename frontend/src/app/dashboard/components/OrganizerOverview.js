@@ -275,8 +275,71 @@ function CheckInBanner() {
   );
 }
 
+/* ═══ Referral Program Banner ═══
+   Referrals already has its own sidebar tab, but sitting there gave it the
+   same visual weight as Settings/Profile — an organizer had to already know
+   to look for it. This surfaces it on the very first screen every organizer
+   sees (new or returning), same placement pattern as the Check-In banner
+   above it, so the referral link is clear from the beginning instead of
+   something only discovered by accident. */
+function ReferralBanner({ onNavigate }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      className="ov-section"
+      style={{
+        animationDelay: '75ms',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24,
+        flexWrap: 'wrap',
+        background: 'linear-gradient(135deg, #FAF3E4 0%, #F3E4C4 100%)',
+        border: '1px solid rgba(184,148,79,0.25)',
+        borderRadius: 18, padding: '22px 28px',
+        boxShadow: '0 8px 24px rgba(184,148,79,0.12)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 14, flexShrink: 0,
+          background: 'linear-gradient(135deg, #191B1E, #2A2D33)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D7BE80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 12v9H4v-9" /><path d="M2 7h20v5H2z" /><path d="M12 22V7" /><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" /><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+          </svg>
+        </div>
+        <div>
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, color: '#191B1E', margin: 0 }}>
+            Know another host? Earn credit.
+          </h2>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, color: '#6E6558', margin: '4px 0 0', lineHeight: 1.6 }}>
+            Share your personal referral link — every organizer who signs up through it earns you account credit.
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onNavigate}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0,
+          padding: '11px 22px', borderRadius: 30, border: 'none', cursor: 'pointer',
+          background: hovered ? 'linear-gradient(135deg, #a6833f, #B8944F)' : 'linear-gradient(135deg, #D7BE80, #B8944F)',
+          color: '#191B1E', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700,
+          transition: 'all 0.25s ease', transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+          boxShadow: hovered ? '0 8px 22px rgba(184,148,79,0.35)' : '0 4px 14px rgba(184,148,79,0.2)',
+        }}
+      >
+        Get My Referral Link
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+      </button>
+    </div>
+  );
+}
+
 /* ═══ Main Component ═══ */
-export default function OrganizerOverview() {
+export default function OrganizerOverview({ onNavigateToReferrals }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -348,6 +411,9 @@ export default function OrganizerOverview() {
 
         {/* ── Check-In Kiosk CTA ── */}
         <CheckInBanner />
+
+        {/* ── Referral Program CTA ── */}
+        <ReferralBanner onNavigate={onNavigateToReferrals} />
 
         {/* ── Stat Cards ── */}
         <div className="ov-section" style={{ animationDelay: '100ms' }}>

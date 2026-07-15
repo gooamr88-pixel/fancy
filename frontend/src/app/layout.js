@@ -1,23 +1,24 @@
 import "./globals.css";
-import { Playfair_Display, Lato, Great_Vibes, Aref_Ruqaa } from 'next/font/google';
+import { Cormorant_Garamond, EB_Garamond, Great_Vibes, Aref_Ruqaa, Playfair_Display, Montserrat, Dancing_Script } from 'next/font/google';
 import ToastHost from './components/ToastHost';
 
-/* ═══ Google Fonts — Luxury Typography Stack ═══ */
+/* ═══ Google Fonts — Formal Typography Stack ═══ */
 
-/* HEADINGS: Elegant Serif Display — for H1, H2, section titles */
-const playfair = Playfair_Display({
+/* HEADINGS: Classic engraved-invitation serif — for H1, H2, section titles */
+const cormorant = Cormorant_Garamond({
   subsets: ['latin', 'latin-ext'],
-  weight: ['400', '500', '600', '700', '800', '900'],
+  weight: ['300', '400', '500', '600', '700'],
   style: ['normal', 'italic'],
-  variable: '--font-playfair',
+  variable: '--font-heading',
   display: 'swap',
 });
 
-/* BODY & BUTTONS: Clean premium Sans-Serif */
-const lato = Lato({
+/* BODY & BUTTONS: Formal serif body text */
+const ebGaramond = EB_Garamond({
   subsets: ['latin', 'latin-ext'],
-  weight: ['300', '400', '700', '900'],
-  variable: '--font-lato',
+  weight: ['400', '500', '600', '700', '800'],
+  style: ['normal', 'italic'],
+  variable: '--font-body',
   display: 'swap',
 });
 
@@ -34,6 +35,33 @@ const arefRuqaa = Aref_Ruqaa({
   subsets: ['arabic', 'latin'],
   weight: ['400', '700'],
   variable: '--font-aref',
+  display: 'swap',
+});
+
+/* ═══ Additional heading fonts — the Custom template's "Heading Typography"
+   picker (CustomBuilder.js) offers these alongside the three above, so
+   organizers building a from-scratch page get real stylistic variety
+   (a bold display serif, a true geometric sans, a second, more playful
+   script) instead of only the three baked into the core brand stack. ═══ */
+const playfairDisplay = Playfair_Display({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+  style: ['normal', 'italic'],
+  variable: '--font-playfair',
+  display: 'swap',
+});
+
+const montserrat = Montserrat({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-montserrat',
+  display: 'swap',
+});
+
+const dancingScript = Dancing_Script({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-dancing',
   display: 'swap',
 });
 
@@ -74,7 +102,7 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${playfair.variable} ${lato.variable} ${greatVibes.variable} ${arefRuqaa.variable}`}
+      className={`${cormorant.variable} ${ebGaramond.variable} ${greatVibes.variable} ${arefRuqaa.variable} ${playfairDisplay.variable} ${montserrat.variable} ${dancingScript.variable}`}
     >
       <body>
         {children}

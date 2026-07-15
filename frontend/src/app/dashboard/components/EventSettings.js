@@ -5,7 +5,6 @@ import React, { useState } from 'react';
 import PlacesAutocomplete from '../../components/PlacesAutocomplete';
 import FontPicker from './FontPicker';
 import { supabase } from '../../utils/supabaseClient';
-import { DressCodeVisualizer } from '../../components/guest/GuestUI';
 import { extractYouTubeId } from '../../utils/youtube';
 import RepeatableListEditor from './RepeatableListEditor';
 import Icon from '../../components/icons/Icon';
@@ -57,6 +56,122 @@ function toLocalDateString(dateStr) {
   } catch { return ''; }
 }
 
+/* A draft/pending_review event (already-created, revisited from the dashboard
+   — as opposed to StagePayment's create-event wizard, which has its own
+   equivalent redeem box) can still self-publish via a promo code here. A
+   valid code publishes the event immediately — free, no payment, no waiting
+   for admin review — same end state as an admin approving it manually. */
+function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null); // { type: 'error'|'success', text }
+  const [focused, setFocused] = useState(false);
+  const SUCCESS = '#3B9B6D', ERROR = '#C45E5E';
+
+  const submit = async () => {
+    if (!code.trim() || busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`${apiUrl}/payments/events/${eventId}/redeem-promo-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'That promo code could not be redeemed.');
+      setMsg({ type: 'success', text: data.message || 'Your event is now live!' });
+      onRedeemed?.(data.event);
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'That promo code could not be redeemed.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        marginTop: '16px', padding: '18px 20px',
+        background: 'linear-gradient(160deg, #FFFEFC 0%, #FBF6EA 100%)',
+        border: `1.5px dashed ${COLORS.gold}`, borderRadius: '14px',
+        boxShadow: '0 2px 16px rgba(184, 148, 79, 0.08)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+        <span style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(184, 148, 79, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name="ticket" size={15} color={COLORS.gold} strokeWidth={1.6} />
+        </span>
+        <div>
+          <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)' }}>Have a promo code?</h4>
+          <p style={{ fontSize: '11.5px', color: COLORS.stone, margin: '2px 0 0', lineHeight: 1.5, fontFamily: 'var(--font-sans)' }}>
+            Publishes this event immediately — free, no payment, no review wait.
+          </p>
+        </div>
+      </div>
+      <div className="promo-redeem-row" style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
+        <input
+          value={code}
+          onChange={(e) => { setCode(e.target.value.toUpperCase()); setMsg(null); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="e.g. FANCY2026"
+          disabled={busy}
+          style={{
+            flex: '1 1 160px', height: '42px', padding: '0 14px',
+            border: `1.5px solid ${focused ? COLORS.gold : COLORS.border}`, borderRadius: '9px',
+            fontSize: '13px', fontFamily: 'monospace', fontWeight: 700, letterSpacing: '0.05em', color: COLORS.charcoal,
+            background: COLORS.white, outline: 'none', boxSizing: 'border-box',
+            boxShadow: focused ? '0 0 0 3px rgba(184, 148, 79, 0.15)' : 'none',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || !code.trim()}
+          className="promo-redeem-submit"
+          style={{
+            height: '42px', padding: '0 20px', borderRadius: '9px', border: 'none',
+            background: (busy || !code.trim()) ? '#C9C4BA' : 'linear-gradient(135deg, #C5A86B, #A6833F)',
+            color: COLORS.white, fontSize: '12.5px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+            cursor: (busy || !code.trim()) ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
+          {busy ? 'Redeeming…' : 'Redeem'}
+        </button>
+      </div>
+      {msg && (
+        <div
+          style={{
+            marginTop: '12px', display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '9px 11px',
+            borderRadius: '9px', background: msg.type === 'success' ? 'rgba(59, 155, 109, 0.08)' : 'rgba(196, 94, 94, 0.08)',
+            border: `1px solid ${msg.type === 'success' ? 'rgba(59, 155, 109, 0.25)' : 'rgba(196, 94, 94, 0.25)'}`,
+          }}
+        >
+          <span style={{ flexShrink: 0, marginTop: 1 }}>
+            <Icon name={msg.type === 'success' ? 'check' : 'warning'} size={14} color={msg.type === 'success' ? SUCCESS : ERROR} strokeWidth={1.8} />
+          </span>
+          <p style={{ fontSize: '12px', fontWeight: 600, color: msg.type === 'success' ? SUCCESS : ERROR, margin: 0, lineHeight: 1.5, fontFamily: 'var(--font-sans)' }}>
+            {msg.text}
+          </p>
+        </div>
+      )}
+      <style jsx>{`
+        .promo-redeem-submit:not(:disabled):hover { filter: brightness(1.06); box-shadow: 0 6px 18px rgba(184, 148, 79, 0.3); transform: translateY(-1px); }
+        @media (max-width: 420px) {
+          .promo-redeem-row { flex-direction: column; }
+          .promo-redeem-row button { width: 100%; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function EventSettings({ eventId, event, onEventUpdated, onEventDeleted }) {
   const [form, setForm] = useState({
     title: '', description: '', event_date: '', event_end_date: '', location_name: '', location_address: '',
@@ -96,7 +211,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     ha_invited_to_city: '', ha_invited_to_lat: null, ha_invited_to_lng: null, ha_our_story: '',
     ha_menu_courses: [], ha_things_to_do: [], ha_getting_there: '',
     ha_gift_bank_name: '', ha_gift_account_name: '', ha_gift_iban: '', ha_gift_registry_label: '', ha_gift_message: '',
-    ha_boarding_flight_code: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -402,7 +516,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         ha_gift_iban: event.template_data?.ha_gift_iban || '',
         ha_gift_registry_label: event.template_data?.ha_gift_registry_label || '',
         ha_gift_message: event.template_data?.ha_gift_message || '',
-        ha_boarding_flight_code: event.template_data?.ha_boarding_flight_code || '',
       });
     }
   }
@@ -932,15 +1045,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <textarea value={templateData.ha_getting_there} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_getting_there: e.target.value }))} placeholder="How to get there, parking, shuttle info…" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
 
-            <div className="es-row" style={rowStyle}>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Gift Registry Button Label</label>
-                <input value={templateData.ha_gift_registry_label} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_registry_label: e.target.value }))} placeholder="Gift Registry" style={inputStyle} />
-              </div>
-              <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Optional Flight Code (Boarding Pass)</label>
-                <input value={templateData.ha_boarding_flight_code} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_boarding_flight_code: e.target.value }))} placeholder="WED01" style={inputStyle} />
-              </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Gift Registry Button Label</label>
+              <input value={templateData.ha_gift_registry_label} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_registry_label: e.target.value }))} placeholder="Gift Registry" style={inputStyle} />
             </div>
 
             <div style={fieldGroupStyle}>
@@ -1146,21 +1253,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
           />
         </div>
-
-        {form.dress_code && (
-          <div style={{
-            ...fieldGroupStyle,
-            padding: '16px 20px 20px',
-            borderRadius: 12,
-            background: COLORS.softBg,
-            border: `1px solid ${COLORS.border}`
-          }}>
-            <div style={{ fontSize: 11, color: COLORS.stone, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 8, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Icon name="sparkle" size={11} strokeWidth={1.8} /> Guest Page Dress Code Preview
-            </div>
-            <DressCodeVisualizer dressCodeText={form.dress_code} isRTL={false} />
-          </div>
-        )}
 
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Cover Image</label>
@@ -1521,11 +1613,14 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
         {!statusActionable ? (
           /* Draft / pending_review — status controls aren't applicable pre-publish. */
-          <p style={{ fontSize: '13px', color: COLORS.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
-            {currentStatus === 'pending_review'
-              ? 'Your event is awaiting review and will go live once approved. Pause, resume and complete controls become available once it’s active.'
-              : 'Finish setup and complete payment to publish your event. Status controls become available once it’s live.'}
-          </p>
+          <>
+            <p style={{ fontSize: '13px', color: COLORS.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+              {currentStatus === 'pending_review'
+                ? 'Your event is awaiting review and will go live once approved. Pause, resume and complete controls become available once it’s active.'
+                : 'Finish setup and complete payment to publish your event. Status controls become available once it’s live.'}
+            </p>
+            <PromoCodeRedeemBox eventId={eventId} apiUrl={apiUrl} onRedeemed={(ev) => onEventUpdated?.(ev)} />
+          </>
         ) : (
           <>
             {/* Make the consequence explicit — pausing/completing takes the event offline. */}

@@ -89,7 +89,7 @@ function getDateOrderError(eventDate, eventEndDate, rsvpDeadline) {
 // The full-page guest experience's own section fields (a flexible list of
 // days — each with its own venue and schedule, see ha_days/DaysEditor —
 // accommodation & FAQ lists, meal options, invited-to city, menu, things-to-do,
-// getting-there, gift bank details, boarding-pass override). Shared by EVERY
+// getting-there, gift bank details). Shared by EVERY
 // full-page template so switching template type never wipes them. The legacy
 // ha_schedule_day1/day2 and ha_venue_day1/day2_* keys are deliberately left
 // out of every template's list now (see getHaDays) — that makes them "not
@@ -100,7 +100,6 @@ const HA_SECTION_FIELD_KEYS = [
   'ha_accommodation', 'ha_faq', 'ha_meal_options', 'ha_invited_to_city', 'ha_invited_to_lat', 'ha_invited_to_lng', 'ha_our_story',
   'ha_menu_courses', 'ha_things_to_do', 'ha_getting_there',
   'ha_gift_bank_name', 'ha_gift_account_name', 'ha_gift_iban', 'ha_gift_registry_label', 'ha_gift_message',
-  'ha_boarding_flight_code',
 ];
 const WEDDING_FIELD_KEYS = [
   'partner1', 'partner2', 'partner1_email', 'partner2_email', 'loveStory',
@@ -144,7 +143,7 @@ WEDDING_STYLE_TEMPLATE_KEYS.forEach(key => { TEMPLATE_TYPE_FIELD_KEYS[key] = WED
    event's title, cover image, and content (including what kind of event
    this is) are configured on Step 2 like every other template. */
 const DEFAULT_CUSTOM_CONFIG = {
-  headingFont: 'serif',          // serif | sans | script
+  headingFont: 'serif',          // serif | sans | script | display | minimal | whimsical (see CustomBuilder's FONTS)
   primary: '#8B7355',
   secondary: '#D4C5A9',
   accent: '#8B7355',
@@ -1207,6 +1206,37 @@ export default function CreateEventWizard() {
     }
   }, [apiUrl, eventId, selectedTierName, payProcessing]);
 
+  // Self-service alternative to both payment paths above: a valid super-admin
+  // -issued promo code publishes the event immediately, free — same end
+  // state as a successful payment (isPaid/currentTierName/paymentConfirmed),
+  // just without a Stripe/manual round trip. Returns { ok, message } instead
+  // of throwing so StagePayment's inline redeem box can show the result
+  // without a top-level page error banner.
+  const handleRedeemPromoCode = useCallback(async (code) => {
+    if (!eventId) return { ok: false, message: 'Event not ready yet — please try again in a moment.' };
+    try {
+      const res = await fetch(`${apiUrl}/payments/events/${eventId}/redeem-promo-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { ok: false, message: data.message || 'That promo code could not be redeemed.' };
+      }
+      setEventIsPaid(true);
+      setCurrentTierName(data.event?.tier_name || '');
+      setCurrentTierMaxGuests(data.event?.tier_max_guests ?? null);
+      setPaymentConfirmed(true);
+      setPaymentNotice(data.message || 'Your event is now live!');
+      setManualRef('');
+      return { ok: true, message: data.message || 'Your event is now live!' };
+    } catch (err) {
+      return { ok: false, message: err.message || 'That promo code could not be redeemed.' };
+    }
+  }, [apiUrl, eventId]);
+
   /* ═══ SMS credit balance + top-up (distribution step) ═══ */
   const fetchSmsCredits = useCallback(async () => {
     if (!eventId) return;
@@ -1462,6 +1492,7 @@ export default function CreateEventWizard() {
               currentTierMaxGuests={currentTierMaxGuests}
               stripeEnabled={features.stripeEnabled}
               referralCreditCents={referralCreditCents}
+              onRedeemPromoCode={handleRedeemPromoCode}
             />
           </motion.div>
         )}

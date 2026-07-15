@@ -4,6 +4,7 @@ import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
 import GoldDivider from "../components/GoldDivider";
+import { useLandingStats, formatStatValue } from "../utils/useLandingStats";
 
 const AUDIENCES = [
   {
@@ -50,14 +51,6 @@ const AUDIENCES = [
       </svg>
     ),
   },
-];
-
-// Same figures shown on the homepage's SocialProofBar — deliberately not a new,
-// separately-invented set of numbers.
-const STATS = [
-  { value: "10,000+", label: "Events Created" },
-  { value: "50,000+", label: "Guests Managed" },
-  { value: "99.9%", label: "Platform Uptime" },
 ];
 
 function AudienceCard({ audience }) {
@@ -116,6 +109,7 @@ function AudienceCard({ audience }) {
 }
 
 export default function SolutionsHubPage() {
+  const { stats } = useLandingStats();
   return (
     <>
       <Navbar />
@@ -131,7 +125,10 @@ export default function SolutionsHubPage() {
               Built for every kind of{" "}<span style={{ color: "#B8944F" }}>host</span>
             </h1>
             <p style={{ fontFamily: "var(--font-sans)", fontSize: "19px", lineHeight: 1.7, color: "#5E5A52", maxWidth: "560px", margin: "0 auto" }}>
-              From a single couple&apos;s wedding to a 400-guest corporate gala, Fancy RSVP scales to how you actually plan events — solo, professionally, or at a venue you run.
+              From an intimate couple&apos;s wedding to a grand corporate gala, Fancy RSVP scales to how you actually plan events —{" "}
+              <span style={{ color: "#B8944F", fontWeight: 600 }}>solo</span>,{" "}
+              <span style={{ color: "#B8944F", fontWeight: 600 }}>professionally</span>, or at a{" "}
+              <span style={{ color: "#B8944F", fontWeight: 600 }}>venue you run</span>.
             </p>
           </div>
         </section>
@@ -149,9 +146,9 @@ export default function SolutionsHubPage() {
         {/* ════════════════════ TRUST BAND ════════════════════ */}
         <section style={{ background: "#F8F4EC", padding: "72px 48px" }}>
           <div style={{ maxWidth: "1000px", margin: "0 auto", display: "flex", justifyContent: "space-around", flexWrap: "wrap", gap: "40px", textAlign: "center" }}>
-            {STATS.map((s) => (
+            {stats.map((s) => (
               <div key={s.label}>
-                <div style={{ fontFamily: "var(--font-serif)", fontSize: "40px", fontWeight: 700, color: "#191B1E", lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontFamily: "var(--font-serif)", fontSize: "40px", fontWeight: 700, color: "#191B1E", lineHeight: 1 }}>{formatStatValue(s)}</div>
                 <div style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 600, color: "#77736A", letterSpacing: "0.05em", textTransform: "uppercase", marginTop: "8px" }}>{s.label}</div>
               </div>
             ))}

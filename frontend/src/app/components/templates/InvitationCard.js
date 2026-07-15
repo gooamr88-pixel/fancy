@@ -9,7 +9,11 @@ import Icon from "../icons/Icon";
    Each pattern renders a DRAMATICALLY different visual design.
    The cards render at ~260×380px.
    ═══════════════════════════════════════════════════════════════ */
-const FONT_CLASS = { serif: "font-serif", sans: "font-sans", script: "font-script" };
+const FONT_CLASS = {
+  serif: "font-serif", sans: "font-sans", script: "font-script",
+  display: "font-display", minimal: "font-minimal", whimsical: "font-whimsical",
+};
+const SCRIPT_FONTS = new Set(["script", "whimsical"]);
 
 export default function InvitationCard({ template, theme, guestName, config, data }) {
   const accentColor = theme?.primary || "#B8944F";
@@ -58,7 +62,7 @@ export default function InvitationCard({ template, theme, guestName, config, dat
 
           <div className="flex-1 flex flex-col items-center justify-center text-center px-5 gap-2.5">
             <span className="text-[7px] uppercase tracking-[3px] font-sans font-semibold" style={{ color: `${accentColor}88` }}>{eyebrow}</span>
-            <span className={`${headingClass} leading-tight`} style={{ color: accentColor, fontSize: cfg.headingFont === "script" ? 30 : 20 }}>
+            <span className={`${headingClass} leading-tight`} style={{ color: accentColor, fontSize: SCRIPT_FONTS.has(cfg.headingFont) ? 30 : 20 }}>
               {cfg.headline || "You're Invited"}
             </span>
             {/* Flourish divider */}

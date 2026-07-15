@@ -2074,7 +2074,7 @@ CREATE TABLE public.super_admin_config (
     updated_at timestamp with time zone DEFAULT now(),
     updated_by uuid,
     manual_payment_methods jsonb DEFAULT '[]'::jsonb NOT NULL,
-    landing_stats jsonb DEFAULT '[{"label": "Events Created", "suffix": "+", "target": 10000, "decimals": 0}, {"label": "Guests Managed", "suffix": "+", "target": 50000, "decimals": 0}, {"label": "Platform Uptime", "suffix": "%", "target": 99.9, "decimals": 1}]'::jsonb NOT NULL
+    landing_stats jsonb DEFAULT '[{"label": "Events Created", "suffix": "+", "target": 10000, "decimals": 0, "source": "events_count"}, {"label": "Guests Managed", "suffix": "+", "target": 50000, "decimals": 0, "source": "guests_count"}, {"label": "Platform Uptime", "suffix": "%", "target": 99.9, "decimals": 1, "source": "static"}]'::jsonb NOT NULL
 );
 
 -- Name: tables; Type: TABLE; Schema: public
@@ -4566,10 +4566,20 @@ CREATE TABLE IF NOT EXISTS public.contact_submissions (
   subject TEXT NOT NULL,
   message TEXT NOT NULL,
   ip TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  segment TEXT NOT NULL DEFAULT 'general' CHECK (segment IN ('general', 'planners', 'venues', 'corporate')),
+  company TEXT,
+  phone TEXT,
+  expected_guests TEXT,
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'responded', 'closed')),
+  admin_response TEXT,
+  responded_at TIMESTAMPTZ,
+  responded_by UUID
 );
 
 CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON public.contact_submissions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contact_submissions_segment ON public.contact_submissions(segment);
+CREATE INDEX IF NOT EXISTS idx_contact_submissions_status ON public.contact_submissions(status);
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- 20260723010000_organizer_added_seating_reveal.sql

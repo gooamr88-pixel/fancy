@@ -193,25 +193,26 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
       tabIndex={-1}
       style={{
         position: 'fixed', inset: 0, zIndex: 2000,
-        background: 'rgba(25,27,30,0.85)',
-        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+        background: '#FAFAF8',
         display: 'flex', flexDirection: 'column',
         fontFamily: 'var(--font-sans)',
         outline: 'none',
       }}
     >
-      {/* Header */}
+      {/* Header — same light ivory/gold letterhead language as the rest of
+          the guest experience, so expanding the map reads as a zoom, not a
+          jump into an unrelated dark screen. */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '14px 18px', paddingTop: 'max(14px, calc(env(safe-area-inset-top) + 8px))', gap: '12px',
-        background: 'linear-gradient(180deg, rgba(25,27,30,0.6), rgba(25,27,30,0))',
-        color: '#FFFFFF',
+        padding: '14px 20px', paddingTop: 'max(14px, calc(env(safe-area-inset-top) + 8px))', gap: '12px',
+        background: '#FFFFFF', borderBottom: '1px solid #E8E2D6',
+        boxShadow: '0 2px 10px rgba(25,27,30,0.04)',
       }}>
         <div style={{ minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(215,190,128,0.85)', fontWeight: 700 }}>
-            {isRTL ? 'خريطة الجلوس' : 'Seating chart'}
+          <span style={{ display: 'block', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, fontWeight: 700 }}>
+            {isRTL ? 'خريطة الجلوس' : 'Seating Chart'}
           </span>
-          <strong style={{ display: 'block', fontSize: '16px', fontFamily: 'var(--font-serif)', fontWeight: 600 }}>
+          <strong style={{ display: 'block', fontSize: '16px', fontFamily: 'var(--font-serif)', fontWeight: 600, color: '#191B1E' }}>
             {myTableName ? (isRTL ? `مكان جلوسك: ${formatTableLabel(myTableName, isRTL)}` : `Your assigned seating: ${formatTableLabel(myTableName, isRTL)}`) : (isRTL ? 'حدد طاولتك من الخريطة' : 'Find your table')}
           </strong>
         </div>
@@ -219,10 +220,11 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
           onClick={onClose}
           aria-label={isRTL ? 'إغلاق' : 'Close'}
           style={{
-            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-            color: '#FFFFFF', borderRadius: '999px',
-            width: '44px', height: '44px', cursor: 'pointer',
+            background: '#FFFFFF', border: '1px solid #E8E2D6',
+            color: '#3A3631', borderRadius: '999px',
+            width: '44px', height: '44px', cursor: 'pointer', flexShrink: 0,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(25,27,30,0.06)',
           }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -231,7 +233,9 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
         </button>
       </div>
 
-      {/* Canvas */}
+      {/* Canvas — plain white/ivory floor with the same fine dot-grid used by
+          the organizer's own editor and the printed seating chart, so every
+          seating-map surface in the product shares one visual language. */}
       <div
         ref={containerRef}
         onWheel={onWheel}
@@ -245,7 +249,7 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
         style={{
           flex: 1, position: 'relative', overflow: 'hidden',
           cursor: dragging ? 'grabbing' : 'grab',
-          background: 'radial-gradient(120% 100% at 50% 0%, rgba(231,212,168,0.18) 0%, transparent 60%), #1F2024',
+          background: '#FFFFFF',
           touchAction: 'none',
         }}
       >
@@ -254,13 +258,12 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
           transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`,
           transformOrigin: '0 0', willChange: 'transform',
         }}>
-          {/* Floor grid — subtle, fades out at high zoom */}
+          {/* Floor dot-grid — subtle, fades out at high zoom */}
           <div aria-hidden style={{
             position: 'absolute', inset: 0,
-            backgroundImage: `linear-gradient(rgba(215,190,128,0.10) 1px, transparent 1px),
-                              linear-gradient(90deg, rgba(215,190,128,0.10) 1px, transparent 1px)`,
-            backgroundSize: '100px 100px',
-            opacity: 0.6, pointerEvents: 'none',
+            backgroundImage: 'radial-gradient(#E0D8C6 1.5px, transparent 1.5px)',
+            backgroundSize: '32px 32px',
+            opacity: 0.7, pointerEvents: 'none',
           }} />
 
           {els.map((el) => {
@@ -278,25 +281,24 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
                 transform: `rotate(${rotation}deg)`, transformOrigin: 'center center',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                 borderRadius: meta.round ? '50%' : zone ? '12px' : '10px',
-                border: mine ? `4px solid ${GOLD}` : `1.5px solid ${zone ? color : 'rgba(232,226,214,0.7)'}`,
+                border: mine ? `4px solid ${GOLD}` : `1.5px solid ${zone ? color : '#E0D8C8'}`,
                 background: mine
-                  ? 'linear-gradient(135deg, rgba(255,251,240,0.97), rgba(243,228,196,0.95))'
-                  : zone ? `${color}33` : 'rgba(255,255,255,0.92)',
+                  ? 'linear-gradient(135deg, #FFFBF0, #F3E4C4)'
+                  : zone ? `${color}1A` : '#FFFFFF',
                 boxShadow: mine
-                  ? '0 0 0 10px rgba(184,148,79,0.22), 0 18px 50px rgba(184,148,79,0.6)'
-                  : '0 1px 2px rgba(0,0,0,0.25)',
+                  ? '0 0 0 10px rgba(184,148,79,0.16), 0 16px 40px rgba(184,148,79,0.35)'
+                  : '0 2px 8px rgba(25,27,30,0.06)',
                 zIndex: mine ? 5 : (zone ? 1 : 2),
               }}>
                 <span style={{
                   fontSize: Math.max(11, Math.min(22, h / 4)),
-                  fontWeight: mine ? 800 : 600,
-                  color: mine ? '#5C4516' : zone ? '#FFFFFF' : '#3A3631',
+                  fontWeight: mine ? 800 : 700,
+                  color: mine ? '#5C4516' : zone ? '#3A3631' : '#3A3631',
                   lineHeight: 1.1, padding: '0 4px', maxWidth: '100%',
                   fontFamily: 'var(--font-sans)',
-                  textShadow: zone && !mine ? '0 1px 2px rgba(0,0,0,0.45)' : 'none',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                 }}>
-                  {zone && ZONE_ICON[el.shape] && <Icon name={ZONE_ICON[el.shape]} size={Math.max(11, Math.min(18, h / 5))} strokeWidth={1.6} style={{ flexShrink: 0 }} />}
+                  {zone && ZONE_ICON[el.shape] && <Icon name={ZONE_ICON[el.shape]} size={Math.max(11, Math.min(18, h / 5))} strokeWidth={1.8} color={color} style={{ flexShrink: 0 }} />}
                   {el.table_name}
                 </span>
                 {mine && (
@@ -359,8 +361,10 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
         <div style={{
           position: 'absolute', bottom: '18px',
           ...(isRTL ? { right: '18px' } : { left: '18px' }),
-          fontSize: '11px', color: 'rgba(255,255,255,0.6)',
-          background: 'rgba(0,0,0,0.35)', padding: '8px 12px', borderRadius: '8px',
+          fontSize: '11px', color: '#77736A',
+          background: 'rgba(255,255,255,0.92)', border: '1px solid #E8E2D6',
+          padding: '8px 12px', borderRadius: '8px',
+          boxShadow: '0 2px 8px rgba(25,27,30,0.06)',
           fontFamily: 'var(--font-sans)', maxWidth: '210px', lineHeight: 1.5,
           pointerEvents: 'none',
         }}>
@@ -386,10 +390,10 @@ function CircleBtn({ children, onClick, ...rest }) {
       {...rest}
       style={{
         width: '44px', height: '44px', borderRadius: '50%',
-        background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.4)',
+        background: '#FFFFFF', border: '1px solid #E8E2D6',
         color: '#3A3631', cursor: 'pointer', fontSize: '20px', fontWeight: 700,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
+        boxShadow: '0 4px 14px rgba(25,27,30,0.10)',
         fontFamily: 'var(--font-sans)', lineHeight: 1,
       }}
     >{children}</button>

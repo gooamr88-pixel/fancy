@@ -16,6 +16,7 @@ import { lighten } from '../../utils/color';
 import { getCelebrationPreset } from '../../utils/patternCelebration';
 import { FloatingParticles } from '../../components/guest/GuestAnimations';
 import TurnstileWidget, { turnstileEnabled } from '../../components/guest/TurnstileWidget';
+import Icon from '../../components/icons/Icon';
 import StepAttendance from './steps/StepAttendance';
 import StepPartyDetails from './steps/StepPartyDetails';
 import StepCustomQuestions from './steps/StepCustomQuestions';
@@ -599,10 +600,17 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                 backgroundSize: '200% 100%', animation: 'shimmer 3s linear infinite',
               }} />
             {!submitted && event?.rsvp_deadline && (
-              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
-                style={{ fontSize: '11.5px', fontWeight: 600, color: lighten(secondaryColor, 0.35), margin: '12px 0 0', fontFamily: 'var(--font-sans)' }}>
-                {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-              </motion.p>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
+                style={{
+                  display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '7px',
+                  margin: '14px 0 0', padding: '7px 16px', borderRadius: '999px',
+                  background: 'rgba(255,255,255,0.1)', border: `1px solid ${lighten(secondaryColor, 0.35)}55`,
+                }}>
+                <Icon name="clock" size={12} color={lighten(secondaryColor, 0.35)} strokeWidth={1.8} />
+                <span style={{ fontSize: '11.5px', fontWeight: 700, color: lighten(secondaryColor, 0.35), fontFamily: 'var(--font-sans)' }}>
+                  {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                </span>
+              </motion.div>
             )}
           </div>
 
