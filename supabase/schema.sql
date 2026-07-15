@@ -4585,3 +4585,96 @@ CREATE INDEX IF NOT EXISTS idx_contact_submissions_status ON public.contact_subm
 -- 20260723010000_organizer_added_seating_reveal.sql
 -- ─────────────────────────────────────────────────────────────────────────
 ALTER TABLE public.rsvp_parties ADD COLUMN IF NOT EXISTS created_by_organizer BOOLEAN NOT NULL DEFAULT false;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 20260807000000_promo_codes.sql
+-- ─────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.promo_codes (
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    code              text NOT NULL UNIQUE,
+    description       text,
+    tier_name         text NOT NULL,
+    max_redemptions   integer CHECK (max_redemptions IS NULL OR max_redemptions > 0),
+    redemption_count  integer NOT NULL DEFAULT 0,
+    expires_at        timestamptz,
+    is_active         boolean NOT NULL DEFAULT true,
+    created_by        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    updated_at        timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON public.promo_codes(code);
+CREATE INDEX IF NOT EXISTS idx_promo_codes_active ON public.promo_codes(is_active) WHERE is_active = true;
+
+CREATE TABLE IF NOT EXISTS public.promo_code_redemptions (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    promo_code_id   uuid NOT NULL REFERENCES public.promo_codes(id) ON DELETE CASCADE,
+    event_id        uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
+    org_id          uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+    redeemed_by     uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+    tier_name       text NOT NULL,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_promo_code_redemptions_code ON public.promo_code_redemptions(promo_code_id);
+CREATE INDEX IF NOT EXISTS idx_promo_code_redemptions_org ON public.promo_code_redemptions(org_id);
+
+ALTER TABLE public.promo_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.promo_code_redemptions ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.redeem_promo_code(
+  p_code      text,
+  p_event_id  uuid,
+  p_org_id    uuid,
+  p_actor     uuid
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_code_row promo_codes%ROWTYPE;
+  v_norm_code text := upper(trim(coalesce(p_code, '')));
+BEGIN
+  IF v_norm_code = '' THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'INVALID_CODE');
+  END IF;
+
+  PERFORM pg_advisory_xact_lock(hashtext('promo_code:' || v_norm_code));
+
+  SELECT * INTO v_code_row FROM promo_codes WHERE code = v_norm_code FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'INVALID_CODE');
+  END IF;
+
+  IF NOT v_code_row.is_active THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'CODE_INACTIVE');
+  END IF;
+
+  IF v_code_row.expires_at IS NOT NULL AND v_code_row.expires_at < now() THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'CODE_EXPIRED');
+  END IF;
+
+  IF v_code_row.max_redemptions IS NOT NULL AND v_code_row.redemption_count >= v_code_row.max_redemptions THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'CODE_LIMIT_REACHED');
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM promo_code_redemptions WHERE event_id = p_event_id) THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'EVENT_ALREADY_REDEEMED');
+  END IF;
+
+  INSERT INTO promo_code_redemptions (promo_code_id, event_id, org_id, redeemed_by, tier_name)
+  VALUES (v_code_row.id, p_event_id, p_org_id, p_actor, v_code_row.tier_name);
+
+  UPDATE promo_codes SET redemption_count = redemption_count + 1, updated_at = now()
+  WHERE id = v_code_row.id;
+
+  RETURN jsonb_build_object('ok', true, 'promo_code_id', v_code_row.id, 'tier_name', v_code_row.tier_name);
+EXCEPTION WHEN unique_violation THEN
+  RETURN jsonb_build_object('ok', false, 'error', 'EVENT_ALREADY_REDEEMED');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.redeem_promo_code(text, uuid, uuid, uuid) FROM anon, authenticated;
