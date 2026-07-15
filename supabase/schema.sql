@@ -2631,10 +2631,9 @@ CREATE TRIGGER trg_validate_custom_answer BEFORE INSERT OR UPDATE ON public.cust
 ALTER TABLE ONLY public.activity_logs
     ADD CONSTRAINT activity_logs_event_id_fkey FOREIGN KEY (event_id) REFERENCES public.events(id) ON DELETE CASCADE;
 
--- Name: admin_audit_logs admin_audit_logs_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.admin_audit_logs
-    ADD CONSTRAINT admin_audit_logs_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+-- admin_audit_logs_actor_user_id_fkey dropped by migration
+-- 20260808000000_drop_auth_users_actor_fks.sql — actor_user_id is a plain
+-- audit uuid; organizer/admin ids live in organizations.owner_user_id, not auth.users.
 
 -- Name: admin_user_roles admin_user_roles_admin_user_id_fkey; Type: FK CONSTRAINT; Schema: public
 
@@ -2646,10 +2645,9 @@ ALTER TABLE ONLY public.admin_user_roles
 ALTER TABLE ONLY public.admin_user_roles
     ADD CONSTRAINT admin_user_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
 
--- Name: admin_users admin_users_user_id_fkey; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.admin_users
-    ADD CONSTRAINT admin_users_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- admin_users_user_id_fkey dropped by migration
+-- 20260808000000_drop_auth_users_actor_fks.sql — user_id is a plain
+-- ownership uuid; organizer/admin ids live in organizations.owner_user_id, not auth.users.
 
 -- check_ins_checked_in_by_fkey dropped by migration
 -- 20260728000000_drop_checkin_actor_fk.sql — checked_in_by is a plain audit
@@ -2685,10 +2683,9 @@ ALTER TABLE ONLY public.custom_answers
 ALTER TABLE ONLY public.custom_answers
     ADD CONSTRAINT custom_answers_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.rsvp_parties(id) ON DELETE CASCADE;
 
--- Name: devices devices_user_id_fkey; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.devices
-    ADD CONSTRAINT devices_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- devices_user_id_fkey dropped by migration
+-- 20260808000000_drop_auth_users_actor_fks.sql — user_id is a plain
+-- ownership uuid; organizer/admin ids live in organizations.owner_user_id, not auth.users.
 
 -- Name: event_payments event_payments_event_id_fkey; Type: FK CONSTRAINT; Schema: public
 
@@ -2700,15 +2697,14 @@ ALTER TABLE ONLY public.event_payments
 ALTER TABLE ONLY public.events
     ADD CONSTRAINT fk_events_org_id FOREIGN KEY (org_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
--- Name: organizations fk_organizations_owner_user_id; Type: FK CONSTRAINT; Schema: public
+-- fk_organizations_owner_user_id dropped by migration
+-- 20260808000000_drop_auth_users_actor_fks.sql — owner_user_id is a
+-- self-issued crypto.randomUUID() (see authController.js register()), never
+-- backed by a real auth.users row for ordinary organizer signups.
 
-ALTER TABLE ONLY public.organizations
-    ADD CONSTRAINT fk_organizations_owner_user_id FOREIGN KEY (owner_user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
--- Name: user_roles fk_user_roles_user_id; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.user_roles
-    ADD CONSTRAINT fk_user_roles_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- fk_user_roles_user_id dropped by migration
+-- 20260808000000_drop_auth_users_actor_fks.sql — same reasoning: user_id
+-- traces back to organizations.owner_user_id, not auth.users.
 
 -- Name: guests guests_event_id_fkey; Type: FK CONSTRAINT; Schema: public
 
@@ -2730,10 +2726,9 @@ ALTER TABLE ONLY public.invitations
 ALTER TABLE ONLY public.invitations
     ADD CONSTRAINT invitations_party_id_fkey FOREIGN KEY (party_id) REFERENCES public.rsvp_parties(id) ON DELETE CASCADE;
 
--- Name: login_history login_history_user_id_fkey; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.login_history
-    ADD CONSTRAINT login_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
+-- login_history_user_id_fkey dropped by migration
+-- 20260808000000_drop_auth_users_actor_fks.sql — user_id is a plain
+-- attribution uuid; organizer/admin ids live in organizations.owner_user_id, not auth.users.
 
 -- Name: payment_disputes payment_disputes_payment_id_fkey; Type: FK CONSTRAINT; Schema: public
 
@@ -2785,15 +2780,13 @@ ALTER TABLE ONLY public.seating_assignments
 ALTER TABLE ONLY public.seating_assignments
     ADD CONSTRAINT seating_assignments_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.tables(id) ON DELETE CASCADE;
 
--- Name: security_events security_events_user_id_fkey; Type: FK CONSTRAINT; Schema: public
+-- security_events_user_id_fkey dropped by migration
+-- 20260808000000_drop_auth_users_actor_fks.sql — user_id is a plain
+-- attribution uuid; organizer/admin ids live in organizations.owner_user_id, not auth.users.
 
-ALTER TABLE ONLY public.security_events
-    ADD CONSTRAINT security_events_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
-
--- Name: sessions sessions_user_id_fkey; Type: FK CONSTRAINT; Schema: public
-
-ALTER TABLE ONLY public.sessions
-    ADD CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+-- sessions_user_id_fkey dropped by migration
+-- 20260808000000_drop_auth_users_actor_fks.sql — user_id is a plain
+-- ownership uuid; organizer/admin ids live in organizations.owner_user_id, not auth.users.
 
 -- Name: sms_campaign_recipients sms_campaign_recipients_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public
 
@@ -4599,7 +4592,7 @@ CREATE TABLE IF NOT EXISTS public.promo_codes (
     redemption_count  integer NOT NULL DEFAULT 0,
     expires_at        timestamptz,
     is_active         boolean NOT NULL DEFAULT true,
-    created_by        uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+    created_by        uuid, -- fkey to auth.users dropped by 20260808000000_drop_auth_users_actor_fks.sql; see that migration for why
     created_at        timestamptz NOT NULL DEFAULT now(),
     updated_at        timestamptz NOT NULL DEFAULT now()
 );
@@ -4612,7 +4605,7 @@ CREATE TABLE IF NOT EXISTS public.promo_code_redemptions (
     promo_code_id   uuid NOT NULL REFERENCES public.promo_codes(id) ON DELETE CASCADE,
     event_id        uuid NOT NULL REFERENCES public.events(id) ON DELETE CASCADE,
     org_id          uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-    redeemed_by     uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+    redeemed_by     uuid, -- fkey to auth.users dropped by 20260808000000_drop_auth_users_actor_fks.sql; see that migration for why
     tier_name       text NOT NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
     UNIQUE (event_id)
