@@ -8,10 +8,15 @@ import { supabase } from '../../utils/supabaseClient';
 import { extractYouTubeId } from '../../utils/youtube';
 import RepeatableListEditor from './RepeatableListEditor';
 import Icon from '../../components/icons/Icon';
+import EventCategoryIcon from '../../components/icons/EventCategoryIcon';
 import TagListEditor, { toTagArray } from './TagListEditor';
 import ImageUploadField from './ImageUploadField';
 import DaysEditor from '../create-event/components/DaysEditor';
+import CustomBuilder from '../create-event/components/CustomBuilder';
+import SectionsOrderEditor from '../create-event/components/SectionsOrderEditor';
 import { getHaDays } from '../../utils/haDays';
+import { TEMPLATES } from '../../utils/curatedTemplates';
+import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../utils/customEventCategories';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -19,15 +24,49 @@ const COLORS = {
 };
 
 // Templates rendered as the full-page snap-scroll guest experience — the
-// wedding-style templates plus engagement (corporate/birthday/gala/custom keep
-// the continuous-scroll layout and their own content fields).
-// Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js.
+// wedding-style templates, engagement and custom (corporate/birthday/gala
+// keep the continuous-scroll layout and their own content fields).
+// Keep in sync with FULL_PAGE_TEMPLATES in [slug]/EventPageClient.js and
+// FULL_PAGE_TEMPLATE_KEYS in create-event/components/Stage2_FormConfiguration.js
+// ('custom' was previously missing here, so a custom-template event's
+// full-page content — Our Story, Days/Venues, Accommodation, FAQ, etc. —
+// never showed an edit surface after creation).
 const FULL_PAGE_TEMPLATE_KEYS = [
   'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
   'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
-  'engagement',
+  'engagement', 'custom',
 ];
 const isFullPage = (t) => FULL_PAGE_TEMPLATE_KEYS.includes(t);
+
+// Curated templates that use the couple/partner fields — matches
+// WEDDING_STYLE_TEMPLATE_KEYS in Stage2_FormConfiguration.js.
+const WEDDING_STYLE_TEMPLATE_KEYS = [
+  'wedding', 'tuscany', 'marrakesh', 'kyoto', 'nordic', 'havana',
+  'estate', 'roseAtelier', 'orchid', 'clay', 'alpine', 'coastal', 'heritageArch',
+];
+
+const DRESS_CODES = ['', 'Black Tie', 'Cocktail Attire', 'Semi-Formal', 'Business Casual', 'Smart Casual', 'Casual', 'Festive', 'Traditional'];
+
+// Matches PRIVACY_MODES in create-event/components/Stage2_FormConfiguration.js
+// — same three link types, same labels, so the concept never has to be
+// relearned between creating an event and editing it afterward.
+const PRIVACY_MODES = [
+  { key: 'public', label: 'Public Link', icon: 'globe', desc: 'Anyone with the link can RSVP' },
+  { key: 'private', label: 'Private', icon: 'lock', desc: 'Guests must be on your list' },
+  { key: 'password', label: 'Passcode', icon: 'lockKey', desc: 'Requires a passcode to access' },
+];
+
+const DEFAULT_CUSTOM_DESIGN = { headingFont: 'serif', primary: '#B8944F', secondary: '#D7BE80', accent: '#B8944F', background: '#FFFDF7' };
+
+const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+const TABS = [
+  { key: 'details', label: 'Details', icon: 'calendar' },
+  { key: 'design', label: 'Design & Template', icon: 'palette' },
+  { key: 'content', label: 'Content & Sections', icon: 'book' },
+  { key: 'guest', label: 'Guest Experience', icon: 'guests' },
+  { key: 'status', label: 'Status & Danger Zone', icon: 'gear' },
+];
 
 // Event date/time is stored and rendered everywhere as a "floating" wall-clock
 // time — every guest-facing display formats it with timeZone: 'UTC' so the
@@ -43,16 +82,6 @@ function toLocalDatetimeString(dateStr) {
     if (isNaN(d.getTime())) return '';
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
-  } catch { return ''; }
-}
-
-function toLocalDateString(dateStr) {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   } catch { return ''; }
 }
 
@@ -172,16 +201,38 @@ function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
   );
 }
 
+/* Amber inline warning used for the two settings changes with real
+   downstream consequences (slug + template swap) — organizer's call, eyes
+   open, not a blocking confirmation. */
+function InlineWarning({ children }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8, padding: '9px 11px',
+      borderRadius: 9, background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)',
+    }}>
+      <span style={{ flexShrink: 0, marginTop: 1 }}>
+        <Icon name="warning" size={13} color="#B45309" strokeWidth={1.8} />
+      </span>
+      <p style={{ fontSize: 11.5, fontWeight: 500, color: '#92400E', margin: 0, lineHeight: 1.5, fontFamily: 'var(--font-sans)' }}>
+        {children}
+      </p>
+    </div>
+  );
+}
+
 export default function EventSettings({ eventId, event, onEventUpdated, onEventDeleted }) {
+  const [activeTab, setActiveTab] = useState('details');
   const [form, setForm] = useState({
-    title: '', description: '', event_date: '', event_end_date: '', location_name: '', location_address: '',
+    title: '', slug: '', description: '', event_date: '', event_end_date: '', location_name: '', location_address: '',
     location_lat: null, location_lng: null, location_place_id: '',
     rsvp_deadline: '', privacy_mode: 'public', access_password: '',
-    dress_code: '', cover_image_url: '', primary_color: '#B8944F',
+    dress_code: '', cover_image_url: '',
+    primary_color: '#B8944F', secondary_color: '#D7BE80', accent_color: '#B8944F', background_color: '#FFFDF7',
     background_music_url: '', gallery_urls: [],
     font_heading: 'Playfair Display',
     font_body: 'Inter',
     event_type: 'wedding',
+    template_type: '',
     notification_email: true,
     notification_whatsapp: false,
     allow_guest_edits: false,
@@ -195,11 +246,19 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     ceremony_venue_name: '', ceremony_venue_address: '', ceremony_lat: null, ceremony_lng: null, ceremony_place_id: '', ceremony_time_of_day: '',
     reception_venue_name: '', reception_venue_address: '', reception_lat: null, reception_lng: null, reception_place_id: '', reception_time_of_day: '',
     company: '', agenda: '', speakers: '', sponsors: '', networkingNotes: '',
-    proposalStory: '', giftRegistry: '',
+    proposalStory: '', giftRegistry: '', loveStory: '', accommodations: '',
     celebrant: '', age: '', partyTheme: '',
     honoree: '', program: '', sponsorPackages: '',
     seal_text: '',
     title_ar: '', description_ar: '', dress_code_ar: '',
+    // Custom Canvas — "what kind of event is this?" category + its
+    // per-kind fields (see utils/customEventCategories.js), and the
+    // look-and-feel config CustomBuilder edits (heading font + palette).
+    custom_category: '', custom_honoree: '', custom_milestone: '',
+    custom_parents: '', custom_baby_name: '', custom_baby_due: '',
+    customDesign: { ...DEFAULT_CUSTOM_DESIGN },
+    // Section visibility/order for full-page templates — see SectionsOrderEditor.
+    enabledSections: {}, sectionOrder: [],
     ha_days: [],
     // Legacy pre-DaysEditor shape — no longer editable here (superseded by
     // ha_days below), kept only so an old event's values round-trip on save
@@ -227,6 +286,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  // Custom dress-code text mode — starts on if the saved value isn't one of
+  // the curated pills (e.g. a legacy free-text value), so it displays instead
+  // of silently looking like nothing was chosen. Mirrors Stage2's customDressMode.
+  const [customDressMode, setCustomDressMode] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const handleMusicUpload = async (e) => {
@@ -409,6 +472,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     if (event) {
       setForm({
         title: event.title || '',
+        slug: event.slug || '',
         description: event.description || '',
         event_date: toLocalDatetimeString(event.event_date || event.date),
         event_end_date: toLocalDatetimeString(event.event_end_date || event.end_date),
@@ -417,7 +481,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         location_lat: event.location_lat || null,
         location_lng: event.location_lng || null,
         location_place_id: event.location_place_id || '',
-        rsvp_deadline: toLocalDateString(event.rsvp_deadline),
+        rsvp_deadline: toLocalDatetimeString(event.rsvp_deadline),
         privacy_mode: event.privacy_mode || 'public',
         // The server no longer sends the stored password hash at all (see
         // withResolvedTier) — this always starts blank. Pre-filling it with the
@@ -428,16 +492,21 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         dress_code: event.dress_code || '',
         cover_image_url: event.cover_image_url || '',
         primary_color: event.custom_colors?.primary || '#B8944F',
+        secondary_color: event.custom_colors?.secondary || '#D7BE80',
+        accent_color: event.custom_colors?.accent || '#B8944F',
+        background_color: event.custom_colors?.background || '#FFFDF7',
         background_music_url: event.background_music_url || '',
         gallery_urls: Array.isArray(event.gallery_urls) ? event.gallery_urls : [],
         font_heading: event.custom_fonts?.heading || 'Playfair Display',
         font_body: event.custom_fonts?.body || 'Inter',
         event_type: event.event_type || 'wedding',
+        template_type: event.template_type || '',
         notification_email: event.notification_preferences?.email !== false,
         notification_whatsapp: !!event.notification_preferences?.whatsapp,
         allow_guest_edits: !!event.allow_guest_edits,
         track_guest_side: !!event.track_guest_side
       });
+      setCustomDressMode(!!event.dress_code && !DRESS_CODES.includes(event.dress_code));
       setHasAccessPassword(!!event.has_access_password);
       setTemplateData({
         // Fall back to the legacy bride_name/groom_name/ceremony_time/reception_time
@@ -473,6 +542,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         networkingNotes: event.template_data?.networkingNotes || '',
         proposalStory: event.template_data?.proposalStory || '',
         giftRegistry: event.template_data?.giftRegistry || '',
+        loveStory: event.template_data?.loveStory || '',
+        accommodations: event.template_data?.accommodations || '',
         celebrant: event.template_data?.celebrant || '',
         age: event.template_data?.age || '',
         partyTheme: event.template_data?.partyTheme || '',
@@ -483,6 +554,15 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         title_ar: event.template_data?.title_ar || '',
         description_ar: event.template_data?.description_ar || '',
         dress_code_ar: event.template_data?.dress_code_ar || '',
+        custom_category: event.template_data?.custom_category || '',
+        custom_honoree: event.template_data?.custom_honoree || '',
+        custom_milestone: event.template_data?.custom_milestone || '',
+        custom_parents: event.template_data?.custom_parents || '',
+        custom_baby_name: event.template_data?.custom_baby_name || '',
+        custom_baby_due: event.template_data?.custom_baby_due || '',
+        customDesign: { ...DEFAULT_CUSTOM_DESIGN, ...(event.template_data?.customDesign || {}) },
+        enabledSections: event.template_data?.enabledSections || {},
+        sectionOrder: Array.isArray(event.template_data?.sectionOrder) ? event.template_data.sectionOrder : [],
         // Heritage Arch template — full-page multi-day site content. ha_days is
         // the live source the guest page actually reads (getHaDays prioritizes
         // it over the legacy day1/day2 fields below) — synthesized from those
@@ -569,6 +649,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       setError('The RSVP deadline must be on or before the event date.');
       return;
     }
+    if (form.slug && !SLUG_REGEX.test(form.slug)) {
+      setError('Event URL slug must contain only lowercase letters, numbers, and single dashes.');
+      return;
+    }
     setSaving(true); setError(''); setSuccess(false);
     try {
       const body = { ...form };
@@ -582,7 +666,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       // and the create-event wizard, which never converts them either.
       if (body.event_date) body.event_date = `${body.event_date}:00.000Z`;
       if (body.event_end_date) body.event_end_date = `${body.event_end_date}:00.000Z`;
-      if (body.rsvp_deadline) body.rsvp_deadline = `${body.rsvp_deadline}T00:00:00.000Z`;
+      if (body.rsvp_deadline) body.rsvp_deadline = `${body.rsvp_deadline}:00.000Z`;
       // access_password now always starts blank (the server never sends the
       // stored hash back — see withResolvedTier), so only include it when the
       // organizer actually typed a new one; otherwise omit it entirely so
@@ -590,6 +674,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       // only checked privacy_mode, so a password-protected event resubmitted
       // whatever was pre-filled (the raw hash) on every unrelated save.
       if (body.privacy_mode !== 'password' || !body.access_password.trim()) delete body.access_password;
+      // Don't send an unchanged/empty slug — updateEvent treats an omitted
+      // field as "leave as-is", which is what we want when the organizer
+      // never touched this field.
+      if (!body.slug) delete body.slug;
+      if (!body.template_type) delete body.template_type;
 
       // Pack custom fonts
       body.custom_fonts = {
@@ -599,19 +688,26 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       delete body.font_heading;
       delete body.font_body;
 
-      // Pack the color picker's flat `primary_color` into the `custom_colors`
+      // Pack the color pickers' flat `*_color` fields into the `custom_colors`
       // jsonb column the backend actually persists — the backend's field
-      // whitelist has no bare `primary_color` field, so sending it as-is was
+      // whitelist has no bare `primary_color` field, so sending them as-is was
       // silently dropped and never saved.
       body.custom_colors = {
         ...event?.custom_colors,
         primary: body.primary_color,
+        secondary: body.secondary_color,
+        accent: body.accent_color,
+        background: body.background_color,
       };
       delete body.primary_color;
+      delete body.secondary_color;
+      delete body.accent_color;
+      delete body.background_color;
 
       // Pack template data — merge onto the event's existing template_data so
-      // fields this form doesn't surface (seal artwork, custom builder config,
-      // love story, gift registry, etc.) survive instead of being wiped out.
+      // fields this form doesn't surface (seal artwork, love story, gift
+      // registry, custom category, section order, etc.) survive instead of
+      // being wiped out.
       body.template_data = {
         ...event?.template_data,
         ...templateData,
@@ -688,25 +784,39 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   };
 
   const sectionStyle = {
-    background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px',
-    padding: '24px', marginBottom: '20px',
+    background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '14px',
+    padding: '26px', marginBottom: '20px', boxShadow: '0 2px 14px rgba(25,27,30,0.04)',
   };
   const sectionTitleStyle = {
-    fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 600, color: COLORS.charcoal,
-    margin: '0 0 20px', paddingBottom: '12px', borderBottom: `1px solid ${COLORS.border}`,
+    fontFamily: 'var(--font-serif)', fontSize: '16.5px', fontWeight: 600, color: COLORS.charcoal,
+    margin: '0 0 22px', paddingBottom: '14px', borderBottom: `1px solid ${COLORS.border}`,
+    letterSpacing: '0.01em',
   };
   const labelStyle = {
     display: 'block', fontSize: '11px', fontWeight: 600, color: COLORS.stone,
     textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px', fontFamily: 'var(--font-sans)',
   };
   const inputStyle = {
-    width: '100%', padding: '10px 14px', border: `1px solid ${COLORS.border}`, borderRadius: '8px',
+    width: '100%', padding: '10.5px 14px', border: `1px solid ${COLORS.border}`, borderRadius: '9px',
     fontSize: '14px', fontFamily: 'var(--font-sans)', color: COLORS.charcoal, background: COLORS.white,
-    outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box',
+    outline: 'none', boxShadow: 'none', transition: 'border-color 0.2s, box-shadow 0.2s', boxSizing: 'border-box',
+  };
+  // Icon badge — the small colored-circle icon container already used by
+  // PromoCodeRedeemBox, applied consistently to every section header so the
+  // whole page reads as one designed system instead of ad hoc bare icons.
+  const iconBadgeStyle = {
+    width: 32, height: 32, borderRadius: 9, background: 'rgba(184, 148, 79, 0.12)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   };
   const fieldGroupStyle = { marginBottom: '16px' };
   const rowStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' };
   const hintStyle = { fontSize: '10px', color: COLORS.stone, display: 'block', marginTop: '4px' };
+  const pillStyle = (active) => ({
+    padding: '7px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12.5, fontWeight: 600,
+    fontFamily: 'var(--font-sans)', border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
+    background: active ? 'rgba(184,148,79,0.08)' : COLORS.white, color: active ? COLORS.gold : COLORS.stone,
+    transition: 'all 0.2s',
+  });
 
   const currentStatus = event?.status || 'active';
   const statusColors = {
@@ -722,14 +832,51 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const statusActionable = ['active', 'paused', 'completed'].includes(currentStatus);
   const statusColor = statusColors[currentStatus] || statusColors.active;
 
-  return (
-    <div style={{ maxWidth: '720px' }}>
+  // Same gating the wizard uses (WEDDING_STYLE_TEMPLATE_KEYS, or Custom with a
+  // couple-kind category) — governs Partner Names/Love Story/Ceremony &
+  // Reception in the Content tab. Falls back to the coarser event_type when no
+  // template_type is set yet (older events saved before this field existed).
+  const effectiveTemplateType = form.template_type || (form.event_type === 'wedding' ? 'wedding' : '');
+  const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[templateData.custom_category] || null;
+  const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(effectiveTemplateType)
+    || (effectiveTemplateType === 'custom' && customCategoryMeta?.kind === 'couple')
+    || (!form.template_type && form.event_type === 'engagement');
+  const isCustomTemplate = effectiveTemplateType === 'custom';
 
+  return (
+    <div style={{ maxWidth: '780px' }}>
+
+      {/* ═══ TAB NAV ═══ */}
+      <div className="es-tabs" style={{
+        display: 'flex', gap: 6, marginBottom: 22, padding: 5, borderRadius: 14,
+        background: COLORS.softBg, border: `1px solid ${COLORS.border}`, flexWrap: 'wrap',
+      }}>
+        {TABS.map((t) => {
+          const active = activeTab === t.key;
+          return (
+            <button key={t.key} type="button" onClick={() => setActiveTab(t.key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 10,
+                border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                background: active ? COLORS.white : 'transparent', color: active ? COLORS.gold : COLORS.stone,
+                boxShadow: active ? '0 2px 10px rgba(184,148,79,0.15)' : 'none',
+                transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)', whiteSpace: 'nowrap',
+              }}
+            >
+              <Icon name={t.icon} size={13} strokeWidth={1.7} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'details' && (
+      <>
       {/* ═══ EVENT DETAILS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
             Event Details
           </span>
         </h3>
@@ -737,8 +884,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Event Title</label>
           <input value={form.title} onChange={handleChange('title')} placeholder="My Event" style={inputStyle}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
           />
         </div>
 
@@ -754,17 +901,39 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             placeholder="عنوان الفعالية بالعربي"
             dir="rtl"
             style={{ ...inputStyle, fontFamily: "'Noto Sans Arabic', 'Segoe UI', sans-serif" }}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
           />
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Event URL</label>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{
+              background: COLORS.ivory, border: `1px solid ${COLORS.border}`, borderRight: 'none',
+              borderRadius: '8px 0 0 8px', padding: '10px 12px', fontSize: 13, color: COLORS.stone,
+              fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+            }}>fancyrsvp.com/</span>
+            <input
+              value={form.slug}
+              onChange={(e) => { setForm(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })); setSuccess(false); }}
+              placeholder="my-event"
+              style={{ ...inputStyle, borderRadius: '0 8px 8px 0' }}
+              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            />
+          </div>
+          <InlineWarning>
+            Changing this breaks any invitation link or QR code you&apos;ve already shared — guests using the old link will get a &ldquo;not found&rdquo; page.
+          </InlineWarning>
         </div>
 
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Description</label>
           <textarea value={form.description} onChange={handleChange('description')} rows={3}
             placeholder="Tell guests about your event…" style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
           />
         </div>
 
@@ -781,8 +950,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             rows={3}
             dir="rtl"
             style={{ ...inputStyle, resize: 'vertical', minHeight: '80px', fontFamily: "'Noto Sans Arabic', 'Segoe UI', sans-serif" }}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
           />
         </div>
 
@@ -853,6 +1022,514 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <option value="custom">Custom Event</option>
           </select>
         </div>
+      </div>
+
+      {/* ═══ RSVP SETTINGS ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+            RSVP Settings
+          </span>
+        </h3>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>RSVP Deadline</label>
+          <input type="datetime-local" value={form.rsvp_deadline} onChange={handleChange('rsvp_deadline')} style={inputStyle}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
+          />
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Event Link Type</label>
+          <div className="es-privacy-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            {PRIVACY_MODES.map((pm) => {
+              const active = form.privacy_mode === pm.key;
+              return (
+                <div key={pm.key}
+                  onClick={() => { setForm(prev => ({ ...prev, privacy_mode: pm.key })); setSuccess(false); }}
+                  style={{
+                    padding: '16px 14px', borderRadius: 12, textAlign: 'center', cursor: 'pointer',
+                    border: active ? `2px solid ${COLORS.gold}` : `1px solid ${COLORS.border}`,
+                    background: active ? 'rgba(184,148,79,0.04)' : COLORS.white,
+                    transform: active ? 'scale(1.02)' : 'scale(1)',
+                    transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
+                    <Icon name={pm.icon} size={22} color={COLORS.gold} strokeWidth={1.4} />
+                  </div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 700, color: COLORS.charcoal }}>{pm.label}</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: COLORS.stone, marginTop: 4 }}>{pm.desc}</div>
+                </div>
+              );
+            })}
+          </div>
+          {form.privacy_mode === 'password' && (
+            <div style={{ marginTop: 14 }}>
+              <label style={labelStyle}>Access Passcode</label>
+              <input value={form.access_password} onChange={handleChange('access_password')} type="text"
+                placeholder={hasAccessPassword ? 'Passcode is set — leave blank to keep it' : 'Enter access passcode'}
+                style={inputStyle}
+                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+                onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+              />
+              {!hasAccessPassword && !form.access_password.trim() && (
+                <p style={{ fontSize: '11px', color: COLORS.stone, marginTop: '6px' }}>No passcode set yet — guests won&apos;t be able to access this event until you set one.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ═══ DRESS CODE ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><Icon name="dressCode" size={15} color={COLORS.gold} strokeWidth={1.7} /></span>
+            Dress Code
+          </span>
+        </h3>
+
+        {!customDressMode ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {DRESS_CODES.filter(Boolean).map((code) => (
+              <button key={code} type="button" onClick={() => { setForm(prev => ({ ...prev, dress_code: code })); setSuccess(false); }}
+                style={pillStyle(form.dress_code === code)}>
+                {code}
+              </button>
+            ))}
+            <button type="button" onClick={() => setCustomDressMode(true)} style={pillStyle(false)}>
+              Custom…
+            </button>
+          </div>
+        ) : (
+          <div style={fieldGroupStyle}>
+            <input value={form.dress_code} onChange={handleChange('dress_code')} placeholder="Black Tie, Cocktail, Casual…" style={inputStyle}
+              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
+              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
+            />
+            <button type="button" onClick={() => { setCustomDressMode(false); setForm(prev => ({ ...prev, dress_code: '' })); }}
+              style={{ marginTop: 8, background: 'none', border: 'none', color: COLORS.gold, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)', padding: 0 }}>
+              ← Choose from presets instead
+            </button>
+          </div>
+        )}
+
+        <div style={{ ...fieldGroupStyle, marginTop: 16 }}>
+          <label style={labelStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Icon name="globe" size={12} strokeWidth={1.7} /> Arabic Dress Code <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
+            </span>
+          </label>
+          <input
+            value={templateData.dress_code_ar || ''}
+            onChange={(e) => { setTemplateData(prev => ({ ...prev, dress_code_ar: e.target.value })); setSuccess(false); }}
+            placeholder="ملابس رسمية، كاجوال..."
+            dir="rtl"
+            style={{ ...inputStyle, fontFamily: "'Noto Sans Arabic', 'Segoe UI', sans-serif" }}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
+          />
+        </div>
+      </div>
+      </>
+      )}
+
+      {activeTab === 'design' && (
+      <>
+      {/* ═══ VISUAL TEMPLATE ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><Icon name="palette" size={15} color={COLORS.gold} strokeWidth={1.7} /></span>
+            Visual Template
+          </span>
+        </h3>
+        {event?.template_type && !TEMPLATES.some(t => t.key === event.template_type) && (
+          <p style={{ fontSize: 12, color: COLORS.stone, margin: '0 0 12px', fontFamily: 'var(--font-sans)' }}>
+            Currently using <strong style={{ color: COLORS.charcoal }}>{event.template_type}</strong> — an earlier template style. Pick one below to switch to a currently-offered template.
+          </p>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+          {TEMPLATES.map((t) => {
+            const active = form.template_type === t.key;
+            const preset = t.presets?.[0];
+            return (
+              <button key={t.key} type="button" onClick={() => { setForm(prev => ({ ...prev, template_type: t.key })); setSuccess(false); }}
+                style={{
+                  textAlign: 'left', padding: 14, borderRadius: 12, cursor: 'pointer',
+                  border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
+                  background: active ? 'rgba(184,148,79,0.06)' : COLORS.white,
+                  boxShadow: active ? '0 4px 16px rgba(184,148,79,0.15)' : 'none', transition: 'all 0.2s',
+                }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  {preset && <span style={{ width: 16, height: 16, borderRadius: '50%', background: preset.primary, border: '1.5px solid #fff', boxShadow: '0 0 0 1px ' + COLORS.border }} />}
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: 14, fontWeight: 600, color: COLORS.charcoal }}>{t.label}</span>
+                </div>
+                <p style={{ fontSize: 11, color: COLORS.stone, margin: 0, fontFamily: 'var(--font-sans)' }}>{t.tagline}</p>
+              </button>
+            );
+          })}
+        </div>
+        {form.template_type && form.template_type !== (event?.template_type || '') && (
+          <InlineWarning>
+            Switching templates may hide, or require re-entering, content the new template expects — double check your Content &amp; Sections tab after saving.
+          </InlineWarning>
+        )}
+      </div>
+
+      {/* ═══ APPEARANCE ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span>
+            Appearance
+          </span>
+        </h3>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Cover Image</label>
+          <div
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.background = 'rgba(184,148,79,0.04)'; }}
+            onDragLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.softBg; }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.borderColor = COLORS.border;
+              e.currentTarget.style.background = COLORS.softBg;
+              const file = e.dataTransfer.files?.[0];
+              if (file && file.type.startsWith('image/')) {
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                const input = e.currentTarget.querySelector('input[type="file"]');
+                if (input) { input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true })); }
+              }
+            }}
+            style={{
+              marginTop: '8px', padding: '16px', borderRadius: '12px',
+              border: `2px dashed ${COLORS.border}`, background: COLORS.softBg,
+              textAlign: 'center', transition: 'all 0.2s', cursor: 'pointer',
+            }}
+          >
+            <input
+              type="file" accept="image/*" onChange={handleCoverUpload}
+              disabled={coverUploading}
+              style={{ display: 'none' }} id="cover-file-upload"
+            />
+            <label htmlFor="cover-file-upload" style={{
+              cursor: coverUploading ? 'wait' : 'pointer', display: 'flex',
+              flexDirection: 'column', alignItems: 'center', gap: '8px',
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={COLORS.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="3"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <path d="m21 15-5-5L5 21"/>
+              </svg>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
+                {coverUploading ? 'Uploading…' : 'Drop image here or click to browse'}
+              </span>
+              <span style={{ fontSize: '10px', color: '#A09A91' }}>JPG, PNG, WebP • Max 8MB</span>
+            </label>
+          </div>
+
+          {form.cover_image_url && (
+            <div style={{
+              marginTop: '10px', borderRadius: '12px', overflow: 'hidden',
+              border: `1px solid ${COLORS.border}`, height: '140px',
+              background: COLORS.softBg, position: 'relative',
+            }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={form.cover_image_url} alt="Cover preview"
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 50%)',
+              }} />
+              <button type="button"
+                onClick={() => { setForm(prev => ({ ...prev, cover_image_url: '' })); setSuccess(false); }}
+                style={{
+                  position: 'absolute', top: 8, right: 8, width: 28, height: 28,
+                  borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
+                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >×</button>
+            </div>
+          )}
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Photo Gallery</label>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: galleryUploading ? 'wait' : 'pointer',
+              padding: '10px 16px', borderRadius: '8px', border: `1px solid ${COLORS.gold}`, color: COLORS.gold,
+              fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+              opacity: galleryUploading ? 0.6 : 1,
+            }}>
+              {galleryUploading ? 'Uploading…' : '⬆ Upload'}
+              <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} disabled={galleryUploading} style={{ display: 'none' }} />
+            </label>
+          </div>
+          {form.gallery_urls.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
+              {form.gallery_urls.map((url, i) => (
+                <div key={i} style={{ position: 'relative', width: 84, height: 84, borderRadius: '10px', overflow: 'hidden', border: `1px solid ${COLORS.border}`, background: COLORS.softBg }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { e.target.style.display = 'none'; }} />
+                  <button type="button" onClick={() => removeGalleryUrl(i)} title="Remove"
+                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Colors</label>
+          <div className="es-swatch-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            {[
+              { key: 'primary_color', label: 'Primary' },
+              { key: 'secondary_color', label: 'Secondary' },
+              { key: 'accent_color', label: 'Accent' },
+              { key: 'background_color', label: 'Background' },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <span style={{ ...labelStyle, marginBottom: 4 }}>{label}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: '5px 7px', background: COLORS.white }}>
+                  <input type="color" value={form[key]} onChange={handleChange(key)}
+                    style={{ width: 24, height: 24, border: 'none', background: 'none', padding: 0, cursor: 'pointer', borderRadius: 5 }} />
+                  <span style={{ fontFamily: 'monospace', fontSize: 10.5, color: COLORS.stone, textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis' }}>{form[key]}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '16px', marginTop: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          <FontPicker
+            label="Heading Font"
+            value={form.font_heading}
+            onChange={(val) => { setForm(prev => ({ ...prev, font_heading: val })); setSuccess(false); }}
+          />
+          <FontPicker
+            label="Body Font"
+            value={form.font_body}
+            onChange={(val) => { setForm(prev => ({ ...prev, font_body: val })); setSuccess(false); }}
+          />
+        </div>
+
+        {isCustomTemplate && (
+          <div style={{ marginTop: 16, marginBottom: 16 }}>
+            <label style={{ ...labelStyle, marginBottom: 10 }}>Custom Page Design</label>
+            <CustomBuilder
+              config={templateData.customDesign || DEFAULT_CUSTOM_DESIGN}
+              onChange={(patch) => {
+                setTemplateData(prev => ({ ...prev, customDesign: { ...(prev.customDesign || DEFAULT_CUSTOM_DESIGN), ...patch } }));
+                setSuccess(false);
+              }}
+            />
+          </div>
+        )}
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Background Music</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={handleMusicUpload}
+                disabled={musicUploading}
+                style={{ display: 'none' }}
+                id="music-file-upload"
+              />
+              <label
+                htmlFor="music-file-upload"
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: COLORS.softBg,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color: COLORS.stone,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'background-color 0.2s',
+                  userSelect: 'none'
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                {musicUploading ? 'Uploading...' : 'Choose Audio File'}
+              </label>
+
+              {form.background_music_url && (
+                <button
+                  type="button"
+                  onClick={() => { setForm(prev => ({ ...prev, background_music_url: '' })); setSuccess(false); }}
+                  style={{
+                    padding: '8px 12px',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    color: '#C45E5E',
+                    fontWeight: 500
+                  }}
+                >
+                  Remove Music
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '2px 0' }}>
+              <div style={{ flex: 1, height: 1, background: COLORS.border }} />
+              <span style={{ fontSize: '11px', color: COLORS.stone, fontWeight: 600 }}>or</span>
+              <div style={{ flex: 1, height: 1, background: COLORS.border }} />
+            </div>
+            <input
+              type="url"
+              value={form.background_music_url || ''}
+              onChange={e => setForm(prev => ({ ...prev, background_music_url: e.target.value }))}
+              placeholder="Paste a YouTube link (e.g. https://youtu.be/…)"
+              style={inputStyle}
+            />
+
+            {form.background_music_url && (
+              extractYouTubeId(form.background_music_url) ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: COLORS.softBg, border: `1px solid ${COLORS.border}` }}>
+                  <Icon name="play" size={14} color={COLORS.gold} strokeWidth={1.4} />
+                  <span style={{ fontSize: '12px', color: COLORS.charcoal, flex: 1 }}>YouTube song linked — guests tap the music icon to play it</span>
+                </div>
+              ) : (
+                <div style={{ marginTop: '4px' }}>
+                  <audio
+                    src={form.background_music_url}
+                    controls
+                    style={{ width: '100%', height: '36px', borderRadius: '8px' }}
+                  />
+                </div>
+              )
+            )}
+          </div>
+          <span style={{ fontSize: '11px', color: COLORS.stone, display: 'block', marginTop: '6px' }}>
+            Upload an audio file, or paste a YouTube link, to play music on the public event page.
+          </span>
+        </div>
+      </div>
+
+      {/* ═══ INVITATION SEAL & STATIONERY ═══
+           Hidden for Heritage Arch: that template opens with no envelope reveal,
+           so a seal configured here would never appear to its guests. */}
+      {event?.template_type !== 'heritageArch' && (
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg></span>
+            Invitation Seal &amp; Stationery
+          </span>
+        </h3>
+        <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+          This powers the cinematic wax seal guests unseal when they open the link. Leave blank to use your event name — the seal, stationery and gold light are all generated automatically and coloured to match your event.
+        </p>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Seal Name / Monogram</label>
+          <input value={templateData.seal_text} onChange={(e) => setTemplateData(prev => ({ ...prev, seal_text: e.target.value }))}
+            placeholder="Auto from event name" maxLength={24} style={inputStyle}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
+          />
+        </div>
+      </div>
+      )}
+      </>
+      )}
+
+      {activeTab === 'content' && (
+      <>
+      {/* ═══ TEMPLATE-SPECIFIC CONTENT ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><Icon name="book" size={15} color={COLORS.gold} strokeWidth={1.7} /></span>
+            Content
+          </span>
+        </h3>
+
+        {isCustomTemplate && (
+          <div style={{ marginBottom: 18 }}>
+            <label style={labelStyle}>What kind of event is this?</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: 10 }}>
+              {CUSTOM_CATEGORIES.map(({ key, label }) => {
+                const active = templateData.custom_category === key;
+                return (
+                  <button key={key} type="button"
+                    onClick={() => { setTemplateData(prev => ({ ...prev, custom_category: key })); setSuccess(false); }}
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                      padding: '10px 6px', borderRadius: 10, cursor: 'pointer',
+                      border: `1.5px solid ${active ? COLORS.gold : COLORS.border}`,
+                      background: active ? 'rgba(184,148,79,0.08)' : COLORS.white,
+                    }}>
+                    <EventCategoryIcon name={key} size={17} color={active ? COLORS.gold : COLORS.stone} />
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600, color: active ? COLORS.gold : COLORS.stone, textAlign: 'center' }}>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ fontSize: 10, color: '#A09A91', margin: '8px 0 0', fontFamily: 'var(--font-sans)' }}>
+              Shapes the fields below and the name/tagline on your guest page — change it any time.
+            </p>
+          </div>
+        )}
+
+        {isCustomTemplate && customCategoryMeta?.kind === 'honoree' && (
+          <div className="es-row" style={rowStyle}>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>{customCategoryMeta.honoreeLabel}</label>
+              <input value={templateData.custom_honoree} onChange={(e) => setTemplateData(prev => ({ ...prev, custom_honoree: e.target.value }))}
+                placeholder={customCategoryMeta.honoreePlaceholder} style={inputStyle} />
+              {customCategoryMeta.honoreeHint && <span style={hintStyle}>{customCategoryMeta.honoreeHint}</span>}
+            </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>{customCategoryMeta.milestoneLabel}</label>
+              <input value={templateData.custom_milestone} onChange={(e) => setTemplateData(prev => ({ ...prev, custom_milestone: e.target.value }))}
+                placeholder={customCategoryMeta.milestonePlaceholder} style={inputStyle} />
+              {customCategoryMeta.milestoneHint && <span style={hintStyle}>{customCategoryMeta.milestoneHint}</span>}
+            </div>
+          </div>
+        )}
+
+        {isCustomTemplate && templateData.custom_category === 'babyShower' && (
+          <>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Parent(s)-to-be</label>
+              <input value={templateData.custom_parents} onChange={(e) => setTemplateData(prev => ({ ...prev, custom_parents: e.target.value }))}
+                placeholder="e.g. Sarah & Michael" style={inputStyle} />
+              <span style={hintStyle}>Shown as the name on your guest page</span>
+            </div>
+            <div className="es-row" style={rowStyle}>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Baby&apos;s Name</label>
+                <input value={templateData.custom_baby_name} onChange={(e) => setTemplateData(prev => ({ ...prev, custom_baby_name: e.target.value }))}
+                  placeholder="Leave blank if unrevealed" style={inputStyle} />
+              </div>
+              <div style={fieldGroupStyle}>
+                <label style={labelStyle}>Due Date / Theme</label>
+                <input value={templateData.custom_baby_due} onChange={(e) => setTemplateData(prev => ({ ...prev, custom_baby_due: e.target.value }))}
+                  placeholder="e.g. Due June 2026" style={inputStyle} />
+              </div>
+            </div>
+          </>
+        )}
 
         {form.event_type === 'wedding' && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
@@ -887,10 +1564,21 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <label style={labelStyle}>Gift Registry URL</label>
               <input type="url" value={templateData.giftRegistry} onChange={(e) => setTemplateData(prev => ({ ...prev, giftRegistry: e.target.value }))} placeholder="https://registry.example.com" style={inputStyle} />
             </div>
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Guest Accommodations</label>
+              <textarea value={templateData.accommodations} onChange={(e) => setTemplateData(prev => ({ ...prev, accommodations: e.target.value }))}
+                rows={2} placeholder="Hotel blocks, parking info…" style={{ ...inputStyle, resize: 'vertical' }} />
+              {isFullPage(event?.template_type) && <span style={hintStyle}>Shown to guests only as a fallback note, and only if no hotels are added in the Accommodation list below</span>}
+            </div>
             {/* Full-page templates have their own Day 1 / Day 2 venue pickers
                 below — a single Ceremony/Reception pair doesn't fit a multi-day site. */}
             {!isFullPage(event?.template_type) && (
               <>
+                <div style={fieldGroupStyle}>
+                  <label style={labelStyle}>Our Love Story</label>
+                  <textarea value={templateData.loveStory} onChange={(e) => setTemplateData(prev => ({ ...prev, loveStory: e.target.value }))}
+                    rows={3} placeholder="Share your beautiful story…" style={{ ...inputStyle, resize: 'vertical' }} />
+                </div>
                 <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px' }}>
                   <div style={fieldGroupStyle}>
                     <label style={labelStyle} htmlFor="es-ceremony-venue">Ceremony Venue</label>
@@ -935,7 +1623,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Full-Page Guest Experience</h4>
             <span style={hintStyle}>Each section below appears on the guest page only when you fill it in.</span>
 
-            <div style={fieldGroupStyle}>
+            <div style={{ ...fieldGroupStyle, marginTop: 12 }}>
               <label style={labelStyle}>Our Story</label>
               <textarea value={templateData.ha_our_story} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_our_story: e.target.value }))} placeholder="Tell your story…" rows={4} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
@@ -1069,6 +1757,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 <input value={templateData.ha_gift_iban} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_iban: e.target.value }))} placeholder="BE89 5655 5224 55" style={inputStyle} />
               </div>
             </div>
+
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${COLORS.border}` }}>
+              <SectionsOrderEditor templateData={templateData} setTemplateData={setTemplateData} />
+            </div>
           </div>
         )}
 
@@ -1176,338 +1868,16 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         )}
       </div>
-
-      {/* ═══ RSVP SETTINGS ═══ */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            RSVP Settings
-          </span>
-        </h3>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>RSVP Deadline</label>
-          <input type="date" value={form.rsvp_deadline} onChange={handleChange('rsvp_deadline')} style={inputStyle}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-          />
-        </div>
-
-        <div className="es-row" style={rowStyle}>
-          <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Privacy Mode</label>
-            <select value={form.privacy_mode} onChange={handleChange('privacy_mode')} style={{ ...inputStyle, cursor: 'pointer' }}>
-              <option value="public">Public</option>
-              <option value="private">Private (Invite Only)</option>
-              <option value="password">Password Protected</option>
-            </select>
-          </div>
-          {form.privacy_mode === 'password' && (
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Access Password</label>
-              <input value={form.access_password} onChange={handleChange('access_password')} type="text"
-                placeholder={hasAccessPassword ? 'Password is set — leave blank to keep it' : 'Enter password'}
-                style={inputStyle}
-                onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-                onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-              />
-              {!hasAccessPassword && !form.access_password.trim() && (
-                <p style={{ fontSize: '11px', color: COLORS.stone, marginTop: '6px' }}>No password set yet — guests won&apos;t be able to access this event until you set one.</p>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ═══ APPEARANCE ═══ */}
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
-            Appearance
-          </span>
-        </h3>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Dress Code</label>
-          <input value={form.dress_code} onChange={handleChange('dress_code')} placeholder="Black Tie, Cocktail, Casual…" style={inputStyle}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-          />
-        </div>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Icon name="globe" size={12} strokeWidth={1.7} /> Arabic Dress Code <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span>
-            </span>
-          </label>
-          <input
-            value={templateData.dress_code_ar || ''}
-            onChange={(e) => { setTemplateData(prev => ({ ...prev, dress_code_ar: e.target.value })); setSuccess(false); }}
-            placeholder="ملابس رسمية، كاجوال..."
-            dir="rtl"
-            style={{ ...inputStyle, fontFamily: "'Noto Sans Arabic', 'Segoe UI', sans-serif" }}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-          />
-        </div>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Cover Image</label>
-          <div
-            onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.background = 'rgba(184,148,79,0.04)'; }}
-            onDragLeave={(e) => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.softBg; }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.currentTarget.style.borderColor = COLORS.border;
-              e.currentTarget.style.background = COLORS.softBg;
-              const file = e.dataTransfer.files?.[0];
-              if (file && file.type.startsWith('image/')) {
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                const input = e.currentTarget.querySelector('input[type="file"]');
-                if (input) { input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true })); }
-              }
-            }}
-            style={{
-              marginTop: '8px', padding: '16px', borderRadius: '12px',
-              border: `2px dashed ${COLORS.border}`, background: COLORS.softBg,
-              textAlign: 'center', transition: 'all 0.2s', cursor: 'pointer',
-            }}
-          >
-            <input
-              type="file" accept="image/*" onChange={handleCoverUpload}
-              disabled={coverUploading}
-              style={{ display: 'none' }} id="cover-file-upload"
-            />
-            <label htmlFor="cover-file-upload" style={{
-              cursor: coverUploading ? 'wait' : 'pointer', display: 'flex',
-              flexDirection: 'column', alignItems: 'center', gap: '8px',
-            }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={COLORS.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="3"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <path d="m21 15-5-5L5 21"/>
-              </svg>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
-                {coverUploading ? 'Uploading…' : 'Drop image here or click to browse'}
-              </span>
-              <span style={{ fontSize: '10px', color: '#A09A91' }}>JPG, PNG, WebP • Max 8MB</span>
-            </label>
-          </div>
-
-          {form.cover_image_url && (
-            <div style={{
-              marginTop: '10px', borderRadius: '12px', overflow: 'hidden',
-              border: `1px solid ${COLORS.border}`, height: '140px',
-              background: COLORS.softBg, position: 'relative',
-            }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={form.cover_image_url} alt="Cover preview"
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-              <div style={{
-                position: 'absolute', inset: 0,
-                background: 'linear-gradient(to top, rgba(0,0,0,0.3) 0%, transparent 50%)',
-              }} />
-              <button type="button"
-                onClick={() => { setForm(prev => ({ ...prev, cover_image_url: '' })); setSuccess(false); }}
-                style={{
-                  position: 'absolute', top: 8, right: 8, width: 28, height: 28,
-                  borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
-                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                }}
-              >×</button>
-            </div>
-          )}
-        </div>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Photo Gallery</label>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-            <label style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: galleryUploading ? 'wait' : 'pointer',
-              padding: '10px 16px', borderRadius: '8px', border: `1px solid ${COLORS.gold}`, color: COLORS.gold,
-              fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
-              opacity: galleryUploading ? 0.6 : 1,
-            }}>
-              {galleryUploading ? 'Uploading…' : '⬆ Upload'}
-              <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} disabled={galleryUploading} style={{ display: 'none' }} />
-            </label>
-          </div>
-          {form.gallery_urls.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
-              {form.gallery_urls.map((url, i) => (
-                <div key={i} style={{ position: 'relative', width: 84, height: 84, borderRadius: '10px', overflow: 'hidden', border: `1px solid ${COLORS.border}`, background: COLORS.softBg }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={`Gallery ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => { e.target.style.display = 'none'; }} />
-                  <button type="button" onClick={() => removeGalleryUrl(i)} title="Remove"
-                    style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Primary Color</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <input type="color" value={form.primary_color} onChange={handleChange('primary_color')}
-              style={{
-                width: '40px', height: '40px', border: `1px solid ${COLORS.border}`, borderRadius: '8px',
-                cursor: 'pointer', padding: '2px', background: COLORS.white,
-              }}
-            />
-            <input value={form.primary_color} onChange={handleChange('primary_color')}
-              style={{ ...inputStyle, width: '120px', fontFamily: 'monospace', fontSize: '13px' }}
-              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-              onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-            />
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '8px', background: form.primary_color,
-              border: `1px solid ${COLORS.border}`,
-            }} />
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '16px', marginTop: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          <FontPicker
-            label="Heading Font"
-            value={form.font_heading}
-            onChange={(val) => { setForm(prev => ({ ...prev, font_heading: val })); setSuccess(false); }}
-          />
-          <FontPicker
-            label="Body Font"
-            value={form.font_body}
-            onChange={(val) => { setForm(prev => ({ ...prev, font_body: val })); setSuccess(false); }}
-          />
-        </div>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Background Music</label>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={handleMusicUpload}
-                disabled={musicUploading}
-                style={{ display: 'none' }}
-                id="music-file-upload"
-              />
-              <label
-                htmlFor="music-file-upload"
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: COLORS.softBg,
-                  border: `1px solid ${COLORS.border}`,
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  color: COLORS.stone,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  transition: 'background-color 0.2s',
-                  userSelect: 'none'
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                {musicUploading ? 'Uploading...' : 'Choose Audio File'}
-              </label>
-              
-              {form.background_music_url && (
-                <button
-                  type="button"
-                  onClick={() => { setForm(prev => ({ ...prev, background_music_url: '' })); setSuccess(false); }}
-                  style={{
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'none',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    color: '#C45E5E',
-                    fontWeight: 500
-                  }}
-                >
-                  Remove Music
-                </button>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '2px 0' }}>
-              <div style={{ flex: 1, height: 1, background: COLORS.border }} />
-              <span style={{ fontSize: '11px', color: COLORS.stone, fontWeight: 600 }}>or</span>
-              <div style={{ flex: 1, height: 1, background: COLORS.border }} />
-            </div>
-            <input
-              type="url"
-              value={form.background_music_url || ''}
-              onChange={e => setForm(prev => ({ ...prev, background_music_url: e.target.value }))}
-              placeholder="Paste a YouTube link (e.g. https://youtu.be/…)"
-              style={inputStyle}
-            />
-
-            {form.background_music_url && (
-              extractYouTubeId(form.background_music_url) ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: COLORS.softBg, border: `1px solid ${COLORS.border}` }}>
-                  <Icon name="play" size={14} color={COLORS.gold} strokeWidth={1.4} />
-                  <span style={{ fontSize: '12px', color: COLORS.charcoal, flex: 1 }}>YouTube song linked — guests tap the music icon to play it</span>
-                </div>
-              ) : (
-                <div style={{ marginTop: '4px' }}>
-                  <audio
-                    src={form.background_music_url}
-                    controls
-                    style={{ width: '100%', height: '36px', borderRadius: '8px' }}
-                  />
-                </div>
-              )
-            )}
-          </div>
-          <span style={{ fontSize: '11px', color: COLORS.stone, display: 'block', marginTop: '6px' }}>
-            Upload an audio file, or paste a YouTube link, to play music on the public event page.
-          </span>
-        </div>
-      </div>
-
-      {/* ═══ INVITATION SEAL & STATIONERY ═══
-           Hidden for Heritage Arch: that template opens with no envelope reveal,
-           so a seal configured here would never appear to its guests. */}
-      {event?.template_type !== 'heritageArch' && (
-      <div style={sectionStyle}>
-        <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
-            Invitation Seal &amp; Stationery
-          </span>
-        </h3>
-        <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
-          This powers the cinematic wax seal guests unseal when they open the link. Leave blank to use your event name — the seal, stationery and gold light are all generated automatically and coloured to match your event.
-        </p>
-
-        <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Seal Name / Monogram</label>
-          <input value={templateData.seal_text} onChange={(e) => setTemplateData(prev => ({ ...prev, seal_text: e.target.value }))}
-            placeholder="Auto from event name" maxLength={24} style={inputStyle}
-            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; }}
-            onBlur={(e) => { e.target.style.borderColor = COLORS.border; }}
-          />
-        </div>
-      </div>
+      </>
       )}
 
+      {activeTab === 'guest' && (
+      <>
       {/* ═══ NOTIFICATION PREFERENCES ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span>
             Notification Preferences
           </span>
         </h3>
@@ -1550,8 +1920,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ GUEST RSVP OPTIONS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
             Guest RSVP Options
           </span>
         </h3>
@@ -1588,12 +1958,16 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </label>
         </div>
       </div>
+      </>
+      )}
 
+      {activeTab === 'status' && (
+      <>
       {/* ═══ EVENT STATUS ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
             Event Status
           </span>
         </h3>
@@ -1712,8 +2086,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       {/* ═══ DANGER ZONE ═══ */}
       <div style={{ ...sectionStyle, border: '1px solid #FECACA' }}>
         <h3 style={{ ...sectionTitleStyle, color: '#C45E5E', borderBottomColor: '#FECACA' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C45E5E" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ ...iconBadgeStyle, background: 'rgba(196, 94, 94, 0.12)' }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C45E5E" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
             Danger Zone
           </span>
         </h3>
@@ -1777,48 +2151,63 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         )}
       </div>
-
-      {/* ═══ ERROR / SUCCESS ═══ */}
-      {error && (
-        <div style={{
-          padding: '12px 16px', borderRadius: '10px', background: '#FEF2F2', border: '1px solid #FECACA',
-          color: '#C45E5E', fontSize: '13px', fontFamily: 'var(--font-sans)', marginBottom: '16px',
-        }}>
-          {error}
-        </div>
-      )}
-      {success && (
-        <div style={{
-          padding: '12px 16px', borderRadius: '10px', background: '#F0FDF4', border: '1px solid #BBF7D0',
-          color: '#16A34A', fontSize: '13px', fontFamily: 'var(--font-sans)', marginBottom: '16px',
-          display: 'flex', alignItems: 'center', gap: '8px',
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 13l4 4L19 7"/></svg>
-          Settings saved successfully
-        </div>
+      </>
       )}
 
-      {/* ═══ SAVE BUTTON ═══ */}
-      <button onClick={handleSave} disabled={saving}
-        style={{
-          padding: '12px 32px', borderRadius: '10px', border: 'none',
-          background: saving ? COLORS.champagne : COLORS.gold, color: COLORS.white,
-          fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-          cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-          display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
-        }}
-        onMouseEnter={(e) => { if (!saving) e.currentTarget.style.background = COLORS.goldHover; }}
-        onMouseLeave={(e) => { if (!saving) e.currentTarget.style.background = COLORS.gold; }}
-      >
-        {saving && (
-          <span style={{
-            width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)',
-            borderTopColor: COLORS.white, borderRadius: '50%', display: 'inline-block',
-            animation: 'spin 0.6s linear infinite',
-          }} />
+      {/* Clearance so the last section never sits behind the sticky bar below. */}
+      <div style={{ height: 8 }} />
+
+      {/* ═══ STICKY SAVE BAR ═══ — always reachable regardless of tab length
+           or scroll position, with the same frosted-glass treatment as the
+           wizard's sticky top bar (WizardShell.js), so Settings never makes
+           you hunt for the one button that matters. */}
+      <div className="es-save-bar" style={{
+        position: 'sticky', bottom: 0, zIndex: 20, marginLeft: '-1px', marginRight: '-1px',
+        background: 'rgba(250,248,245,0.88)', backdropFilter: 'blur(16px)',
+        borderTop: `1px solid ${COLORS.border}`, borderRadius: '0 0 14px 14px',
+        padding: '16px 18px', marginTop: '4px',
+        boxShadow: '0 -8px 24px rgba(25,27,30,0.06)',
+      }}>
+        {error && (
+          <div style={{
+            padding: '10px 14px', borderRadius: '10px', background: '#FEF2F2', border: '1px solid #FECACA',
+            color: '#C45E5E', fontSize: '12.5px', fontFamily: 'var(--font-sans)', marginBottom: '10px',
+          }}>
+            {error}
+          </div>
         )}
-        {saving ? 'Saving…' : 'Save Settings'}
-      </button>
+        {success && (
+          <div style={{
+            padding: '10px 14px', borderRadius: '10px', background: '#F0FDF4', border: '1px solid #BBF7D0',
+            color: '#16A34A', fontSize: '12.5px', fontFamily: 'var(--font-sans)', marginBottom: '10px',
+            display: 'flex', alignItems: 'center', gap: '8px',
+          }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 13l4 4L19 7"/></svg>
+            Settings saved successfully
+          </div>
+        )}
+        <button onClick={handleSave} disabled={saving}
+          style={{
+            padding: '13px 32px', borderRadius: '10px', border: 'none',
+            background: saving ? COLORS.champagne : COLORS.gold, color: COLORS.white,
+            fontSize: '14px', fontWeight: 700, fontFamily: 'var(--font-sans)',
+            cursor: saving ? 'not-allowed' : 'pointer', transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
+            display: 'flex', alignItems: 'center', gap: '8px', width: '100%', justifyContent: 'center',
+            boxShadow: saving ? 'none' : '0 4px 16px rgba(184,148,79,0.28)',
+          }}
+          onMouseEnter={(e) => { if (!saving) { e.currentTarget.style.background = COLORS.goldHover; e.currentTarget.style.transform = 'translateY(-1px)'; } }}
+          onMouseLeave={(e) => { if (!saving) { e.currentTarget.style.background = COLORS.gold; e.currentTarget.style.transform = 'translateY(0)'; } }}
+        >
+          {saving && (
+            <span style={{
+              width: '14px', height: '14px', border: '2px solid rgba(255,255,255,0.3)',
+              borderTopColor: COLORS.white, borderRadius: '50%', display: 'inline-block',
+              animation: 'spin 0.6s linear infinite',
+            }} />
+          )}
+          {saving ? 'Saving…' : 'Save Settings'}
+        </button>
+      </div>
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -1830,6 +2219,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
            for the same 2-column-row pattern. */
         @media (max-width: 640px) {
           .es-row { grid-template-columns: 1fr !important; }
+          .es-swatch-row { grid-template-columns: 1fr 1fr !important; }
+          .es-privacy-grid { grid-template-columns: 1fr !important; }
+          .es-tabs { overflow-x: auto; flex-wrap: nowrap !important; }
         }
       `}</style>
     </div>

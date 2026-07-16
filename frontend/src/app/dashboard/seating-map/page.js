@@ -94,7 +94,7 @@ function renderSeats(shape, capacity, occupied, w, h) {
    ════════════════════════════════════════════════════════════════ */
 const EMPTY_NAMES = [];
 
-const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = EMPTY_NAMES, selected, showHandles, dragOver, onPointerDownMove, onResizeStart, onRotateStart, onDropGuest, onDragOverEl, onDragLeaveEl, onSelect }) {
+const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = EMPTY_NAMES, selected, showHandles, dragOver, scale, onPointerDownMove, onResizeStart, onRotateStart, onDropGuest, onDragOverEl, onDragLeaveEl, onSelect }) {
   const meta = shapeMeta(el.shape);
   const zone = isZone(el);
   const w = elWidth(el), h = elHeight(el);
@@ -104,6 +104,17 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
   const cap = el.max_capacity || 0;
   const fill = cap > 0 ? (occupied / cap) * 100 : 0;
   const color = el.color || meta.color || C.gold;
+
+  // This element sits inside the canvas's `transform: scale(view.scale)`
+  // wrapper, so any px value set here gets shrunk (or grown) by that same
+  // factor on screen. Selection borders/handles were defined as flat px
+  // values, meaning at a typically-zoomed-out view (scale ~0.3-0.4) a "2px"
+  // border rendered under 1px — selection state was updating correctly on
+  // click, it just became visually imperceptible, reading as "clicking does
+  // nothing." Dividing by scale keeps these a constant size on screen
+  // (roughly what they'd look like at 1:1 zoom) at any zoom level.
+  const s = Math.max(scale || 1, 0.0001);
+  const inv = (px) => px / s;
 
   return (
     <div
@@ -118,9 +129,9 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
         cursor: 'grab', touchAction: 'none',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         borderRadius: meta.round ? '50%' : zone ? '14px' : '12px',
-        border: dragOver ? `2px solid ${C.gold}` : selected ? `2px solid ${C.gold}` : `1px solid ${zone ? color : C.border}`,
+        border: dragOver ? `${inv(2)}px solid ${C.gold}` : selected ? `${inv(2.5)}px solid ${C.gold}` : `${inv(1)}px solid ${zone ? color : C.border}`,
         background: zone ? `${color}1A` : dragOver ? 'rgba(184,148,79,0.10)' : C.white,
-        boxShadow: dragOver ? '0 0 22px rgba(184,148,79,0.25)' : selected ? '0 6px 20px rgba(0,0,0,0.10)' : 'none',
+        boxShadow: dragOver ? `0 0 ${inv(22)}px rgba(184,148,79,0.25)` : selected ? `0 0 0 ${inv(3)}px rgba(184,148,79,0.18), 0 ${inv(6)}px ${inv(20)}px rgba(0,0,0,0.10)` : 'none',
         transition: 'box-shadow 0.15s, border-color 0.15s',
         userSelect: 'none',
       }}
@@ -152,18 +163,20 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
       {/* Resize handle (zones only) + rotate handle (any element, when selected) —
           rotation lets a rectangular/oval/banquet/head table flip between a
           lengthwise and widthwise layout. Hidden during a multi-selection so a
-          "Select All" doesn't sprout a handle on every table at once. */}
+          "Select All" doesn't sprout a handle on every table at once. Sized
+          via inv() too, so they stay a real, grabbable target at any zoom
+          instead of shrinking to a few unclickable screen-pixels when zoomed out. */}
       {selected && showHandles && (
         <>
           {zone && (
             <div
               onPointerDown={(e) => onResizeStart(e, el.id)}
-              style={{ position: 'absolute', right: -7, bottom: -7, width: 14, height: 14, borderRadius: 4, background: C.white, border: `2px solid ${C.gold}`, cursor: 'nwse-resize', zIndex: 5 }}
+              style={{ position: 'absolute', right: inv(-7), bottom: inv(-7), width: inv(14), height: inv(14), borderRadius: inv(4), background: C.white, border: `${inv(2)}px solid ${C.gold}`, cursor: 'nwse-resize', zIndex: 5 }}
             />
           )}
           <div
             onPointerDown={(e) => onRotateStart(e, el.id)}
-            style={{ position: 'absolute', left: '50%', top: -26, marginLeft: -7, width: 14, height: 14, borderRadius: '50%', background: C.gold, border: `2px solid ${C.white}`, cursor: 'grab', zIndex: 5 }}
+            style={{ position: 'absolute', left: '50%', top: inv(-26), marginLeft: inv(-7), width: inv(14), height: inv(14), borderRadius: '50%', background: C.gold, border: `${inv(2)}px solid ${C.white}`, cursor: 'grab', zIndex: 5 }}
             title="Rotate"
           />
         </>
@@ -171,7 +184,7 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
     </div>
   );
 }, (a, b) => (
-  a.el === b.el && a.occupied === b.occupied && a.names === b.names && a.selected === b.selected && a.showHandles === b.showHandles && a.dragOver === b.dragOver
+  a.el === b.el && a.occupied === b.occupied && a.names === b.names && a.selected === b.selected && a.showHandles === b.showHandles && a.dragOver === b.dragOver && a.scale === b.scale
 ));
 
 /* ── "Select All ▾" menu row — a shape/category filter, with its count. ── */
@@ -383,6 +396,7 @@ export default function SeatingMapPage() {
   const [dragOverId, setDragOverId] = useState(null);
   const [panning, setPanning] = useState(false);
   const interaction = useRef(null);                      // { mode, id, ... }
+  const lastPointerRef = useRef({ x: 0, y: 0 });         // latest pointer screen coords, for the edge auto-pan loop below
   const movedIdsRef = useRef(new Set());                 // mirrors movedIds for loadLayout merge
   const dirtyGeometryRef = useRef({});                   // id -> { width, height, rotation } unsaved
   // Shift-drag rubber-band select — { x0, y0, x1, y1 } in viewport-relative
@@ -914,50 +928,108 @@ export default function SeatingMapPage() {
     persistGeometry(selectedId, { rotation: next });
   }, [selectedId, elements, persistGeometry]);
 
+  /* ── shared move/group-move math — used by real pointermove events AND by
+     the edge auto-pan loop below, which synthesizes the same update using the
+     last-known pointer position after panning the view out from under it. ── */
+  const applyMoveAt = useCallback((clientX, clientY) => {
+    const it = interaction.current;
+    if (!it) return;
+    if (it.mode === 'move') {
+      const dx = (clientX - it.startX) / view.scale / WORLD_W * 100;
+      const dy = (clientY - it.startY) / view.scale / WORLD_H * 100;
+      let finalX = it.origX + dx;
+      let finalY = it.origY + dy;
+
+      if (snapToGrid) {
+        const stepX = (32 / WORLD_W) * 100;
+        const stepY = (32 / WORLD_H) * 100;
+        finalX = Math.round(finalX / stepX) * stepX;
+        finalY = Math.round(finalY / stepY) * stepY;
+      }
+
+      // Full range, no inner margin — an element can be dragged flush to
+      // any edge or corner of the venue canvas instead of stopping a few
+      // percent short of it.
+      const newPos = { id: it.id, x: clamp(finalX, 0, 100), y: clamp(finalY, 0, 100) };
+      dragPosRef.current = newPos;
+      setDragPos(newPos);
+    } else if (it.mode === 'group-move') {
+      // Snap the overall delta (not each element individually) so the group
+      // keeps its relative layout instead of drifting apart.
+      let dx = (clientX - it.startX) / view.scale / WORLD_W * 100;
+      let dy = (clientY - it.startY) / view.scale / WORLD_H * 100;
+      if (snapToGrid) {
+        const stepX = (32 / WORLD_W) * 100;
+        const stepY = (32 / WORLD_H) * 100;
+        dx = Math.round(dx / stepX) * stepX;
+        dy = Math.round(dy / stepY) * stepY;
+      }
+      const next = new Map();
+      it.ids.forEach(id => {
+        const o = it.origins[id];
+        if (!o) return;
+        next.set(id, { x: clamp(o.x + dx, 0, 100), y: clamp(o.y + dy, 0, 100) });
+      });
+      groupDragPosRef.current = next;
+      setGroupDragPos(next);
+    }
+  }, [view.scale, snapToGrid]);
+
+  /* ── edge auto-pan while dragging — without this, moving an element (or a
+     group) beyond whatever sliver of the 2600×1700 world the current zoom/pan
+     happens to show is impossible in a single gesture: physical mouse travel
+     is capped by the monitor, so at any real zoom level large parts of the
+     canvas were simply unreachable mid-drag. Holding a dragged element near
+     the viewport edge now pans the canvas underneath it (like Figma/Miro),
+     revealing the rest of the map without needing to drop, pan, and re-grab
+     repeatedly. Mutating interaction.current.startX/Y by the same amount the
+     view just panned keeps applyMoveAt's delta math correct — from its
+     perspective this is indistinguishable from the mouse having moved. ── */
+  useEffect(() => {
+    const EDGE = 56;       // px from the viewport edge that triggers panning
+    const MAX_SPEED = 16;  // px/frame at the very edge
+    let raf;
+    const tick = () => {
+      const it = interaction.current;
+      const vp = viewportRef.current;
+      if (it && (it.mode === 'move' || it.mode === 'group-move') && vp) {
+        const rect = vp.getBoundingClientRect();
+        const px = lastPointerRef.current.x - rect.left;
+        const py = lastPointerRef.current.y - rect.top;
+        const speed = (dist) => dist >= EDGE ? 0 : ((EDGE - dist) / EDGE) * MAX_SPEED;
+        let stepX = 0, stepY = 0;
+        if (px < EDGE) stepX = speed(px);
+        else if (px > rect.width - EDGE) stepX = -speed(rect.width - px);
+        if (py < EDGE) stepY = speed(py);
+        else if (py > rect.height - EDGE) stepY = -speed(rect.height - py);
+        if (stepX !== 0 || stepY !== 0) {
+          setView(v => ({ ...v, tx: v.tx + stepX, ty: v.ty + stepY }));
+          // Panning tx/ty by +step shifts the world under a stationary cursor
+          // by -step/scale in world space; startX/Y must move the OPPOSITE
+          // way (+step) so applyMoveAt's (clientX - startX) delta shrinks to
+          // match — i.e. the dragged item stays glued to the cursor's screen
+          // position while the canvas scrolls underneath it, instead of
+          // drifting away from the pointer as the view pans.
+          it.startX += stepX;
+          it.startY += stepY;
+          applyMoveAt(lastPointerRef.current.x, lastPointerRef.current.y);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [applyMoveAt]);
+
   useEffect(() => {
     const onMove = (e) => {
+      lastPointerRef.current = { x: e.clientX, y: e.clientY };
       const it = interaction.current;
       if (!it) return;
       if (it.mode === 'pan') {
         setView(v => ({ ...v, tx: it.tx + (e.clientX - it.startX), ty: it.ty + (e.clientY - it.startY) }));
-      } else if (it.mode === 'move') {
-        const dx = (e.clientX - it.startX) / view.scale / WORLD_W * 100;
-        const dy = (e.clientY - it.startY) / view.scale / WORLD_H * 100;
-        let finalX = it.origX + dx;
-        let finalY = it.origY + dy;
-        
-        if (snapToGrid) {
-          const stepX = (32 / WORLD_W) * 100;
-          const stepY = (32 / WORLD_H) * 100;
-          finalX = Math.round(finalX / stepX) * stepX;
-          finalY = Math.round(finalY / stepY) * stepY;
-        }
-
-        // Full range, no inner margin — an element can be dragged flush to
-        // any edge or corner of the venue canvas instead of stopping a few
-        // percent short of it.
-        const newPos = { id: it.id, x: clamp(finalX, 0, 100), y: clamp(finalY, 0, 100) };
-        dragPosRef.current = newPos;
-        setDragPos(newPos);
-      } else if (it.mode === 'group-move') {
-        // Snap the overall delta (not each element individually) so the group
-        // keeps its relative layout instead of drifting apart.
-        let dx = (e.clientX - it.startX) / view.scale / WORLD_W * 100;
-        let dy = (e.clientY - it.startY) / view.scale / WORLD_H * 100;
-        if (snapToGrid) {
-          const stepX = (32 / WORLD_W) * 100;
-          const stepY = (32 / WORLD_H) * 100;
-          dx = Math.round(dx / stepX) * stepX;
-          dy = Math.round(dy / stepY) * stepY;
-        }
-        const next = new Map();
-        it.ids.forEach(id => {
-          const o = it.origins[id];
-          if (!o) return;
-          next.set(id, { x: clamp(o.x + dx, 0, 100), y: clamp(o.y + dy, 0, 100) });
-        });
-        groupDragPosRef.current = next;
-        setGroupDragPos(next);
+      } else if (it.mode === 'move' || it.mode === 'group-move') {
+        applyMoveAt(e.clientX, e.clientY);
       } else if (it.mode === 'resize') {
         const dw = (e.clientX - it.startX) / view.scale;
         const dh = (e.clientY - it.startY) / view.scale;
@@ -1217,6 +1289,10 @@ export default function SeatingMapPage() {
   /* ── inspector save / delete ── */
   const saveInspector = async () => {
     if (!selected) return;
+    if (!inspectName.trim()) { toast.error(isZone(selected) ? 'Please enter a label.' : 'Please enter a table number.'); return; }
+    // Same rule as AddElementModal: a venue zone is identified by name, never
+    // a bare number — only tables get numbers.
+    if (isZone(selected) && /^\d+$/.test(inspectName.trim())) { toast.error('Venue zones need a name, not just a number — try something like "Stage" or "Bar 2".'); return; }
     const body = { tableName: inspectName };
     if (!isZone(selected)) {
       const cap = parseInt(inspectCapacity);
@@ -1773,6 +1849,7 @@ export default function SeatingMapPage() {
                     selected={selectedId === el.id || selectedIds.has(el.id)}
                     showHandles={selectedId === el.id && selectedIds.size === 0}
                     dragOver={dragOverId === el.id}
+                    scale={view.scale}
                     onPointerDownMove={onElementPointerDown}
                     onResizeStart={onResizeStart}
                     onRotateStart={onRotateStart}
@@ -2013,24 +2090,35 @@ function PrintFooter() {
   );
 }
 
+/* Numeric-aware compare so "Table 2" sorts before "Table 10" instead of
+   after it (plain string compare would put "10" before "2") — falls back to
+   locale compare for non-numeric zone/table labels. */
+function compareTableNames(a, b) {
+  const an = parseInt(a, 10), bn = parseInt(b, 10);
+  const aIsNum = !isNaN(an) && String(an) === a.trim();
+  const bIsNum = !isNaN(bn) && String(bn) === b.trim();
+  if (aIsNum && bIsNum) return an - bn;
+  if (aIsNum !== bIsNum) return aIsNum ? -1 : 1; // numbered tables before named zones
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+}
+
 /* ════════════════════════════════════════════════════════════════
    Print / export view — a clean, static rendering of the layout for
    window.print() (see the .print-seating-chart rules in globals.css). Not
    the interactive canvas: no zoom/pan, no drag handles, no toolbar.
 
-   The floor plan itself is drawn as one SVG with viewBox={minX minY boxW
-   boxH} and preserveAspectRatio="xMidYMid meet" — the same technique used
-   for scalable diagrams/icons everywhere — instead of the old percentage-
-   positioned <div> grid. That grid had no way to guarantee the whole
-   drawing fit one printable page: a tall, narrow arrangement of tables could
-   render taller than one sheet and get sliced across a page break mid-table.
-   An SVG viewBox scales the ENTIRE drawing uniformly to fit whatever box
-   contains it — the diagram frame below is height-bounded to one page via
-   `.print-diagram-frame`, so the chart always renders complete, to scale,
-   on a single sheet, however the tables are arranged. Guest names move to a
-   dedicated "Table Assignments" roster on the page(s) after — cramming full
-   name lists into small table shapes was both illegible and part of why the
-   floor plan itself looked cluttered rather than like a real venue chart.
+   ONE page, always — floor plan and the full table-by-table guest roster
+   render side by side in a single sheet instead of the floor plan getting
+   its own page and the roster being force-started on a fresh page after it
+   (which, combined with a roster long enough to overflow *that* page too,
+   is how this used to print as three separate sheets for a normal-sized
+   guest list). The floor plan is an SVG with viewBox={minX minY boxW boxH}
+   and preserveAspectRatio="xMidYMid meet" so it scales to fill its column
+   at any table count. The roster's column count and font size scale down
+   as the guest count grows (see rosterCols/rosterFontSize below) so it
+   keeps fitting the same fixed-height sheet instead of spilling over —
+   the same "shrink to fit the box" idea as the floor plan's viewBox,
+   applied to text instead of vector shapes.
    ════════════════════════════════════════════════════════════════ */
 function PrintSeatingChart({ eventTitle, eventDate, organizerName, elements, namesByTable }) {
   if (!elements || elements.length === 0) return null;
@@ -2055,103 +2143,121 @@ function PrintSeatingChart({ eventTitle, eventDate, organizerName, elements, nam
     ? new Date(eventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
     : null;
 
+  // Sorted table-by-table, and guests sorted within each table — previously
+  // both were in whatever order the API happened to return, which is what
+  // read as "data not arranged" on the printed page.
   const roster = elements
     .filter((el) => !isZone(el) && (namesByTable[el.id] || []).length > 0)
-    .map((el) => ({ id: el.id, name: el.table_name || 'Table', guests: namesByTable[el.id] }));
+    .map((el) => ({
+      id: el.id,
+      name: el.table_name || 'Table',
+      guests: [...(namesByTable[el.id] || [])].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+    }))
+    .sort((a, b) => compareTableNames(a.name, b.name));
+
+  const totalGuests = roster.reduce((sum, t) => sum + t.guests.length, 0);
+  // Denser guest lists get more roster columns and smaller (but never
+  // sub-legible) type, so a small event reads spaciously and a large one
+  // still lands on the one sheet instead of quietly overflowing it.
+  const rosterCols = totalGuests > 260 ? 3 : totalGuests > 90 ? 2 : 1;
+  const rosterFontSize = totalGuests > 260 ? 9.5 : totalGuests > 150 ? 10.5 : 11.5;
+  const rosterPad = totalGuests > 150 ? '7px 10px' : '9px 12px';
 
   return (
     <div className="print-seating-chart">
-      {/* ── Page 1: the floor plan, bounded to fit one sheet ── */}
-      <div className="print-map-page" style={{ display: 'flex', flexDirection: 'column', height: '94vh', breakAfter: roster.length > 0 ? 'page' : 'auto' }}>
+      <div className="print-page" style={{ display: 'flex', flexDirection: 'column', height: '95vh' }}>
         <PrintLetterhead eventTitle={eventTitle} organizerName={organizerName} formattedDate={formattedDate} />
 
-        <div className="print-diagram-frame" style={{ flex: 1, minHeight: 0, margin: '14px 0', borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
-          <svg
-            viewBox={`${minX} ${minY} ${boxW} ${boxH}`}
-            preserveAspectRatio="xMidYMid meet"
-            style={{ width: '100%', height: '100%', display: 'block' }}
-          >
-            <defs>
-              <filter id="printElShadow" x="-30%" y="-30%" width="160%" height="160%">
-                <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#191B1E" floodOpacity="0.16" />
-              </filter>
-            </defs>
-            <rect x={minX} y={minY} width={boxW} height={boxH} fill="#FDFCF9" />
-            {elements.map((el) => {
-              const zone = isZone(el);
-              const meta = shapeMeta(el.shape);
-              const w = elWidth(el);
-              const h = elHeight(el);
-              const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
-              const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
-              const rot = Number(el.rotation) || 0;
-              const names = namesByTable[el.id] || [];
-              const cap = el.max_capacity || 0;
-              const shapeColor = zone ? (el.color || meta.color || '#999999') : C.gold;
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 20, margin: '14px 0' }}>
+          {/* ── Floor plan — the visual centerpiece, ~60% of the sheet width ── */}
+          <div className="print-diagram-frame" style={{ flex: roster.length > 0 ? '1.45 1 0' : '1 1 0', minWidth: 0, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+            <svg
+              viewBox={`${minX} ${minY} ${boxW} ${boxH}`}
+              preserveAspectRatio="xMidYMid meet"
+              style={{ width: '100%', height: '100%', display: 'block' }}
+            >
+              <defs>
+                <filter id="printElShadow" x="-30%" y="-30%" width="160%" height="160%">
+                  <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#191B1E" floodOpacity="0.16" />
+                </filter>
+              </defs>
+              <rect x={minX} y={minY} width={boxW} height={boxH} fill="#FDFCF9" />
+              {elements.map((el) => {
+                const zone = isZone(el);
+                const meta = shapeMeta(el.shape);
+                const w = elWidth(el);
+                const h = elHeight(el);
+                const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
+                const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+                const rot = Number(el.rotation) || 0;
+                const names = namesByTable[el.id] || [];
+                const cap = el.max_capacity || 0;
+                const shapeColor = zone ? (el.color || meta.color || '#999999') : C.gold;
 
-              // A custom-typed zone label (the one free-text shape name an
-              // organizer can enter) has no length limit — clipped to the
-              // shape's own bounds so a long label can never visually spill
-              // across a neighboring table instead of just being cropped.
-              const clipId = `clip-${el.id}`;
-              return (
-                <g key={el.id}>
-                  {/* Shape rotates with the table; labels below stay upright
-                      regardless, so a rotated table is still legible on paper. */}
-                  <g transform={`translate(${cx} ${cy}) rotate(${rot})`} filter="url(#printElShadow)">
-                    {meta.round ? (
-                      <ellipse rx={w / 2} ry={h / 2} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={shapeColor} strokeWidth={zone ? 3 : 4} />
-                    ) : (
-                      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={zone ? 12 : 14} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={shapeColor} strokeWidth={zone ? 3 : 4} />
-                    )}
-                  </g>
-                  <defs>
-                    <clipPath id={clipId}>
-                      {meta.round ? <ellipse rx={w / 2 - 3} ry={h / 2 - 3} /> : <rect x={-w / 2 + 3} y={-h / 2 + 3} width={w - 6} height={h - 6} />}
-                    </clipPath>
-                  </defs>
-                  <g transform={`translate(${cx} ${cy})`} clipPath={`url(#${clipId})`} fontFamily="var(--font-sans, sans-serif)" textAnchor="middle">
-                    <text y={zone ? 8 : (cap > 0 ? -6 : 8)} fontSize={zone ? 24 : 32} fontWeight={800} fill={C.charcoal}>
-                      {el.table_name}
-                    </text>
-                    {!zone && cap > 0 && (
-                      <text y={22} fontSize={18} fontWeight={600} fill={names.length >= cap ? '#C45E5E' : C.stone}>
-                        {names.length} / {cap} seated
+                // A custom-typed zone label (the one free-text shape name an
+                // organizer can enter) has no length limit — clipped to the
+                // shape's own bounds so a long label can never visually spill
+                // across a neighboring table instead of just being cropped.
+                const clipId = `clip-${el.id}`;
+                return (
+                  <g key={el.id}>
+                    {/* Shape rotates with the table; labels below stay upright
+                        regardless, so a rotated table is still legible on paper. */}
+                    <g transform={`translate(${cx} ${cy}) rotate(${rot})`} filter="url(#printElShadow)">
+                      {meta.round ? (
+                        <ellipse rx={w / 2} ry={h / 2} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={shapeColor} strokeWidth={zone ? 3 : 4} />
+                      ) : (
+                        <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={zone ? 12 : 14} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={shapeColor} strokeWidth={zone ? 3 : 4} />
+                      )}
+                    </g>
+                    <defs>
+                      <clipPath id={clipId}>
+                        {meta.round ? <ellipse rx={w / 2 - 3} ry={h / 2 - 3} /> : <rect x={-w / 2 + 3} y={-h / 2 + 3} width={w - 6} height={h - 6} />}
+                      </clipPath>
+                    </defs>
+                    <g transform={`translate(${cx} ${cy})`} clipPath={`url(#${clipId})`} fontFamily="var(--font-sans, sans-serif)" textAnchor="middle">
+                      <text y={zone ? 8 : (cap > 0 ? -6 : 8)} fontSize={zone ? 24 : 32} fontWeight={800} fill={C.charcoal}>
+                        {el.table_name}
                       </text>
-                    )}
+                      {!zone && cap > 0 && (
+                        <text y={22} fontSize={18} fontWeight={600} fill={names.length >= cap ? '#C45E5E' : C.stone}>
+                          {names.length} / {cap} seated
+                        </text>
+                      )}
+                    </g>
                   </g>
-                </g>
-              );
-            })}
-          </svg>
+                );
+              })}
+            </svg>
+          </div>
+
+          {/* ── Table Assignments — same sheet, right-hand column. Column
+              count/type size adapt to guest volume (see rosterCols/
+              rosterFontSize above) so this never needs its own page. ── */}
+          {roster.length > 0 && (
+            <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 15, fontWeight: 600, margin: '0 0 10px', color: C.charcoal, textAlign: 'center', fontStyle: 'italic', flexShrink: 0 }}>
+                Table Assignments
+              </h2>
+              <div style={{
+                flex: 1, minHeight: 0, overflow: 'hidden', display: 'grid',
+                gridTemplateColumns: `repeat(${rosterCols}, 1fr)`, gap: '6px 12px', alignContent: 'start',
+              }}>
+                {roster.map((t) => (
+                  <div key={t.id} style={{ breakInside: 'avoid', padding: rosterPad, borderRadius: 9, border: `1px solid ${C.border}`, background: '#FDFCF9' }}>
+                    <div style={{ fontWeight: 800, fontSize: rosterFontSize + 1, color: C.charcoal, marginBottom: 2 }}>
+                      <span style={{ color: C.gold }}>{t.name}</span> <span style={{ fontWeight: 500, color: C.stone }}>({t.guests.length})</span>
+                    </div>
+                    <div style={{ fontSize: rosterFontSize, lineHeight: 1.5, color: '#333333' }}>{t.guests.join(', ')}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <PrintFooter />
       </div>
-
-      {/* ── Page 2+: full name-by-table roster — a crowded or small table
-          shape clips inline guest-name text long before a real table's full
-          guest list fits, so every seated guest gets a legible line here
-          instead, at normal reading size, regardless of floor-plan density. ── */}
-      {roster.length > 0 && (
-        <div className="print-roster-page" style={{ display: 'flex', flexDirection: 'column', minHeight: '90vh' }}>
-          <PrintLetterhead eventTitle={eventTitle} organizerName={organizerName} formattedDate={formattedDate} />
-          <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 18, fontWeight: 600, margin: '20px 0 14px', color: C.charcoal, textAlign: 'center', fontStyle: 'italic' }}>
-            Table Assignments
-          </h2>
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px 32px', alignContent: 'start' }}>
-            {roster.map((t) => (
-              <div key={t.id} style={{ breakInside: 'avoid', padding: '10px 14px', borderRadius: 10, border: `1px solid ${C.border}`, background: '#FDFCF9' }}>
-                <div style={{ fontWeight: 800, fontSize: 12.5, color: C.charcoal, marginBottom: 3 }}>
-                  <span style={{ color: C.gold }}>{t.name}</span> <span style={{ fontWeight: 500, color: C.stone }}>({t.guests.length})</span>
-                </div>
-                <div style={{ fontSize: 11.5, lineHeight: 1.6, color: '#333333' }}>{t.guests.join(', ')}</div>
-              </div>
-            ))}
-          </div>
-          <PrintFooter />
-        </div>
-      )}
     </div>
   );
 }
@@ -2166,6 +2272,10 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
   // Default shape ('round') is a table, so the field starts pre-filled with the
   // next free number — tables never get a typed-in name, only a unique number.
   const [name, setName] = useState(() => String(getNextTableNumber(elements)));
+  // Tracks whether the organizer has actually typed into the name/label field
+  // — see pick() below, which used this (previously "is the field blank?")
+  // to decide whether switching shapes should refresh the default name.
+  const [nameTouched, setNameTouched] = useState(false);
   const [capacity, setCapacity] = useState(String(SHAPES.round.defaultCap));
   const [customColor, setCustomColor] = useState('');
   const [customWidth, setCustomWidth] = useState('');
@@ -2187,7 +2297,16 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
     setCustomColor(SHAPES[s].color || '');
     setCustomWidth(String(SHAPES[s].w));
     setCustomHeight(String(SHAPES[s].h));
-    if (!name.trim()) setName(SHAPES[s].cat === 'table' ? String(nextTableNumber) : getUniqueZoneName(elements, SHAPES[s].label));
+    // BUG this fixes: picking a table first (default) pre-fills a plain
+    // number, e.g. "5". Switching to a zone (e.g. Stage) only refreshed the
+    // name when the field was *blank* — since "5" isn't blank, the zone got
+    // created with the leftover table number as its label instead of
+    // "Stage". Now it refreshes whenever the organizer hasn't manually typed
+    // a name themselves, regardless of category switched from/to — a zone's
+    // default is always its proper label, never a bare number.
+    if (!nameTouched || !name.trim()) {
+      setName(SHAPES[s].cat === 'table' ? String(nextTableNumber) : getUniqueZoneName(elements, SHAPES[s].label));
+    }
   };
 
   const tables = Object.entries(SHAPES).filter(([, m]) => m.cat === 'table');
@@ -2197,6 +2316,11 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
     if (saving) return;
     if (!name.trim()) { toast.error(meta.cat === 'table' ? 'Please enter a table number.' : 'Please enter a label.'); return; }
     if (meta.cat === 'table' && isNaN(parseInt(name, 10))) { toast.error('Table number must be a number.'); return; }
+    // Venue zones (Stage, Bar, DJ Booth, …) are identified by name, never a
+    // bare number — tables are the only element type numbers are meaningful
+    // for. Catches a manually-typed all-digit label, not just the stale-
+    // default case pick() now avoids above.
+    if (meta.cat === 'zone' && /^\d+$/.test(name.trim())) { toast.error('Venue zones need a name, not just a number — try something like "Stage" or "Bar 2".'); return; }
 
     let numElements = 1;
     let qty = 1;
@@ -2326,9 +2450,9 @@ function AddElementModal({ onClose, onAdd, btn, view, saving, elements }) {
             <div style={{ flex: 1 }}>
               <label style={labelStyle}>{meta.cat === 'zone' ? 'Label' : 'Table Number'}</label>
               {meta.cat === 'zone' ? (
-                <input value={name} onChange={e => setName(e.target.value)} placeholder={meta.label} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+                <input value={name} onChange={e => { setName(e.target.value); setNameTouched(true); }} placeholder={meta.label} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
               ) : (
-                <input type="number" min="1" value={name} onChange={e => setName(e.target.value)} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
+                <input type="number" min="1" value={name} onChange={e => { setName(e.target.value); setNameTouched(true); }} style={inputStyle} onFocus={e => e.target.style.borderColor = C.gold} onBlur={e => e.target.style.borderColor = C.border} />
               )}
             </div>
             {meta.cat === 'table' && (

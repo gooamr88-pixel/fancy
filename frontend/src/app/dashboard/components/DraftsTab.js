@@ -117,7 +117,7 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, event, isDeleting }) {
                 }}>
                   This event has a pending payment
                   {pendingPay.reference_number && <> (Ref: <code style={{ background: C.soft, padding: '1px 5px', borderRadius: 4, fontSize: 10, fontWeight: 700, color: C.gold }}>{pendingPay.reference_number}</code>)</>}.
-                  Deleting it may affect your refund eligibility. Please contact <strong style={{ color: '#8a6d2f' }}>info@viamarketing.ca</strong> before proceeding.
+                  Deleting it may affect your refund eligibility. Please contact <strong style={{ color: '#8a6d2f' }}>info@fancyrsvp.com</strong> before proceeding.
                 </p>
               </div>
             </div>

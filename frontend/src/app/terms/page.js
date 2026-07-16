@@ -38,7 +38,7 @@ const sections = [
     content: [
       "To access certain features of the Service, you must create an account. When registering, you agree to the following:",
       "**Accurate Information:** You must provide truthful, accurate, and complete registration information and keep it updated. Providing false information may result in account suspension or termination.",
-      "**Account Security:** You are responsible for maintaining the confidentiality of your account credentials, including your password. We strongly recommend enabling two-factor authentication. You must notify us immediately at info@viamarketing.ca if you suspect unauthorized access to your account.",
+      "**Account Security:** You are responsible for maintaining the confidentiality of your account credentials, including your password. We strongly recommend enabling two-factor authentication. You must notify us immediately at info@fancyrsvp.com if you suspect unauthorized access to your account.",
       "**Account Responsibility:** You are responsible for all activities that occur under your account, whether or not you authorized them. This includes actions taken by team members you've granted access to your account.",
       "**Age Requirement:** You must be at least 16 years old to create an account. If you are under 18, you may use the Service only with the involvement and consent of a parent or legal guardian.",
       "**One Account Per Person:** Each individual may maintain only one account. Creating multiple accounts to circumvent restrictions, abuse promotions, or evade enforcement actions is prohibited.",
@@ -81,7 +81,7 @@ const sections = [
       "**Your Content:** You retain ownership of all content you create or upload to the Service, including event details, custom designs, guest lists, and communications (\"User Content\"). By using the Service, you grant us a limited, non-exclusive, royalty-free license to host, display, and process your User Content solely for the purpose of providing the Service to you.",
       "**Templates & Designs:** While you may use our templates and design elements to create your events, the underlying template designs remain our property. Events you create using our templates are your property, but the templates themselves may not be extracted, resold, or redistributed.",
       "**Feedback:** If you provide suggestions, ideas, or feedback about the Service, you grant us an irrevocable, perpetual, royalty-free license to use and incorporate that feedback into our products without any obligation to you.",
-      "**DMCA & Takedowns:** We respect intellectual property rights. If you believe content on our platform infringes your copyright, please submit a DMCA takedown notice to info@viamarketing.ca with the required information.",
+      "**DMCA & Takedowns:** We respect intellectual property rights. If you believe content on our platform infringes your copyright, please submit a DMCA takedown notice to info@fancyrsvp.com with the required information.",
     ],
   },
   {
@@ -115,7 +115,7 @@ const sections = [
     title: "9. Termination",
     content: [
       "Either party may terminate this agreement under the following conditions:",
-      "**By You:** You may close your account at any time through your account settings or by contacting info@viamarketing.ca. Upon closure, you will retain access to your account until the end of your current billing period. After that, your data will be retained for 30 days (grace period) before permanent deletion.",
+      "**By You:** You may close your account at any time through your account settings or by contacting info@fancyrsvp.com. Upon closure, you will retain access to your account until the end of your current billing period. After that, your data will be retained for 30 days (grace period) before permanent deletion.",
       "**By Us — For Cause:** We may suspend or terminate your account immediately if you violate these Terms, engage in fraudulent activity, fail to pay fees after notice, or if your use poses a security risk to our platform or other users. We will provide notice and an explanation unless prohibited by law or doing so would compromise security.",
       "**By Us — Without Cause:** We may terminate any Free account that has been inactive for 12 consecutive months. For paid accounts, we may discontinue the Service with at least 90 days' prior notice and will provide pro-rated refunds for the unused portion of any prepaid subscription.",
       "**Effect of Termination:** Upon termination, your right to use the Service ceases immediately (subject to any grace period). You may export your data before your account is closed. We are not obligated to retain your data after the 30-day grace period, except where required by law.",
@@ -127,7 +127,7 @@ const sections = [
     title: "10. Governing Law",
     content: [
       "These Terms shall be governed by and construed in accordance with the laws of the State of New York, United States, without regard to its conflict of law principles.",
-      "**Dispute Resolution:** Before initiating formal proceedings, both parties agree to attempt to resolve disputes through good-faith negotiation for a period of at least 30 days. You may contact us at info@viamarketing.ca to initiate this process.",
+      "**Dispute Resolution:** Before initiating formal proceedings, both parties agree to attempt to resolve disputes through good-faith negotiation for a period of at least 30 days. You may contact us at info@fancyrsvp.com to initiate this process.",
       "**Arbitration:** Any dispute that cannot be resolved through negotiation shall be submitted to binding arbitration administered by the American Arbitration Association (AAA) under its Commercial Arbitration Rules. The arbitration shall take place in New York City, NY, and shall be conducted in English.",
       "**Class Action Waiver:** You agree that any dispute resolution proceedings will be conducted only on an individual basis and not in a class, consolidated, or representative action. If this provision is found unenforceable, the entire arbitration provision shall be void.",
       "**Jurisdiction:** For any matters not subject to arbitration, you consent to the exclusive jurisdiction and venue of the state and federal courts located in New York County, New York.",
@@ -139,10 +139,10 @@ const sections = [
     title: "11. Contact Information",
     content: [
       "If you have questions about these Terms of Service, please contact us through any of the following channels:",
-      "**Email:** info@viamarketing.ca",
+      "**Email:** info@fancyrsvp.com",
       "**Mail:** Via Marketing Group, Attn: Legal, California, USA",
       "**Instagram:** instagram.com/viamarketing.ca",
-      "For urgent legal matters, including DMCA takedown requests, subpoenas, or law enforcement inquiries, please contact info@viamarketing.ca with \"URGENT\" in the subject line.",
+      "For urgent legal matters, including DMCA takedown requests, subpoenas, or law enforcement inquiries, please contact info@fancyrsvp.com with \"URGENT\" in the subject line.",
       "We encourage you to review these Terms regularly to stay informed about your rights and obligations when using Fancy RSVP.",
     ],
   },

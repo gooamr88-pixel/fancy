@@ -679,7 +679,7 @@ export default function HelpCenter() {
                 Contact Support
               </Link>
               <a
-                href="mailto:info@viamarketing.ca"
+                href="mailto:info@fancyrsvp.com"
                 className="btn-outline"
                 style={{
                   padding: "14px 36px",

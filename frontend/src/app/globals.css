@@ -654,16 +654,17 @@ h3 {
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
-  /* The floor-plan page is explicitly height-bounded (see .print-map-page
-     inline style in PrintSeatingChart) so the whole diagram always fits one
-     sheet — this is a safety net against a browser still trying to split it. */
-  .print-map-page {
+  /* The whole export (floor plan + roster together) is explicitly height-
+     bounded (see .print-page inline style in PrintSeatingChart) to one
+     sheet — this is a safety net against a browser still trying to split it.
+     There is deliberately no break-before/break-after here anymore: the
+     floor plan and the "Table Assignments" roster used to be forced onto
+     separate pages (and a long roster would then overflow onto a third),
+     which is why a normal-sized guest list printed as three sheets instead
+     of one. They now share a single page side by side. */
+  .print-page {
     break-inside: avoid;
     page-break-inside: avoid;
-  }
-  .print-roster-page {
-    break-before: page;
-    page-break-before: always;
   }
   @page {
     size: landscape;

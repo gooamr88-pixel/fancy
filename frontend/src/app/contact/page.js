@@ -12,9 +12,9 @@ import FooterSection from "../components/landing/FooterSection";
 const contactCards = [
   {
     label: "Email Us",
-    value: "info@viamarketing.ca",
+    value: "info@fancyrsvp.com",
     detail: "We'll reply as soon as we can",
-    href: "mailto:info@viamarketing.ca",
+    href: "mailto:info@fancyrsvp.com",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="4" width="20" height="16" rx="2" />

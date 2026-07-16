@@ -47,7 +47,7 @@ const sections = [
       "**No Sharing or Selling of Mobile Information:** Fancy RSVP will NEVER share, sell, rent, license, trade, or otherwise disclose mobile phone numbers, SMS opt-in status, or any consent records collected through our text messaging program to any third party or affiliate for their own marketing or promotional purposes, under any circumstances. This prohibition applies regardless of any other provision of this Policy governing general data sharing, described in Section 4 below. The only parties who ever receive mobile number data are: (i) the specific event host who added or received the guest's number, solely to manage their own event, and (ii) our SMS delivery infrastructure provider (currently Twilio, Inc.), which processes the number strictly as a data processor to technically transmit the message on our behalf and is contractually prohibited from using it for any other purpose. Mobile opt-in data and consent records are never used for cross-context behavioral advertising, never used to build marketing lists, and never \"sold\" within the meaning of the CCPA/CPRA.",
       "**Message Frequency:** Message frequency varies depending on the number and timing of events you are invited to or are hosting. A typical guest can expect approximately 1–5 messages per event (for example, one confirmation, one or two reminders, and a day-of message). **Message and data rates may apply** depending on your mobile carrier plan. Fancy RSVP is not responsible for any charges imposed by your wireless carrier.",
       "**Opt-Out (STOP) Rights:** You may withdraw consent and stop receiving text messages from Fancy RSVP at any time by replying **STOP**, **UNSUBSCRIBE**, **CANCEL**, **END**, or **QUIT** to any message you receive from us. You will receive one final confirmation message acknowledging the request, and no further messages will be sent to that number unless you re-subscribe with a new opt-in. The associated event host will be notified that you can no longer be reached by text and may contact you through another method you've provided, such as email.",
-      "**Help and Support (HELP):** Reply **HELP** to any text message you receive from us at any time, or contact our support team directly at info@viamarketing.ca, and we will provide assistance or opt-out instructions.",
+      "**Help and Support (HELP):** Reply **HELP** to any text message you receive from us at any time, or contact our support team directly at info@fancyrsvp.com, and we will provide assistance or opt-out instructions.",
       "**Carrier Disclaimer:** Wireless carriers are not liable for delayed or undelivered messages. Text messaging may not be available on all carriers or in all coverage areas. Supported carriers include, but are not limited to, AT&T, T-Mobile, Verizon Wireless, U.S. Cellular, and their respective affiliates and roaming partners, none of which are responsible for the content of messages sent through the platform.",
       "**Retention of Consent Records:** We retain a timestamped record of each phone number's opt-in method, the consent language presented at the time, and its opt-out status for as long as required to demonstrate TCPA/CTIA compliance, and in any case for no less than four (4) years from the date consent was captured or withdrawn.",
     ],
@@ -101,7 +101,7 @@ const sections = [
       "**Right to Object:** You can object to the processing of your data for direct marketing purposes. You can also object to processing based on legitimate interests, subject to our evaluation.",
       "**Right to Restrict Processing:** You can request that we limit how we use your data while we address a concern you've raised about its accuracy or our processing activities.",
       "**CCPA Specific Rights (California Residents):** You have the right to know what personal information is collected, disclosed, or sold; the right to delete personal information; the right to opt-out of the sale of personal information (we do not sell your data); and the right to non-discrimination for exercising your rights.",
-      "To exercise any of these rights, email us at info@viamarketing.ca or use the privacy controls in your account settings. We will respond within the legally required timeframe.",
+      "To exercise any of these rights, email us at info@fancyrsvp.com or use the privacy controls in your account settings. We will respond within the legally required timeframe.",
     ],
   },
   {
@@ -121,7 +121,7 @@ const sections = [
     title: "9. Children's Privacy",
     content: [
       "Fancy RSVP is not intended for use by children under the age of 16. We do not knowingly collect personal information from children under 16 years of age.",
-      "If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately at info@viamarketing.ca. We will take prompt steps to delete such information from our systems.",
+      "If you are a parent or guardian and believe your child has provided us with personal information, please contact us immediately at info@fancyrsvp.com. We will take prompt steps to delete such information from our systems.",
       "In cases where a minor's information is included as a guest in an event (e.g., children attending a wedding), the event organizer is responsible for obtaining appropriate parental consent before adding that information to our platform.",
     ],
   },
@@ -141,9 +141,9 @@ const sections = [
     title: "11. Contact Us",
     content: [
       "If you have any questions, concerns, or requests related to this Privacy Policy or our data practices, please contact us through any of the following channels:",
-      "**Email:** info@viamarketing.ca",
+      "**Email:** info@fancyrsvp.com",
       "**Mail:** Via Marketing Group, Attn: Privacy, California, USA",
-      "**Data Protection Officer:** For GDPR-related inquiries, contact our DPO at info@viamarketing.ca",
+      "**Data Protection Officer:** For GDPR-related inquiries, contact our DPO at info@fancyrsvp.com",
       "We are committed to resolving any complaints about your privacy. If you feel we have not adequately addressed your concerns, you have the right to lodge a complaint with your local data protection supervisory authority.",
     ],
   },
