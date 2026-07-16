@@ -9,6 +9,7 @@ const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate 
 const { isEventLiveForGuests } = require('../utils/eventAccess');
 const { normalizeToE164 } = require('../utils/phone');
 const { normalizeEmail, escapeLikePattern } = require('../utils/normalize');
+const { SMS_CONSENT_TEXT_VERSION, normalizeConsentSource } = require('../utils/smsConsent');
 const { broadcast } = require('../utils/realtime');
 const { sendOk, sendFail, sendRpcFailure } = require('../utils/responseEnvelope');
 
@@ -184,6 +185,28 @@ const submitPublicRSVP = async (req, res, next) => {
 
     const eventId = result.event_id;
     const computedPartySize = result.party_size;
+
+    // Consent provenance (Privacy Policy §3 record-keeping): stamp which
+    // canonical consent-text version the guest agreed to and which surface
+    // captured it. Best-effort second write — never blocks or fails the RSVP;
+    // sms_consent + sms_consent_at were already persisted atomically by the RPC.
+    if (normalizedPhone && smsConsent && result.party_id) {
+      supabase
+        .from('rsvp_parties')
+        .update({
+          sms_consent_text_version: SMS_CONSENT_TEXT_VERSION,
+          sms_consent_source: normalizeConsentSource(req.body?.consentSource),
+        })
+        .eq('id', result.party_id)
+        .then(
+          ({ error }) => {
+            if (error) logger.warn({ err: error, partyId: result.party_id }, 'sms consent provenance write failed (apply 20260809000000_sms_compliance.sql)');
+          },
+          // A rejected promise here (e.g. a network-layer throw) must never
+          // become an unhandled rejection in the hot RSVP path.
+          (err) => logger.warn({ err, partyId: result.party_id }, 'sms consent provenance write rejected'),
+        );
+    }
 
     broadcast(eventId, 'rsvp_submitted', {
       partyId: result.party_id, guestName, response: result.response, partySize: computedPartySize,
@@ -372,7 +395,7 @@ const getRSVPs = async (req, res, next) => {
  */
 const importGuestsCSV = async (req, res, next) => {
   const { eventId } = req.params;
-  const { csvData, fileData, fileName } = req.body;
+  const { csvData, fileData, fileName, consentAttested } = req.body;
 
   if (!csvData && !fileData) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'csvData or fileData string is required.' });
@@ -446,6 +469,21 @@ const importGuestsCSV = async (req, res, next) => {
         notes: row.notes || null,
         party_size: Number.isInteger(parsedSize) && parsedSize > 0 ? Math.min(parsedSize, 20) : 1,
         side: normalizeSideCsvValue(row.side),
+      });
+    }
+
+    // TCPA/CTIA + Terms §5 ("Host Consent Obligations"): importing phone numbers
+    // requires the organizer's affirmative attestation that every guest already
+    // gave prior express consent to receive texts about this event. Enforced
+    // here (not just in the modal) so a direct API call can't skip it. Files
+    // without phone numbers import freely. The attestation itself is recorded
+    // per-send on each campaign launch (sms_campaigns.consent_attested_*).
+    const rowsWithPhone = dedupedRows.filter((r) => r.phone).length;
+    const attested = consentAttested === true || consentAttested === 'true';
+    if (rowsWithPhone > 0 && !attested) {
+      return sendFail(res, {
+        status: 400, error: 'CONSENT_ATTESTATION_REQUIRED',
+        message: `${rowsWithPhone} row(s) include a phone number. Confirm that every guest on this list has already agreed to receive text messages about your event before importing (consentAttested: true).`,
       });
     }
 

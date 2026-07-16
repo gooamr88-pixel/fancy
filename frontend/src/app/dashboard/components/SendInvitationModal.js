@@ -154,6 +154,8 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
   const [searchQuery, setSearchQuery] = useState('');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
+  // Terms §5 consent attestation — required before any SMS send (backend enforces too).
+  const [smsConsentAttested, setSmsConsentAttested] = useState(false);
 
   // Channel-specific "already invited" check — a guest emailed but never
   // texted (or vice versa) must still count as uninvited on the other
@@ -226,6 +228,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
 
   const handleSend = useCallback(async () => {
     if (selectedIds.size === 0 || !eventId) return;
+    if (channel === 'sms' && !smsConsentAttested) return;
     setSending(true);
     setResult(null);
     try {
@@ -233,7 +236,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
       // sync counts and SMS's possibly-async dispatch into the same response shape.
       const body = channel === 'email'
         ? { channel: 'email', partyIds: Array.from(selectedIds) }
-        : { channel: 'sms', messageTemplate: 'Hello {name}, you are invited to our event! RSVP now: {url}', guestIds: Array.from(selectedIds) };
+        : { channel: 'sms', messageTemplate: 'Hello {name}, you are invited to our event! RSVP now: {url}', guestIds: Array.from(selectedIds), consentAttested: true };
 
       const res = await fetch(`${apiUrl}/events/${eventId}/invitations/send`, {
         method: 'POST',
@@ -248,13 +251,16 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         throw err;
       }
       setResult({ success: true, ...data.data });
+      // Attestation is per-launch (matching the campaign composer): a follow-up
+      // SMS send must be re-confirmed, not inherited from the previous one.
+      if (channel === 'sms') setSmsConsentAttested(false);
       if (onSuccess) onSuccess();
     } catch (err) {
       setResult({ success: false, message: err.message, code: err.code });
     } finally {
       setSending(false);
     }
-  }, [channel, selectedIds, eventId, apiUrl, onSuccess]);
+  }, [channel, selectedIds, eventId, apiUrl, onSuccess, smsConsentAttested]);
 
   // A11Y-9: shared focus-trap/initial-focus/focus-restore/scroll-lock/Escape hook.
   const dialogRef = useModalA11y(isOpen, { onClose });
@@ -490,6 +496,26 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
           padding: '16px 28px 20px', borderTop: `1px solid ${COLORS.border}`,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
         }}>
+          {/* Terms §5 consent attestation — SMS sends require it (backend rejects without). */}
+          {channel === 'sms' && (
+            <label style={{
+              flexBasis: '100%', display: 'flex', alignItems: 'flex-start', gap: '10px',
+              padding: '10px 12px', borderRadius: '10px', background: 'rgba(99,102,241,0.05)',
+              border: `1px solid ${COLORS.border}`, cursor: 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={smsConsentAttested}
+                onChange={e => setSmsConsentAttested(e.target.checked)}
+                style={{ marginTop: '2px', width: '15px', height: '15px', accentColor: '#6366F1', flexShrink: 0, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '11px', color: COLORS.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                I confirm every selected guest has given prior consent to receive text messages about this event —
+                for any numbers I added or imported myself, I obtained their express consent, as required by the{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#6366F1', fontWeight: 700, textDecoration: 'underline' }}>Terms of Service</a>.
+              </span>
+            </label>
+          )}
           <span style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
             <strong style={{ color: COLORS.charcoal }}>{selectedIds.size}</strong> guest{selectedIds.size !== 1 ? 's' : ''} selected
           </span>
@@ -506,18 +532,18 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
 
             <button
               onClick={handleSend}
-              disabled={selectedIds.size === 0 || sending}
+              disabled={selectedIds.size === 0 || sending || (channel === 'sms' && !smsConsentAttested)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
                 padding: '10px 22px', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
-                background: selectedIds.size === 0
+                background: (selectedIds.size === 0 || (channel === 'sms' && !smsConsentAttested))
                   ? COLORS.border
                   : channel === 'sms'
                     ? 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)'
                     : 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
-                color: COLORS.white, border: 'none', cursor: selectedIds.size === 0 || sending ? 'default' : 'pointer',
+                color: COLORS.white, border: 'none', cursor: (selectedIds.size === 0 || sending || (channel === 'sms' && !smsConsentAttested)) ? 'default' : 'pointer',
                 fontFamily: 'var(--font-sans)', opacity: sending ? 0.7 : 1,
-                boxShadow: selectedIds.size > 0
+                boxShadow: (selectedIds.size > 0 && !(channel === 'sms' && !smsConsentAttested))
                   ? (channel === 'sms' ? '0 4px 14px rgba(99,102,241,0.3)' : '0 4px 14px rgba(184,148,79,0.3)')
                   : 'none',
                 transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',

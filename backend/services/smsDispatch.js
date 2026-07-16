@@ -9,9 +9,15 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { buildGuestRsvpUrl } = require('../utils/emailTemplates');
 const { computeSmsSegments, renderTemplate } = require('../utils/smsSegments');
+const { normalizeToE164 } = require('../utils/phone');
 
 // GSM-7-safe separator (an em-dash forces UCS-2 → 70-char segments → triple cost).
 const BRANDING = ' - Fancy RSVP';
+// CTIA/Twilio toll-free: every outbound message must identify the sender and
+// carry opt-out/help language and the rates disclosure. Appended to EVERY body
+// (frontend/src/app/dashboard/campaigns/page.js mirrors this string exactly for
+// its segment-cost estimate — keep the two in sync). All-ASCII → stays GSM-7.
+const COMPLIANCE_FOOTER = `${BRANDING}. Msg&data rates may apply. Reply STOP to opt out, HELP for help.`;
 
 // Stored response values are yes/no/maybe/pending; aliases tolerated defensively.
 const AUDIENCE_RESPONSES = {
@@ -112,9 +118,58 @@ function personalize(template, { slug, guestName, rsvpId, tableName, eventTitle 
     event: eventTitle || '', event_name: eventTitle || '',
   };
   let body = renderTemplate(template, values);
-  if (!body.endsWith(BRANDING)) body = `${body}${BRANDING}`;
+  // A template ending in the bare brand suffix (the pre-compliance-footer
+  // convention) would otherwise render "…- Fancy RSVP - Fancy RSVP. Msg&data…".
+  if (body.endsWith(BRANDING)) body = body.slice(0, -BRANDING.length);
+  if (!body.endsWith(COMPLIANCE_FOOTER)) body = `${body}${COMPLIANCE_FOOTER}`;
   const seg = computeSmsSegments(body);
   return { body, segments: seg.segments };
+}
+
+/* ─── Opt-out suppression (sms_opt_outs, written by the inbound STOP webhook) ─── */
+
+const isUndefinedTable = (error) =>
+  !!error && (error.code === '42P01' ||
+    /relation .* does not exist|Could not find the table/i.test(error.message || ''));
+
+/**
+ * The suppression table stores Twilio's `From` — always +E.164 — so lookups
+ * must compare in that exact form. normalizeToE164 also repairs legacy rows
+ * stored without the leading + (a bare 10-digit US number becomes +1XXX…),
+ * which plain formatting-stripping would fail to match.
+ */
+const canonicalPhone = (p) => normalizeToE164(p) || normalizePhone(p) || null;
+
+/**
+ * Return the subset of `phones` (any format; canonicalized internally) that are
+ * currently opted out, keyed by canonical +E.164. Fails OPEN with a loud warning
+ * if the suppression table has not been migrated yet — same missing-schema
+ * tolerance as the credit RPCs.
+ */
+async function getOptedOutSet(phones) {
+  const out = new Set();
+  const unique = [...new Set((phones || []).map(canonicalPhone).filter(Boolean))];
+  for (const part of chunk(unique, 500)) {
+    const { data, error } = await supabase
+      .from('sms_opt_outs').select('phone').is('opted_back_in_at', null).in('phone', part);
+    if (error) {
+      if (isUndefinedTable(error)) {
+        logger.warn('sms_opt_outs missing — apply 20260809000000_sms_compliance.sql (opt-outs are NOT being enforced).');
+        return out;
+      }
+      throw error;
+    }
+    for (const row of (data || [])) out.add(row.phone);
+  }
+  return out;
+}
+
+/** True when this single number is on the suppression list. */
+async function isOptedOut(phone) {
+  const canonical = canonicalPhone(phone);
+  if (!canonical) return false;
+  const set = await getOptedOutSet([phone]);
+  return set.has(canonical);
 }
 
 /* ─── Atomic credit billing (segment-accurate, with single-credit fallback) ─── */
@@ -172,9 +227,21 @@ async function refundCredits(walletId, eventId, ledgerId, count) {
  * Pure & reusable; callers aggregate the returned result.
  * @returns {{kind:'sent'|'failed'|'skipped', credits?:number, ledgerId?:string, sid?:string, error?:string}}
  */
-async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, fromNumber }) {
+async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, fromNumber, optedOut = null }) {
   const norm = normalizePhone(phone);
   if (!isValidPhone(norm)) return { kind: 'failed', error: 'INVALID_PHONE' };
+
+  // TCPA/CTIA: an opted-out number is never messaged, from any path (sync
+  // controller, async worker, or any future caller), and never billed. Checked
+  // here — the final choke point — so a STOP received after a campaign was
+  // queued still suppresses the queued send. Callers that dispatch in batches
+  // pass a preloaded `optedOut` Set (one query per batch instead of one per
+  // message); the per-message lookup remains the fallback.
+  const canonical = canonicalPhone(norm);
+  const suppressed = optedOut instanceof Set
+    ? (canonical != null && optedOut.has(canonical))
+    : await isOptedOut(norm);
+  if (suppressed) return { kind: 'skipped', error: 'OPTED_OUT' };
 
   const deduct = await deductCredits(eventId, segments, norm, idemKey);
   if (!deduct.ok) return { kind: 'failed', error: deduct.error };
@@ -204,6 +271,10 @@ async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, 
 
 module.exports = {
   BRANDING,
+  COMPLIANCE_FOOTER,
+  canonicalPhone,
+  getOptedOutSet,
+  isOptedOut,
   VALID_AUDIENCES,
   AUDIENCE_RESPONSES,
   sleep,

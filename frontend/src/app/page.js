@@ -41,13 +41,23 @@ const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Fancy RSVP',
+  legalName: '16941460 Canada Corp.',
+  alternateName: 'Via Marketing',
   url: 'https://fancyrsvp.com',
   logo: 'https://fancyrsvp.com/logo.png',
-  description: 'The all-in-one RSVP and guest management platform for weddings and special events.',
+  description: 'The all-in-one RSVP and guest management platform for weddings and special events. Owned and operated by 16941460 Canada Corp. o/a Via Marketing.',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: '2488 Selord Court',
+    addressLocality: 'Mississauga',
+    addressRegion: 'ON',
+    postalCode: 'L5J 1P7',
+    addressCountry: 'CA',
+  },
   sameAs: [
+    'https://viamarketing.ca',
     'https://www.instagram.com/viamarketing.ca/',
     'https://www.facebook.com/viamarketing.ca',
-    'https://twitter.com/viamarketingca',
   ],
 };
 

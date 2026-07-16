@@ -2,6 +2,8 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { escapeHtml } = require('../utils/emailTemplates');
+const { normalizeToE164 } = require('../utils/phone');
+const { SMS_CONSENT_TEXT_VERSION } = require('../utils/smsConsent');
 
 /**
  * Public marketing forms (footer newsletter signup, Contact page). Both were
@@ -35,6 +37,40 @@ const subscribeNewsletter = async (req, res, next) => {
     ).catch((err) => logger.warn({ err }, 'Newsletter notification email failed (non-fatal)'));
 
     return res.json({ success: true, message: 'Subscribed successfully.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /api/v1/public/sms-opt-in  body: { fullName?, phone, consent }
+ *
+ * The live opt-in form on /sms-opt-in — the URL submitted with the Twilio
+ * Toll-Free Verification. Persists a timestamped, versioned consent record
+ * (phone + the exact consent-language version shown). The person receives
+ * event texts only when a host invites them; this row documents the opt-in.
+ */
+const submitSmsOptIn = async (req, res, next) => {
+  const fullName = (req.body.fullName || '').trim() || null;
+  const phone = normalizeToE164(req.body.phone);
+
+  if (!phone) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
+  }
+  // Affirmative consent is the entire point of this endpoint — never record
+  // without it. String 'true' tolerated for form-encoded clients.
+  const consented = req.body.consent === true || req.body.consent === 'true';
+  if (!consented) {
+    return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Please check the consent box to opt in to text messages.' });
+  }
+
+  try {
+    const { error } = await supabase
+      .from('sms_optin_submissions')
+      .insert({ full_name: fullName, phone, consent: true, consent_text_version: SMS_CONSENT_TEXT_VERSION, source: 'sms_opt_in_page', ip: req.ip || null });
+    if (error) throw error;
+
+    return res.json({ success: true, message: 'You are opted in. You will only receive texts about Fancy RSVP events you are invited to. Reply STOP to any message to opt out.' });
   } catch (err) {
     next(err);
   }
@@ -196,4 +232,4 @@ const getPublicBlogPostBySlug = async (req, res, next) => {
   }
 };
 
-module.exports = { subscribeNewsletter, submitContactForm, getPublicTestimonials, getPublicPressMentions, getPublicBlogPosts, getPublicBlogPostBySlug };
+module.exports = { subscribeNewsletter, submitContactForm, submitSmsOptIn, getPublicTestimonials, getPublicPressMentions, getPublicBlogPosts, getPublicBlogPostBySlug };

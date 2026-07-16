@@ -46,7 +46,7 @@ const sections = [
       "**How Consent Is Collected (Opt-In):** A phone number can only enter our system in one of two ways, both of which require affirmative consent: (a) a guest voluntarily submits their own phone number directly through our public RSVP form and affirmatively confirms they agree to receive text messages related to that specific event from Fancy RSVP on behalf of the event host; or (b) an event host (organizer) manually enters or imports a guest's phone number into the platform, in which case our Terms of Service contractually require the host to represent and warrant that they already obtained that guest's prior express consent to be contacted by text message about the event before uploading it. Fancy RSVP does not purchase, rent, scrape, or otherwise acquire phone numbers from any third-party list, data broker, or lead-generation source.",
       "**No Sharing or Selling of Mobile Information:** Fancy RSVP will NEVER share, sell, rent, license, trade, or otherwise disclose mobile phone numbers, SMS opt-in status, or any consent records collected through our text messaging program to any third party or affiliate for their own marketing or promotional purposes, under any circumstances. This prohibition applies regardless of any other provision of this Policy governing general data sharing, described in Section 4 below. The only parties who ever receive mobile number data are: (i) the specific event host who added or received the guest's number, solely to manage their own event, and (ii) our SMS delivery infrastructure provider (currently Twilio, Inc.), which processes the number strictly as a data processor to technically transmit the message on our behalf and is contractually prohibited from using it for any other purpose. Mobile opt-in data and consent records are never used for cross-context behavioral advertising, never used to build marketing lists, and never \"sold\" within the meaning of the CCPA/CPRA.",
       "**Message Frequency:** Message frequency varies depending on the number and timing of events you are invited to or are hosting. A typical guest can expect approximately 1–5 messages per event (for example, one confirmation, one or two reminders, and a day-of message). **Message and data rates may apply** depending on your mobile carrier plan. Fancy RSVP is not responsible for any charges imposed by your wireless carrier.",
-      "**Opt-Out (STOP) Rights:** You may withdraw consent and stop receiving text messages from Fancy RSVP at any time by replying **STOP**, **UNSUBSCRIBE**, **CANCEL**, **END**, or **QUIT** to any message you receive from us. You will receive one final confirmation message acknowledging the request, and no further messages will be sent to that number unless you re-subscribe with a new opt-in. The associated event host will be notified that you can no longer be reached by text and may contact you through another method you've provided, such as email.",
+      "**Opt-Out (STOP) Rights:** You may withdraw consent and stop receiving text messages from Fancy RSVP at any time by replying **STOP**, **UNSUBSCRIBE**, **CANCEL**, **END**, or **QUIT** to any message you receive from us. You will receive one final carrier-mandated confirmation message acknowledging the request. Your number is then placed on our suppression list and excluded from all future messaging across the platform, and no further messages will be sent to it unless you re-subscribe with a new opt-in (for example, by replying START). The associated event host can no longer reach that number through the platform and may contact you through another method you've provided, such as email.",
       "**Help and Support (HELP):** Reply **HELP** to any text message you receive from us at any time, or contact our support team directly at info@fancyrsvp.com, and we will provide assistance or opt-out instructions.",
       "**Carrier Disclaimer:** Wireless carriers are not liable for delayed or undelivered messages. Text messaging may not be available on all carriers or in all coverage areas. Supported carriers include, but are not limited to, AT&T, T-Mobile, Verizon Wireless, U.S. Cellular, and their respective affiliates and roaming partners, none of which are responsible for the content of messages sent through the platform.",
       "**Retention of Consent Records:** We retain a timestamped record of each phone number's opt-in method, the consent language presented at the time, and its opt-out status for as long as required to demonstrate TCPA/CTIA compliance, and in any case for no less than four (4) years from the date consent was captured or withdrawn.",
@@ -57,7 +57,7 @@ const sections = [
     title: "4. Data Sharing and Disclosure",
     content: [
       "We do not sell, rent, or trade your personal information to third parties for their marketing purposes. We may share your information in the following limited circumstances:",
-      "**Service Providers:** We work with trusted third-party companies that perform services on our behalf, including cloud hosting (AWS), email delivery (SendGrid), SMS delivery (Twilio), payment processing (Stripe), and analytics (Mixpanel). These providers are contractually bound to protect your data and use it only as directed. As described in Section 3 above, our SMS delivery provider is contractually barred from using mobile numbers or consent records for its own marketing purposes.",
+      "**Service Providers:** We work with trusted third-party companies that perform services on our behalf, including database and cloud infrastructure (Supabase and our server hosting provider), email delivery (Brevo), SMS delivery (Twilio), and payment processing (Stripe). These providers are contractually bound to protect your data and use it only as directed. As described in Section 3 above, our SMS delivery provider is contractually barred from using mobile numbers or consent records for its own marketing purposes.",
       "**With Your Consent:** We may share your information when you explicitly authorize us to do so, such as when you choose to integrate with third-party applications or share event details publicly.",
       "**Event Guests:** When guests RSVP to your event, they can see the event details you've published. Hosts can see guest responses and contact information as part of their event management.",
       "**Legal Requirements:** We may disclose your information if required by law, subpoena, court order, or other legal process, or if we believe in good faith that disclosure is necessary to protect our rights, your safety, or the safety of others.",
@@ -69,11 +69,11 @@ const sections = [
     title: "5. Data Security",
     content: [
       "We take the security of your data seriously and implement industry-standard measures to protect it:",
-      "**Encryption:** All data is encrypted in transit using TLS 1.3 and at rest using AES-256 encryption. Sensitive fields such as payment tokens receive additional encryption layers.",
-      "**Access Controls:** We enforce strict role-based access controls, multi-factor authentication for administrative access, and regular access reviews to ensure only authorized personnel can access your data.",
-      "**Infrastructure:** Our application is hosted on secure, SOC 2 Type II compliant infrastructure with redundant backups, automated failover, and continuous monitoring for threats.",
-      "**Vulnerability Management:** We conduct regular penetration testing, automated vulnerability scanning, and participate in responsible disclosure programs. Security patches are applied promptly.",
-      "**Incident Response:** We maintain a comprehensive incident response plan. In the event of a data breach that affects your personal information, we will notify you and relevant authorities within the timeframes required by applicable law.",
+      "**Encryption:** All data is encrypted in transit using TLS (1.2/1.3) and encrypted at rest by our database provider. Payment card details are handled entirely by Stripe and never touch our servers.",
+      "**Access Controls:** We enforce strict role-based access controls so that only authorized personnel can access your data, and administrative actions on the platform are logged for accountability.",
+      "**Infrastructure:** Our database and authentication layer are managed by Supabase, whose infrastructure is SOC 2 Type II certified, with automated backups. Our application servers enforce HTTPS with HSTS, hardened security headers, and layered rate limiting.",
+      "**Vulnerability Management:** We keep our software dependencies patched, apply security updates promptly, and review code changes for security impact before they are deployed.",
+      "**Incident Response:** In the event of a data breach that affects your personal information, we will notify you and relevant authorities within the timeframes required by applicable law.",
       "While we strive to protect your information, no method of electronic storage or transmission is 100% secure. We encourage you to use strong, unique passwords and enable two-factor authentication on your account.",
     ],
   },
@@ -81,12 +81,11 @@ const sections = [
     id: "cookies",
     title: "6. Cookies and Tracking",
     content: [
-      "We use cookies and similar tracking technologies to enhance your experience and gather analytics:",
+      "We keep tracking to a minimum. We use cookies and similar technologies only as follows:",
       "**Essential Cookies:** Required for the platform to function properly, including authentication tokens, session management, and security features. These cannot be disabled.",
-      "**Analytics Cookies:** Help us understand how you use our platform, which pages are most popular, and where users encounter issues. We use Mixpanel and Google Analytics for this purpose.",
-      "**Preference Cookies:** Remember your settings, language preferences, and customizations so you don't have to reconfigure them each visit.",
-      "**Marketing Cookies:** Used to track the effectiveness of our advertising campaigns and deliver relevant content. These are only placed with your explicit consent.",
-      "You can manage cookie preferences through your browser settings or our cookie consent banner. Disabling certain cookies may impact your experience on our platform. We honor Do Not Track (DNT) signals sent by your browser.",
+      "**Preference Storage:** We use browser storage to remember your settings, language preference, and in-progress RSVP drafts so you don't have to start over on a return visit.",
+      "**First-Party Usage Analytics:** We record basic, first-party usage events on our own infrastructure (for example, that an invitation page was viewed) to give hosts response statistics and to improve the product. We do not load third-party advertising or analytics trackers (no Google Analytics, no Meta pixel, no ad networks), and we do not use cross-site tracking cookies.",
+      "You can manage cookies through your browser settings. Disabling essential cookies may prevent parts of the platform (such as signing in) from working.",
     ],
   },
   {
@@ -141,8 +140,11 @@ const sections = [
     title: "11. Contact Us",
     content: [
       "If you have any questions, concerns, or requests related to this Privacy Policy or our data practices, please contact us through any of the following channels:",
+      "**Legal Entity:** Fancy RSVP is owned and operated by 16941460 Canada Corp., operating as Via Marketing.",
       "**Email:** info@fancyrsvp.com",
-      "**Mail:** Via Marketing Group, Attn: Privacy, California, USA",
+      "**Corporate Email:** info@viamarketing.ca",
+      "**Mail:** 16941460 Canada Corp. o/a Via Marketing, Attn: Privacy, 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada",
+      "**Corporate Website:** viamarketing.ca",
       "**Data Protection Officer:** For GDPR-related inquiries, contact our DPO at info@fancyrsvp.com",
       "We are committed to resolving any complaints about your privacy. If you feel we have not adequately addressed your concerns, you have the right to lodge a complaint with your local data protection supervisory authority.",
     ],
@@ -275,7 +277,7 @@ export default function PrivacyPolicy() {
               fontWeight: 600,
             }}
           >
-            Last Updated: July 3, 2026
+            Last Updated: July 16, 2026
           </p>
         </section>
 

@@ -6,8 +6,8 @@ const { getPublicEventBySlug } = require('../controllers/eventController');
 const { submitPublicRSVP, searchPublicGuests, verifyPublicSeating, getGuestById, getGuestSeatingMap, getTicketSeatingView, getRsvpInvite, respondViaToken } = require('../controllers/rsvpController');
 const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
-const { handleSmsStatusCallback } = require('../controllers/campaignController');
-const { subscribeNewsletter, submitContactForm, getPublicTestimonials, getPublicPressMentions, getPublicBlogPosts, getPublicBlogPostBySlug } = require('../controllers/marketingController');
+const { handleSmsStatusCallback, handleInboundSms } = require('../controllers/campaignController');
+const { subscribeNewsletter, submitContactForm, submitSmsOptIn, getPublicTestimonials, getPublicPressMentions, getPublicBlogPosts, getPublicBlogPostBySlug } = require('../controllers/marketingController');
 const { verifyTurnstile } = require('../middleware/captcha');
 const { generateQRCodeBuffer } = require('../utils/qrHelper');
 const { getPlatformConfig } = require('../utils/configCache');
@@ -29,6 +29,12 @@ const marketingFormLimiter = rateLimit({
 // Twilio SMS delivery-status webhook (signature-verified inside the handler).
 // Public + unauthenticated by design; reconciles + auto-refunds failed deliveries.
 router.post('/sms/status', handleSmsStatusCallback);
+
+// Twilio inbound-message webhook (signature-verified inside the handler).
+// Records STOP/UNSUBSCRIBE/CANCEL/END/QUIT opt-outs into sms_opt_outs — the
+// suppression list every SMS send path enforces. Point the Twilio number's
+// "A message comes in" hook here.
+router.post('/sms/inbound', handleInboundSms);
 
 // Public landing-page stat counters (admin-editable via super_admin_config.landing_stats).
 // Reads the cached config and exposes ONLY this column — never the rest of the row
@@ -77,6 +83,16 @@ router.get('/press-mentions', getPublicPressMentions);
 // controllers/admin/blogController.js for the full CRUD surface.
 router.get('/blog', getPublicBlogPosts);
 router.get('/blog/:slug', getPublicBlogPostBySlug);
+
+// Live SMS opt-in form on /sms-opt-in (the Toll-Free Verification opt-in URL).
+// Records a timestamped, consent-text-versioned opt-in (marketingController).
+router.post('/sms-opt-in', [
+  marketingFormLimiter,
+  body('fullName').optional({ values: 'falsy' }).trim().isLength({ max: 200 }).withMessage('Name too long'),
+  body('phone').isString().trim().notEmpty().isLength({ max: 30 }).withMessage('A phone number is required'),
+  body('consent').isBoolean().withMessage('consent must be a boolean'),
+  validate
+], submitSmsOptIn);
 
 // Footer + blog newsletter signup
 router.post('/newsletter-subscribe', [

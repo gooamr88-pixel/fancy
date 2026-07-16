@@ -35,6 +35,13 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  // Terms §5 consent attestation — required whenever the file may contain phone
+  // numbers (the backend rejects phone-bearing imports without it).
+  const [consentAttested, setConsentAttested] = useState(false);
+  // CSV files are parsed client-side, so phone presence gates the Import button
+  // up front; .xlsx can't be inspected in the browser, so those rely on the
+  // server-side check alone.
+  const [csvHasPhones, setCsvHasPhones] = useState(false);
   const fileRef = useRef(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -47,6 +54,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
     if (isOpen) {
       setFileContent(''); setFileName(''); setPreview([]); setTotalRows(0);
       setError(''); setResult(null); setLoading(false); setDragOver(false);
+      setConsentAttested(false); setCsvHasPhones(false);
     }
   }
 
@@ -75,6 +83,11 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
         const dataRows = rows.length > 1 ? rows.slice(1) : rows;
         setTotalRows(dataRows.length);
         setPreview(rows.slice(0, 6)); // header + 5 data rows
+        // Gate the Import button on the attestation when the file actually
+        // carries phone numbers (mirrors the server-side requirement).
+        const header = (rows[0] || []).map((c) => String(c).trim().toLowerCase());
+        const phoneIdx = header.indexOf('phone');
+        setCsvHasPhones(phoneIdx >= 0 && dataRows.some((r) => String(r[phoneIdx] || '').trim()));
       };
       reader.onerror = () => setError('Failed to read file');
       reader.readAsText(file);
@@ -91,6 +104,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
         setFileContent(base64);
         setTotalRows(0); // Cannot count/preview an .xlsx binary client-side without a parser library
         setPreview([]);
+        setCsvHasPhones(false); // unknown for .xlsx — the server enforces the attestation instead
       };
       reader.onerror = () => setError('Failed to read file');
       reader.readAsArrayBuffer(file);
@@ -111,9 +125,9 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
     setLoading(true); setError('');
     try {
       const isXlsx = fileName.toLowerCase().endsWith('.xlsx');
-      const bodyPayload = isXlsx 
-        ? { fileData: fileContent, fileName } 
-        : { csvData: fileContent };
+      const bodyPayload = isXlsx
+        ? { fileData: fileContent, fileName, consentAttested }
+        : { csvData: fileContent, consentAttested };
 
       const res = await fetch(`${apiUrl}/events/${eventId}/rsvps/import`, {
         method: 'POST',
@@ -243,7 +257,8 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                 </div>
               )}
               <p style={{ fontSize: '13px', color: COLORS.stone, marginTop: '16px', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
-                Ready to invite them? Send personalized SMS invitations now, or share your link / QR code from the dashboard.
+                Ready to invite them? Send invitations from the dashboard, or share your link / QR code. SMS invitations
+                go only to guests you confirmed have consented to receive texts about this event.
               </p>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px', flexWrap: 'wrap' }}>
                 <button onClick={() => {
@@ -375,6 +390,31 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                 </div>
               )}
 
+              {/* Terms §5 consent attestation — the backend rejects phone-bearing
+                  imports without it, so it's collected up front for every file. */}
+              {fileContent && (
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '16px',
+                  padding: '12px 14px', borderRadius: '10px', background: 'rgba(184,148,79,0.06)',
+                  border: `1px solid ${COLORS.border}`, cursor: 'pointer',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={consentAttested}
+                    onChange={(e) => setConsentAttested(e.target.checked)}
+                    style={{ marginTop: '2px', width: '15px', height: '15px', accentColor: COLORS.gold, flexShrink: 0, cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '12px', color: COLORS.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                    I confirm that every guest on this list whose phone number I&apos;m uploading has already given me
+                    their express consent to receive text messages about this event, as required by the{' '}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, fontWeight: 700, textDecoration: 'underline' }}>Terms of Service</a>.
+                    {csvHasPhones
+                      ? <strong style={{ color: COLORS.gold }}> This file contains phone numbers, so this confirmation is required.</strong>
+                      : ' Files without phone numbers don’t need this.'}
+                  </span>
+                </label>
+              )}
+
               {/* Error */}
               {error && (
                 <div style={{
@@ -402,17 +442,17 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
               onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.ivory; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
             >Cancel</button>
-            <button onClick={handleSubmit} disabled={loading || !fileContent}
+            <button onClick={handleSubmit} disabled={loading || !fileContent || (csvHasPhones && !consentAttested)}
               style={{
                 padding: '10px 24px', borderRadius: '8px', border: 'none',
-                background: (loading || !fileContent) ? COLORS.champagne : COLORS.gold,
+                background: (loading || !fileContent || (csvHasPhones && !consentAttested)) ? COLORS.champagne : COLORS.gold,
                 color: COLORS.white, fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-                cursor: (loading || !fileContent) ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                cursor: (loading || !fileContent || (csvHasPhones && !consentAttested)) ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
                 display: 'flex', alignItems: 'center', gap: '8px',
                 opacity: !fileContent ? 0.6 : 1,
               }}
-              onMouseEnter={(e) => { if (!loading && fileContent) e.currentTarget.style.background = COLORS.goldHover; }}
-              onMouseLeave={(e) => { if (!loading && fileContent) e.currentTarget.style.background = COLORS.gold; }}
+              onMouseEnter={(e) => { if (!loading && fileContent && !(csvHasPhones && !consentAttested)) e.currentTarget.style.background = COLORS.goldHover; }}
+              onMouseLeave={(e) => { if (!loading && fileContent && !(csvHasPhones && !consentAttested)) e.currentTarget.style.background = COLORS.gold; }}
             >
               {loading && (
                 <span style={{

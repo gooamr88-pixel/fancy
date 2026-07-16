@@ -31,6 +31,8 @@ export default function CampaignsPage() {
 
   const [showSMSModal, setShowSMSModal] = useState(false);
   const [showConfirmSendModal, setShowConfirmSendModal] = useState(false);
+  // Terms §5 consent attestation — required (and reset) for every launch.
+  const [consentAttested, setConsentAttested] = useState(false);
   const [smsCreditsToBuy, setSmsCreditsToBuy] = useState(100);
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [smsRate, setSmsRate] = useState(8);
@@ -102,8 +104,10 @@ export default function CampaignsPage() {
       name: 'Alexander', url: sampleUrl, rsvp_link: sampleUrl,
       table_number: '12', table: '12', event: 'Your Event', event_name: 'Your Event',
     });
-    const branding = ' - Fancy RSVP'; // GSM-7-safe, matches the server suffix exactly
-    if (!body.endsWith(branding)) body += branding;
+    // GSM-7-safe compliance footer — matches smsDispatch.js COMPLIANCE_FOOTER exactly
+    // so the credit estimate reflects what the server actually sends.
+    const compliance = ' - Fancy RSVP. Msg&data rates may apply. Reply STOP to opt out, HELP for help.';
+    if (!body.endsWith(compliance)) body += compliance;
     return computeSmsSegments(body);
   }, [messageTemplate]);
   const segmentsPerMsg = segmentInfo.segments;
@@ -326,6 +330,7 @@ export default function CampaignsPage() {
         ? crypto.randomUUID()
         : `tok-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     }
+    setConsentAttested(false); // must be re-confirmed for every launch
     setShowConfirmSendModal(true);
   };
 
@@ -336,13 +341,19 @@ export default function CampaignsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ messageTemplate, audiences, clientToken: clientTokenRef.current })
+        body: JSON.stringify({ messageTemplate, audiences, clientToken: clientTokenRef.current, consentAttested: true })
       });
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || 'Failed to send campaign');
       }
+
+      // Guests excluded because they texted STOP — surfaced so a shrinking
+      // audience count is explained rather than mysterious.
+      const suppressedNote = data.suppressedCount > 0
+        ? ` ${data.suppressedCount} opted-out guest${data.suppressedCount !== 1 ? 's were' : ' was'} excluded.`
+        : '';
 
       if (data.success && data.async) {
         // Large send → queued to the background worker. Show the live progress panel.
@@ -352,7 +363,7 @@ export default function CampaignsPage() {
           totalRecipients: data.recipientCount, sentCount: 0, failedCount: 0,
           skippedCount: 0, creditsUsed: 0, progress: 0,
         });
-        toast.success(`Queued ${data.recipientCount} message${data.recipientCount !== 1 ? 's' : ''} — delivering in the background.`);
+        toast.success(`Queued ${data.recipientCount} message${data.recipientCount !== 1 ? 's' : ''} — delivering in the background.${suppressedNote}`);
         // Token is reset by the poller once the campaign reaches a terminal state.
       } else if (data.success) {
         setCampaignReport({
@@ -364,9 +375,9 @@ export default function CampaignsPage() {
           message: data.message
         });
         if (data.failedCount > 0) {
-          toast.error(`${data.failedCount} message${data.failedCount !== 1 ? 's' : ''} couldn't be delivered — ${data.sentCount} sent. Failed sends were not charged.`);
+          toast.error(`${data.failedCount} message${data.failedCount !== 1 ? 's' : ''} couldn't be delivered — ${data.sentCount} sent. Failed sends were not charged.${suppressedNote}`);
         } else {
-          toast.success(`${data.sentCount} message${data.sentCount !== 1 ? 's' : ''} sent · ${data.creditsUsed} credit${data.creditsUsed !== 1 ? 's' : ''} used.`);
+          toast.success(`${data.sentCount} message${data.sentCount !== 1 ? 's' : ''} sent · ${data.creditsUsed} credit${data.creditsUsed !== 1 ? 's' : ''} used.${suppressedNote}`);
         }
         // Clean success → next distinct campaign gets a fresh idempotency token.
         clientTokenRef.current = null;
@@ -829,6 +840,20 @@ export default function CampaignsPage() {
             <p style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)', fontStyle: 'italic' }}>
               Credits are charged per delivered segment — failed sends are automatically refunded. Final usage may vary slightly with each guest&apos;s name length.
             </p>
+            {/* Terms §5 consent attestation — required for every launch; recorded with the campaign. */}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderRadius: 10, background: 'rgba(184,148,79,0.06)', border: `1px solid ${C.border}`, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={consentAttested}
+                onChange={e => setConsentAttested(e.target.checked)}
+                style={{ marginTop: 2, width: 16, height: 16, accentColor: C.gold, flexShrink: 0, cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: 12, color: C.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                I confirm every recipient has given prior consent to receive text messages about this event — guests who
+                entered their own number agreed on the RSVP form, and for any numbers I added or imported myself I have
+                obtained their express consent, as required by the <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: C.gold, fontWeight: 700, textDecoration: 'underline' }}>Terms of Service</a>.
+              </span>
+            </label>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8 }}>
               <button
                 type="button"
@@ -841,13 +866,15 @@ export default function CampaignsPage() {
               </button>
               <button
                 type="button"
+                disabled={!consentAttested}
                 onClick={async () => {
+                  if (!consentAttested) return;
                   setShowConfirmSendModal(false);
                   await executeLaunchCampaign();
                 }}
-                style={{ padding: '8px 16px', background: C.gold, color: C.white, fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
-                onMouseEnter={e => { e.currentTarget.style.background = C.goldHover; }}
-                onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
+                style={{ padding: '8px 16px', background: consentAttested ? C.gold : C.border, color: consentAttested ? C.white : C.stone, fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: consentAttested ? 'pointer' : 'not-allowed', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+                onMouseEnter={e => { if (consentAttested) e.currentTarget.style.background = C.goldHover; }}
+                onMouseLeave={e => { if (consentAttested) e.currentTarget.style.background = C.gold; }}
               >
                 Launch Campaign
               </button>

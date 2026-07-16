@@ -342,7 +342,13 @@ export default function SeatingMapPage() {
   const layoutDirty = movedIds.size > 0;
 
   // Professional Editor State
-  const [snapToGrid, setSnapToGrid] = useState(true);
+  // Off by default — every drag used to lock to a 32px grid from the moment
+  // the page loaded, so an element could only ever land on fixed grid steps
+  // instead of exactly where it was dragged. That reads as the map fighting
+  // you rather than a deliberate alignment aid. Free movement is now the
+  // default; the "Snap to Grid" toolbar button still turns it on for anyone
+  // who wants tables to line up precisely.
+  const [snapToGrid, setSnapToGrid] = useState(false);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const historyIndexRef = useRef(-1);
@@ -381,6 +387,7 @@ export default function SeatingMapPage() {
 
   // add-element modal
   const [showAdd, setShowAdd] = useState(false);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
 
   // viewport (zoom/pan) — held in a ref for smooth interaction + mirrored to state for culling
   const viewportRef = useRef(null);
@@ -1635,8 +1642,8 @@ export default function SeatingMapPage() {
           {pendingCount > 0 && <button onClick={() => saveSeating()} disabled={saving} style={{ ...btn, background: C.gold, color: C.white }}>{saving ? 'Saving…' : `Save Seating (${pendingCount})`}</button>}
           {layoutDirty && <button onClick={saveLayout} disabled={saving} style={{ ...btn, background: C.white, border: `1px solid ${C.gold}`, color: C.gold }}>Save Layout</button>}
           <button
-            onClick={() => window.print()}
-            title="Print or save as PDF — a clean chart with no toolbar or edit handles"
+            onClick={() => setShowPrintPreview(true)}
+            title="Preview and arrange the printable chart, then print or save as PDF"
             style={{ ...btn, background: 'transparent', border: `1px solid ${C.gold}`, color: C.gold, display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
@@ -1953,9 +1960,20 @@ export default function SeatingMapPage() {
       {/* Add element modal */}
       {showAdd && <AddElementModal onClose={() => setShowAdd(false)} onAdd={addElement} btn={btn} view={view} saving={saving} elements={elements} />}
 
-      {/* Print/export view — invisible on screen, shown only by window.print()
-          (see .print-seating-chart in globals.css). */}
-      <PrintSeatingChart eventTitle={eventTitle} eventDate={eventDate} organizerName={organizerName} elements={elements} namesByTable={namesByTable} />
+      {/* Print preview — an on-screen, drag-to-arrange rehearsal of the
+          printed chart. Only mounted while open; window.print() inside it
+          targets its own .print-seating-chart content (see globals.css). */}
+      {showPrintPreview && (
+        <PrintPreviewModal
+          eventTitle={eventTitle}
+          eventDate={eventDate}
+          organizerName={organizerName}
+          elements={elements}
+          namesByTable={namesByTable}
+          summary={summary}
+          onClose={() => setShowPrintPreview(false)}
+        />
+      )}
 
       <style jsx>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -2059,19 +2077,49 @@ function getUniqueZoneName(elements, baseLabel) {
 /* A branded letterhead repeated at the top of every printed/exported page —
    Fancy's own wordmark (so the document is unmistakably a Fancy RSVP export,
    not a bare screenshot), the event name, and who it was prepared for. */
-function PrintLetterhead({ eventTitle, organizerName, formattedDate }) {
-  const metaParts = [formattedDate, organizerName ? `Prepared for ${organizerName}` : null, `Printed ${new Date().toLocaleDateString()}`].filter(Boolean);
+/* Redesigned as a proper document header: a top row identifies the
+   document (logo + "Seating Chart" + print date), a centered hero carries
+   the event's own identity (title + date/host), and a row of stat pills
+   surfaces the event details (table/zone/guest counts) a seating chart
+   export should actually lead with — the previous version was a single
+   centered stack with no real hierarchy and no event details at all. */
+function PrintLetterhead({ eventTitle, organizerName, formattedDate, stats }) {
+  const metaParts = [formattedDate, organizerName ? `Prepared for ${organizerName}` : null].filter(Boolean);
   return (
-    <div style={{ textAlign: 'center', fontFamily: 'var(--font-sans, sans-serif)', flexShrink: 0 }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.svg" alt="Fancy RSVP" style={{ height: 30, margin: '0 auto 10px', display: 'block' }} />
-      <h1 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 24, fontWeight: 600, margin: 0, color: C.charcoal }}>
-        {eventTitle || 'Seating Chart'}
-      </h1>
-      <p style={{ fontSize: 11, color: C.stone, margin: '5px 0 0', letterSpacing: '0.02em' }}>
-        {metaParts.join('  ·  ')}
-      </p>
-      <div style={{ width: 88, height: 2, margin: '10px auto 0', background: `linear-gradient(90deg, transparent, ${C.gold}, transparent)` }} />
+    <div style={{ fontFamily: 'var(--font-sans, sans-serif)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.svg" alt="Fancy RSVP" style={{ height: 22, display: 'block' }} />
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ fontSize: 9.5, color: C.gold, margin: 0, letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 800 }}>Seating Chart</p>
+          <p style={{ fontSize: 10, color: C.stone, margin: '2px 0 0' }}>Printed {new Date().toLocaleDateString()}</p>
+        </div>
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: 6 }}>
+        <h1 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 25, fontWeight: 600, margin: 0, color: C.charcoal, lineHeight: 1.2 }}>
+          {eventTitle || 'Seating Chart'}
+        </h1>
+        {metaParts.length > 0 && (
+          <p style={{ fontSize: 11.5, color: C.stone, margin: '4px 0 0', letterSpacing: '0.02em' }}>{metaParts.join('  ·  ')}</p>
+        )}
+      </div>
+
+      {stats && stats.length > 0 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          {stats.map((s) => (
+            <div key={s.label} style={{
+              display: 'flex', alignItems: 'baseline', gap: 5, padding: '5px 13px', borderRadius: 999,
+              background: 'rgba(184,148,79,0.07)', border: `1px solid rgba(184,148,79,0.25)`,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: C.gold }}>{s.value}</span>
+              <span style={{ fontSize: 9, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>{s.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ height: 1, margin: '12px 0 0', background: `linear-gradient(90deg, transparent, ${C.border} 15%, ${C.gold} 50%, ${C.border} 85%, transparent)` }} />
     </div>
   );
 }
@@ -2103,50 +2151,78 @@ function compareTableNames(a, b) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Print / export view — a clean, static rendering of the layout for
-   window.print() (see the .print-seating-chart rules in globals.css). Not
-   the interactive canvas: no zoom/pan, no drag handles, no toolbar.
+   Print preview modal — an on-screen, interactive rehearsal of the export
+   before it hits the printer. window.print() (see .print-seating-chart in
+   globals.css) still does the actual printing, but now targets THIS
+   modal's content instead of a permanently-mounted, invisible-until-print
+   copy — so what you arrange here is exactly what prints, and you get a
+   chance to fix it first instead of finding out after paper (or a PDF) is
+   already sitting in front of you.
 
-   ONE page, always — floor plan and the full table-by-table guest roster
-   render side by side in a single sheet instead of the floor plan getting
-   its own page and the roster being force-started on a fresh page after it
-   (which, combined with a roster long enough to overflow *that* page too,
-   is how this used to print as three separate sheets for a normal-sized
-   guest list). The floor plan is an SVG with viewBox={minX minY boxW boxH}
-   and preserveAspectRatio="xMidYMid meet" so it scales to fill its column
-   at any table count. The roster's column count and font size scale down
-   as the guest count grows (see rosterCols/rosterFontSize below) so it
-   keeps fitting the same fixed-height sheet instead of spilling over —
-   the same "shrink to fit the box" idea as the floor plan's viewBox,
-   applied to text instead of vector shapes.
+   Elements can be dragged to a new spot specifically for this printout —
+   `overrides` is local component state, never written back to `elements`/
+   the database. Closing and reopening this preview always starts fresh
+   from the organizer's actual live arrangement; a mis-arranged printout
+   can never bleed into the real seating plan, and the real plan can't
+   accidentally get "fixed" by someone rearranging a printout. Dragging is
+   done in SVG user-space via getScreenCTM().inverse(), so it stays
+   pixel-accurate regardless of how the viewBox has scaled the diagram to
+   fit its column.
+
+   Floor plan + roster share ONE page (see the file-level history in git
+   blame / project memory for why — this used to force the roster onto a
+   second page, and a long roster would then overflow onto a third).
    ════════════════════════════════════════════════════════════════ */
-function PrintSeatingChart({ eventTitle, eventDate, organizerName, elements, namesByTable }) {
-  if (!elements || elements.length === 0) return null;
+function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, namesByTable, summary, onClose }) {
+  const [overrides, setOverrides] = useState({});
+  const [dragging, setDragging] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [marquee, setMarquee] = useState(null); // { x0, y0, x1, y1 } in SVG world coords, while shift-dragging empty canvas
+  const svgRef = useRef(null);
+  const elementsRef = useRef(elements);
+  elementsRef.current = elements;
+  // Single-element drag: { mode: 'single', id, offX, offY } — offset from
+  // shape center to the grab point, in world px.
+  // Group drag: { mode: 'group', ids, startP, origins } — origins snapshots
+  // every selected element's position at drag start, so the whole group
+  // moves by the same delta and keeps its relative layout instead of
+  // drifting apart (same approach as the main canvas's group-move).
+  const dragRef = useRef(null);
+  const marqueeRef = useRef(null);
+
+  const displayElements = useMemo(() => (elements || []).map((el) => {
+    const o = overrides[el.id];
+    return o ? { ...el, position_x: o.x, position_y: o.y } : el;
+  }), [elements, overrides]);
+
+  const hasOverrides = Object.keys(overrides).length > 0;
+  const isEmpty = !elements || elements.length === 0;
 
   const PAD = 70;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  elements.forEach((el) => {
-    const w = elWidth(el);
-    const h = elHeight(el);
-    const x = ((Number(el.position_x) || 0) / 100) * WORLD_W;
-    const y = ((Number(el.position_y) || 0) / 100) * WORLD_H;
-    minX = Math.min(minX, x - w / 2);
-    minY = Math.min(minY, y - h / 2);
-    maxX = Math.max(maxX, x + w / 2);
-    maxY = Math.max(maxY, y + h / 2);
-  });
-  minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD;
-  const boxW = Math.max(1, maxX - minX);
-  const boxH = Math.max(1, maxY - minY);
+  let minX = 0, minY = 0, boxW = 1, boxH = 1;
+  if (!isEmpty) {
+    let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+    displayElements.forEach((el) => {
+      const w = elWidth(el);
+      const h = elHeight(el);
+      const x = ((Number(el.position_x) || 0) / 100) * WORLD_W;
+      const y = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+      mnX = Math.min(mnX, x - w / 2);
+      mnY = Math.min(mnY, y - h / 2);
+      mxX = Math.max(mxX, x + w / 2);
+      mxY = Math.max(mxY, y + h / 2);
+    });
+    minX = mnX - PAD; minY = mnY - PAD;
+    boxW = Math.max(1, mxX + PAD - minX);
+    boxH = Math.max(1, mxY + PAD - minY);
+  }
 
   const formattedDate = eventDate
     ? new Date(eventDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
     : null;
 
-  // Sorted table-by-table, and guests sorted within each table — previously
-  // both were in whatever order the API happened to return, which is what
-  // read as "data not arranged" on the printed page.
-  const roster = elements
+  // Sorted table-by-table, and guests sorted within each table.
+  const roster = displayElements
     .filter((el) => !isZone(el) && (namesByTable[el.id] || []).length > 0)
     .map((el) => ({
       id: el.id,
@@ -2156,107 +2232,287 @@ function PrintSeatingChart({ eventTitle, eventDate, organizerName, elements, nam
     .sort((a, b) => compareTableNames(a.name, b.name));
 
   const totalGuests = roster.reduce((sum, t) => sum + t.guests.length, 0);
-  // Denser guest lists get more roster columns and smaller (but never
-  // sub-legible) type, so a small event reads spaciously and a large one
-  // still lands on the one sheet instead of quietly overflowing it.
   const rosterCols = totalGuests > 260 ? 3 : totalGuests > 90 ? 2 : 1;
   const rosterFontSize = totalGuests > 260 ? 9.5 : totalGuests > 150 ? 10.5 : 11.5;
   const rosterPad = totalGuests > 150 ? '7px 10px' : '9px 12px';
 
+  const tableCount = (elements || []).filter((el) => !isZone(el)).length;
+  const zoneCount = (elements || []).filter(isZone).length;
+  const stats = [
+    { label: 'Tables', value: tableCount },
+    { label: 'Guests Seated', value: summary?.seatedGuests ?? totalGuests },
+    ...(zoneCount > 0 ? [{ label: 'Venue Zones', value: zoneCount }] : []),
+  ];
+
+  // ── select + drag-to-arrange (this printout only) ──
+  const toSvgPoint = (clientX, clientY) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  };
+  const posOf = (id) => {
+    const o = overrides[id];
+    if (o) return o;
+    const el = (elementsRef.current || []).find((x) => x.id === id);
+    return { x: Number(el?.position_x) || 0, y: Number(el?.position_y) || 0 };
+  };
+  const onElPointerDown = (e, el) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const p = toSvgPoint(e.clientX, e.clientY);
+
+    // Shift/Ctrl/Cmd-click toggles this one element in or out of the
+    // multi-selection, mirroring the main canvas — a discrete pick, not a drag.
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(el.id)) next.delete(el.id); else next.add(el.id);
+        return next;
+      });
+      return;
+    }
+
+    // Dragging an element that's part of an active multi-selection moves the
+    // whole group together, preserving everyone's relative position.
+    if (selectedIds.size > 1 && selectedIds.has(el.id)) {
+      const origins = {};
+      selectedIds.forEach((id) => { origins[id] = posOf(id); });
+      dragRef.current = { mode: 'group', ids: Array.from(selectedIds), startP: p, origins };
+    } else {
+      setSelectedIds(new Set([el.id]));
+      const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
+      const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+      dragRef.current = { mode: 'single', id: el.id, offX: p.x - cx, offY: p.y - cy };
+    }
+    setDragging(true);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* unsupported — pointermove on the svg still covers it */ }
+  };
+  // Background click clears the selection; Shift-drag on empty canvas
+  // rubber-band selects a cluster of elements at once, same as the main canvas.
+  const onSvgBackgroundPointerDown = (e) => {
+    if (e.shiftKey) {
+      const p = toSvgPoint(e.clientX, e.clientY);
+      const rect = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+      marqueeRef.current = rect;
+      setMarquee(rect);
+      return;
+    }
+    setSelectedIds(new Set());
+  };
+  const onSvgPointerMove = (e) => {
+    const d = dragRef.current;
+    if (d) {
+      const p = toSvgPoint(e.clientX, e.clientY);
+      if (d.mode === 'single') {
+        const nx = clamp(((p.x - d.offX) / WORLD_W) * 100, 0, 100);
+        const ny = clamp(((p.y - d.offY) / WORLD_H) * 100, 0, 100);
+        setOverrides((prev) => ({ ...prev, [d.id]: { x: nx, y: ny } }));
+      } else if (d.mode === 'group') {
+        const dxPct = ((p.x - d.startP.x) / WORLD_W) * 100;
+        const dyPct = ((p.y - d.startP.y) / WORLD_H) * 100;
+        setOverrides((prev) => {
+          const next = { ...prev };
+          d.ids.forEach((id) => {
+            const o = d.origins[id];
+            if (!o) return;
+            next[id] = { x: clamp(o.x + dxPct, 0, 100), y: clamp(o.y + dyPct, 0, 100) };
+          });
+          return next;
+        });
+      }
+      return;
+    }
+    if (marqueeRef.current) {
+      const p = toSvgPoint(e.clientX, e.clientY);
+      const next = { ...marqueeRef.current, x1: p.x, y1: p.y };
+      marqueeRef.current = next;
+      setMarquee(next);
+    }
+  };
+  const endDrag = () => {
+    dragRef.current = null;
+    setDragging(false);
+    const m = marqueeRef.current;
+    if (m) {
+      marqueeRef.current = null;
+      setMarquee(null);
+      const left = Math.min(m.x0, m.x1), right = Math.max(m.x0, m.x1);
+      const top = Math.min(m.y0, m.y1), bottom = Math.max(m.y0, m.y1);
+      // A tap with no real drag shouldn't clear a selection being built.
+      if (right - left < 4 && bottom - top < 4) return;
+      const hits = (elementsRef.current || []).filter((el) => {
+        const w = elWidth(el), h = elHeight(el);
+        const p = posOf(el.id);
+        const cx = (p.x / 100) * WORLD_W, cy = (p.y / 100) * WORLD_H;
+        return (cx - w / 2) < right && (cx + w / 2) > left && (cy - h / 2) < bottom && (cy + h / 2) > top;
+      }).map((el) => el.id);
+      if (hits.length > 0) setSelectedIds(new Set(hits));
+    }
+  };
+
   return (
-    <div className="print-seating-chart">
-      <div className="print-page" style={{ display: 'flex', flexDirection: 'column', height: '95vh' }}>
-        <PrintLetterhead eventTitle={eventTitle} organizerName={organizerName} formattedDate={formattedDate} />
-
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 20, margin: '14px 0' }}>
-          {/* ── Floor plan — the visual centerpiece, ~60% of the sheet width ── */}
-          <div className="print-diagram-frame" style={{ flex: roster.length > 0 ? '1.45 1 0' : '1 1 0', minWidth: 0, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
-            <svg
-              viewBox={`${minX} ${minY} ${boxW} ${boxH}`}
-              preserveAspectRatio="xMidYMid meet"
-              style={{ width: '100%', height: '100%', display: 'block' }}
-            >
-              <defs>
-                <filter id="printElShadow" x="-30%" y="-30%" width="160%" height="160%">
-                  <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#191B1E" floodOpacity="0.16" />
-                </filter>
-              </defs>
-              <rect x={minX} y={minY} width={boxW} height={boxH} fill="#FDFCF9" />
-              {elements.map((el) => {
-                const zone = isZone(el);
-                const meta = shapeMeta(el.shape);
-                const w = elWidth(el);
-                const h = elHeight(el);
-                const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
-                const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
-                const rot = Number(el.rotation) || 0;
-                const names = namesByTable[el.id] || [];
-                const cap = el.max_capacity || 0;
-                const shapeColor = zone ? (el.color || meta.color || '#999999') : C.gold;
-
-                // A custom-typed zone label (the one free-text shape name an
-                // organizer can enter) has no length limit — clipped to the
-                // shape's own bounds so a long label can never visually spill
-                // across a neighboring table instead of just being cropped.
-                const clipId = `clip-${el.id}`;
-                return (
-                  <g key={el.id}>
-                    {/* Shape rotates with the table; labels below stay upright
-                        regardless, so a rotated table is still legible on paper. */}
-                    <g transform={`translate(${cx} ${cy}) rotate(${rot})`} filter="url(#printElShadow)">
-                      {meta.round ? (
-                        <ellipse rx={w / 2} ry={h / 2} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={shapeColor} strokeWidth={zone ? 3 : 4} />
-                      ) : (
-                        <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={zone ? 12 : 14} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={shapeColor} strokeWidth={zone ? 3 : 4} />
-                      )}
-                    </g>
-                    <defs>
-                      <clipPath id={clipId}>
-                        {meta.round ? <ellipse rx={w / 2 - 3} ry={h / 2 - 3} /> : <rect x={-w / 2 + 3} y={-h / 2 + 3} width={w - 6} height={h - 6} />}
-                      </clipPath>
-                    </defs>
-                    <g transform={`translate(${cx} ${cy})`} clipPath={`url(#${clipId})`} fontFamily="var(--font-sans, sans-serif)" textAnchor="middle">
-                      <text y={zone ? 8 : (cap > 0 ? -6 : 8)} fontSize={zone ? 24 : 32} fontWeight={800} fill={C.charcoal}>
-                        {el.table_name}
-                      </text>
-                      {!zone && cap > 0 && (
-                        <text y={22} fontSize={18} fontWeight={600} fill={names.length >= cap ? '#C45E5E' : C.stone}>
-                          {names.length} / {cap} seated
-                        </text>
-                      )}
-                    </g>
-                  </g>
-                );
-              })}
-            </svg>
-          </div>
-
-          {/* ── Table Assignments — same sheet, right-hand column. Column
-              count/type size adapt to guest volume (see rosterCols/
-              rosterFontSize above) so this never needs its own page. ── */}
-          {roster.length > 0 && (
-            <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-              <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 15, fontWeight: 600, margin: '0 0 10px', color: C.charcoal, textAlign: 'center', fontStyle: 'italic', flexShrink: 0 }}>
-                Table Assignments
-              </h2>
-              <div style={{
-                flex: 1, minHeight: 0, overflow: 'hidden', display: 'grid',
-                gridTemplateColumns: `repeat(${rosterCols}, 1fr)`, gap: '6px 12px', alignContent: 'start',
-              }}>
-                {roster.map((t) => (
-                  <div key={t.id} style={{ breakInside: 'avoid', padding: rosterPad, borderRadius: 9, border: `1px solid ${C.border}`, background: '#FDFCF9' }}>
-                    <div style={{ fontWeight: 800, fontSize: rosterFontSize + 1, color: C.charcoal, marginBottom: 2 }}>
-                      <span style={{ color: C.gold }}>{t.name}</span> <span style={{ fontWeight: 500, color: C.stone }}>({t.guests.length})</span>
-                    </div>
-                    <div style={{ fontSize: rosterFontSize, lineHeight: 1.5, color: '#333333' }}>{t.guests.join(', ')}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+    <div className="ppm-overlay" role="dialog" aria-modal="true" aria-label="Print preview">
+      <div className="ppm-toolbar">
+        <div className="ppm-toolbar-copy">
+          <h2 style={{ margin: 0, fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 600, color: '#fff' }}>Print Preview</h2>
+          <p style={{ margin: '3px 0 0', fontSize: 11.5, color: 'rgba(255,255,255,0.7)' }}>
+            {selectedIds.size > 1
+              ? `${selectedIds.size} elements selected — drag any one of them to move the whole group.`
+              : 'Drag a table or zone to move it, Shift/Ctrl-click or drag a box to select several at once — your live seating map is unaffected.'}
+          </p>
         </div>
+        <div className="ppm-toolbar-actions">
+          {selectedIds.size > 0 && (
+            <button type="button" onClick={() => setSelectedIds(new Set())} className="ppm-btn ppm-btn-ghost">Deselect</button>
+          )}
+          {hasOverrides && (
+            <button type="button" onClick={() => { setOverrides({}); setSelectedIds(new Set()); }} className="ppm-btn ppm-btn-ghost">Reset Layout</button>
+          )}
+          <button type="button" onClick={() => window.print()} disabled={isEmpty} className="ppm-btn ppm-btn-primary">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+            Print
+          </button>
+          <button type="button" onClick={onClose} className="ppm-btn ppm-btn-ghost">Close</button>
+        </div>
+      </div>
 
-        <PrintFooter />
+      <div className="ppm-sheet-wrap">
+        {isEmpty ? (
+          <div style={{ padding: 60, textAlign: 'center', color: C.stone, fontFamily: 'var(--font-sans, sans-serif)' }}>
+            Add at least one table or zone to the seating map before printing.
+          </div>
+        ) : (
+          <div className="print-seating-chart">
+            <div className="print-page" style={{ display: 'flex', flexDirection: 'column', height: '95vh' }}>
+              <PrintLetterhead eventTitle={eventTitle} organizerName={organizerName} formattedDate={formattedDate} stats={stats} />
+
+              <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 20, margin: '14px 0' }}>
+                {/* ── Floor plan — the visual centerpiece, ~60% of the sheet width ── */}
+                <div className="print-diagram-frame" style={{ flex: roster.length > 0 ? '1.45 1 0' : '1 1 0', minWidth: 0, borderRadius: 12, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+                  <svg
+                    ref={svgRef}
+                    viewBox={`${minX} ${minY} ${boxW} ${boxH}`}
+                    preserveAspectRatio="xMidYMid meet"
+                    style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }}
+                    onPointerDown={onSvgBackgroundPointerDown}
+                    onPointerMove={onSvgPointerMove}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                  >
+                    <defs>
+                      <filter id="printElShadow" x="-30%" y="-30%" width="160%" height="160%">
+                        <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#191B1E" floodOpacity="0.16" />
+                      </filter>
+                    </defs>
+                    <rect x={minX} y={minY} width={boxW} height={boxH} fill="#FDFCF9" />
+                    {displayElements.map((el) => {
+                      const zone = isZone(el);
+                      const meta = shapeMeta(el.shape);
+                      const w = elWidth(el);
+                      const h = elHeight(el);
+                      const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
+                      const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+                      const rot = Number(el.rotation) || 0;
+                      const names = namesByTable[el.id] || [];
+                      const cap = el.max_capacity || 0;
+                      const shapeColor = zone ? (el.color || meta.color || '#999999') : C.gold;
+                      const moved = !!overrides[el.id];
+                      const selected = selectedIds.has(el.id);
+
+                      // A custom-typed zone label (the one free-text shape name an
+                      // organizer can enter) has no length limit — clipped to the
+                      // shape's own bounds so a long label can never visually spill
+                      // across a neighboring table instead of just being cropped.
+                      const clipId = `clip-${el.id}`;
+                      return (
+                        <g key={el.id} onPointerDown={(e) => onElPointerDown(e, el)} style={{ cursor: dragging ? 'grabbing' : 'grab' }}>
+                          {/* Selection halo — a soft ring behind the shape, distinct
+                              from the moved indicator (dashed border) below, since an
+                              element can be selected without having been dragged yet. */}
+                          {selected && (
+                            <g transform={`translate(${cx} ${cy}) rotate(${rot})`}>
+                              {meta.round ? (
+                                <ellipse rx={w / 2 + 7} ry={h / 2 + 7} fill="none" stroke={C.gold} strokeWidth={2.5} strokeOpacity={0.45} />
+                              ) : (
+                                <rect x={-w / 2 - 7} y={-h / 2 - 7} width={w + 14} height={h + 14} rx={zone ? 16 : 18} fill="none" stroke={C.gold} strokeWidth={2.5} strokeOpacity={0.45} />
+                              )}
+                            </g>
+                          )}
+                          {/* Shape rotates with the table; labels below stay upright
+                              regardless, so a rotated table is still legible on paper. */}
+                          <g transform={`translate(${cx} ${cy}) rotate(${rot})`} filter="url(#printElShadow)">
+                            {meta.round ? (
+                              <ellipse rx={w / 2} ry={h / 2} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={moved ? C.gold : shapeColor} strokeWidth={zone ? 3 : 4} strokeDasharray={moved ? '10 6' : undefined} />
+                            ) : (
+                              <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={zone ? 12 : 14} fill={zone ? shapeColor : '#FFFFFF'} fillOpacity={zone ? 0.16 : 1} stroke={moved ? C.gold : shapeColor} strokeWidth={zone ? 3 : 4} strokeDasharray={moved ? '10 6' : undefined} />
+                            )}
+                          </g>
+                          <defs>
+                            <clipPath id={clipId}>
+                              {meta.round ? <ellipse rx={w / 2 - 3} ry={h / 2 - 3} /> : <rect x={-w / 2 + 3} y={-h / 2 + 3} width={w - 6} height={h - 6} />}
+                            </clipPath>
+                          </defs>
+                          <g transform={`translate(${cx} ${cy})`} clipPath={`url(#${clipId})`} fontFamily="var(--font-sans, sans-serif)" textAnchor="middle" style={{ pointerEvents: 'none' }}>
+                            <text y={zone ? 8 : (cap > 0 ? -6 : 8)} fontSize={zone ? 24 : 32} fontWeight={800} fill={C.charcoal}>
+                              {el.table_name}
+                            </text>
+                            {!zone && cap > 0 && (
+                              <text y={22} fontSize={18} fontWeight={600} fill={names.length >= cap ? '#C45E5E' : C.stone}>
+                                {names.length} / {cap} seated
+                              </text>
+                            )}
+                          </g>
+                        </g>
+                      );
+                    })}
+                    {/* Shift-drag rubber-band select — same world-space coordinates
+                        everything else here uses, so no separate screen<->world
+                        conversion is needed to draw it. */}
+                    {marquee && (
+                      <rect
+                        x={Math.min(marquee.x0, marquee.x1)} y={Math.min(marquee.y0, marquee.y1)}
+                        width={Math.abs(marquee.x1 - marquee.x0)} height={Math.abs(marquee.y1 - marquee.y0)}
+                        fill="rgba(184,148,79,0.12)" stroke={C.gold} strokeWidth={1.5} strokeDasharray="6 4"
+                        style={{ pointerEvents: 'none' }}
+                      />
+                    )}
+                  </svg>
+                </div>
+
+                {/* ── Table Assignments — same sheet, right-hand column. Column
+                    count/type size adapt to guest volume so this never needs
+                    its own page. ── */}
+                {roster.length > 0 && (
+                  <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                    <h2 style={{ fontFamily: 'var(--font-serif, serif)', fontSize: 15, fontWeight: 600, margin: '0 0 10px', color: C.charcoal, textAlign: 'center', fontStyle: 'italic', flexShrink: 0 }}>
+                      Table Assignments
+                    </h2>
+                    <div style={{
+                      flex: 1, minHeight: 0, overflow: 'hidden', display: 'grid',
+                      gridTemplateColumns: `repeat(${rosterCols}, 1fr)`, gap: '6px 12px', alignContent: 'start',
+                    }}>
+                      {roster.map((t) => (
+                        <div key={t.id} style={{ breakInside: 'avoid', padding: rosterPad, borderRadius: 9, border: `1px solid ${C.border}`, background: '#FDFCF9' }}>
+                          <div style={{ fontWeight: 800, fontSize: rosterFontSize + 1, color: C.charcoal, marginBottom: 2 }}>
+                            <span style={{ color: C.gold }}>{t.name}</span> <span style={{ fontWeight: 500, color: C.stone }}>({t.guests.length})</span>
+                          </div>
+                          <div style={{ fontSize: rosterFontSize, lineHeight: 1.5, color: '#333333' }}>{t.guests.join(', ')}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <PrintFooter />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -617,18 +617,22 @@ h3 {
 }
 
 /* ── Seating map print export ──────────────────────────────────────────────
-   The organizer dashboard's seating-map page renders a hidden static export
-   view (.print-seating-chart) alongside the interactive canvas. On screen
-   it's invisible; triggering window.print() there swaps to this rule set,
-   which hides everything else in the app and shows only the export view —
-   so printing (or "Print to PDF") produces a clean chart with no toolbar,
-   sidebar, or edit handles. Kept in the global stylesheet rather than a
-   component-scoped <style jsx> block, since scoped styles inside a nested
-   (non-default-export) component were found not to reliably compile in this
-   build (see FooterLink in FooterSection.js for the same issue). */
-.print-seating-chart {
-  display: none;
-}
+   The organizer dashboard's seating-map page renders .print-seating-chart
+   inside PrintPreviewModal, an on-screen, interactive preview (drag to
+   rearrange for this printout) that's only mounted while open — unlike the
+   old always-in-the-DOM/CSS-hidden version, there is deliberately no
+   `display: none` default here anymore: React mounting/unmounting the modal
+   is what controls visibility now, and this content needs to actually be
+   visible on screen for the preview to work at all. Triggering window.print()
+   from inside that modal swaps to the @media print rule set below, which
+   hides everything else in the app (including the modal's own toolbar/
+   backdrop chrome, since those elements sit outside .print-seating-chart)
+   and shows only the export view — so printing (or "Print to PDF") produces
+   a clean chart with no toolbar, sidebar, or edit handles. Kept in the
+   global stylesheet rather than a component-scoped <style jsx> block, since
+   scoped styles inside a nested (non-default-export) component were found
+   not to reliably compile in this build (see FooterLink in FooterSection.js
+   for the same issue). */
 @media print {
   body * {
     visibility: hidden;
@@ -655,7 +659,7 @@ h3 {
     color-adjust: exact !important;
   }
   /* The whole export (floor plan + roster together) is explicitly height-
-     bounded (see .print-page inline style in PrintSeatingChart) to one
+     bounded (see .print-page inline style in PrintPreviewModal) to one
      sheet — this is a safety net against a browser still trying to split it.
      There is deliberately no break-before/break-after here anymore: the
      floor plan and the "Table Assignments" roster used to be forced onto
@@ -670,5 +674,103 @@ h3 {
     size: landscape;
     margin: 12mm;
   }
+}
+
+/* ── Print preview modal on-screen chrome ────────────────────────────────
+   PrintPreviewModal (seating-map/page.js) is a nested, non-default-export
+   component — <style jsx> blocks there don't reliably compile in this build
+   (same issue noted for FooterLink in FooterSection.js and for the seating-
+   map export view above), so its responsive rules live here globally
+   instead. None of this reaches the printed page itself: everything below
+   is outside .print-seating-chart, so the existing `body * { visibility:
+   hidden }` print rule above already hides all of it — only the sheet
+   content prints, never this toolbar/backdrop. */
+.ppm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(25, 27, 30, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 20px;
+  overflow: auto;
+}
+.ppm-toolbar {
+  width: 100%;
+  max-width: 1400px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.ppm-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.ppm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: var(--font-sans, sans-serif);
+  cursor: pointer;
+  border: none;
+  min-height: 38px;
+  white-space: nowrap;
+  transition: filter 0.15s, transform 0.15s;
+}
+.ppm-btn:hover {
+  filter: brightness(1.08);
+}
+.ppm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ppm-btn-primary {
+  background: #B8944F;
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(184, 148, 79, 0.35);
+}
+.ppm-btn-ghost {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.ppm-sheet-wrap {
+  width: 100%;
+  max-width: 1400px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+  overflow: auto;
+  padding: 28px;
+  box-sizing: border-box;
+}
+/* Tablet: toolbar copy and actions still fit one row down to ~720px, then
+   the sheet's own internal flex (floor plan + roster) is what needs room —
+   letting the wrap scroll horizontally beats squeezing the diagram unreadable. */
+@media (max-width: 720px) {
+  .ppm-overlay { padding: 14px 10px; }
+  .ppm-toolbar { justify-content: center; text-align: center; }
+  .ppm-toolbar-copy { width: 100%; }
+  .ppm-toolbar-actions { width: 100%; justify-content: center; }
+  .ppm-sheet-wrap { padding: 14px; border-radius: 10px; }
+}
+/* Phone: the print sheet's internal layout (floor plan + roster side by
+   side) is designed for a landscape page, not a phone's portrait width —
+   rather than mangling that into an unreadable stack, keep its real
+   proportions and let it scroll horizontally within the wrap, same as
+   scrolling a wide table. The toolbar above it (drag hint, Print/Close)
+   stays fully usable at any width regardless. */
+@media (max-width: 480px) {
+  .ppm-sheet-wrap { padding: 10px; }
 }
 

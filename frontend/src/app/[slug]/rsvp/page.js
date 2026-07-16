@@ -23,9 +23,13 @@ function RsvpRoute({ slug }) {
     partyId: sp.get('party_id'),  // per-guest invitation token
   };
   const lang = sp.get('lang') === 'ar' ? 'ar' : 'en';
+  // ?noreveal=1 — compliance/reviewer bypass (Twilio TFV): renders the form
+  // directly with no envelope intro. Normal guest links never carry it, so the
+  // premium reveal is untouched for real guests.
+  const noReveal = sp.get('noreveal') === '1';
 
   return (
-    <RsvpExperience context={context} lang={lang} envelope>
+    <RsvpExperience context={context} lang={lang} envelope={!noReveal}>
       {(api) => <RsvpWizard {...api} />}
     </RsvpExperience>
   );

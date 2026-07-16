@@ -7,6 +7,7 @@ import { LockIcon } from '../../../guest/RsvpIcons';
 import { ConfettiExplosion } from '../../../guest/GuestAnimations';
 import GuestPassCard from '../../../guest/GuestPassGenerator';
 import PhoneNumberInput from '../../../PhoneNumberInput';
+import SmsConsentText from '../../../guest/SmsConsentText';
 import TurnstileWidget, { turnstileEnabled } from '../../../guest/TurnstileWidget';
 import { normalizeToE164 } from '../../../../utils/phone';
 import { useIdempotentRsvpSubmit } from '../../../guest/rsvp/useIdempotentRsvpSubmit';
@@ -580,6 +581,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
         .filter((fieldId) => isAttending || alwaysQuestions.some((f) => f.id === fieldId))
         .map((fieldId) => ({ fieldId, value: customAnswers[fieldId] })),
       smsConsent,
+      consentSource: 'guest_form_template', // provenance for the sms_consent record (backend whitelists values)
     };
 
     const r = await submit({ url: `/public/events/${slug}/rsvp`, body, reconcileId: body.partyId });
@@ -824,9 +826,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                         >
                           <input type="checkbox" checked={smsConsent} onChange={(e) => { setSmsConsent(e.target.checked); clearError('smsConsent'); }} style={{ marginTop: '2px', width: '17px', height: '17px', accentColor: C.maroon, flexShrink: 0 }} />
                           <span style={{ fontSize: '12px', color: C.ink, opacity: 0.85, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
-                            {isRTL
-                              ? 'أوافق على تلقي رسائل نصية (SMS) بخصوص هذه الفعالية. قد تُطبّق رسوم الرسائل والبيانات. أرسل STOP لإلغاء الاشتراك.'
-                              : 'I agree to receive SMS updates about this event. Message & data rates may apply. Reply STOP to opt out.'}
+                            <SmsConsentText isRTL={isRTL} linkStyle={{ color: C.maroon }} />
                           </span>
                         </motion.label>
                       )}

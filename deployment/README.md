@@ -248,3 +248,24 @@ Now that your production server is live on `https://fancyrsvp.com`, configure th
    ```bash
    pm2 restart fancy-rsvp-backend
    ```
+
+## 📱 Step 8: Configure Twilio Webhooks (SMS compliance)
+
+Both webhooks are signature-verified server-side and safe to expose publicly.
+In the **Twilio Console → Phone Numbers → your toll-free number → Messaging configuration**:
+
+1. **A message comes in** (inbound webhook — records STOP/UNSUBSCRIBE/CANCEL/END/QUIT
+   opt-outs into the `sms_opt_outs` suppression table, which every send path enforces):
+   `https://fancyrsvp.com/api/v1/public/sms/inbound`   (HTTP POST)
+2. **Status callback URL** (delivery receipts — auto-refunds undelivered credits). Also set
+   `SMS_STATUS_CALLBACK_URL` in `backend/.env` to the same value:
+   `https://fancyrsvp.com/api/v1/public/sms/status`   (HTTP POST)
+3. Keep Twilio's **default toll-free opt-out handling** enabled (it sends the
+   carrier-mandated STOP confirmation and HELP reply — the app deliberately does
+   not auto-reply, to avoid double-messaging). Customize the HELP response text in
+   the Console to identify **Fancy RSVP** and `info@fancyrsvp.com`.
+4. The migration `20260809000000_sms_compliance.sql` must be applied before these
+   webhooks can record anything (see Step 2's migration order note).
+5. TFV note: the opt-in URL for Toll-Free Verification submissions is
+   `https://fancyrsvp.com/sms-opt-in`, and `TWILIO_PHONE_NUMBER` in `backend/.env`
+   must be the verified **toll-free** number.

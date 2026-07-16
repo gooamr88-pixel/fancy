@@ -261,13 +261,10 @@ const serveSwaggerDocs = (req, res) => {
   `);
 };
 
-if (process.env.NODE_ENV === 'production') {
-  app.get('/api/v1/openapi.json', requireAuth, requireSuperAdmin, serveOpenApiSpec);
-  app.get('/docs', requireAuth, requireSuperAdmin, serveSwaggerDocs);
-} else {
-  app.get('/api/v1/openapi.json', serveOpenApiSpec);
-  app.get('/docs', serveSwaggerDocs);
-}
+// Gated unconditionally (not just when NODE_ENV === 'production'): a deploy
+// that forgets to set NODE_ENV must never expose the full API surface publicly.
+app.get('/api/v1/openapi.json', requireAuth, requireSuperAdmin, serveOpenApiSpec);
+app.get('/docs', requireAuth, requireSuperAdmin, serveSwaggerDocs);
 
 // Health Check Endpoint
 app.get('/api/v1/health', async (req, res) => {

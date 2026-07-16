@@ -517,7 +517,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // animation regardless of channel: email link, raw URL, or QR scan, and
   // regardless of any prior visit). Tracks only whether *this* mount's
   // viewing has been dismissed; a fresh page load always starts undismissed.
-  const [revealDismissed, setRevealDismissed] = useState(false);
+  // Sole exception: ?noreveal=1, a compliance/reviewer bypass (Twilio TFV)
+  // that renders the page content directly. Normal guest links never carry it.
+  const [revealDismissed, setRevealDismissed] = useState(() => searchParams?.get('noreveal') === '1');
 
   // Auth / access states. Declared here — BEFORE the effects below that read them —
   // so their dependency arrays don't reference these bindings while they're still in
@@ -533,9 +535,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const fetchEventWithPasswordRef = useRef(null);
 
   // Plays over the fully-loaded public event page only — never over the
-  // loading/password/private/review/error states. No localStorage check, no
-  // query-param bypass: every page load (email link, raw URL, QR scan, repeat
-  // visit) shows the same reveal until this mount's viewing is dismissed.
+  // loading/password/private/review/error states. No localStorage check:
+  // every page load (email link, raw URL, QR scan, repeat visit) shows the
+  // same reveal until this mount's viewing is dismissed — except the
+  // ?noreveal=1 compliance bypass, which starts already-dismissed.
   const showReveal = !!event && !loading && !error && !passwordRequired && !isPrivate && !underReview && !notLive && !revealDismissed;
 
   const handleRevealComplete = useCallback(() => {

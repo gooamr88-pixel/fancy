@@ -19,6 +19,8 @@ router.post('/send-sms', requireFeature('sms_campaigns'), [
   body('guestIds.*').optional().isUUID().withMessage('Each guestId must be a valid UUID.'),
   body('clientToken').optional().isString().isLength({ max: 80 }).withMessage('clientToken too long.'),
   body('async').optional().isBoolean().withMessage('async must be a boolean.'),
+  // Terms §5 consent attestation — must be boolean true; enforced in the controller.
+  body('consentAttested').optional().isBoolean().withMessage('consentAttested must be a boolean.'),
   validate,
 ], sendBulkSMSCampaign);
 

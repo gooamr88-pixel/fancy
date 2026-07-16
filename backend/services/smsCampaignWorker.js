@@ -17,7 +17,7 @@
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
-const { personalize, getTableMap, sendRecipient, sleep } = require('./smsDispatch');
+const { personalize, getTableMap, sendRecipient, sleep, getOptedOutSet } = require('./smsDispatch');
 
 const INTERVAL_SEC = Math.max(5, parseInt(process.env.SMS_WORKER_INTERVAL_SEC, 10) || 15);
 const SLICE = Math.max(10, parseInt(process.env.SMS_WORKER_SLICE, 10) || 100); // recipients/campaign/tick
@@ -95,6 +95,14 @@ async function processCampaign(campaign) {
     if (error) { logger.warn({ err: error, campaignId: campaign.id }, '[sms-worker] claim recipients failed'); break; }
     if (!claimed || claimed.length === 0) break; // nothing left to do this tick
 
+    // One suppression lookup per claimed batch (not per message). Fresh enough:
+    // a batch is at most SUB_BATCH sends; a STOP landing mid-batch is also
+    // blocked by Twilio's carrier-level opt-out. Falls back to sendRecipient's
+    // own per-message check if the batch lookup fails.
+    let optedOut = null;
+    try { optedOut = await getOptedOutSet(claimed.map((r) => r.phone)); }
+    catch (e) { logger.warn({ err: e, campaignId: campaign.id }, '[sms-worker] batch opt-out lookup failed; using per-message checks'); }
+
     await Promise.allSettled(claimed.map(async (r) => {
       const retryCount = r.retry_count || 0;
       try {
@@ -102,7 +110,7 @@ async function processCampaign(campaign) {
           slug: event.slug, guestName: r.guest_name, rsvpId: r.rsvp_id,
           tableName: tableMap[r.rsvp_id], eventTitle: event.title,
         });
-        const result = await sendRecipient({ eventId, phone: r.phone, body, segments, idemKey: r.idempotency_key, twilio, fromNumber });
+        const result = await sendRecipient({ eventId, phone: r.phone, body, segments, idemKey: r.idempotency_key, twilio, fromNumber, optedOut });
         await applyRecipientResult(r, result);
       } catch (err) {
         if (retryCount >= MAX_RECIPIENT_RETRIES) {

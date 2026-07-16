@@ -253,7 +253,7 @@ export default function AboutPage() {
                   marginBottom: "20px",
                 }}
               >
-                Founded in 2019, Fancy RSVP was born from a simple frustration — why do RSVP
+                Fancy RSVP was born from a simple frustration — why do RSVP
                 experiences feel like an afterthought when the invitation itself sets the tone for
                 the entire event?
               </p>
@@ -266,41 +266,26 @@ export default function AboutPage() {
                   marginBottom: "28px",
                 }}
               >
-                We set out to build the world&apos;s most elegant event response platform — one that
-                treats your guests to the same premium experience they&apos;ll enjoy at your celebration.
-                Today, we serve over 200,000 events annually across 40 countries.
+                We set out to build the most elegant event response platform we could — one that
+                treats your guests to the same premium experience they&apos;ll enjoy at your celebration,
+                from the first invitation to the final seating chart.
               </p>
-              <div style={{ display: "flex", gap: "40px" }}>
-                {[
-                  { num: "200K+", label: "Events Hosted" },
-                  { num: "40+", label: "Countries" },
-                  { num: "98%", label: "Satisfaction" },
-                ].map((stat) => (
-                  <div key={stat.label}>
-                    <p
-                      style={{
-                        fontFamily: "var(--font-serif)",
-                        fontSize: "28px",
-                        fontWeight: 700,
-                        color: "#B8944F",
-                        lineHeight: 1,
-                      }}
-                    >
-                      {stat.num}
-                    </p>
-                    <p
-                      style={{
-                        fontFamily: "var(--font-sans)",
-                        fontSize: "13px",
-                        color: "#5E5A52",
-                        marginTop: "4px",
-                      }}
-                    >
-                      {stat.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <p
+                style={{
+                  fontFamily: "var(--font-sans)",
+                  fontSize: "15px",
+                  color: "#5E5A52",
+                  lineHeight: 1.8,
+                  padding: "16px 20px",
+                  background: "#FAF7F0",
+                  border: "1px solid #E8E2D6",
+                  borderRadius: "12px",
+                }}
+              >
+                Fancy RSVP is built and operated by <strong style={{ color: "#191B1E" }}>16941460 Canada
+                Corp., operating as Via Marketing</strong>, based in Mississauga, Ontario, Canada — serving
+                hosts across the United States and Canada.
+              </p>
             </div>
           </div>
         </section>

@@ -35,8 +35,8 @@ const contactCards = [
   },
   {
     label: "Visit Us",
-    value: "California",
-    detail: "USA",
+    value: "Mississauga, Ontario",
+    detail: "2488 Selord Court, L5J 1P7, Canada",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8944F" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M21 10C21 17 12 23 12 23S3 17 3 10C3 5.03 7.03 1 12 1S21 5.03 21 10Z" />

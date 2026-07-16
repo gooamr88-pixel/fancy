@@ -18,13 +18,13 @@ const footerLinks = {
   Company: [
     { text: 'About', href: '/about' },
     { text: 'Careers', href: '/careers' },
-    { text: 'Press', href: '/press' },
   ],
   Support: [
     { text: 'Help Center', href: '/help' },
     { text: 'Contact', href: '/contact' },
     { text: 'Privacy', href: '/privacy' },
     { text: 'Terms', href: '/terms' },
+    { text: 'SMS Opt-In & Consent', href: '/sms-opt-in' },
   ],
 };
 
@@ -339,17 +339,40 @@ export default function FooterSection() {
             gap: '16px',
           }}
         >
-          <p
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: '13px',
-              color: 'rgba(255, 255, 255, 0.7)',
-            }}
-          >
-            © {new Date().getFullYear()} Via Marketing Group. All rights reserved.
-          </p>
+          <div>
+            <p
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: '13px',
+                color: 'rgba(255, 255, 255, 0.7)',
+                marginBottom: '6px',
+              }}
+            >
+              © {new Date().getFullYear()} 16941460 Canada Corp. o/a Via Marketing. All rights reserved.
+            </p>
+            <p
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: '12px',
+                color: 'rgba(255, 255, 255, 0.45)',
+                lineHeight: 1.6,
+                maxWidth: '520px',
+              }}
+            >
+              Fancy RSVP is owned and operated by 16941460 Canada Corp., operating as{' '}
+              <a
+                href="https://viamarketing.ca"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: 'rgba(255, 255, 255, 0.6)', textDecoration: 'underline' }}
+              >
+                Via Marketing
+              </a>
+              {' '}· 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada
+            </p>
+          </div>
 
-          {/* Social icons — Via Marketing Group's actual accounts */}
+          {/* Social icons — Via Marketing's actual accounts */}
           <div style={{ display: 'flex', gap: '10px' }}>
             {/* Instagram */}
             <SocialIcon label="Instagram" href="https://www.instagram.com/viamarketing.ca/">

@@ -33,7 +33,7 @@ const perks = [
   },
   {
     title: "Learning Budget",
-    desc: "$2,000 annual learning stipend for courses, conferences, books, and anything that fuels your growth.",
+    desc: "A learning budget for courses, conferences, books, and anything that fuels your growth.",
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <path d="M6 14l12-6 12 6-12 6-12-6Z" stroke="#B8944F" strokeWidth="1.5" fill="none" />
@@ -54,7 +54,7 @@ const perks = [
   },
   {
     title: "Team Events",
-    desc: "Quarterly team retreats, monthly virtual gatherings, and an annual company-wide celebration.",
+    desc: "Regular team gatherings and celebrations — we practice what we preach about marking milestones.",
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <circle cx="14" cy="12" r="4" stroke="#B8944F" strokeWidth="1.5" />
@@ -64,8 +64,8 @@ const perks = [
     ),
   },
   {
-    title: "Equity",
-    desc: "Every team member receives stock options — when Fancy RSVP wins, we all win together.",
+    title: "Real Ownership",
+    desc: "Meaningful responsibility from day one and a real voice in what we build — when Fancy RSVP wins, we all win together.",
     icon: (
       <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
         <rect x="6" y="18" width="6" height="12" rx="1" stroke="#B8944F" strokeWidth="1.5" />
@@ -76,43 +76,9 @@ const perks = [
   },
 ];
 
-const positions = [
-  {
-    title: "Senior Frontend Engineer",
-    department: "Engineering",
-    location: "Remote (US / EU)",
-    type: "Full-time",
-    desc: "Build beautiful, performant user experiences with React and Next.js for our event management platform.",
-  },
-  {
-    title: "Product Designer",
-    department: "Design",
-    location: "Remote (Global)",
-    type: "Full-time",
-    desc: "Shape the future of event experiences through thoughtful design systems, prototyping, and user research.",
-  },
-  {
-    title: "Growth Marketing Manager",
-    department: "Marketing",
-    location: "New York, NY / Remote",
-    type: "Full-time",
-    desc: "Drive user acquisition and brand awareness through data-driven campaigns across multiple channels.",
-  },
-  {
-    title: "Backend Engineer",
-    department: "Engineering",
-    location: "Remote (US / EU)",
-    type: "Full-time",
-    desc: "Design and scale our API infrastructure using Node.js, PostgreSQL, and cloud-native architectures.",
-  },
-  {
-    title: "Customer Success Lead",
-    department: "Operations",
-    location: "Remote (US)",
-    type: "Full-time",
-    desc: "Help our premium clients create extraordinary events by ensuring they get the most from our platform.",
-  },
-];
+// Real openings only — an empty list renders the "no open roles" state below.
+// Never list roles that aren't genuinely being hired for.
+const positions = [];
 
 const cultureValues = [
   { title: "Craft Over Speed", desc: "We take the time to get things right. Quality is never compromised." },
@@ -444,9 +410,48 @@ export default function CareersPage() {
               </p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {positions.map((job) => (
-                <JobCard key={job.title} job={job} />
-              ))}
+              {positions.length === 0 ? (
+                <div
+                  style={{
+                    background: "#FFFFFF",
+                    border: "1px solid #E8E2D6",
+                    borderRadius: "16px",
+                    padding: "48px 32px",
+                    textAlign: "center",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      fontSize: "20px",
+                      fontWeight: 600,
+                      color: "#191B1E",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    No open roles right now
+                  </h3>
+                  <p
+                    style={{
+                      fontFamily: "var(--font-sans)",
+                      fontSize: "15px",
+                      color: "#5E5A52",
+                      lineHeight: 1.7,
+                      maxWidth: "480px",
+                      margin: "0 auto",
+                    }}
+                  >
+                    We&apos;re not actively hiring at the moment, but we&apos;re always glad to hear from
+                    talented people. Send your resume and a note about what you&apos;d love to work on to{" "}
+                    <a href="mailto:info@fancyrsvp.com" style={{ color: "#B8944F", fontWeight: 600 }}>
+                      info@fancyrsvp.com
+                    </a>{" "}
+                    and we&apos;ll keep it on file.
+                  </p>
+                </div>
+              ) : (
+                positions.map((job) => <JobCard key={job.title} job={job} />)
+              )}
             </div>
           </div>
         </section>
@@ -487,8 +492,8 @@ export default function CareersPage() {
                     marginBottom: "32px",
                   }}
                 >
-                  We&apos;re a team of 85 people across 12 countries, united by a shared love
-                  for creating beautiful things. Our culture is rooted in trust, creativity,
+                  We&apos;re a small, close-knit team united by a shared love for creating
+                  beautiful things. Our culture is rooted in trust, creativity,
                   and a genuine commitment to each other&apos;s growth.
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

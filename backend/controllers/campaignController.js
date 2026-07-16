@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 const {
   chunk, sleep, normalizePhone, isValidPhone,
   normalizeAudiences, fetchRecipients, getTableMap, personalize, sendRecipient,
+  getOptedOutSet, canonicalPhone,
 } = require('../services/smsDispatch');
 
 /* ─── Tunables ─────────────────────────────────────────────────────────── */
@@ -39,6 +40,21 @@ const sendBulkSMSCampaign = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Select at least one valid audience segment.' });
   }
 
+  // TCPA/CTIA + Terms §5 ("Host Consent Obligations"): every launch requires the
+  // organizer's recorded attestation that they hold prior express consent for
+  // every host-supplied number (guests who submitted their own number already
+  // consented in-form). The dashboard collects this as a required checkbox;
+  // direct API calls must send it too. Recorded on the campaign row (async) or
+  // in activity_logs metadata (sync). String 'true' is tolerated for
+  // form-encoded/hand-rolled API clients.
+  const consentAttested = req.body?.consentAttested === true || req.body?.consentAttested === 'true';
+  if (!consentAttested) {
+    return res.status(400).json({
+      success: false, error: 'CONSENT_ATTESTATION_REQUIRED',
+      message: "Confirm you have each recipient's prior consent to receive texts about this event before sending.",
+    });
+  }
+
   try {
     const { data: event, error: eventError } = await supabase
       .from('events').select('slug, title').eq('id', eventId).single();
@@ -46,14 +62,24 @@ const sendBulkSMSCampaign = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
     }
 
-    const recipients = await fetchRecipients(eventId, {
+    let recipients = await fetchRecipients(eventId, {
       audiences: segments, guestIds: useCustom ? guestIds : null, limit: MAX_TOTAL + 1,
     });
 
+    // Opted-out numbers are removed up front so recipient counts and the credit
+    // pre-check reflect reality; sendRecipient re-checks per message as the
+    // final guard (covers a STOP that arrives after a campaign is queued).
+    const optedOut = await getOptedOutSet(recipients.map((r) => r.phone));
+    const suppressedCount = recipients.filter((r) => optedOut.has(canonicalPhone(r.phone))).length;
+    if (suppressedCount > 0) recipients = recipients.filter((r) => !optedOut.has(canonicalPhone(r.phone)));
+
     if (recipients.length === 0) {
       return res.status(200).json({
-        success: true, message: 'No matching guests with a valid phone number were found for this segment.',
-        sentCount: 0, failedCount: 0, skippedCount: 0, creditsUsed: 0, recipientCount: 0,
+        success: true,
+        message: suppressedCount > 0
+          ? 'Every matching guest has opted out of SMS — nothing was sent.'
+          : 'No matching guests with a valid phone number were found for this segment.',
+        sentCount: 0, failedCount: 0, skippedCount: 0, creditsUsed: 0, recipientCount: 0, suppressedCount,
       });
     }
     if (recipients.length > MAX_TOTAL) {
@@ -82,18 +108,18 @@ const sendBulkSMSCampaign = async (req, res, next) => {
 
     // ── Large (or explicitly async) → enqueue and return immediately ──
     if (recipients.length > SYNC_MAX || forceAsync) {
-      return await enqueueCampaign(req, res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken });
+      return await enqueueCampaign(req, res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount });
     }
 
     // ── Small → synchronous bounded/paced dispatch ──
-    return await dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken });
+    return await dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount, attestedBy: req.user?.id || null, optedOut });
   } catch (err) {
     next(err);
   }
 };
 
 /** Synchronous path for small campaigns. */
-async function dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken }) {
+async function dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount = 0, attestedBy = null, optedOut = null }) {
   const tableMap = await getTableMap(eventId);
   const campaignToken = (typeof clientToken === 'string' && clientToken.trim())
     ? clientToken.trim().slice(0, 80)
@@ -116,7 +142,7 @@ async function dispatchInline(res, { eventId, event, recipients, messageTemplate
     const results = await Promise.allSettled(batches[i].map(async ({ guest, body, segments }) => {
       const result = await sendRecipient({
         eventId, phone: guest.phone, body, segments,
-        idemKey: `sms:${campaignToken}:${guest.id}`, twilio, fromNumber,
+        idemKey: `sms:${campaignToken}:${guest.id}`, twilio, fromNumber, optedOut,
       });
       return { guest, result };
     }));
@@ -133,7 +159,9 @@ async function dispatchInline(res, { eventId, event, recipients, messageTemplate
   try {
     await supabase.from('activity_logs').insert({
       event_id: eventId, action: 'sms_campaign_sent', entity_type: 'campaign',
-      metadata: { audience: audienceLabel, total_recipients: recipients.length, sent: sent.length, failed: failed.length, skipped: skipped.length, credits_used: creditsUsed, mode: 'sync' },
+      // consent_attested_*: the sync path creates no sms_campaigns row, so the
+      // organizer's Terms §5 consent attestation is recorded here instead.
+      metadata: { audience: audienceLabel, total_recipients: recipients.length, sent: sent.length, failed: failed.length, skipped: skipped.length, suppressed: suppressedCount, credits_used: creditsUsed, mode: 'sync', consent_attested: true, consent_attested_by: attestedBy, consent_attested_at: new Date().toISOString() },
     });
   } catch (e) { logger.warn({ err: e }, 'SMS campaign audit log failed (non-fatal).'); }
 
@@ -141,13 +169,13 @@ async function dispatchInline(res, { eventId, event, recipients, messageTemplate
     success: true, async: false,
     message: `Campaign complete — sent ${sent.length}, failed ${failed.length}${skipped.length ? `, skipped ${skipped.length}` : ''}.`,
     sentCount: sent.length, failedCount: failed.length, skippedCount: skipped.length,
-    creditsUsed, recipientCount: recipients.length,
+    creditsUsed, recipientCount: recipients.length, suppressedCount,
     failedMessages: failed.slice(0, 100),
   });
 }
 
 /** Async path — create the campaign + recipient job rows, then nudge the worker. */
-async function enqueueCampaign(req, res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken }) {
+async function enqueueCampaign(req, res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount = 0 }) {
   const token = (typeof clientToken === 'string' && clientToken.trim())
     ? clientToken.trim().slice(0, 80)
     : crypto.randomUUID();
@@ -182,11 +210,23 @@ async function enqueueCampaign(req, res, { eventId, event, recipients, messageTe
   }
   const estimatedCredits = rows.reduce((s, r) => s + r.segments, 0);
 
-  const { data: campaign, error: cErr } = await supabase
+  const baseCampaign = { event_id: eventId, message_template: messageTemplate, audience: audienceLabel, status: 'queued', total_recipients: rows.length, client_token: token };
+  // Persist the organizer's Terms §5 consent attestation on the campaign row.
+  let { data: campaign, error: cErr } = await supabase
     .from('sms_campaigns')
-    .insert({ event_id: eventId, message_template: messageTemplate, audience: audienceLabel, status: 'queued', total_recipients: rows.length, client_token: token })
+    .insert({ ...baseCampaign, consent_attested_at: new Date().toISOString(), consent_attested_by: req.user?.id || null })
     .select('id')
     .single();
+
+  // Pre-migration tolerance: if consent_attested_* don't exist yet, record the
+  // attestation in the log and insert without them (matches the missing-RPC
+  // fallbacks elsewhere in the SMS stack).
+  if (cErr && /consent_attested/i.test(cErr.message || '')) {
+    logger.warn('sms_campaigns.consent_attested_* missing — apply 20260809000000_sms_compliance.sql (attestation recorded in logs only).');
+    logger.info({ eventId, attestedBy: req.user?.id || null }, 'SMS campaign consent attestation (schema fallback)');
+    ({ data: campaign, error: cErr } = await supabase
+      .from('sms_campaigns').insert(baseCampaign).select('id').single());
+  }
 
   if (cErr) {
     // Lost an enqueue race on the unique client_token → return the winner.
@@ -211,7 +251,7 @@ async function enqueueCampaign(req, res, { eventId, event, recipients, messageTe
   return res.status(202).json({
     success: true, async: true,
     campaignId: campaign.id, status: 'queued',
-    recipientCount: rows.length, estimatedCredits,
+    recipientCount: rows.length, estimatedCredits, suppressedCount,
     message: `Queued ${rows.length} messages for delivery.`,
   });
 }
@@ -358,9 +398,88 @@ const handleSmsStatusCallback = async (req, res) => {
   }
 };
 
+/* ─── Inbound SMS (STOP/HELP) webhook ──────────────────────────────────────── */
+
+// CTIA opt-out keyword set (mirrors the Privacy Policy §3 and Terms §5 lists).
+const OPT_OUT_KEYWORDS = new Set(['stop', 'stopall', 'unsubscribe', 'cancel', 'end', 'quit']);
+const OPT_IN_KEYWORDS = new Set(['start', 'unstop', 'yes']);
+const HELP_KEYWORDS = new Set(['help', 'info']);
+
+/**
+ * Twilio inbound-message webhook → record STOP/UNSUBSCRIBE/CANCEL/END/QUIT
+ * opt-outs (and START/UNSTOP/YES opt-back-ins) in sms_opt_outs, which every
+ * send path enforces (smsDispatch.sendRecipient + the campaign audience filter).
+ *
+ * Auto-replies are deliberately NOT sent from here: Twilio's toll-free default
+ * opt-out handling already sends the carrier-mandated STOP confirmation and the
+ * HELP response (configure the HELP text in the Twilio Console to name
+ * Fancy RSVP + info@fancyrsvp.com) — replying here too would double-message
+ * the guest. This webhook is the system of record, returning empty TwiML.
+ *
+ * POST /api/v1/public/sms/inbound   (Twilio "A message comes in" target)
+ */
+const handleInboundSms = async (req, res) => {
+  const twiml = () => res.type('text/xml').status(200).send('<Response/>');
+
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  // No Twilio configured (mock/dev) → nothing real can arrive here.
+  if (!authToken) return twiml();
+
+  const signature = req.headers['x-twilio-signature'];
+  const url = process.env.SMS_INBOUND_WEBHOOK_URL || `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+  if (!validateTwilioSignature(authToken, signature, url, req.body || {})) {
+    logger.warn('Rejected inbound SMS webhook: invalid Twilio signature');
+    return res.status(403).send('invalid signature');
+  }
+
+  const from = String(req.body.From || '').trim();
+  const sid = req.body.MessageSid || req.body.SmsSid || null;
+  // Keyword matching per CTIA: single-word commands, case-insensitive, tolerant
+  // of trailing punctuation ("STOP.", "Stop!").
+  const keyword = String(req.body.Body || '').trim().toLowerCase().replace(/[.!,]+$/, '');
+  if (!from) return twiml();
+
+  try {
+    if (OPT_OUT_KEYWORDS.has(keyword)) {
+      const { error } = await supabase.from('sms_opt_outs').upsert(
+        { phone: from, opted_out_at: new Date().toISOString(), keyword, message_sid: sid, opted_back_in_at: null },
+        { onConflict: 'phone' },
+      );
+      if (error) throw error;
+      logger.info({ from, keyword }, 'SMS opt-out recorded');
+      return twiml();
+    }
+    if (OPT_IN_KEYWORDS.has(keyword)) {
+      const { error } = await supabase
+        .from('sms_opt_outs')
+        .update({ opted_back_in_at: new Date().toISOString() })
+        .eq('phone', from);
+      if (error) throw error;
+      logger.info({ from, keyword }, 'SMS opt-back-in recorded');
+      return twiml();
+    }
+    if (HELP_KEYWORDS.has(keyword)) {
+      // Recorded for support visibility; the reply itself comes from Twilio's
+      // configured HELP response (see comment above).
+      logger.info({ from }, 'SMS HELP received');
+      return twiml();
+    }
+    // Any other inbound content: acknowledged, never auto-replied.
+    return twiml();
+  } catch (err) {
+    if (/relation .* does not exist|Could not find the table/i.test(err.message || '') || err.code === '42P01') {
+      logger.error('sms_opt_outs missing — apply 20260809000000_sms_compliance.sql. Opt-out NOT recorded!');
+      return twiml(); // don't make Twilio retry into the same missing table
+    }
+    logger.error({ err, from, keyword }, 'Inbound SMS processing failed');
+    return res.status(500).send('error'); // 5xx → Twilio retries later
+  }
+};
+
 module.exports = {
   sendBulkSMSCampaign,
   getCampaignStatus,
   getCampaignHistory,
   handleSmsStatusCallback,
+  handleInboundSms,
 };

@@ -16,7 +16,7 @@ const sections = [
     title: "1. Acceptance of Terms",
     content: [
       "By accessing or using the Fancy RSVP platform (\"Service\"), you agree to be bound by these Terms of Service (\"Terms\"). If you do not agree to all of these Terms, you may not access or use the Service.",
-      "These Terms constitute a legally binding agreement between you (\"User,\" \"you,\" or \"your\") and Fancy RSVP Inc. (\"Company,\" \"we,\" \"us,\" or \"our\"). They govern your access to and use of our website, applications, APIs, and all related services.",
+      "These Terms constitute a legally binding agreement between you (\"User,\" \"you,\" or \"your\") and 16941460 Canada Corp., operating as Via Marketing (\"Company,\" \"we,\" \"us,\" or \"our\"), the owner and operator of the Fancy RSVP platform, with its registered office at 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada. They govern your access to and use of our website, applications, APIs, and all related services.",
       "We may update these Terms from time to time. We will notify you of material changes at least 14 days before they take effect by sending an email to the address associated with your account or by posting a prominent notice on our platform. Your continued use of the Service after any changes constitutes your acceptance of the revised Terms.",
       "If you are using the Service on behalf of an organization, you represent and warrant that you have the authority to bind that organization to these Terms, and references to \"you\" shall include that organization.",
     ],
@@ -64,7 +64,7 @@ const sections = [
     content: [
       "If you (as an event host) or your guests send or receive text messages through the Service, the following additional terms apply and are incorporated into these Terms of Service and our Privacy Policy.",
       "**Program Description:** Fancy RSVP's SMS feature allows event hosts to send transactional and informational text messages to their own guests, including RSVP confirmations, event updates, reminders, and check-in instructions. This is not a marketing or promotional messaging service. Hosts may not use it to send unsolicited advertising, political messaging, debt collection, or any content unrelated to the specific event the recipient was invited to.",
-      "**Host Consent Obligations:** If you upload, import, or otherwise add a guest's phone number to the Service rather than having the guest submit it themselves, you represent and warrant that: (a) you have obtained that guest's prior express consent to receive text messages about your event before adding their number; (b) you will honor any opt-out request immediately and will not re-add that guest's number to any future messaging list without obtaining fresh consent; and (c) you are solely responsible for your own compliance with the TCPA, CTIA guidelines, and any applicable state-level telemarketing and texting laws with respect to numbers you supply. You agree to indemnify and hold harmless Fancy RSVP, Inc. from any claim, fine, or penalty arising from your failure to obtain proper consent for a phone number you provided.",
+      "**Host Consent Obligations:** If you upload, import, or otherwise add a guest's phone number to the Service rather than having the guest submit it themselves, you represent and warrant that: (a) you have obtained that guest's prior express consent to receive text messages about your event before adding their number; (b) you will honor any opt-out request immediately and will not re-add that guest's number to any future messaging list without obtaining fresh consent; and (c) you are solely responsible for your own compliance with the TCPA, CTIA guidelines, and any applicable state-level telemarketing and texting laws with respect to numbers you supply. You agree to indemnify and hold harmless 16941460 Canada Corp. o/a Via Marketing from any claim, fine, or penalty arising from your failure to obtain proper consent for a phone number you provided.",
       "**No Sale or Sharing of Mobile Data:** Consistent with our Privacy Policy, Fancy RSVP will never sell, rent, license, trade, or share any mobile phone number, opt-in record, or consent data collected through the SMS feature with any third party or affiliate for marketing or promotional purposes. This commitment cannot be waived or modified by any other provision of these Terms.",
       "**Message Frequency & Charges:** Message frequency varies by event and is generally limited to confirmations, reminders, and day-of logistics — typically 1–5 messages per event per guest. Message and data rates may apply. Neither Fancy RSVP nor the event host is responsible for charges imposed by a guest's wireless carrier.",
       "**Opt-Out and Help:** Any recipient may opt out at any time by replying **STOP**, **UNSUBSCRIBE**, **CANCEL**, **END**, or **QUIT**, and may request assistance by replying **HELP**. Fancy RSVP processes all opt-out requests promptly and will not permit an event host to re-message an opted-out number. These rights cannot be waived by any agreement between a host and a guest.",
@@ -77,7 +77,7 @@ const sections = [
     title: "6. Intellectual Property",
     content: [
       "The intellectual property rights related to the Service are allocated as follows:",
-      "**Our Property:** The Service, including its design, code, features, templates, graphics, documentation, and branding (collectively, \"Platform IP\"), is owned by Fancy RSVP Inc. and protected by copyright, trademark, and other intellectual property laws. You may not copy, modify, distribute, or create derivative works of our Platform IP without express written permission.",
+      "**Our Property:** The Service, including its design, code, features, templates, graphics, documentation, and branding (collectively, \"Platform IP\"), is owned by the Company and protected by copyright, trademark, and other intellectual property laws. You may not copy, modify, distribute, or create derivative works of our Platform IP without express written permission.",
       "**Your Content:** You retain ownership of all content you create or upload to the Service, including event details, custom designs, guest lists, and communications (\"User Content\"). By using the Service, you grant us a limited, non-exclusive, royalty-free license to host, display, and process your User Content solely for the purpose of providing the Service to you.",
       "**Templates & Designs:** While you may use our templates and design elements to create your events, the underlying template designs remain our property. Events you create using our templates are your property, but the templates themselves may not be extracted, resold, or redistributed.",
       "**Feedback:** If you provide suggestions, ideas, or feedback about the Service, you grant us an irrevocable, perpetual, royalty-free license to use and incorporate that feedback into our products without any obligation to you.",
@@ -104,7 +104,7 @@ const sections = [
     content: [
       "To the maximum extent permitted by applicable law:",
       "**Disclaimer of Warranties:** The Service is provided \"as is\" and \"as available\" without warranties of any kind, whether express, implied, statutory, or otherwise. We disclaim all warranties, including implied warranties of merchantability, fitness for a particular purpose, title, and non-infringement.",
-      "**Limitation of Damages:** In no event shall Fancy RSVP, its directors, employees, partners, agents, or affiliates be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, data, business opportunities, or goodwill, arising out of or in connection with your use of the Service.",
+      "**Limitation of Damages:** In no event shall the Company, its directors, employees, partners, agents, or affiliates be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, data, business opportunities, or goodwill, arising out of or in connection with your use of the Service.",
       "**Maximum Liability:** Our total aggregate liability for any claims arising under these Terms or related to the Service shall not exceed the greater of (a) the amount you paid us in the 12 months preceding the claim, or (b) one hundred US dollars ($100).",
       "**Exceptions:** Nothing in these Terms shall limit our liability for (a) death or personal injury caused by our negligence, (b) fraud or fraudulent misrepresentation, or (c) any liability that cannot be excluded or limited by applicable law.",
       "**Basis of Bargain:** You acknowledge that these limitations are an essential element of the agreement between you and Fancy RSVP, and that the pricing of our Service reflects this allocation of risk.",
@@ -126,12 +126,12 @@ const sections = [
     id: "governing-law",
     title: "10. Governing Law",
     content: [
-      "These Terms shall be governed by and construed in accordance with the laws of the State of New York, United States, without regard to its conflict of law principles.",
+      "These Terms shall be governed by and construed in accordance with the laws of the Province of Ontario and the federal laws of Canada applicable therein, without regard to conflict of law principles.",
       "**Dispute Resolution:** Before initiating formal proceedings, both parties agree to attempt to resolve disputes through good-faith negotiation for a period of at least 30 days. You may contact us at info@fancyrsvp.com to initiate this process.",
-      "**Arbitration:** Any dispute that cannot be resolved through negotiation shall be submitted to binding arbitration administered by the American Arbitration Association (AAA) under its Commercial Arbitration Rules. The arbitration shall take place in New York City, NY, and shall be conducted in English.",
-      "**Class Action Waiver:** You agree that any dispute resolution proceedings will be conducted only on an individual basis and not in a class, consolidated, or representative action. If this provision is found unenforceable, the entire arbitration provision shall be void.",
-      "**Jurisdiction:** For any matters not subject to arbitration, you consent to the exclusive jurisdiction and venue of the state and federal courts located in New York County, New York.",
-      "**International Users:** If you access the Service from outside the United States, you are responsible for compliance with local laws. Our Service is controlled and operated from the United States, and we make no representations that the Service is appropriate or available in other locations.",
+      "**Arbitration:** Any dispute that cannot be resolved through negotiation shall be submitted to binding arbitration administered by the ADR Institute of Canada under its Arbitration Rules. The arbitration shall take place in Toronto, Ontario, Canada, and shall be conducted in English.",
+      "**Class Action Waiver:** To the extent permitted by applicable law, you agree that any dispute resolution proceedings will be conducted only on an individual basis and not in a class, consolidated, or representative action. If this provision is found unenforceable, the entire arbitration provision shall be void.",
+      "**Jurisdiction:** For any matters not subject to arbitration, you consent to the exclusive jurisdiction and venue of the courts of the Province of Ontario, sitting in Toronto, Ontario.",
+      "**International Users:** If you access the Service from outside Canada, you are responsible for compliance with local laws. Our Service is controlled and operated from Canada, and we make no representations that the Service is appropriate or available in other locations.",
     ],
   },
   {
@@ -139,9 +139,11 @@ const sections = [
     title: "11. Contact Information",
     content: [
       "If you have questions about these Terms of Service, please contact us through any of the following channels:",
+      "**Legal Entity:** 16941460 Canada Corp., operating as Via Marketing",
       "**Email:** info@fancyrsvp.com",
-      "**Mail:** Via Marketing Group, Attn: Legal, California, USA",
-      "**Instagram:** instagram.com/viamarketing.ca",
+      "**Corporate Email:** info@viamarketing.ca",
+      "**Mail:** 16941460 Canada Corp. o/a Via Marketing, Attn: Legal, 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada",
+      "**Corporate Website:** viamarketing.ca",
       "For urgent legal matters, including DMCA takedown requests, subpoenas, or law enforcement inquiries, please contact info@fancyrsvp.com with \"URGENT\" in the subject line.",
       "We encourage you to review these Terms regularly to stay informed about your rights and obligations when using Fancy RSVP.",
     ],
@@ -274,7 +276,7 @@ export default function TermsOfService() {
               fontWeight: 600,
             }}
           >
-            Last Updated: July 3, 2026
+            Last Updated: July 16, 2026
           </p>
         </section>
 

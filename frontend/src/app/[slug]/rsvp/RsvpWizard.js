@@ -496,6 +496,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       maybe_confirm_by: attending === 'maybe' ? maybeFollowUp : undefined,
       side: event?.track_guest_side ? (side || undefined) : undefined,
       smsConsent,
+      consentSource: 'guest_form_wizard', // provenance for the sms_consent record (backend whitelists values)
       ...(captchaToken ? { captchaToken } : {}),
     };
 

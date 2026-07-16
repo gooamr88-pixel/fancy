@@ -9,6 +9,7 @@ import { RsvpSectionHeading, RsvpDivider } from '../components';
 import { darken } from '../../../utils/color';
 import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
 import PhoneNumberInput from '../../../components/PhoneNumberInput';
+import SmsConsentText from '../../../components/guest/SmsConsentText';
 import { BoltIcon, CalendarIcon, PlaneIcon, ClipboardIcon, HeartPulseIcon, DotsIcon, ClockIcon, EnvelopeIcon, PeopleIcon } from '../../../components/guest/RsvpIcons';
 
 const MAYBE_OPTIONS = [
@@ -179,21 +180,7 @@ export default function StepPartyDetails({
                   style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: themeColor, cursor: 'pointer', flexShrink: 0 }}
                 />
                 <label htmlFor="sms-consent-checkbox" style={{ fontSize: '12px', color: '#5E5A52', lineHeight: 1.6, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {isRTL ? (
-                    <>
-                      أوافق على تلقي رسائل نصية (SMS) بخصوص هذه الفعالية من Fancy RSVP. يختلف عدد الرسائل حسب الفعالية، وقد تُطبّق رسوم الرسائل والبيانات من مشغّل شبكتك. أرسل STOP لإلغاء الاشتراك في أي وقت. راجع{' '}
-                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: themeColor, fontWeight: 600, textDecoration: 'underline' }}>سياسة الخصوصية</a>
-                      {' '}و{' '}
-                      <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: themeColor, fontWeight: 600, textDecoration: 'underline' }}>شروط الخدمة</a>.
-                    </>
-                  ) : (
-                    <>
-                      I agree to receive text messages about this event from Fancy RSVP. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out at any time. See our{' '}
-                      <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: themeColor, fontWeight: 600, textDecoration: 'underline' }}>Privacy Policy</a>
-                      {' '}and{' '}
-                      <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: themeColor, fontWeight: 600, textDecoration: 'underline' }}>Terms of Service</a>.
-                    </>
-                  )}
+                  <SmsConsentText isRTL={isRTL} linkStyle={{ color: themeColor }} />
                 </label>
               </div>
               {validationErrors.smsConsent && (
