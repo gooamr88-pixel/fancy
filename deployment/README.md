@@ -260,10 +260,13 @@ In the **Twilio Console → Phone Numbers → your toll-free number → Messagin
 2. **Status callback URL** (delivery receipts — auto-refunds undelivered credits). Also set
    `SMS_STATUS_CALLBACK_URL` in `backend/.env` to the same value:
    `https://fancyrsvp.com/api/v1/public/sms/status`   (HTTP POST)
-3. Keep Twilio's **default toll-free opt-out handling** enabled (it sends the
-   carrier-mandated STOP confirmation and HELP reply — the app deliberately does
-   not auto-reply, to avoid double-messaging). Customize the HELP response text in
-   the Console to identify **Fancy RSVP** and `info@fancyrsvp.com`.
+3. Toll-free **STOP/UNSTOP handling is network-level and cannot be disabled or
+   customized** — the carrier sends the mandated STOP confirmation itself, and the
+   app deliberately never auto-replies (avoids double-messaging). Twilio still
+   forwards the STOP message to the inbound webhook above, which records it.
+   HELP receives Twilio's default auto-response and is NOT forwarded to the
+   webhook. Do **not** create a Messaging Service to customize HELP text — this
+   codebase sends directly from the number and uses no Messaging Service.
 4. The migration `20260809000000_sms_compliance.sql` must be applied before these
    webhooks can record anything (see Step 2's migration order note).
 5. TFV note: the opt-in URL for Toll-Free Verification submissions is

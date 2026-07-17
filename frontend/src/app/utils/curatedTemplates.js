@@ -49,7 +49,7 @@ export const TEMPLATES = [
   {
     key: 'custom', label: 'Custom Canvas', tier: 'Build your own',
     tagline: 'Fully editable',
-    desc: 'Start from a clean slate — every feature from every event type (wedding, engagement, celebration, baby shower and more) is available here. Pick your own colors, typography and cover image, then add or remove any section freely: schedule, venues, accommodation, menu, gift list, FAQ, gallery, dress code, things to do, and more.',
+    desc: 'A clean slate for any occasion — wedding, engagement, birthday, baby shower, or something entirely your own. Choose your colors, typography and cover image, then build the page section by section from the same full feature set every curated template shares.',
     presets: [
       { name: 'Clean Linen', primary: '#8B7355', secondary: '#D4C5A9', accent: '#8B7355', background: '#FAF8F5' },
       { name: 'Warm Cream', primary: '#A0845C', secondary: '#E8D5B7', accent: '#A0845C', background: '#FFFCF5' },

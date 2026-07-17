@@ -1,11 +1,11 @@
 'use client';
 import { toast } from '../../utils/toast';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import PlacesAutocomplete from '../../components/PlacesAutocomplete';
 import FontPicker from './FontPicker';
 import { supabase } from '../../utils/supabaseClient';
-import { extractYouTubeId } from '../../utils/youtube';
+import { extractYouTubeId, checkYouTubeEmbeddable } from '../../utils/youtube';
 import RepeatableListEditor from './RepeatableListEditor';
 import Icon from '../../components/icons/Icon';
 import EventCategoryIcon from '../../components/icons/EventCategoryIcon';
@@ -281,6 +281,27 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const [statusLoading, setStatusLoading] = useState('');
   const [confirmComplete, setConfirmComplete] = useState(false);
   const [musicUploading, setMusicUploading] = useState(false);
+  // Actually attempts to embed the pasted YouTube link (debounced while
+  // typing) so a song that can't play on the live guest page — a very common
+  // restriction on official/label music videos with embedding disabled — is
+  // flagged here, before publishing, instead of the organizer only finding
+  // out when a guest tells them the music button does nothing.
+  const [musicEmbedStatus, setMusicEmbedStatus] = useState('idle'); // 'idle' | 'checking' | 'ok' | 'blocked'
+  useEffect(() => {
+    const id = extractYouTubeId(form.background_music_url);
+    if (!id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMusicEmbedStatus('idle');
+      return undefined;
+    }
+    let cancelled = false;
+    // Re-arm for this new link on every change, not just the initial mount.
+    setMusicEmbedStatus('checking');
+    const timer = setTimeout(() => {
+      checkYouTubeEmbeddable(id).then((ok) => { if (!cancelled) setMusicEmbedStatus(ok ? 'ok' : 'blocked'); });
+    }, 600);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [form.background_music_url]);
   const [coverUploading, setCoverUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -1404,10 +1425,21 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
 
             {form.background_music_url && (
               extractYouTubeId(form.background_music_url) ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: COLORS.softBg, border: `1px solid ${COLORS.border}` }}>
-                  <Icon name="play" size={14} color={COLORS.gold} strokeWidth={1.4} />
-                  <span style={{ fontSize: '12px', color: COLORS.charcoal, flex: 1 }}>YouTube song linked — guests tap the music icon to play it</span>
-                </div>
+                musicEmbedStatus === 'blocked' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)' }}>
+                    <Icon name="warning" size={14} color="#C45E5E" strokeWidth={1.6} />
+                    <span style={{ fontSize: '12px', color: '#C45E5E', flex: 1, lineHeight: 1.5 }}>
+                      This video can&apos;t be played embedded on other sites — a common restriction on official music videos. Guests won&apos;t hear it. Try a lyric video, cover, or a different link.
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', padding: '8px 12px', borderRadius: '8px', background: COLORS.softBg, border: `1px solid ${COLORS.border}` }}>
+                    <Icon name={musicEmbedStatus === 'checking' ? 'hourglass' : 'play'} size={14} color={COLORS.gold} strokeWidth={1.4} />
+                    <span style={{ fontSize: '12px', color: COLORS.charcoal, flex: 1 }}>
+                      {musicEmbedStatus === 'checking' ? 'Checking this video can be played…' : 'YouTube song linked — guests tap the music icon to play it'}
+                    </span>
+                  </div>
+                )
               ) : (
                 <div style={{ marginTop: '4px' }}>
                   <audio

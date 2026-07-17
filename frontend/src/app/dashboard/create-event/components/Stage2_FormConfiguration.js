@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PlacesAutocomplete from '../../../../app/components/PlacesAutocomplete';
 import InlineFormBuilder from './InlineFormBuilder';
-import { extractYouTubeId } from '../../../utils/youtube';
+import { extractYouTubeId, checkYouTubeEmbeddable } from '../../../utils/youtube';
 import RepeatableListEditor from '../../components/RepeatableListEditor';
 import DaysEditor from './DaysEditor';
 import SectionsOrderEditor from './SectionsOrderEditor';
@@ -175,6 +175,28 @@ export default function Stage2_FormConfiguration({
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
   const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading);
+
+  // Actually attempts to embed the pasted YouTube link (debounced while
+  // typing) so a song that can't play on the live guest page — a very common
+  // restriction on official/label music videos with embedding disabled — is
+  // flagged here, before publishing, instead of the organizer only finding
+  // out when a guest tells them the music button does nothing.
+  const [musicEmbedStatus, setMusicEmbedStatus] = useState('idle'); // 'idle' | 'checking' | 'ok' | 'blocked'
+  useEffect(() => {
+    const id = extractYouTubeId(backgroundMusicUrl);
+    if (!id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMusicEmbedStatus('idle');
+      return undefined;
+    }
+    let cancelled = false;
+    // Re-arm for this new link on every change, not just the initial mount.
+    setMusicEmbedStatus('checking');
+    const timer = setTimeout(() => {
+      checkYouTubeEmbeddable(id).then((ok) => { if (!cancelled) setMusicEmbedStatus(ok ? 'ok' : 'blocked'); });
+    }, 600);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [backgroundMusicUrl]);
 
   // Custom's event-category choice — one of the CUSTOM_CATEGORIES keys, or ''
   // (not chosen yet). `kind` decides which fields render below (see
@@ -1073,14 +1095,25 @@ export default function Stage2_FormConfiguration({
 
             {backgroundMusicUrl && (
               extractYouTubeId(backgroundMusicUrl) ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: C.softBg, border: `1px solid ${C.border}` }}>
-                  <Icon name="play" size={14} color={C.gold} strokeWidth={1.4} />
-                  <span style={{ fontSize: 12, color: C.charcoal, fontFamily: 'var(--font-sans)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    YouTube song linked — guests tap the music icon to play it
-                  </span>
-                  <button type="button" onClick={() => setBackgroundMusicUrl('')}
-                    style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
-                </div>
+                musicEmbedStatus === 'blocked' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: 'rgba(196,94,94,0.06)', border: '1px solid rgba(196,94,94,0.25)' }}>
+                    <Icon name="warning" size={14} color={C.error} strokeWidth={1.6} />
+                    <span style={{ fontSize: 12, color: C.error, fontFamily: 'var(--font-sans)', flex: 1, lineHeight: 1.5 }}>
+                      This video can&apos;t be played embedded on other sites — a common restriction on official music videos. Guests won&apos;t hear it. Try a lyric video, cover, or a different link.
+                    </span>
+                    <button type="button" onClick={() => setBackgroundMusicUrl('')}
+                      style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>Remove</button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, padding: '8px 12px', borderRadius: 8, background: C.softBg, border: `1px solid ${C.border}` }}>
+                    <Icon name={musicEmbedStatus === 'checking' ? 'hourglass' : 'play'} size={14} color={C.gold} strokeWidth={1.4} />
+                    <span style={{ fontSize: 12, color: C.charcoal, fontFamily: 'var(--font-sans)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {musicEmbedStatus === 'checking' ? 'Checking this video can be played…' : 'YouTube song linked — guests tap the music icon to play it'}
+                    </span>
+                    <button type="button" onClick={() => setBackgroundMusicUrl('')}
+                      style={{ padding: '6px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: C.error, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>Remove</button>
+                  </div>
+                )
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
                   <audio controls src={backgroundMusicUrl} style={{ flex: 1, height: 36 }} />

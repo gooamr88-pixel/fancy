@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/landing/Navbar";
 import FooterSection from "../components/landing/FooterSection";
@@ -235,6 +235,27 @@ export default function ContactPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [focusedField, setFocusedField] = useState(null);
+
+  // Deep-links from /pricing (the plan finder's "Contact Sales" CTA for
+  // guest counts beyond every fixed plan) arrive with ?subject=enterprise
+  // and ?guests=N — prefill the form so the visitor doesn't have to repeat
+  // what they already told us. Runs once on mount, before any typing, so it
+  // never clobbers user input.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const subject = params.get("subject");
+    const guests = params.get("guests");
+    const validSubjects = ["general", "support", "billing", "partnership", "feedback", "enterprise"];
+    if (!subject && !guests) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFormData((prev) => ({
+      ...prev,
+      subject: validSubjects.includes(subject) ? subject : prev.subject,
+      message: guests
+        ? `We're planning an event for approximately ${guests} guests and would like a custom quote.`
+        : prev.message,
+    }));
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

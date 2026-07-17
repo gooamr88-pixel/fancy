@@ -681,12 +681,12 @@ export default function DashboardPage() {
         <div style={{ padding: '16px 12px', borderTop: `1px solid ${COLORS.border}` }}>
           <button onClick={() => setShowLogoutModal(true)} aria-label="Log out" style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', width: '100%',
-            background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer',
-            fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 400, color: COLORS.stone,
+            background: 'transparent', border: `1px solid ${COLORS.border}`, borderRadius: '8px', cursor: 'pointer',
+            fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: COLORS.stone,
             transition: 'all 0.2s ease',
           }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#FFF1F2'; e.currentTarget.style.color = '#C45E5E'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = COLORS.stone; }}
+            onMouseEnter={e => { e.currentTarget.style.background = COLORS.charcoal; e.currentTarget.style.borderColor = COLORS.charcoal; e.currentTarget.style.color = COLORS.white; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.color = COLORS.stone; }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
             Log Out

@@ -16,12 +16,27 @@ import InvitationCard from "./InvitationCard";
      parent (MobilePreview) then cross-fades to the full, scrollable
      opened invitation. This component owns only the teaser.
    ═══════════════════════════════════════════════════════════════ */
+// Each real template gets its own reveal PERSONALITY rather than one identical
+// animation underneath different artwork — a big part of why the reveal read
+// as generic instead of premium. Wedding stays classic and unhurried; Engagement
+// lingers longer with a softer float for a more romantic, suspenseful moment;
+// Custom is crisp and quick, matching its "modern, build-it-yourself" positioning.
+// Any other (legacy, no-longer-selectable) pattern keeps the original wedding-
+// paced timing it always had.
+const REVEAL_PROFILES = {
+  serif:  { cardDelay: 550, completeDelay: 1350, flapDuration: 0.7,  springStiffness: 90,  springDamping: 18 },
+  luxury: { cardDelay: 700, completeDelay: 1600, flapDuration: 0.9,  springStiffness: 70,  springDamping: 22 },
+  custom: { cardDelay: 420, completeDelay: 1100, flapDuration: 0.55, springStiffness: 115, springDamping: 16 },
+};
+const DEFAULT_REVEAL_PROFILE = REVEAL_PROFILES.serif;
+
 export default function EnvelopeAnimation({ template, theme, onOpenComplete, guestName, config }) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCardOut, setIsCardOut] = useState(false);
   const [showTapIndicator, setShowTapIndicator] = useState(true);
 
   const accentColor = theme?.primary || "#B8944F";
+  const reveal = REVEAL_PROFILES[template?.pattern] || DEFAULT_REVEAL_PROFILE;
 
   // NOTE: a fresh closed envelope is guaranteed by the parent remounting this
   // component via `key={template.pattern}` whenever the layout changes — so no
@@ -33,9 +48,9 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
     setShowTapIndicator(false);
 
     // Slide the card up shortly after the flap begins to open.
-    const t1 = setTimeout(() => setIsCardOut(true), 550);
+    const t1 = setTimeout(() => setIsCardOut(true), reveal.cardDelay);
     // Hand off to the parent once the card has cleared the pocket.
-    const t2 = setTimeout(() => onOpenComplete && onOpenComplete(), 1350);
+    const t2 = setTimeout(() => onOpenComplete && onOpenComplete(), reveal.completeDelay);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   };
 
@@ -72,10 +87,10 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
               rotate: isCardOut ? [0, -5, -1, 0] : 0,
             }}
             transition={{
-              y: { type: "spring", stiffness: 90, damping: 18 },
-              height: { type: "spring", stiffness: 90, damping: 18 },
-              scale: { type: "spring", stiffness: 90, damping: 18, delay: 0.05 },
-              rotate: { duration: 0.9, ease: "easeInOut" },
+              y: { type: "spring", stiffness: reveal.springStiffness, damping: reveal.springDamping },
+              height: { type: "spring", stiffness: reveal.springStiffness, damping: reveal.springDamping },
+              scale: { type: "spring", stiffness: reveal.springStiffness, damping: reveal.springDamping, delay: 0.05 },
+              rotate: { duration: reveal.flapDuration, ease: "easeInOut" },
             }}
           >
             <InvitationCard template={template} theme={theme} guestName={guestName} config={config} />
@@ -107,8 +122,8 @@ export default function EnvelopeAnimation({ template, theme, onOpenComplete, gue
             initial={{ rotateX: 0, zIndex: 31 }}
             animate={{ rotateX: isOpen ? 180 : 0, zIndex: isOpen ? 5 : 31, opacity: isCardOut ? 0 : 1 }}
             transition={{
-              rotateX: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
-              zIndex: { delay: isOpen ? 0.35 : 0 },
+              rotateX: { duration: reveal.flapDuration, ease: [0.4, 0, 0.2, 1] },
+              zIndex: { delay: isOpen ? reveal.flapDuration * 0.5 : 0 },
               opacity: { duration: 0.4, delay: isCardOut ? 0.4 : 0 },
             }}
           >

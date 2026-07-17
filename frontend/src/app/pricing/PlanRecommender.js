@@ -24,6 +24,28 @@ export default function PlanRecommender({ tiers }) {
     return [...set];
   }, [tiers]);
 
+  // The slider's ceiling is the largest FIXED (non-custom) plan's real guest
+  // cap — never a hardcoded number that could silently drift from what an
+  // admin actually configures at /admin/config. Once dragged to the top, the
+  // recommendation naturally falls to the custom/contact-sales tier (or the
+  // honest "closest match" fallback below if none is configured), so the
+  // slider never implies a hard ceiling on how many guests the platform
+  // supports — only where fixed pricing stops and a custom quote begins.
+  const largestFixedCap = useMemo(() => {
+    const caps = (tiers || [])
+      .filter((t) => !t.is_custom && t.max_guests > 0)
+      .map((t) => t.max_guests);
+    return caps.length ? Math.max(...caps) : 1000;
+  }, [tiers]);
+
+  // Deep-link into the contact form with the subject and guest count already
+  // filled in, so someone who just told us their event is too big for a fixed
+  // plan doesn't have to repeat themselves in the message box.
+  const contactHref = useMemo(
+    () => `/contact?subject=enterprise&guests=${encodeURIComponent(guestCount)}`,
+    [guestCount]
+  );
+
   const toggleFeature = (f) => {
     setMustHave((prev) => {
       const next = new Set(prev);
@@ -93,12 +115,16 @@ export default function PlanRecommender({ tiers }) {
             id="pr-guest-count"
             type="range"
             min="10"
-            max="1000"
+            max={largestFixedCap}
             step="10"
-            value={Math.min(guestCount, 1000)}
+            value={Math.min(guestCount, largestFixedCap)}
             onChange={(e) => setGuestCount(Number(e.target.value))}
-            style={{ width: "100%", accentColor: "#B8944F", marginBottom: "10px" }}
+            style={{ width: "100%", accentColor: "#B8944F", marginBottom: "4px" }}
           />
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+            <span style={{ fontFamily: "var(--font-sans)", fontSize: "11px", color: "#9E9A92" }}>10</span>
+            <span style={{ fontFamily: "var(--font-sans)", fontSize: "11px", color: "#9E9A92" }}>{largestFixedCap.toLocaleString()}+</span>
+          </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <input
               type="number"
@@ -111,7 +137,9 @@ export default function PlanRecommender({ tiers }) {
                 color: "#191B1E", outline: "none",
               }}
             />
-            <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", color: "#77736A", minWidth: 0 }}>guests (exact number, or drag the slider)</span>
+            <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", color: "#77736A", minWidth: 0 }}>
+              guests — type an exact number above {largestFixedCap.toLocaleString()} if the slider can&apos;t reach it
+            </span>
           </div>
 
           {allFeatures.length > 0 && (
@@ -178,11 +206,11 @@ export default function PlanRecommender({ tiers }) {
                 {fallback && " — our largest fixed plan."}
               </p>
               <Link
-                href={tierHref(recommended)}
+                href={(fallback || recommended.is_custom) ? contactHref : tierHref(recommended)}
                 className="btn-gold"
                 style={{ padding: "12px 28px", fontSize: "14px", fontWeight: 700, borderRadius: "8px", textAlign: "center", textDecoration: "none" }}
               >
-                {tierCta(recommended)}
+                {fallback ? "Contact Sales" : tierCta(recommended)}
               </Link>
 
               {/* The one place this ambiguity actually shows up live: make it
@@ -190,7 +218,7 @@ export default function PlanRecommender({ tiers }) {
                   never a silent/automatic charge either way. */}
               {fallback ? (
                 <p style={{ fontFamily: "var(--font-sans)", fontSize: "12.5px", color: "#77736A", marginTop: "14px", marginBottom: 0, lineHeight: 1.6 }}>
-                  Your guest count is above every plan shown here. There&apos;s no automatic overage fee — <Link href="/contact" style={{ color: "#B8944F", fontWeight: 700 }}>contact us</Link> and we&apos;ll quote a plan sized to your event before anything is charged.
+                  Your guest count is above every plan shown here. There&apos;s no automatic overage fee — <Link href={contactHref} style={{ color: "#B8944F", fontWeight: 700 }}>contact us</Link> and we&apos;ll quote a plan sized to your event before anything is charged.
                 </p>
               ) : recommended.is_custom ? (
                 <p style={{ fontFamily: "var(--font-sans)", fontSize: "12.5px", color: "#77736A", marginTop: "14px", marginBottom: 0, lineHeight: 1.6 }}>

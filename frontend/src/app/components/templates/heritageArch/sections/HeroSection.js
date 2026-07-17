@@ -133,20 +133,24 @@ export default function HeroSection({
           </motion.div>
         </motion.div>
 
+        {/* Date and time on ONE line, same full-opacity weight — previously the
+            time sat underneath at 75% opacity and a smaller size, reading as an
+            afterthought instead of information a guest actually needs clearly. */}
         {dateLine && (
           <p style={{
             fontFamily: 'var(--font-serif)', fontSize: 'clamp(15px, 2.2vw, 20px)',
             letterSpacing: '0.06em', marginTop: '30px', color: C.maroonDeep,
+            display: 'flex', alignItems: 'baseline', justifyContent: 'center', flexWrap: 'wrap', gap: '10px',
           }}>
-            {dateLine}
-          </p>
-        )}
-        {timeLine && (
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600,
-            letterSpacing: '0.08em', marginTop: '6px', color: C.maroonDeep, opacity: 0.75,
-          }}>
-            {(t?.starting_at || (isRTL ? 'يبدأ في تمام الساعة' : 'Starting at'))} {timeLine}
+            <span>{dateLine}</span>
+            {timeLine && (
+              <>
+                <span aria-hidden="true" style={{ opacity: 0.5, fontSize: '0.65em' }}>&#9670;</span>
+                <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: '0.7em', letterSpacing: '0.08em' }}>
+                  {timeLine}
+                </span>
+              </>
+            )}
           </p>
         )}
       </motion.div>

@@ -30,7 +30,19 @@ const DUMMY_TIER = {
   description: 'Verification tier',
   internal_secret_cost: 1234, // must NEVER reach the public endpoint
 };
-const PRICING_TIERS = [DUMMY_TIER];
+// ── A Contact-Sales tier: no fixed price, must never be checkout-able ─────────
+const CUSTOM_TIER = {
+  name: 'Enterprise+',
+  price_cents: 0,
+  max_guests: 0,
+  features: [],
+  recommended: false,
+  is_custom: true,
+  price_label: 'Custom',
+  cta_label: 'Contact Sales',
+  description: 'Custom quote tier',
+};
+const PRICING_TIERS = [DUMMY_TIER, CUSTOM_TIER];
 
 // ── Fake Supabase: canned rows for the exact chains the controller calls ──────
 function makeSupabaseMock() {
@@ -119,6 +131,8 @@ const next = (err) => { throw err; };
 let publicTier;
 let publicHeaders;
 let checkoutBody;
+let customCheckoutBody;
+let customCheckoutStatus;
 
 before(async () => {
   // STEP 2 — public endpoint
@@ -136,6 +150,18 @@ before(async () => {
   const res2 = makeRes();
   await ctrl.createCheckoutSession(req, res2, next);
   checkoutBody = res2.body;
+
+  // STEP 5 — attempting to check out an is_custom ("Contact Sales") tier
+  // directly must be rejected, never silently activated or charged.
+  const req3 = {
+    params: { eventId: 'evt_1' },
+    body: { tierName: 'Enterprise+' },
+    headers: { origin: 'https://app.fancyrsvp.test' }
+  };
+  const res3 = makeRes();
+  await ctrl.createCheckoutSession(req3, res3, next);
+  customCheckoutBody = res3.body;
+  customCheckoutStatus = res3.statusCode;
 });
 
 // ── Public endpoint: features + price sync ────────────────────────────────────
@@ -184,4 +210,11 @@ test('Stripe metadata carries the resolved tier name', () => {
 test('checkout returns a session URL to the client', () => {
   assert.equal(checkoutBody.success, true);
   assert.match(checkoutBody.checkoutUrl || '', /stripe\.test/);
+});
+
+// ── Checkout: is_custom ("Contact Sales") tiers are never checkout-able ───────
+test('checkout rejects an is_custom tier instead of activating or charging it', () => {
+  assert.equal(customCheckoutStatus, 400);
+  assert.equal(customCheckoutBody.success, false);
+  assert.equal(customCheckoutBody.error, 'CUSTOM_TIER');
 });

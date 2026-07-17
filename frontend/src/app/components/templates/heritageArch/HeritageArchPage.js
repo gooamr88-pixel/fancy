@@ -97,6 +97,13 @@ export default function HeritageArchPage({
   const customCategoryMeta = customCategory ? CUSTOM_CATEGORY_BY_KEY[customCategory] : null;
   const isHonoreeCategory = customCategoryMeta?.kind === 'honoree';
   const isBabyShowerCategory = customCategoryMeta?.kind === 'babyShower';
+  // True for both the dedicated Engagement template AND Custom Canvas set to
+  // the "Engagement" category — both share HeroSection's generic couple
+  // fallback tagline (see below), which defaults to "We are getting married".
+  // That's wrong for an engagement (nobody's married yet) — this event hasn't
+  // happened — so both paths need their own explicit override instead of
+  // silently inheriting the wedding copy.
+  const isEngagementEvent = event.template_type === 'engagement' || customCategory === 'engagement';
   const heroTitle = isHonoreeCategory ? (td.custom_honoree || event.title)
     : isBabyShowerCategory ? (td.custom_parents || event.title)
     : event.title;
@@ -111,16 +118,18 @@ export default function HeritageArchPage({
     ? (td.custom_baby_name ? (isRTL ? `نستقبل قدوم ${td.custom_baby_name}` : `Welcoming ${td.custom_baby_name}`) : (td.custom_baby_due || (isRTL ? 'ينتظرنا مولود جديد' : "We're expecting!")))
     // Vow Renewal reuses the same couple fields as Wedding/Engagement (kind
     // 'couple'), but HeroSection's own built-in fallback tagline for a couple
-    // — "We are getting married" — is wrong here (they already are). Every
-    // other 'couple' category (wedding, engagement) leaves this empty so
-    // HeroSection's default still applies.
+    // — "We are getting married" — is wrong here (they already are). Wedding
+    // (and its curated visual variants) is the one 'couple' category that
+    // actually wants that fallback, so it alone leaves this empty.
     : customCategory === 'vowRenewal'
     ? (isRTL ? 'نجدد نذورنا' : 'We are renewing our vows')
+    : isEngagementEvent
+    ? (isRTL ? 'تمت خطوبتنا!' : "We're engaged!")
     : '';
   // A small icon+label pill above the hero name so guests immediately see
   // what kind of event this is (e.g. a graduation cap + "Graduation") —
-  // wedding/engagement skip this since the couple names + "getting married"
-  // tagline already make that obvious without it.
+  // wedding/engagement skip this since the couple names + their own tagline
+  // above already make the occasion obvious without it.
   const categoryBadge = (isHonoreeCategory || isBabyShowerCategory) && customCategoryMeta
     ? { iconName: customCategory, label: isRTL ? customCategoryMeta.labelAr : customCategoryMeta.label }
     : null;
@@ -257,7 +266,7 @@ export default function HeritageArchPage({
         />
       ),
     },
-    { id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} startTime={startTimeLine} endTime={endTimeLine} /> },
+    { id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} dateLine={dateLine} startTime={startTimeLine} endTime={endTimeLine} /> },
   ];
 
   // The cover photo, now that the template card is the hero centerpiece, gets

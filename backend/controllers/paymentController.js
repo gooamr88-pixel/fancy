@@ -140,6 +140,18 @@ const createCheckoutSession = async (req, res, next) => {
         message: `Pricing tier '${tierName}' not found.`
       });
     }
+    // Contact-Sales tiers have no fixed price — same guard as initiateManualPayment
+    // below. Without this, a client could call this endpoint directly with an
+    // is_custom tier's name and either activate for free (if its placeholder
+    // price_cents is 0) or get charged whatever placeholder price an admin left
+    // on it, bypassing the sales-quote flow entirely.
+    if (tier.is_custom === true) {
+      return res.status(400).json({
+        success: false,
+        error: 'CUSTOM_TIER',
+        message: `The '${tier.name}' plan is custom-priced — please contact sales to activate it.`
+      });
+    }
 
     // 2. Fetch or create stripe customer ID for organization
     const { data: eventData, error: eventError } = await supabase

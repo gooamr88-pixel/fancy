@@ -410,11 +410,12 @@ const HELP_KEYWORDS = new Set(['help', 'info']);
  * opt-outs (and START/UNSTOP/YES opt-back-ins) in sms_opt_outs, which every
  * send path enforces (smsDispatch.sendRecipient + the campaign audience filter).
  *
- * Auto-replies are deliberately NOT sent from here: Twilio's toll-free default
- * opt-out handling already sends the carrier-mandated STOP confirmation and the
- * HELP response (configure the HELP text in the Twilio Console to name
- * Fancy RSVP + info@fancyrsvp.com) — replying here too would double-message
- * the guest. This webhook is the system of record, returning empty TwiML.
+ * Auto-replies are deliberately NOT sent from here: toll-free STOP/UNSTOP
+ * handling is network-level (cannot be disabled) and sends the carrier-mandated
+ * confirmations itself; HELP gets Twilio's default auto-response and is not
+ * forwarded to this webhook at all without a Messaging Service (which this
+ * codebase does not use). Replying here too would double-message the guest.
+ * This webhook is the app-side system of record, returning empty TwiML.
  *
  * POST /api/v1/public/sms/inbound   (Twilio "A message comes in" target)
  */

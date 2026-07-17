@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
 import { useIsClient } from '../utils/useIsClient';
-import { extractYouTubeId } from '../utils/youtube';
+import { extractYouTubeId, loadYouTubeIframeApi } from '../utils/youtube';
 import {
   FadeInUp,
   StaggerChildren,
@@ -449,12 +449,23 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     if (el?.paused) el.play().catch(() => { /* autoplay blocked — retried on first user gesture */ });
   }, [event?.background_music_url, youtubeMusicId]);
 
+  // Set when the IFrame Player reports this exact video can't be embedded
+  // (error 101/150 — a very common restriction on official/label music
+  // videos) or is missing/private (error 100). Hides the music toggle so
+  // guests never see a "play music" control that silently does nothing —
+  // previously there was no onError handler at all, so this failed silently.
+  const [youtubeMusicBlocked, setYoutubeMusicBlocked] = useState(false);
+
   useEffect(() => {
     if (!youtubeMusicId) return undefined;
     let cancelled = false;
+    // Re-arm for this new video id — a previous id's block state shouldn't
+    // stick around once the organizer swaps in a different link.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setYoutubeMusicBlocked(false);
 
     const createPlayer = () => {
-      if (cancelled || !ytPlayerElRef.current || !window.YT?.Player) return;
+      if (cancelled || !ytPlayerElRef.current) return;
       const player = new window.YT.Player(ytPlayerElRef.current, {
         videoId: youtubeMusicId,
         playerVars: { autoplay: 0, controls: 0, loop: 1, playlist: youtubeMusicId },
@@ -471,32 +482,23 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             player.playVideo();
           },
           onStateChange: (e) => setMusicPlaying(e.data === 1),
+          onError: () => {
+            if (cancelled) return;
+            setYoutubeMusicBlocked(true);
+            musicRef.current = null;
+          },
         },
       });
     };
 
-    if (window.YT?.Player) {
-      createPlayer();
+    // Defer the third-party script fetch until the browser is idle (Safari
+    // lacks requestIdleCallback, hence the setTimeout fallback), so it
+    // doesn't compete with the critical landing-page first paint.
+    const startLoading = () => { if (!cancelled) loadYouTubeIframeApi().then(createPlayer); };
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(startLoading, { timeout: 2000 });
     } else {
-      const previousCallback = window.onYouTubeIframeAPIReady;
-      window.onYouTubeIframeAPIReady = () => { previousCallback?.(); createPlayer(); };
-      if (!document.getElementById('youtube-iframe-api')) {
-        const loadScript = () => {
-          if (cancelled || document.getElementById('youtube-iframe-api')) return;
-          const tag = document.createElement('script');
-          tag.id = 'youtube-iframe-api';
-          tag.src = 'https://www.youtube.com/iframe_api';
-          document.head.appendChild(tag);
-        };
-        // Defer the third-party script fetch until the browser is idle (Safari
-        // lacks requestIdleCallback, hence the setTimeout fallback), so it
-        // doesn't compete with the critical landing-page first paint.
-        if (typeof window.requestIdleCallback === 'function') {
-          window.requestIdleCallback(loadScript, { timeout: 2000 });
-        } else {
-          setTimeout(loadScript, 200);
-        }
-      }
+      setTimeout(startLoading, 200);
     }
 
     return () => {
@@ -932,7 +934,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           timeLeft={timeLeft}
           musicPlaying={musicPlaying}
           toggleMusic={toggleMusic}
-          hasBackgroundMusic={!!(event.background_music_url || youtubeMusicId)}
+          hasBackgroundMusic={!youtubeMusicBlocked && !!(event.background_music_url || youtubeMusicId)}
           hasResponded={hasResponded}
           responseStatus={responseStatus}
           allowGuestEdits={allowGuestEdits}
@@ -1007,7 +1009,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         })()}
 
         {/* ═══ BACKGROUND MUSIC TOGGLE ═══ */}
-        {event.background_music_url && (
+        {event.background_music_url && !youtubeMusicBlocked && (
           <motion.button
             type="button"
             whileHover={{ scale: 1.05 }}

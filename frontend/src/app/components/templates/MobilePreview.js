@@ -273,6 +273,24 @@ function SceneDecor({ pattern, accentColor }) {
 
 const OPENED_FAMILY = ["opened", "attending", "declined"];
 
+// Demo copy for the "Event Details" card below the invitation — matched to
+// each template's OWN default copy in InvitationCard.js so the two never
+// visually contradict each other. Previously this card was one hardcoded
+// array shown under every pattern: picking "Eternal Love" (engagement) showed
+// its card saying "An evening of champagne & celebration · The Penthouse
+// Pavilion" while the details card right below it still said "The Grand
+// Ballroom · Plaza Hotel, New York" and "Black tie optional" — a visible
+// contradiction on the same screen. Custom gets neutral placeholder-style
+// copy (not a wedding scenario) since it's meant to represent any occasion
+// type. Any other (legacy, no-longer-selectable) invitation-card pattern
+// keeps the original ballroom/wedding copy it always had.
+const DETAILS_DEMO = {
+  serif: { date: "Saturday, October 24, 2026", time: "4:00 PM", venue: "The Grand Ballroom", venueSub: "Plaza Hotel, New York", dress: "Black tie optional" },
+  luxury: { date: "Saturday, October 24, 2026", time: "7:00 PM", venue: "The Penthouse Pavilion", venueSub: "An evening of champagne & celebration", dress: "Cocktail attire" },
+  custom: { date: "Your event date", time: "Your event time", venue: "Your venue name", venueSub: "Your venue address", dress: "Add a dress code (optional)" },
+};
+const DEFAULT_DETAILS_DEMO = { date: "Saturday, October 24, 2026", time: "4:00 PM", venue: "The Grand Ballroom", venueSub: "Plaza Hotel, New York", dress: "Black tie optional" };
+
 export default function MobilePreview({
   template,
   theme,
@@ -470,11 +488,14 @@ export default function MobilePreview({
                   initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15, type: "spring", stiffness: 140, damping: 20 }}
                 >
                   <span className="text-[8px] font-bold uppercase tracking-[2.5px] font-sans" style={{ color: accentColor }}>Event Details</span>
-                  {[
-                    ["calendar", "Saturday, October 24, 2026", "4:00 PM"],
-                    ["mapPin", "The Grand Ballroom", "Plaza Hotel, New York"],
-                    ["dressCode", "Dress code", "Black tie optional"],
-                  ].map(([icon, a, b]) => (
+                  {(() => {
+                    const demo = DETAILS_DEMO[pattern] || DEFAULT_DETAILS_DEMO;
+                    return [
+                      ["calendar", demo.date, demo.time],
+                      ["mapPin", demo.venue, demo.venueSub],
+                      ["dressCode", "Dress code", demo.dress],
+                    ];
+                  })().map(([icon, a, b]) => (
                     <div key={a} className="flex items-start gap-2">
                       <span className="leading-none mt-0.5"><Icon name={icon} size={12} strokeWidth={1.7} /></span>
                       <div className="flex flex-col">

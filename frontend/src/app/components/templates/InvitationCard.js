@@ -70,8 +70,8 @@ export default function InvitationCard({ template, theme, guestName, config, dat
               <path d="M0 5 Q17 0 35 5 Q53 10 70 5" stroke={accentColor} strokeWidth="0.8" fill="none" />
               <circle cx="35" cy="5" r="1.5" fill={accentColor} opacity="0.5" />
             </svg>
-            <span className="text-[8.5px] font-bold tracking-[1.5px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY · OCTOBER 24, 2026"}</span>
-            <span className="text-[7.5px] italic text-stone-500">{d.venueLine || "The Grand Ballroom · New York"}</span>
+            <span className="text-[8.5px] font-bold tracking-[1.5px]" style={{ color: lightAccentColor }}>{d.dateLine || "YOUR EVENT DATE"}</span>
+            <span className="text-[7.5px] italic text-stone-500">{d.venueLine || "Your venue name"}</span>
 
             {cfg.sections && typeof cfg.sections === "object" && !Array.isArray(cfg.sections) && Object.entries(cfg.sections).filter(([, v]) => v).map(([key, ], i) => (
               <span key={i} className="text-[7px] text-stone-500 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
@@ -132,10 +132,10 @@ export default function InvitationCard({ template, theme, guestName, config, dat
 
           {/* Outer thick decorative border */}
           <div className="absolute pointer-events-none" style={{ inset: 4, border: `2px solid ${accentColor}55` }} />
-          {/* Inner thin border — double border frame effect */}
+          {/* Inner thin border — double border frame effect. A restrained two-line
+              frame reads as premium/editorial; a third stacked pinstripe here
+              previously made the card feel over-decorated rather than refined. */}
           <div className="absolute pointer-events-none" style={{ inset: 8, border: `0.7px solid ${accentColor}28` }} />
-          {/* Third pinstripe */}
-          <div className="absolute pointer-events-none" style={{ inset: 11, border: `0.3px solid ${accentColor}15` }} />
 
           {/* Corner filigree ornaments — curling vine designs */}
           {[
@@ -176,7 +176,7 @@ export default function InvitationCard({ template, theme, guestName, config, dat
           {/* Main content */}
           <div className="flex flex-col items-center text-center my-auto relative z-10 gap-1 px-2">
             <span className="text-[7px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">Request the honor of your presence</span>
-            <span className="text-[7px] tracking-[2px] font-sans font-light uppercase text-stone-400">at the marriage of</span>
+            <span className="text-[7px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">at the marriage of</span>
 
             <span className="font-script text-[30px] leading-tight px-1 mt-1" style={{ color: accentColor }}>{d.names || "Aria & Julian"}</span>
 
@@ -478,34 +478,24 @@ export default function InvitationCard({ template, theme, guestName, config, dat
             }} />
           ))}
 
-          {/* Art Deco corner brackets — geometric lines (NOT curves) */}
+          {/* Art Deco corner brackets — a single clean L-stroke, a corner diamond,
+              and a dot. Previously each corner stacked six overlapping paths
+              (stepped inner bracket, diagonal accent, two stepped details) plus
+              a separate inner frame — busy enough to read as cluttered rather
+              than the restrained, confident look real Art Deco luxury pieces
+              go for. One clear line reads as more premium than six faint ones. */}
           {[
             { top: 6, left: 6, rotate: "0deg" },
             { top: 6, right: 6, rotate: "90deg" },
             { bottom: 6, right: 6, rotate: "180deg" },
             { bottom: 6, left: 6, rotate: "270deg" },
           ].map((pos, i) => (
-            <svg key={i} width="30" height="30" viewBox="0 0 30 30" className="absolute pointer-events-none z-10" style={{ ...pos, transform: `rotate(${pos.rotate})`, opacity: 0.65 }}>
-              {/* Outer L bracket */}
-              <path d="M2 18 L2 2 L18 2" fill="none" stroke={lightAccentColor} strokeWidth="0.7" />
-              {/* Inner stepped bracket — Art Deco geometric step */}
-              <path d="M5 14 L5 5 L14 5" fill="none" stroke={lightAccentColor} strokeWidth="0.4" opacity="0.5" />
-              {/* Diagonal geometric accent */}
-              <path d="M2 2 L10 10" fill="none" stroke={lightAccentColor} strokeWidth="0.3" opacity="0.35" />
-              {/* Stepped detail */}
-              <path d="M8 2 L8 4 L10 4" fill="none" stroke={lightAccentColor} strokeWidth="0.3" opacity="0.4" />
-              <path d="M2 8 L4 8 L4 10" fill="none" stroke={lightAccentColor} strokeWidth="0.3" opacity="0.4" />
-              {/* Corner diamond */}
-              <path d="M2 2 L4 0 L6 2 L4 4 Z" fill={lightAccentColor} opacity="0.25" />
-              <circle cx="2" cy="2" r="0.8" fill={lightAccentColor} opacity="0.5" />
+            <svg key={i} width="30" height="30" viewBox="0 0 30 30" className="absolute pointer-events-none z-10" style={{ ...pos, transform: `rotate(${pos.rotate})`, opacity: 0.7 }}>
+              <path d="M2 18 L2 2 L18 2" fill="none" stroke={lightAccentColor} strokeWidth="0.8" />
+              <path d="M2 2 L4 0 L6 2 L4 4 Z" fill={lightAccentColor} opacity="0.3" />
+              <circle cx="2" cy="2" r="0.8" fill={lightAccentColor} opacity="0.55" />
             </svg>
           ))}
-
-          {/* Thin inner geometric frame */}
-          <div className="absolute pointer-events-none z-10" style={{
-            inset: 18,
-            border: `0.3px solid ${lightAccentColor}18`,
-          }} />
 
           {/* Header */}
           <div className="text-[7px] uppercase tracking-[4.5px] font-sans font-semibold mt-2 text-center relative z-10" style={{ color: `${lightAccentColor}CC` }}>
