@@ -14,7 +14,7 @@ export default function OurStorySection({ story, isRTL }) {
 
       <p style={{
         maxWidth: '620px', textAlign: 'center', fontSize: '16px', lineHeight: 1.9,
-        color: C.ink, opacity: 0.85, fontFamily: 'var(--font-sans)',
+        color: C.ink, opacity: 0.85, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap',
       }}>
         {story}
       </p>

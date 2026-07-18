@@ -522,7 +522,14 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     if (isAttending && partySize > 1) {
       for (let i = 0; i < partySize - 1; i++) {
         const g = additionalGuests[i];
-        if (!g?.fullName?.trim() || !g?.email?.trim() || !g?.phone?.trim()) e.additionalGuests = true;
+        // Per-field flags (not one blanket "additionalGuests" flag) — that flag
+        // was never actually read anywhere in the render below, so an incomplete
+        // companion field blocked submission with the generic "review the
+        // highlighted fields" banner but nothing was actually highlighted,
+        // leaving the guest unable to tell which field needed fixing.
+        if (!g?.fullName?.trim()) e[`companion_${i}_fullName`] = true;
+        if (!g?.email?.trim()) e[`companion_${i}_email`] = true;
+        if (!g?.phone?.trim()) e[`companion_${i}_phone`] = true;
         guestScopedQuestions.filter((f) => f.is_required).forEach((f) => {
           const v = (g?.customAnswers || {})[f.id];
           if (!v || !v.toString().trim()) e[`companion_${i}_field_${f.id}`] = true;
@@ -904,9 +911,16 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                                   <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: alpha(C.maroon, 0.12), color: C.maroon, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>{i + 2}</span>
                                   {isRTL ? `الضيف رقم ${i + 2}` : `Guest ${i + 2}`}
                                 </span>
-                                <input placeholder={isRTL ? 'الاسم الكامل' : 'Full name'} value={additionalGuests[i]?.fullName || ''} onChange={(e) => updateAdditionalGuest(i, { fullName: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                                <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => updateAdditionalGuest(i, { email: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                                <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => updateAdditionalGuest(i, { phone: v })} defaultCountry={isRTL ? 'eg' : 'us'} />
+                                <ThemedField error={errors[`companion_${i}_fullName`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
+                                  <input placeholder={isRTL ? 'الاسم الكامل' : 'Full name'} value={additionalGuests[i]?.fullName || ''} onChange={(e) => { updateAdditionalGuest(i, { fullName: e.target.value }); clearError(`companion_${i}_fullName`); }} style={errors[`companion_${i}_fullName`] ? { ...fieldStyle, borderColor: ERR } : fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors[`companion_${i}_fullName`])} />
+                                </ThemedField>
+                                <ThemedField error={errors[`companion_${i}_email`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
+                                  <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => { updateAdditionalGuest(i, { email: e.target.value }); clearError(`companion_${i}_email`); }} style={errors[`companion_${i}_email`] ? { ...fieldStyle, borderColor: ERR } : fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors[`companion_${i}_email`])} />
+                                </ThemedField>
+                                <div>
+                                  <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => { updateAdditionalGuest(i, { phone: v }); clearError(`companion_${i}_phone`); }} hasError={!!errors[`companion_${i}_phone`]} defaultCountry={isRTL ? 'eg' : 'us'} />
+                                  {errors[`companion_${i}_phone`] && <span style={errorTextStyle}>{isRTL ? 'مطلوب' : 'Required'}</span>}
+                                </div>
                                 {mealOptions && mealOptions.length > 0 && (
                                   <div>
                                     <span style={{ ...labelStyle, opacity: 0.7 }}>🍽 {isRTL ? 'الوجبة' : 'Meal'}</span>

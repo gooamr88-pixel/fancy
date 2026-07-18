@@ -201,12 +201,15 @@ export default function HeritageArchPage({
   };
   const hasGiftList = !!(giftRegistry || giftBank.name || giftBank.iban);
 
-  // Sections are assembled Hero + Countdown (+ Cover Photo) first, RSVP last —
-  // both fixed anchors. Every content section in between is keyed by the same
-  // SECTION_TOGGLES key Stage 2's "Sections" panel uses, built only when it
-  // has real data (or in preview) — same pattern as Gallery — then reordered
-  // by the organizer's saved sectionOrder (see the ↑/↓ arrangement controls),
-  // falling back to this default order for anyone who never touched it.
+  // Sections are assembled Hero (+ Cover Photo/About) first, then the
+  // reorderable middle content, then Countdown immediately before RSVP —
+  // all three (Hero, Countdown, RSVP) are fixed anchors, never part of the
+  // organizer's reorderable middle section. Every content section in between
+  // is keyed by the same SECTION_TOGGLES key Stage 2's "Sections" panel uses,
+  // built only when it has real data (or in preview) — same pattern as
+  // Gallery — then reordered by the organizer's saved sectionOrder (see the
+  // ↑/↓ arrangement controls), falling back to this default order for anyone
+  // who never touched it.
   const middleSections = {};
   if (hasSchedule && sectionOn('schedule')) {
     middleSections.schedule = { id: 'ha-schedule', content: <ScheduleSection days={haDays} isRTL={isRTL} /> };
@@ -266,7 +269,6 @@ export default function HeritageArchPage({
         />
       ),
     },
-    { id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} dateLine={dateLine} startTime={startTimeLine} endTime={endTimeLine} /> },
   ];
 
   // The cover photo, now that the template card is the hero centerpiece, gets
@@ -285,6 +287,8 @@ export default function HeritageArchPage({
   for (const key of resolvedOrder) {
     sections.push(middleSections[key]);
   }
+
+  sections.push({ id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} dateLine={dateLine} startTime={startTimeLine} endTime={endTimeLine} /> });
 
   sections.push({
     id: 'ha-rsvp',

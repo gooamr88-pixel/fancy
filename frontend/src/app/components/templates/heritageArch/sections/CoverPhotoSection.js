@@ -3,7 +3,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
-import { SectionShell, SectionHeading, DiamondDivider, ScrollToRsvpHint } from '../shared';
+import { SectionShell, ScrollToRsvpHint } from '../shared';
 import { FloatingParticles } from '../../../guest/GuestAnimations';
 
 // The event's cover photo, given its own framed slide. The template card is now
@@ -17,11 +17,6 @@ export default function CoverPhotoSection({ imageUrl, isRTL }) {
 
   return (
     <SectionShell background={C.paper}>
-      <SectionHeading isRTL={isRTL}>
-        {isRTL ? 'لمحة' : 'A Glimpse'}
-      </SectionHeading>
-      <DiamondDivider />
-
       <motion.div
         initial={{ opacity: 0, scale: 0.94, y: 24 }}
         whileInView={{ opacity: 1, scale: 1, y: 0 }}
