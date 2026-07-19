@@ -6,6 +6,7 @@ import { useFullPageTheme } from '../theme';
 import { DiamondDivider, ScrollToRsvpHint } from '../shared';
 import InvitationCard from '../../InvitationCard';
 import EventCategoryIcon from '../../../icons/EventCategoryIcon';
+import Icon from '../../../icons/Icon';
 
 // A small corner flourish drawn in the theme's gold — mirrored into each corner
 // of the stationery frame so the hero reads as an engraved invitation rather
@@ -133,25 +134,53 @@ export default function HeroSection({
           </motion.div>
         </motion.div>
 
-        {/* Date and time on ONE line, same full-opacity weight — previously the
-            time sat underneath at 75% opacity and a smaller size, reading as an
-            afterthought instead of information a guest actually needs clearly. */}
+        {/* A dedicated "when" card instead of a plain caption line — the same
+            gold→maroon hairline-edge-over-cream card language used for every
+            other grouped block in this template (RSVP details, seating panel),
+            so the date/time reads as a clear, deliberate piece of information
+            instead of an afterthought floating under the invitation card. */}
         {dateLine && (
-          <p style={{
-            fontFamily: 'var(--font-serif)', fontSize: 'clamp(15px, 2.2vw, 20px)',
-            letterSpacing: '0.06em', marginTop: '30px', color: C.maroonDeep,
-            display: 'flex', alignItems: 'baseline', justifyContent: 'center', flexWrap: 'wrap', gap: '10px',
-          }}>
-            <span>{dateLine}</span>
-            {timeLine && (
-              <>
-                <span aria-hidden="true" style={{ opacity: 0.5, fontSize: '0.65em' }}>&#9670;</span>
-                <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: '0.7em', letterSpacing: '0.08em' }}>
-                  {timeLine}
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.5 }}
+            style={{
+              marginTop: 'clamp(26px, 5vw, 34px)', padding: '1.5px', borderRadius: '20px',
+              background: `linear-gradient(140deg, ${C.gold}8C, ${C.maroon}59 55%, ${C.gold}75)`,
+              boxShadow: `0 20px 45px -22px ${C.maroon}66`,
+            }}
+          >
+            <div style={{
+              background: `linear-gradient(180deg, ${C.cream} 0%, ${C.background} 140%)`,
+              borderRadius: '19px', padding: 'clamp(16px, 3.6vw, 22px) clamp(24px, 6vw, 40px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 'clamp(16px, 3.4vw, 28px)', flexWrap: 'wrap',
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '7px' }}>
+                <Icon name="calendar" size={17} color={C.gold} strokeWidth={1.7} />
+                <span style={{
+                  fontFamily: 'var(--font-serif)', fontWeight: 700, color: C.maroonDeep,
+                  fontSize: 'clamp(16px, 2.6vw, 21px)', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                }}>
+                  {dateLine}
                 </span>
-              </>
-            )}
-          </p>
+              </div>
+              {timeLine && (
+                <>
+                  <span aria-hidden="true" style={{ width: '1px', height: '38px', background: `${C.gold}55`, flexShrink: 0 }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '7px' }}>
+                    <Icon name="clock" size={17} color={C.gold} strokeWidth={1.7} />
+                    <span style={{
+                      fontFamily: 'var(--font-sans)', fontWeight: 800, color: C.maroonDeep,
+                      fontSize: 'clamp(13px, 2vw, 16px)', letterSpacing: '0.07em', whiteSpace: 'nowrap',
+                    }}>
+                      {timeLine}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </motion.div>
         )}
       </motion.div>
 
