@@ -41,7 +41,7 @@ export default function HeroSection({
     <div style={{
       position: 'relative', minHeight: '100dvh', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-      padding: 'clamp(88px, 12vh, 120px) 20px clamp(96px, 14vh, 120px)', boxSizing: 'border-box',
+      padding: 'clamp(72px, 10vh, 100px) 20px clamp(80px, 11vh, 100px)', boxSizing: 'border-box',
       // Layered, luminous background — two soft radial pools of the theme's gold
       // and accent over a vertical gradient — instead of a single flat fill.
       background: `
@@ -88,9 +88,9 @@ export default function HeroSection({
 
         {displayTagline && (
           <span style={{
-            fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: 700,
+            fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 700,
             letterSpacing: '0.32em', textTransform: 'uppercase', color: C.gold,
-            marginBottom: '18px',
+            marginBottom: '14px',
           }}>
             {displayTagline}
           </span>
@@ -98,7 +98,7 @@ export default function HeroSection({
 
         <h1 style={{
           fontFamily: 'var(--font-serif)', fontWeight: 700, color: C.maroon,
-          fontSize: hasCouple ? 'clamp(36px, 7vw, 62px)' : 'clamp(30px, 6vw, 52px)',
+          fontSize: hasCouple ? 'clamp(38px, 7.2vw, 66px)' : 'clamp(32px, 6.2vw, 55px)',
           margin: 0, letterSpacing: '0.01em', lineHeight: 1.1,
         }}>
           {displayName}
@@ -112,7 +112,7 @@ export default function HeroSection({
           initial={reduce ? false : { opacity: 0, scale: 0.94, y: 18 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-          style={{ perspective: '1400px', marginTop: '14px' }}
+          style={{ perspective: '1400px', marginTop: '10px' }}
         >
           <motion.div
             animate={reduce ? undefined : { y: [0, -9, 0] }}
@@ -145,34 +145,34 @@ export default function HeroSection({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.5 }}
             style={{
-              marginTop: 'clamp(26px, 5vw, 34px)', padding: '1.5px', borderRadius: '20px',
+              marginTop: 'clamp(18px, 3.6vw, 26px)', padding: '1.5px', borderRadius: '20px',
               background: `linear-gradient(140deg, ${C.gold}8C, ${C.maroon}59 55%, ${C.gold}75)`,
               boxShadow: `0 20px 45px -22px ${C.maroon}66`,
             }}
           >
             <div style={{
               background: `linear-gradient(180deg, ${C.cream} 0%, ${C.background} 140%)`,
-              borderRadius: '19px', padding: 'clamp(16px, 3.6vw, 22px) clamp(24px, 6vw, 40px)',
+              borderRadius: '19px', padding: 'clamp(13px, 3vw, 18px) clamp(20px, 5vw, 34px)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 'clamp(16px, 3.4vw, 28px)', flexWrap: 'wrap',
+              gap: 'clamp(14px, 3vw, 24px)', flexWrap: 'wrap',
             }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '7px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                 <Icon name="calendar" size={17} color={C.gold} strokeWidth={1.7} />
                 <span style={{
                   fontFamily: 'var(--font-serif)', fontWeight: 700, color: C.maroonDeep,
-                  fontSize: 'clamp(16px, 2.6vw, 21px)', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                  fontSize: 'clamp(17px, 2.8vw, 23px)', letterSpacing: '0.05em', whiteSpace: 'nowrap',
                 }}>
                   {dateLine}
                 </span>
               </div>
               {timeLine && (
                 <>
-                  <span aria-hidden="true" style={{ width: '1px', height: '38px', background: `${C.gold}55`, flexShrink: 0 }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '7px' }}>
+                  <span aria-hidden="true" style={{ width: '1px', height: '34px', background: `${C.gold}55`, flexShrink: 0 }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                     <Icon name="clock" size={17} color={C.gold} strokeWidth={1.7} />
                     <span style={{
                       fontFamily: 'var(--font-sans)', fontWeight: 800, color: C.maroonDeep,
-                      fontSize: 'clamp(13px, 2vw, 16px)', letterSpacing: '0.07em', whiteSpace: 'nowrap',
+                      fontSize: 'clamp(14px, 2.1vw, 17px)', letterSpacing: '0.07em', whiteSpace: 'nowrap',
                     }}>
                       {timeLine}
                     </span>

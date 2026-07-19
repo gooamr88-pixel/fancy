@@ -35,15 +35,19 @@ export const TEMPLATES = [
     fields: ['Partner Names', 'Love Story', 'Ceremony & Reception', 'Gift Registry'],
   },
   {
+    // A duplicate of the Wedding theme — same cinematic envelope reveal and
+    // "serif" invitation card artwork/layout (see TEMPLATE_PREVIEW_PATTERN
+    // below and INVITATION_PATTERN_BY_TEMPLATE in EventPageClient.js) — with
+    // copy adapted for an engagement instead of a wedding day.
     key: 'engagement', label: 'Eternal Love', tier: 'Engagement',
-    tagline: 'Romantic · Luxury',
-    desc: 'An elegant, romantic invitation with soft gradients, shimmering accents and gentle motion — built to make the moment feel unforgettable.',
+    tagline: 'Cinematic · Gold',
+    desc: 'The same high-end, cinematic invitation as Royale Wedding — glassmorphism, elegant gold accents, and a dynamic reveal — with every detail worded for your engagement instead of your wedding day.',
     presets: [
       { name: 'Blush Gold', primary: '#D4A574', secondary: '#F5E6D3', accent: '#D4A574', background: '#FFFCF8' },
       { name: 'Champagne Sparkle', primary: '#C5A059', secondary: '#FDF0CD', accent: '#C5A059', background: '#FFFDF5' },
       { name: 'Sage Garden', primary: '#6B8E6B', secondary: '#D5E8D5', accent: '#6B8E6B', background: '#F8FAF8' },
     ],
-    specs: ['Animated Rings & Particles', 'Soft Gradient Card', 'Premium Typography', 'Interactive RSVP', 'Every Section Toggleable'],
+    specs: ['Cinematic Envelope Reveal', 'Modern Glassmorphism', 'Gold Accents', 'Interactive RSVP', 'Every Section Toggleable'],
     fields: ['Partner Names', 'Proposal Story', 'Gift Registry'],
   },
   {
@@ -63,6 +67,6 @@ export const TEMPLATES = [
 /** Curated InvitationCard preview pattern + fallback accent per real template key. */
 export const TEMPLATE_PREVIEW_PATTERN = {
   wedding: 'serif',
-  engagement: 'luxury',
+  engagement: 'serif',
   custom: 'custom',
 };

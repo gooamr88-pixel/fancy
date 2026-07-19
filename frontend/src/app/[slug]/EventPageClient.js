@@ -50,7 +50,11 @@ import Icon from '../components/icons/Icon';
 // (TEMPLATE_PREVIEW_MAP), so the guest's card matches what was picked.
 const INVITATION_PATTERN_BY_TEMPLATE = {
   wedding: 'serif',
-  engagement: 'luxury',
+  // Engagement is a duplicate of the wedding theme — same "serif" card
+  // artwork/layout, copy swapped for an engagement context (see the
+  // 'engagement' case in buildInvitationCardData below and HeritageArchPage's
+  // isEngagementEvent tagline override).
+  engagement: 'serif',
   corporate: 'geo',
   birthday: 'floral',
   gala: 'minimal',
@@ -224,14 +228,29 @@ function buildInvitationCardData(event, isRTL) {
       const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
       const ceremonyLine = ceremonyReceptionLine(td, 'ceremony', isRTL);
       const receptionLine = ceremonyReceptionLine(td, 'reception', isRTL);
-      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine };
+      const noKidsText = isRTL ? 'دعوة خاصة بالكبار فقط' : 'No Kids Allowed';
+      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, noKidsText };
     }
+    // Engagement reuses the exact "serif" card layout wedding uses (see
+    // INVITATION_PATTERN_BY_TEMPLATE above) — only the copy differs, since
+    // "Request the honor of your presence at the marriage of…" and "The
+    // Marriage Celebration" are wrong for two people who aren't married yet.
     case 'engagement': {
       const a = td.partner1Name || td.partner1;
       const b = td.partner2Name || td.partner2;
       const namesEn = a && b ? `${a} & ${b}` : (event?.title || null);
       const names = (isRTL && titleAr) ? titleAr : namesEn;
-      return { names, dateLine, venueLine, dressCode };
+      const monogram = a && b ? `${a[0]}${b[0]}`.toUpperCase() : null;
+      const ceremonyLine = ceremonyReceptionLine(td, 'ceremony', isRTL);
+      const receptionLine = ceremonyReceptionLine(td, 'reception', isRTL);
+      const celebrationLabel = isRTL ? 'حفل الخطوبة' : 'The Engagement Celebration';
+      const honorLine1 = isRTL ? 'يسعدنا دعوتكم لحضور' : 'Request the honor of your presence';
+      const honorLine2 = isRTL ? 'حفل خطوبة' : 'at the engagement of';
+      const noKidsText = isRTL ? 'دعوة خاصة بالكبار فقط' : 'No Kids Allowed';
+      return {
+        names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine,
+        celebrationLabel, honorLine1, honorLine2, noKidsText, dressCode,
+      };
     }
     case 'corporate': {
       const headlineEn = event?.title || null;
@@ -426,11 +445,33 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // gesture; in that case the first tap anywhere (seal, toggle) starts it.
   const musicRef = useRef(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
+  // Distinguishes a guest's own deliberate pause (tapping the toggle) from
+  // any OTHER pause — the browser interrupting playback mid-scroll (a real,
+  // observed WebKit/Chromium behavior: media elements can get silently
+  // suspended during heavy scroll/compositing work), a YouTube buffering
+  // hiccup, etc. Only the deliberate case should stay paused; everything
+  // else self-heals below instead of leaving the guest with dead audio
+  // until they happen to scroll back up into a fresh touch gesture.
+  const userPausedRef = useRef(false);
   const toggleMusic = useCallback(() => {
     const el = musicRef.current;
     if (!el) return;
-    if (el.paused) el.play().catch((err) => console.error('Background music playback failed:', err));
-    else el.pause();
+    if (el.paused) {
+      userPausedRef.current = false;
+      el.play().catch((err) => console.error('Background music playback failed:', err));
+    } else {
+      userPausedRef.current = true;
+      el.pause();
+    }
+  }, []);
+  // Self-heal: whenever playback stops for any reason OTHER than the guest's
+  // own tap, immediately retry. Safe to call unconditionally — a browser that
+  // is genuinely still blocking autoplay just no-ops here the same way the
+  // gesture-retry effect below does.
+  const resumeIfNotUserPaused = useCallback(() => {
+    if (userPausedRef.current) return;
+    const el = musicRef.current;
+    if (el?.paused) el.play().catch(() => { /* still blocked — next gesture retries */ });
   }, []);
 
   // ── YouTube-backed music: wraps the IFrame Player API in the same
@@ -456,22 +497,27 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // reveal and opens straight into the sections, so it had NO gesture that
   // ever retried a blocked autoplay — a guest who didn't happen to notice
   // and tap the small corner music toggle simply never heard any music.
-  // This listens for the guest's actual first interaction with the page
-  // (tap/click or key press) and retries then, same as the envelope tap
-  // does elsewhere; it detaches itself as soon as playback is confirmed.
+  // This listens for the guest's actual first interaction with the page —
+  // tap/click, key press, mouse-wheel scroll, or touch-scroll — and retries
+  // then, same as the envelope tap does elsewhere; it detaches itself as
+  // soon as playback is confirmed (and re-attaches automatically if
+  // `musicPlaying` ever flips back to false, e.g. after a browser-forced
+  // interruption resumeIfNotUserPaused couldn't recover from immediately).
   useEffect(() => {
     if (!event?.background_music_url || musicPlaying) return undefined;
-    const tryPlay = () => {
-      const el = musicRef.current;
-      if (el?.paused) el.play().catch(() => { /* still blocked — next gesture retries */ });
-    };
-    document.addEventListener('pointerdown', tryPlay, { passive: true });
-    document.addEventListener('keydown', tryPlay);
+    document.addEventListener('pointerdown', resumeIfNotUserPaused, { passive: true });
+    document.addEventListener('keydown', resumeIfNotUserPaused);
+    document.addEventListener('wheel', resumeIfNotUserPaused, { passive: true });
+    document.addEventListener('scroll', resumeIfNotUserPaused, { passive: true, capture: true });
+    document.addEventListener('touchmove', resumeIfNotUserPaused, { passive: true });
     return () => {
-      document.removeEventListener('pointerdown', tryPlay);
-      document.removeEventListener('keydown', tryPlay);
+      document.removeEventListener('pointerdown', resumeIfNotUserPaused);
+      document.removeEventListener('keydown', resumeIfNotUserPaused);
+      document.removeEventListener('wheel', resumeIfNotUserPaused);
+      document.removeEventListener('scroll', resumeIfNotUserPaused, { capture: true });
+      document.removeEventListener('touchmove', resumeIfNotUserPaused);
     };
-  }, [event?.background_music_url, musicPlaying]);
+  }, [event?.background_music_url, musicPlaying, resumeIfNotUserPaused]);
 
   // Set when the IFrame Player reports this exact video can't be embedded
   // (error 101/150 — a very common restriction on official/label music
@@ -505,7 +551,18 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             // gesture-independent start as the direct-audio-file path below.
             player.playVideo();
           },
-          onStateChange: (e) => setMusicPlaying(e.data === 1),
+          onStateChange: (e) => {
+            setMusicPlaying(e.data === 1);
+            // States 0 (ended) and 2 (paused) firing on their own — never
+            // requested via toggleMusic — mean the IFrame player got
+            // interrupted (buffering hiccup, scroll-triggered compositor
+            // suspension, etc). `loop`/`playlist` should replay on `ended`
+            // by themselves, but resuming here too costs nothing and covers
+            // players that don't honor it.
+            if ((e.data === 0 || e.data === 2) && !userPausedRef.current) {
+              player.playVideo();
+            }
+          },
           onError: () => {
             if (cancelled) return;
             setYoutubeMusicBlocked(true);
@@ -546,6 +603,16 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Sole exception: ?noreveal=1, a compliance/reviewer bypass (Twilio TFV)
   // that renders the page content directly. Normal guest links never carry it.
   const [revealDismissed, setRevealDismissed] = useState(() => searchParams?.get('noreveal') === '1');
+  // Mirrors `revealDismissed` into a ref so the background "freshness" refetch
+  // below (which always re-runs on mount even when SSR already supplied
+  // `initialEvent`) can check it synchronously. Without this, a guest who
+  // opens the envelope before that refetch resolves would see the
+  // already-opened invitation silently change — new event/RSVP data landing
+  // and re-rendering the card out from under them — which is exactly the
+  // "no reset after opening" bug: the fetch itself is harmless, only
+  // *applying* its result after the guest has already seen the invitation is.
+  const revealDismissedRef = useRef(revealDismissed);
+  useEffect(() => { revealDismissedRef.current = revealDismissed; }, [revealDismissed]);
 
   // Auth / access states. Declared here — BEFORE the effects below that read them —
   // so their dependency arrays don't reference these bindings while they're still in
@@ -602,8 +669,17 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         throw new Error('EVENT_NOT_FOUND');
       }
       const data = await res.json();
-      setEvent(data.event);
-      setGuestRsvp(data.guestRsvp || null);
+      // Once the guest has already opened the envelope and seen the
+      // invitation, a background refresh landing late must not silently
+      // change what's on screen (see revealDismissedRef above). Skipping the
+      // two content-bearing setters here still lets this same call clear the
+      // auth/gate states below — those can't be true once the reveal has
+      // already shown (showReveal requires all of them false), so it's a
+      // no-op in that case, not a behavior change.
+      if (!revealDismissedRef.current) {
+        setEvent(data.event);
+        setGuestRsvp(data.guestRsvp || null);
+      }
       setPasswordRequired(false);
       setIsPrivate(false);
       setNotLive(false);
@@ -945,7 +1021,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             autoPlay
             preload="auto"
             onPlay={() => setMusicPlaying(true)}
-            onPause={() => setMusicPlaying(false)}
+            onPause={() => { setMusicPlaying(false); resumeIfNotUserPaused(); }}
           />
         )}
         <HeritageArchPage
@@ -1004,7 +1080,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           autoPlay
           preload="auto"
           onPlay={() => setMusicPlaying(true)}
-          onPause={() => setMusicPlaying(false)}
+          onPause={() => { setMusicPlaying(false); resumeIfNotUserPaused(); }}
           onError={(e) => console.error('Background music failed to load:', event.background_music_url, e.target.error)}
         />
       )}

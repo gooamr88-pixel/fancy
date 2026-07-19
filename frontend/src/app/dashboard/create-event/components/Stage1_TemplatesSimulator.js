@@ -24,7 +24,9 @@ function useIsMobile() {
 /* ═══ Template → MobilePreview pattern mapping ═══ */
 const TEMPLATE_PREVIEW_MAP = {
   wedding:    { name: 'Timeless Elegance', pattern: 'serif',   accent: '#B8944F' },
-  engagement: { name: 'Grand Affair',     pattern: 'luxury',  accent: '#D4A574' },
+  // Duplicated from Wedding — same "serif" card artwork the guest page now
+  // renders for both (see INVITATION_PATTERN_BY_TEMPLATE in EventPageClient.js).
+  engagement: { name: 'Timeless Elegance', pattern: 'serif',  accent: '#D4A574' },
   corporate:  { name: 'Urban Edge',       pattern: 'geo',     accent: '#3B82F6' },
   birthday:   { name: 'Garden Party',     pattern: 'floral',  accent: '#E88FAC' },
   gala:       { name: 'Pure & Simple',    pattern: 'minimal', accent: '#C5A059' },
@@ -108,7 +110,9 @@ function FloatingParticles() {
 function MobileTemplateChip({ template, isSelected, onSelect, preset }) {
   /* Mini visual preview that hints at the template's unique look */
   const chipVisual = {
-    engagement: { bg: 'linear-gradient(135deg, #0B0F19 0%, #151B26 100%)', accent: preset.primary, isDark: true },
+    // Same light cream chip as Wedding — Engagement is now a copy-only
+    // reskin of the same "serif" card, not the old dark luxury look.
+    engagement: { bg: 'linear-gradient(135deg, #FCFAF6 0%, #F5EDE0 100%)', accent: preset.primary, isDark: false },
     wedding:    { bg: 'linear-gradient(135deg, #FCFAF6 0%, #F5EDE0 100%)', accent: preset.primary, isDark: false },
     custom:     { bg: 'linear-gradient(135deg, #F8F4EB 0%, #F0EADA 100%)', accent: preset.primary, isDark: false },
   }[template.key] || { bg: preset.background || '#FAF8F5', accent: preset.primary, isDark: false };

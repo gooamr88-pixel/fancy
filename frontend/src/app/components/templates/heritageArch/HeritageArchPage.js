@@ -126,7 +126,7 @@ export default function HeritageArchPage({
     : customCategory === 'vowRenewal'
     ? (isRTL ? 'نجدد نذورنا' : 'We are renewing our vows')
     : isEngagementEvent
-    ? (isRTL ? 'تمت خطوبتنا!' : "We're engaged!")
+    ? (isRTL ? 'تمت خطوبتنا!' : 'We Are Getting Engaged')
     : '';
   // A small icon+label pill above the hero name so guests immediately see
   // what kind of event this is (e.g. a graduation cap + "Graduation") —
@@ -240,7 +240,17 @@ export default function HeritageArchPage({
   if (galleryImages.length > 0 && sectionOn('gallery')) {
     middleSections.gallery = { id: 'ha-gallery', content: <GallerySection images={galleryImages} isRTL={isRTL} /> };
   }
-  if (invitedToCity && sectionOn('invited')) {
+  // The "You're Invited To" city/map section is dropped for Wedding and
+  // Engagement — those two show full venue details (name + address) on the
+  // invitation card and in Venues/Getting There instead, so a same-city
+  // guest was seeing a redundant, sometimes-wrong "city" (it silently fell
+  // back to the venue's own name split on the first comma when no explicit
+  // ha_invited_to_city was set, e.g. showing "The Grand Ballroom" as if it
+  // were a city). Destination-style variants and Custom Canvas keep it —
+  // they're the events where telling a guest which city they're flying to
+  // is genuinely useful.
+  const isWeddingOrEngagement = event.template_type === 'wedding' || event.template_type === 'engagement';
+  if (invitedToCity && sectionOn('invited') && !isWeddingOrEngagement) {
     middleSections.invited = { id: 'ha-invited', content: <InvitedToSection city={invitedToCity} lat={invitedToLat} lng={invitedToLng} isRTL={isRTL} /> };
   }
   if (thingsToDo.length > 0 && sectionOn('thingstodo')) {

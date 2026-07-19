@@ -165,20 +165,24 @@ export default function InvitationCard({ template, theme, guestName, config, dat
           ))}
 
           {/* Monogram circle */}
-          <div className="relative z-10 flex flex-col items-center gap-1.5 mt-2">
+          <div className="relative z-10 flex flex-col items-center gap-1 mt-1">
             <div
               className="w-[32px] h-[32px] rounded-full flex items-center justify-center font-sans text-[9px] font-bold tracking-wider"
               style={{ border: `1.5px solid ${accentColor}`, color: accentColor, background: `${accentColor}08` }}
             >{d.monogram || "A&J"}</div>
-            <span className="text-[6.5px] uppercase tracking-[4px] font-semibold" style={{ color: `${accentColor}90` }}>The Marriage Celebration</span>
+            <span className="text-[7px] uppercase tracking-[4px] font-semibold" style={{ color: `${accentColor}90` }}>{d.celebrationLabel || "The Marriage Celebration"}</span>
           </div>
 
-          {/* Main content */}
-          <div className="flex flex-col items-center text-center my-auto relative z-10 gap-1 px-2">
-            <span className="text-[7px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">Request the honor of your presence</span>
-            <span className="text-[7px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">at the marriage of</span>
+          {/* Main content — all invitation details (names, date, time, venue) live
+              here, near the top of the card right under the monogram, rather than
+              vertically centered — the fixed mt/mb (instead of my-auto) leaves the
+              outer flex's justify-between to push the guest-name block down to the
+              bottom instead of pulling these details toward the middle. */}
+          <div className="flex flex-col items-center text-center mt-2 mb-auto relative z-10 gap-1 px-2">
+            <span className="text-[7.5px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">{d.honorLine1 || "Request the honor of your presence"}</span>
+            <span className="text-[7.5px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">{d.honorLine2 || "at the marriage of"}</span>
 
-            <span className="font-script text-[30px] leading-tight px-1 mt-1" style={{ color: accentColor }}>{d.names || "Aria & Julian"}</span>
+            <span className="font-script text-[33px] leading-tight px-1 mt-1" style={{ color: accentColor }}>{d.names || "Aria & Julian"}</span>
 
             {/* Ornamental flourish divider — elaborate symmetrical */}
             <svg width="120" height="16" viewBox="0 0 120 16" className="my-1" style={{ opacity: 0.6 }}>
@@ -197,15 +201,15 @@ export default function InvitationCard({ template, theme, guestName, config, dat
               <circle cx="112" cy="8" r="1" fill={accentColor} opacity="0.4" />
             </svg>
 
-            <span className="text-[9px] font-bold tracking-[2px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY, OCTOBER 24, 2026"}</span>
+            <span className="text-[10px] font-bold tracking-[2px]" style={{ color: lightAccentColor }}>{d.dateLine || "SATURDAY, OCTOBER 24, 2026"}</span>
             {(d.ceremonyLine || d.receptionLine) && (
-              <span className="text-[7px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%]">
+              <span className="text-[7.5px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%]">
                 {d.ceremonyLine && <>Ceremony: <strong className="text-stone-700 font-semibold">{d.ceremonyLine}</strong></>}
                 {d.ceremonyLine && d.receptionLine && <br />}
                 {d.receptionLine && <>Reception: <strong className="text-stone-700 font-semibold">{d.receptionLine}</strong></>}
               </span>
             )}
-            <span className="text-[7.5px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%] flex flex-row items-baseline justify-center gap-1 flex-wrap">
+            <span className="text-[8px] tracking-wide leading-relaxed font-sans text-stone-500 max-w-[92%] flex flex-row items-baseline justify-center gap-1 flex-wrap">
               {d.venueName || d.venueAddress ? (
                 <>
                   {d.venueName && <strong className="text-stone-700 font-semibold">{d.venueName}</strong>}
@@ -215,12 +219,21 @@ export default function InvitationCard({ template, theme, guestName, config, dat
                 <>At four o&apos;clock in the afternoon<br /><strong className="text-stone-700 font-semibold">The Grand Ballroom</strong> · Plaza Hotel, New York</>
               )}
             </span>
+
+            {/* Adults-only notice — one of the "invitation details" that belongs
+                on the card itself; shown by default for this pattern (wedding +
+                the engagement reskin), hideable per-event via d.noKidsNotice. */}
+            {d.noKidsNotice !== false && (
+              <span className="text-[6.5px] font-sans font-bold uppercase tracking-[2px] mt-1" style={{ color: `${accentColor}80` }}>
+                {d.noKidsText || "No Kids Allowed"}
+              </span>
+            )}
           </div>
 
           {/* Guest name at bottom */}
           <div className="relative z-10 flex flex-col items-center gap-0.5 mb-1">
             <span className="text-[6.5px] uppercase tracking-[2.5px] font-sans font-semibold" style={{ color: `${accentColor}70` }}>Invite Issued To:</span>
-            <span className="font-script text-xl leading-none" style={{ color: accentColor }}>{name}</span>
+            <span className="font-script text-2xl leading-none" style={{ color: accentColor }}>{name}</span>
           </div>
 
           {/* Bottom gradient line */}
