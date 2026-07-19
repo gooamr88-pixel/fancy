@@ -11,8 +11,8 @@ const nextConfig = {
     // Dev mode (Turbopack/webpack) needs 'unsafe-eval' to reconstruct stack traces for
     // debugging; production builds never call eval(), so the prod CSP stays unrelaxed.
     const scriptSrc = isDev
-      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://maps.googleapis.com https://challenges.cloudflare.com"
-      : "script-src 'self' 'unsafe-inline' https://accounts.google.com https://maps.googleapis.com https://challenges.cloudflare.com";
+      ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://maps.googleapis.com https://challenges.cloudflare.com https://www.youtube.com https://s.ytimg.com"
+      : "script-src 'self' 'unsafe-inline' https://accounts.google.com https://maps.googleapis.com https://challenges.cloudflare.com https://www.youtube.com https://s.ytimg.com";
 
     // connect-src: in development include localhost:5000 for the local API server;
     // in production use the configured API URL or the production domain only.
@@ -36,7 +36,7 @@ const nextConfig = {
           // Kept in sync with deployment/nginx.conf (both edge layers emit a CSP; the
           // browser enforces the intersection, so they MUST allow the same sources).
           // Any change here must be mirrored there.
-          { key: 'Content-Security-Policy', value: `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; connect-src 'self' ${apiConnectSrc} https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://fancyrsvp.com https://accounts.google.com https://oauth2.googleapis.com https://maps.googleapis.com https://challenges.cloudflare.com; frame-src 'self' https://accounts.google.com https://www.google.com https://maps.googleapis.com https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'` },
+          { key: 'Content-Security-Policy', value: `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; connect-src 'self' ${apiConnectSrc} https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://fancyrsvp.com https://accounts.google.com https://oauth2.googleapis.com https://maps.googleapis.com https://challenges.cloudflare.com; frame-src 'self' https://accounts.google.com https://www.google.com https://maps.googleapis.com https://challenges.cloudflare.com https://www.youtube.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'` },
         ],
       },
     ];
