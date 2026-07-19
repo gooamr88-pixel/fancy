@@ -137,10 +137,25 @@ const CanvasElement = React.memo(function CanvasElement({ el, occupied, names = 
       }}
     >
       {zone ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, maxWidth: '90%', pointerEvents: 'none' }}>
-          {meta.icon && <Icon name={meta.icon} size={16} color={color} strokeWidth={1.8} />}
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+          maxWidth: '86%', pointerEvents: 'none',
+          background: 'rgba(255,255,255,0.94)', border: `1px solid ${color}3D`,
+          borderRadius: 10, padding: '9px 14px',
+          boxShadow: '0 4px 14px rgba(25,27,30,0.14), 0 1px 3px rgba(25,27,30,0.08)',
+        }}>
+          {meta.icon && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              width: Math.max(24, Math.min(32, Math.min(w, h) / 4.5)), height: Math.max(24, Math.min(32, Math.min(w, h) / 4.5)),
+              borderRadius: '50%', background: `${color}1F`,
+            }}>
+              <Icon name={meta.icon} size={Math.max(13, Math.min(17, Math.min(w, h) / 8))} color={color} strokeWidth={2} />
+            </div>
+          )}
           <span style={{
-            fontSize: 13, fontWeight: 800, color: C.charcoal, textTransform: 'uppercase', letterSpacing: '0.03em',
+            fontSize: Math.max(14, Math.min(19, Math.min(w, h) / 6)), fontWeight: 700, color: C.charcoal,
+            textTransform: 'uppercase', letterSpacing: '0.07em',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', textAlign: 'center',
           }}>
             {el.table_name}
@@ -2458,7 +2473,20 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
                             </clipPath>
                           </defs>
                           <g transform={`translate(${cx} ${cy})`} clipPath={`url(#${clipId})`} fontFamily="var(--font-sans, sans-serif)" textAnchor="middle" style={{ pointerEvents: 'none' }}>
-                            <text y={zone ? 8 : (cap > 0 ? -6 : 8)} fontSize={zone ? 24 : 32} fontWeight={800} fill={C.charcoal}>
+                            {zone && (
+                              <rect
+                                x={-Math.min(w - 16, 240) / 2} y={-27}
+                                width={Math.min(w - 16, 240)} height={44} rx={10}
+                                fill="rgba(255,255,255,0.94)" stroke={shapeColor} strokeOpacity={0.24}
+                              />
+                            )}
+                            <text
+                              y={zone ? 8 : (cap > 0 ? -6 : 8)}
+                              fontSize={zone ? 26 : 32}
+                              fontWeight={zone ? 700 : 800}
+                              fill={C.charcoal}
+                              style={zone ? { textTransform: 'uppercase', letterSpacing: '1.5px' } : undefined}
+                            >
                               {el.table_name}
                             </text>
                             {!zone && cap > 0 && (

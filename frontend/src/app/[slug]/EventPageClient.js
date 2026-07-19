@@ -8,6 +8,7 @@ import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
 import { useIsClient } from '../utils/useIsClient';
 import { extractYouTubeId, loadYouTubeIframeApi } from '../utils/youtube';
+import { getRsvpDeadlineStatus, daysLeftPhrase } from '../utils/rsvpDeadline';
 import {
   FadeInUp,
   StaggerChildren,
@@ -448,6 +449,29 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     const el = musicRef.current;
     if (el?.paused) el.play().catch(() => { /* autoplay blocked — retried on first user gesture */ });
   }, [event?.background_music_url, youtubeMusicId]);
+
+  // The "retried on first user gesture" comment above only actually held for
+  // templates with the envelope-reveal tap (InvitationReveal calls
+  // musicRef.current.play() on click). Heritage Arch deliberately skips that
+  // reveal and opens straight into the sections, so it had NO gesture that
+  // ever retried a blocked autoplay — a guest who didn't happen to notice
+  // and tap the small corner music toggle simply never heard any music.
+  // This listens for the guest's actual first interaction with the page
+  // (tap/click or key press) and retries then, same as the envelope tap
+  // does elsewhere; it detaches itself as soon as playback is confirmed.
+  useEffect(() => {
+    if (!event?.background_music_url || musicPlaying) return undefined;
+    const tryPlay = () => {
+      const el = musicRef.current;
+      if (el?.paused) el.play().catch(() => { /* still blocked — next gesture retries */ });
+    };
+    document.addEventListener('pointerdown', tryPlay, { passive: true });
+    document.addEventListener('keydown', tryPlay);
+    return () => {
+      document.removeEventListener('pointerdown', tryPlay);
+      document.removeEventListener('keydown', tryPlay);
+    };
+  }, [event?.background_music_url, musicPlaying]);
 
   // Set when the IFrame Player reports this exact video can't be embedded
   // (error 101/150 — a very common restriction on official/label music
@@ -1738,18 +1762,32 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 ) : (
                   <BentoCard bg="rgba(255,255,255,0.94)" border="rgba(232,226,214,0.6)" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '18px', padding: '36px 28px' }}>
                     <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600, color: '#191B1E' }}>{t.card_title}</h3>
-                    {event.rsvp_deadline && (
-                      <div style={{
-                        display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '8px',
-                        padding: '9px 18px', borderRadius: '999px',
-                        background: `${themeColor}0F`, border: `1px solid ${themeColor}40`,
-                      }}>
-                        <Icon name="clock" size={13} color={themeColor} strokeWidth={1.8} />
-                        <span style={{ fontSize: '13px', fontWeight: 700, color: '#191B1E' }}>
-                          {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-                        </span>
-                      </div>
-                    )}
+                    {event.rsvp_deadline && (() => {
+                      const status = getRsvpDeadlineStatus(event.rsvp_deadline);
+                      // Fixed semantic colors for urgent/passed (not the event's
+                      // own theme color) so these warning states read the same
+                      // regardless of custom colors — same reasoning as the
+                      // RSVP wizard's pill above.
+                      const tone = status.passed ? '#C45E5E' : status.urgent ? '#B8944F' : themeColor;
+                      const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                      const label = status.passed
+                        ? t.reply_by_passed.replace('{date}', deadlineText)
+                        : status.urgent
+                          ? t.reply_by_urgent.replace('{date}', deadlineText).replace('{daysPhrase}', daysLeftPhrase(status.daysLeft, isRTL))
+                          : `${t.reply_by} ${deadlineText}`;
+                      return (
+                        <div style={{
+                          display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '8px',
+                          padding: '9px 18px', borderRadius: '999px',
+                          background: `${tone}0F`, border: `1px solid ${tone}40`,
+                        }}>
+                          <Icon name={status.passed ? 'warning' : 'clock'} size={13} color={tone} strokeWidth={1.8} />
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: status.passed || status.urgent ? tone : '#191B1E' }}>
+                            {label}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     <p style={{ fontSize: '13px', color: '#77736A', lineHeight: 1.6, margin: 0 }}>
                       {t.card_desc}
                     </p>
@@ -2078,11 +2116,20 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 }}>
                   {localizedTitle}
                 </p>
-                {event.rsvp_deadline && (
-                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', margin: '2px 0 0', fontFamily: 'var(--font-sans)' }}>
-                    {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                  </p>
-                )}
+                {event.rsvp_deadline && (() => {
+                  const status = getRsvpDeadlineStatus(event.rsvp_deadline);
+                  const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+                  const label = status.passed
+                    ? t.reply_by_passed.replace('{date}', deadlineText)
+                    : status.urgent
+                      ? t.reply_by_urgent.replace('{date}', deadlineText).replace('{daysPhrase}', daysLeftPhrase(status.daysLeft, isRTL))
+                      : `${t.reply_by} ${deadlineText}`;
+                  return (
+                    <p style={{ fontSize: '11px', color: status.passed ? '#F2A0A0' : status.urgent ? '#F0C36B' : 'rgba(255,255,255,0.5)', margin: '2px 0 0', fontFamily: 'var(--font-sans)' }}>
+                      {label}
+                    </p>
+                  );
+                })()}
               </div>
               <GlowPulse color={themeColor} intensity={0.3} style={{ flexShrink: 0 }}>
                 <button

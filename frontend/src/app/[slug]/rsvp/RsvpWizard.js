@@ -8,6 +8,7 @@ import { normalizeToE164 } from '../../utils/phone';
 import { publicApiFetch } from '../../utils/publicApi';
 import { useGuestAnalytics, useRsvpFunnelTracking, useAbandonmentTracking } from '../../utils/useGuestAnalytics';
 import { isSeatingRevealed } from '../../utils/seating';
+import { getRsvpDeadlineStatus, daysLeftPhrase } from '../../utils/rsvpDeadline';
 import { splitName } from '../../utils/nameFields';
 import { findMealField } from './styles';
 import { LangSwitchPill, RsvpDivider, SparkMark } from './components';
@@ -600,19 +601,33 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                 background: `linear-gradient(90deg, transparent 0%, ${lighten(secondaryColor, 0.3)} 30%, ${themeColor} 50%, ${lighten(secondaryColor, 0.3)} 70%, transparent 100%)`,
                 backgroundSize: '200% 100%', animation: 'shimmer 3s linear infinite',
               }} />
-            {!submitted && event?.rsvp_deadline && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
-                style={{
-                  display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '7px',
-                  margin: '14px 0 0', padding: '7px 16px', borderRadius: '999px',
-                  background: 'rgba(255,255,255,0.1)', border: `1px solid ${lighten(secondaryColor, 0.35)}55`,
-                }}>
-                <Icon name="clock" size={12} color={lighten(secondaryColor, 0.35)} strokeWidth={1.8} />
-                <span style={{ fontSize: '11.5px', fontWeight: 700, color: lighten(secondaryColor, 0.35), fontFamily: 'var(--font-sans)' }}>
-                  {t.reply_by} {new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-                </span>
-              </motion.div>
-            )}
+            {!submitted && event?.rsvp_deadline && (() => {
+              const status = getRsvpDeadlineStatus(event.rsvp_deadline);
+              // Fixed, theme-independent warning colors (not derived from the
+              // event's own palette) — these are semantic "urgent"/"passed"
+              // states and need to read the same regardless of custom colors,
+              // same as the plain "clock" pill always did for the normal case.
+              const tone = status.passed ? '#E8A0A0' : status.urgent ? '#F0C36B' : lighten(secondaryColor, 0.35);
+              const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+              const label = status.passed
+                ? t.reply_by_passed.replace('{date}', deadlineText)
+                : status.urgent
+                  ? t.reply_by_urgent.replace('{date}', deadlineText).replace('{daysPhrase}', daysLeftPhrase(status.daysLeft, isRTL))
+                  : `${t.reply_by} ${deadlineText}`;
+              return (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
+                  style={{
+                    display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '7px',
+                    margin: '14px 0 0', padding: '7px 16px', borderRadius: '999px',
+                    background: 'rgba(255,255,255,0.1)', border: `1px solid ${tone}55`,
+                  }}>
+                  <Icon name={status.passed ? 'warning' : 'clock'} size={12} color={tone} strokeWidth={1.8} />
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: tone, fontFamily: 'var(--font-sans)' }}>
+                    {label}
+                  </span>
+                </motion.div>
+              );
+            })()}
           </div>
 
           <div style={{ padding: '28px 32px 32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>

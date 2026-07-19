@@ -6,14 +6,13 @@ import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, ScrollToRsvpHint } from '../shared';
 import Icon from '../../../icons/Icon';
 
-// A clearly delineated "Event Time" card — start time, and end time when the
-// organizer set one — so guests never have to hunt through the date line or
-// squint at small print to know when things actually begin and wrap up. The
-// date rides along with it (not just the time) so this card alone is always
-// enough to know exactly when the event is, without scrolling back to the
-// hero — most useful for multi-day events, where the hero deliberately
-// doesn't glue one clock time onto a date range.
-function EventTimeCard({ dateLine, startTime, endTime, isRTL }) {
+// A clearly delineated "Event Time" card — start and end time — for
+// multi-day events only. The Hero already states the full date + start time
+// for single-day events, so this card is suppressed then to avoid restating
+// the same line twice on one page; it only appears when it has genuinely new
+// information the Hero doesn't show (the Hero deliberately omits time for a
+// multi-day date range).
+function EventTimeCard({ startTime, endTime, isRTL }) {
   const C = useFullPageTheme();
   if (!startTime && !endTime) return null;
   return (
@@ -38,14 +37,6 @@ function EventTimeCard({ dateLine, startTime, endTime, isRTL }) {
         }}>
           {isRTL ? 'وقت الفعالية' : 'Event Time'}
         </div>
-        {dateLine && (
-          <div style={{
-            fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600,
-            letterSpacing: '0.04em', color: C.maroon, opacity: 0.8, marginTop: '3px',
-          }}>
-            {dateLine}
-          </div>
-        )}
         <div style={{
           fontFamily: 'var(--font-serif)', fontSize: 'clamp(17px, 3vw, 21px)', fontWeight: 700,
           color: C.maroon, marginTop: '2px',
@@ -59,7 +50,7 @@ function EventTimeCard({ dateLine, startTime, endTime, isRTL }) {
   );
 }
 
-export default function CountdownSection({ timeLeft, isRTL, dateLine, startTime, endTime }) {
+export default function CountdownSection({ timeLeft, isRTL, startTime, endTime }) {
   const C = useFullPageTheme();
   const units = [
     { key: 'days', value: timeLeft.days, label: isRTL ? 'أيام' : 'Days' },
@@ -83,7 +74,7 @@ export default function CountdownSection({ timeLeft, isRTL, dateLine, startTime,
         ))}
       </div>
 
-      <EventTimeCard dateLine={dateLine} startTime={startTime} endTime={endTime} isRTL={isRTL} />
+      <EventTimeCard startTime={startTime} endTime={endTime} isRTL={isRTL} />
 
       <ScrollToRsvpHint isRTL={isRTL} />
     </SectionShell>

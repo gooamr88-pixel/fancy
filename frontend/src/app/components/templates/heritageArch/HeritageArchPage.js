@@ -82,10 +82,12 @@ export default function HeritageArchPage({
   // full span, and gluing one clock time onto it would misleadingly imply
   // the whole range starts then.
   const timeLine = !event.event_end_date ? formatTimeLine(event.event_date, isRTL) : null;
-  // Event start/end time — always computed (regardless of single- vs.
-  // multi-day) for the dedicated "Event Time" card in the Countdown section,
-  // so guests always see exactly when things begin and wrap up.
-  const startTimeLine = formatTimeLine(event.event_date, isRTL);
+  // Event start/end time for the Countdown section's "Event Time" card.
+  // Single-day events already show their date + start time in the Hero, so
+  // the card is suppressed then to avoid repeating the same line twice on
+  // one page; it only surfaces for multi-day events, where the Hero
+  // deliberately omits time and this is the sole place guests see it.
+  const startTimeLine = event.event_end_date ? formatTimeLine(event.event_date, isRTL) : null;
   const endTimeLine = event.event_end_date ? formatTimeLine(event.event_end_date, isRTL) : null;
 
   // Custom's "what kind of event is this?" category (Stage 2) drives the hero
@@ -248,7 +250,15 @@ export default function HeritageArchPage({
     middleSections.gettingthere = { id: 'ha-gettingthere', content: <GettingThereSection text={gettingThere} isRTL={isRTL} /> };
   }
 
-  const DEFAULT_SECTION_ORDER = ['schedule', 'venues', 'dresscode', 'story', 'accommodation', 'menu', 'giftlist', 'faq', 'gallery', 'invited', 'thingstodo', 'gettingthere'];
+  // Grouped into a narrative arc instead of an arbitrary list: the personal
+  // story first (right after Hero/About), then a broad "where" before the
+  // specific "when/where/what to wear" logistics, then everything an
+  // out-of-town guest needs travel-wise grouped together (previously
+  // Accommodation and Getting There sat far apart in the list despite
+  // covering the same territory), then day-of details, FAQ as a catch-all,
+  // and Gallery as a visual close before Countdown builds anticipation
+  // right into the RSVP ask.
+  const DEFAULT_SECTION_ORDER = ['story', 'invited', 'schedule', 'venues', 'dresscode', 'accommodation', 'gettingthere', 'thingstodo', 'menu', 'giftlist', 'faq', 'gallery'];
   const savedOrder = Array.isArray(td.sectionOrder) ? td.sectionOrder : [];
   const resolvedOrder = [
     ...savedOrder.filter((k) => middleSections[k]),
@@ -288,7 +298,7 @@ export default function HeritageArchPage({
     sections.push(middleSections[key]);
   }
 
-  sections.push({ id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} dateLine={dateLine} startTime={startTimeLine} endTime={endTimeLine} /> });
+  sections.push({ id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} startTime={startTimeLine} endTime={endTimeLine} /> });
 
   sections.push({
     id: 'ha-rsvp',

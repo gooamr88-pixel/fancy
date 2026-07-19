@@ -18,6 +18,7 @@ import { SectionShell, SectionHeading, DiamondDivider } from '../shared';
 import Icon from '../../../icons/Icon';
 import { findMealField } from '../../../../utils/mealField';
 import { isSeatingRevealed } from '../../../../utils/seating';
+import { getRsvpDeadlineStatus, daysLeftPhrase } from '../../../../utils/rsvpDeadline';
 import { useSeatingLookup } from '../../../../[slug]/rsvp/hooks/useSeatingLookup';
 import SeatingResultPanel from '../../../../[slug]/rsvp/steps/SeatingResultPanel';
 import { alpha, darken } from '../../../../utils/color';
@@ -758,22 +759,35 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
             : (isRTL ? 'يسعدنا أن نعرف إن كنت ستشاركنا الاحتفال.' : "We'd love to know if you'll be celebrating with us.")}
         </motion.p>
 
-        {event?.rsvp_deadline && (
-          <motion.div {...reveal} style={{
-            display: 'inline-flex', alignItems: 'center', gap: '10px',
-            margin: '-4px 0 24px', padding: '10px 22px', borderRadius: '999px',
-            background: `${C.maroon}0D`, border: `1px solid ${C.maroon}40`,
-          }}>
-            <Icon name="clock" size={15} color={C.maroon} strokeWidth={1.8} />
-            <span style={{
-              fontSize: '13px', fontWeight: 700, letterSpacing: '0.02em', color: C.maroon,
-              fontFamily: 'var(--font-sans)',
+        {event?.rsvp_deadline && (() => {
+          const status = getRsvpDeadlineStatus(event.rsvp_deadline);
+          // Three distinct, unambiguous states instead of always showing the raw
+          // date: a plain upcoming deadline, an urgent one (≤3 days left, so a
+          // guest who hasn't decided yet knows time is short), and a passed one
+          // (previously this pill kept quietly showing a date already in the
+          // past, which read as broken rather than as "please respond now").
+          const tone = status.passed ? ERR : status.urgent ? C.gold : C.maroon;
+          const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+          return (
+            <motion.div {...reveal} style={{
+              display: 'inline-flex', alignItems: 'center', gap: '10px',
+              margin: '-4px 0 24px', padding: '10px 22px', borderRadius: '999px',
+              background: `${tone}12`, border: `1px solid ${tone}55`,
             }}>
-              {isRTL ? 'يرجى الرد بحلول' : 'RSVP by'}{' '}
-              {new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-            </span>
-          </motion.div>
-        )}
+              <Icon name={status.passed ? 'warning' : 'clock'} size={15} color={tone} strokeWidth={1.8} />
+              <span style={{
+                fontSize: '13px', fontWeight: 700, letterSpacing: '0.02em', color: tone,
+                fontFamily: 'var(--font-sans)',
+              }}>
+                {status.passed
+                  ? (isRTL ? `انتهى الموعد النهائي للرد (${deadlineText}) — يرجى الرد في أقرب وقت` : `RSVP deadline was ${deadlineText} — please respond as soon as possible`)
+                  : status.urgent
+                    ? (isRTL ? `يرجى الرد بحلول ${deadlineText} — بقي ${daysLeftPhrase(status.daysLeft, isRTL)} فقط` : `Please RSVP by ${deadlineText} — only ${daysLeftPhrase(status.daysLeft, isRTL)} left`)
+                    : (isRTL ? `يرجى الرد بحلول ${deadlineText}` : `Please RSVP by ${deadlineText}`)}
+              </span>
+            </motion.div>
+          );
+        })()}
 
         {/* ── The decision: coming or not ── */}
         <div style={{ width: '100%' }}>
