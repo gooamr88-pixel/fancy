@@ -160,7 +160,11 @@ export default function HeroSection({
                 <Icon name="calendar" size={17} color={C.gold} strokeWidth={1.7} />
                 <span style={{
                   fontFamily: 'var(--font-serif)', fontWeight: 700, color: C.maroonDeep,
-                  fontSize: 'clamp(17px, 2.8vw, 23px)', letterSpacing: '0.05em', whiteSpace: 'nowrap',
+                  fontSize: 'clamp(15px, 2.8vw, 23px)', letterSpacing: '0.05em', textAlign: 'center',
+                  // A multi-day range ("SEPTEMBER 12, 2026 - SEPTEMBER 14, 2026")
+                  // is long enough to overflow this pill on a narrow phone —
+                  // nowrap here would clip it rather than wrap, so this is
+                  // allowed to break onto a second line instead.
                 }}>
                   {dateLine}
                 </span>

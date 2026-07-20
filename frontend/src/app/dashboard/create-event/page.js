@@ -266,6 +266,7 @@ export default function CreateEventWizard() {
   const [notificationEmail, setNotificationEmail] = useState(true);
   const [allowGuestEdits, setAllowGuestEdits] = useState(false);
   const [trackGuestSide, setTrackGuestSide] = useState(false);
+  const [noKidsAllowed, setNoKidsAllowed] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [coverImageUploading, setCoverImageUploading] = useState(false);
   const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('');
@@ -930,12 +931,13 @@ export default function CreateEventWizard() {
     notificationPreferences: { email: notificationEmail, whatsapp: false },
     allowGuestEdits,
     trackGuestSide,
+    noKidsAllowed,
   }), [
     slug, templateType, title, description, eventDate, eventEndDate,
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword, coverImageUrl,
     galleryUrls, customColors, buildTemplateData, backgroundMusicUrl, sanitizeUrl,
-    notificationEmail, allowGuestEdits, trackGuestSide,
+    notificationEmail, allowGuestEdits, trackGuestSide, noKidsAllowed,
   ]);
 
   /* ═══ Create the draft event (first time) or update it (on revisits) ═══ */
@@ -1000,6 +1002,7 @@ export default function CreateEventWizard() {
         notification_preferences: { email: notificationEmail, whatsapp: false },
         allow_guest_edits: allowGuestEdits,
         track_guest_side: trackGuestSide,
+        no_kids_allowed: noKidsAllowed,
       }),
     });
     const data = res.status === 413 ? {} : await res.json();
@@ -1021,7 +1024,7 @@ export default function CreateEventWizard() {
     eventDate, eventEndDate, locationName, locationAddress, locationLat, locationLng,
     locationPlaceId, dressCode, rsvpDeadline, privacyMode, accessPassword,
     coverImageUrl, galleryUrls, customColors, buildTemplateData, backgroundMusicUrl,
-    notificationEmail, allowGuestEdits, trackGuestSide,
+    notificationEmail, allowGuestEdits, trackGuestSide, noKidsAllowed,
   ]);
 
   /* ═══ Advance from Templates → create the placeholder draft, then go to Payment ═══
@@ -1529,6 +1532,7 @@ export default function CreateEventWizard() {
               notificationEmail={notificationEmail} setNotificationEmail={setNotificationEmail}
               allowGuestEdits={allowGuestEdits} setAllowGuestEdits={setAllowGuestEdits}
               trackGuestSide={trackGuestSide} setTrackGuestSide={setTrackGuestSide}
+              noKidsAllowed={noKidsAllowed} setNoKidsAllowed={setNoKidsAllowed}
               coverImageUrl={coverImageUrl} setCoverImageUrl={setCoverImageUrl}
               onCoverImageUpload={handleCoverImageUpload} coverImageUploading={coverImageUploading}
               backgroundMusicUrl={backgroundMusicUrl} setBackgroundMusicUrl={setBackgroundMusicUrl}

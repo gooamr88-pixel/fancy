@@ -161,6 +161,7 @@ export default function Stage2_FormConfiguration({
   notificationEmail, setNotificationEmail,
   allowGuestEdits, setAllowGuestEdits,
   trackGuestSide, setTrackGuestSide,
+  noKidsAllowed, setNoKidsAllowed,
   coverImageUrl, setCoverImageUrl, onCoverImageUpload, coverImageUploading,
   backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
   galleryUrls = [], onGalleryUpload, galleryUploading, onRemoveGalleryUrl,
@@ -950,6 +951,22 @@ export default function Stage2_FormConfiguration({
               </span>
             </label>
           </Field>
+
+          {(templateType === 'wedding' || templateType === 'engagement') && setNoKidsAllowed && (
+            <Field label="Adults-Only Notice">
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={!!noKidsAllowed}
+                  onChange={e => setNoKidsAllowed(e.target.checked)}
+                  style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
+                <span>
+                  Show "No Kids Allowed" on the invitation
+                  <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
+                    Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it's an adults-only celebration.
+                  </span>
+                </span>
+              </label>
+            </Field>
+          )}
 
           <Field label="Cover Image">
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

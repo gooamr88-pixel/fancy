@@ -160,7 +160,7 @@ const createEvent = async (req, res, next) => {
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword,
     coverImageUrl, galleryUrls, customColors, customFonts, templateData,
-    eventType, backgroundMusicUrl, notificationPreferences, allowGuestEdits, trackGuestSide
+    eventType, backgroundMusicUrl, notificationPreferences, allowGuestEdits, trackGuestSide, noKidsAllowed
   } = req.body;
 
   if (!templateType) {
@@ -264,6 +264,7 @@ const createEvent = async (req, res, next) => {
       notification_preferences: { email: notificationPreferences?.email !== false, whatsapp: false },
       allow_guest_edits: !!allowGuestEdits,
       track_guest_side: !!trackGuestSide,
+      no_kids_allowed: !!noKidsAllowed,
       status: 'draft',
       is_paid: false
     };
@@ -417,6 +418,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         status,
         allow_guest_edits,
         track_guest_side,
+        no_kids_allowed,
         tier_remove_watermark,
         updated_at,
         custom_form_fields(*)
@@ -595,7 +597,8 @@ const updateEvent = async (req, res, next) => {
     'background_music_url',
     'notification_preferences',
     'allow_guest_edits',
-    'track_guest_side'
+    'track_guest_side',
+    'no_kids_allowed'
   ];
 
   // Status transitions the organizer may request:

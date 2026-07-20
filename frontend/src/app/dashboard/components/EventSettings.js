@@ -236,7 +236,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     notification_email: true,
     notification_whatsapp: false,
     allow_guest_edits: false,
-    track_guest_side: false
+    track_guest_side: false,
+    no_kids_allowed: false
   });
   // Key names mirror the create-event wizard's Stage2_FormConfiguration (the
   // canonical writer of these fields) so the digital card never has to guess
@@ -525,7 +526,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         notification_email: event.notification_preferences?.email !== false,
         notification_whatsapp: !!event.notification_preferences?.whatsapp,
         allow_guest_edits: !!event.allow_guest_edits,
-        track_guest_side: !!event.track_guest_side
+        track_guest_side: !!event.track_guest_side,
+        no_kids_allowed: !!event.no_kids_allowed
       });
       setCustomDressMode(!!event.dress_code && !DRESS_CODES.includes(event.dress_code));
       setHasAccessPassword(!!event.has_access_password);
@@ -863,6 +865,12 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     || (effectiveTemplateType === 'custom' && customCategoryMeta?.kind === 'couple')
     || (!form.template_type && form.event_type === 'engagement');
   const isCustomTemplate = effectiveTemplateType === 'custom';
+  // Same wedding/engagement gate the guest page itself uses (EventPageClient's
+  // buildInvitationCardData, InvitationReveal's showNoKids) — kept in sync so
+  // this toggle never appears for a template type the guest page would
+  // ignore it on.
+  const isWeddingOrEngagement = effectiveTemplateType === 'wedding' || effectiveTemplateType === 'engagement'
+    || (!form.template_type && form.event_type === 'engagement');
 
   return (
     <div style={{ maxWidth: '780px' }}>
@@ -1988,6 +1996,23 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               </span>
             </span>
           </label>
+
+          {isWeddingOrEngagement && (
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={form.no_kids_allowed}
+                onChange={(e) => { setForm(prev => ({ ...prev, no_kids_allowed: e.target.checked })); setSuccess(false); }}
+                style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: 'pointer' }}
+              />
+              <span>
+                Show "No Kids Allowed" on the invitation
+                <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
+                  Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it's an adults-only celebration.
+                </span>
+              </span>
+            </label>
+          )}
         </div>
       </div>
       </>

@@ -229,7 +229,11 @@ function buildInvitationCardData(event, isRTL) {
       const ceremonyLine = ceremonyReceptionLine(td, 'ceremony', isRTL);
       const receptionLine = ceremonyReceptionLine(td, 'reception', isRTL);
       const noKidsText = isRTL ? 'دعوة خاصة بالكبار فقط' : 'No Kids Allowed';
-      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, noKidsText };
+      // Organizer-controlled (dashboard "Adults-Only Notice" toggle) — off
+      // by default; previously this rendered unconditionally for every
+      // wedding, which wrongly assumed every couple wants it.
+      const noKidsNotice = !!event?.no_kids_allowed;
+      return { names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine, noKidsText, noKidsNotice };
     }
     // Engagement reuses the exact "serif" card layout wedding uses (see
     // INVITATION_PATTERN_BY_TEMPLATE above) — only the copy differs, since
@@ -247,9 +251,10 @@ function buildInvitationCardData(event, isRTL) {
       const honorLine1 = isRTL ? 'يسعدنا دعوتكم لحضور' : 'Request the honor of your presence';
       const honorLine2 = isRTL ? 'حفل خطوبة' : 'at the engagement of';
       const noKidsText = isRTL ? 'دعوة خاصة بالكبار فقط' : 'No Kids Allowed';
+      const noKidsNotice = !!event?.no_kids_allowed;
       return {
         names, monogram, dateLine, venueLine, venueName, venueAddress, ceremonyLine, receptionLine,
-        celebrationLabel, honorLine1, honorLine2, noKidsText, dressCode,
+        celebrationLabel, honorLine1, honorLine2, noKidsText, noKidsNotice, dressCode,
       };
     }
     case 'corporate': {

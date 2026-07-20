@@ -1461,6 +1461,32 @@ const redeemPromoCode = async (req, res, next) => {
       return res.status(statusByError[result.error] || 400).json({ success: false, error: result.error, message: result.message });
     }
 
+    // A promo code fully comps the event, bypassing payment entirely — but this
+    // event may already have referral credit HELD against it from an earlier
+    // createCheckoutSession/initiateManualPayment attempt the organizer abandoned
+    // in favor of the code. Left alone that hold sits 'active' (earmarked, and
+    // therefore unavailable for ANY other event) until it self-expires — up to
+    // MANUAL_HOLD_TTL_MINUTES (30 days). Release it now, same as every other
+    // activation path in this codebase does when it supersedes a prior reservation.
+    // Also supersede any stale pending cash_manual record so it stops sitting in
+    // the Super Admin approval queue for a payment that will never arrive.
+    try {
+      await supabase
+        .from('referral_credit_holds')
+        .update({ status: 'released', updated_at: new Date().toISOString() })
+        .eq('org_id', eventRow.org_id)
+        .eq('event_id', eventId)
+        .eq('status', 'active');
+      await supabase
+        .from('event_payments')
+        .update({ status: 'failed', admin_note: 'Superseded — activated via promo code.' })
+        .eq('event_id', eventId)
+        .eq('payment_method', 'cash_manual')
+        .eq('status', 'pending');
+    } catch (e) {
+      logger.warn({ err: e, eventId }, '[payments] referral-hold cleanup after promo code redemption failed (non-fatal)');
+    }
+
     return res.json({ success: true, message: 'Promo code redeemed — your event is now live!', event: result.event });
   } catch (err) {
     next(err);

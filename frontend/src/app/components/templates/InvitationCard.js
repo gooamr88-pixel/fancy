@@ -178,14 +178,14 @@ export default function InvitationCard({ template, theme, guestName, config, dat
               vertically centered — the fixed mt/mb (instead of my-auto) leaves the
               outer flex's justify-between to push the guest-name block down to the
               bottom instead of pulling these details toward the middle. */}
-          <div className="flex flex-col items-center text-center mt-2 mb-auto relative z-10 gap-1 px-2">
+          <div className="flex flex-col items-center text-center mt-1 mb-auto relative z-10 gap-0.5 px-2">
             <span className="text-[7.5px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">{d.honorLine1 || "Request the honor of your presence"}</span>
             <span className="text-[7.5px] tracking-[2.5px] font-sans font-light uppercase text-stone-400">{d.honorLine2 || "at the marriage of"}</span>
 
-            <span className="font-script text-[33px] leading-tight px-1 mt-1" style={{ color: accentColor }}>{d.names || "Aria & Julian"}</span>
+            <span className="font-script text-[33px] leading-tight px-1" style={{ color: accentColor }}>{d.names || "Aria & Julian"}</span>
 
             {/* Ornamental flourish divider — elaborate symmetrical */}
-            <svg width="120" height="16" viewBox="0 0 120 16" className="my-1" style={{ opacity: 0.6 }}>
+            <svg width="120" height="12" viewBox="0 0 120 16" style={{ opacity: 0.6 }}>
               {/* Left swirl */}
               <path d="M8 8 Q14 3 22 5 Q30 7 38 5 Q44 3 50 6 L60 8" fill="none" stroke={accentColor} strokeWidth="0.7" />
               {/* Right swirl — mirror */}
