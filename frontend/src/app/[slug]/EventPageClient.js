@@ -35,6 +35,8 @@ import {
 } from '../components/guest/GuestUI';
 import InvitationReveal from '../components/guest/InvitationReveal';
 import InvitationCard from '../components/templates/InvitationCard';
+import CustomCanvasWeddingPage from '../components/templates/customCanvas/CustomCanvasWeddingPage';
+import { CUSTOM_CATEGORY_BY_KEY } from '../utils/customEventCategories';
 import RsvpExperience from '../components/guest/rsvp/RsvpExperience';
 import RsvpWizard from './rsvp/RsvpWizard';
 import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
@@ -988,6 +990,52 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     const el = document.getElementById('rsvp-section');
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  // Custom Canvas events in a "couple" category (wedding/engagement/vow
+  // renewal) render as a literal port of the reference Tilda design instead
+  // of the generic HeritageArchPage section engine — see
+  // components/templates/customCanvas/. Every other Custom Canvas category
+  // (birthday, corporate, etc.) falls through to the normal branch below
+  // unchanged, since that design is heavily wedding-themed. This page owns
+  // its own cover reveal (CoverReveal replaces InvitationReveal here), so it
+  // renders before — and instead of — the InvitationReveal overlay below.
+  const isCoupleCustomCanvas = event.template_type === 'custom'
+    && CUSTOM_CATEGORY_BY_KEY[event?.template_data?.custom_category]?.kind === 'couple';
+  if (isCoupleCustomCanvas) {
+    return (
+      <PageTransition>
+        {youtubeMusicId ? (
+          <div aria-hidden style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+            <div ref={ytPlayerElRef} />
+          </div>
+        ) : event.background_music_url && (
+          <audio
+            ref={musicRef}
+            src={event.background_music_url}
+            loop
+            autoPlay
+            preload="auto"
+            onPlay={() => setMusicPlaying(true)}
+            onPause={() => { setMusicPlaying(false); resumeIfNotUserPaused(); }}
+          />
+        )}
+        <CustomCanvasWeddingPage
+          event={event}
+          guestRsvp={guestRsvp}
+          isRTL={isRTL}
+          slug={slug}
+          hasResponded={hasResponded}
+          responseStatus={responseStatus}
+          allowGuestEdits={allowGuestEdits}
+          effectiveRsvpId={effectiveRsvpId}
+          trackEvent={trackEvent}
+          musicPlaying={musicPlaying}
+          toggleMusic={toggleMusic}
+          hasBackgroundMusic={!youtubeMusicBlocked && !!(event.background_music_url || youtubeMusicId)}
+        />
+      </PageTransition>
+    );
+  }
 
   // Heritage Arch renders a completely different full-viewport, snap-scrolled
   // page shell — everything above this point (fetch, countdown, music,

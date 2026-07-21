@@ -31,8 +31,11 @@ import Icon from "../icons/Icon";
 
 const isArabic = (s) => typeof s === "string" && /[؀-ۿ]/.test(s);
 
-/* ─── Name + monogram derivation from real event data ─── */
-function deriveIdentity(event, lang) {
+/* ─── Name + monogram derivation from real event data ───
+   Exported (alongside buildBotanicalPalette below) so other reveal-style
+   components — e.g. the Custom Canvas literal-port cover — can derive the
+   same guest-facing identity/no-kids copy without duplicating this logic. */
+export function deriveIdentity(event, lang) {
   const td = event?.template_data || {};
   const a = (td.groom_name || td.partner1Name || td.partner1 || td.celebrant || td.honoree || td.company || "").trim();
   const b = (td.bride_name || td.partner2Name || td.partner2 || "").trim();
@@ -65,7 +68,7 @@ function deriveIdentity(event, lang) {
    real foliage/wax/ribbon against the bright paper, never washed out
    or muddy. The wood table + card stock stay a constant sunlit neutral —
    only the "product" (envelope, wax, ribbon, greenery) carries the brand. */
-function buildBotanicalPalette(customColors) {
+export function buildBotanicalPalette(customColors) {
   const c = customColors || {};
   let accent = c.primary || c.secondary || "#5f8154";
   let gold = c.secondary || c.accent || "#c6a24d";
@@ -1016,7 +1019,7 @@ const REVEAL_CSS = `
    grows, like a camera dollying toward the invitation rather than a flat
    element being CSS-scaled in place; table props soften out of focus.
    The fade (not just the scale) is what actually clears the scene out of
-   the way for the expand panel — 'grow' and `expanded` are set in the same
+   the way for the expand panel — 'grow' and 'expanded' are set in the same
    breath in openSeal below, so this stays in sync with it without needing
    its own separate state to read across from the portal. */
 .ir2-scene{ transition:transform 1.6s cubic-bezier(.16,1,.3,1), opacity 1.2s ease .3s; }
@@ -1035,7 +1038,7 @@ const REVEAL_CSS = `
    elsewhere in this design, expanding from roughly the envelope's own
    position. Rendered through a React portal into document.body (see the
    component) because .ir2-env-wrap's 3D perspective/transform would
-   otherwise trap a nested `position:fixed` panel instead of letting it
+   otherwise trap a nested 'position:fixed' panel instead of letting it
    cover the real viewport. */
 .ir2-expand{
   position:fixed; inset:0; z-index:1500;
