@@ -991,17 +991,19 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // Custom Canvas events in a "couple" category (wedding/engagement/vow
-  // renewal) render as a literal port of the reference Tilda design instead
-  // of the generic HeritageArchPage section engine — see
-  // components/templates/customCanvas/. Every other Custom Canvas category
-  // (birthday, corporate, etc.) falls through to the normal branch below
+  // The dedicated Wedding/Engagement templates, plus Custom Canvas events in
+  // a "couple" category (vow renewal etc.), render as a literal port of the
+  // reference Tilda design instead of the generic HeritageArchPage section
+  // engine — see components/templates/customCanvas/. Every other Custom
+  // Canvas category (birthday, corporate, etc.) and every legacy variant
+  // (tuscany, marrakesh, kyoto…) falls through to the normal branch below
   // unchanged, since that design is heavily wedding-themed. This page owns
   // its own cover reveal (CoverReveal replaces InvitationReveal here), so it
   // renders before — and instead of — the InvitationReveal overlay below.
-  const isCoupleCustomCanvas = event.template_type === 'custom'
-    && CUSTOM_CATEGORY_BY_KEY[event?.template_data?.custom_category]?.kind === 'couple';
-  if (isCoupleCustomCanvas) {
+  const isLiteralWeddingDesign = event.template_type === 'wedding'
+    || event.template_type === 'engagement'
+    || (event.template_type === 'custom' && CUSTOM_CATEGORY_BY_KEY[event?.template_data?.custom_category]?.kind === 'couple');
+  if (isLiteralWeddingDesign) {
     return (
       <PageTransition>
         {youtubeMusicId ? (

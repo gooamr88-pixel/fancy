@@ -14,6 +14,22 @@ import RsvpGlassCard from './sections/RsvpGlassCard';
 import { FloatingMusicButton, FloatingCalendarButton } from './chrome/FloatingChrome';
 import ProgressDotNav from './chrome/ProgressDotNav';
 import { getHaDays } from '../../../utils/haDays';
+// These eight sections were never part of the Tilda reference file, so
+// there's no "literal design" to port for them — reusing the existing,
+// already-correct heritageArch components (wrapped in their own theme
+// provider so they recolor to this event's palette) avoids rebuilding
+// working content sections from scratch, and is what keeps this switch from
+// silently dropping Gallery/FAQ/Accommodation/Menu/Gift List/Things To Do/
+// Getting There/Invited-To-City content organizers already filled in.
+import { FullPageThemeProvider, buildPalette } from '../heritageArch/theme';
+import GallerySection from '../heritageArch/sections/GallerySection';
+import FaqSection from '../heritageArch/sections/FaqSection';
+import AccommodationSection from '../heritageArch/sections/AccommodationSection';
+import MenuSection from '../heritageArch/sections/MenuSection';
+import GiftListSection from '../heritageArch/sections/GiftListSection';
+import ThingsToDoSection from '../heritageArch/sections/ThingsToDoSection';
+import GettingThereSection from '../heritageArch/sections/GettingThereSection';
+import InvitedToSection from '../heritageArch/sections/InvitedToSection';
 
 function formatDateLine(startISO, isRTL) {
   if (!startISO) return null;
@@ -61,6 +77,32 @@ export default function CustomCanvasWeddingPage({
   const mealOptions = Array.isArray(mealOptionsRaw) ? mealOptionsRaw
     : (typeof mealOptionsRaw === 'string' && mealOptionsRaw.trim() ? mealOptionsRaw.split(',').map((s) => s.trim()).filter(Boolean) : []);
 
+  // Same heritageArch palette every one of these eight sections already
+  // renders correctly with — not this page's own gold/glass literal palette,
+  // which they were never designed against.
+  const haStylePalette = useMemo(() => buildPalette(event?.custom_colors, event?.template_type), [event?.custom_colors, event?.template_type]);
+  const wrapHa = (node) => <FullPageThemeProvider palette={haStylePalette}>{node}</FullPageThemeProvider>;
+
+  const galleryImages = Array.isArray(event?.gallery_urls) ? event.gallery_urls : [];
+  const faq = Array.isArray(td.ha_faq) ? td.ha_faq : [];
+  const hasStructuredAccommodation = Array.isArray(td.ha_accommodation) && td.ha_accommodation.length > 0;
+  const accommodation = hasStructuredAccommodation ? td.ha_accommodation : [];
+  const accommodationNote = !hasStructuredAccommodation ? (td.accommodations || null) : null;
+  const hasAccommodation = accommodation.length > 0 || !!accommodationNote;
+  const menuCourses = Array.isArray(td.ha_menu_courses) ? td.ha_menu_courses : [];
+  const thingsToDo = Array.isArray(td.ha_things_to_do) ? td.ha_things_to_do : [];
+  const gettingThere = td.ha_getting_there || '';
+  const giftRegistry = td.registryUrl || td.giftRegistry || null;
+  const giftBank = { name: td.ha_gift_bank_name || '', accountName: td.ha_gift_account_name || '', iban: td.ha_gift_iban || '' };
+  const hasGiftList = !!(giftRegistry || giftBank.name || giftBank.iban);
+  // Same product decision HeritageArchPage already makes: Wedding/Engagement
+  // show full venue details elsewhere, so a same-city "Invited To" pin would
+  // be redundant there — only shown for Custom Canvas couple events.
+  const isWeddingOrEngagement = event?.template_type === 'wedding' || event?.template_type === 'engagement';
+  const invitedToCity = td.ha_invited_to_city || (event?.location_name ? event.location_name.split(',')[0] : '');
+  const invitedToLat = td.ha_invited_to_lat ?? primaryVenue.lat;
+  const invitedToLng = td.ha_invited_to_lng ?? primaryVenue.lng;
+
   const sectionDefs = [
     { id: 'ccs-hero', label: isRTL ? 'الرئيسية' : 'Home', content: (
       <HeroCouple partner1={partner1} partner2={partner2} title={event?.title} dateLine={dateLine} timeLine={timeLine} heroVideoUrl={event?.hero_video_url} revealed={revealed} isRTL={isRTL} />
@@ -76,6 +118,30 @@ export default function CustomCanvasWeddingPage({
     ) } : null,
     dressCode ? { id: 'ccs-dresscode', label: isRTL ? 'الزي' : 'Dress Code', content: (
       <DressCodeSwatches dressCode={dressCode} ladiesText={td.dressCodeLadies} gentlemenText={td.dressCodeGentlemen} isRTL={isRTL} />
+    ) } : null,
+    (invitedToCity && !isWeddingOrEngagement) ? { id: 'ccs-invited', label: isRTL ? 'المدينة' : 'Invited To', content: wrapHa(
+      <InvitedToSection city={invitedToCity} lat={invitedToLat} lng={invitedToLng} isRTL={isRTL} />
+    ) } : null,
+    hasAccommodation ? { id: 'ccs-accommodation', label: isRTL ? 'الإقامة' : 'Accommodation', content: wrapHa(
+      <AccommodationSection hotels={accommodation} note={accommodationNote} isRTL={isRTL} />
+    ) } : null,
+    gettingThere.trim() ? { id: 'ccs-gettingthere', label: isRTL ? 'الوصول' : 'Getting There', content: wrapHa(
+      <GettingThereSection text={gettingThere} isRTL={isRTL} />
+    ) } : null,
+    thingsToDo.length > 0 ? { id: 'ccs-thingstodo', label: isRTL ? 'أنشطة' : 'Things To Do', content: wrapHa(
+      <ThingsToDoSection items={thingsToDo} isRTL={isRTL} />
+    ) } : null,
+    menuCourses.length > 0 ? { id: 'ccs-menu', label: isRTL ? 'القائمة' : 'Menu', content: wrapHa(
+      <MenuSection courses={menuCourses} isRTL={isRTL} />
+    ) } : null,
+    hasGiftList ? { id: 'ccs-giftlist', label: isRTL ? 'الهدايا' : 'Gift List', content: wrapHa(
+      <GiftListSection registryUrl={giftRegistry} registryLabel={td.ha_gift_registry_label} bank={giftBank} message={td.ha_gift_message} isRTL={isRTL} />
+    ) } : null,
+    faq.length > 0 ? { id: 'ccs-faq', label: isRTL ? 'أسئلة' : 'FAQ', content: wrapHa(
+      <FaqSection items={faq} isRTL={isRTL} />
+    ) } : null,
+    galleryImages.length > 0 ? { id: 'ccs-gallery', label: isRTL ? 'معرض الصور' : 'Gallery', content: wrapHa(
+      <GallerySection images={galleryImages} isRTL={isRTL} />
     ) } : null,
     { id: 'ccs-rsvp', label: isRTL ? 'التأكيد' : 'RSVP', content: (
       <RsvpGlassCard event={event} slug={slug} guestRsvp={guestRsvp} hasResponded={hasResponded} responseStatus={responseStatus} allowGuestEdits={allowGuestEdits} effectiveRsvpId={effectiveRsvpId} mealOptions={mealOptions} isRTL={isRTL} trackEvent={trackEvent} />
