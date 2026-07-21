@@ -227,8 +227,15 @@ export function MusicToggle({ playing, onToggle, isRTL }) {
   );
 }
 
-export function DotNav({ count, active, onSelect, isRTL }) {
+// One dot per section, tracking whichever section currently holds the
+// screen (see SnapShell's activeIndex). Each dot shows its section's label
+// as a small tooltip on hover/focus, mirroring the reference invitation's
+// "ceremony nav" — but themed from the event's own palette instead of a
+// fixed gold hex, and driven by real section data instead of a bare count.
+export function DotNav({ sections, active, onSelect, isRTL }) {
   const C = useFullPageTheme();
+  const [hovered, setHovered] = React.useState(null);
+  if (!Array.isArray(sections) || sections.length === 0) return null;
   return (
     <div
       style={{
@@ -237,21 +244,106 @@ export function DotNav({ count, active, onSelect, isRTL }) {
         display: 'flex', flexDirection: 'column', gap: '10px',
       }}
     >
-      {Array.from({ length: count }).map((_, i) => (
-        <button
-          key={i}
-          type="button"
-          onClick={() => onSelect(i)}
-          aria-label={`Go to section ${i + 1}`}
-          style={{
-            width: active === i ? '10px' : '7px', height: active === i ? '10px' : '7px',
-            borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
-            background: active === i ? C.maroon : alpha(C.maroon, 0.3),
-            transition: 'all 0.25s ease',
-          }}
-        />
+      {sections.map((s, i) => (
+        <div key={s.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => onSelect(i)}
+            onMouseEnter={() => setHovered(i)}
+            onMouseLeave={() => setHovered((h) => (h === i ? null : h))}
+            onFocus={() => setHovered(i)}
+            onBlur={() => setHovered((h) => (h === i ? null : h))}
+            aria-label={s.label || `Go to section ${i + 1}`}
+            aria-current={active === i ? 'true' : undefined}
+            style={{
+              width: active === i ? '10px' : '7px', height: active === i ? '10px' : '7px',
+              borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
+              background: active === i ? C.maroon : alpha(C.maroon, 0.3),
+              transition: 'all 0.25s ease',
+            }}
+          />
+          {s.label && hovered === i && (
+            <span
+              role="tooltip"
+              style={{
+                position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                ...(isRTL ? { left: 'calc(100% + 10px)' } : { right: 'calc(100% + 10px)' }),
+                whiteSpace: 'nowrap', background: C.cream || '#fffaf8', color: C.maroon,
+                fontFamily: 'var(--font-serif)', fontSize: '12px', padding: '5px 12px',
+                borderRadius: '4px', boxShadow: '0 3px 10px rgba(0,0,0,0.15)', pointerEvents: 'none',
+              }}
+            >
+              {s.label}
+            </span>
+          )}
+        </div>
       ))}
     </div>
+  );
+}
+
+// Thin fixed top bar showing how far the guest has scrolled through the page,
+// plus a small traveling bead at the fill's leading edge — the "Fil d'Or"
+// progress cue from the reference invitation, recolored from the event's own
+// gold/accent instead of a fixed hex so it matches every template's palette.
+export function ScrollProgressBar({ progress = 0, reduceMotion }) {
+  const C = useFullPageTheme();
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: 'fixed', top: 0, left: 0, right: 0, height: '3px',
+        background: alpha(C.gold, 0.15), zIndex: 20, pointerEvents: 'none',
+      }}
+    >
+      <div
+        style={{
+          position: 'relative', height: '100%', width: `${Math.min(100, Math.max(0, progress))}%`,
+          background: `linear-gradient(90deg, ${C.gold}, ${alpha(C.gold, 0.65)})`,
+          transition: reduceMotion ? undefined : 'width 0.15s ease-out',
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute', top: '50%', right: 0,
+            width: '8px', height: '8px', borderRadius: '50%',
+            background: C.gold, boxShadow: `0 0 0 3px ${alpha(C.gold, 0.18)}`,
+            transform: 'translate(50%, -50%)',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Floating "Add to Calendar" icon button — same fixed-corner circular style as
+// MusicToggle, anchored to the opposite side so the two never collide. A
+// single tap downloads an .ics (works with every calendar app, unlike the
+// Google-Calendar-only link) using the same buildCalendarLinks logic the
+// inline RSVP CalendarButton (guest/GuestUI.js) already uses.
+export function FloatingCalendarButton({ event, isRTL, downloadIcs }) {
+  const C = useFullPageTheme();
+  if (!event?.event_date) return null;
+  return (
+    <button
+      type="button"
+      onClick={downloadIcs}
+      aria-label={isRTL ? 'أضف إلى التقويم' : 'Add to calendar'}
+      style={{
+        position: 'fixed', bottom: '24px', zIndex: 20,
+        ...(isRTL ? { right: '24px' } : { left: '24px' }),
+        width: '44px', height: '44px', borderRadius: '50%', cursor: 'pointer',
+        border: `1px solid ${C.border}`, background: 'rgba(30,20,18,0.85)',
+        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    </button>
   );
 }
 

@@ -779,12 +779,7 @@ export default function Stage2_FormConfiguration({
           </Section>
         )}
 
-        {/* ═══ Premium Invitation Seal & Stationery ═══
-             Heritage Arch is the one template that opens straight into its
-             sections with NO envelope reveal (see FULL_PAGE handling in
-             [slug]/EventPageClient.js), so a seal configured here would never
-             appear to its guests — hide the section for that template. */}
-        {templateType !== 'heritageArch' && (
+        {/* ═══ Premium Invitation Seal & Stationery ═══ */}
         <Section title="Invitation Seal & Stationery" icon="sparkle">
           <p style={{ fontSize: 12.5, color: C.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
             This powers the cinematic wax seal your guests unseal when they open the link.
@@ -796,7 +791,6 @@ export default function Stage2_FormConfiguration({
               placeholder="Auto from event name" style={iStyle} onFocus={onFocus} onBlur={onBlur} maxLength={24} />
           </Field>
         </Section>
-        )}
 
         {/* ═══ Section C: Settings ═══ */}
         <Section title="Event Settings" icon="gear">

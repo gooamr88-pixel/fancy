@@ -275,9 +275,34 @@ export default function HeritageArchPage({
     ...DEFAULT_SECTION_ORDER.filter((k) => middleSections[k] && !savedOrder.includes(k)),
   ];
 
+  // Short bilingual label per section id, shown as a hover tooltip on the
+  // side nav dots (SnapShell's DotNav) — covers every fixed anchor and
+  // every possible reorderable middle section pushed below.
+  const SECTION_LABELS = {
+    'ha-hero': isRTL ? 'الرئيسية' : 'Home',
+    'ha-cover-photo': isRTL ? 'صورة الغلاف' : 'Cover Photo',
+    'ha-about': isRTL ? 'نبذة' : 'About',
+    'ha-schedule': isRTL ? 'البرنامج' : 'Schedule',
+    'ha-venues': isRTL ? 'المكان' : 'Venue',
+    'ha-dresscode': isRTL ? 'الزي' : 'Dress Code',
+    'ha-story': isRTL ? 'قصتنا' : 'Our Story',
+    'ha-accommodation': isRTL ? 'الإقامة' : 'Accommodation',
+    'ha-menu': isRTL ? 'القائمة' : 'Menu',
+    'ha-giftlist': isRTL ? 'الهدايا' : 'Gift List',
+    'ha-faq': isRTL ? 'الأسئلة الشائعة' : 'FAQ',
+    'ha-gallery': isRTL ? 'معرض الصور' : 'Gallery',
+    'ha-invited': isRTL ? 'المدينة' : "You're Invited To",
+    'ha-thingstodo': isRTL ? 'أنشطة' : 'Things To Do',
+    'ha-gettingthere': isRTL ? 'الوصول' : 'Getting There',
+    'ha-countdown': isRTL ? 'العد التنازلي' : 'Countdown',
+    'ha-rsvp': isRTL ? 'تأكيد الحضور' : 'RSVP',
+  };
+  const withLabel = (entry) => (entry ? { ...entry, label: SECTION_LABELS[entry.id] || '' } : entry);
+
   const sections = [
     {
       id: 'ha-hero',
+      label: SECTION_LABELS['ha-hero'],
       content: (
         <HeroSection
           partner1={partner1} partner2={partner2} title={heroTitle}
@@ -294,24 +319,25 @@ export default function HeritageArchPage({
   // The cover photo, now that the template card is the hero centerpiece, gets
   // its own framed slide — shown only when the organizer uploaded one.
   if (event.cover_image_url) {
-    sections.push({ id: 'ha-cover-photo', content: <CoverPhotoSection imageUrl={event.cover_image_url} isRTL={isRTL} /> });
+    sections.push({ id: 'ha-cover-photo', label: SECTION_LABELS['ha-cover-photo'], content: <CoverPhotoSection imageUrl={event.cover_image_url} isRTL={isRTL} /> });
   }
 
   // Not part of SECTION_TOGGLES (like Cover Photo, this is core content, not
   // an optional feature) — shows automatically whenever the organizer typed
   // a description, gracefully hidden otherwise.
   if (description.trim()) {
-    sections.push({ id: 'ha-about', content: <AboutSection text={description} isRTL={isRTL} /> });
+    sections.push({ id: 'ha-about', label: SECTION_LABELS['ha-about'], content: <AboutSection text={description} isRTL={isRTL} /> });
   }
 
   for (const key of resolvedOrder) {
-    sections.push(middleSections[key]);
+    sections.push(withLabel(middleSections[key]));
   }
 
-  sections.push({ id: 'ha-countdown', content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} startTime={startTimeLine} endTime={endTimeLine} /> });
+  sections.push({ id: 'ha-countdown', label: SECTION_LABELS['ha-countdown'], content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} startTime={startTimeLine} endTime={endTimeLine} /> });
 
   sections.push({
     id: 'ha-rsvp',
+    label: SECTION_LABELS['ha-rsvp'],
     content: (
       <RsvpSection
         event={event} slug={slug} guestRsvp={guestRsvp} hasResponded={hasResponded}
@@ -325,6 +351,7 @@ export default function HeritageArchPage({
     <FullPageThemeProvider palette={palette}>
       <SnapShell
         sections={sections}
+        event={event}
         lang={lang}
         setLang={setLang}
         isRTL={isRTL}

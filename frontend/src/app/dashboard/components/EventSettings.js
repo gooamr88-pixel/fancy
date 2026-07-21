@@ -11,7 +11,6 @@ import Icon from '../../components/icons/Icon';
 import EventCategoryIcon from '../../components/icons/EventCategoryIcon';
 import TagListEditor, { toTagArray } from './TagListEditor';
 import ImageUploadField from './ImageUploadField';
-import VideoUploadField from './VideoUploadField';
 import DaysEditor from '../create-event/components/DaysEditor';
 import CustomBuilder from '../create-event/components/CustomBuilder';
 import SectionsOrderEditor from '../create-event/components/SectionsOrderEditor';
@@ -229,7 +228,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     rsvp_deadline: '', privacy_mode: 'public', access_password: '',
     dress_code: '', cover_image_url: '',
     primary_color: '#B8944F', secondary_color: '#D7BE80', accent_color: '#B8944F', background_color: '#FFFDF7',
-    background_music_url: '', hero_video_url: '', gallery_urls: [],
+    background_music_url: '', gallery_urls: [],
     font_heading: 'Playfair Display',
     font_body: 'Inter',
     event_type: 'wedding',
@@ -272,10 +271,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     ha_invited_to_city: '', ha_invited_to_lat: null, ha_invited_to_lng: null, ha_our_story: '',
     ha_menu_courses: [], ha_things_to_do: [], ha_getting_there: '',
     ha_gift_bank_name: '', ha_gift_account_name: '', ha_gift_iban: '', ha_gift_registry_label: '', ha_gift_message: '',
-    // Custom Canvas literal-port template (customCanvas/CustomCanvasWeddingPage.js)
-    // only — dress-code guidance text and a closing line, matching the
-    // reference design's Ladies/Gentlemen section and closing message.
-    dressCodeLadies: '', dressCodeGentlemen: '', closingMessage: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -309,7 +304,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     return () => { cancelled = true; clearTimeout(timer); };
   }, [form.background_music_url]);
   const [coverUploading, setCoverUploading] = useState(false);
-  const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -379,43 +373,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       return;
     }
     setMusicUploading(false);
-  };
-
-  /* Hero/ambient background video — Custom Canvas literal-port template only
-     (customCanvas/CustomCanvasWeddingPage.js). Same event-assets storage
-     bucket as music/cover, but no base64 fallback: a video that's too large
-     for storage is also far too large for the ~3.5MB embedded-data-URL cap,
-     so failure here just surfaces the error instead of silently trying (and
-     failing) a second path. There's no server-side video compression
-     anywhere in this codebase — the client-side size cap below is a
-     stopgap, not a real fix. */
-  const handleHeroVideoUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 20 * 1024 * 1024) {
-      toast.error('Video exceeds 20MB. Please use a smaller file.');
-      return;
-    }
-    setHeroVideoUploading(true);
-    try {
-      if (!supabase) throw new Error('Supabase client is not initialized.');
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${eventId}-${Date.now()}.${fileExt}`;
-      const filePath = `hero-video/${fileName}`;
-      const { error: uploadErr } = await supabase.storage
-        .from('event-assets')
-        .upload(filePath, file, { cacheControl: '3600', upsert: true });
-      if (uploadErr) throw uploadErr;
-      const { data: { publicUrl } } = supabase.storage
-        .from('event-assets')
-        .getPublicUrl(filePath);
-      setForm(prev => ({ ...prev, hero_video_url: publicUrl }));
-      setSuccess(false);
-    } catch (err) {
-      console.error('Hero video upload failed:', err);
-      toast.error("Couldn't upload the video. Please check your connection and try again.");
-    }
-    setHeroVideoUploading(false);
   };
 
   const handleCoverUpload = async (e) => {
@@ -561,7 +518,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         accent_color: event.custom_colors?.accent || '#B8944F',
         background_color: event.custom_colors?.background || '#FFFDF7',
         background_music_url: event.background_music_url || '',
-        hero_video_url: event.hero_video_url || '',
         gallery_urls: Array.isArray(event.gallery_urls) ? event.gallery_urls : [],
         font_heading: event.custom_fonts?.heading || 'Playfair Display',
         font_body: event.custom_fonts?.body || 'Inter',
@@ -663,9 +619,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         ha_gift_iban: event.template_data?.ha_gift_iban || '',
         ha_gift_registry_label: event.template_data?.ha_gift_registry_label || '',
         ha_gift_message: event.template_data?.ha_gift_message || '',
-        dressCodeLadies: event.template_data?.dressCodeLadies || '',
-        dressCodeGentlemen: event.template_data?.dressCodeGentlemen || '',
-        closingMessage: event.template_data?.closingMessage || '',
       });
     }
   }
@@ -912,12 +865,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     || (effectiveTemplateType === 'custom' && customCategoryMeta?.kind === 'couple')
     || (!form.template_type && form.event_type === 'engagement');
   const isCustomTemplate = effectiveTemplateType === 'custom';
-  // Custom Canvas in a couple-kind category renders as the literal Tilda-
-  // design port (customCanvas/CustomCanvasWeddingPage.js) instead of the
-  // generic Heritage Arch section engine — see EventPageClient.js. Its
-  // Ladies/Gentlemen dress-code guidance and closing message fields only do
-  // anything for that specific combination, so they're gated the same way.
-  const isCoupleCustomCanvas = isCustomTemplate && customCategoryMeta?.kind === 'couple';
   // Same wedding/engagement gate the guest page itself uses (EventPageClient's
   // buildInvitationCardData, InvitationReveal's showNoKids) — kept in sync so
   // this toggle never appears for a template type the guest page would
@@ -1343,19 +1290,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           )}
         </div>
 
-        {isCoupleCustomCanvas && (
-          <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Hero Video (optional)</label>
-            <VideoUploadField
-              value={form.hero_video_url}
-              onUpload={(file) => handleHeroVideoUpload({ target: { files: [file] } })}
-              onClear={() => { setForm(prev => ({ ...prev, hero_video_url: '' })); setSuccess(false); }}
-              uploading={heroVideoUploading}
-            />
-            <span style={hintStyle}>A looping background video for the hero section — falls back to the usual cover image/design when not set</span>
-          </div>
-        )}
-
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Photo Gallery</label>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1531,10 +1465,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         </div>
       </div>
 
-      {/* ═══ INVITATION SEAL & STATIONERY ═══
-           Hidden for Heritage Arch: that template opens with no envelope reveal,
-           so a seal configured here would never appear to its guests. */}
-      {event?.template_type !== 'heritageArch' && (
+      {/* ═══ INVITATION SEAL & STATIONERY ═══ */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1555,7 +1486,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           />
         </div>
       </div>
-      )}
       </>
       )}
 
@@ -1839,26 +1769,6 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <textarea value={templateData.ha_getting_there} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_getting_there: e.target.value }))} placeholder="How to get there, parking, shuttle info…" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
 
-            {isCoupleCustomCanvas && (
-              <>
-                <div className="es-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                  <div style={fieldGroupStyle}>
-                    <label style={labelStyle}>Dress Code — Ladies</label>
-                    <textarea value={templateData.dressCodeLadies} onChange={(e) => setTemplateData(prev => ({ ...prev, dressCodeLadies: e.target.value }))} placeholder="Formal dresses in elegant, polished styles are encouraged." rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
-                  </div>
-                  <div style={fieldGroupStyle}>
-                    <label style={labelStyle}>Dress Code — Gentlemen</label>
-                    <textarea value={templateData.dressCodeGentlemen} onChange={(e) => setTemplateData(prev => ({ ...prev, dressCodeGentlemen: e.target.value }))} placeholder="Well-tailored suits with classic dress shoes are preferred." rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
-                  </div>
-                </div>
-                <div style={fieldGroupStyle}>
-                  <label style={labelStyle}>Closing Message</label>
-                  <input value={templateData.closingMessage} onChange={(e) => setTemplateData(prev => ({ ...prev, closingMessage: e.target.value }))} placeholder="We look forward to welcoming you." style={inputStyle} />
-                  <span style={hintStyle}>Shown near the end of the page, below RSVP</span>
-                </div>
-              </>
-            )}
-
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Gift Registry Button Label</label>
               <input value={templateData.ha_gift_registry_label} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_gift_registry_label: e.target.value }))} placeholder="Gift Registry" style={inputStyle} />
@@ -2092,9 +2002,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: 'pointer' }}
               />
               <span>
-                Show &quot;No Kids Allowed&quot; on the invitation
+                Show "No Kids Allowed" on the invitation
                 <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
-                  Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it&apos;s an adults-only celebration.
+                  Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it's an adults-only celebration.
                 </span>
               </span>
             </label>

@@ -29,14 +29,14 @@ import {
   GalleryLightbox,
   CalendarButton,
   ShareButton,
+  buildCalendarLinks,
   inputStyle,
   inputFocus,
   inputBlur,
 } from '../components/guest/GuestUI';
+import { ScrollProgressBar as LegacyScrollProgressBar, DotNav as LegacyDotNav, FloatingCalendarButton as LegacyFloatingCalendarButton, ScrollHint as LegacyScrollHint } from '../components/guest/LegacyChrome';
 import InvitationReveal from '../components/guest/InvitationReveal';
 import InvitationCard from '../components/templates/InvitationCard';
-import CustomCanvasWeddingPage from '../components/templates/customCanvas/CustomCanvasWeddingPage';
-import { CUSTOM_CATEGORY_BY_KEY } from '../utils/customEventCategories';
 import RsvpExperience from '../components/guest/rsvp/RsvpExperience';
 import RsvpWizard from './rsvp/RsvpWizard';
 import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
@@ -413,6 +413,17 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const showFloatingCTA = !heroInView && !rsvpCardInView;
   const [downloading, setDownloading] = useState(false);
 
+  // Guest-experience chrome for the legacy continuous-scroll templates
+  // (scroll-progress bar, side nav dots, post-reveal scroll hint) — the
+  // HeritageArch family gets the equivalent of these from SnapShell instead.
+  const [legacyScrollProgress, setLegacyScrollProgress] = useState(0);
+  const [legacyActiveSectionId, setLegacyActiveSectionId] = useState('');
+  // Whether the guest has scrolled (or 5s elapsed) since the reveal closed —
+  // visibility itself is derived further below (once revealDismissed exists)
+  // rather than stored, so showing the hint the instant revealDismissed
+  // flips doesn't need a setState-in-effect.
+  const [legacyHintDismissed, setLegacyHintDismissed] = useState(false);
+
   const handleDownloadCard = useCallback(async () => {
     setDownloading(true);
     try {
@@ -610,6 +621,9 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // Sole exception: ?noreveal=1, a compliance/reviewer bypass (Twilio TFV)
   // that renders the page content directly. Normal guest links never carry it.
   const [revealDismissed, setRevealDismissed] = useState(() => searchParams?.get('noreveal') === '1');
+  // Derived, not stored: visible once the reveal closes, until the guest
+  // scrolls or 5s pass (legacyHintDismissed, set by the effect further down).
+  const legacyShowScrollHint = revealDismissed && !legacyHintDismissed && !!event && !FULL_PAGE_TEMPLATES.has(event.template_type);
   // Mirrors `revealDismissed` into a ref so the background "freshness" refetch
   // below (which always re-runs on mount even when SSR already supplied
   // `initialEvent`) can check it synchronously. Without this, a guest who
@@ -644,6 +658,56 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const handleRevealComplete = useCallback(() => {
     setRevealDismissed(true);
   }, []);
+
+  // Legacy continuous-scroll chrome: scroll-progress bar + side nav dots,
+  // tracked off window/document since this page (unlike HeritageArch's
+  // SnapShell) scrolls natively rather than inside its own container.
+  // No-ops once the event is known to be a FULL_PAGE_TEMPLATES type, since
+  // that render path owns its own equivalent chrome inside SnapShell.
+  useEffect(() => {
+    if (!event || FULL_PAGE_TEMPLATES.has(event.template_type)) return undefined;
+    let ticking = false;
+    const updateProgress = () => {
+      const doc = document.documentElement;
+      const scrollable = doc.scrollHeight - doc.clientHeight;
+      setLegacyScrollProgress(scrollable > 0 ? (doc.scrollTop / scrollable) * 100 : 0);
+      ticking = false;
+    };
+    const onScroll = () => {
+      if (!ticking) { ticking = true; requestAnimationFrame(updateProgress); }
+      setLegacyHintDismissed(true);
+    };
+    updateProgress();
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    const ids = ['lg-hero', 'lg-cover-photo', 'lg-details', 'lg-more-details', 'rsvp-section'];
+    const els = ids.map((id) => document.getElementById(id)).filter(Boolean);
+    const observer = 'IntersectionObserver' in window
+      ? new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.3) {
+              setLegacyActiveSectionId(entry.target.id);
+            }
+          });
+        }, { threshold: [0.3] })
+      : null;
+    els.forEach((el) => observer?.observe(el));
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      observer?.disconnect();
+    };
+  }, [event?.template_type, event?.cover_image_url]);
+
+  // Generic post-reveal "scroll down" nudge — fades in once the envelope is
+  // dismissed, fades out on the guest's first scroll or after 5s, matching
+  // the reference invitation's scroll hint (this page had no equivalent
+  // before; HeritageArch's SnapShell has its own RSVP-focused version).
+  useEffect(() => {
+    if (!event || FULL_PAGE_TEMPLATES.has(event.template_type) || !revealDismissed || legacyHintDismissed) return undefined;
+    const timeout = setTimeout(() => setLegacyHintDismissed(true), 5000);
+    return () => clearTimeout(timeout);
+  }, [revealDismissed, legacyHintDismissed, event?.template_type]);
 
   /* ─── Data Fetching ─── */
   const fetchEvent = useCallback(async (password) => {
@@ -991,54 +1055,6 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // The dedicated Wedding/Engagement templates, plus Custom Canvas events in
-  // a "couple" category (vow renewal etc.), render as a literal port of the
-  // reference Tilda design instead of the generic HeritageArchPage section
-  // engine — see components/templates/customCanvas/. Every other Custom
-  // Canvas category (birthday, corporate, etc.) and every legacy variant
-  // (tuscany, marrakesh, kyoto…) falls through to the normal branch below
-  // unchanged, since that design is heavily wedding-themed. This page owns
-  // its own cover reveal (CoverReveal replaces InvitationReveal here), so it
-  // renders before — and instead of — the InvitationReveal overlay below.
-  const isLiteralWeddingDesign = event.template_type === 'wedding'
-    || event.template_type === 'engagement'
-    || (event.template_type === 'custom' && CUSTOM_CATEGORY_BY_KEY[event?.template_data?.custom_category]?.kind === 'couple');
-  if (isLiteralWeddingDesign) {
-    return (
-      <PageTransition>
-        {youtubeMusicId ? (
-          <div aria-hidden style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
-            <div ref={ytPlayerElRef} />
-          </div>
-        ) : event.background_music_url && (
-          <audio
-            ref={musicRef}
-            src={event.background_music_url}
-            loop
-            autoPlay
-            preload="auto"
-            onPlay={() => setMusicPlaying(true)}
-            onPause={() => { setMusicPlaying(false); resumeIfNotUserPaused(); }}
-          />
-        )}
-        <CustomCanvasWeddingPage
-          event={event}
-          guestRsvp={guestRsvp}
-          isRTL={isRTL}
-          slug={slug}
-          hasResponded={hasResponded}
-          responseStatus={responseStatus}
-          allowGuestEdits={allowGuestEdits}
-          effectiveRsvpId={effectiveRsvpId}
-          trackEvent={trackEvent}
-          musicPlaying={musicPlaying}
-          toggleMusic={toggleMusic}
-          hasBackgroundMusic={!youtubeMusicBlocked && !!(event.background_music_url || youtubeMusicId)}
-        />
-      </PageTransition>
-    );
-  }
-
   // Heritage Arch renders a completely different full-viewport, snap-scrolled
   // page shell — everything above this point (fetch, countdown, music,
   // envelope-reveal state, RSVP resolution) stays shared; only the render
@@ -1048,11 +1064,10 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       <PageTransition>
         {/* One-time premium envelope reveal — the same fixed overlay the
             continuous-scroll templates use, layered above the full-page
-            experience so those templates keep the envelope intro they had.
-            Heritage Arch is deliberately excluded: its reference design opens
-            straight into the sections with no envelope. */}
+            experience so every full-page style (including Heritage Arch)
+            keeps the same envelope intro. */}
         <AnimatePresence>
-          {showReveal && event.template_type !== 'heritageArch' && (
+          {showReveal && (
             <InvitationReveal
               key="guest-reveal"
               mode="invitation"
@@ -1192,6 +1207,36 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
           </motion.button>
         )}
 
+        {/* ═══ GUEST-EXPERIENCE CHROME (progress bar / nav dots / calendar /
+            scroll hint) — the continuous-scroll equivalent of HeritageArch's
+            SnapShell chrome; see components/guest/LegacyChrome.js. ═══ */}
+        {(() => {
+          const legacySections = [
+            { id: 'lg-hero', label: isRTL ? 'الرئيسية' : 'Home' },
+            event.cover_image_url && { id: 'lg-cover-photo', label: isRTL ? 'صورة الغلاف' : 'Cover Photo' },
+            { id: 'lg-details', label: isRTL ? 'التفاصيل' : 'Details' },
+            (hasGallery || hasMap) && { id: 'lg-more-details', label: isRTL ? 'الصور والموقع' : 'Photos & Location' },
+            { id: 'rsvp-section', label: isRTL ? 'تأكيد الحضور' : 'RSVP' },
+          ].filter(Boolean);
+          const calendarLinks = buildCalendarLinks(event);
+          return (
+            <>
+              <LegacyScrollProgressBar progress={legacyScrollProgress} color={themeColor} />
+              <LegacyDotNav
+                sections={legacySections}
+                active={legacyActiveSectionId}
+                color={themeColor}
+                isRTL={isRTL}
+                onSelect={(id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              />
+              {calendarLinks && (
+                <LegacyFloatingCalendarButton event={event} isRTL={isRTL} downloadIcs={calendarLinks.downloadIcs} />
+              )}
+              <LegacyScrollHint visible={legacyShowScrollHint} isRTL={isRTL} color={themeColor} />
+            </>
+          );
+        })()}
+
         {/* ═══ LANGUAGE TOGGLE ═══ */}
         <div className="ep-lang-toggle" style={{ position: 'absolute', top: '24px', zIndex: 30, display: 'flex', gap: '8px', ...(isRTL ? { left: '24px' } : { right: '24px' }) }}>
           {['en', 'ar'].map(l => (
@@ -1216,7 +1261,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         </div>
 
         {/* ═══ CINEMATIC HERO ═══ */}
-        <div ref={heroRef} style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '120px 24px 80px' }}>
+        <div id="lg-hero" ref={heroRef} style={{ position: 'relative', minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', padding: '120px 24px 80px' }}>
           
           {/* Ambient themed background — the cover photo now lives in its own
               framed section further down, so the hero is a clean, dark, themed
@@ -1416,7 +1461,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 showcase here. Shown only when a cover photo was uploaded. */}
             {event.cover_image_url && (
               <ScaleIn delay={0.05}>
-                <div style={{
+                <div id="lg-cover-photo" style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -1476,6 +1521,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
 
             {/* ═══ EVENT INFO ═══ (When/Where/Dress Code + Countdown merged into
                 one section — previously two separately-stacked cards) */}
+            <div id="lg-details">
             <FadeInUp delay={0.1}>
               <AnimatedText
                 text={t.details_title}
@@ -1610,6 +1656,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 </div>
               )}
             </FadeInUp>
+            </div>
 
             {/* ═══════════════════════════════════════════
                 TEMPLATE-SPECIFIC SECTIONS
@@ -1942,7 +1989,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         {/* ═══ MORE DETAILS (Photos & Location) — one collapsible disclosure
             instead of two always-fully-rendered sections. ═══ */}
         {(hasGallery || hasMap) && (
-          <div style={{ maxWidth: '960px', margin: '0 auto', padding: '0 24px 48px' }}>
+          <div id="lg-more-details" style={{ maxWidth: '960px', margin: '0 auto', padding: '0 24px 48px' }}>
             <button
               onClick={() => setMoreDetailsExpanded(v => !v)}
               style={{

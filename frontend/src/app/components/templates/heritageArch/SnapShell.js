@@ -3,16 +3,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from './theme';
-import { LangPill, MusicToggle, ScrollToRsvpHint } from './shared';
+import { LangPill, MusicToggle, ScrollToRsvpHint, DotNav, ScrollProgressBar, FloatingCalendarButton } from './shared';
+import { buildCalendarLinks } from '../../guest/GuestUI';
 
 /* Full-viewport, scroll-snapped page shell: one 100dvh section per screen,
    a side dot-nav tracking which section is in view, a top-corner language
-   pill, and a bottom-corner music toggle (when the event has music). */
-export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying, toggleMusic, hasBackgroundMusic }) {
+   pill, a bottom-corner music toggle (when the event has music), a floating
+   "add to calendar" button, and a top scroll-progress bar. */
+export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying, toggleMusic, hasBackgroundMusic, event }) {
   const C = useFullPageTheme();
   const reduceMotion = useReducedMotion();
   const containerRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const calendarLinks = buildCalendarLinks(event);
   // Which sections have entered the viewport at least once. Each reveals with a
   // gentle fade + rise the first time the guest scrolls to it, then stays shown
   // (no re-hide on scroll-away). The hero (index 0) is revealed immediately so
@@ -53,6 +57,29 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
 
     return () => { observer.disconnect(); clearTimeout(failsafe); };
   }, [sections.length]);
+
+  // Scroll-progress bar: reads scrollTop off this shell's own scrolling
+  // container (containerRef), not `window` — the page scrolls inside this
+  // div, so a window-scroll listener would never fire.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+    let ticking = false;
+    const update = () => {
+      const scrollable = container.scrollHeight - container.clientHeight;
+      setScrollProgress(scrollable > 0 ? (container.scrollTop / scrollable) * 100 : 0);
+      ticking = false;
+    };
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(update);
+      }
+    };
+    update();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
     <div
@@ -98,6 +125,12 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
 
       <LangPill lang={lang} setLang={setLang} isRTL={isRTL} />
       {hasBackgroundMusic && <MusicToggle playing={musicPlaying} onToggle={toggleMusic} isRTL={isRTL} />}
+      {calendarLinks && <FloatingCalendarButton event={event} isRTL={isRTL} downloadIcs={calendarLinks.downloadIcs} />}
+      <ScrollProgressBar progress={scrollProgress} reduceMotion={reduceMotion} />
+      <DotNav sections={sections} active={activeIndex} onSelect={(i) => {
+        const el = document.getElementById(sections[i].id);
+        el?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+      }} isRTL={isRTL} />
     </div>
   );
 }

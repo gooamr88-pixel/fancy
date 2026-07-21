@@ -553,10 +553,10 @@ export function GalleryLightbox({ images, initialIndex = 0, onClose }) {
   );
 }
 
-// ─── CalendarButton: Add to Calendar ───
-export function CalendarButton({ event, isRTL = false, variant = 'outline', style = {}, buttonStyle = {} }) {
-  const [open, setOpen] = useState(false);
-
+// ─── Calendar link/ICS builder — shared by CalendarButton below and the
+// full-page shell's floating calendar button (heritageArch/shared.js), so
+// the date-formatting and ICS format have one source of truth. ───
+export function buildCalendarLinks(event) {
   if (!event) return null;
 
   const formatDate = (date) => {
@@ -571,7 +571,7 @@ export function CalendarButton({ event, isRTL = false, variant = 'outline', styl
 
   const googleUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${description}&location=${location}`;
 
-  const generateICS = () => {
+  const downloadIcs = () => {
     const ics = [
       'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Fancy RSVP//EN',
       'BEGIN:VEVENT',
@@ -588,13 +588,22 @@ export function CalendarButton({ event, isRTL = false, variant = 'outline', styl
     a.download = `${(event.title || 'event').replace(/[^a-zA-Z0-9]/g, '_')}.ics`;
     a.click();
     URL.revokeObjectURL(url);
-    setOpen(false);
   };
 
+  return { googleUrl, downloadIcs };
+}
+
+// ─── CalendarButton: Add to Calendar ───
+export function CalendarButton({ event, isRTL = false, variant = 'outline', style = {}, buttonStyle = {} }) {
+  const [open, setOpen] = useState(false);
+
+  const links = buildCalendarLinks(event);
+  if (!links) return null;
+
   const options = [
-    { label: 'Google Calendar', action: () => { window.open(googleUrl, '_blank'); setOpen(false); } },
-    { label: 'Apple Calendar', action: generateICS },
-    { label: 'Outlook / Other', action: generateICS },
+    { label: 'Google Calendar', action: () => { window.open(links.googleUrl, '_blank'); setOpen(false); } },
+    { label: 'Apple Calendar', action: () => { links.downloadIcs(); setOpen(false); } },
+    { label: 'Outlook / Other', action: () => { links.downloadIcs(); setOpen(false); } },
   ];
 
   return (

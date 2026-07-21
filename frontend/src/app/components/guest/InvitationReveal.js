@@ -31,11 +31,8 @@ import Icon from "../icons/Icon";
 
 const isArabic = (s) => typeof s === "string" && /[؀-ۿ]/.test(s);
 
-/* ─── Name + monogram derivation from real event data ───
-   Exported (alongside buildBotanicalPalette below) so other reveal-style
-   components — e.g. the Custom Canvas literal-port cover — can derive the
-   same guest-facing identity/no-kids copy without duplicating this logic. */
-export function deriveIdentity(event, lang) {
+/* ─── Name + monogram derivation from real event data ─── */
+function deriveIdentity(event, lang) {
   const td = event?.template_data || {};
   const a = (td.groom_name || td.partner1Name || td.partner1 || td.celebrant || td.honoree || td.company || "").trim();
   const b = (td.bride_name || td.partner2Name || td.partner2 || "").trim();
@@ -68,7 +65,7 @@ export function deriveIdentity(event, lang) {
    real foliage/wax/ribbon against the bright paper, never washed out
    or muddy. The wood table + card stock stay a constant sunlit neutral —
    only the "product" (envelope, wax, ribbon, greenery) carries the brand. */
-export function buildBotanicalPalette(customColors) {
+function buildBotanicalPalette(customColors) {
   const c = customColors || {};
   let accent = c.primary || c.secondary || "#5f8154";
   let gold = c.secondary || c.accent || "#c6a24d";
