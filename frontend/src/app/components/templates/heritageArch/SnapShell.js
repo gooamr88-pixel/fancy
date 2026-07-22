@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from './theme';
-import { LangPill, MusicToggle, ScrollToRsvpHint, DotNav, ScrollProgressBar, FloatingCalendarButton } from './shared';
+import { LangPill, MusicToggle, ScrollToRsvpHint, ScrollProgressBar, FloatingCalendarButton } from './shared';
 import { buildCalendarLinks } from '../../guest/GuestUI';
 
 /* Full-viewport, scroll-snapped page shell: one 100dvh section per screen,
@@ -127,10 +127,6 @@ export default function SnapShell({ sections, lang, setLang, isRTL, musicPlaying
       {hasBackgroundMusic && <MusicToggle playing={musicPlaying} onToggle={toggleMusic} isRTL={isRTL} />}
       {calendarLinks && <FloatingCalendarButton event={event} isRTL={isRTL} downloadIcs={calendarLinks.downloadIcs} />}
       <ScrollProgressBar progress={scrollProgress} reduceMotion={reduceMotion} />
-      <DotNav sections={sections} active={activeIndex} onSelect={(i) => {
-        const el = document.getElementById(sections[i].id);
-        el?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-      }} isRTL={isRTL} />
     </div>
   );
 }

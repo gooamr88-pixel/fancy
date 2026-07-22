@@ -45,36 +45,44 @@ export function buildPalette(customColors = {}, templateType) {
   const secondary = customColors.secondary || customColors.accent || HERITAGE_ARCH_COLORS.gold;
   const background = customColors.background || HERITAGE_ARCH_COLORS.background;
   const dark = isDark(background);
+  const paper = dark ? lighten(background, 0.08) : darken(background, 0.05);
+
   // On dark themes the primary accent (headings, labels, icons, dividers) is
   // used against dark surfaces, so a dark primary reads poorly. Lift it toward
   // a legible mid-tone — enough to stand off the dark background while staying
   // saturated enough that white button text on it still reads.
   //
-  // On LIGHT themes, a primary picked too pale (blush, ivory, pale gold — all
-  // common wedding-palette choices) is just as poor a heading/icon color
-  // against the light cream/paper page, AND can't hold white button text
-  // either — the same underlying problem in the opposite direction. Both are
-  // clamped through this ONE value rather than as a separately-toned variant
-  // just for buttons: an earlier version only darkened a button-specific
+  // On LIGHT themes, a primary picked too pale (blush, ivory, pale gold — a
+  // common combination for "off-white"/neutral wedding palettes, where BOTH
+  // the background and the chosen primary sit in the same pale-cream family)
+  // is just as poor a heading/icon color against the light paper surface,
+  // AND can't hold white button text either. An earlier version checked the
+  // primary's own luminance against a flat cutoff, which could still leave
+  // too small a gap when the pale primary and the pale paper it sits on were
+  // close in the same family — reading as barely-there text rather than a
+  // heading. This checks the ACTUAL gap against this event's own paper
+  // surface instead, so it's correct regardless of the specific tones
+  // involved. Clamped through this ONE value (not a separately-toned variant
+  // just for buttons): an earlier version only darkened a button-specific
   // `solidFill` copy, which for a pale primary made the RSVP submit button
   // visibly a different (darker) shade than the headings/icons/dividers
   // right next to it still using the raw pale color — the exact "colors
   // don't match each other" problem this is meant to prevent, not just an
   // isolated contrast bug.
-  const primaryLum = luminance(primary);
-  const tooLight = !dark && primaryLum > 0.5;
-  const accent = dark ? lighten(primary, 0.32) : (tooLight ? darken(primary, 0.4) : primary);
+  const paperLum = luminance(paper);
+  const tooLight = !dark && (paperLum - luminance(primary)) < 0.32;
+  const accent = dark ? lighten(primary, 0.32) : (tooLight ? darken(primary, 0.55) : primary);
 
   return {
     background,
-    paper: dark ? lighten(background, 0.08) : darken(background, 0.05),
+    paper,
     cream: dark ? lighten(background, 0.14) : lighten(background, 0.55),
     // Body text — same paleness problem as accent above (a pale primary
     // produced a washed-out mid-gray here too, since this darkens the raw
     // primary by a fixed amount regardless of how light it started).
     // Darkened further when needed so paragraph/label text stays legible
     // regardless of what the organizer picked as their primary color.
-    ink: dark ? lighten(background, 0.85) : darken(primary, tooLight ? 0.68 : 0.55),
+    ink: dark ? lighten(background, 0.85) : darken(primary, tooLight ? 0.7 : 0.55),
     maroon: accent,
     maroonDeep: dark ? lighten(primary, 0.15) : darken(accent, 0.28),
     gold: secondary,

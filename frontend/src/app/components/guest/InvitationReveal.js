@@ -422,18 +422,24 @@ export default function InvitationReveal({
             <use href="#ir2-leaf" width="16" height="20" transform="translate(22 22) rotate(-45) scale(.95)" opacity=".85" />
           </symbol>
 
-          {/* the pre-open corner ornament: a curling vine with three petals
-              and a bud, tucked into each corner of the seal scene — the
-              approved reveal-mockup design, generated per-event from the
-              palette above (never a fixed gold). */}
-          <symbol id="ir2-corner-blossom" viewBox="0 0 92 92">
-            <path d="M6 86 C 6 40, 40 6, 86 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-            <g fill="currentColor">
-              <ellipse cx="18" cy="66" rx="9" ry="4" transform="rotate(-35 18 66)" />
-              <ellipse cx="34" cy="46" rx="10" ry="4.4" transform="rotate(-45 34 46)" />
-              <ellipse cx="54" cy="30" rx="9" ry="4" transform="rotate(-58 54 30)" />
-              <circle cx="72" cy="16" r="7" />
-              <circle cx="72" cy="16" r="2.6" style={{ fill: "var(--card)" }} />
+          {/* The pre-open corner ornament — a full botanical spray (blooms +
+              leaves + baby's-breath along a curved vine), not a thin single
+              line. Built from the SAME sub-assets as the expand panel's
+              wreath (ir2-flower/ir2-leaf/ir2-babysbreath) rather than a
+              separate, thinner art style, so the closed and opened states
+              read as one consistent, generously-detailed material instead
+              of a plain line sketch giving way to a much richer wreath. */}
+          <symbol id="ir2-corner-spray" viewBox="0 0 140 140">
+            <g filter="url(#ir2-wc)">
+              <path d="M10 130 C 10 70, 70 10, 130 10" fill="none" stroke="currentColor" strokeWidth="1.6" opacity=".45" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(24 96) rotate(-38) scale(1.3)" opacity=".92" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(46 74) rotate(52) scale(1.2)" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(68 52) rotate(-42) scale(1.05)" opacity=".9" />
+              <use href="#ir2-leaf" width="22" height="28" transform="translate(90 34) rotate(56) scale(.95)" />
+              <use href="#ir2-babysbreath" width="24" height="38" transform="translate(30 60) rotate(-18) scale(.85)" opacity=".85" />
+              <use href="#ir2-babysbreath" width="24" height="38" transform="translate(76 20) rotate(20) scale(.8)" opacity=".85" />
+              <use href="#ir2-flower" width="34" height="34" transform="translate(14 106) scale(.95)" />
+              <use href="#ir2-flower" width="30" height="30" transform="translate(100 12) scale(.85)" />
             </g>
           </symbol>
         </defs>
@@ -457,10 +463,10 @@ export default function InvitationReveal({
 
       <div className="ir2-scene">
         <div className="ir2-seal-stage">
-          <div className="ir2-corner tl"><svg viewBox="0 0 92 92" aria-hidden><use href="#ir2-corner-blossom" width="92" height="92" /></svg></div>
-          <div className="ir2-corner tr"><svg viewBox="0 0 92 92" aria-hidden><use href="#ir2-corner-blossom" width="92" height="92" /></svg></div>
-          <div className="ir2-corner bl"><svg viewBox="0 0 92 92" aria-hidden><use href="#ir2-corner-blossom" width="92" height="92" /></svg></div>
-          <div className="ir2-corner br"><svg viewBox="0 0 92 92" aria-hidden><use href="#ir2-corner-blossom" width="92" height="92" /></svg></div>
+          <div className="ir2-corner tl"><svg viewBox="0 0 140 140" aria-hidden><use href="#ir2-corner-spray" width="140" height="140" /></svg></div>
+          <div className="ir2-corner tr"><svg viewBox="0 0 140 140" aria-hidden><use href="#ir2-corner-spray" width="140" height="140" /></svg></div>
+          <div className="ir2-corner bl"><svg viewBox="0 0 140 140" aria-hidden><use href="#ir2-corner-spray" width="140" height="140" /></svg></div>
+          <div className="ir2-corner br"><svg viewBox="0 0 140 140" aria-hidden><use href="#ir2-corner-spray" width="140" height="140" /></svg></div>
 
           <button
             type="button"
@@ -573,25 +579,28 @@ const REVEAL_CSS = `
 
 .ir2-seal-stage{ position:relative; width:min(52vw,300px); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
 
-.ir2-corner{ position:absolute; width:26%; height:26%; color:var(--gold); opacity:.85;
-  transition:color .5s ease, opacity .9s cubic-bezier(.22,.61,.36,1), transform .9s cubic-bezier(.22,.61,.36,1); }
+.ir2-corner{ position:absolute; width:34%; height:34%; color:var(--gold); opacity:.9;
+  transition:color .5s ease, opacity 1.1s cubic-bezier(.22,.61,.36,1), transform 1.1s cubic-bezier(.22,.61,.36,1); }
 .ir2-corner svg{ width:100%; height:100%; display:block; }
-.ir2-corner.tl{ top:0; left:0; }
-.ir2-corner.tr{ top:0; right:0; transform:scaleX(-1); }
-.ir2-corner.bl{ bottom:0; left:0; transform:scaleY(-1); }
-.ir2-corner.br{ bottom:0; right:0; transform:scale(-1,-1); }
+.ir2-corner.tl{ top:-6%; left:-6%; }
+.ir2-corner.tr{ top:-6%; right:-6%; transform:scaleX(-1); }
+.ir2-corner.bl{ bottom:-6%; left:-6%; transform:scaleY(-1); }
+.ir2-corner.br{ bottom:-6%; right:-6%; transform:scale(-1,-1); }
 
-/* On open, each corner ornament slides all the way off along its own
-   diagonal instead of just fading in place. */
+/* Exit choreography matched to the reference: not a uniform four-way fade,
+   but two distinct pairs — opposite corners peel apart along the diagonal
+   AND fade, one pair a beat behind the other, so the botanical spray reads
+   as several real layered pieces parting rather than one flat mass
+   dissolving at once. */
 .ir2-root.ir2-opening .ir2-corner{ opacity:0; }
-.ir2-root.ir2-opening .ir2-corner.tl{ transform:translate(-70%,-70%) rotate(-18deg) scale(.6); }
-.ir2-root.ir2-opening .ir2-corner.tr{ transform:scaleX(-1) translate(-70%,-70%) rotate(-18deg) scale(.6); }
-.ir2-root.ir2-opening .ir2-corner.bl{ transform:scaleY(-1) translate(-70%,-70%) rotate(-18deg) scale(.6); }
-.ir2-root.ir2-opening .ir2-corner.br{ transform:scale(-1,-1) translate(-70%,-70%) rotate(-18deg) scale(.6); }
+.ir2-root.ir2-opening .ir2-corner.tl{ transform:translate(-85%,-85%) rotate(-14deg) scale(.55); transition-delay:0s; }
+.ir2-root.ir2-opening .ir2-corner.br{ transform:scale(-1,-1) translate(-85%,-85%) rotate(-14deg) scale(.55); transition-delay:0s; }
+.ir2-root.ir2-opening .ir2-corner.tr{ transform:scaleX(-1) translate(-85%,-85%) rotate(-14deg) scale(.55); transition-delay:.12s; }
+.ir2-root.ir2-opening .ir2-corner.bl{ transform:scaleY(-1) translate(-85%,-85%) rotate(-14deg) scale(.55); transition-delay:.12s; }
 
 .ir2-seal-btn{ width:38%; aspect-ratio:1; border-radius:50%; border:none; padding:0; cursor:pointer;
   position:relative; background:none; filter:drop-shadow(0 14px 26px rgba(40,26,8,.35));
-  transition:transform .7s cubic-bezier(.34,1.56,.64,1), opacity .6s ease; }
+  transition:transform .8s cubic-bezier(.34,1.56,.64,1), opacity .8s ease .1s; }
 .ir2-seal-ring{ position:absolute; inset:-9%; border-radius:50%; border:1.5px solid var(--gold); opacity:.55; }
 .ir2-seal-face{ position:absolute; inset:0; border-radius:50%; display:block; overflow:hidden;
   box-shadow:inset 0 2px 4px rgba(255,255,255,.25); }
@@ -599,7 +608,9 @@ const REVEAL_CSS = `
 .ir2-seal-photo{ width:100%; height:100%; object-fit:cover; display:block; }
 .ir2-seal-btn:hover .ir2-seal-face{ filter:brightness(1.06); }
 .ir2-seal-btn:active{ transform:scale(.96); }
-.ir2-root.ir2-opening .ir2-seal-btn{ transform:scale(.5) translateY(-16%); opacity:0; pointer-events:none; }
+/* The seal itself grows slightly as it dissolves (a soft "zoom and vanish"
+   rather than shrinking away) — matching the reference's own seal exit. */
+.ir2-root.ir2-opening .ir2-seal-btn{ transform:scale(1.22); opacity:0; pointer-events:none; }
 
 .ir2-prompt{ position:relative; z-index:12; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
   margin-top:clamp(16px,4dvh,30px);

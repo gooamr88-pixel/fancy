@@ -30,7 +30,7 @@ export default function EventDateSection({ dateLine, timeLine, isRTL }) {
       >
         <span style={{
           fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: 700,
-          letterSpacing: '0.32em', textTransform: 'uppercase', color: C.gold,
+          letterSpacing: isRTL ? 'normal' : '0.32em', textTransform: isRTL ? 'none' : 'uppercase', color: C.gold,
         }}>
           {isRTL ? 'موعد الاحتفال' : 'Save the Date'}
         </span>
@@ -39,7 +39,7 @@ export default function EventDateSection({ dateLine, timeLine, isRTL }) {
 
         <h2 style={{
           fontFamily: 'var(--font-serif)', fontWeight: 600, color: C.maroon,
-          fontSize: 'clamp(30px, 6.4vw, 52px)', letterSpacing: '0.02em', lineHeight: 1.15, margin: 0,
+          fontSize: 'clamp(30px, 6.4vw, 52px)', letterSpacing: isRTL ? 'normal' : '0.02em', lineHeight: 1.15, margin: 0,
         }}>
           {dateLine}
         </h2>
@@ -49,7 +49,7 @@ export default function EventDateSection({ dateLine, timeLine, isRTL }) {
             <DiamondDivider color={C.gold} />
             <p style={{
               fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontWeight: 500,
-              fontSize: 'clamp(20px, 3.8vw, 28px)', color: C.ink, letterSpacing: '0.03em', margin: 0,
+              fontSize: 'clamp(20px, 3.8vw, 28px)', color: C.ink, letterSpacing: isRTL ? 'normal' : '0.03em', margin: 0,
             }}>
               {timeLine}
             </p>

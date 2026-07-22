@@ -217,61 +217,6 @@ export function MusicToggle({ playing, onToggle, isRTL }) {
   );
 }
 
-// One dot per section, tracking whichever section currently holds the
-// screen (see SnapShell's activeIndex). Each dot shows its section's label
-// as a small tooltip on hover/focus, mirroring the reference invitation's
-// "ceremony nav" — but themed from the event's own palette instead of a
-// fixed gold hex, and driven by real section data instead of a bare count.
-export function DotNav({ sections, active, onSelect, isRTL }) {
-  const C = useFullPageTheme();
-  const [hovered, setHovered] = React.useState(null);
-  if (!Array.isArray(sections) || sections.length === 0) return null;
-  return (
-    <div
-      style={{
-        position: 'fixed', top: '50%', transform: 'translateY(-50%)', zIndex: 20,
-        ...(isRTL ? { left: '18px' } : { right: '18px' }),
-        display: 'flex', flexDirection: 'column', gap: '10px',
-      }}
-    >
-      {sections.map((s, i) => (
-        <div key={s.id} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <button
-            type="button"
-            onClick={() => onSelect(i)}
-            onMouseEnter={() => setHovered(i)}
-            onMouseLeave={() => setHovered((h) => (h === i ? null : h))}
-            onFocus={() => setHovered(i)}
-            onBlur={() => setHovered((h) => (h === i ? null : h))}
-            aria-label={s.label || `Go to section ${i + 1}`}
-            aria-current={active === i ? 'true' : undefined}
-            style={{
-              width: active === i ? '10px' : '7px', height: active === i ? '10px' : '7px',
-              borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0,
-              background: active === i ? C.maroon : alpha(C.maroon, 0.3),
-              transition: 'all 0.25s ease',
-            }}
-          />
-          {s.label && hovered === i && (
-            <span
-              role="tooltip"
-              style={{
-                position: 'absolute', top: '50%', transform: 'translateY(-50%)',
-                ...(isRTL ? { left: 'calc(100% + 10px)' } : { right: 'calc(100% + 10px)' }),
-                whiteSpace: 'nowrap', background: C.cream || '#fffaf8', color: C.maroon,
-                fontFamily: 'var(--font-serif)', fontSize: '12px', padding: '5px 12px',
-                borderRadius: '4px', boxShadow: '0 3px 10px rgba(0,0,0,0.15)', pointerEvents: 'none',
-              }}
-            >
-              {s.label}
-            </span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // Thin fixed top bar showing how far the guest has scrolled through the page,
 // plus a small traveling bead at the fill's leading edge — the "Fil d'Or"
 // progress cue from the reference invitation, recolored from the event's own

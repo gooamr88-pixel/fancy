@@ -1,8 +1,40 @@
 'use client';
 
 import React from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, DiamondDivider } from '../shared';
+
+// A small closing seal — a heart cradled in a thin gold ring — under the
+// "thank you for understanding" line, so the notice closes on a warm,
+// deliberate flourish instead of just trailing off after the paragraph.
+function GraciousBadge({ color, isRTL, reduce }) {
+  return (
+    <motion.div
+      initial={reduce ? false : { opacity: 0, scale: 0.8 }}
+      whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ once: true }}
+      transition={reduce ? { duration: 0 } : { duration: 0.5, delay: 0.15, type: 'spring', stiffness: 260, damping: 18 }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}
+    >
+      <span style={{
+        width: '52px', height: '52px', borderRadius: '50%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: `1px solid ${color}`, boxShadow: `inset 0 0 0 1px ${color}30`,
+      }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill={color} aria-hidden="true">
+          <path d="M12 21s-7.5-4.6-10.2-9.3C.3 8.7 1.6 5 5 4.2c2.1-.5 4 .5 5 2.3 1-1.8 2.9-2.8 5-2.3 3.4.8 4.7 4.5 3.2 7.5C19.5 16.4 12 21 12 21Z" />
+        </svg>
+      </span>
+      <span style={{
+        fontFamily: 'var(--font-sans)', fontSize: '10px', fontWeight: 700,
+        letterSpacing: isRTL ? 'normal' : '0.14em', textTransform: isRTL ? 'none' : 'uppercase', color, opacity: 0.85,
+      }}>
+        {isRTL ? 'بكل محبة' : 'With Love'}
+      </span>
+    </motion.div>
+  );
+}
 
 // A warm, celebratory glyph (two champagne flutes mid-toast) rather than a
 // literal crossed-out-child icon — the notice is about an adults-only
@@ -31,6 +63,7 @@ function ChampagneGlyph({ color }) {
 // event.no_kids_allowed) — off by default, wedding/engagement only.
 export default function NoKidsSection({ isRTL }) {
   const C = useFullPageTheme();
+  const reduce = useReducedMotion();
   return (
     <SectionShell background={C.paper}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', textAlign: 'center', maxWidth: '480px' }}>
@@ -57,6 +90,10 @@ export default function NoKidsSection({ isRTL }) {
             ? 'نحب أطفالكم كثيرًا، إلا أننا اخترنا أن تكون هذه الليلة خاصة بضيوفنا الكبار فقط. شكرًا جزيلًا لتفهّمكم.'
             : "As much as we adore your little ones, we've chosen to celebrate this evening with our adult guests only. Thank you so much for understanding."}
         </p>
+
+        <div style={{ marginTop: '4px' }}>
+          <GraciousBadge color={C.gold} isRTL={isRTL} reduce={reduce} />
+        </div>
       </div>
     </SectionShell>
   );
