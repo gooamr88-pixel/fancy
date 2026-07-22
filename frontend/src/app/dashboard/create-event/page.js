@@ -780,8 +780,8 @@ export default function CreateEventWizard() {
   const handleHeroVideoUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 35 * 1024 * 1024) {
-      toast.error('Video exceeds 35MB. Please use a shorter or more compressed clip.');
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error('Video exceeds 100MB. Please use a shorter or more compressed clip.');
       return;
     }
     setHeroVideoUploading(true);

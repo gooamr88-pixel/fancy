@@ -90,7 +90,7 @@ function HeroVideoBackground({ src }) {
 }
 
 export default function HeroSection({
-  partner1, partner2, title, tagline, dateLine, timeLine, titleAr,
+  partner1, partner2, title, tagline, titleAr,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
   categoryBadge, isRTL, t, heroVideoUrl,
 }) {
@@ -273,60 +273,11 @@ export default function HeroSection({
             </>
           )}
         </motion.button>
-
-        {/* A dedicated "when" card instead of a plain caption line — the same
-            gold→maroon hairline-edge-over-cream card language used for every
-            other grouped block in this template (RSVP details, seating panel),
-            so the date/time reads as a clear, deliberate piece of information
-            instead of an afterthought floating under the invitation card. */}
-        {dateLine && (
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.5 }}
-            style={{
-              marginTop: 'clamp(18px, 3.6vw, 26px)', padding: '1.5px', borderRadius: '20px',
-              background: `linear-gradient(140deg, ${C.gold}8C, ${C.maroon}59 55%, ${C.gold}75)`,
-              boxShadow: `0 20px 45px -22px ${C.maroon}66`,
-            }}
-          >
-            <div style={{
-              background: `linear-gradient(180deg, ${C.cream} 0%, ${C.background} 140%)`,
-              borderRadius: '19px', padding: 'clamp(13px, 3vw, 18px) clamp(20px, 5vw, 34px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: 'clamp(14px, 3vw, 24px)', flexWrap: 'wrap',
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <Icon name="calendar" size={17} color={C.gold} strokeWidth={1.7} />
-                <span style={{
-                  fontFamily: 'var(--font-serif)', fontWeight: 700, color: C.maroonDeep,
-                  fontSize: 'clamp(15px, 2.8vw, 23px)', letterSpacing: '0.05em', textAlign: 'center',
-                  // A multi-day range ("SEPTEMBER 12, 2026 - SEPTEMBER 14, 2026")
-                  // is long enough to overflow this pill on a narrow phone —
-                  // nowrap here would clip it rather than wrap, so this is
-                  // allowed to break onto a second line instead.
-                }}>
-                  {dateLine}
-                </span>
-              </div>
-              {timeLine && (
-                <>
-                  <span aria-hidden="true" style={{ width: '1px', height: '34px', background: `${C.gold}55`, flexShrink: 0 }} />
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                    <Icon name="clock" size={17} color={C.gold} strokeWidth={1.7} />
-                    <span style={{
-                      fontFamily: 'var(--font-sans)', fontWeight: 800, color: C.maroonDeep,
-                      fontSize: 'clamp(14px, 2.1vw, 17px)', letterSpacing: '0.07em', whiteSpace: 'nowrap',
-                    }}>
-                      {timeLine}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          </motion.div>
-        )}
       </motion.div>
+
+      {/* The date/time itself now lives in its own dedicated EventDateSection
+          right after this Hero — see HeritageArchPage.js — instead of a small
+          pill crowded under the invitation card and the download button. */}
 
       <ScrollToRsvpHint isRTL={isRTL} />
     </div>

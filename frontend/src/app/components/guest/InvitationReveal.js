@@ -481,22 +481,27 @@ export default function InvitationReveal({
               )}
             </span>
           </button>
-
-          <AnimatePresence>
-            {stage === "rest" && (
-              <motion.div
-                key="prompt"
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6, transition: { duration: 0.3 } }}
-                transition={{ duration: 0.6, delay: 0.2 }}
-                className="ir2-prompt"
-              >
-                <div className="ir2-prompt-pill"><span aria-hidden style={{ fontSize: 12 }}>✦</span> {copy.tap}</div>
-                <p className="ir2-prompt-sub">{copy.special}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
+
+        {/* A sibling of .ir2-seal-stage (not nested inside it) — that stage is
+            a fixed square sized for the corner-blossom geometry, and its own
+            non-absolute children lay out in a row; nesting this here made
+            "tap to open" render BESIDE the seal instead of centered below
+            it. .ir2-scene's own column flex direction stacks it correctly. */}
+        <AnimatePresence>
+          {stage === "rest" && (
+            <motion.div
+              key="prompt"
+              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6, transition: { duration: 0.3 } }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="ir2-prompt"
+            >
+              <div className="ir2-prompt-pill"><span aria-hidden style={{ fontSize: 12 }}>✦</span> {copy.tap}</div>
+              <p className="ir2-prompt-sub">{copy.special}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
     {portalReady && createPortal(
@@ -603,6 +608,10 @@ const REVEAL_CSS = `
   background:rgba(255,255,255,.6); border:1px solid color-mix(in srgb,var(--accent) 36%, transparent);
   -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
   font-family:var(--font-sans); font-size:10px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); animation:ir2Nudge 2.4s ease-in-out infinite; }
+/* Wide tracking is a deliberate look on English all-caps — but Arabic script
+   needs its letters to stay connected to render properly, so the same
+   tracking pries them apart into disjointed, "broken"-looking text. */
+[dir="rtl"] .ir2-prompt-pill{ letter-spacing:normal; text-transform:none; }
 @keyframes ir2Nudge{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-4px) } }
 .ir2-prompt-sub{ font-family:var(--font-serif), Georgia, serif; font-style:italic; font-size:13px; color:var(--ink-soft); margin:10px 0 0; }
 

@@ -48,31 +48,43 @@ export function buildPalette(customColors = {}, templateType) {
   // On dark themes the primary accent (headings, labels, icons, dividers) is
   // used against dark surfaces, so a dark primary reads poorly. Lift it toward
   // a legible mid-tone — enough to stand off the dark background while staying
-  // saturated enough that white button text on it still reads. (Light themes
-  // keep the primary exactly as chosen.)
-  const accent = dark ? lighten(primary, 0.32) : primary;
-
-  // A solid fill guaranteed dark enough to hold white/cream text on top,
-  // for CTAs (RSVP submit, registry link) that paint `accent` as a full
-  // background rather than using it as a text/heading color. `accent` itself
-  // has no such guarantee on a LIGHT page theme — there it's the organizer's
-  // primary color verbatim (see above), and a pale chosen primary (common:
-  // blush, ivory, pale gold) made white button text unreadable. Independent
-  // of the page's own light/dark theme, since that's a different contrast
-  // question (accent-against-page-background) than this one
-  // (light-text-against-this-fill).
-  const solidFill = luminance(accent) > 0.5 ? darken(accent, 0.42) : accent;
+  // saturated enough that white button text on it still reads.
+  //
+  // On LIGHT themes, a primary picked too pale (blush, ivory, pale gold — all
+  // common wedding-palette choices) is just as poor a heading/icon color
+  // against the light cream/paper page, AND can't hold white button text
+  // either — the same underlying problem in the opposite direction. Both are
+  // clamped through this ONE value rather than as a separately-toned variant
+  // just for buttons: an earlier version only darkened a button-specific
+  // `solidFill` copy, which for a pale primary made the RSVP submit button
+  // visibly a different (darker) shade than the headings/icons/dividers
+  // right next to it still using the raw pale color — the exact "colors
+  // don't match each other" problem this is meant to prevent, not just an
+  // isolated contrast bug.
+  const primaryLum = luminance(primary);
+  const tooLight = !dark && primaryLum > 0.5;
+  const accent = dark ? lighten(primary, 0.32) : (tooLight ? darken(primary, 0.4) : primary);
 
   return {
     background,
     paper: dark ? lighten(background, 0.08) : darken(background, 0.05),
     cream: dark ? lighten(background, 0.14) : lighten(background, 0.55),
-    ink: dark ? lighten(background, 0.85) : darken(primary, 0.55),
+    // Body text — same paleness problem as accent above (a pale primary
+    // produced a washed-out mid-gray here too, since this darkens the raw
+    // primary by a fixed amount regardless of how light it started).
+    // Darkened further when needed so paragraph/label text stays legible
+    // regardless of what the organizer picked as their primary color.
+    ink: dark ? lighten(background, 0.85) : darken(primary, tooLight ? 0.68 : 0.55),
     maroon: accent,
-    maroonDeep: dark ? lighten(primary, 0.15) : darken(primary, 0.28),
+    maroonDeep: dark ? lighten(primary, 0.15) : darken(accent, 0.28),
     gold: secondary,
-    border: dark ? alpha(accent, 0.35) : alpha(primary, 0.18),
-    solidFill,
-    solidFillDeep: darken(solidFill, 0.22),
+    border: dark ? alpha(accent, 0.35) : alpha(accent, 0.18),
+    // For CTAs that paint accent as a full solid background (RSVP submit,
+    // registry link) rather than using it as a text/heading color — now just
+    // `accent` itself, since accent is already clamped dark enough to hold
+    // white/cream text above. No separate tone, so buttons and headings/
+    // icons always match exactly.
+    solidFill: accent,
+    solidFillDeep: darken(accent, 0.22),
   };
 }

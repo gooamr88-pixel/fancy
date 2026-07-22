@@ -7,14 +7,15 @@ import { HERITAGE_ARCH_DEFAULTS as D } from './defaultContent';
 import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
 import HeroSection from './sections/HeroSection';
+import EventDateSection from './sections/EventDateSection';
 import InvitationTextSection from './sections/InvitationTextSection';
-import AboutSection from './sections/AboutSection';
 import CoverPhotoSection from './sections/CoverPhotoSection';
 import CountdownSection from './sections/CountdownSection';
 import ClosingSection from './sections/ClosingSection';
 import ScheduleSection from './sections/ScheduleSection';
 import VenuesSection from './sections/VenuesSection';
 import DressCodeSection from './sections/DressCodeSection';
+import NoKidsSection from './sections/NoKidsSection';
 import OurStorySection from './sections/OurStorySection';
 import AccommodationSection from './sections/AccommodationSection';
 import MenuSection from './sections/MenuSection';
@@ -178,11 +179,6 @@ export default function HeritageArchPage({
   const hasFaq = faq.length > 0;
   const ourStory = td.ha_our_story || td.loveStory || td.proposalStory || demo(D.ourStory) || '';
   const dressCode = (isRTL && td.dress_code_ar) || event.dress_code || demo(D.dressCode) || '';
-  // The event's own "Description" (Core Event Details) — previously computed
-  // nowhere in this full-page shell, so it silently never reached guests
-  // (wedding/engagement/every Custom Canvas category all render here). Same
-  // Arabic-override convention as title_ar/dress_code_ar above.
-  const description = (isRTL && td.description_ar) || event.description || '';
   const invitedToCity = td.ha_invited_to_city || (event.location_name ? event.location_name.split(',')[0] : (isPreview ? D.invitedToCity : ''));
   // The map pin uses the city's own coordinates when the organizer picked one
   // via the address search (ha_invited_to_lat/lng); only falls back to Day 1's
@@ -223,6 +219,16 @@ export default function HeritageArchPage({
   }
   if (dressCode && sectionOn('dresscode')) {
     middleSections.dresscode = { id: 'ha-dresscode', content: <DressCodeSection dressCode={dressCode} customColors={customColors} ladiesText={td.ha_dress_ladies} gentlemenText={td.ha_dress_gentlemen} isRTL={isRTL} /> };
+  }
+  // Not part of SECTION_TOGGLES (same convention Cover Photo/Gift List used) —
+  // shows automatically once the organizer flips EventSettings' "Adults-Only
+  // Notice" toggle. Previously the ONLY guest-facing trace of this toggle was
+  // 6.5px text on the miniature invitation card and a generic "Note" row in
+  // the reveal's expand panel — easy to miss entirely, not the premium,
+  // unmissable notice an adults-only celebration needs guests to actually see.
+  const showNoKids = (event.template_type === 'wedding' || event.template_type === 'engagement') && !!event.no_kids_allowed;
+  if (showNoKids) {
+    middleSections.nokids = { id: 'ha-nokids', content: <NoKidsSection isRTL={isRTL} /> };
   }
   if (ourStory && sectionOn('story')) {
     middleSections.story = { id: 'ha-story', content: <OurStorySection story={ourStory} isRTL={isRTL} /> };
@@ -270,7 +276,7 @@ export default function HeritageArchPage({
   // covering the same territory), then day-of details, FAQ as a catch-all,
   // and Gallery as a visual close before Countdown builds anticipation
   // right into the RSVP ask.
-  const DEFAULT_SECTION_ORDER = ['story', 'invited', 'schedule', 'venues', 'dresscode', 'accommodation', 'gettingthere', 'thingstodo', 'menu', 'giftlist', 'faq', 'gallery'];
+  const DEFAULT_SECTION_ORDER = ['story', 'invited', 'schedule', 'venues', 'dresscode', 'nokids', 'accommodation', 'gettingthere', 'thingstodo', 'menu', 'giftlist', 'faq', 'gallery'];
   const savedOrder = Array.isArray(td.sectionOrder) ? td.sectionOrder : [];
   const resolvedOrder = [
     ...savedOrder.filter((k) => middleSections[k]),
@@ -282,12 +288,13 @@ export default function HeritageArchPage({
   // every possible reorderable middle section pushed below.
   const SECTION_LABELS = {
     'ha-hero': isRTL ? 'الرئيسية' : 'Home',
+    'ha-date': isRTL ? 'الموعد' : 'The Date',
     'ha-invitation-text': isRTL ? 'الدعوة' : 'Invitation',
     'ha-cover-photo': isRTL ? 'صورة الغلاف' : 'Cover Photo',
-    'ha-about': isRTL ? 'نبذة' : 'About',
     'ha-schedule': isRTL ? 'البرنامج' : 'Schedule',
     'ha-venues': isRTL ? 'المكان' : 'Venue',
     'ha-dresscode': isRTL ? 'الزي' : 'Dress Code',
+    'ha-nokids': isRTL ? 'ملاحظة' : 'A Kind Note',
     'ha-story': isRTL ? 'قصتنا' : 'Our Story',
     'ha-accommodation': isRTL ? 'الإقامة' : 'Accommodation',
     'ha-menu': isRTL ? 'القائمة' : 'Menu',
@@ -310,7 +317,7 @@ export default function HeritageArchPage({
       content: (
         <HeroSection
           partner1={partner1} partner2={partner2} title={heroTitle}
-          tagline={isPreview ? D.tagline : heroTagline} dateLine={dateLine} timeLine={timeLine} titleAr={titleAr}
+          tagline={isPreview ? D.tagline : heroTagline} titleAr={titleAr}
           invitationPattern={invitationPattern} invitationTheme={invitationTheme}
           invitationGuestName={invitationGuestName} invitationData={invitationData}
           categoryBadge={isPreview ? null : categoryBadge}
@@ -321,10 +328,25 @@ export default function HeritageArchPage({
     },
   ];
 
+  // The date/time, promoted to its own full section right after the Hero/
+  // invitation-card showcase — previously a small pill crowded underneath
+  // the card itself, easy to miss on the single most important fact here.
+  if (dateLine) {
+    sections.push({
+      id: 'ha-date',
+      label: SECTION_LABELS['ha-date'],
+      content: <EventDateSection dateLine={dateLine} timeLine={timeLine} isRTL={isRTL} />,
+    });
+  }
+
   // Formal invitation-panel wording only makes sense for couple-style events
-  // (wedding/engagement) — its phrasing is composed directly from the two
-  // partner names, not a field an organizer fills in.
+  // (wedding/engagement/vow renewal) — its phrasing is composed directly from
+  // the two partner names, not a field an organizer fills in. Same occasion
+  // distinction the hero tagline above already computes (isEngagementEvent /
+  // customCategory === 'vowRenewal') — an engaged or vow-renewing couple was
+  // previously told their page says "celebration of their wedding" regardless.
   const hasCouple = !!(partner1 && partner2);
+  const invitationEventKind = customCategory === 'vowRenewal' ? 'vowRenewal' : isEngagementEvent ? 'engagement' : 'wedding';
   if (hasCouple) {
     sections.push({
       id: 'ha-invitation-text',
@@ -332,7 +354,7 @@ export default function HeritageArchPage({
       content: (
         <InvitationTextSection
           partner1={partner1} partner2={partner2} dateLine={dateLine} timeLine={timeLine}
-          venueName={primaryVenue.name} isRTL={isRTL}
+          venueName={primaryVenue.name} isRTL={isRTL} eventKind={invitationEventKind}
         />
       ),
     });
@@ -342,13 +364,6 @@ export default function HeritageArchPage({
   // its own framed slide — shown only when the organizer uploaded one.
   if (event.cover_image_url) {
     sections.push({ id: 'ha-cover-photo', label: SECTION_LABELS['ha-cover-photo'], content: <CoverPhotoSection imageUrl={event.cover_image_url} isRTL={isRTL} /> });
-  }
-
-  // Not part of SECTION_TOGGLES (like Cover Photo, this is core content, not
-  // an optional feature) — shows automatically whenever the organizer typed
-  // a description, gracefully hidden otherwise.
-  if (description.trim()) {
-    sections.push({ id: 'ha-about', label: SECTION_LABELS['ha-about'], content: <AboutSection text={description} isRTL={isRTL} /> });
   }
 
   for (const key of resolvedOrder) {

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { alpha } from '../../../utils/color';
+import { alpha, isDark } from '../../../utils/color';
 import { useFullPageTheme } from './theme';
 
 /* Shared visual language for every full-page section: the palette comes from
@@ -135,7 +135,7 @@ export function ScrollToRsvpHint({ isRTL, label, color, fixed = false }) {
         fontFamily: 'var(--font-sans)',
       }}
     >
-      <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.14em' }}>
+      <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: isRTL ? 'normal' : '0.14em' }}>
         {label || (isRTL ? 'مرر للأسفل لتأكيد الحضور' : 'SCROLL TO RSVP')}
       </span>
       <motion.span
@@ -155,6 +155,13 @@ export function ScrollToRsvpHint({ isRTL, label, color, fixed = false }) {
 
 export function LangPill({ lang, setLang, isRTL }) {
   const C = useFullPageTheme();
+  // A fixed pill, persistent over whatever section is scrolled underneath —
+  // unlike a caption card overlaid on one specific photo, this needs to work
+  // against EVERY section, including dark-themed events' dark backgrounds,
+  // where a fixed white glass tint (paired with C.maroon text already
+  // lightened by the theme specifically for dark surfaces) read as a bright
+  // mismatched patch with low-contrast text on top of it.
+  const pageIsDark = isDark(C.background);
   return (
     <div
       className="ha-lang-pill"
@@ -162,7 +169,8 @@ export function LangPill({ lang, setLang, isRTL }) {
         position: 'fixed', top: '24px', zIndex: 20,
         ...(isRTL ? { left: '24px' } : { right: '24px' }),
         display: 'flex', alignItems: 'center', gap: '8px',
-        background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+        background: pageIsDark ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.7)',
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
         border: `1px solid ${C.border}`, borderRadius: '999px', padding: '8px 14px',
       }}
     >

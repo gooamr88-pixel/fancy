@@ -432,8 +432,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const handleHeroVideoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 35 * 1024 * 1024) {
-      toast.error('Video exceeds 35MB. Please use a shorter or more compressed clip.');
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error('Video exceeds 100MB. Please use a shorter or more compressed clip.');
       return;
     }
     setHeroVideoUploading(true);
@@ -1590,7 +1590,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
                 {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
               </span>
-              <span style={{ fontSize: '10px', color: '#A09A91' }}>MP4, WebM • Max 35MB</span>
+              <span style={{ fontSize: '10px', color: '#A09A91' }}>MP4, WebM • Max 100MB</span>
             </label>
           </div>
 

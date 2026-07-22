@@ -819,7 +819,7 @@ export default function Stage2_FormConfiguration({
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
                   {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
                 </span>
-                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>MP4, WebM • Max 35MB</span>
+                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>MP4, WebM • Max 100MB</span>
               </div>
             </div>
             {td('ha_hero_video_url') && (

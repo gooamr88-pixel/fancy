@@ -5,18 +5,32 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, DiamondDivider } from '../shared';
 
+// The occasion noun this panel's fixed wording is built around — a wedding's
+// couple wants "the celebration of their WEDDING", but the exact same panel
+// is also rendered for engagement and vow-renewal events, which previously
+// silently kept the hardcoded wedding wording regardless of what the
+// organizer actually picked. HeritageArchPage.js already computes this same
+// distinction (isEngagementEvent / customCategory === 'vowRenewal') for the
+// hero tagline — this mirrors it rather than re-deriving it.
+const OCCASION = {
+  wedding: { en: 'wedding', ar: 'زفافهما' },
+  engagement: { en: 'engagement', ar: 'خطوبتهما' },
+  vowRenewal: { en: 'vow renewal', ar: 'تجديد نذورهما' },
+};
+
 // A formal invitation paragraph in an ornate frame, matching the reference's
 // Arabic invitation panel — composed entirely from data the couple already
 // entered (names/date/venue), not a new field, and only rendered for
-// couple-style events (wedding/engagement) since the phrasing assumes two
-// partners the way the reference's own wording does.
-export default function InvitationTextSection({ partner1, partner2, dateLine, timeLine, venueName, isRTL }) {
+// couple-style events (wedding/engagement/vow renewal) since the phrasing
+// assumes two partners the way the reference's own wording does.
+export default function InvitationTextSection({ partner1, partner2, dateLine, timeLine, venueName, isRTL, eventKind = 'wedding' }) {
   const C = useFullPageTheme();
   const reduce = useReducedMotion();
+  const occasion = OCCASION[eventKind] || OCCASION.wedding;
 
   const body = isRTL
-    ? `الآنسة ${partner1} والسيد ${partner2} يسعدهما ويشرّفهما دعوتكم الكريمة لمشاركتهما فرحة زفافهما${dateLine ? `، وذلك يوم ${dateLine}` : ''}${timeLine ? ` عند الساعة ${timeLine}` : ''}${venueName ? `، بـ${venueName}` : ''}.`
-    : `${partner1} and ${partner2} joyfully invite you to share in the celebration of their wedding${dateLine ? `, on ${dateLine}` : ''}${timeLine ? ` at ${timeLine}` : ''}${venueName ? `, at ${venueName}` : ''}.`;
+    ? `الآنسة ${partner1} والسيد ${partner2} يسعدهما ويشرّفهما دعوتكم الكريمة لمشاركتهما فرحة ${occasion.ar}${dateLine ? `، وذلك يوم ${dateLine}` : ''}${timeLine ? ` عند الساعة ${timeLine}` : ''}${venueName ? `، بـ${venueName}` : ''}.`
+    : `${partner1} and ${partner2} joyfully invite you to share in the celebration of their ${occasion.en}${dateLine ? `, on ${dateLine}` : ''}${timeLine ? ` at ${timeLine}` : ''}${venueName ? `, at ${venueName}` : ''}.`;
 
   return (
     <SectionShell>

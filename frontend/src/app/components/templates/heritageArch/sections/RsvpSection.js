@@ -21,7 +21,7 @@ import { isSeatingRevealed } from '../../../../utils/seating';
 import { getRsvpDeadlineStatus, daysLeftPhrase } from '../../../../utils/rsvpDeadline';
 import { useSeatingLookup } from '../../../../[slug]/rsvp/hooks/useSeatingLookup';
 import SeatingResultPanel from '../../../../[slug]/rsvp/steps/SeatingResultPanel';
-import { alpha, darken } from '../../../../utils/color';
+import { alpha, darken, isDark } from '../../../../utils/color';
 
 const ALLERGY_OPTIONS = ['Gluten-free / Celiac', 'Lactose-free', 'Nut allergy', 'Seafood'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -188,6 +188,12 @@ function AttendanceChoice({ value, onSelect, C, isRTL }) {
 
 export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions: mealOptionsProp, isRTL, trackEvent }) {
   const C = useFullPageTheme();
+  // Whether this event's page is a dark theme (several style variants ship
+  // dark backgrounds — marrakesh, saffron, orchid). Used below so the RSVP
+  // card's glassmorphism tint is frosted glass over the PAGE'S OWN material
+  // (dark-tinted on a dark page) rather than a fixed white panel that would
+  // otherwise sit as a jarring bright patch on a dark theme.
+  const pageIsDark = isDark(C.background);
   // Opt-out toggle (EventSettings "Ask guests about food allergies & dietary
   // restrictions") — on unless the organizer explicitly turned it off.
   const collectDietary = event?.collect_dietary_restrictions !== false;
@@ -203,7 +209,11 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const onFieldBlur = (e, invalid) => { e.target.style.borderColor = invalid ? ERR : C.border; e.target.style.boxShadow = 'none'; };
   const labelStyle = { fontSize: '12px', fontWeight: 700, color: C.ink, opacity: 0.82, display: 'block', marginBottom: '7px' };
   const errorTextStyle = { display: 'block', marginTop: '6px', fontSize: '11.5px', color: ERR, fontWeight: 600 };
-  const eyebrowStyle = { fontSize: '11px', fontWeight: 800, letterSpacing: '0.16em', textTransform: 'uppercase', color: C.maroon, opacity: 0.9 };
+  // Wide letter-spacing is an elegant, deliberate look on English all-caps
+  // eyebrows — but Arabic script relies on its letters staying connected to
+  // render properly, so the same tracking visually pries them apart into
+  // disjointed, "broken"-looking characters. Skipped entirely for Arabic.
+  const eyebrowStyle = { fontSize: '11px', fontWeight: 800, letterSpacing: isRTL ? 'normal' : '0.16em', textTransform: isRTL ? 'none' : 'uppercase', color: C.maroon, opacity: 0.9 };
 
   // Card frame shared by the details/companion blocks — a hairline gold→maroon
   // gradient edge over cream, giving each grouping a soft printed-stationery lift.
@@ -659,7 +669,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
             <div style={{ marginTop: '16px', padding: '9px 20px', borderRadius: '999px', background: C.cream, border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isYes ? '#3B9B6D' : ERR }} />
-              <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.04em', color: C.maroon }}>{label}</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, letterSpacing: isRTL ? 'normal' : '0.04em', color: C.maroon }}>{label}</span>
             </div>
 
             {isYes && (
@@ -754,8 +764,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       <div style={{
         width: '100%', maxWidth: '540px', display: 'flex', flexDirection: 'column', alignItems: 'center',
         padding: 'clamp(20px, 5vw, 36px) clamp(16px, 4vw, 28px)', borderRadius: '28px',
-        background: 'rgba(255,255,255,0.32)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
-        border: '1px solid rgba(255,255,255,0.5)', boxShadow: '0 30px 70px -30px rgba(20,12,10,0.25)',
+        background: pageIsDark ? 'rgba(0,0,0,0.26)' : 'rgba(255,255,255,0.32)',
+        backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+        border: pageIsDark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(255,255,255,0.5)',
+        boxShadow: '0 30px 70px -30px rgba(20,12,10,0.25)',
       }}>
         {/* Heading */}
         <motion.span {...reveal} style={{ ...eyebrowStyle, marginBottom: '10px' }}>
@@ -780,16 +792,29 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
           // past, which read as broken rather than as "please respond now").
           const tone = status.passed ? ERR : status.urgent ? C.gold : C.maroon;
           const deadlineText = new Date(event.rsvp_deadline).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+          // A full-width, prominent banner, not a small inline pill — the
+          // passed/urgent states in particular are the single most
+          // time-critical thing a guest can read on this page. Letter-spacing
+          // skipped for Arabic (see eyebrowStyle above): applied to English
+          // only, since tracking pries Arabic's connected letterforms apart
+          // into disjointed, "broken"-looking text.
           return (
             <motion.div {...reveal} style={{
-              display: 'inline-flex', alignItems: 'center', gap: '10px',
-              margin: '-4px 0 24px', padding: '10px 22px', borderRadius: '999px',
-              background: `${tone}12`, border: `1px solid ${tone}55`,
+              display: 'flex', alignItems: 'center', gap: '16px', width: '100%',
+              margin: '-4px 0 26px', padding: '18px 22px', borderRadius: '18px',
+              background: `${tone}14`, border: `2px solid ${tone}66`,
+              boxShadow: `0 10px 26px -16px ${alpha(tone, 0.5)}`,
+              boxSizing: 'border-box',
             }}>
-              <Icon name={status.passed ? 'warning' : 'clock'} size={15} color={tone} strokeWidth={1.8} />
               <span style={{
-                fontSize: '13px', fontWeight: 700, letterSpacing: '0.02em', color: tone,
-                fontFamily: 'var(--font-sans)',
+                flexShrink: 0, width: '44px', height: '44px', borderRadius: '50%',
+                background: `${tone}1E`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Icon name={status.passed ? 'warning' : 'clock'} size={22} color={tone} strokeWidth={1.8} />
+              </span>
+              <span style={{
+                fontSize: 'clamp(16px, 4.4vw, 19px)', fontWeight: 800, letterSpacing: isRTL ? 'normal' : '0.01em', color: tone,
+                fontFamily: 'var(--font-sans)', lineHeight: 1.5, textAlign: isRTL ? 'right' : 'left',
               }}>
                 {status.passed
                   ? (isRTL ? `انتهى الموعد النهائي للرد (${deadlineText}) — يرجى الرد في أقرب وقت` : `RSVP deadline was ${deadlineText} — please respond as soon as possible`)
@@ -1058,7 +1083,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                   style={{
                     width: '100%', padding: '16px', borderRadius: '14px', border: 'none',
                     background: submitting ? alpha(C.solidFill, 0.55) : `linear-gradient(150deg, ${C.solidFill}, ${C.solidFillDeep})`,
-                    color: '#FFFCF6', fontWeight: 700, fontSize: '15px', letterSpacing: '0.03em',
+                    color: '#FFFCF6', fontWeight: 700, fontSize: '15px', letterSpacing: isRTL ? 'normal' : '0.03em',
                     cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)',
                     boxShadow: submitting ? 'none' : `0 16px 34px -16px ${alpha(C.solidFill, 0.7)}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',

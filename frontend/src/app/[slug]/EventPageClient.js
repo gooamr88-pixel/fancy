@@ -1953,14 +1953,22 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                         : status.urgent
                           ? t.reply_by_urgent.replace('{date}', deadlineText).replace('{daysPhrase}', daysLeftPhrase(status.daysLeft, isRTL))
                           : `${t.reply_by} ${deadlineText}`;
+                      // A full-width banner, not a small inline pill — the
+                      // passed/urgent states are the single most time-critical
+                      // thing a guest can read here, easy to miss as a 13px pill.
                       return (
                         <div style={{
-                          display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '8px',
-                          padding: '9px 18px', borderRadius: '999px',
-                          background: `${tone}0F`, border: `1px solid ${tone}40`,
+                          display: 'flex', alignSelf: 'stretch', alignItems: 'center', gap: '14px',
+                          padding: '14px 18px', borderRadius: '14px',
+                          background: `${tone}14`, border: `1.5px solid ${tone}40`,
                         }}>
-                          <Icon name={status.passed ? 'warning' : 'clock'} size={13} color={tone} strokeWidth={1.8} />
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: status.passed || status.urgent ? tone : '#191B1E' }}>
+                          <span style={{
+                            flexShrink: 0, width: '34px', height: '34px', borderRadius: '50%',
+                            background: `${tone}1E`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <Icon name={status.passed ? 'warning' : 'clock'} size={17} color={tone} strokeWidth={1.8} />
+                          </span>
+                          <span style={{ fontSize: '14px', fontWeight: 700, lineHeight: 1.4, textAlign: 'left', color: status.passed || status.urgent ? tone : '#191B1E' }}>
                             {label}
                           </span>
                         </div>

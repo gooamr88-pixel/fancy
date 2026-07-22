@@ -583,7 +583,7 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
             )}
 
             <motion.span initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-              style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '4px', color: secondaryColor, fontWeight: 700, display: 'block', marginBottom: '10px', fontFamily: 'var(--font-sans)' }}>
+              style={{ fontSize: '10px', textTransform: isRTL ? 'none' : 'uppercase', letterSpacing: isRTL ? 'normal' : '4px', color: secondaryColor, fontWeight: 700, display: 'block', marginBottom: '10px', fontFamily: 'var(--font-sans)' }}>
               {t.rsvp_portal}
             </motion.span>
             <motion.h1 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.6 }}
@@ -614,15 +614,23 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
                 : status.urgent
                   ? t.reply_by_urgent.replace('{date}', deadlineText).replace('{daysPhrase}', daysLeftPhrase(status.daysLeft, isRTL))
                   : `${t.reply_by} ${deadlineText}`;
+              // A full-width banner, not a small inline pill — the passed/
+              // urgent states are the single most time-critical thing a guest
+              // can read here, and an 11.5px pill was easy to miss entirely.
               return (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.65 }}
                   style={{
-                    display: 'inline-flex', alignSelf: 'center', alignItems: 'center', gap: '7px',
-                    margin: '14px 0 0', padding: '7px 16px', borderRadius: '999px',
-                    background: 'rgba(255,255,255,0.1)', border: `1px solid ${tone}55`,
+                    display: 'flex', alignSelf: 'stretch', alignItems: 'center', gap: '14px',
+                    margin: '16px 0 0', padding: '16px 20px', borderRadius: '16px',
+                    background: 'rgba(255,255,255,0.1)', border: `1.5px solid ${tone}55`,
                   }}>
-                  <Icon name={status.passed ? 'warning' : 'clock'} size={12} color={tone} strokeWidth={1.8} />
-                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: tone, fontFamily: 'var(--font-sans)' }}>
+                  <span style={{
+                    flexShrink: 0, width: '38px', height: '38px', borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Icon name={status.passed ? 'warning' : 'clock'} size={19} color={tone} strokeWidth={1.8} />
+                  </span>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: tone, fontFamily: 'var(--font-sans)', lineHeight: 1.45, textAlign: isRTL ? 'right' : 'left' }}>
                     {label}
                   </span>
                 </motion.div>

@@ -224,7 +224,7 @@ export default function InvitationCard({ template, theme, guestName, config, dat
                 on the card itself; shown by default for this pattern (wedding +
                 the engagement reskin), hideable per-event via d.noKidsNotice. */}
             {d.noKidsNotice !== false && (
-              <span className="text-[6.5px] font-sans font-bold uppercase tracking-[2px] mt-1" style={{ color: `${accentColor}80` }}>
+              <span className="text-[8px] font-sans font-bold uppercase tracking-[1.5px] mt-1" style={{ color: `${accentColor}CC` }}>
                 {d.noKidsText || "No Kids Allowed"}
               </span>
             )}
