@@ -269,6 +269,7 @@ export default function CreateEventWizard() {
   const [noKidsAllowed, setNoKidsAllowed] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [coverImageUploading, setCoverImageUploading] = useState(false);
+  const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [backgroundMusicUrl, setBackgroundMusicUrl] = useState('');
   const [musicUploading, setMusicUploading] = useState(false);
   const [galleryUrls, setGalleryUrls] = useState([]);
@@ -767,6 +768,37 @@ export default function CreateEventWizard() {
       toast.error('Cover image upload failed. Please try again.');
     } finally {
       setCoverImageUploading(false);
+    }
+  }, []);
+
+  /* ═══ Hero background video upload (Supabase storage — no base64 fallback:
+     at video file sizes an inflated base64 payload would blow past the API's
+     body-size limit, so a failed upload fails outright rather than trying a
+     path that can't work). Written straight into template_data, not a
+     top-level field, so no migration was needed for this. ═══ */
+  const handleHeroVideoUpload = useCallback(async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 35 * 1024 * 1024) {
+      toast.error('Video exceeds 35MB. Please use a shorter or more compressed clip.');
+      return;
+    }
+    setHeroVideoUploading(true);
+    try {
+      if (!supabase) throw new Error('Storage client not configured.');
+      const ext = file.name.split('.').pop();
+      const filePath = `hero-video/wizard-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage.from('event-assets').getPublicUrl(filePath);
+      setTemplateData(prev => ({ ...prev, ha_hero_video_url: publicUrl }));
+    } catch (err) {
+      console.error('Hero video upload failed:', err);
+      toast.error("Couldn't upload the video. Please check your connection and try again.");
+    } finally {
+      setHeroVideoUploading(false);
     }
   }, []);
 
@@ -1535,6 +1567,7 @@ export default function CreateEventWizard() {
               noKidsAllowed={noKidsAllowed} setNoKidsAllowed={setNoKidsAllowed}
               coverImageUrl={coverImageUrl} setCoverImageUrl={setCoverImageUrl}
               onCoverImageUpload={handleCoverImageUpload} coverImageUploading={coverImageUploading}
+              onHeroVideoUpload={handleHeroVideoUpload} heroVideoUploading={heroVideoUploading}
               backgroundMusicUrl={backgroundMusicUrl} setBackgroundMusicUrl={setBackgroundMusicUrl}
               onMusicUpload={handleMusicUpload} musicUploading={musicUploading}
               galleryUrls={galleryUrls} onGalleryUpload={handleGalleryUpload}

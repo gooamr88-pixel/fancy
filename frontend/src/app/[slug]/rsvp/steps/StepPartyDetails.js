@@ -8,7 +8,7 @@ import { S } from '../styles';
 import { RsvpSectionHeading, RsvpDivider } from '../components';
 import { darken } from '../../../utils/color';
 import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
-import PhoneNumberInput from '../../../components/PhoneNumberInput';
+import CountryCodePhoneInput from '../../../components/CountryCodePhoneInput';
 import SmsConsentText from '../../../components/guest/SmsConsentText';
 import { BoltIcon, CalendarIcon, PlaneIcon, ClipboardIcon, HeartPulseIcon, DotsIcon, ClockIcon, EnvelopeIcon, PeopleIcon } from '../../../components/guest/RsvpIcons';
 
@@ -149,8 +149,7 @@ export default function StepPartyDetails({
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
               </FormField>
               <FormField label={isAttending ? t.phone_label : `${t.phone_label}${isRTL ? ' (اختياري)' : ' (optional)'}`} error={validationErrors.phone}>
-                <PhoneNumberInput value={phone} onChange={setPhone} hasError={!!validationErrors.phone}
-                  defaultCountry={isRTL ? 'eg' : 'us'} />
+                <CountryCodePhoneInput value={phone} onChange={setPhone} hasError={!!validationErrors.phone} defaultCountryCode={isRTL ? '20' : '1'} />
               </FormField>
             </div>
 
@@ -537,8 +536,8 @@ export default function StepPartyDetails({
                   />
                 </FormField>
                 <FormField label={t.companion_phone_label} error={validationErrors[`additionalGuest_phone_${index}`]}>
-                  <PhoneNumberInput value={g.phone || ''} onChange={(val) => updateCompanion(index, { phone: val })}
-                    hasError={!!validationErrors[`additionalGuest_phone_${index}`]} defaultCountry={isRTL ? 'eg' : 'us'} />
+                  <CountryCodePhoneInput value={g.phone || ''} onChange={(val) => updateCompanion(index, { phone: val })}
+                    hasError={!!validationErrors[`additionalGuest_phone_${index}`]} defaultCountryCode={isRTL ? '20' : '1'} />
                 </FormField>
               </div>
 

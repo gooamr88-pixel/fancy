@@ -4,6 +4,20 @@ import React, { useState } from 'react';
 import { useFullPageTheme } from '../theme';
 import { SectionShell, SectionHeading, DayTabs, ScrollToRsvpHint, MapEmbed, getDirectionsUrl } from '../shared';
 
+// A small decorative venue glyph (a classical arch/colonnade) shown above the
+// venue name — bundled with the template, tinted from the event's palette,
+// not an organizer-uploaded photo.
+function VenueMonogram({ color }) {
+  return (
+    <svg width="44" height="34" viewBox="0 0 44 34" fill="none" aria-hidden="true" style={{ marginBottom: '4px' }}>
+      <path d="M6 32V16M14 32V16M22 32V13M30 32V16M38 32V16" stroke={color} strokeWidth="1.4" opacity="0.7" />
+      <path d="M2 32h40" stroke={color} strokeWidth="1.6" opacity="0.8" />
+      <path d="M2 16 22 3l20 13" stroke={color} strokeWidth="1.4" fill="none" opacity="0.7" />
+      <circle cx="22" cy="8" r="1.6" fill={color} opacity="0.8" />
+    </svg>
+  );
+}
+
 export default function VenuesSection({ days, isRTL, t }) {
   const C = useFullPageTheme();
   const [dayIndex, setDayIndex] = useState(0);
@@ -32,6 +46,9 @@ export default function VenuesSection({ days, isRTL, t }) {
                 boxShadow: '0 12px 30px rgba(0,0,0,0.24)',
                 padding: '14px 20px', textAlign: 'center',
               }}>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <VenueMonogram color={C.gold} />
+                </div>
                 <h3 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '19px', color: C.maroon, margin: 0 }}>
                   {venue.name}
                 </h3>
@@ -43,6 +60,9 @@ export default function VenuesSection({ days, isRTL, t }) {
           </div>
         ) : hasName && (
           <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <VenueMonogram color={C.gold} />
+            </div>
             <h3 style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '22px', color: C.maroon, margin: '4px 0' }}>{venue.name}</h3>
             {venue.address && <p style={{ fontSize: '14px', color: C.ink, opacity: 0.8, margin: 0 }}>{venue.address}</p>}
           </div>

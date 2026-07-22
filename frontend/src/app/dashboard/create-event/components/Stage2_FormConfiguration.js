@@ -163,6 +163,7 @@ export default function Stage2_FormConfiguration({
   trackGuestSide, setTrackGuestSide,
   noKidsAllowed, setNoKidsAllowed,
   coverImageUrl, setCoverImageUrl, onCoverImageUpload, coverImageUploading,
+  onHeroVideoUpload, heroVideoUploading,
   backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
   galleryUrls = [], onGalleryUpload, galleryUploading, onRemoveGalleryUrl,
   customFields, onFieldsChange,
@@ -175,7 +176,7 @@ export default function Stage2_FormConfiguration({
   const [customDressMode, setCustomDressMode] = useState(!!dressCode && !DRESS_CODES.includes(dressCode));
   const td = (key) => templateData[key] || '';
   const setTd = (key) => (val) => setTemplateData(d => ({ ...d, [key]: val }));
-  const anyMediaUploading = !!(musicUploading || coverImageUploading || galleryUploading);
+  const anyMediaUploading = !!(musicUploading || coverImageUploading || heroVideoUploading || galleryUploading);
 
   // Actually attempts to embed the pasted YouTube link (debounced while
   // typing) so a song that can't play on the live guest page — a very common
@@ -548,6 +549,11 @@ export default function Stage2_FormConfiguration({
                     rows={3} placeholder="Tell your story…"
                     style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
                 </Field>
+                <Field label="Closing Message" hint="Optional — shown just before RSVP">
+                  <textarea value={td('ha_closing_message')} onChange={e => setTd('ha_closing_message')(e.target.value)}
+                    rows={2} placeholder="Looking forward to welcoming you"
+                    style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+                </Field>
                 {/* Meal options are configured once via the "🍽 Add Meal Options"
                     shortcut in Custom RSVP Questions (the single source of truth the
                     guest RSVP + backend read) — the old duplicate ha_meal_options
@@ -790,6 +796,49 @@ export default function Stage2_FormConfiguration({
             <input type="text" value={td('seal_text')} onChange={e => setTd('seal_text')(e.target.value)}
               placeholder="Auto from event name" style={iStyle} onFocus={onFocus} onBlur={onBlur} maxLength={24} />
           </Field>
+
+          <Field label="Hero Background Video" hint="Optional — a looping video behind the hero heading, fading to nothing at the bottom. Leave empty to keep the generated gradient background.">
+            <div
+              onClick={() => {
+                const fi = document.createElement('input');
+                fi.type = 'file'; fi.accept = 'video/mp4,video/webm';
+                fi.onchange = (ev) => onHeroVideoUpload?.(ev);
+                fi.click();
+              }}
+              style={{
+                marginTop: 10, padding: '18px 16px', borderRadius: 12,
+                border: `2px dashed ${C.border}`, background: C.softBg,
+                textAlign: 'center', transition: 'all 0.25s', cursor: heroVideoUploading ? 'wait' : 'pointer',
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={C.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/>
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+                  {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
+                </span>
+                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>MP4, WebM • Max 35MB</span>
+              </div>
+            </div>
+            {td('ha_hero_video_url') && (
+              <div style={{
+                borderRadius: 12, overflow: 'hidden',
+                border: `1px solid ${C.border}`, height: 140,
+                background: '#000', marginTop: 10, position: 'relative',
+              }}>
+                <video src={td('ha_hero_video_url')} muted loop playsInline autoPlay
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <button type="button" onClick={() => setTd('ha_hero_video_url')('')}
+                  style={{
+                    position: 'absolute', top: 6, right: 6, width: 26, height: 26,
+                    borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.75)',
+                    color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1,
+                  }}
+                >×</button>
+              </div>
+            )}
+          </Field>
         </Section>
 
         {/* ═══ Section C: Settings ═══ */}
@@ -837,6 +886,19 @@ export default function Stage2_FormConfiguration({
               placeholder="ملابس رسمية، كاجوال..." style={{ ...iStyle, fontFamily: "'Noto Sans Arabic', var(--font-sans)" }}
               onFocus={onFocus} onBlur={onBlur} />
           </Field>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+            <Field label="Guidance for Ladies" hint="Optional">
+              <textarea value={td('ha_dress_ladies')} onChange={e => setTd('ha_dress_ladies')(e.target.value)}
+                placeholder="Formal dresses in elegant, polished styles are encouraged."
+                rows={2} style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+            </Field>
+            <Field label="Guidance for Gentlemen" hint="Optional">
+              <textarea value={td('ha_dress_gentlemen')} onChange={e => setTd('ha_dress_gentlemen')(e.target.value)}
+                placeholder="Well-tailored suits with classic dress shoes are preferred."
+                rows={2} style={{ ...iStyle, resize: 'vertical' }} onFocus={onFocus} onBlur={onBlur} />
+            </Field>
+          </div>
 
           <Field label="RSVP Response Deadline" hint="Guests cannot RSVP after this date">
             <input type="datetime-local" value={rsvpDeadline}
@@ -953,9 +1015,9 @@ export default function Stage2_FormConfiguration({
                   onChange={e => setNoKidsAllowed(e.target.checked)}
                   style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
                 <span>
-                  Show "No Kids Allowed" on the invitation
+                  Show &quot;No Kids Allowed&quot; on the invitation
                   <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
-                    Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it's an adults-only celebration.
+                    Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it&apos;s an adults-only celebration.
                   </span>
                 </span>
               </label>

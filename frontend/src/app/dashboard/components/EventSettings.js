@@ -271,6 +271,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     ha_invited_to_city: '', ha_invited_to_lat: null, ha_invited_to_lng: null, ha_our_story: '',
     ha_menu_courses: [], ha_things_to_do: [], ha_getting_there: '',
     ha_gift_bank_name: '', ha_gift_account_name: '', ha_gift_iban: '', ha_gift_registry_label: '', ha_gift_message: '',
+    ha_hero_video_url: '', ha_dress_ladies: '', ha_dress_gentlemen: '', ha_closing_message: '',
   });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -304,6 +305,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     return () => { cancelled = true; clearTimeout(timer); };
   }, [form.background_music_url]);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [heroVideoUploading, setHeroVideoUploading] = useState(false);
   const [galleryUploading, setGalleryUploading] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -418,6 +420,41 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       return;
     }
     setCoverUploading(false);
+  };
+
+  // Hero background video — stored in template_data (ha_hero_video_url), not
+  // a top-level event column, so no migration was needed. No base64 fallback
+  // here unlike the image/audio uploads above: at video file sizes (tens of
+  // MB) an inflated base64 payload would blow well past the API's body-size
+  // limit, so a failed storage upload just fails outright with a clear error
+  // instead of silently trying a path that can't work.
+  const handleHeroVideoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 35 * 1024 * 1024) {
+      toast.error('Video exceeds 35MB. Please use a shorter or more compressed clip.');
+      return;
+    }
+    setHeroVideoUploading(true);
+    try {
+      if (!supabase) throw new Error('Supabase client is not initialized.');
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${eventId}-${Date.now()}.${fileExt}`;
+      const filePath = `hero-video/${fileName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from('event-assets')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      if (uploadErr) throw uploadErr;
+      const { data: { publicUrl } } = supabase.storage
+        .from('event-assets')
+        .getPublicUrl(filePath);
+      setTemplateData(prev => ({ ...prev, ha_hero_video_url: publicUrl }));
+      setSuccess(false);
+    } catch (err) {
+      console.error('Hero video upload failed:', err);
+      toast.error("Couldn't upload the video. Please check your connection and try again.");
+    }
+    setHeroVideoUploading(false);
   };
 
   /* Shared upload path for the gallery/seal/background fields below — tries
@@ -619,6 +656,10 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         ha_gift_iban: event.template_data?.ha_gift_iban || '',
         ha_gift_registry_label: event.template_data?.ha_gift_registry_label || '',
         ha_gift_message: event.template_data?.ha_gift_message || '',
+        ha_hero_video_url: event.template_data?.ha_hero_video_url || '',
+        ha_dress_ladies: event.template_data?.ha_dress_ladies || '',
+        ha_dress_gentlemen: event.template_data?.ha_dress_gentlemen || '',
+        ha_closing_message: event.template_data?.ha_closing_message || '',
       });
     }
   }
@@ -1162,6 +1203,31 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
           />
         </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginTop: 16 }}>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Guidance for Ladies <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span></label>
+            <textarea
+              value={templateData.ha_dress_ladies}
+              onChange={(e) => { setTemplateData(prev => ({ ...prev, ha_dress_ladies: e.target.value })); setSuccess(false); }}
+              placeholder="Formal dresses in elegant, polished styles are encouraged."
+              rows={2} style={{ ...inputStyle, resize: 'vertical' }}
+              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+              onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
+            />
+          </div>
+          <div style={fieldGroupStyle}>
+            <label style={labelStyle}>Guidance for Gentlemen <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span></label>
+            <textarea
+              value={templateData.ha_dress_gentlemen}
+              onChange={(e) => { setTemplateData(prev => ({ ...prev, ha_dress_gentlemen: e.target.value })); setSuccess(false); }}
+              placeholder="Well-tailored suits with classic dress shoes are preferred."
+              rows={2} style={{ ...inputStyle, resize: 'vertical' }}
+              onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+              onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
+            />
+          </div>
+        </div>
       </div>
       </>
       )}
@@ -1486,6 +1552,68 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           />
         </div>
       </div>
+
+      {/* ═══ HERO BACKGROUND VIDEO ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/></svg></span>
+            Hero Background Video
+          </span>
+        </h3>
+        <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+          Optional — a looping video behind the hero heading, fading to nothing at the bottom.
+          Leave empty to keep the generated gradient background.
+        </p>
+        <div style={fieldGroupStyle}>
+          <div
+            style={{
+              marginTop: '8px', padding: '16px', borderRadius: '12px',
+              border: `2px dashed ${COLORS.border}`, background: COLORS.softBg,
+              textAlign: 'center', transition: 'all 0.2s',
+            }}
+          >
+            <input
+              type="file" accept="video/mp4,video/webm" onChange={handleHeroVideoUpload}
+              disabled={heroVideoUploading}
+              style={{ display: 'none' }} id="hero-video-file-upload"
+            />
+            <label htmlFor="hero-video-file-upload" style={{
+              cursor: heroVideoUploading ? 'wait' : 'pointer', display: 'flex',
+              flexDirection: 'column', alignItems: 'center', gap: '8px',
+            }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={COLORS.stone} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3"/>
+              </svg>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
+                {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
+              </span>
+              <span style={{ fontSize: '10px', color: '#A09A91' }}>MP4, WebM • Max 35MB</span>
+            </label>
+          </div>
+
+          {templateData.ha_hero_video_url && (
+            <div style={{
+              marginTop: '10px', borderRadius: '12px', overflow: 'hidden',
+              border: `1px solid ${COLORS.border}`, height: '140px',
+              background: '#000', position: 'relative',
+            }}>
+              <video src={templateData.ha_hero_video_url} muted loop playsInline autoPlay
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+              <button type="button"
+                onClick={() => { setTemplateData(prev => ({ ...prev, ha_hero_video_url: '' })); setSuccess(false); }}
+                style={{
+                  position: 'absolute', top: 8, right: 8, width: 28, height: 28,
+                  borderRadius: '50%', border: 'none', background: 'rgba(25,27,30,0.7)',
+                  color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >×</button>
+            </div>
+          )}
+        </div>
+      </div>
       </>
       )}
 
@@ -1662,6 +1790,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             <div style={{ ...fieldGroupStyle, marginTop: 12 }}>
               <label style={labelStyle}>Our Story</label>
               <textarea value={templateData.ha_our_story} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_our_story: e.target.value }))} placeholder="Tell your story…" rows={4} style={{ ...inputStyle, resize: 'vertical' }} />
+            </div>
+
+            <div style={fieldGroupStyle}>
+              <label style={labelStyle}>Closing Message <span style={{ fontSize: '11px', color: '#999', fontWeight: 400 }}>(optional)</span></label>
+              <textarea value={templateData.ha_closing_message} onChange={(e) => setTemplateData(prev => ({ ...prev, ha_closing_message: e.target.value }))} placeholder="Looking forward to welcoming you" rows={2} style={{ ...inputStyle, resize: 'vertical' }} />
             </div>
 
             {/* Meal options moved to the single "🍽 Add Meal Options" source in
@@ -2002,9 +2135,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
                 style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: 'pointer' }}
               />
               <span>
-                Show "No Kids Allowed" on the invitation
+                Show &quot;No Kids Allowed&quot; on the invitation
                 <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
-                  Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it's an adults-only celebration.
+                  Off by default. When on, a quiet notice appears on the invitation card and the envelope reveal so guests know it&apos;s an adults-only celebration.
                 </span>
               </span>
             </label>
@@ -2275,6 +2408,19 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           .es-swatch-row { grid-template-columns: 1fr 1fr !important; }
           .es-privacy-grid { grid-template-columns: 1fr !important; }
           .es-tabs { overflow-x: auto; flex-wrap: nowrap !important; }
+        }
+        /* MOB-11: .es-save-bar is 'position: sticky; bottom: 0', which sticks
+           to the actual viewport edge — it has no idea dashboard/page.js also
+           pins its own always-on '.dashboard-bottom-tabbar' (~60px + safe-area,
+           z-index 55) to that same edge on mobile/tablet widths. For most of
+           the scroll range the two collide: this bar (z-index 20) renders
+           underneath the tab bar, so Save / the error / the "saved" banner sit
+           hidden behind it, and the fields just above look permanently stuck
+           in place while scrolling. Docking this bar's stuck position above
+           the tab bar (same breakpoint + same calc() page.js uses for main's
+           reserved padding) puts it back in view for the whole scroll range. */
+        @media (max-width: 1024px) {
+          .es-save-bar { bottom: calc(60px + env(safe-area-inset-bottom)) !important; }
         }
       `}</style>
     </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { DiamondDivider, ScrollToRsvpHint } from '../shared';
@@ -21,10 +21,78 @@ function CornerFlourish({ color, style }) {
   );
 }
 
+// Organizer-uploaded looping hero video, drawn through a canvas so the bottom
+// edge can fade to transparent (destination-out punch-through) instead of
+// cutting off hard — the video element itself stays hidden and is only the
+// canvas's source frame. Falls back to nothing (parent keeps its gradient)
+// if the video never becomes playable.
+function HeroVideoBackground({ src }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return undefined;
+    const ctx = canvas.getContext('2d');
+    let raf;
+    let running = true;
+
+    const resize = () => {
+      if (!video.videoWidth) return;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    };
+    const draw = () => {
+      if (!running) return;
+      if (!video.paused && !video.ended && video.videoWidth) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const gradient = ctx.createLinearGradient(0, canvas.height * 0.7, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(0,0,0,0)');
+        gradient.addColorStop(1, 'rgba(0,0,0,1)');
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    const play = () => video.play().catch(() => {});
+
+    video.addEventListener('loadedmetadata', resize);
+    video.addEventListener('canplay', play);
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      running = false;
+      cancelAnimationFrame(raf);
+      video.removeEventListener('loadedmetadata', resize);
+      video.removeEventListener('canplay', play);
+    };
+  }, [src]);
+
+  return (
+    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
+      <video
+        ref={videoRef} src={src} muted loop playsInline preload="auto"
+        style={{ position: 'absolute', width: '100%', height: '100%', objectFit: 'cover', visibility: 'hidden' }}
+      />
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+      {/* Neutral dark scrim — works over any organizer-uploaded footage,
+          unlike a theme-colored one which could clash with the video itself.
+          Keeps foreground text legible regardless of what was uploaded. */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(180deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.32) 60%, rgba(0,0,0,0.5) 100%)',
+      }} />
+    </div>
+  );
+}
+
 export default function HeroSection({
   partner1, partner2, title, tagline, dateLine, timeLine, titleAr,
   invitationPattern, invitationTheme, invitationGuestName, invitationData,
-  categoryBadge, isRTL, t,
+  categoryBadge, isRTL, t, heroVideoUrl,
 }) {
   const C = useFullPageTheme();
   const reduce = useReducedMotion();
@@ -44,16 +112,21 @@ export default function HeroSection({
       padding: 'clamp(72px, 10vh, 100px) 20px clamp(80px, 11vh, 100px)', boxSizing: 'border-box',
       // Layered, luminous background — two soft radial pools of the theme's gold
       // and accent over a vertical gradient — instead of a single flat fill.
+      // When an organizer-uploaded hero video is present, HeroVideoBackground
+      // (its own scrim included) covers this entirely; kept as the fallback
+      // for events with no video, and as the base layer video fades into.
       background: `
         radial-gradient(ellipse 70% 55% at 50% 8%, ${C.gold}26 0%, transparent 60%),
         radial-gradient(ellipse 90% 60% at 50% 100%, ${C.maroon}14 0%, transparent 55%),
         linear-gradient(176deg, ${C.cream} 0%, ${C.background} 55%, ${C.paper} 100%)
       `,
     }}>
+      {heroVideoUrl && <HeroVideoBackground src={heroVideoUrl} />}
+
       {/* Engraved stationery frame — a thin double gold rule inset from the
           screen edge, with a flourish in each corner. */}
       <div aria-hidden="true" style={{
-        position: 'absolute', inset: 'clamp(12px, 3vw, 26px)', borderRadius: '10px',
+        position: 'absolute', zIndex: 1, inset: 'clamp(12px, 3vw, 26px)', borderRadius: '10px',
         border: `1px solid ${C.gold}55`, boxShadow: `inset 0 0 0 3px ${C.background}, inset 0 0 0 4px ${C.gold}22`,
         pointerEvents: 'none',
       }}>

@@ -7,9 +7,11 @@ import { HERITAGE_ARCH_DEFAULTS as D } from './defaultContent';
 import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
 import HeroSection from './sections/HeroSection';
+import InvitationTextSection from './sections/InvitationTextSection';
 import AboutSection from './sections/AboutSection';
 import CoverPhotoSection from './sections/CoverPhotoSection';
 import CountdownSection from './sections/CountdownSection';
+import ClosingSection from './sections/ClosingSection';
 import ScheduleSection from './sections/ScheduleSection';
 import VenuesSection from './sections/VenuesSection';
 import DressCodeSection from './sections/DressCodeSection';
@@ -220,7 +222,7 @@ export default function HeritageArchPage({
     middleSections.venues = { id: 'ha-venues', content: <VenuesSection days={haDays} isRTL={isRTL} t={t} /> };
   }
   if (dressCode && sectionOn('dresscode')) {
-    middleSections.dresscode = { id: 'ha-dresscode', content: <DressCodeSection dressCode={dressCode} isRTL={isRTL} /> };
+    middleSections.dresscode = { id: 'ha-dresscode', content: <DressCodeSection dressCode={dressCode} customColors={customColors} ladiesText={td.ha_dress_ladies} gentlemenText={td.ha_dress_gentlemen} isRTL={isRTL} /> };
   }
   if (ourStory && sectionOn('story')) {
     middleSections.story = { id: 'ha-story', content: <OurStorySection story={ourStory} isRTL={isRTL} /> };
@@ -280,6 +282,7 @@ export default function HeritageArchPage({
   // every possible reorderable middle section pushed below.
   const SECTION_LABELS = {
     'ha-hero': isRTL ? 'الرئيسية' : 'Home',
+    'ha-invitation-text': isRTL ? 'الدعوة' : 'Invitation',
     'ha-cover-photo': isRTL ? 'صورة الغلاف' : 'Cover Photo',
     'ha-about': isRTL ? 'نبذة' : 'About',
     'ha-schedule': isRTL ? 'البرنامج' : 'Schedule',
@@ -295,6 +298,7 @@ export default function HeritageArchPage({
     'ha-thingstodo': isRTL ? 'أنشطة' : 'Things To Do',
     'ha-gettingthere': isRTL ? 'الوصول' : 'Getting There',
     'ha-countdown': isRTL ? 'العد التنازلي' : 'Countdown',
+    'ha-closing': isRTL ? 'كلمة ختامية' : 'Closing',
     'ha-rsvp': isRTL ? 'تأكيد الحضور' : 'RSVP',
   };
   const withLabel = (entry) => (entry ? { ...entry, label: SECTION_LABELS[entry.id] || '' } : entry);
@@ -310,11 +314,29 @@ export default function HeritageArchPage({
           invitationPattern={invitationPattern} invitationTheme={invitationTheme}
           invitationGuestName={invitationGuestName} invitationData={invitationData}
           categoryBadge={isPreview ? null : categoryBadge}
+          heroVideoUrl={td.ha_hero_video_url || null}
           isRTL={isRTL} t={t}
         />
       ),
     },
   ];
+
+  // Formal invitation-panel wording only makes sense for couple-style events
+  // (wedding/engagement) — its phrasing is composed directly from the two
+  // partner names, not a field an organizer fills in.
+  const hasCouple = !!(partner1 && partner2);
+  if (hasCouple) {
+    sections.push({
+      id: 'ha-invitation-text',
+      label: SECTION_LABELS['ha-invitation-text'],
+      content: (
+        <InvitationTextSection
+          partner1={partner1} partner2={partner2} dateLine={dateLine} timeLine={timeLine}
+          venueName={primaryVenue.name} isRTL={isRTL}
+        />
+      ),
+    });
+  }
 
   // The cover photo, now that the template card is the hero centerpiece, gets
   // its own framed slide — shown only when the organizer uploaded one.
@@ -334,6 +356,12 @@ export default function HeritageArchPage({
   }
 
   sections.push({ id: 'ha-countdown', label: SECTION_LABELS['ha-countdown'], content: <CountdownSection timeLeft={timeLeft} isRTL={isRTL} startTime={startTimeLine} endTime={endTimeLine} /> });
+
+  sections.push({
+    id: 'ha-closing',
+    label: SECTION_LABELS['ha-closing'],
+    content: <ClosingSection closingMessage={td.ha_closing_message} isRTL={isRTL} />,
+  });
 
   sections.push({
     id: 'ha-rsvp',

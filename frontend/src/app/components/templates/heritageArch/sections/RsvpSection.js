@@ -6,7 +6,7 @@ import { CalendarButton, ShareButton } from '../../../guest/GuestUI';
 import { LockIcon } from '../../../guest/RsvpIcons';
 import { ConfettiExplosion } from '../../../guest/GuestAnimations';
 import GuestPassCard from '../../../guest/GuestPassGenerator';
-import PhoneNumberInput from '../../../PhoneNumberInput';
+import CountryCodePhoneInput from '../../../CountryCodePhoneInput';
 import SmsConsentText from '../../../guest/SmsConsentText';
 import TurnstileWidget, { turnstileEnabled } from '../../../guest/TurnstileWidget';
 import { normalizeToE164 } from '../../../../utils/phone';
@@ -744,7 +744,16 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
   return (
     <SectionShell background={C.background} style={{ paddingBottom: '120px' }}>
-      <div style={{ width: '100%', maxWidth: '540px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {/* Glassmorphism card behind the whole form — a single translucent panel,
+          matching the reference; the cardOuter/cardInner sub-blocks inside stay
+          opaque cream (their own existing style) so nested glass-on-glass never
+          hurts legibility of the fields themselves. */}
+      <div style={{
+        width: '100%', maxWidth: '540px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        padding: 'clamp(20px, 5vw, 36px) clamp(16px, 4vw, 28px)', borderRadius: '28px',
+        background: 'rgba(255,255,255,0.32)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+        border: '1px solid rgba(255,255,255,0.5)', boxShadow: '0 30px 70px -30px rgba(20,12,10,0.25)',
+      }}>
         {/* Heading */}
         <motion.span {...reveal} style={{ ...eyebrowStyle, marginBottom: '10px' }}>
           {isRTL ? 'نتشرّف بحضوركم' : 'Kindly Reply'}
@@ -829,7 +838,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                         {isRTL ? 'رقم الهاتف' : 'Phone number'}{attending === 'yes' && <span style={{ color: ERR }}> *</span>}
                         {attending === 'no' && <span style={{ opacity: 0.5, fontWeight: 500 }}> {isRTL ? '(اختياري)' : '(optional)'}</span>}
                       </label>
-                      <PhoneNumberInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); if (!v.trim()) clearError('smsConsent'); }} hasError={!!errors.phone} defaultCountry={isRTL ? 'eg' : 'us'} />
+                      <CountryCodePhoneInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); if (!v.trim()) clearError('smsConsent'); }} hasError={!!errors.phone} defaultCountryCode={isRTL ? '20' : '1'} />
                       {errors.phone && <span style={errorTextStyle}>{typeof errors.phone === 'string' ? errors.phone : (isRTL ? 'مطلوب' : 'Required')}</span>}
                     </div>
 
@@ -932,7 +941,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                                   <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => { updateAdditionalGuest(i, { email: e.target.value }); clearError(`companion_${i}_email`); }} style={errors[`companion_${i}_email`] ? { ...fieldStyle, borderColor: ERR } : fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors[`companion_${i}_email`])} />
                                 </ThemedField>
                                 <div>
-                                  <PhoneNumberInput value={additionalGuests[i]?.phone || ''} onChange={(v) => { updateAdditionalGuest(i, { phone: v }); clearError(`companion_${i}_phone`); }} hasError={!!errors[`companion_${i}_phone`]} defaultCountry={isRTL ? 'eg' : 'us'} />
+                                  <CountryCodePhoneInput value={additionalGuests[i]?.phone || ''} onChange={(v) => { updateAdditionalGuest(i, { phone: v }); clearError(`companion_${i}_phone`); }} hasError={!!errors[`companion_${i}_phone`]} defaultCountryCode={isRTL ? '20' : '1'} />
                                   {errors[`companion_${i}_phone`] && <span style={errorTextStyle}>{isRTL ? 'مطلوب' : 'Required'}</span>}
                                 </div>
                                 {mealOptions && mealOptions.length > 0 && (

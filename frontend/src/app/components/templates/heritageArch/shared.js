@@ -153,23 +153,6 @@ export function ScrollToRsvpHint({ isRTL, label, color, fixed = false }) {
   );
 }
 
-const FLAG_GB = (
-  <svg width="20" height="14" viewBox="0 0 60 42" style={{ borderRadius: '2px' }}>
-    <rect width="60" height="42" fill="#00247d" />
-    <path d="M0 0L60 42M60 0L0 42" stroke="#fff" strokeWidth="6" />
-    <path d="M0 0L60 42M60 0L0 42" stroke="#cf142b" strokeWidth="3" />
-    <path d="M30 0V42M0 21H60" stroke="#fff" strokeWidth="10" />
-    <path d="M30 0V42M0 21H60" stroke="#cf142b" strokeWidth="6" />
-  </svg>
-);
-const FLAG_EG = (
-  <svg width="20" height="14" viewBox="0 0 60 42" style={{ borderRadius: '2px' }}>
-    <rect width="60" height="14" y="0" fill="#ce1126" />
-    <rect width="60" height="14" y="14" fill="#fff" />
-    <rect width="60" height="14" y="28" fill="#000" />
-  </svg>
-);
-
 export function LangPill({ lang, setLang, isRTL }) {
   const C = useFullPageTheme();
   return (
@@ -196,7 +179,6 @@ export function LangPill({ lang, setLang, isRTL }) {
           cursor: 'pointer', fontFamily: 'var(--font-serif)', fontSize: '13px', fontWeight: 700, color: C.maroon,
         }}
       >
-        <span style={{ display: 'flex' }}>{lang === 'en' ? FLAG_GB : FLAG_EG}</span>
         {lang === 'en' ? 'EN' : 'AR'}
       </button>
     </div>

@@ -88,12 +88,15 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        {/* Row 1: Name + Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
-          <span style={{ fontWeight: 700, fontSize: '14px', color: COLORS.charcoal, fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {/* Row 1: Name + Badge — wraps on narrow phones so the badge/button
+            group (side badge + response badge + two 44px touch targets, up to
+            ~250px) never overflows the card and clips the delete button off
+            screen the way FormBuilder's field rows used to (see its comment). */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '6px' }}>
+          <span style={{ flex: '1 1 140px', minWidth: 0, fontWeight: 700, fontSize: '14px', color: COLORS.charcoal, fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {guest.guest_name}
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', flexShrink: 0 }}>
             {event?.track_guest_side && guest.side && (
               <span style={{
                 padding: '2px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: 700,
