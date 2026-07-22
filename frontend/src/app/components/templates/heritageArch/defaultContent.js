@@ -68,4 +68,9 @@ export const HERITAGE_ARCH_COLORS = {
   gold: '#8A7A4A',
   border: 'rgba(107,27,42,0.18)',
   cream: '#FFFCF6',
+  // Hand-picked maroon is already dark enough for white/cream button text —
+  // see buildPalette's solidFill for why derived (non-heritageArch) palettes
+  // need a separately-computed value here instead of reusing maroon directly.
+  solidFill: '#6B1B2A',
+  solidFillDeep: '#4A1420',
 };

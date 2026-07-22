@@ -267,6 +267,7 @@ export default function CreateEventWizard() {
   const [allowGuestEdits, setAllowGuestEdits] = useState(false);
   const [trackGuestSide, setTrackGuestSide] = useState(false);
   const [noKidsAllowed, setNoKidsAllowed] = useState(false);
+  const [collectDietaryRestrictions, setCollectDietaryRestrictions] = useState(true);
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [coverImageUploading, setCoverImageUploading] = useState(false);
   const [heroVideoUploading, setHeroVideoUploading] = useState(false);
@@ -964,12 +965,13 @@ export default function CreateEventWizard() {
     allowGuestEdits,
     trackGuestSide,
     noKidsAllowed,
+    collectDietaryRestrictions,
   }), [
     slug, templateType, title, description, eventDate, eventEndDate,
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword, coverImageUrl,
     galleryUrls, customColors, buildTemplateData, backgroundMusicUrl, sanitizeUrl,
-    notificationEmail, allowGuestEdits, trackGuestSide, noKidsAllowed,
+    notificationEmail, allowGuestEdits, trackGuestSide, noKidsAllowed, collectDietaryRestrictions,
   ]);
 
   /* ═══ Create the draft event (first time) or update it (on revisits) ═══ */
@@ -1035,6 +1037,7 @@ export default function CreateEventWizard() {
         allow_guest_edits: allowGuestEdits,
         track_guest_side: trackGuestSide,
         no_kids_allowed: noKidsAllowed,
+        collect_dietary_restrictions: collectDietaryRestrictions,
       }),
     });
     const data = res.status === 413 ? {} : await res.json();
@@ -1056,7 +1059,7 @@ export default function CreateEventWizard() {
     eventDate, eventEndDate, locationName, locationAddress, locationLat, locationLng,
     locationPlaceId, dressCode, rsvpDeadline, privacyMode, accessPassword,
     coverImageUrl, galleryUrls, customColors, buildTemplateData, backgroundMusicUrl,
-    notificationEmail, allowGuestEdits, trackGuestSide, noKidsAllowed,
+    notificationEmail, allowGuestEdits, trackGuestSide, noKidsAllowed, collectDietaryRestrictions,
   ]);
 
   /* ═══ Advance from Templates → create the placeholder draft, then go to Payment ═══
@@ -1565,6 +1568,7 @@ export default function CreateEventWizard() {
               allowGuestEdits={allowGuestEdits} setAllowGuestEdits={setAllowGuestEdits}
               trackGuestSide={trackGuestSide} setTrackGuestSide={setTrackGuestSide}
               noKidsAllowed={noKidsAllowed} setNoKidsAllowed={setNoKidsAllowed}
+              collectDietaryRestrictions={collectDietaryRestrictions} setCollectDietaryRestrictions={setCollectDietaryRestrictions}
               coverImageUrl={coverImageUrl} setCoverImageUrl={setCoverImageUrl}
               onCoverImageUpload={handleCoverImageUpload} coverImageUploading={coverImageUploading}
               onHeroVideoUpload={handleHeroVideoUpload} heroVideoUploading={heroVideoUploading}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { DiamondDivider, ScrollToRsvpHint } from '../shared';
@@ -96,6 +96,40 @@ export default function HeroSection({
 }) {
   const C = useFullPageTheme();
   const reduce = useReducedMotion();
+  const [downloading, setDownloading] = useState(false);
+
+  // Lets a guest save the invitation card itself as a real PNG — same
+  // html-to-image capture EventPageClient's legacy continuous-scroll path
+  // already has (#invitation-card-capture there); HeritageArch and its 12
+  // style variants never had an equivalent until now.
+  const handleDownloadCard = useCallback(async () => {
+    setDownloading(true);
+    try {
+      const { toPng } = await import('html-to-image');
+      const node = document.getElementById('ha-invitation-card-capture');
+      if (!node) throw new Error('Card element not found');
+
+      // Wait a tiny moment to ensure fonts are fully layout-rendered
+      await new Promise((r) => setTimeout(r, 100));
+
+      const dataUrl = await toPng(node, {
+        quality: 0.98,
+        pixelRatio: 2.5,
+        style: { transform: 'scale(1)', borderRadius: '0px' },
+        cacheBust: true,
+      });
+
+      const link = document.createElement('a');
+      link.download = `${title || 'invitation'}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('Failed to download invitation card:', error);
+    } finally {
+      setDownloading(false);
+    }
+  }, [title]);
+
   // Wedding-style templates show the two partner names; every other template
   // (corporate/gala/birthday…) has no couple, so the hero shows the event title.
   const hasCouple = !!(partner1 && partner2);
@@ -188,6 +222,7 @@ export default function HeroSection({
           style={{ perspective: '1400px', marginTop: '10px' }}
         >
           <motion.div
+            id="ha-invitation-card-capture"
             animate={reduce ? undefined : { y: [0, -9, 0] }}
             transition={reduce ? undefined : { duration: 6.5, repeat: Infinity, ease: 'easeInOut' }}
             style={{
@@ -206,6 +241,38 @@ export default function HeroSection({
             />
           </motion.div>
         </motion.div>
+
+        {/* Download the invitation card — same html-to-image capture the
+            legacy continuous-scroll templates already offer, now available
+            for HeritageArch and its 12 style variants too. */}
+        <motion.button
+          type="button"
+          onClick={handleDownloadCard}
+          disabled={downloading}
+          whileHover={{ scale: 1.02, y: -1 }}
+          whileTap={{ scale: 0.98 }}
+          style={{
+            marginTop: 'clamp(14px, 2.6vw, 20px)',
+            display: 'inline-flex', alignItems: 'center', gap: '10px',
+            padding: '11px 24px', background: `${C.gold}14`,
+            border: `1.5px solid ${C.gold}55`, borderRadius: '12px',
+            color: C.maroon, fontSize: '13px', fontWeight: 700,
+            cursor: downloading ? 'not-allowed' : 'pointer',
+            fontFamily: 'var(--font-sans)', transition: 'all 0.2s',
+          }}
+        >
+          {downloading ? (
+            <>
+              <span aria-hidden style={{ width: '15px', height: '15px', border: '2px solid transparent', borderTop: '2px solid currentColor', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
+              <span>{isRTL ? 'جاري التحميل...' : 'Downloading...'}</span>
+            </>
+          ) : (
+            <>
+              <Icon name="download" size={15} strokeWidth={1.8} />
+              <span>{isRTL ? 'تحميل بطاقة الدعوة' : 'Download Invitation'}</span>
+            </>
+          )}
+        </motion.button>
 
         {/* A dedicated "when" card instead of a plain caption line — the same
             gold→maroon hairline-edge-over-cream card language used for every

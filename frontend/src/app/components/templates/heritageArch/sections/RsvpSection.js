@@ -151,7 +151,7 @@ function AttendanceChoice({ value, onSelect, C, isRTL }) {
               fontFamily: 'var(--font-sans)',
               border: `1.5px solid ${selected ? opt.accent : C.border}`,
               background: selected
-                ? (isYes ? `linear-gradient(150deg, ${C.maroon} 0%, ${C.maroonDeep} 100%)` : C.paper)
+                ? (isYes ? `linear-gradient(150deg, ${C.solidFill} 0%, ${C.solidFillDeep} 100%)` : C.paper)
                 : C.cream,
               color: selected ? (isYes ? '#FFFCF6' : C.ink) : C.ink,
               boxShadow: selected ? `0 16px 34px -16px ${alpha(opt.accent, 0.6)}` : `0 2px 10px ${alpha(C.ink, 0.05)}`,
@@ -188,6 +188,9 @@ function AttendanceChoice({ value, onSelect, C, isRTL }) {
 
 export default function RsvpSection({ event, slug, guestRsvp, hasResponded, responseStatus, allowGuestEdits, effectiveRsvpId, mealOptions: mealOptionsProp, isRTL, trackEvent }) {
   const C = useFullPageTheme();
+  // Opt-out toggle (EventSettings "Ask guests about food allergies & dietary
+  // restrictions") — on unless the organizer explicitly turned it off.
+  const collectDietary = event?.collect_dietary_restrictions !== false;
 
   // ── Themed input chrome (burgundy palette, not GuestUI's gold) ──
   const fieldStyle = {
@@ -628,8 +631,8 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
               style={{
                 width: '78px', height: '78px', borderRadius: '50%', marginBottom: '14px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: isYes ? `linear-gradient(150deg, ${C.maroon}, ${C.maroonDeep})` : alpha(C.ink, 0.08),
-                color: isYes ? '#FFFCF6' : C.ink, boxShadow: isYes ? `0 14px 30px -12px ${alpha(C.maroon, 0.6)}` : 'none',
+                background: isYes ? `linear-gradient(150deg, ${C.solidFill}, ${C.solidFillDeep})` : alpha(C.ink, 0.08),
+                color: isYes ? '#FFFCF6' : C.ink, boxShadow: isYes ? `0 14px 30px -12px ${alpha(C.solidFill, 0.6)}` : 'none',
               }}
             >
               {isYes ? (
@@ -890,23 +893,26 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                         {/* Primary guest's allergies — right under their own details,
                             ahead of meal/party/companions, instead of tacked on at
-                            the end of the whole attending block. */}
-                        <div style={cardOuter}>
-                          <div style={cardInner}>
-                            <span style={eyebrowStyle}>⚠ {isRTL ? 'الحساسية وقيود الطعام' : 'Food allergies & intolerances'}</span>
-                            <p style={{ fontSize: '12px', color: C.ink, opacity: 0.65, margin: 0, lineHeight: 1.5 }}>
-                              {isRTL ? 'من المهم معرفة أي قيود غذائية — اختر ما ينطبق:' : 'It helps us to know any dietary restrictions. Select all that apply:'}
-                            </p>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                              {ALLERGY_OPTIONS.map((opt) => (
-                                <button type="button" key={opt} aria-pressed={allergies.includes(opt)} onClick={() => toggleAllergy(opt)} style={pillStyle(allergies.includes(opt), { size: 'sm' })}>
-                                  {allergies.includes(opt) ? '✓ ' : ''}{opt}
-                                </button>
-                              ))}
+                            the end of the whole attending block. Organizer-gated
+                            (EventSettings "collect_dietary_restrictions"). */}
+                        {collectDietary && (
+                          <div style={cardOuter}>
+                            <div style={cardInner}>
+                              <span style={eyebrowStyle}>⚠ {isRTL ? 'الحساسية وقيود الطعام' : 'Food allergies & intolerances'}</span>
+                              <p style={{ fontSize: '12px', color: C.ink, opacity: 0.65, margin: 0, lineHeight: 1.5 }}>
+                                {isRTL ? 'من المهم معرفة أي قيود غذائية — اختر ما ينطبق:' : 'It helps us to know any dietary restrictions. Select all that apply:'}
+                              </p>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {ALLERGY_OPTIONS.map((opt) => (
+                                  <button type="button" key={opt} aria-pressed={allergies.includes(opt)} onClick={() => toggleAllergy(opt)} style={pillStyle(allergies.includes(opt), { size: 'sm' })}>
+                                    {allergies.includes(opt) ? '✓ ' : ''}{opt}
+                                  </button>
+                                ))}
+                              </div>
+                              <input placeholder={isRTL ? 'حساسية أخرى أو قيود' : 'Other allergies or restrictions'} value={otherAllergy} onChange={(e) => setOtherAllergy(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                             </div>
-                            <input placeholder={isRTL ? 'حساسية أخرى أو قيود' : 'Other allergies or restrictions'} value={otherAllergy} onChange={(e) => setOtherAllergy(e.target.value)} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                           </div>
-                        </div>
+                        )}
 
                         {/* Meal */}
                         {mealOptions && mealOptions.length > 0 && (
@@ -963,23 +969,26 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                               </div>
                             </div>
 
-                            {/* This companion's own allergies rectangle */}
-                            <div style={cardOuter}>
-                              <div style={cardInner}>
-                                <span style={eyebrowStyle}>⚠ {isRTL ? `الحساسية وقيود الطعام — الضيف ${i + 2}` : `Food allergies & intolerances — Guest ${i + 2}`}</span>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                  {ALLERGY_OPTIONS.map((opt) => {
-                                    const sel = (additionalGuests[i]?.allergies || []).includes(opt);
-                                    return (
-                                      <button type="button" key={opt} aria-pressed={sel} onClick={() => toggleCompanionAllergy(i, opt)} style={pillStyle(sel, { size: 'sm' })}>
-                                        {sel ? '✓ ' : ''}{opt}
-                                      </button>
-                                    );
-                                  })}
+                            {/* This companion's own allergies rectangle — same
+                                organizer gate as the primary guest's above. */}
+                            {collectDietary && (
+                              <div style={cardOuter}>
+                                <div style={cardInner}>
+                                  <span style={eyebrowStyle}>⚠ {isRTL ? `الحساسية وقيود الطعام — الضيف ${i + 2}` : `Food allergies & intolerances — Guest ${i + 2}`}</span>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                    {ALLERGY_OPTIONS.map((opt) => {
+                                      const sel = (additionalGuests[i]?.allergies || []).includes(opt);
+                                      return (
+                                        <button type="button" key={opt} aria-pressed={sel} onClick={() => toggleCompanionAllergy(i, opt)} style={pillStyle(sel, { size: 'sm' })}>
+                                          {sel ? '✓ ' : ''}{opt}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  <input placeholder={isRTL ? 'حساسية أخرى أو قيود (اختياري)' : 'Other allergies or restrictions (optional)'} value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                                 </div>
-                                <input placeholder={isRTL ? 'حساسية أخرى أو قيود (اختياري)' : 'Other allergies or restrictions (optional)'} value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
                               </div>
-                            </div>
+                            )}
                           </React.Fragment>
                         ))}
 
@@ -1048,10 +1057,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                   whileHover={submitting ? undefined : { y: -2 }} whileTap={submitting ? undefined : { scale: 0.99 }}
                   style={{
                     width: '100%', padding: '16px', borderRadius: '14px', border: 'none',
-                    background: submitting ? alpha(C.maroon, 0.55) : `linear-gradient(150deg, ${C.maroon}, ${C.maroonDeep})`,
+                    background: submitting ? alpha(C.solidFill, 0.55) : `linear-gradient(150deg, ${C.solidFill}, ${C.solidFillDeep})`,
                     color: '#FFFCF6', fontWeight: 700, fontSize: '15px', letterSpacing: '0.03em',
                     cursor: submitting ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)',
-                    boxShadow: submitting ? 'none' : `0 16px 34px -16px ${alpha(C.maroon, 0.7)}`,
+                    boxShadow: submitting ? 'none' : `0 16px 34px -16px ${alpha(C.solidFill, 0.7)}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
                   }}
                 >

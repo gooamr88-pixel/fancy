@@ -566,7 +566,7 @@ const REVEAL_CSS = `
 
 .ir2-scene{ position:relative; z-index:3; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 
-.ir2-seal-stage{ position:relative; width:min(76vw,340px); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
+.ir2-seal-stage{ position:relative; width:min(52vw,300px); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
 
 .ir2-corner{ position:absolute; width:26%; height:26%; color:var(--gold); opacity:.85;
   transition:color .5s ease, opacity .9s cubic-bezier(.22,.61,.36,1), transform .9s cubic-bezier(.22,.61,.36,1); }

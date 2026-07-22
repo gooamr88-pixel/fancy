@@ -237,7 +237,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     notification_whatsapp: false,
     allow_guest_edits: false,
     track_guest_side: false,
-    no_kids_allowed: false
+    no_kids_allowed: false,
+    collect_dietary_restrictions: true
   });
   // Key names mirror the create-event wizard's Stage2_FormConfiguration (the
   // canonical writer of these fields) so the digital card never has to guess
@@ -564,7 +565,8 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         notification_whatsapp: !!event.notification_preferences?.whatsapp,
         allow_guest_edits: !!event.allow_guest_edits,
         track_guest_side: !!event.track_guest_side,
-        no_kids_allowed: !!event.no_kids_allowed
+        no_kids_allowed: !!event.no_kids_allowed,
+        collect_dietary_restrictions: event.collect_dietary_restrictions !== false
       });
       setCustomDressMode(!!event.dress_code && !DRESS_CODES.includes(event.dress_code));
       setHasAccessPassword(!!event.has_access_password);
@@ -2142,6 +2144,21 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               </span>
             </label>
           )}
+
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={form.collect_dietary_restrictions}
+              onChange={(e) => { setForm(prev => ({ ...prev, collect_dietary_restrictions: e.target.checked })); setSuccess(false); }}
+              style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: 'pointer' }}
+            />
+            <span>
+              Ask guests about food allergies &amp; dietary restrictions
+              <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
+                On by default. Turn off to remove the allergies question from your RSVP form entirely — useful if your venue/catering already handles this separately.
+              </span>
+            </span>
+          </label>
         </div>
       </div>
       </>

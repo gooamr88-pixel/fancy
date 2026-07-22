@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext } from 'react';
-import { lighten, darken, alpha, isDark } from '../../../utils/color';
+import { lighten, darken, alpha, isDark, luminance } from '../../../utils/color';
 import { HERITAGE_ARCH_COLORS } from './defaultContent';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -52,6 +52,17 @@ export function buildPalette(customColors = {}, templateType) {
   // keep the primary exactly as chosen.)
   const accent = dark ? lighten(primary, 0.32) : primary;
 
+  // A solid fill guaranteed dark enough to hold white/cream text on top,
+  // for CTAs (RSVP submit, registry link) that paint `accent` as a full
+  // background rather than using it as a text/heading color. `accent` itself
+  // has no such guarantee on a LIGHT page theme — there it's the organizer's
+  // primary color verbatim (see above), and a pale chosen primary (common:
+  // blush, ivory, pale gold) made white button text unreadable. Independent
+  // of the page's own light/dark theme, since that's a different contrast
+  // question (accent-against-page-background) than this one
+  // (light-text-against-this-fill).
+  const solidFill = luminance(accent) > 0.5 ? darken(accent, 0.42) : accent;
+
   return {
     background,
     paper: dark ? lighten(background, 0.08) : darken(background, 0.05),
@@ -61,5 +72,7 @@ export function buildPalette(customColors = {}, templateType) {
     maroonDeep: dark ? lighten(primary, 0.15) : darken(primary, 0.28),
     gold: secondary,
     border: dark ? alpha(accent, 0.35) : alpha(primary, 0.18),
+    solidFill,
+    solidFillDeep: darken(solidFill, 0.22),
   };
 }

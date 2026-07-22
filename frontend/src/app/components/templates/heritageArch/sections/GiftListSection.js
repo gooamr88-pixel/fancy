@@ -94,7 +94,7 @@ export default function GiftListSection({ registryUrl, registryLabel, bank, mess
               rel="noopener noreferrer"
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: '10px', padding: '14px 32px',
-                borderRadius: '999px', background: C.maroon, color: '#FFF', textDecoration: 'none',
+                borderRadius: '999px', background: C.solidFill, color: '#FFF', textDecoration: 'none',
                 fontWeight: 700, fontSize: '15px', fontFamily: 'var(--font-sans)',
               }}
             >

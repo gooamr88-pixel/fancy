@@ -160,7 +160,8 @@ const createEvent = async (req, res, next) => {
     locationName, locationAddress, locationLat, locationLng, locationPlaceId,
     dressCode, rsvpDeadline, privacyMode, accessPassword,
     coverImageUrl, galleryUrls, customColors, customFonts, templateData,
-    eventType, backgroundMusicUrl, notificationPreferences, allowGuestEdits, trackGuestSide, noKidsAllowed
+    eventType, backgroundMusicUrl, notificationPreferences, allowGuestEdits, trackGuestSide, noKidsAllowed,
+    collectDietaryRestrictions
   } = req.body;
 
   if (!templateType) {
@@ -265,6 +266,10 @@ const createEvent = async (req, res, next) => {
       allow_guest_edits: !!allowGuestEdits,
       track_guest_side: !!trackGuestSide,
       no_kids_allowed: !!noKidsAllowed,
+      // Opt-out, not opt-in — see the migration comment. Only an explicit
+      // `false` turns the question off; anything else (undefined from a
+      // caller that predates this field, or a truthy value) keeps it on.
+      collect_dietary_restrictions: collectDietaryRestrictions !== false,
       status: 'draft',
       is_paid: false
     };
@@ -419,6 +424,7 @@ const getPublicEventBySlug = async (req, res, next) => {
         allow_guest_edits,
         track_guest_side,
         no_kids_allowed,
+        collect_dietary_restrictions,
         tier_remove_watermark,
         updated_at,
         custom_form_fields(*)
@@ -598,7 +604,8 @@ const updateEvent = async (req, res, next) => {
     'notification_preferences',
     'allow_guest_edits',
     'track_guest_side',
-    'no_kids_allowed'
+    'no_kids_allowed',
+    'collect_dietary_restrictions'
   ];
 
   // Status transitions the organizer may request:

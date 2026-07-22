@@ -3,6 +3,29 @@
 import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { formatTableLabel } from '../../utils/tableLabel';
+import { lighten, luminance } from '../../utils/color';
+
+// This card's body is a fixed near-black (#191B1E) regardless of the event's
+// own custom_colors — callers pass in a raw, unclamped organizer color (e.g.
+// RsvpSection's C.maroon, which on a light-theme event IS the organizer's own
+// picked primary verbatim; StepSuccess's raw event.custom_colors.primary).
+// Many real palettes pick a DARK primary (navy, forest green, near-black,
+// deep burgundy) — perfectly readable on their own light invitation pages,
+// but invisible as dark-on-near-black text/pill-fill here. Lightening only
+// when genuinely too dark leaves already-legible colors (gold, coral, cream)
+// untouched.
+function safePassAccent(color) {
+  return luminance(color) < 0.4 ? lighten(color, 0.5) : color;
+}
+
+// A boarding-pass aesthetic reads as a deliberately-designed object, not a
+// themed section of the invitation — so unlike the rest of the guest page,
+// this deliberately does NOT inherit the organizer's chosen template fonts
+// (var(--font-serif)/var(--font-sans), which could be anything from a heavy
+// script to a condensed sans and would clash with this card's tight ticket
+// layout). Same reasoning as InvitationReveal's locally-scoped font vars.
+const PASS_FONT_SERIF = "'Cormorant Garamond', Georgia, 'Times New Roman', serif";
+const PASS_FONT_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
 
 /* ═══════════════════════════════════════════════════════════════
    FANCY RSVP — Premium Guest Pass / Ticket Generator
@@ -42,6 +65,8 @@ export default function GuestPassCard({
 }) {
   const [qrImageUrl, setQrImageUrl] = useState(null);
   const [flipped, setFlipped] = useState(false);
+  // The only accent color actually rendered — see safePassAccent above.
+  const accent = safePassAccent(themeColor);
 
   // Generate QR code client-side
   useEffect(() => {
@@ -110,7 +135,7 @@ export default function GuestPassCard({
     ctx.font = '700 11px sans-serif';
     ctx.fillText('G U E S T   P A S S', 44, 50);
 
-    ctx.fillStyle = themeColor;
+    ctx.fillStyle = accent;
     ctx.font = '700 30px Georgia, serif';
     ctx.fillText((eventTitle || '').slice(0, 38), 44, 94);
 
@@ -135,7 +160,7 @@ export default function GuestPassCard({
       ctx.fillStyle = 'rgba(255,255,255,0.45)';
       ctx.font = '700 10px sans-serif';
       ctx.fillText('TABLE', 44, 296);
-      ctx.fillStyle = themeColor;
+      ctx.fillStyle = accent;
       ctx.font = '700 24px sans-serif';
       ctx.fillText(tableName, 44, 326);
     }
@@ -144,7 +169,7 @@ export default function GuestPassCard({
     ctx.font = '700 11px sans-serif';
     const statusWidth = ctx.measureText(statusText).width + 28;
     clipRoundRect(44, 358, statusWidth, 32, 16);
-    ctx.fillStyle = themeColor;
+    ctx.fillStyle = accent;
     ctx.fill();
     ctx.fillStyle = '#0E0F10';
     ctx.fillText(statusText, 58, 379);
@@ -192,7 +217,7 @@ export default function GuestPassCard({
     }
 
     if (onDownload) onDownload();
-  }, [eventTitle, dateFormatted, dateShort, timeFormatted, eventLocation, guestName, tableName, response, themeColor, qrImageUrl, onDownload, removeWatermark]);
+  }, [eventTitle, dateFormatted, dateShort, timeFormatted, eventLocation, guestName, tableName, response, themeColor, accent, qrImageUrl, onDownload, removeWatermark]);
 
   return (
     <div style={{ perspective: '1400px', maxWidth: '480px', width: '100%', margin: '0 auto' }}>
@@ -224,7 +249,7 @@ export default function GuestPassCard({
             <div style={{
               position: 'absolute', top: '14px', [isRTL ? 'left' : 'right']: '-34px',
               width: '120px', transform: isRTL ? 'rotate(-45deg)' : 'rotate(45deg)',
-              background: `linear-gradient(100deg, ${themeColor}, #F4E6C2 50%, ${themeColor})`,
+              background: `linear-gradient(100deg, ${accent}, #F4E6C2 50%, ${accent})`,
               color: '#191B1E', fontSize: '9px', fontWeight: 800, letterSpacing: '0.12em',
               textAlign: 'center', padding: '3px 0', textTransform: 'uppercase',
               boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
@@ -240,10 +265,10 @@ export default function GuestPassCard({
             <div className="gp-main-stub" style={{ flex: '1 1 65%', padding: '26px 26px 22px', display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                 <div style={{ minWidth: 0 }}>
-                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)', fontWeight: 700, fontFamily: 'var(--font-sans)' }}>
+                  <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.4)', fontWeight: 700, fontFamily: PASS_FONT_SANS }}>
                     {isRTL ? 'بطاقة الضيف' : 'Guest Pass'}
                   </span>
-                  <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '19px', fontWeight: 600, color: themeColor, marginTop: '4px', lineHeight: 1.25 }}>
+                  <h3 style={{ fontFamily: PASS_FONT_SERIF, fontSize: '19px', fontWeight: 600, color: accent, marginTop: '4px', lineHeight: 1.25 }}>
                     {eventTitle}
                   </h3>
                 </div>
@@ -264,17 +289,17 @@ export default function GuestPassCard({
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
                 <div>
-                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px', fontFamily: PASS_FONT_SANS }}>
                     {isRTL ? 'الضيف' : 'Guest'}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '17px', fontWeight: 600, color: '#FFFFFF' }}>{guestName}</span>
+                  <span style={{ fontFamily: PASS_FONT_SERIF, fontSize: '17px', fontWeight: 600, color: '#FFFFFF' }}>{guestName}</span>
                 </div>
                 {tableName && (
                   <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
-                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px', fontFamily: PASS_FONT_SANS }}>
                       {isRTL ? 'مكان جلوسك' : 'Your assigned seating'}
                     </span>
-                    <span style={{ fontSize: '17px', fontWeight: 800, color: themeColor, fontFamily: 'var(--font-sans)' }}>{formatTableLabel(tableName, isRTL)}</span>
+                    <span style={{ fontSize: '17px', fontWeight: 800, color: accent, fontFamily: PASS_FONT_SANS }}>{formatTableLabel(tableName, isRTL)}</span>
                   </div>
                 )}
               </div>
@@ -286,7 +311,7 @@ export default function GuestPassCard({
               alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'rgba(255,255,255,0.02)',
             }}>
               {dateShort && (
-                <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)', fontFamily: PASS_FONT_SANS }}>
                   {dateShort.toUpperCase()}
                 </span>
               )}
@@ -298,12 +323,12 @@ export default function GuestPassCard({
                 <div style={{
                   width: '112px', height: '112px', borderRadius: '10px', border: '1px dashed rgba(255,255,255,0.18)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-                  fontSize: '9px', color: 'rgba(255,255,255,0.3)', padding: '8px', fontFamily: 'var(--font-sans)',
+                  fontSize: '9px', color: 'rgba(255,255,255,0.3)', padding: '8px', fontFamily: PASS_FONT_SANS,
                 }}>
                   {isRTL ? 'سيُرسل لاحقاً' : 'Sent separately'}
                 </div>
               )}
-              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', textAlign: 'center', lineHeight: 1.4 }}>
+              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.3)', textAlign: 'center', lineHeight: 1.4, fontFamily: PASS_FONT_SANS }}>
                 {isRTL ? 'امسح للتسجيل' : 'Scan to check in'}
               </span>
             </div>
@@ -316,7 +341,7 @@ export default function GuestPassCard({
                 width: '100%', padding: '12px', borderRadius: '10px',
                 border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
                 color: 'rgba(255,255,255,0.75)', fontSize: '13px', fontWeight: 600,
-                cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                cursor: 'pointer', fontFamily: PASS_FONT_SANS,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                 transition: 'all 0.2s',
               }}
@@ -331,7 +356,7 @@ export default function GuestPassCard({
               style={{
                 background: 'none', border: 'none', padding: '4px', cursor: 'pointer',
                 textAlign: 'center', fontSize: '10px', color: 'rgba(255,255,255,0.4)',
-                letterSpacing: '0.04em', fontFamily: 'var(--font-sans)', textDecoration: 'underline',
+                letterSpacing: '0.04em', fontFamily: PASS_FONT_SANS, textDecoration: 'underline',
                 textUnderlineOffset: '2px',
               }}
             >
@@ -352,33 +377,33 @@ export default function GuestPassCard({
             textAlign: isRTL ? 'right' : 'left', minHeight: '280px',
           }}
         >
-          <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.35)', fontWeight: 700 }}>
+          <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '3px', color: 'rgba(255,255,255,0.35)', fontWeight: 700, fontFamily: PASS_FONT_SANS }}>
             {isRTL ? 'تفاصيل التذكرة' : 'Pass Details'}
           </span>
           <div style={{ height: '1px', background: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.15) 0, rgba(255,255,255,0.15) 6px, transparent 6px, transparent 12px)' }} />
           {eventLocation && (
             <div>
-              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>
+              <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px', fontFamily: PASS_FONT_SANS }}>
                 {isRTL ? 'الموقع' : 'Venue'}
               </span>
-              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>{eventLocation}</span>
+              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.5, fontFamily: PASS_FONT_SANS }}>{eventLocation}</span>
             </div>
           )}
-          <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, fontStyle: 'italic' }}>
+          <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)', lineHeight: 1.7, fontStyle: 'italic', fontFamily: PASS_FONT_SERIF }}>
             {isRTL
               ? 'يُرجى إبراز رمز QR عند الوصول لتسجيل دخولك بسلاسة. هذه التذكرة شخصية وغير قابلة للتحويل.'
               : 'Present this QR at the entrance for a seamless check-in. This pass is personal and non-transferable.'}
           </p>
           <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: removeWatermark ? 'flex-end' : 'space-between' }}>
             {!removeWatermark && (
-              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px' }}>Fancy RSVP</span>
+              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.2)', letterSpacing: '1px', fontFamily: PASS_FONT_SANS }}>Fancy RSVP</span>
             )}
             <button
               onClick={() => setFlipped(false)}
               aria-label={isRTL ? 'العودة إلى بطاقة الدخول' : 'Back to pass'}
               style={{
                 background: 'none', border: 'none', padding: '4px', cursor: 'pointer',
-                fontSize: '10px', color: themeColor, fontWeight: 700, fontFamily: 'var(--font-sans)',
+                fontSize: '10px', color: accent, fontWeight: 700, fontFamily: PASS_FONT_SANS,
               }}
             >
               {isRTL ? '↺ العودة' : '↺ Back to pass'}
@@ -409,10 +434,10 @@ function Field({ label, value, isRTL }) {
   if (!value) return null;
   return (
     <div>
-      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '2px' }}>
+      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '2px', fontFamily: PASS_FONT_SANS }}>
         {label}
       </span>
-      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{value}</span>
+      <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', fontWeight: 500, fontFamily: PASS_FONT_SANS }}>{value}</span>
     </div>
   );
 }

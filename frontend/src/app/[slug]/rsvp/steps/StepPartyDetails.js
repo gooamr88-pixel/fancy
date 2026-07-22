@@ -34,7 +34,7 @@ export default function StepPartyDetails({
   validationErrors, setValidationErrors, onBack, onContinue,
   maybeFollowUp, setMaybeFollowUp, declineReason, setDeclineReason,
   guestName, setGuestName,
-  side, setSide, showSidePicker, isWedding,
+  side, setSide, showSidePicker, isWedding, showDietary = true,
   smsConsent, setSmsConsent,
   themeColor = '#B8944F', secondaryColor = '#D7BE80',
 }) {
@@ -214,7 +214,7 @@ export default function StepPartyDetails({
               </FormField>
             )}
 
-            {includeMeal && (
+            {includeMeal && showDietary && (
               <FormField label={isRTL ? 'متطلبات غذائية أو حساسية (اختياري)' : 'Dietary Restrictions & Allergies (Optional)'}>
                 <input
                   type="text" value={dietaryNotes} onChange={e => setDietaryNotes(e.target.value)}
@@ -560,15 +560,17 @@ export default function StepPartyDetails({
                 </FormField>
               )}
 
-              <FormField label={isRTL ? 'متطلبات غذائية أو حساسية (اختياري)' : 'Dietary Restrictions & Allergies (Optional)'}>
-                <input
-                  type="text" value={g.dietaryNotes || ''}
-                  onChange={e => updateCompanion(index, { dietaryNotes: e.target.value })}
-                  placeholder={isRTL ? 'مثال: نباتي، حساسية من المكسرات...' : 'e.g. Vegetarian, Peanut allergy...'}
-                  style={S.inputBase}
-                  onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
-                />
-              </FormField>
+              {showDietary && (
+                <FormField label={isRTL ? 'متطلبات غذائية أو حساسية (اختياري)' : 'Dietary Restrictions & Allergies (Optional)'}>
+                  <input
+                    type="text" value={g.dietaryNotes || ''}
+                    onChange={e => updateCompanion(index, { dietaryNotes: e.target.value })}
+                    placeholder={isRTL ? 'مثال: نباتي، حساسية من المكسرات...' : 'e.g. Vegetarian, Peanut allergy...'}
+                    style={S.inputBase}
+                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
+                  />
+                </FormField>
+              )}
 
             </motion.div>
           );

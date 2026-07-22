@@ -162,6 +162,7 @@ export default function Stage2_FormConfiguration({
   allowGuestEdits, setAllowGuestEdits,
   trackGuestSide, setTrackGuestSide,
   noKidsAllowed, setNoKidsAllowed,
+  collectDietaryRestrictions, setCollectDietaryRestrictions,
   coverImageUrl, setCoverImageUrl, onCoverImageUpload, coverImageUploading,
   onHeroVideoUpload, heroVideoUploading,
   backgroundMusicUrl, setBackgroundMusicUrl, onMusicUpload, musicUploading,
@@ -1023,6 +1024,20 @@ export default function Stage2_FormConfiguration({
               </label>
             </Field>
           )}
+
+          <Field label="Dietary Restrictions">
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.charcoal, cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={!!collectDietaryRestrictions}
+                onChange={e => setCollectDietaryRestrictions(e.target.checked)}
+                style={{ width: 16, height: 16, marginTop: 2, accentColor: C.gold, cursor: 'pointer' }} />
+              <span>
+                Ask guests about food allergies &amp; dietary restrictions
+                <span style={{ display: 'block', color: C.stone, fontSize: 12, marginTop: 3, fontWeight: 400, lineHeight: 1.5 }}>
+                  On by default. Turn off to remove the allergies question from your RSVP form entirely.
+                </span>
+              </span>
+            </label>
+          </Field>
 
           <Field label="Cover Image">
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
