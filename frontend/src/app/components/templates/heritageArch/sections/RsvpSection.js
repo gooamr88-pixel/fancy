@@ -201,6 +201,18 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   // for every other couple-style event (engagement, vow renewal, custom).
   // Matches RsvpWizard/StepPartyDetails' own isWedding convention exactly.
   const isWedding = event?.event_type === 'wedding';
+  // Personalized side labels — "Ahmed's Side" reads far more like a real
+  // invitation than a generic "Groom's Side" once the organizer has actually
+  // named the couple, which they always have by the time RSVP is live.
+  const sideTd = event?.template_data || {};
+  const partner1Name = sideTd.groom_name || sideTd.partner1Name || sideTd.partner1 || '';
+  const partner2Name = sideTd.bride_name || sideTd.partner2Name || sideTd.partner2 || '';
+  const side1Fallback = isWedding ? (isRTL ? 'العريس' : 'Groom') : (isRTL ? 'الشريك الأول' : 'Partner 1');
+  const side2Fallback = isWedding ? (isRTL ? 'العروس' : 'Bride') : (isRTL ? 'الشريك الثاني' : 'Partner 2');
+  const side1Label = isRTL ? `جانب ${partner1Name || side1Fallback}` : `${partner1Name || side1Fallback}'s Side`;
+  const side2Label = isRTL ? `جانب ${partner2Name || side2Fallback}` : `${partner2Name || side2Fallback}'s Side`;
+  const side1Initial = (partner1Name || side1Fallback).trim().charAt(0).toUpperCase();
+  const side2Initial = (partner2Name || side2Fallback).trim().charAt(0).toUpperCase();
 
   // ── Themed input chrome (burgundy palette, not GuestUI's gold) ──
   const fieldStyle = {
@@ -968,21 +980,60 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
                         {/* Which side — organizer-gated (EventSettings "Track which
                             side each guest is on"), same feature/wording as the
-                            standalone RSVP wizard, just previously missing here. */}
+                            standalone RSVP wizard, just previously missing here.
+                            A distinct split card (not another pill row) so it
+                            reads as its own moment: two named halves meeting at
+                            a rings monogram, the selected half filling with the
+                            theme's own gold→maroon gradient. */}
                         {event?.track_guest_side && (
-                          <div style={{ padding: '18px', borderRadius: '18px', border: `1px solid ${alpha(C.maroon, 0.28)}`, background: alpha(C.maroon, 0.05) }}>
-                            <label style={{ ...labelStyle, opacity: 1, marginBottom: 0 }}>
-                              {isWedding
-                                ? (isRTL ? 'جانب الاحتفال' : "Which side are you celebrating with?")
-                                : (isRTL ? 'الجانب' : "Which partner's side?")}
-                            </label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
-                              <button type="button" aria-pressed={side === 'partner1'} onClick={() => setSide('partner1')} style={pillStyle(side === 'partner1')}>
-                                {isWedding ? (isRTL ? 'جانب العريس' : "Groom's Side") : (isRTL ? 'جانب الشريك الأول' : "Partner 1's Side")}
-                              </button>
-                              <button type="button" aria-pressed={side === 'partner2'} onClick={() => setSide('partner2')} style={pillStyle(side === 'partner2')}>
-                                {isWedding ? (isRTL ? 'جانب العروس' : "Bride's Side") : (isRTL ? 'جانب الشريك الثاني' : "Partner 2's Side")}
-                              </button>
+                          <div style={cardOuter}>
+                            <div style={{ ...cardInner, paddingTop: '18px', paddingBottom: '18px' }}>
+                              <span style={eyebrowStyle}>
+                                {isRTL ? 'مع مين هتحتفل؟' : "Whose Side Are You On?"}
+                              </span>
+                              <div style={{ position: 'relative', display: 'flex', alignItems: 'stretch', gap: '3px', marginTop: '14px' }}>
+                                {[
+                                  { key: 'partner1', label: side1Label, initial: side1Initial },
+                                  { key: 'partner2', label: side2Label, initial: side2Initial },
+                                ].map((opt) => {
+                                  const selected = side === opt.key;
+                                  return (
+                                    <motion.button
+                                      key={opt.key} type="button" aria-pressed={selected}
+                                      onClick={() => setSide(opt.key)}
+                                      whileTap={{ scale: 0.97 }}
+                                      animate={{ scale: selected ? 1.015 : 1 }}
+                                      transition={{ type: 'spring', stiffness: 400, damping: 26 }}
+                                      style={{
+                                        flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '9px',
+                                        padding: '20px 10px', borderRadius: '15px', cursor: 'pointer', border: 'none',
+                                        background: selected ? `linear-gradient(155deg, ${C.gold}, ${C.maroon})` : alpha(C.maroon, 0.05),
+                                        boxShadow: selected ? `0 12px 26px -12px ${alpha(C.maroon, 0.6)}` : 'none',
+                                        transition: 'background 0.35s ease, box-shadow 0.35s ease',
+                                      }}
+                                    >
+                                      <span aria-hidden style={{
+                                        width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: selected ? 'rgba(255,255,255,0.2)' : alpha(C.maroon, 0.12),
+                                        color: selected ? '#fff' : C.maroon, fontFamily: 'var(--font-serif)', fontWeight: 700, fontSize: '17px',
+                                        border: selected ? '1px solid rgba(255,255,255,0.45)' : `1px solid ${alpha(C.maroon, 0.2)}`,
+                                        transition: 'background 0.35s ease, color 0.35s ease, border-color 0.35s ease',
+                                      }}>{opt.initial}</span>
+                                      <span style={{ fontSize: '13px', fontWeight: 700, color: selected ? '#fff' : C.ink, textAlign: 'center', lineHeight: 1.3 }}>
+                                        {opt.label}
+                                      </span>
+                                    </motion.button>
+                                  );
+                                })}
+                                <span aria-hidden style={{
+                                  position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+                                  width: '30px', height: '30px', borderRadius: '50%', background: C.background,
+                                  border: `1.5px solid ${alpha(C.gold, 0.5)}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  boxShadow: `0 2px 10px ${alpha(C.maroon, 0.18)}`, zIndex: 2,
+                                }}>
+                                  <Icon name="rings" size={14} color={C.gold} strokeWidth={1.8} />
+                                </span>
+                              </div>
                             </div>
                           </div>
                         )}

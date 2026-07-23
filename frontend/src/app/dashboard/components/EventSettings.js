@@ -1961,9 +1961,20 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </div>
         )}
 
-        {form.event_type === 'engagement' && (
+        {/* Was gated on the literal `form.event_type === 'engagement'`, so a
+            Custom-template event with a "couple" category (Wedding or Vow
+            Renewal under Custom — event_type is 'custom' there, never
+            'wedding' or 'engagement', per create-event/page.js's mapping)
+            got NO partner name/email UI at all: fields it could set once
+            during creation (Stage2_FormConfiguration uses the same
+            showCoupleFields gate) became permanently unreachable in
+            Settings afterward. `form.event_type !== 'wedding'` keeps this
+            from also rendering alongside the richer wedding-only block
+            above for real weddings, which already has its own copy of
+            these same two fields. */}
+        {showCoupleFields && form.event_type !== 'wedding' && (
           <div style={{ marginTop: '16px', padding: '16px', background: COLORS.softBg, borderRadius: '8px', border: `1px solid ${COLORS.border}` }}>
-            <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>Engagement Template Details</h4>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: COLORS.charcoal }}>{form.event_type === 'engagement' ? 'Engagement Template Details' : 'Couple Details'}</h4>
             <div className="es-row" style={rowStyle}>
               <div style={fieldGroupStyle}>
                 <label style={labelStyle}>Partner 1 Name</label>
