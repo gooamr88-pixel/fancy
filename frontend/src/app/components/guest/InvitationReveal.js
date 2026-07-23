@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { lighten, darken, alpha, mix, luminance } from "../../utils/color";
 import Icon from "../icons/Icon";
@@ -15,15 +14,19 @@ import Icon from "../icons/Icon";
      • mode="rsvp"        gates the RSVP route; seal personalised with the
                           guest's own name; per-session "seen" memory.
 
-   Four botanical corner ornaments frame a circular tap-to-open seal — the
-   seal shows the event's own cover photo when one exists, otherwise a
-   generated monogram. Tap it: the corners swing away along their own
-   diagonals and the seal gives way to a full wreathed reveal panel with the
-   couple's names and details.
+   Four envelope-flap shapes (the two side flaps plain, the top/bottom pair
+   carrying an embossed scroll flourish — the same "one asset reused at four
+   rotations" technique as the reference this was built from) meet at a
+   circular tap-to-open seal — the seal shows the event's own cover photo
+   when one exists, otherwise a generated monogram. Tap it: after a beat,
+   the seal zooms and dissolves and the "tap to open" text cuts instantly,
+   then the top/bottom flaps peel outward (and stay), and half a second
+   later the side flaps peel outward too (and, after their own beat, fade)
+   — an envelope irising open, handing straight back to the real page
+   underneath with no intermediate summary card.
 
    Everything but the cover photo is generated — NO other image uploads.
-   Every material (corner ornaments, seal, wreath) is tinted from the
-   event's own custom_colors.
+   Every material (flaps, seal) is tinted from the event's own custom_colors.
 
    CONTRACT (kept stable for callers + tests):
      • data-testid="guest-envelope-reveal" on the root
@@ -115,19 +118,6 @@ export default function InvitationReveal({
   const finishedRef = useRef(false);
   const startedRef = useRef(false);
 
-  // Replaces the small in-place scene with a full-screen reveal rendered via
-  // a portal — needed so it can cover the real viewport regardless of any
-  // transforms on the closed-state tree. `closing` gives that portal its
-  // own fade-out instead of popping instantly the moment this component
-  // unmounts — see `finish` below for why that distinction matters.
-  const [expanded, setExpanded] = useState(false);
-  const [closing, setClosing] = useState(false);
-  // Lazy-initialized rather than set in an effect: `document` is undefined
-  // during SSR (createPortal(..., document.body) would throw there) but
-  // present on every client render, so this needs no effect to "become"
-  // true after mount — it already is on the client's very first render.
-  const [portalReady] = useState(() => typeof document !== "undefined");
-
   const P = useMemo(() => buildRevealPalette(event?.custom_colors), [event?.custom_colors]);
   const paletteVars = useMemo(() => ({
     "--card": P.card, "--card-hi": P.cardHi, "--card-edge": P.cardEdge,
@@ -196,16 +186,6 @@ export default function InvitationReveal({
   const dateStr = event?.event_date
     ? new Date(event.event_date).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
     : "";
-  const locationStr = event?.location_name || "";
-  // Wedding/engagement-only etiquette note — this component is shared by
-  // every template type (corporate, birthday, gala, custom…), so unlike
-  // the wedding InvitationCard pattern this can't just always show it. Also
-  // organizer-controlled (dashboard "Adults-Only Notice" toggle, event.
-  // no_kids_allowed) — off by default, matching EventPageClient's
-  // buildInvitationCardData so both surfaces agree.
-  const showNoKids = (event?.template_type === "wedding" || event?.template_type === "engagement") && !!event?.no_kids_allowed;
-  const noKidsText = isRTL ? "دعوة خاصة بالكبار فقط" : "No Kids Allowed";
-
   const noiseVars = useMemo(() => ({
     "--ir-paper-noise": "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/></filter><rect width='140' height='140' filter='url(%23p)'/></svg>\")",
   }), []);
@@ -213,35 +193,12 @@ export default function InvitationReveal({
   /* ─── Sequence control ─── */
   const clearTimers = useCallback(() => { timers.current.forEach(clearTimeout); timers.current = []; }, []);
   const after = useCallback((ms, fn) => { timers.current.push(setTimeout(fn, ms)); }, []);
-  // The exit fade below on .ir2-root (framer-motion's own exit={{...}}) only
-  // covers this component's main tree — the full-screen reveal is rendered
-  // through a portal into document.body, a separate DOM subtree that
-  // AnimatePresence knows nothing about and that has no exit animation of
-  // its own. Without this, calling onComplete() straight away would remove
-  // the whole component (portal included) the instant .ir2-root's own 0.8s
-  // fade finishes, popping the full-screen reveal out instantly instead of
-  // fading with it. EXIT_MS matches that 0.8s so both halves finish together.
-  const EXIT_MS = 800;
   const finish = useCallback(() => {
-    if (finishedRef.current || closing) return;
-    // Only the full-screen expand panel needs a closing fade to wait for —
-    // if it was never shown (Skip pressed before the seal was tapped) there's
-    // nothing to sync with, and reduced-motion users in particular should
-    // never get an artificial wait added on top of choosing less motion.
-    if (!expanded) {
-      finishedRef.current = true;
-      markSeen();
-      onComplete && onComplete();
-      return;
-    }
-    setClosing(true);
-    clearTimers();
-    after(EXIT_MS, () => {
-      finishedRef.current = true;
-      markSeen();
-      onComplete && onComplete();
-    });
-  }, [closing, expanded, after, clearTimers, markSeen, onComplete]);
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    markSeen();
+    onComplete && onComplete();
+  }, [markSeen, onComplete]);
 
   const openSeal = useCallback(() => {
     if (startedRef.current || finishedRef.current) return;
@@ -249,13 +206,14 @@ export default function InvitationReveal({
     clearTimers(); // cancel any still-pending intro timers (e.g. the resting-prompt timer)
     musicRef?.current?.play().catch((err) => console.error("Background music playback failed:", err));
     setStage("pressing");
-    // A quick squeeze, then the corners swing away along their own
-    // diagonals while the seal shrinks and fades. The expand panel begins
-    // fading in before the corners have fully finished retreating so the
-    // two beats read as one continuous motion instead of exit-then-enter.
+    // A quick squeeze, then .ir2-opening drives the whole choreography via
+    // CSS transition-delays (see REVEAL_CSS): seal + prompt cut at 1.5s,
+    // top/bottom flaps peel at 1.5s, side flaps peel at 2s and fade at 5s.
+    // This mirrors the reference file's own ti/dt timing verbatim — no
+    // intermediate summary card, just hand back to the real page once the
+    // flaps have finished (its own AnimatePresence exit fade covers that).
     after(120, () => setStage("opening"));
-    after(650, () => setExpanded(true));
-    after(2400, finish); // a beat to admire the invitation before auto-dismissing
+    after(5250, finish);
   }, [after, clearTimers, finish, musicRef]);
 
   useEffect(() => {
@@ -324,14 +282,7 @@ export default function InvitationReveal({
 
   const rootClassName = ["ir2-root", ...(STAGE_CLASSES[stage] || [])].join(" ");
 
-  // The full-screen reveal is a portal into document.body so it can cover
-  // the real viewport regardless of any transforms on the closed-state
-  // tree. `closing` (see `finish` above) gives it its own fade instead of
-  // popping away the instant this component unmounts.
-  const expandClassName = ["ir2-expand", expanded && !closing ? "ir2-expand-visible" : "", closing ? "ir2-expand-closing" : ""].filter(Boolean).join(" ");
-
   return (
-    <>
     <motion.div
       data-testid="guest-envelope-reveal" role="dialog" aria-label="Open your invitation"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -343,103 +294,37 @@ export default function InvitationReveal({
     >
       <style dangerouslySetInnerHTML={{ __html: REVEAL_CSS }} />
 
-      {/* shared botanical + flourish artwork, tinted from the palette above */}
+      {/* shared flap + seal artwork, tinted from the palette above. The two
+          flap shapes below are a generated recreation of what the reference
+          file's own two images actually are (downloaded and inspected
+          directly): a plain envelope-flap silhouette, and the same flap
+          with a symmetric embossed scroll flourish near its point — not
+          botanical art. Same "one asset, four rotations" technique as the
+          source, just generated instead of hotlinking someone else's
+          Tilda-hosted PNGs. */}
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
         <defs>
-          <filter id="ir2-wc" x="-22%" y="-22%" width="144%" height="144%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="11" result="n" />
-            <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4" xChannelSelector="R" yChannelSelector="G" />
-            <feGaussianBlur stdDeviation="0.55" />
-          </filter>
-          <linearGradient id="ir2-leafG" x1="0.12" y1="0" x2="0.85" y2="1">
-            <stop offset="0%" style={{ stopColor: "var(--liner-lite)" }} />
-            <stop offset="52%" style={{ stopColor: "var(--liner-mid)" }} />
-            <stop offset="100%" style={{ stopColor: "var(--liner-deep)" }} />
-          </linearGradient>
           <radialGradient id="ir2-waxg" cx="37%" cy="31%" r="78%">
             <stop offset="0%" style={{ stopColor: "var(--wax-hi)" }} />
             <stop offset="48%" style={{ stopColor: "var(--wax)" }} />
             <stop offset="100%" style={{ stopColor: "var(--wax-lo)" }} />
           </radialGradient>
+          <linearGradient id="ir2-paperG" x1="0.2" y1="0" x2="0.8" y2="1">
+            <stop offset="0%" style={{ stopColor: "var(--card-hi)" }} />
+            <stop offset="100%" style={{ stopColor: "var(--card)" }} />
+          </linearGradient>
 
-          <symbol id="ir2-leaf" viewBox="0 0 22 28">
-            <path d="M11 0 C18 2 22 9 22 15 C22 23 16 28 11 28 C6 28 0 23 0 15 C0 9 4 2 11 0 Z" fill="url(#ir2-leafG)" style={{ stroke: "var(--liner-deep)" }} strokeWidth=".6" strokeOpacity=".28" />
-            <path d="M11 3 C15 4 18 9 18 14 C18 19 15 22 11 22 C9 22 6 20 6 15 C6 10 8 5 11 3 Z" style={{ fill: "var(--liner-lite)" }} opacity=".4" />
-            <path d="M11 4 C11 12 11 19 11 25" fill="none" style={{ stroke: "var(--liner-deep)" }} strokeWidth=".7" opacity=".26" />
+          <symbol id="ir2-flap-plain" viewBox="0 0 300 170">
+            <path d="M4,4 L296,4 L152,162 Q150,167 148,162 Z" fill="url(#ir2-paperG)" style={{ stroke: "var(--flap-edge)" }} strokeWidth="1" />
           </symbol>
-          <symbol id="ir2-flower" viewBox="0 0 40 40">
-            <g filter="url(#ir2-wc)">
-              <circle cx="20" cy="13" r="8.4" style={{ fill: "var(--bloom)" }} opacity=".92" />
-              <circle cx="11" cy="21" r="8.2" style={{ fill: "var(--bloom)" }} opacity=".88" />
-              <circle cx="29" cy="21" r="8.2" style={{ fill: "var(--bloom)" }} opacity=".88" />
-              <circle cx="14" cy="30" r="7.4" style={{ fill: "var(--bloom)" }} opacity=".82" />
-              <circle cx="26" cy="30" r="7.4" style={{ fill: "var(--bloom)" }} opacity=".82" />
-              <circle cx="20" cy="23" r="5.6" style={{ fill: "var(--gold)" }} opacity=".55" />
-              <circle cx="20" cy="23" r="2.4" style={{ fill: "var(--gold-hi)" }} opacity=".8" />
-            </g>
-          </symbol>
-          <symbol id="ir2-babysbreath" viewBox="0 0 60 90">
-            <path d="M30 88 C30 60 26 40 20 20 M30 60 C34 48 40 40 46 30 M28 50 C22 42 16 36 8 30 M30 40 C30 28 28 18 24 6"
-              fill="none" stroke="currentColor" strokeWidth="1" opacity=".5" />
-            <circle cx="20" cy="18" r="2.6" fill="currentColor" opacity=".85" />
-            <circle cx="14" cy="24" r="2" fill="currentColor" opacity=".7" />
-            <circle cx="46" cy="28" r="2.4" fill="currentColor" opacity=".8" />
-            <circle cx="50" cy="22" r="1.8" fill="currentColor" opacity=".65" />
-            <circle cx="8" cy="28" r="2.2" fill="currentColor" opacity=".75" />
-            <circle cx="4" cy="22" r="1.6" fill="currentColor" opacity=".6" />
-            <circle cx="24" cy="4" r="2.4" fill="currentColor" opacity=".8" />
-            <circle cx="28" cy="10" r="1.8" fill="currentColor" opacity=".65" />
-            <circle cx="24" cy="52" r="1.8" fill="currentColor" opacity=".6" />
-          </symbol>
-
-          <symbol id="ir2-wreath" viewBox="0 0 300 300">
-            <g filter="url(#ir2-wc)">
-              <use href="#ir2-flower" width="30" height="30" transform="translate(135 10) rotate(0)" />
-              <use href="#ir2-leaf" width="20" height="26" transform="translate(198 26) rotate(32) scale(1.1)" />
-              <use href="#ir2-leaf" width="20" height="26" transform="translate(242 68) rotate(60) scale(1.15)" />
-              <use href="#ir2-babysbreath" width="24" height="38" transform="translate(258 128) rotate(90)" />
-              <use href="#ir2-flower" width="28" height="28" transform="translate(238 208) rotate(120) scale(.95)" />
-              <use href="#ir2-leaf" width="20" height="26" transform="translate(198 254) rotate(148) scale(1.1)" />
-              <use href="#ir2-leaf" width="20" height="26" transform="translate(140 270) rotate(180) scale(1.15)" />
-              <use href="#ir2-leaf" width="20" height="26" transform="translate(84 254) rotate(212) scale(1.1)" />
-              <use href="#ir2-flower" width="28" height="28" transform="translate(38 206) rotate(240) scale(.95)" />
-              <use href="#ir2-babysbreath" width="24" height="38" transform="translate(22 118) rotate(270)" />
-              <use href="#ir2-leaf" width="20" height="26" transform="translate(42 66) rotate(300) scale(1.1)" />
-              <use href="#ir2-leaf" width="20" height="26" transform="translate(84 24) rotate(328) scale(1.1)" />
-              <use href="#ir2-leaf" width="15" height="20" transform="translate(182 50) rotate(45) scale(.9)" opacity=".85" />
-              <use href="#ir2-leaf" width="15" height="20" transform="translate(182 220) rotate(135) scale(.9)" opacity=".85" />
-              <use href="#ir2-leaf" width="15" height="20" transform="translate(98 220) rotate(225) scale(.9)" opacity=".85" />
-              <use href="#ir2-leaf" width="15" height="20" transform="translate(98 50) rotate(315) scale(.9)" opacity=".85" />
-            </g>
-          </symbol>
-
-          <symbol id="ir2-flourish-corner" viewBox="0 0 90 90">
-            <path d="M6,52 C6,26 26,6 52,6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            <path d="M52,6 C64,6 71,9.5 73,16 C75,21.6 70,25.6 64,23" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            <path d="M6,52 C6,64 9.5,71 16,73 C21.6,75 25.6,70 23,64" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-            <circle cx="73" cy="16" r="1.6" fill="currentColor" />
-            <circle cx="16" cy="73" r="1.6" fill="currentColor" />
-            <use href="#ir2-leaf" width="16" height="20" transform="translate(22 22) rotate(-45) scale(.95)" opacity=".85" />
-          </symbol>
-
-          {/* The pre-open corner ornament — a full botanical spray (blooms +
-              leaves + baby's-breath along a curved vine), not a thin single
-              line. Built from the SAME sub-assets as the expand panel's
-              wreath (ir2-flower/ir2-leaf/ir2-babysbreath) rather than a
-              separate, thinner art style, so the closed and opened states
-              read as one consistent, generously-detailed material instead
-              of a plain line sketch giving way to a much richer wreath. */}
-          <symbol id="ir2-corner-spray" viewBox="0 0 140 140">
-            <g filter="url(#ir2-wc)">
-              <path d="M10 130 C 10 70, 70 10, 130 10" fill="none" stroke="currentColor" strokeWidth="1.6" opacity=".45" />
-              <use href="#ir2-leaf" width="22" height="28" transform="translate(24 96) rotate(-38) scale(1.3)" opacity=".92" />
-              <use href="#ir2-leaf" width="22" height="28" transform="translate(46 74) rotate(52) scale(1.2)" />
-              <use href="#ir2-leaf" width="22" height="28" transform="translate(68 52) rotate(-42) scale(1.05)" opacity=".9" />
-              <use href="#ir2-leaf" width="22" height="28" transform="translate(90 34) rotate(56) scale(.95)" />
-              <use href="#ir2-babysbreath" width="24" height="38" transform="translate(30 60) rotate(-18) scale(.85)" opacity=".85" />
-              <use href="#ir2-babysbreath" width="24" height="38" transform="translate(76 20) rotate(20) scale(.8)" opacity=".85" />
-              <use href="#ir2-flower" width="34" height="34" transform="translate(14 106) scale(.95)" />
-              <use href="#ir2-flower" width="30" height="30" transform="translate(100 12) scale(.85)" />
+          <symbol id="ir2-flap-deco" viewBox="0 0 300 170">
+            <path d="M4,4 L296,4 L152,162 Q150,167 148,162 Z" fill="url(#ir2-paperG)" style={{ stroke: "var(--flap-edge)" }} strokeWidth="1" />
+            <g fill="none" style={{ stroke: "var(--flap-emboss)" }} strokeWidth="1.4" opacity=".6" strokeLinecap="round">
+              <path d="M150,28 C150,42 146,52 150,64 C154,52 150,42 150,28 Z" style={{ fill: "var(--flap-emboss)" }} opacity=".5" stroke="none" />
+              <path d="M150,64 C122,68 98,64 82,49 C93,64 102,71 119,73 C106,77 92,75 79,66" />
+              <path d="M150,64 C178,68 202,64 218,49 C207,64 198,71 181,73 C194,77 208,75 221,66" />
+              <circle cx="82" cy="49" r="2.2" style={{ fill: "var(--flap-emboss)" }} stroke="none" />
+              <circle cx="218" cy="49" r="2.2" style={{ fill: "var(--flap-emboss)" }} stroke="none" />
             </g>
           </symbol>
         </defs>
@@ -463,10 +348,10 @@ export default function InvitationReveal({
 
       <div className="ir2-scene">
         <div className="ir2-seal-stage">
-          <div className="ir2-corner tl"><svg viewBox="0 0 140 140" aria-hidden><use href="#ir2-corner-spray" width="140" height="140" /></svg></div>
-          <div className="ir2-corner tr"><svg viewBox="0 0 140 140" aria-hidden><use href="#ir2-corner-spray" width="140" height="140" /></svg></div>
-          <div className="ir2-corner bl"><svg viewBox="0 0 140 140" aria-hidden><use href="#ir2-corner-spray" width="140" height="140" /></svg></div>
-          <div className="ir2-corner br"><svg viewBox="0 0 140 140" aria-hidden><use href="#ir2-corner-spray" width="140" height="140" /></svg></div>
+          <div className="ir2-flap top"><svg viewBox="0 0 300 170" aria-hidden><use href="#ir2-flap-deco" /></svg></div>
+          <div className="ir2-flap bottom"><svg viewBox="0 0 300 170" aria-hidden><use href="#ir2-flap-deco" /></svg></div>
+          <div className="ir2-flap left"><svg viewBox="0 0 300 170" aria-hidden><use href="#ir2-flap-plain" /></svg></div>
+          <div className="ir2-flap right"><svg viewBox="0 0 300 170" aria-hidden><use href="#ir2-flap-plain" /></svg></div>
 
           <button
             type="button"
@@ -490,16 +375,19 @@ export default function InvitationReveal({
         </div>
 
         {/* A sibling of .ir2-seal-stage (not nested inside it) — that stage is
-            a fixed square sized for the corner-blossom geometry, and its own
+            a fixed square sized for the flap geometry, and its own
             non-absolute children lay out in a row; nesting this here made
             "tap to open" render BESIDE the seal instead of centered below
-            it. .ir2-scene's own column flex direction stacks it correctly. */}
+            it. .ir2-scene's own column flex direction stacks it correctly.
+            Stays mounted through pressing/opening (not just "rest") so its
+            hide timing is driven by REVEAL_CSS's own .ir2-opening rule (an
+            instant cut at 1.5s, matching the reference's ti:1500,dt:0)
+            instead of unmounting the instant the seal is tapped. */}
         <AnimatePresence>
-          {stage === "rest" && (
+          {(stage === "rest" || stage === "pressing" || stage === "opening") && (
             <motion.div
               key="prompt"
               initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6, transition: { duration: 0.3 } }}
               transition={{ duration: 0.6, delay: 0.2 }}
               className="ir2-prompt"
             >
@@ -510,33 +398,6 @@ export default function InvitationReveal({
         </AnimatePresence>
       </div>
     </motion.div>
-    {portalReady && createPortal(
-      <div className={expandClassName} dir={isRTL ? "rtl" : "ltr"} style={{ ...paletteVars, ...noiseVars }} aria-hidden={!expanded}>
-        <div className="ir2-expand-sheet ir2-deckle">
-          <div className="ir2-expand-grain" />
-          <svg className="ir2-e-wreath" viewBox="0 0 300 300" aria-hidden><use href="#ir2-wreath" width="300" height="300" /></svg>
-          <svg className="ir2-e-corner tl" viewBox="0 0 90 90" aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
-          <svg className="ir2-e-corner tr" viewBox="0 0 90 90" aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
-          <svg className="ir2-e-corner bl" viewBox="0 0 90 90" aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
-          <svg className="ir2-e-corner br" viewBox="0 0 90 90" aria-hidden><use href="#ir2-flourish-corner" width="90" height="90" /></svg>
-
-          <div className="ir2-expand-inner">
-            <div className="ir2-e-mono" aria-hidden>{sealText}</div>
-            <p className="ir2-e-eyebrow">{guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</p>
-            <h1 className="ir2-e-names">{displayTitle}</h1>
-            <div className="ir2-e-hairline" />
-            <div className="ir2-e-details">
-              {dateStr && <div className="ir2-e-detail"><span>{isRTL ? "التاريخ" : "Date"}</span><b>{dateStr}</b></div>}
-              {locationStr && <div className="ir2-e-detail"><span>{isRTL ? "المكان" : "Venue"}</span><b>{locationStr}</b></div>}
-              {showNoKids && <div className="ir2-e-detail"><span>{isRTL ? "ملاحظة" : "Note"}</span><b>{noKidsText}</b></div>}
-            </div>
-            <button type="button" className="ir2-e-cta" onClick={finish}>{copy.details}</button>
-          </div>
-        </div>
-      </div>,
-      document.body
-    )}
-    </>
   );
 }
 
@@ -567,6 +428,8 @@ const REVEAL_CSS = `
   background:
     radial-gradient(46% 38% at 38% 8%, rgba(255,252,240,.65) 0%, transparent 60%),
     radial-gradient(120% 90% at 50% -6%, var(--card-hi), var(--card) 62%);
+  --flap-edge: color-mix(in srgb, var(--card) 72%, #000 8%);
+  --flap-emboss: color-mix(in srgb, var(--card) 55%, var(--gold) 20%);
 }
 .ir2-grain{ position:absolute; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:multiply;
   background-image:var(--ir-paper-noise); background-size:130px 130px; }
@@ -579,28 +442,33 @@ const REVEAL_CSS = `
 
 .ir2-seal-stage{ position:relative; width:min(52vw,300px); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
 
-.ir2-corner{ position:absolute; width:34%; height:34%; color:var(--gold); opacity:.9;
-  transition:color .5s ease, opacity 1.1s cubic-bezier(.22,.61,.36,1), transform 1.1s cubic-bezier(.22,.61,.36,1); }
-.ir2-corner svg{ width:100%; height:100%; display:block; }
-.ir2-corner.tl{ top:-6%; left:-6%; }
-.ir2-corner.tr{ top:-6%; right:-6%; transform:scaleX(-1); }
-.ir2-corner.bl{ bottom:-6%; left:-6%; transform:scaleY(-1); }
-.ir2-corner.br{ bottom:-6%; right:-6%; transform:scale(-1,-1); }
+/* Four envelope-flap panels meeting at the seal. Timing below is ported
+   VERBATIM (ms→s) from the reference file's own data-animate-sbs-opts
+   arrays — not an approximation:
+     - top/bottom (the embossed-scroll pair): ti:1500,dt:2500 — start at
+       1.5s, slide over 2.5s, and NEVER fade (no third opacity keyframe on
+       either in the source).
+     - left/right (the plain pair): ti:2000,dt:2500 for the slide — starts
+       0.5s later than top/bottom, a real stagger in the source — then a
+       further ti:500,dt:0 once the slide finishes, i.e. an ABRUPT
+       (0-duration) fade at slide-end + 0.5s = 5.0s total from tap. */
+.ir2-flap{ position:absolute; top:50%; left:50%; width:min(70vw,340px); height:min(70vw,340px); color:var(--gold); }
+.ir2-flap svg{ width:100%; height:100%; display:block; }
+.ir2-flap.top    { transform:translate(-50%,-100%) rotate(180deg); transition:transform 2.5s cubic-bezier(.4,0,.2,1) 1.5s; }
+.ir2-flap.bottom { transform:translate(-50%,0%) rotate(0deg); transition:transform 2.5s cubic-bezier(.4,0,.2,1) 1.5s; }
+.ir2-flap.left   { transform:translate(-100%,-50%) rotate(270deg); transition:transform 2.5s cubic-bezier(.4,0,.2,1) 2s, opacity 0s linear 5s; }
+.ir2-flap.right  { transform:translate(0%,-50%) rotate(90deg); transition:transform 2.5s cubic-bezier(.4,0,.2,1) 2s, opacity 0s linear 5s; }
 
-/* Exit choreography matched to the reference: not a uniform four-way fade,
-   but two distinct pairs — opposite corners peel apart along the diagonal
-   AND fade, one pair a beat behind the other, so the botanical spray reads
-   as several real layered pieces parting rather than one flat mass
-   dissolving at once. */
-.ir2-root.ir2-opening .ir2-corner{ opacity:0; }
-.ir2-root.ir2-opening .ir2-corner.tl{ transform:translate(-85%,-85%) rotate(-14deg) scale(.55); transition-delay:0s; }
-.ir2-root.ir2-opening .ir2-corner.br{ transform:scale(-1,-1) translate(-85%,-85%) rotate(-14deg) scale(.55); transition-delay:0s; }
-.ir2-root.ir2-opening .ir2-corner.tr{ transform:scaleX(-1) translate(-85%,-85%) rotate(-14deg) scale(.55); transition-delay:.12s; }
-.ir2-root.ir2-opening .ir2-corner.bl{ transform:scaleY(-1) translate(-85%,-85%) rotate(-14deg) scale(.55); transition-delay:.12s; }
+.ir2-root.ir2-opening .ir2-flap.top    { transform:translate(-50%,-210%) rotate(180deg); }
+.ir2-root.ir2-opening .ir2-flap.bottom { transform:translate(-50%,110%) rotate(0deg); }
+.ir2-root.ir2-opening .ir2-flap.left   { transform:translate(-210%,-50%) rotate(270deg); opacity:0; }
+.ir2-root.ir2-opening .ir2-flap.right  { transform:translate(110%,-50%) rotate(90deg); opacity:0; }
 
+/* Seal (source elem 1773847037346): ti:1500,dt:1000 — zoom to 1.22x + fade,
+   starting at 1.5s, over 1s. */
 .ir2-seal-btn{ width:38%; aspect-ratio:1; border-radius:50%; border:none; padding:0; cursor:pointer;
-  position:relative; background:none; filter:drop-shadow(0 14px 26px rgba(40,26,8,.35));
-  transition:transform .8s cubic-bezier(.34,1.56,.64,1), opacity .8s ease .1s; }
+  position:relative; z-index:5; background:none; filter:drop-shadow(0 14px 26px rgba(40,26,8,.35));
+  transition:transform 1s cubic-bezier(.34,1.56,.64,1) 1.5s, opacity 1s ease 1.5s; }
 .ir2-seal-ring{ position:absolute; inset:-9%; border-radius:50%; border:1.5px solid var(--gold); opacity:.55; }
 .ir2-seal-face{ position:absolute; inset:0; border-radius:50%; display:block; overflow:hidden;
   box-shadow:inset 0 2px 4px rgba(255,255,255,.25); }
@@ -608,13 +476,15 @@ const REVEAL_CSS = `
 .ir2-seal-photo{ width:100%; height:100%; object-fit:cover; display:block; }
 .ir2-seal-btn:hover .ir2-seal-face{ filter:brightness(1.06); }
 .ir2-seal-btn:active{ transform:scale(.96); }
-/* The seal itself grows slightly as it dissolves (a soft "zoom and vanish"
-   rather than shrinking away) — matching the reference's own seal exit. */
 .ir2-root.ir2-opening .ir2-seal-btn{ transform:scale(1.22); opacity:0; pointer-events:none; }
 
+/* "Tap to open" text (source elems 1777183175514000001 + the small flower
+   accent 1779615926470000001): both ti:1500,dt:0 — an ABRUPT cut at 1.5s,
+   not a soft fade. */
 .ir2-prompt{ position:relative; z-index:12; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
-  margin-top:clamp(16px,4dvh,30px);
-  padding:0 24px; }
+  margin-top:clamp(16px,4dvh,30px); padding:0 24px;
+  transition:opacity 0s linear 1.5s; }
+.ir2-root.ir2-opening .ir2-prompt{ opacity:0; }
 .ir2-prompt-pill{ display:inline-flex; align-items:center; gap:8px; padding:9px 18px; border-radius:999px;
   background:rgba(255,255,255,.6); border:1px solid color-mix(in srgb,var(--accent) 36%, transparent);
   -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
@@ -628,99 +498,11 @@ const REVEAL_CSS = `
 
 @media (prefers-reduced-motion:reduce){
   .ir2-prompt-pill{ animation:none; }
-  .ir2-corner,.ir2-seal-btn{ transition-duration:.001ms !important; }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   Full-screen expand panel — a generously large stationery sheet
-   (deckle edge, corner flourishes, wreath) that fades/scales in once
-   the seal has been tapped, rendered through a portal into
-   document.body so it can cover the real viewport.
-   ═══════════════════════════════════════════════════════════════ */
-.ir2-expand{
-  position:fixed; inset:0; z-index:1500;
-  display:flex; align-items:center; justify-content:center;
-  padding:5vh 5vw;
-  opacity:0; pointer-events:none;
-  transition:opacity .35s ease;
-}
-.ir2-expand.ir2-expand-visible{ opacity:1; pointer-events:auto; }
-.ir2-expand.ir2-expand-closing{ opacity:0 !important; transition:opacity .8s ease; pointer-events:none; }
-
-.ir2-deckle{ clip-path:polygon(
-    0% 1%, 16% 0.3%, 34% 1%, 52% 0.2%, 70% 0.9%, 86% 0.2%, 100% 1%,
-    99.3% 18%, 100% 38%, 99.4% 58%, 100% 78%, 99.3% 93%, 100% 99%,
-    84% 99.3%, 66% 100%, 48% 99.2%, 30% 100%, 14% 99.4%, 0% 99%,
-    0.5% 82%, 0% 62%, 0.6% 42%, 0% 24%, 0.5% 10%, 0% 3%); }
-
-.ir2-expand-sheet{
-  position:relative; width:min(94vw,920px); max-height:90vh; overflow:auto;
-  background:radial-gradient(120% 90% at 50% -6%, var(--card-hi), var(--card) 62%);
-  box-shadow:0 70px 130px -30px rgba(20,12,4,.55), 0 22px 46px -18px rgba(20,12,4,.4),
-    0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent);
-  transform:scale(.14) translateY(-36vh);
-  transition:transform 1s cubic-bezier(.16,1,.3,1);
-}
-.ir2-expand-visible .ir2-expand-sheet{ transform:scale(1) translateY(0); }
-
-.ir2-expand-grain{ position:absolute; inset:0; opacity:.05; mix-blend-mode:multiply; pointer-events:none;
-  background-image:var(--ir-paper-noise); background-size:130px 130px; }
-.ir2-e-wreath{ position:absolute; inset:6%; z-index:0; pointer-events:none; opacity:.5; color:var(--liner-mid); }
-.ir2-e-corner{ position:absolute; width:11%; height:auto; z-index:2; pointer-events:none; opacity:.85; color:var(--gold); }
-.ir2-e-corner.tl{ top:4%; left:4%; }
-.ir2-e-corner.tr{ top:4%; right:4%; transform:scaleX(-1); }
-.ir2-e-corner.bl{ bottom:4%; left:4%; transform:scaleY(-1); }
-.ir2-e-corner.br{ bottom:4%; right:4%; transform:scale(-1,-1); }
-
-.ir2-expand-inner{
-  position:relative; z-index:1; width:min(80%,540px); margin:0 auto; padding:11% 0;
-  text-align:center;
-  opacity:0; transform:translateY(14px);
-  transition:opacity .8s ease, transform .8s cubic-bezier(.16,1,.3,1);
-}
-.ir2-expand-visible .ir2-expand-inner{ opacity:1; transform:none; transition-delay:.55s; }
-
-.ir2-e-mono{
-  width:56px; height:56px; margin:0 auto 18px; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  border:1px solid color-mix(in srgb, var(--gold) 70%, transparent);
-  background:color-mix(in srgb, var(--gold) 8%, transparent);
-  font-family:var(--font-serif); font-style:italic; font-weight:600; font-size:17px; color:var(--ink-soft);
-}
-.ir2-e-eyebrow{ margin:0 0 14px; font-family:var(--font-sans); font-size:11px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; color:var(--ink-soft); }
-.ir2-e-names{
-  margin:0 0 22px; font-family:var(--font-script); font-weight:400; line-height:1.1;
-  font-size:clamp(32px,9vw,68px); color:var(--ink); text-wrap:balance;
-  background:linear-gradient(110deg, var(--ink) 0%, var(--ink) 30%, var(--gold-hi) 46%, var(--ink) 62%, var(--ink) 100%);
-  background-size:240% 100%; background-position:120% 0; -webkit-background-clip:text; background-clip:text; color:transparent;
-}
-.ir2-expand-visible .ir2-e-names{ animation:ir2NameShimmer 1.8s ease-out .95s 1 forwards; }
-@keyframes ir2NameShimmer{ from{ background-position:160% 0; } to{ background-position:-40% 0; } }
-.ir2-e-hairline{ width:120px; height:1px; margin:0 auto 26px; background:color-mix(in srgb, var(--gold) 45%, transparent); }
-.ir2-e-details{ display:flex; flex-wrap:wrap; justify-content:center; gap:0; margin-bottom:36px; }
-.ir2-e-detail{
-  display:flex; flex-direction:column; gap:6px; text-align:center;
-  padding:0 22px; border-inline-start:1px solid color-mix(in srgb, var(--gold) 25%, transparent);
-}
-.ir2-e-detail:first-child{ border-inline-start:none; padding-inline-start:0; }
-.ir2-e-detail:last-child{ padding-inline-end:0; }
-.ir2-e-detail span{ font-family:var(--font-sans); font-size:9.5px; font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--ink-soft); }
-.ir2-e-detail b{ font-family:var(--font-serif); font-weight:500; font-size:14px; color:var(--ink); }
-.ir2-e-cta{
-  font-family:var(--font-sans); font-size:12px; font-weight:700; letter-spacing:.2em; text-transform:uppercase;
-  color:#3a2a08; background:linear-gradient(180deg,var(--gold-hi),var(--gold)); border:none; border-radius:2px;
-  padding:15px 34px; cursor:pointer; box-shadow:0 14px 28px -12px rgba(90,64,20,.5);
-  transition:transform .2s ease, box-shadow .2s ease;
-}
-.ir2-e-cta:hover{ transform:translateY(-1px); box-shadow:0 18px 32px -12px rgba(90,64,20,.6); }
-
-@media (max-width:640px){
-  .ir2-e-details{ flex-direction:column; gap:18px; }
-  .ir2-e-detail{ border-inline-start:none; padding-inline-start:0; }
+  .ir2-flap,.ir2-seal-btn,.ir2-prompt{ transition-duration:.001ms !important; transition-delay:0s !important; }
 }
 
 /* On-brand gold focus rings on every interactive element in this overlay. */
-.ir2-skip:focus-visible, .ir2-langchip:focus-visible, .ir2-seal-btn:focus-visible, .ir2-e-cta:focus-visible{
+.ir2-skip:focus-visible, .ir2-langchip:focus-visible, .ir2-seal-btn:focus-visible{
   outline:2px solid var(--gold); outline-offset:3px;
 }
 `;

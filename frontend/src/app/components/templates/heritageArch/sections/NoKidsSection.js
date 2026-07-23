@@ -36,6 +36,33 @@ function GraciousBadge({ color, isRTL, reduce }) {
   );
 }
 
+// A clear, unmistakable "no kids allowed" marker — thin-stroke pictogram (a
+// figure with a single diagonal bar, the same universal mark used on venue
+// signage) inside a pill badge, so the policy itself is legible at a glance
+// even if a guest skips the paragraph. Kept fine-line and gold-on-paper
+// rather than a bold red prohibition icon, so it still reads as refined.
+function NoKidsBadge({ color, isRTL }) {
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: '8px',
+      padding: '8px 16px', borderRadius: '999px',
+      border: `1px solid ${color}`, background: `${color}14`,
+    }}>
+      <svg width="16" height="16" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <circle cx="14" cy="8" r="3.4" stroke={color} strokeWidth="1.6" />
+        <path d="M14 11.8c-3.6 0-6.4 2.4-6.8 6.6h13.6c-.4-4.2-3.2-6.6-6.8-6.6Z" stroke={color} strokeWidth="1.6" strokeLinejoin="round" />
+        <line x1="5" y1="23" x2="23" y2="5" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+      <span style={{
+        fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700,
+        letterSpacing: isRTL ? 'normal' : '0.16em', textTransform: isRTL ? 'none' : 'uppercase', color,
+      }}>
+        {isRTL ? 'ممنوع اصطحاب الأطفال' : 'No Kids Allowed'}
+      </span>
+    </div>
+  );
+}
+
 // A warm, celebratory glyph (two champagne flutes mid-toast) rather than a
 // literal crossed-out-child icon — the notice is about an adults-only
 // evening, not a prohibition, and should read as gracious, not harsh.
@@ -73,6 +100,8 @@ export default function NoKidsSection({ isRTL }) {
         }}>
           {isRTL ? 'ملاحظة من قلبنا' : 'A Kind Note'}
         </span>
+
+        <NoKidsBadge color={C.gold} isRTL={isRTL} />
 
         <ChampagneGlyph color={C.gold} />
 
