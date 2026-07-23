@@ -39,7 +39,7 @@ export default function MenuSection({ courses, isRTL }) {
           return (
             <div key={i} style={{ textAlign: 'center' }}>
               {label && (
-                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.14em', color: C.gold, textTransform: 'uppercase', marginBottom: '8px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, letterSpacing: isRTL ? 'normal' : '0.14em', color: C.gold, textTransform: isRTL ? 'none' : 'uppercase', marginBottom: '8px' }}>
                   — {label} —
                 </div>
               )}

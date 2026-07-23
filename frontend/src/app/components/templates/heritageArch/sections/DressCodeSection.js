@@ -46,7 +46,7 @@ export default function DressCodeSection({ dressCode, customColors, ladiesText, 
           <div>
             <p style={{
               margin: '0 0 10px', textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: '11px',
-              fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: C.ink, opacity: 0.6,
+              fontWeight: 700, letterSpacing: isRTL ? 'normal' : '0.14em', textTransform: isRTL ? 'none' : 'uppercase', color: C.ink, opacity: 0.6,
             }}>
               {isRTL ? 'ألوان المناسبة' : 'Color Palette'}
             </p>

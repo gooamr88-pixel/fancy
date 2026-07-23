@@ -134,7 +134,7 @@ export default function GiftListSection({ registryUrl, registryLabel, bank, mess
                     <div style={{ background: C.paper, borderRadius: '14px', padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       {rows.map((row) => (
                         <div key={row.label} style={{ textAlign: 'center' }}>
-                          <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', color: C.ink, opacity: 0.6, textTransform: 'uppercase' }}>{row.label}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: isRTL ? 'normal' : '0.08em', color: C.ink, opacity: 0.6, textTransform: isRTL ? 'none' : 'uppercase' }}>{row.label}</span>
                           {row.copyable ? (
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '4px' }}>
                               <span style={{ fontFamily: 'monospace', fontSize: '15px', color: C.maroon, letterSpacing: '0.04em' }}>{row.value}</span>

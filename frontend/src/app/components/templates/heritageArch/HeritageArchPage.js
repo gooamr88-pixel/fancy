@@ -8,7 +8,6 @@ import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
 import HeroSection from './sections/HeroSection';
 import EventDateSection from './sections/EventDateSection';
-import InvitationTextSection from './sections/InvitationTextSection';
 import CoverPhotoSection from './sections/CoverPhotoSection';
 import CountdownSection from './sections/CountdownSection';
 import ClosingSection from './sections/ClosingSection';
@@ -289,7 +288,6 @@ export default function HeritageArchPage({
   const SECTION_LABELS = {
     'ha-hero': isRTL ? 'الرئيسية' : 'Home',
     'ha-date': isRTL ? 'الموعد' : 'The Date',
-    'ha-invitation-text': isRTL ? 'الدعوة' : 'Invitation',
     'ha-cover-photo': isRTL ? 'صورة الغلاف' : 'Cover Photo',
     'ha-schedule': isRTL ? 'البرنامج' : 'Schedule',
     'ha-venues': isRTL ? 'المكان' : 'Venue',
@@ -336,27 +334,6 @@ export default function HeritageArchPage({
       id: 'ha-date',
       label: SECTION_LABELS['ha-date'],
       content: <EventDateSection dateLine={dateLine} timeLine={timeLine} isRTL={isRTL} />,
-    });
-  }
-
-  // Formal invitation-panel wording only makes sense for couple-style events
-  // (wedding/engagement/vow renewal) — its phrasing is composed directly from
-  // the two partner names, not a field an organizer fills in. Same occasion
-  // distinction the hero tagline above already computes (isEngagementEvent /
-  // customCategory === 'vowRenewal') — an engaged or vow-renewing couple was
-  // previously told their page says "celebration of their wedding" regardless.
-  const hasCouple = !!(partner1 && partner2);
-  const invitationEventKind = customCategory === 'vowRenewal' ? 'vowRenewal' : isEngagementEvent ? 'engagement' : 'wedding';
-  if (hasCouple) {
-    sections.push({
-      id: 'ha-invitation-text',
-      label: SECTION_LABELS['ha-invitation-text'],
-      content: (
-        <InvitationTextSection
-          partner1={partner1} partner2={partner2} dateLine={dateLine} timeLine={timeLine}
-          venueName={primaryVenue.name} isRTL={isRTL} eventKind={invitationEventKind}
-        />
-      ),
     });
   }
 

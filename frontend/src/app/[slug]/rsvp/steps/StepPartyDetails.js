@@ -149,7 +149,7 @@ export default function StepPartyDetails({
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
               </FormField>
               <FormField label={isAttending ? t.phone_label : `${t.phone_label}${isRTL ? ' (اختياري)' : ' (optional)'}`} error={validationErrors.phone}>
-                <CountryCodePhoneInput value={phone} onChange={setPhone} hasError={!!validationErrors.phone} defaultCountryCode={isRTL ? '20' : '1'} />
+                <CountryCodePhoneInput value={phone} onChange={setPhone} hasError={!!validationErrors.phone} />
               </FormField>
             </div>
 
@@ -537,7 +537,7 @@ export default function StepPartyDetails({
                 </FormField>
                 <FormField label={t.companion_phone_label} error={validationErrors[`additionalGuest_phone_${index}`]}>
                   <CountryCodePhoneInput value={g.phone || ''} onChange={(val) => updateCompanion(index, { phone: val })}
-                    hasError={!!validationErrors[`additionalGuest_phone_${index}`]} defaultCountryCode={isRTL ? '20' : '1'} />
+                    hasError={!!validationErrors[`additionalGuest_phone_${index}`]} />
                 </FormField>
               </div>
 

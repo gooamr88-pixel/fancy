@@ -184,7 +184,7 @@ export default function HeroSection({
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',
             fontFamily: 'var(--font-sans)', fontSize: '11px', fontWeight: 700,
-            letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold,
+            letterSpacing: isRTL ? 'normal' : '0.14em', textTransform: isRTL ? 'none' : 'uppercase', color: C.gold,
             background: `${C.gold}14`, border: `1px solid ${C.gold}40`,
             borderRadius: '100px', padding: '6px 16px', marginBottom: '16px',
           }}>
@@ -196,7 +196,11 @@ export default function HeroSection({
         {displayTagline && (
           <span style={{
             fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 700,
-            letterSpacing: '0.32em', textTransform: 'uppercase', color: C.gold,
+            // Wide tracking + uppercase is the intended look on English —
+            // both break Arabic's connected letterforms into disjointed
+            // separate glyphs (confirmed live on iOS: "تمت خطوبتنا!" was
+            // rendering as broken-apart letters).
+            letterSpacing: isRTL ? 'normal' : '0.32em', textTransform: isRTL ? 'none' : 'uppercase', color: C.gold,
             marginBottom: '14px',
           }}>
             {displayTagline}

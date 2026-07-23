@@ -197,6 +197,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   // Opt-out toggle (EventSettings "Ask guests about food allergies & dietary
   // restrictions") — on unless the organizer explicitly turned it off.
   const collectDietary = event?.collect_dietary_restrictions !== false;
+  // Wording only — "Groom's/Bride's Side" for a wedding, "Partner 1/2's Side"
+  // for every other couple-style event (engagement, vow renewal, custom).
+  // Matches RsvpWizard/StepPartyDetails' own isWedding convention exactly.
+  const isWedding = event?.event_type === 'wedding';
 
   // ── Themed input chrome (burgundy palette, not GuestUI's gold) ──
   const fieldStyle = {
@@ -246,6 +250,13 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const [allergies, setAllergies] = useState([]);
   const [otherAllergy, setOtherAllergy] = useState('');
   const [meal, setMeal] = useState('');
+  // Which partner's side a guest belongs to — organizer-gated
+  // (event.track_guest_side), mirrors RsvpWizard/StepPartyDetails' own
+  // showSidePicker. This full-page inline form (used by every heritageArch
+  // event, wedding AND engagement alike) never had this field at all, unlike
+  // the standalone /[slug]/rsvp route — the two guest-RSVP render paths
+  // drifting again, same class of gap documented elsewhere in this codebase.
+  const [side, setSide] = useState('');
   const [message, setMessage] = useState('');
   const [smsConsent, setSmsConsent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -310,6 +321,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     setAttending((prev) => prev || (['yes', 'no', 'maybe'].includes(guestRsvp.response) ? (guestRsvp.response === 'no' ? 'no' : 'yes') : null));
     if (guestRsvp.party_size) setPartySize((prev) => (prev && prev !== 1 ? prev : guestRsvp.party_size));
     if (guestRsvp.primary_meal) setMeal((prev) => prev || guestRsvp.primary_meal);
+    if (guestRsvp.side) setSide((prev) => prev || guestRsvp.side);
     if (Array.isArray(guestRsvp.additionalGuests) && guestRsvp.additionalGuests.length > 0) {
       setAdditionalGuests((prev) => (prev.some((g) => g.fullName) ? prev : guestRsvp.additionalGuests.map((g) => {
         // Same known-pill / free-text split as the primary guest's dietary notes below.
@@ -602,6 +614,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       customAnswers: Object.keys(customAnswers)
         .filter((fieldId) => isAttending || alwaysQuestions.some((f) => f.id === fieldId))
         .map((fieldId) => ({ fieldId, value: customAnswers[fieldId] })),
+      side: event?.track_guest_side ? (side || undefined) : undefined,
       smsConsent,
       consentSource: 'guest_form_template', // provenance for the sms_consent record (backend whitelists values)
     };
@@ -867,7 +880,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                         {isRTL ? 'رقم الهاتف' : 'Phone number'}{attending === 'yes' && <span style={{ color: ERR }}> *</span>}
                         {attending === 'no' && <span style={{ opacity: 0.5, fontWeight: 500 }}> {isRTL ? '(اختياري)' : '(optional)'}</span>}
                       </label>
-                      <CountryCodePhoneInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); if (!v.trim()) clearError('smsConsent'); }} hasError={!!errors.phone} defaultCountryCode={isRTL ? '20' : '1'} />
+                      <CountryCodePhoneInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); if (!v.trim()) clearError('smsConsent'); }} hasError={!!errors.phone} />
                       {errors.phone && <span style={errorTextStyle}>{typeof errors.phone === 'string' ? errors.phone : (isRTL ? 'مطلوب' : 'Required')}</span>}
                     </div>
 
@@ -953,6 +966,27 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                           </div>
                         )}
 
+                        {/* Which side — organizer-gated (EventSettings "Track which
+                            side each guest is on"), same feature/wording as the
+                            standalone RSVP wizard, just previously missing here. */}
+                        {event?.track_guest_side && (
+                          <div style={{ padding: '18px', borderRadius: '18px', border: `1px solid ${alpha(C.maroon, 0.28)}`, background: alpha(C.maroon, 0.05) }}>
+                            <label style={{ ...labelStyle, opacity: 1, marginBottom: 0 }}>
+                              {isWedding
+                                ? (isRTL ? 'جانب الاحتفال' : "Which side are you celebrating with?")
+                                : (isRTL ? 'الجانب' : "Which partner's side?")}
+                            </label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '12px' }}>
+                              <button type="button" aria-pressed={side === 'partner1'} onClick={() => setSide('partner1')} style={pillStyle(side === 'partner1')}>
+                                {isWedding ? (isRTL ? 'جانب العريس' : "Groom's Side") : (isRTL ? 'جانب الشريك الأول' : "Partner 1's Side")}
+                              </button>
+                              <button type="button" aria-pressed={side === 'partner2'} onClick={() => setSide('partner2')} style={pillStyle(side === 'partner2')}>
+                                {isWedding ? (isRTL ? 'جانب العروس' : "Bride's Side") : (isRTL ? 'جانب الشريك الثاني' : "Partner 2's Side")}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         <PartyStepper value={partySize} onChange={handlePartySizeChange} label={isRTL ? 'عدد الضيوف (بما فيهم أنت)' : 'Number of guests (including you)'} isRTL={isRTL} C={C} />
 
                         {/* Companions — each guest's own form immediately followed by
@@ -973,7 +1007,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                                   <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => { updateAdditionalGuest(i, { email: e.target.value }); clearError(`companion_${i}_email`); }} style={errors[`companion_${i}_email`] ? { ...fieldStyle, borderColor: ERR } : fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors[`companion_${i}_email`])} />
                                 </ThemedField>
                                 <div>
-                                  <CountryCodePhoneInput value={additionalGuests[i]?.phone || ''} onChange={(v) => { updateAdditionalGuest(i, { phone: v }); clearError(`companion_${i}_phone`); }} hasError={!!errors[`companion_${i}_phone`]} defaultCountryCode={isRTL ? '20' : '1'} />
+                                  <CountryCodePhoneInput value={additionalGuests[i]?.phone || ''} onChange={(v) => { updateAdditionalGuest(i, { phone: v }); clearError(`companion_${i}_phone`); }} hasError={!!errors[`companion_${i}_phone`]} />
                                   {errors[`companion_${i}_phone`] && <span style={errorTextStyle}>{isRTL ? 'مطلوب' : 'Required'}</span>}
                                 </div>
                                 {mealOptions && mealOptions.length > 0 && (

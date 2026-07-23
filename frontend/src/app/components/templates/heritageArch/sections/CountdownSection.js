@@ -33,7 +33,7 @@ function EventTimeCard({ startTime, endTime, isRTL }) {
       <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
         <div style={{
           fontFamily: 'var(--font-sans)', fontSize: '10.5px', fontWeight: 700,
-          letterSpacing: '0.14em', textTransform: 'uppercase', color: C.gold,
+          letterSpacing: isRTL ? 'normal' : '0.14em', textTransform: isRTL ? 'none' : 'uppercase', color: C.gold,
         }}>
           {isRTL ? 'وقت الفعالية' : 'Event Time'}
         </div>
@@ -69,7 +69,7 @@ export default function CountdownSection({ timeLeft, isRTL, startTime, endTime }
         {units.map((u) => (
           <div key={u.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
             <CountdownDigit value={u.value ?? 0} label="" color={C.maroon} bgColor="rgba(255,255,255,0.55)" />
-            <span style={{ fontSize: '12px', letterSpacing: '0.12em', fontWeight: 700, color: C.maroon, textTransform: 'uppercase' }}>{u.label}</span>
+            <span style={{ fontSize: '12px', letterSpacing: isRTL ? 'normal' : '0.12em', fontWeight: 700, color: C.maroon, textTransform: isRTL ? 'none' : 'uppercase' }}>{u.label}</span>
           </div>
         ))}
       </div>
