@@ -202,7 +202,8 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const fieldStyle = {
     width: '100%', boxSizing: 'border-box', padding: '13px 15px',
     background: C.cream, border: `1px solid ${C.border}`, borderRadius: '11px',
-    fontSize: '14px', color: C.ink, outline: 'none', fontFamily: 'var(--font-sans)',
+    // 16px — under that, iOS Safari auto-zooms the page on focus.
+    fontSize: '16px', color: C.ink, outline: 'none', fontFamily: 'var(--font-sans)',
     transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
   };
   const onFieldFocus = (e) => { e.target.style.borderColor = C.maroon; e.target.style.boxShadow = `0 0 0 3px ${alpha(C.maroon, 0.12)}`; };

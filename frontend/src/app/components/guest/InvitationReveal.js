@@ -17,15 +17,15 @@ import Icon from "../icons/Icon";
    Four envelope-flap shapes (the two side flaps plain, the top/bottom pair
    carrying an embossed scroll flourish — the same "one asset reused at four
    rotations" technique as the reference this was built from) meet at a
-   circular tap-to-open seal — the seal shows the event's own cover photo
-   when one exists, otherwise a generated monogram. Tap it: after a beat,
-   the seal zooms and dissolves and the "tap to open" text cuts instantly,
-   then the top/bottom flaps peel outward (and stay), and half a second
-   later the side flaps peel outward too (and, after their own beat, fade)
-   — an envelope irising open, handing straight back to the real page
-   underneath with no intermediate summary card.
+   circular tap-to-open seal carrying the couple/event's own generated
+   monogram (never a photo — it's a seal, not a picture frame). Tap it: the
+   "tap to open" text cuts instantly, the seal zooms and dissolves, and the
+   flaps peel outward together (top/bottom staying in place, the side pair
+   fading once clear) — quick and immediate, not a slow multi-second reveal
+   — handing straight back to the real page underneath with no intermediate
+   summary card.
 
-   Everything but the cover photo is generated — NO other image uploads.
+   Everything is generated — NO image uploads anywhere in this component.
    Every material (flaps, seal) is tinted from the event's own custom_colors.
 
    CONTRACT (kept stable for callers + tests):
@@ -154,11 +154,12 @@ export default function InvitationReveal({
   // A known guest (resolved from their personal link/token — private events,
   // or a public event's per-guest invite) is personalised via the reveal
   // panel's own welcome line — the seal itself is deliberately NOT
-  // personalised: it always carries the couple/event's own monogram or
-  // cover photo, the same for every guest, the way a real wax seal would.
+  // personalised: it always carries the couple/event's own monogram, the
+  // same for every guest, the way a real wax seal would. Always the
+  // generated wax-seal monogram, never the event's cover photo — a photo
+  // there read as a random picture, not a seal.
   const sealText = identity.sealText;
   const sealFontSize = sealText.length <= 2 ? 28 : sealText.length <= 4 ? 21 : sealText.length <= 7 ? 15 : sealText.length <= 10 ? 11 : 9;
-  const sealPhotoUrl = event?.cover_image_url || null;
 
   /* Per-session "seen" memory (rsvp mode). */
   const seenKey = sessionKey ? `fancy_envelope_seen_${sessionKey}` : null;
@@ -205,15 +206,12 @@ export default function InvitationReveal({
     startedRef.current = true;
     clearTimers(); // cancel any still-pending intro timers (e.g. the resting-prompt timer)
     musicRef?.current?.play().catch((err) => console.error("Background music playback failed:", err));
+    // "pressing" hides the prompt instantly (see .ir2-pressing rule) so
+    // there's no frame where "tap to open" is still visible while the
+    // flaps are already moving.
     setStage("pressing");
-    // A quick squeeze, then .ir2-opening drives the whole choreography via
-    // CSS transition-delays (see REVEAL_CSS): seal + prompt cut at 1.5s,
-    // top/bottom flaps peel at 1.5s, side flaps peel at 2s and fade at 5s.
-    // This mirrors the reference file's own ti/dt timing verbatim — no
-    // intermediate summary card, just hand back to the real page once the
-    // flaps have finished (its own AnimatePresence exit fade covers that).
-    after(120, () => setStage("opening"));
-    after(5250, finish);
+    after(60, () => setStage("opening"));
+    after(800, finish);
   }, [after, clearTimers, finish, musicRef]);
 
   useEffect(() => {
@@ -247,21 +245,17 @@ export default function InvitationReveal({
           maxHeight: "calc(100dvh - 48px)", overflowY: "auto",
         }}>
           <div style={{ width: 76, height: 76, margin: "0 auto 18px", position: "relative" }}>
-            {sealPhotoUrl ? (
-              <img src={sealPhotoUrl} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", boxShadow: `0 0 0 1px ${alpha(P.gold, 0.5)}` }} />
-            ) : (
-              <svg viewBox="0 0 100 100" aria-hidden="true">
-                <defs>
-                  <radialGradient id="ir2rm-wax" cx="37%" cy="31%" r="78%">
-                    <stop offset="0%" stopColor={P.waxHi} />
-                    <stop offset="48%" stopColor={P.wax} />
-                    <stop offset="100%" stopColor={P.waxLo} />
-                  </radialGradient>
-                </defs>
-                <circle cx="50" cy="50" r="48" fill="url(#ir2rm-wax)" />
-                <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} fill={P.waxLo} opacity=".85" letterSpacing="1">{sealText}</text>
-              </svg>
-            )}
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <defs>
+                <radialGradient id="ir2rm-wax" cx="37%" cy="31%" r="78%">
+                  <stop offset="0%" stopColor={P.waxHi} />
+                  <stop offset="48%" stopColor={P.wax} />
+                  <stop offset="100%" stopColor={P.waxLo} />
+                </radialGradient>
+              </defs>
+              <circle cx="50" cy="50" r="48" fill="url(#ir2rm-wax)" />
+              <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} fill={P.waxLo} opacity=".85" letterSpacing="1">{sealText}</text>
+            </svg>
           </div>
           <div style={{ fontSize: 10.5, letterSpacing: "0.36em", textTransform: "uppercase", color: P.accent, fontWeight: 700 }}>{guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
           <h1 style={{ fontFamily: "var(--font-serif), Georgia, serif", fontSize: "clamp(26px,7vw,38px)", margin: "12px 0 6px", color: P.ink, fontWeight: 500 }}>{displayTitle}</h1>
@@ -361,15 +355,11 @@ export default function InvitationReveal({
           >
             <span className="ir2-seal-ring" aria-hidden="true" />
             <span className="ir2-seal-face" aria-hidden="true">
-              {sealPhotoUrl ? (
-                <img src={sealPhotoUrl} alt="" className="ir2-seal-photo" />
-              ) : (
-                <svg viewBox="0 0 100 100" aria-hidden>
-                  <circle cx="50" cy="50" r="50" fill="url(#ir2-waxg)" />
-                  <ellipse cx="40" cy="34" rx="16" ry="11" fill="#fff" opacity=".14" />
-                  <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} style={{ fill: "var(--wax-lo)" }} opacity=".85" letterSpacing="1">{sealText}</text>
-                </svg>
-              )}
+              <svg viewBox="0 0 100 100" aria-hidden>
+                <circle cx="50" cy="50" r="50" fill="url(#ir2-waxg)" />
+                <ellipse cx="40" cy="34" rx="16" ry="11" fill="#fff" opacity=".14" />
+                <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} style={{ fill: "var(--wax-lo)" }} opacity=".85" letterSpacing="1">{sealText}</text>
+              </svg>
             </span>
           </button>
         </div>
@@ -380,9 +370,10 @@ export default function InvitationReveal({
             "tap to open" render BESIDE the seal instead of centered below
             it. .ir2-scene's own column flex direction stacks it correctly.
             Stays mounted through pressing/opening (not just "rest") so its
-            hide timing is driven by REVEAL_CSS's own .ir2-opening rule (an
-            instant cut at 1.5s, matching the reference's ti:1500,dt:0)
-            instead of unmounting the instant the seal is tapped. */}
+            hide timing is driven by REVEAL_CSS's own .ir2-pressing/.ir2-
+            opening rules — cut the instant the seal is tapped, before any
+            flap motion starts — instead of racing an unmount against the
+            flap CSS transitions. */}
         <AnimatePresence>
           {(stage === "rest" || stage === "pressing" || stage === "opening") && (
             <motion.div
@@ -442,48 +433,43 @@ const REVEAL_CSS = `
 
 .ir2-seal-stage{ position:relative; width:min(52vw,300px); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
 
-/* Four envelope-flap panels meeting at the seal. Timing below is ported
-   VERBATIM (ms→s) from the reference file's own data-animate-sbs-opts
-   arrays — not an approximation:
-     - top/bottom (the embossed-scroll pair): ti:1500,dt:2500 — start at
-       1.5s, slide over 2.5s, and NEVER fade (no third opacity keyframe on
-       either in the source).
-     - left/right (the plain pair): ti:2000,dt:2500 for the slide — starts
-       0.5s later than top/bottom, a real stagger in the source — then a
-       further ti:500,dt:0 once the slide finishes, i.e. an ABRUPT
-       (0-duration) fade at slide-end + 0.5s = 5.0s total from tap. */
+/* Four envelope-flap panels meeting at the seal. First pass ported the
+   reference's own ti/dt timing verbatim (a ~1.5s dead beat before anything
+   moved, ~5s total) — live testing showed that read as broken (nothing
+   happens when you tap) rather than premium, so this is deliberately much
+   faster: the prompt cuts the instant you tap, the seal and flaps all
+   start moving together with only a hair of stagger between pairs, and the
+   whole thing resolves in well under a second. Direction/fade-vs-stay
+   pattern (top/bottom stay, left/right fade) is kept from the source. */
 .ir2-flap{ position:absolute; top:50%; left:50%; width:min(70vw,340px); height:min(70vw,340px); color:var(--gold); }
 .ir2-flap svg{ width:100%; height:100%; display:block; }
-.ir2-flap.top    { transform:translate(-50%,-100%) rotate(180deg); transition:transform 2.5s cubic-bezier(.4,0,.2,1) 1.5s; }
-.ir2-flap.bottom { transform:translate(-50%,0%) rotate(0deg); transition:transform 2.5s cubic-bezier(.4,0,.2,1) 1.5s; }
-.ir2-flap.left   { transform:translate(-100%,-50%) rotate(270deg); transition:transform 2.5s cubic-bezier(.4,0,.2,1) 2s, opacity 0s linear 5s; }
-.ir2-flap.right  { transform:translate(0%,-50%) rotate(90deg); transition:transform 2.5s cubic-bezier(.4,0,.2,1) 2s, opacity 0s linear 5s; }
+.ir2-flap.top    { transform:translate(-50%,-100%) rotate(180deg); transition:transform .55s cubic-bezier(.4,0,.2,1); }
+.ir2-flap.bottom { transform:translate(-50%,0%) rotate(0deg); transition:transform .55s cubic-bezier(.4,0,.2,1); }
+.ir2-flap.left   { transform:translate(-100%,-50%) rotate(270deg); transition:transform .55s cubic-bezier(.4,0,.2,1) .06s, opacity .2s ease .45s; }
+.ir2-flap.right  { transform:translate(0%,-50%) rotate(90deg); transition:transform .55s cubic-bezier(.4,0,.2,1) .06s, opacity .2s ease .45s; }
 
 .ir2-root.ir2-opening .ir2-flap.top    { transform:translate(-50%,-210%) rotate(180deg); }
 .ir2-root.ir2-opening .ir2-flap.bottom { transform:translate(-50%,110%) rotate(0deg); }
 .ir2-root.ir2-opening .ir2-flap.left   { transform:translate(-210%,-50%) rotate(270deg); opacity:0; }
 .ir2-root.ir2-opening .ir2-flap.right  { transform:translate(110%,-50%) rotate(90deg); opacity:0; }
 
-/* Seal (source elem 1773847037346): ti:1500,dt:1000 — zoom to 1.22x + fade,
-   starting at 1.5s, over 1s. */
 .ir2-seal-btn{ width:38%; aspect-ratio:1; border-radius:50%; border:none; padding:0; cursor:pointer;
   position:relative; z-index:5; background:none; filter:drop-shadow(0 14px 26px rgba(40,26,8,.35));
-  transition:transform 1s cubic-bezier(.34,1.56,.64,1) 1.5s, opacity 1s ease 1.5s; }
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1), opacity .35s ease; }
 .ir2-seal-ring{ position:absolute; inset:-9%; border-radius:50%; border:1.5px solid var(--gold); opacity:.55; }
 .ir2-seal-face{ position:absolute; inset:0; border-radius:50%; display:block; overflow:hidden;
   box-shadow:inset 0 2px 4px rgba(255,255,255,.25); }
 .ir2-seal-face svg{ width:100%; height:100%; display:block; }
-.ir2-seal-photo{ width:100%; height:100%; object-fit:cover; display:block; }
 .ir2-seal-btn:hover .ir2-seal-face{ filter:brightness(1.06); }
 .ir2-seal-btn:active{ transform:scale(.96); }
 .ir2-root.ir2-opening .ir2-seal-btn{ transform:scale(1.22); opacity:0; pointer-events:none; }
 
-/* "Tap to open" text (source elems 1777183175514000001 + the small flower
-   accent 1779615926470000001): both ti:1500,dt:0 — an ABRUPT cut at 1.5s,
-   not a soft fade. */
+/* Cuts the instant the seal is tapped — no lingering "tap to open" visible
+   while the flaps are already moving. */
 .ir2-prompt{ position:relative; z-index:12; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
   margin-top:clamp(16px,4dvh,30px); padding:0 24px;
-  transition:opacity 0s linear 1.5s; }
+  transition:opacity .12s ease; }
+.ir2-root.ir2-pressing .ir2-prompt,
 .ir2-root.ir2-opening .ir2-prompt{ opacity:0; }
 .ir2-prompt-pill{ display:inline-flex; align-items:center; gap:8px; padding:9px 18px; border-radius:999px;
   background:rgba(255,255,255,.6); border:1px solid color-mix(in srgb,var(--accent) 36%, transparent);

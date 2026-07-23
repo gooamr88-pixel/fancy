@@ -73,6 +73,17 @@ export function buildPalette(customColors = {}, templateType) {
   const tooLight = !dark && (paperLum - luminance(primary)) < 0.32;
   const accent = dark ? lighten(primary, 0.32) : (tooLight ? darken(primary, 0.55) : primary);
 
+  // `secondary` (→ gold) went straight through to every eyebrow label, icon,
+  // and badge (EventDateSection's "Save the Date", NoKidsSection's "A Kind
+  // Note"/"No Kids Allowed"/"With Love") with NO contrast check at all — only
+  // `primary` got the pale-on-pale clamp above. A pale secondary (blush,
+  // champagne, ivory — as common a pick for "accent" as for "primary" in
+  // wedding palettes) against the light paper surface read as barely-there
+  // text, which is exactly the "text isn't clear" reports were pointing at.
+  // Same relative-to-paper logic as accent, so it's correct for any palette.
+  const goldTooLight = !dark && (paperLum - luminance(secondary)) < 0.32;
+  const gold = dark ? lighten(secondary, 0.32) : (goldTooLight ? darken(secondary, 0.55) : secondary);
+
   return {
     background,
     paper,
@@ -85,7 +96,7 @@ export function buildPalette(customColors = {}, templateType) {
     ink: dark ? lighten(background, 0.85) : darken(primary, tooLight ? 0.7 : 0.55),
     maroon: accent,
     maroonDeep: dark ? lighten(primary, 0.15) : darken(accent, 0.28),
-    gold: secondary,
+    gold,
     border: dark ? alpha(accent, 0.35) : alpha(accent, 0.18),
     // For CTAs that paint accent as a full solid background (RSVP submit,
     // registry link) rather than using it as a text/heading color — now just

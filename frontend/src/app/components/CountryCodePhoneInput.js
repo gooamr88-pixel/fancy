@@ -104,13 +104,16 @@ export default function CountryCodePhoneInput({
         .cc-phone-code {
           width: 48px; flex-shrink: 0; text-align: center; box-sizing: border-box;
           padding: 14px 4px; background: ${C.white}; border: 1px solid ${C.border}; border-left: none; border-right: none;
-          font-size: 14px; color: ${C.charcoal}; font-family: var(--font-sans); outline: none;
+          /* 16px, not 14px — below that iOS Safari auto-zooms on focus, and
+             this is the phone number field, the single most-tapped input on
+             the whole RSVP form. */
+          font-size: 16px; color: ${C.charcoal}; font-family: var(--font-sans); outline: none;
           transition: border-color 0.25s ease, box-shadow 0.25s ease;
         }
         .cc-phone-number {
           flex: 1; min-width: 0; box-sizing: border-box; padding: 14px 16px;
           background: ${C.white}; border: 1px solid ${C.border}; border-radius: 0 12px 12px 0;
-          font-size: 14px; color: ${C.charcoal}; font-family: var(--font-sans); outline: none;
+          font-size: 16px; color: ${C.charcoal}; font-family: var(--font-sans); outline: none;
           transition: border-color 0.25s ease, box-shadow 0.25s ease;
         }
         .cc-phone-code:focus, .cc-phone-number:focus {

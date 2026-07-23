@@ -151,7 +151,8 @@ export default function QuickConfirm({ event, guest, intendedResponse, isRTL, su
                     placeholder={isRTL ? `اسم الضيف ${i + 2} (اختياري)` : `Guest ${i + 2} name (optional)`}
                     style={{
                       padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(184,148,79,0.25)',
-                      fontSize: '14px', fontFamily: 'inherit', outline: 'none', background: 'rgba(255,255,255,0.6)',
+                      // 16px — below that, iOS Safari auto-zooms on focus.
+                      fontSize: '16px', fontFamily: 'inherit', outline: 'none', background: 'rgba(255,255,255,0.6)',
                     }}
                   />
                 ))}
