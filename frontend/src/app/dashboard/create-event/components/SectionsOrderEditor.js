@@ -29,6 +29,7 @@ const C = {
 // section left at its default (no explicit false) still auto-hides on the
 // guest page when its data is empty, exactly as before.
 export const SECTION_TOGGLES = [
+  { key: 'about', label: 'About This Event', icon: 'info', hint: 'Your event description (English/Arabic), shown near the top' },
   { key: 'story', label: 'Our Story', icon: 'book', hint: 'Love story / proposal story / about-us text' },
   { key: 'schedule', label: 'Schedule', icon: 'clock', hint: 'Day 1 / Day 2 timeline' },
   { key: 'venues', label: 'Venues', icon: 'mapPin', hint: 'Day 1 / Day 2 venue maps' },

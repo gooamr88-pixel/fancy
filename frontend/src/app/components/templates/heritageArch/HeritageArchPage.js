@@ -16,6 +16,7 @@ import VenuesSection from './sections/VenuesSection';
 import DressCodeSection from './sections/DressCodeSection';
 import NoKidsSection from './sections/NoKidsSection';
 import OurStorySection from './sections/OurStorySection';
+import DescriptionSection from './sections/DescriptionSection';
 import AccommodationSection from './sections/AccommodationSection';
 import MenuSection from './sections/MenuSection';
 import GiftListSection from './sections/GiftListSection';
@@ -177,6 +178,10 @@ export default function HeritageArchPage({
   const faq = Array.isArray(td.ha_faq) && td.ha_faq.length > 0 ? td.ha_faq : (isPreview ? D.faq : []);
   const hasFaq = faq.length > 0;
   const ourStory = td.ha_our_story || td.loveStory || td.proposalStory || demo(D.ourStory) || '';
+  // Same event.description / template_data.description_ar the non-full-page
+  // hero (EventPageClient) already shows — see descAr/localizedDesc there.
+  const descriptionAr = event.description_ar || td.description_ar || null;
+  const description = (isRTL && descriptionAr) ? descriptionAr : (event.description || '');
   const dressCode = (isRTL && td.dress_code_ar) || event.dress_code || demo(D.dressCode) || '';
   const invitedToCity = td.ha_invited_to_city || (event.location_name ? event.location_name.split(',')[0] : (isPreview ? D.invitedToCity : ''));
   // The map pin uses the city's own coordinates when the organizer picked one
@@ -229,6 +234,9 @@ export default function HeritageArchPage({
   if (showNoKids) {
     middleSections.nokids = { id: 'ha-nokids', content: <NoKidsSection isRTL={isRTL} /> };
   }
+  if (description.trim() && sectionOn('about')) {
+    middleSections.about = { id: 'ha-about', content: <DescriptionSection text={description} isRTL={isRTL} /> };
+  }
   if (ourStory && sectionOn('story')) {
     middleSections.story = { id: 'ha-story', content: <OurStorySection story={ourStory} isRTL={isRTL} /> };
   }
@@ -275,7 +283,7 @@ export default function HeritageArchPage({
   // covering the same territory), then day-of details, FAQ as a catch-all,
   // and Gallery as a visual close before Countdown builds anticipation
   // right into the RSVP ask.
-  const DEFAULT_SECTION_ORDER = ['story', 'invited', 'schedule', 'venues', 'dresscode', 'nokids', 'accommodation', 'gettingthere', 'thingstodo', 'menu', 'giftlist', 'faq', 'gallery'];
+  const DEFAULT_SECTION_ORDER = ['about', 'story', 'invited', 'schedule', 'venues', 'dresscode', 'nokids', 'accommodation', 'gettingthere', 'thingstodo', 'menu', 'giftlist', 'faq', 'gallery'];
   const savedOrder = Array.isArray(td.sectionOrder) ? td.sectionOrder : [];
   const resolvedOrder = [
     ...savedOrder.filter((k) => middleSections[k]),
@@ -293,6 +301,7 @@ export default function HeritageArchPage({
     'ha-venues': isRTL ? 'المكان' : 'Venue',
     'ha-dresscode': isRTL ? 'الزي' : 'Dress Code',
     'ha-nokids': isRTL ? 'ملاحظة' : 'A Kind Note',
+    'ha-about': isRTL ? 'عن المناسبة' : 'About',
     'ha-story': isRTL ? 'قصتنا' : 'Our Story',
     'ha-accommodation': isRTL ? 'الإقامة' : 'Accommodation',
     'ha-menu': isRTL ? 'القائمة' : 'Menu',
