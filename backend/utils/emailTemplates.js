@@ -455,11 +455,20 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticke
    ORGANIZER NOTIFICATIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/** "Groom's/Bride's Side" for weddings, "Partner 1/2's Side" otherwise — null if unset/invalid. */
-const sideLabel = (side, eventType) => {
+/**
+ * "<Partner Name>'s Side" when the organizer has named that partner
+ * (template_data.partner1/partner2 — e.g. the actual groom/bride name on an
+ * Eternal Love/engagement or wedding event), falling back to "Groom's/Bride's
+ * Side" for weddings or "Partner 1/2's Side" otherwise. Null if unset/invalid.
+ */
+const sideLabel = (side, eventType, partner1Name, partner2Name) => {
   if (side !== 'partner1' && side !== 'partner2') return null;
   const isWedding = eventType === 'wedding';
-  if (side === 'partner1') return isWedding ? "Groom's Side" : "Partner 1's Side";
+  if (side === 'partner1') {
+    if (partner1Name && String(partner1Name).trim()) return `${String(partner1Name).trim()}'s Side`;
+    return isWedding ? "Groom's Side" : "Partner 1's Side";
+  }
+  if (partner2Name && String(partner2Name).trim()) return `${String(partner2Name).trim()}'s Side`;
   return isWedding ? "Bride's Side" : "Partner 2's Side";
 };
 
@@ -469,7 +478,7 @@ const sideLabel = (side, eventType) => {
  * (e.g. groom/bride emails) via `recipientRole: 'partner'` — they don't have
  * dashboard access, so the CTA links to the public event page instead.
  */
-const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySize, email, side, eventType, recipientRole = 'organizer', eventSlug }) => {
+const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySize, email, side, eventType, recipientRole = 'organizer', eventSlug, partner1Name, partner2Name }) => {
   const r = responseMeta(response);
   const verb = response === 'yes' || response === 'accepted'
     ? 'accepted'
@@ -480,7 +489,7 @@ const getNewRsvpOrganizerTemplate = ({ eventTitle, guestName, response, partySiz
     ['Party Size', `${size} ${size === 1 ? 'Guest' : 'Guests'}`],
   ];
   if (email) rows.push(['Email', escapeHtml(email)]);
-  const sLabel = sideLabel(side, eventType);
+  const sLabel = sideLabel(side, eventType, partner1Name, partner2Name);
   if (sLabel) rows.push(['Side', escapeHtml(sLabel)]);
 
   const isPartner = recipientRole === 'partner';

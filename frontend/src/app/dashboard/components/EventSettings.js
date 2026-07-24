@@ -906,6 +906,9 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   const customCategoryMeta = CUSTOM_CATEGORY_BY_KEY[templateData.custom_category] || null;
   const showCoupleFields = WEDDING_STYLE_TEMPLATE_KEYS.includes(effectiveTemplateType)
     || (effectiveTemplateType === 'custom' && customCategoryMeta?.kind === 'couple')
+    || effectiveTemplateType === 'engagement'
+    // Legacy fallback: events saved before `template_type` existed, where
+    // `effectiveTemplateType` above is '' and only `event_type` says engagement.
     || (!form.template_type && form.event_type === 'engagement');
   const isCustomTemplate = effectiveTemplateType === 'custom';
   // Same wedding/engagement gate the guest page itself uses (EventPageClient's

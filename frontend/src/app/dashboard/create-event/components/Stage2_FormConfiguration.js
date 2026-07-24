@@ -526,8 +526,12 @@ export default function Stage2_FormConfiguration({
                 fields above (same underlying template_data.partner1_email/
                 partner2_email the backend emails on every RSVP) — this covers
                 the categories that don't have a "couple": celebration, baby
-                shower, and a plain custom event with no category chosen yet. */}
-            {isFullPage(templateType) && !showCoupleFields && (
+                shower, and a plain custom event with no category chosen yet.
+                `engagement` is excluded explicitly (not just via
+                `showCoupleFields`, which is false for it) since it renders its
+                own dedicated Partner 1/2 Email block below — without this,
+                both blocks rendered at once, bound to the same two keys. */}
+            {isFullPage(templateType) && !showCoupleFields && templateType !== 'engagement' && (
               <div className="s2-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <Field label="Notify by Email" hint="This person also gets an email every time a guest RSVPs">
                   <input type="email" value={td('partner1_email')} onChange={e => setTd('partner1_email')(e.target.value)}

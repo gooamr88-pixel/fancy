@@ -248,10 +248,19 @@ const submitPublicRSVP = async (req, res, next) => {
       const isWhatsappPref = !!prefs?.whatsapp;
       const respLabel = result.response === 'yes' ? 'Attending' : result.response === 'maybe' ? 'Maybe' : 'Declined';
 
+      // Fetched once and reused by both the organizer and partner emails below
+      // so the "Side" row can name the actual groom/bride (template_data.partner1/
+      // partner2) instead of the generic "Partner 1/2's Side" fallback.
+      let td = {};
+      if (isEmailPref) {
+        const { data: eventRow } = await supabase.from('events').select('template_data').eq('id', eventId).single();
+        td = eventRow?.template_data || {};
+      }
+
       if (isEmailPref && result.org_email) {
         const orgEmailHtml = getNewRsvpOrganizerTemplate({
           eventTitle: result.event_title, guestName, response: result.response, partySize: computedPartySize, email,
-          side: result.side, eventType: result.event_type,
+          side: result.side, eventType: result.event_type, partner1Name: td.partner1, partner2Name: td.partner2,
         });
         notificationService.sendEmailViaBrevo(result.org_email, `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`, orgEmailHtml)
           .catch((err) => logger.error({ err }, 'Failed to notify organizer via email'));
@@ -261,13 +270,12 @@ const submitPublicRSVP = async (req, res, next) => {
       // on the event (template_data.partner1_email/partner2_email) — same
       // toggle, same template, just a public-page CTA instead of a dashboard one.
       if (isEmailPref) {
-        const { data: eventRow } = await supabase.from('events').select('template_data').eq('id', eventId).single();
-        const td = eventRow?.template_data || {};
         for (const partnerEmail of [td.partner1_email, td.partner2_email]) {
           if (partnerEmail && EMAIL_RE.test(String(partnerEmail).trim())) {
             const partnerEmailHtml = getNewRsvpOrganizerTemplate({
               eventTitle: result.event_title, guestName, response: result.response, partySize: computedPartySize, email,
               side: result.side, eventType: result.event_type, recipientRole: 'partner', eventSlug: result.event_slug,
+              partner1Name: td.partner1, partner2Name: td.partner2,
             });
             notificationService.sendEmailViaBrevo(partnerEmail.trim(), `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(result.event_title)}`, partnerEmailHtml)
               .catch((err) => logger.error({ err }, 'Failed to notify partner recipient via email'));
@@ -971,7 +979,7 @@ const respondViaToken = async (req, res, next) => {
 
   try {
     const { data: event, error: eventError } = await supabase
-      .from('events').select('id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences, allow_guest_edits, template_data, organizations(email, phone)')
+      .from('events').select('id, title, event_date, slug, is_paid, status, rsvp_deadline, notification_preferences, allow_guest_edits, template_data, event_type, organizations(email, phone)')
       .eq('id', payload.eventId).single();
     if (eventError || !event) return sendFail(res, { status: 404, error: 'GUEST_NOT_FOUND' });
     if (!isEventLiveForGuests(event)) return sendFail(res, { status: 404, error: 'EVENT_INACTIVE' });
@@ -1012,7 +1020,7 @@ const respondViaToken = async (req, res, next) => {
     if (!result || result.success === false) return sendRpcFailure(res, result, 409);
 
     const { data: party } = await supabase
-      .from('rsvp_parties').select('id, label, guests(is_primary_contact, email)').eq('id', payload.partyId).single();
+      .from('rsvp_parties').select('id, label, side, guests(is_primary_contact, email)').eq('id', payload.partyId).single();
     const primaryEmail = (party?.guests || []).find((g) => g.is_primary_contact)?.email || null;
     const guestName = party?.label;
 
@@ -1048,6 +1056,8 @@ const respondViaToken = async (req, res, next) => {
             const html = getNewRsvpOrganizerTemplate({
               eventTitle: event.title, guestName, response: mapped, partySize: computedPartySize,
               recipientRole: role, eventSlug: event.slug,
+              side: party?.side || null, eventType: event.event_type,
+              partner1Name: td.partner1, partner2Name: td.partner2,
             });
             notificationService.sendEmailViaBrevo(recipientEmail.trim(), `New RSVP: ${escapeHtml(guestName)} - ${escapeHtml(event.title)}`, html)
               .catch((err) => logger.error({ err, role }, 'Failed to notify RSVP recipient via email'));
