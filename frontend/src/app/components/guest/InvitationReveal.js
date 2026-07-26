@@ -11,22 +11,23 @@ import Icon from "../icons/Icon";
    ONE cinematic opening shared by both guest reveals:
 
      • mode="invitation"  first thing a guest sees on the event page /[slug].
-     • mode="rsvp"        gates the RSVP route; seal personalised with the
-                          guest's own name; per-session "seen" memory.
+     • mode="rsvp"        gates the RSVP route; per-session "seen" memory.
 
-   Four envelope-flap shapes (the two side flaps plain, the top/bottom pair
-   carrying an embossed scroll flourish — the same "one asset reused at four
-   rotations" technique as the reference this was built from) meet at a
-   circular tap-to-open seal carrying the couple/event's own generated
-   monogram (never a photo — it's a seal, not a picture frame). Tap it: the
-   "tap to open" text cuts instantly, the seal zooms and dissolves, and the
-   flaps peel outward together (top/bottom staying in place, the side pair
-   fading once clear) — quick and immediate, not a slow multi-second reveal
-   — handing straight back to the real page underneath with no intermediate
-   summary card.
+   Four envelope-flap photos (three plain sides, the top carrying an embossed
+   scroll flourish — the real artwork, not a generated recreation) meet at a
+   circular tap-to-open wax seal. Tap it: the "tap to open" text cuts
+   instantly, the seal zooms and dissolves, and the flaps peel outward
+   together (top/bottom staying in place, the side pair fading once clear)
+   — quick and immediate, not a slow multi-second reveal — handing straight
+   back to the real page underneath with no intermediate summary card.
 
-   Everything is generated — NO image uploads anywhere in this component.
-   Every material (flaps, seal) is tinted from the event's own custom_colors.
+   The flap/seal/flourish artwork (public/images/reveal/) is a fixed, shared
+   asset set — deliberately NOT tinted per event's custom_colors and NOT
+   carrying a couple's monogram (the seal is intentionally left blank): this
+   is the one default look for every event, chosen over the previous
+   per-event generated SVG rendering for its photoreal, cinematic quality.
+   Personalisation instead lives entirely in the text below the seal (guest
+   welcome line, event title, date) — unchanged from before.
 
    CONTRACT (kept stable for callers + tests):
      • data-testid="guest-envelope-reveal" on the root
@@ -36,7 +37,14 @@ import Icon from "../icons/Icon";
 
 const isArabic = (s) => typeof s === "string" && /[؀-ۿ]/.test(s);
 
-/* ─── Name + monogram derivation from real event data ─── */
+const REVEAL_ASSETS = {
+  flapDeco: "/images/reveal/flap-deco.webp",
+  flapPlain: "/images/reveal/flap-plain.webp",
+  seal: "/images/reveal/seal.webp",
+  flourish: "/images/reveal/flourish.webp",
+};
+
+/* ─── Display name derivation from real event data ─── */
 function deriveIdentity(event, lang) {
   const td = event?.template_data || {};
   const a = (td.groom_name || td.partner1Name || td.partner1 || td.celebrant || td.honoree || td.company || "").trim();
@@ -47,22 +55,7 @@ function deriveIdentity(event, lang) {
   else if (a) full = a;
   else full = (lang === "ar" && (event?.title_ar || td.title_ar)) ? (event?.title_ar || td.title_ar) : (event?.title || "");
 
-  let sealText = (td.seal_text || "").trim();
-  if (!sealText) {
-    const arabicSource = [a, b, event?.title_ar, td.title_ar, event?.title].find((s) => isArabic(s));
-    if (arabicSource) {
-      sealText = arabicSource.trim().split(/\s+/).filter(Boolean)[0] || arabicSource.trim();
-    } else if (a && b) {
-      sealText = `${a[0]}${b[0]}`.toUpperCase();
-    } else if (a) {
-      sealText = a.slice(0, 2).toUpperCase();
-    } else {
-      const words = (event?.title || "").trim().split(/\s+/).filter(Boolean);
-      sealText = words.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-    }
-  }
-  sealText = sealText || "✦";
-  return { full: full || "You're Invited", sealText };
+  return { full: full || "You're Invited" };
 }
 
 /* ─── Reveal palette derived from the event's own custom_colors ───
@@ -86,7 +79,6 @@ function buildRevealPalette(customColors) {
   return {
     card: "#fbf8ef", cardHi: "#fffefa", cardEdge: mix(gold, "#fbf8ef", 0.3),
     ink: mix(darken(accent, 0.5), "#2c2c20", 0.45), inkSoft: mix(accent, "#5c5c48", 0.55),
-    wax: gold, waxHi: lighten(gold, 0.32), waxLo: darken(gold, 0.36),
     accent, gold, goldHi: lighten(gold, 0.26),
     linerLite: lighten(accent, 0.6), linerMid: accent, linerDeep: darken(accent, 0.32),
     bloom: mix(gold, "#fff8ea", 0.7),
@@ -122,7 +114,6 @@ export default function InvitationReveal({
   const paletteVars = useMemo(() => ({
     "--card": P.card, "--card-hi": P.cardHi, "--card-edge": P.cardEdge,
     "--ink": P.ink, "--ink-soft": P.inkSoft,
-    "--wax": P.wax, "--wax-hi": P.waxHi, "--wax-lo": P.waxLo,
     "--accent": P.accent, "--gold": P.gold, "--gold-hi": P.goldHi,
     "--liner-lite": P.linerLite, "--liner-mid": P.linerMid, "--liner-deep": P.linerDeep,
     "--bloom": P.bloom,
@@ -153,13 +144,9 @@ export default function InvitationReveal({
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
   // A known guest (resolved from their personal link/token — private events,
   // or a public event's per-guest invite) is personalised via the reveal
-  // panel's own welcome line — the seal itself is deliberately NOT
-  // personalised: it always carries the couple/event's own monogram, the
-  // same for every guest, the way a real wax seal would. Always the
-  // generated wax-seal monogram, never the event's cover photo — a photo
-  // there read as a random picture, not a seal.
-  const sealText = identity.sealText;
-  const sealFontSize = sealText.length <= 2 ? 28 : sealText.length <= 4 ? 21 : sealText.length <= 7 ? 15 : sealText.length <= 10 ? 11 : 9;
+  // panel's own welcome line — the seal image itself is deliberately NOT
+  // personalised: it's the same blank wax seal for every event, the way a
+  // shared piece of stationery would be.
 
   /* Per-session "seen" memory (rsvp mode). */
   const seenKey = sessionKey ? `fancy_envelope_seen_${sessionKey}` : null;
@@ -244,18 +231,8 @@ export default function InvitationReveal({
           boxShadow: "0 40px 90px -30px rgba(40,30,16,.45), inset 0 0 0 1px rgba(255,255,255,.4)",
           maxHeight: "calc(100dvh - 48px)", overflowY: "auto",
         }}>
-          <div style={{ width: 76, height: 76, margin: "0 auto 18px", position: "relative" }}>
-            <svg viewBox="0 0 100 100" aria-hidden="true">
-              <defs>
-                <radialGradient id="ir2rm-wax" cx="37%" cy="31%" r="78%">
-                  <stop offset="0%" stopColor={P.waxHi} />
-                  <stop offset="48%" stopColor={P.wax} />
-                  <stop offset="100%" stopColor={P.waxLo} />
-                </radialGradient>
-              </defs>
-              <circle cx="50" cy="50" r="48" fill="url(#ir2rm-wax)" />
-              <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} fill={P.waxLo} opacity=".85" letterSpacing="1">{sealText}</text>
-            </svg>
+          <div style={{ width: 76, height: 76, margin: "0 auto 18px", position: "relative", borderRadius: "50%", overflow: "hidden" }}>
+            <img src={REVEAL_ASSETS.seal} alt="" aria-hidden="true" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           </div>
           <div style={{ fontSize: 10.5, letterSpacing: isRTL ? "normal" : "0.36em", textTransform: isRTL ? "none" : "uppercase", color: P.accent, fontWeight: 700 }}>{guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
           <h1 style={{ fontFamily: "var(--font-serif), Georgia, serif", fontSize: "clamp(26px,7vw,38px)", margin: "12px 0 6px", color: P.ink, fontWeight: 500 }}>{displayTitle}</h1>
@@ -288,42 +265,6 @@ export default function InvitationReveal({
     >
       <style dangerouslySetInnerHTML={{ __html: REVEAL_CSS }} />
 
-      {/* shared flap + seal artwork, tinted from the palette above. The two
-          flap shapes below are a generated recreation of what the reference
-          file's own two images actually are (downloaded and inspected
-          directly): a plain envelope-flap silhouette, and the same flap
-          with a symmetric embossed scroll flourish near its point — not
-          botanical art. Same "one asset, four rotations" technique as the
-          source, just generated instead of hotlinking someone else's
-          Tilda-hosted PNGs. */}
-      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
-        <defs>
-          <radialGradient id="ir2-waxg" cx="37%" cy="31%" r="78%">
-            <stop offset="0%" style={{ stopColor: "var(--wax-hi)" }} />
-            <stop offset="48%" style={{ stopColor: "var(--wax)" }} />
-            <stop offset="100%" style={{ stopColor: "var(--wax-lo)" }} />
-          </radialGradient>
-          <linearGradient id="ir2-paperG" x1="0.2" y1="0" x2="0.8" y2="1">
-            <stop offset="0%" style={{ stopColor: "var(--card-hi)" }} />
-            <stop offset="100%" style={{ stopColor: "var(--card)" }} />
-          </linearGradient>
-
-          <symbol id="ir2-flap-plain" viewBox="0 0 300 170">
-            <path d="M4,4 L296,4 L152,162 Q150,167 148,162 Z" fill="url(#ir2-paperG)" style={{ stroke: "var(--flap-edge)" }} strokeWidth="1" />
-          </symbol>
-          <symbol id="ir2-flap-deco" viewBox="0 0 300 170">
-            <path d="M4,4 L296,4 L152,162 Q150,167 148,162 Z" fill="url(#ir2-paperG)" style={{ stroke: "var(--flap-edge)" }} strokeWidth="1" />
-            <g fill="none" style={{ stroke: "var(--flap-emboss)" }} strokeWidth="1.4" opacity=".6" strokeLinecap="round">
-              <path d="M150,28 C150,42 146,52 150,64 C154,52 150,42 150,28 Z" style={{ fill: "var(--flap-emboss)" }} opacity=".5" stroke="none" />
-              <path d="M150,64 C122,68 98,64 82,49 C93,64 102,71 119,73 C106,77 92,75 79,66" />
-              <path d="M150,64 C178,68 202,64 218,49 C207,64 198,71 181,73 C194,77 208,75 221,66" />
-              <circle cx="82" cy="49" r="2.2" style={{ fill: "var(--flap-emboss)" }} stroke="none" />
-              <circle cx="218" cy="49" r="2.2" style={{ fill: "var(--flap-emboss)" }} stroke="none" />
-            </g>
-          </symbol>
-        </defs>
-      </svg>
-
       <div className="ir2-grain" aria-hidden />
       <div className="ir2-daylight" aria-hidden />
       <div className="ir2-vignette" aria-hidden />
@@ -342,10 +283,10 @@ export default function InvitationReveal({
 
       <div className="ir2-scene">
         <div className="ir2-seal-stage">
-          <div className="ir2-flap top"><svg viewBox="0 0 300 170" aria-hidden><use href="#ir2-flap-deco" /></svg></div>
-          <div className="ir2-flap bottom"><svg viewBox="0 0 300 170" aria-hidden><use href="#ir2-flap-deco" /></svg></div>
-          <div className="ir2-flap left"><svg viewBox="0 0 300 170" aria-hidden><use href="#ir2-flap-plain" /></svg></div>
-          <div className="ir2-flap right"><svg viewBox="0 0 300 170" aria-hidden><use href="#ir2-flap-plain" /></svg></div>
+          <div className="ir2-flap top"><img src={REVEAL_ASSETS.flapDeco} alt="" aria-hidden="true" /></div>
+          <div className="ir2-flap bottom"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
+          <div className="ir2-flap left"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
+          <div className="ir2-flap right"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
 
           <button
             type="button"
@@ -353,13 +294,8 @@ export default function InvitationReveal({
             onClick={openSeal}
             aria-label="Tap to open your invitation"
           >
-            <span className="ir2-seal-ring" aria-hidden="true" />
             <span className="ir2-seal-face" aria-hidden="true">
-              <svg viewBox="0 0 100 100" aria-hidden>
-                <circle cx="50" cy="50" r="50" fill="url(#ir2-waxg)" />
-                <ellipse cx="40" cy="34" rx="16" ry="11" fill="#fff" opacity=".14" />
-                <text x="50" y="53" textAnchor="middle" dominantBaseline="central" fontFamily="var(--font-serif)" fontSize={sealFontSize} style={{ fill: "var(--wax-lo)" }} opacity=".85" letterSpacing="1">{sealText}</text>
-              </svg>
+              <img src={REVEAL_ASSETS.seal} alt="" />
             </span>
           </button>
         </div>
@@ -383,6 +319,7 @@ export default function InvitationReveal({
               className="ir2-prompt"
             >
               <div className="ir2-prompt-pill"><span aria-hidden style={{ fontSize: 12 }}>✦</span> {copy.tap}</div>
+              <img className="ir2-prompt-flourish" src={REVEAL_ASSETS.flourish} alt="" aria-hidden="true" />
               <p className="ir2-prompt-sub">{copy.special}</p>
             </motion.div>
           )}
@@ -419,8 +356,6 @@ const REVEAL_CSS = `
   background:
     radial-gradient(46% 38% at 38% 8%, rgba(255,252,240,.65) 0%, transparent 60%),
     radial-gradient(120% 90% at 50% -6%, var(--card-hi), var(--card) 62%);
-  --flap-edge: color-mix(in srgb, var(--card) 72%, #000 8%);
-  --flap-emboss: color-mix(in srgb, var(--card) 55%, var(--gold) 20%);
 }
 .ir2-grain{ position:absolute; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:multiply;
   background-image:var(--ir-paper-noise); background-size:130px 130px; }
@@ -441,8 +376,8 @@ const REVEAL_CSS = `
    start moving together with only a hair of stagger between pairs, and the
    whole thing resolves in well under a second. Direction/fade-vs-stay
    pattern (top/bottom stay, left/right fade) is kept from the source. */
-.ir2-flap{ position:absolute; top:50%; left:50%; width:min(70vw,340px); height:min(70vw,340px); color:var(--gold); }
-.ir2-flap svg{ width:100%; height:100%; display:block; }
+.ir2-flap{ position:absolute; top:50%; left:50%; width:min(70vw,340px); aspect-ratio:700/524; }
+.ir2-flap img{ width:100%; height:100%; display:block; object-fit:fill; filter:drop-shadow(0 6px 14px rgba(40,26,8,.2)); }
 .ir2-flap.top    { transform:translate(-50%,-100%) rotate(180deg); transition:transform .55s cubic-bezier(.4,0,.2,1); }
 .ir2-flap.bottom { transform:translate(-50%,0%) rotate(0deg); transition:transform .55s cubic-bezier(.4,0,.2,1); }
 .ir2-flap.left   { transform:translate(-100%,-50%) rotate(270deg); transition:transform .55s cubic-bezier(.4,0,.2,1) .06s, opacity .2s ease .45s; }
@@ -456,10 +391,9 @@ const REVEAL_CSS = `
 .ir2-seal-btn{ width:38%; aspect-ratio:1; border-radius:50%; border:none; padding:0; cursor:pointer;
   position:relative; z-index:5; background:none; filter:drop-shadow(0 14px 26px rgba(40,26,8,.35));
   transition:transform .4s cubic-bezier(.34,1.56,.64,1), opacity .35s ease; }
-.ir2-seal-ring{ position:absolute; inset:-9%; border-radius:50%; border:1.5px solid var(--gold); opacity:.55; }
 .ir2-seal-face{ position:absolute; inset:0; border-radius:50%; display:block; overflow:hidden;
   box-shadow:inset 0 2px 4px rgba(255,255,255,.25); }
-.ir2-seal-face svg{ width:100%; height:100%; display:block; }
+.ir2-seal-face img{ width:100%; height:100%; display:block; object-fit:cover; }
 .ir2-seal-btn:hover .ir2-seal-face{ filter:brightness(1.06); }
 .ir2-seal-btn:active{ transform:scale(.96); }
 .ir2-root.ir2-opening .ir2-seal-btn{ transform:scale(1.22); opacity:0; pointer-events:none; }
@@ -480,6 +414,7 @@ const REVEAL_CSS = `
    tracking pries them apart into disjointed, "broken"-looking text. */
 [dir="rtl"] .ir2-prompt-pill{ letter-spacing:normal; text-transform:none; }
 @keyframes ir2Nudge{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-4px) } }
+.ir2-prompt-flourish{ width:min(46vw,180px); height:auto; opacity:.8; margin-top:2px; display:block; }
 .ir2-prompt-sub{ font-family:var(--font-serif), Georgia, serif; font-style:italic; font-size:13px; color:var(--ink-soft); margin:10px 0 0; }
 
 @media (prefers-reduced-motion:reduce){
