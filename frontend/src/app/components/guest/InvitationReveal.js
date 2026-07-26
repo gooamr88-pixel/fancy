@@ -20,10 +20,11 @@ import { motion } from "framer-motion";
    handing the browser a blob: URL never goes through that response header at
    all, so the reference file's markup/CSS/JS ships completely unmodified
    without having to carve a site-wide security header down for one page.
-   A `<base href="/reveal-tilda/">` tag is injected into the fetched markup
-   (the only alteration) purely so its relative css/js/images/ references
-   still resolve — the blob URL itself has no path for the browser to resolve
-   them against otherwise.
+   Its relative css/js/images/ references (href="css/...", src="js/...",
+   src='images/...') are rewritten to absolute /reveal-tilda/... URLs before
+   the blob is created — a blob: document has no path of its own for the
+   browser to resolve them against otherwise. This is the only alteration
+   made to the fetched markup.
 
    The reference file's own script (opening-envelope-section.html, bottom)
    posts window.postMessage('fancy:envelope-opened') the moment the guest
@@ -85,8 +86,19 @@ export default function InvitationReveal({
       .then((res) => res.text())
       .then((html) => {
         if (cancelled) return;
-        const withBase = html.replace("<head>", `<head>\n<base href="${TILDA_REVEAL_BASE}">`);
-        createdUrl = URL.createObjectURL(new Blob([withBase], { type: "text/html" }));
+        // A blob: document has no real path of its own, so the file's relative
+        // css/js/images/ references (e.g. href="css/...", src='images/...')
+        // can't resolve against it — rewrite every one to an absolute
+        // /reveal-tilda/... URL instead of relying on a <base> tag (which
+        // depends on browser handling of <base> inside a blob: document;
+        // rewriting the attributes directly removes that uncertainty).
+        const absolute = html
+          .replace(/href="css\//g, `href="${TILDA_REVEAL_BASE}css/`)
+          .replace(/src="js\//g, `src="${TILDA_REVEAL_BASE}js/`)
+          .replace(/srcset='images\//g, `srcset='${TILDA_REVEAL_BASE}images/`)
+          .replace(/data-original='images\//g, `data-original='${TILDA_REVEAL_BASE}images/`)
+          .replace(/src='images\//g, `src='${TILDA_REVEAL_BASE}images/`);
+        createdUrl = URL.createObjectURL(new Blob([absolute], { type: "text/html" }));
         setBlobUrl(createdUrl);
       })
       .catch((err) => {
