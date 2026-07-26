@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { lighten, darken, alpha, mix, luminance } from "../../utils/color";
 import Icon from "../icons/Icon";
 
@@ -13,25 +13,33 @@ import Icon from "../icons/Icon";
      • mode="invitation"  first thing a guest sees on the event page /[slug].
      • mode="rsvp"        gates the RSVP route; per-session "seen" memory.
 
-   Four envelope-flap photos (three plain sides, the top carrying an embossed
-   scroll flourish — the real artwork, not a generated recreation) lap over one
-   another around a circular tap-to-open wax seal, forming the back of a closed
-   envelope. On arrival they fold themselves shut in the order paper would be
-   folded by hand — sides, bottom, then the sealed top flap. Tap the seal: the
-   "tap to open" label cuts instantly, the seal zooms and dissolves, and the
-   flaps release in the reverse order, each taking a couple of degrees of its
-   own spin (the side pair fading once clear) — quick and immediate, not a slow
-   multi-second reveal — handing straight back to the real page underneath with
-   no intermediate summary card.
+   This is a faithful reproduction of the reference design (the Tilda T396
+   export kept in the `opening-envelope` design folder, record 2339662043) —
+   not a reinterpretation of it. A full-bleed envelope, larger than the
+   viewport and cropped by it, built from four overlapping flap photographs
+   with a wax seal at the centre and "tap to open" printed on the paper just
+   below it. Tap the seal: the label and flourish fade, the seal swells and
+   dissolves, and the four flaps slide apart — sideways pair first and
+   fading, top and bottom riding straight off the artboard.
 
-   The flap/seal/flourish artwork (public/images/reveal/) is a fixed, shared
-   asset set — deliberately NOT tinted per event's custom_colors: it's the one
-   photoreal look for every event. The seal artwork itself ships blank, with
-   the organizer's own monogram ("Seal Name / Monogram" in the dashboard →
-   template_data.seal_text, auto-derived from the couple/event name when left
-   empty) drawn over it as an SVG engraving — so one shared image still
-   personalises per event. The rest of the personalisation lives in the text
-   below the seal (guest welcome line, event title, date).
+   EVERY position, size, distance, duration and delay below is transcribed
+   from that export rather than re-derived, and lives in one table (LAYERS)
+   so it stays checkable against the source. See the ARTBOARD block.
+
+   THE ONE DEPARTURE FROM THE REFERENCE — deliberate, and the reason this is
+   a component and not a static page: the reference bakes its wax seal,
+   engraving and all, into a single rendered image per invitation. Ours ships
+   a BLANK seal and draws the organizer's own monogram over it as an SVG
+   engraving ("Seal Name / Monogram" in the dashboard → template_data
+   .seal_text, auto-derived from the couple/event name when left empty), so
+   one shared image personalises itself per event with no asset pipeline.
+
+   Two smaller, unavoidable substitutions: the reference's display face
+   ("Template1") is a Tilda-hosted font that is not part of the export — it
+   already falls back to Arial there — so the tap label uses the platform's
+   own self-hosted serif; and the skip control and language chip are ours,
+   required by the contract below and by bilingual events, and sit outside
+   the artboard where the reference has nothing.
 
    CONTRACT (kept stable for callers + tests):
      • data-testid="guest-envelope-reveal" on the root
@@ -41,12 +49,164 @@ import Icon from "../icons/Icon";
 
 const isArabic = (s) => typeof s === "string" && /[؀-ۿ]/.test(s);
 
+/* The reference's own artwork, at the resolution the reference displays it:
+   the flaps are painted as large as 1000x800 CSS px, so anything downscaled
+   renders visibly soft at that size. */
 const REVEAL_ASSETS = {
   flapDeco: "/images/reveal/flap-deco.webp",
   flapPlain: "/images/reveal/flap-plain.webp",
   seal: "/images/reveal/seal.webp",
   flourish: "/images/reveal/flourish.webp",
 };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ARTBOARD — the reference design, transcribed.
+
+   The reference is a Tilda "zero block": a fixed 1200x850 artboard of
+   absolutely-positioned elements, with per-breakpoint overrides. Its x values
+   are measured from the LEFT EDGE OF THE LAYOUT GRID, not from the centre,
+   which is why rendering one needs that breakpoint's grid half-width:
+
+       left = 50% - half + x
+
+   Keeping x in the export's own coordinate system (instead of pre-resolving
+   it to an offset from centre) is what makes every number below directly
+   checkable against `opening-envelope-section.html` — d.x is the element's
+   data-field-left-value, s960.x its data-field-left-res-960-value, and so on.
+
+   Overrides are emitted as-is, so the CSS cascades exactly the way the
+   export's does: a breakpoint that omits y keeps the y from the one above it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const ARTBOARD_H = 850;
+
+/* max: the media query's max-width (null = the unqualified base block).
+   half: that breakpoint's grid half-width. key: the LAYERS override to use. */
+const SCREENS = [
+  { max: null, half: 600, key: "d" },
+  { max: 1199, half: 480, key: "s960" },
+  { max: 959, half: 320, key: "s640" },
+  { max: 639, half: 240, key: "s480" },
+  { max: 479, half: 160, key: "s320" },
+];
+
+/* DOM order is the export's own element order, and with no z-index anywhere
+   it is also the paint order: the two side flaps, then the bottom flap over
+   them, then the embossed top flap over everything — the order an envelope is
+   actually folded. The flourish, seal and label print on top of the paper.
+
+   move/zoom/fade are the export's `data-animate-sbs-opts` keyframes: ms is
+   that step's `ti` (duration) and delay is the accumulated `dt` at which the
+   step begins. Easing is linear, matching the reference's `ea:'0'`. */
+const LAYERS = [
+  {
+    cls: "fr", asset: "flapPlain", rot: 90,
+    d: { x: 421, y: 25, w: 867, h: 800 },
+    s960: { x: 295 }, s640: { x: 135 }, s480: { x: 55 },
+    s320: { x: -75, y: 83, w: 856, h: 684 },
+    move: { x: 559, ms: 650, delay: 800 },
+    fade: { ms: 150, delay: 1450 },
+  },
+  {
+    cls: "fl", asset: "flapPlain", rot: 270,
+    d: { x: -87, y: 25, w: 867, h: 800 },
+    s960: { x: -205 }, s640: { x: -360 }, s480: { x: -441 },
+    s320: { x: -475, y: 105, w: 856, h: 640 },
+    move: { x: -559, ms: 650, delay: 800 },
+    fade: { ms: 150, delay: 1450 },
+  },
+  {
+    cls: "fb", asset: "flapPlain", rot: 180,
+    d: { x: 100, y: 221, w: 1000, h: 785 },
+    s960: { x: -25 }, s640: { x: -185 }, s480: { x: -265 },
+    s320: { x: -247, w: 815, h: 787 },
+    move: { y: 606, ms: 500, delay: 800 },
+  },
+  {
+    cls: "ft", asset: "flapDeco", rot: 0,
+    d: { x: 105, y: -98, w: 991, h: 583 },
+    s960: { x: -15, y: -102, h: 586 },
+    s640: { x: -175, y: -116, h: 593 },
+    s480: { x: -255, w: 992, h: 598 },
+    s320: { x: -244, y: -99, w: 807, h: 569 },
+    move: { y: -430, ms: 500, delay: 800 },
+  },
+  {
+    cls: "fw", asset: "flourish",
+    d: { x: 506, y: 510, w: 188, h: 45 },
+    s960: { x: 386 }, s640: { x: 226 }, s480: { x: 146 }, s320: { x: 66 },
+    fade: { ms: 500, delay: 0 },
+  },
+  {
+    cls: "sl", kind: "seal",
+    d: { x: 520, y: 310, w: 160, h: 160 },
+    s960: { x: 400 }, s640: { x: 235 }, s480: { x: 155 }, s320: { x: 80 },
+    zoom: { scale: 1.22, ms: 500, delay: 350 },
+    fade: { ms: 500, delay: 350 },
+  },
+  {
+    cls: "tx", kind: "text",
+    d: { x: 492, y: 468, w: 217 },
+    s960: { x: 372 }, s640: { x: 212 }, s480: { x: 132 }, s320: { x: 52 },
+    fade: { ms: 500, delay: 0 },
+  },
+];
+
+/* How long the reference's sequence actually runs, read off the table rather
+   than restated: the last thing to finish is the side flaps' fade at
+   1450 + 150ms. finish() is scheduled on this, so re-timing a step in LAYERS
+   can never leave the handoff out of sync with the animation. */
+const OPEN_DURATION = Math.max(
+  ...LAYERS.flatMap((l) => [l.move, l.zoom, l.fade].filter(Boolean).map((s) => s.delay + s.ms))
+);
+
+function buildArtboardCSS() {
+  return SCREENS.map(({ max, half, key }) => {
+    const rules = LAYERS.map((l) => {
+      const v = l[key];
+      if (!v) return "";
+      const d = [];
+      if (v.x !== undefined) d.push(`left:calc(50% - ${half}px + ${v.x}px)`);
+      if (v.y !== undefined) d.push(`top:${v.y}px`);
+      if (v.w !== undefined) d.push(`width:${v.w}px`);
+      if (v.h !== undefined) d.push(`height:${v.h}px`);
+      return d.length ? `.ir3-${l.cls}{${d.join(";")}}` : "";
+    }).filter(Boolean).join("");
+    return max === null ? rules : `@media screen and (max-width:${max}px){${rules}}`;
+  }).join("\n");
+}
+
+function buildMotionCSS() {
+  return LAYERS.map((l) => {
+    const transitions = [];
+    const opened = [];
+    if (l.move) {
+      transitions.push(`transform ${l.move.ms}ms linear ${l.move.delay}ms`);
+      if (l.move.x) opened.push(`--mx:${l.move.x}px`);
+      if (l.move.y) opened.push(`--my:${l.move.y}px`);
+    }
+    if (l.zoom) {
+      transitions.push(`transform ${l.zoom.ms}ms linear ${l.zoom.delay}ms`);
+      opened.push(`--sc:${l.zoom.scale}`);
+    }
+    if (l.fade) {
+      transitions.push(`opacity ${l.fade.ms}ms linear ${l.fade.delay}ms`);
+      opened.push("opacity:0");
+    }
+    if (!transitions.length) return "";
+    return `.ir3-${l.cls}{transition:${transitions.join(",")}}` +
+      `.ir3-root.is-open .ir3-${l.cls}{${opened.join(";")}}`;
+  }).filter(Boolean).join("\n");
+}
+
+/* The rotation lives on the inner .ir3-atom, never on the positioned layer —
+   exactly as the export splits it (`.tn-elem` is animated, `.tn-atom` is
+   rotated). Keeping them on separate elements is what lets the slide-apart
+   transform stay in plain screen space instead of having to be composed with
+   each flap's own rotation. */
+function buildRotationCSS() {
+  return LAYERS.filter((l) => l.rot).map((l) => `.ir3-${l.cls} .ir3-atom{transform:rotate(${l.rot}deg)}`).join("\n");
+}
 
 /* The engraved-monogram look on the wax seal: a mid-gold fill with a light
    highlight above and a darker shadow below, so the organizer's text reads as
@@ -95,11 +255,12 @@ function deriveIdentity(event, lang) {
   return { full: full || "You're Invited", sealText };
 }
 
-/* ─── Reveal palette derived from the event's own custom_colors ───
-   Clamped to a legible mid-tone band so any organizer color reads as
-   real gold/wax/foliage against the bright card stock, never washed out
-   or muddy. The card stock itself stays a constant warm neutral — only
-   the "product" (seal, corner ornaments, wreath) carries the brand. */
+/* ─── Palette derived from the event's own custom_colors ───
+   The artboard itself is NOT tinted — it is the reference's one photoreal
+   look for every event. This palette dresses the two pieces of chrome that
+   are ours (skip control, language chip) and the reduced-motion fallback
+   card, and is clamped to a legible mid-tone band so any organizer colour
+   stays readable rather than washing out or going muddy. */
 function buildRevealPalette(customColors) {
   const c = customColors || {};
   let accent = c.primary || c.secondary || "#5f8154";
@@ -122,24 +283,6 @@ function buildRevealPalette(customColors) {
   };
 }
 
-/* The stage the reveal is in, as classes on the root — the choreography lives
-   in REVEAL_CSS, not in per-element JS animation.
-     preload   flaps sit slightly open and invisible (their at-rest style)
-     settled   the envelope folds itself shut
-     rest      folded and waiting; "tap to open" is showing
-     pressing  the seal has been tapped; the label cuts before anything moves
-     opening   flaps release outward
-   Everything from "settled" on keeps that class, so the folded geometry is
-   never re-triggered mid-sequence. "rest" and "pressing" carry no styling of
-   their own — they mark state the JSX reads. */
-const STAGE_CLASSES = {
-  preload: [],
-  settled: ["ir2-settled"],
-  rest: ["ir2-settled", "ir2-rest"],
-  pressing: ["ir2-settled", "ir2-pressing"],
-  opening: ["ir2-settled", "ir2-opening"],
-};
-
 export default function InvitationReveal({
   event,
   mode = "invitation",
@@ -151,7 +294,7 @@ export default function InvitationReveal({
 }) {
   const prefersReduced = useReducedMotion();
 
-  const [stage, setStage] = useState("preload");
+  const [open, setOpen] = useState(false);
   const [lang, setLang] = useState(langProp || "en");
   const timers = useRef([]);
   const finishedRef = useRef(false);
@@ -191,10 +334,10 @@ export default function InvitationReveal({
   const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
   // A known guest (resolved from their personal link/token — private events,
-  // or a public event's per-guest invite) is personalised via the reveal
-  // panel's own welcome line — the seal is deliberately NOT personalised per
-  // guest: it carries the couple/event's own monogram, the same for every
-  // guest, the way a real wax seal would.
+  // or a public event's per-guest invite) is personalised via the reduced-motion
+  // card's welcome line — the seal is deliberately NOT personalised per guest:
+  // it carries the couple/event's own monogram, the same for every guest, the
+  // way a real wax seal would.
   const sealText = identity.sealText;
   // Same 0–100 units as the SVG overlay's viewBox, so the engraving scales
   // with the seal at any button size. Longer text steps down through the
@@ -218,8 +361,8 @@ export default function InvitationReveal({
   }, []);
 
   const copy = {
-    en: { eyebrow: "You are invited", tap: "Tap to open", special: "You are invited to our special day", enter: "View invitation", join: "request the honour of your presence", details: "View Details" },
-    ar: { eyebrow: "أنت مدعو", tap: "اضغط للفتح", special: "أنت مدعوّ ليومنا المميّز", enter: "عرض الدعوة", join: "يشرّفنا حضوركم", details: "عرض التفاصيل" },
+    en: { eyebrow: "You are invited", tap: "Tap to open", enter: "View invitation", join: "request the honour of your presence" },
+    ar: { eyebrow: "أنت مدعو", tap: "اضغط للفتح", enter: "عرض الدعوة", join: "يشرّفنا حضوركم" },
   }[lang];
   const isRTL = lang === "ar";
   const arTitle = event?.title_ar || td.title_ar;
@@ -227,9 +370,6 @@ export default function InvitationReveal({
   const dateStr = event?.event_date
     ? new Date(event.event_date).toLocaleDateString(isRTL ? "ar-EG" : "en-US", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
     : "";
-  const noiseVars = useMemo(() => ({
-    "--ir-paper-noise": "url(\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/></filter><rect width='140' height='140' filter='url(%23p)'/></svg>\")",
-  }), []);
 
   /* ─── Sequence control ─── */
   const clearTimers = useCallback(() => { timers.current.forEach(clearTimeout); timers.current = []; }, []);
@@ -241,28 +381,17 @@ export default function InvitationReveal({
     onComplete && onComplete();
   }, [markSeen, onComplete]);
 
+  // One flag drives the whole sequence: every element's own delay and duration
+  // is already declared in LAYERS, so tapping the seal only has to say "go".
   const openSeal = useCallback(() => {
     if (startedRef.current || finishedRef.current) return;
     startedRef.current = true;
-    clearTimers(); // cancel any still-pending intro timers (e.g. the resting-prompt timer)
     musicRef?.current?.play().catch((err) => console.error("Background music playback failed:", err));
-    // "pressing" cuts the "tap to open" label on a 120ms fade; "opening" waits
-    // that fade out so there is never a frame with the label still on screen
-    // while the flaps are already moving. finish() then clears the longest
-    // flap (0.1s stagger + 0.62s flight = 720ms) with room to spare, and hands
-    // over to the overlay's own exit cross-fade.
-    setStage("pressing");
-    after(110, () => setStage("opening"));
-    after(900, finish);
-  }, [after, clearTimers, finish, musicRef]);
+    setOpen(true);
+    after(OPEN_DURATION, finish);
+  }, [after, finish, musicRef]);
 
-  useEffect(() => {
-    if (prefersReduced || alreadySeen) return;
-    after(150, () => setStage("settled"));
-    after(1150, () => setStage("rest"));
-    return clearTimers;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => clearTimers, [clearTimers]);
 
   if (alreadySeen) return null;
 
@@ -286,8 +415,8 @@ export default function InvitationReveal({
           boxShadow: "0 40px 90px -30px rgba(40,30,16,.45), inset 0 0 0 1px rgba(255,255,255,.4)",
           maxHeight: "calc(100dvh - 48px)", overflowY: "auto",
         }}>
-          <div style={{ width: 76, height: 76, margin: "0 auto 18px", position: "relative", borderRadius: "50%", overflow: "hidden" }}>
-            <img src={REVEAL_ASSETS.seal} alt="" aria-hidden="true" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+          <div style={{ width: 76, height: 76, margin: "0 auto 18px", position: "relative" }}>
+            <img src={REVEAL_ASSETS.seal} alt="" aria-hidden="true" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
             <svg viewBox="0 0 100 100" aria-hidden style={SEAL_TEXT_SVG_STYLE}>
               <text
                 x="50" y="50" textAnchor="middle" dominantBaseline="central"
@@ -315,112 +444,68 @@ export default function InvitationReveal({
     );
   }
 
-  const rootClassName = ["ir2-root", ...(STAGE_CLASSES[stage] || [])].join(" ");
-
   return (
     <motion.div
       data-testid="guest-envelope-reveal" role="dialog" aria-label="Open your invitation"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-      exit={{ opacity: 0, scale: 1.04, transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] } }}
-      transition={{ duration: 0.6 }}
+      exit={{ opacity: 0, transition: { duration: 0.7, ease: [0.4, 0, 0.2, 1] } }}
+      transition={{ duration: 0.5 }}
       dir={isRTL ? "rtl" : "ltr"}
-      className={rootClassName}
-      style={{ ...overlayBase, ...paletteVars, ...noiseVars }}
+      className={`ir3-root${open ? " is-open" : ""}`}
+      style={paletteVars}
     >
       <style dangerouslySetInnerHTML={{ __html: REVEAL_CSS }} />
 
-      <div className="ir2-grain" aria-hidden />
-      <div className="ir2-daylight" aria-hidden />
-      <div className="ir2-vignette" aria-hidden />
-
-      {/* language chip */}
+      {/* Ours, not the reference's: kept outside the artboard so nothing in the
+          transcribed layout has to make room for them. */}
       <div style={{ position: "absolute", top: "max(16px, env(safe-area-inset-top))", insetInlineEnd: 16, zIndex: 20 }}>
-        <button type="button" className="ir2-langchip" onClick={() => hasArabic && setLang((l) => (l === "en" ? "ar" : "en"))} aria-label={hasArabic ? "Toggle language" : "Language"} style={langChipStyle(!!hasArabic, P)}>
+        <button type="button" className="ir3-langchip" onClick={() => hasArabic && setLang((l) => (l === "en" ? "ar" : "en"))} aria-label={hasArabic ? "Toggle language" : "Language"} style={langChipStyle(!!hasArabic, P)}>
           <Icon name="globe" size={14} strokeWidth={1.6} style={{ opacity: 0.7 }} />
           <span style={{ fontWeight: 700, letterSpacing: "0.04em" }}>{lang === "en" ? "EN" : "ع"}</span>
         </button>
       </div>
 
-      <button type="button" className="ir2-skip" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation animation" style={skipStyle(P)}>
+      <button type="button" className="ir3-skip" data-testid="guest-envelope-skip" onClick={finish} aria-label="Skip invitation animation" style={skipStyle(P)}>
         Skip <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>›</span>
       </button>
 
-      <div className="ir2-scene">
-        {/* DOM order IS the fold order of a real envelope, and the paint order
-            that follows from it: the two side flaps fold in first, the bottom
-            flap laps over them, and the sealed top flap (the decorated one)
-            closes over everything. Reversing this — sides painted last, as
-            they were — puts a plain flap on top of the embossed one and the
-            stack stops reading as folded paper. .ir2-flap's z-index makes the
-            same order explicit so it survives future reordering. */}
-        <div className="ir2-seal-stage">
-          <div className="ir2-flap left"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
-          <div className="ir2-flap right"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
-          <div className="ir2-flap bottom"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
-          <div className="ir2-flap top"><img src={REVEAL_ASSETS.flapDeco} alt="" aria-hidden="true" /></div>
+      {/* The 1200x850 artboard, centred in the viewport. The envelope is drawn
+          larger than it on every side and is meant to be cropped — full-bleed
+          paper running off the screen, not a card sitting in the middle of
+          it. */}
+      <div className="ir3-artboard">
+        <div className="ir3-layer ir3-fr"><span className="ir3-atom"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></span></div>
+        <div className="ir3-layer ir3-fl"><span className="ir3-atom"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></span></div>
+        <div className="ir3-layer ir3-fb"><span className="ir3-atom"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></span></div>
+        <div className="ir3-layer ir3-ft"><span className="ir3-atom"><img src={REVEAL_ASSETS.flapDeco} alt="" aria-hidden="true" /></span></div>
+        <div className="ir3-layer ir3-fw"><span className="ir3-atom"><img src={REVEAL_ASSETS.flourish} alt="" aria-hidden="true" /></span></div>
 
-          <button
-            type="button"
-            className="ir2-seal-btn"
-            onClick={openSeal}
-            aria-label="Tap to open your invitation"
-          >
-            <span className="ir2-seal-face" aria-hidden="true">
-              <img src={REVEAL_ASSETS.seal} alt="" />
-              {/* The organizer's monogram, engraved into the wax. Drawn as an
-                  SVG overlay in the same 0–100 space as the artwork so it
-                  tracks the seal at every size, and shaded light-above /
-                  dark-below (see .ir2-seal-text) so it reads as raised gold
-                  rather than flat text sitting on a photo. */}
-              <svg viewBox="0 0 100 100" aria-hidden style={SEAL_TEXT_SVG_STYLE}>
-                <text
-                  x="50" y="50" textAnchor="middle" dominantBaseline="central"
-                  fontSize={sealFontSize}
-                  fontWeight="600" letterSpacing="0.5" fill={SEAL_TEXT_FILL}
-                >
-                  {sealText}
-                </text>
-              </svg>
-            </span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className="ir3-layer ir3-sl"
+          onClick={openSeal}
+          aria-label="Tap to open your invitation"
+        >
+          <span className="ir3-atom ir3-seal-face" aria-hidden="true">
+            <img src={REVEAL_ASSETS.seal} alt="" />
+            {/* The organizer's monogram, engraved into the wax — the one thing
+                here the reference bakes into its artwork and we don't. Drawn in
+                the same 0–100 space as the seal image so it tracks it at every
+                size, and shaded light-above / dark-below so it reads as raised
+                gold rather than flat text sitting on a photo. */}
+            <svg viewBox="0 0 100 100" aria-hidden style={SEAL_TEXT_SVG_STYLE}>
+              <text
+                x="50" y="50" textAnchor="middle" dominantBaseline="central"
+                fontSize={sealFontSize}
+                fontWeight="600" letterSpacing="0.5" fill={SEAL_TEXT_FILL}
+              >
+                {sealText}
+              </text>
+            </svg>
+          </span>
+        </button>
 
-        {/* A sibling of .ir2-seal-stage (not nested inside it) — that stage is
-            a fixed square, and its own non-absolute children lay out in a row;
-            nesting this here made "tap to open" render BESIDE the seal instead
-            of centered below it. .ir2-scene's own column flex direction stacks
-            it correctly.
-
-            Stays mounted through pressing/opening (not just "rest") so it is
-            cut on a fast fade the instant the seal is tapped, before any flap
-            motion starts, rather than racing an unmount against the flap CSS
-            transitions.
-
-            That fade is driven from here, not from REVEAL_CSS: motion.div
-            writes opacity as an INLINE style, which no class rule in the
-            injected stylesheet can override, so the .ir2-pressing/.ir2-opening
-            opacity rules this used to rely on never took effect and the "tap
-            to open" label sat there through the whole opening. Keeping the
-            value in one place — framer-motion's — is what makes it actually
-            cut. */}
-        <AnimatePresence>
-          {(stage === "rest" || stage === "pressing" || stage === "opening") && (
-            <motion.div
-              key="prompt"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: stage === "rest" ? 1 : 0, y: 0 }}
-              transition={stage === "rest" ? { duration: 0.6, delay: 0.2 } : { duration: 0.12 }}
-              className="ir2-prompt"
-            >
-              {/* The hairline rules flanking this label are drawn by
-                  .ir2-prompt-pill's own ::before/::after — engraved stationery
-                  rather than the frosted app-UI pill this used to be. */}
-              <div className="ir2-prompt-pill">{copy.tap}</div>
-              <img className="ir2-prompt-flourish" src={REVEAL_ASSETS.flourish} alt="" aria-hidden="true" />
-              <p className="ir2-prompt-sub">{copy.special}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="ir3-layer ir3-tx">{copy.tap}</div>
       </div>
     </motion.div>
   );
@@ -446,184 +531,72 @@ const langChipStyle = (active, P) => ({
 });
 
 const REVEAL_CSS = `
-.ir2-root{
-  position:fixed; inset:0; overflow:hidden;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
+.ir3-root{
+  position:fixed; inset:0; z-index:1000; overflow:hidden;
+  background:#fff;
   font-family:var(--font-sans);
-  /* Two sizes drive the whole scene, and everything else is derived from
-     them — so the geometry holds at every screen size instead of only where
-     it was eyeballed. --stage-w is the box that sizes the seal; --flap-w is
-     the folded envelope, which is deliberately larger and overhangs it. */
-  --stage-w:min(52vw,300px);
-  --flap-w:min(70vw,340px);
-  --flap-ov:calc(var(--flap-w) * 0.2486);
-  background:
-    radial-gradient(46% 38% at 38% 8%, rgba(255,252,240,.65) 0%, transparent 60%),
-    radial-gradient(120% 90% at 50% -6%, var(--card-hi), var(--card) 62%);
-}
-.ir2-grain{ position:absolute; inset:0; pointer-events:none; opacity:.05; mix-blend-mode:multiply;
-  background-image:var(--ir-paper-noise); background-size:130px 130px; }
-.ir2-daylight{ position:absolute; inset:0; pointer-events:none; mix-blend-mode:screen; opacity:.5;
-  background:radial-gradient(60% 45% at 32% 14%, rgba(255,250,235,.6), transparent 60%); }
-.ir2-vignette{ position:absolute; inset:0; pointer-events:none;
-  background:radial-gradient(90% 76% at 50% 46%, transparent 55%, rgba(70,50,26,.1) 100%); }
-
-.ir2-scene{ position:relative; z-index:3; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-
-.ir2-seal-stage{ position:relative; width:var(--stage-w); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
-
-/* The shadow the closed envelope casts on the card stock behind it. Absolute,
-   so it never becomes a flex item of the stage; fades in with the fold and
-   cuts fast on opening so nothing is left hanging under the flying flaps. */
-.ir2-seal-stage::before{
-  content:""; position:absolute; left:50%; top:50%; z-index:0; pointer-events:none;
-  width:calc(var(--flap-w) * 1.04); height:calc(var(--flap-w) * 1.04);
-  transform:translate(-50%,-46%);
-  background:radial-gradient(50% 50% at 50% 54%, rgba(58,40,14,.17), rgba(58,40,14,.06) 56%, transparent 72%);
-  filter:blur(20px);
-  opacity:0; transition:opacity .9s ease .15s;
-}
-.ir2-root.ir2-settled .ir2-seal-stage::before{ opacity:1; }
-.ir2-root.ir2-opening .ir2-seal-stage::before{ opacity:0; transition:opacity .3s ease; }
-
-/* ─── The envelope back: four flaps folded in around the seal ───────────────
-   The geometry is DERIVED, not eyeballed. Every flap is the same triangle
-   artwork (apex at the bottom of its own box). Each one is centred on the
-   stage, rotated so its apex points inward, then pushed back out along its
-   OWN axis by half its height less the overlap — so all four apexes cross the
-   centre by exactly --flap-ov at any screen size, and one transform serves
-   all four.
-
-   --flap-ov is the value that closes the four bases into a true square: a
-   base is W wide and sits (H − ov) from the centre, so the corners meet when
-   ov = H − W/2 = W·(524/700 − ½) ≈ 0.2486·W. Less than that and the corners
-   gap open; more and the square shrinks away from the artwork's proportions.
-   The heavy centre overlap is the point, not a side effect — real envelope
-   flaps lap over one another and the seal sits on the join.
-
-   This replaces a hand-written per-flap transform set whose top/bottom
-   rotations were swapped: both of those flaps pointed away from the centre
-   with their wide bases along the centre line, so the four pieces read as a
-   star rather than an envelope and the embossed flourish sat upside down. */
-.ir2-flap{
-  --rot:0deg;
-  --tilt:0deg;
-  /* Distance each flap sits out along its own axis. Non-zero before the
-     envelope settles (the fold-in entrance) and large on opening. */
-  --fly:calc(var(--flap-w) * .17);
-  position:absolute; top:50%; left:50%;
-  width:var(--flap-w); aspect-ratio:700/524;
-  opacity:0; will-change:transform;
-  transform:
-    translate(-50%,-50%)
-    rotate(var(--rot))
-    translateY(calc(-50% + var(--flap-ov) - var(--fly)))
-    rotate(var(--tilt));
-  transition:transform .85s cubic-bezier(.16,.84,.44,1), opacity .55s ease;
-}
-.ir2-flap.left  { --rot:270deg; z-index:1; }
-.ir2-flap.right { --rot:90deg;  z-index:1; }
-.ir2-flap.bottom{ --rot:180deg; z-index:2; }
-.ir2-flap.top   { --rot:0deg;   z-index:3; }
-
-/* Lit from the upper left, matching .ir2-daylight. Each layer casts onto the
-   one beneath it, and the buried side flaps sit a shade darker — that pair of
-   cues, not outlines, is what makes the stack read as overlapping paper. */
-.ir2-flap img{ width:100%; height:100%; display:block; object-fit:fill; }
-.ir2-flap.left img,
-.ir2-flap.right img { filter:brightness(.965) drop-shadow(1px 2px 5px rgba(58,40,14,.14)); }
-.ir2-flap.bottom img{ filter:brightness(.988) drop-shadow(1px 3px 8px rgba(58,40,14,.16)); }
-.ir2-flap.top img   { filter:drop-shadow(1px 5px 12px rgba(58,40,14,.2)) drop-shadow(0 14px 30px rgba(58,40,14,.13)); }
-
-/* Entrance: the envelope folds itself shut, in the order it would be folded
-   by hand — sides, then bottom, then the sealed top flap last. */
-.ir2-flap.left, .ir2-flap.right{ transition-delay:0s; }
-.ir2-flap.bottom{ transition-delay:.09s; }
-.ir2-flap.top{ transition-delay:.18s; }
-.ir2-root.ir2-settled .ir2-flap{ --fly:0px; opacity:1; }
-
-/* Opening. The first port ran the reference's own ti/dt timing verbatim (a
-   ~0.8s dead beat before anything moved, ~1.6s total) — that read as broken,
-   not premium, so this stays deliberately quick: the prompt cuts the instant
-   you tap and the flaps are clear inside .7s. The order reverses the fold —
-   the sealed top flap releases first — and each flap picks up a couple of
-   degrees of its own spin so it leaves like paper rather than a sliding
-   sprite. Sides fade as they clear; top/bottom ride out on the overlay's own
-   exit, the fade-vs-stay split kept from the source.
-
-   Each flap restates the whole transition shorthand rather than just a
-   transition-delay: the side pair needs its transform and its opacity on
-   DIFFERENT delays (fly first, fade only once clear), and a bare
-   transition-delay would have collapsed both onto the same one. */
-.ir2-root.ir2-opening .ir2-flap{ --fly:calc(var(--flap-w) * 1.45); }
-.ir2-root.ir2-opening .ir2-flap.top{
-  --tilt:-2.5deg;
-  transition:transform .62s cubic-bezier(.32,0,.24,1);
-}
-.ir2-root.ir2-opening .ir2-flap.left,
-.ir2-root.ir2-opening .ir2-flap.right{
-  opacity:0;
-  transition:transform .62s cubic-bezier(.32,0,.24,1) .06s, opacity .22s ease .4s;
-}
-.ir2-root.ir2-opening .ir2-flap.left { --tilt:2deg; }
-.ir2-root.ir2-opening .ir2-flap.right{ --tilt:-2deg; }
-.ir2-root.ir2-opening .ir2-flap.bottom{
-  --tilt:2.5deg;
-  transition:transform .62s cubic-bezier(.32,0,.24,1) .1s;
 }
 
-.ir2-seal-btn{ width:38%; aspect-ratio:1; border-radius:50%; border:none; padding:0; cursor:pointer;
-  position:relative; z-index:5; background:none; filter:drop-shadow(0 14px 26px rgba(40,26,8,.35));
-  transition:transform .4s cubic-bezier(.34,1.56,.64,1), opacity .35s ease; }
-.ir2-seal-face{ position:absolute; inset:0; border-radius:50%; display:block; overflow:hidden;
-  box-shadow:inset 0 2px 4px rgba(255,255,255,.25); }
-.ir2-seal-face img{ width:100%; height:100%; display:block; object-fit:cover; }
-.ir2-seal-btn:hover .ir2-seal-face{ filter:brightness(1.06); }
-.ir2-seal-btn:active{ transform:scale(.96); }
-.ir2-root.ir2-opening .ir2-seal-btn{ transform:scale(1.22); opacity:0; pointer-events:none; }
+/* The reference's artboard: a fixed 1200x850 coordinate space, centred in the
+   viewport. Its own children are positioned in artboard px, so nothing here
+   needs a viewport-relative unit.
 
-/* The folded envelope is --flap-w tall and so overhangs the seal-sizing stage
-   this sits under; the first term of margin-top is exactly that overhang, so
-   the label clears the paper by the same visual gap at every width rather
-   than being crowded (or worse, overlapped) on narrow phones, where the
-   overhang is largest.
-
-   Its opacity is deliberately NOT set here — motion.div owns it inline (see
-   the .ir2-prompt JSX). A transition or an opacity rule at this level would
-   only fight that inline value. */
-.ir2-prompt{ position:relative; z-index:12; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
-  margin-top:calc(max(0px, (var(--flap-w) - var(--stage-w)) / 2) + clamp(18px,4dvh,32px)); padding:0 24px; }
-/* Engraved label between two hairline rules — the frosted, blurred pill this
-   used to be read as app chrome dropped onto stationery. Nothing is painted
-   behind the text now, so it has to carry itself: wider tracking, and the
-   accent (already clamped to a legible mid-tone in buildRevealPalette). */
-.ir2-prompt-pill{ display:inline-flex; align-items:center; gap:14px;
-  font-family:var(--font-sans); font-size:10.5px; font-weight:700; letter-spacing:.28em; text-transform:uppercase; color:var(--accent); animation:ir2Nudge 2.6s ease-in-out infinite;
-  /* letter-spacing also trails the LAST letter, which would push the closing
-     rule one space further out than the opening one; this puts that space
-     back on the front so the label sits optically centred between them. */
-  text-indent:.28em; }
-/* One symmetric hairline serves both sides: brightest at its middle, fading
-   at both ends. A direction-aware pair (transparent→gold) would have to be
-   mirrored for RTL, where these pseudo-elements swap sides. */
-.ir2-prompt-pill::before,
-.ir2-prompt-pill::after{ content:""; width:clamp(20px,7vw,38px); height:1px; flex:none;
-  background:linear-gradient(90deg, transparent, color-mix(in srgb,var(--gold) 80%, transparent) 50%, transparent); }
-/* Wide tracking is a deliberate look on English all-caps — but Arabic script
-   needs its letters to stay connected to render properly, so the same
-   tracking pries them apart into disjointed, "broken"-looking text. */
-[dir="rtl"] .ir2-prompt-pill{ letter-spacing:normal; text-transform:none; text-indent:0; }
-@keyframes ir2Nudge{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-4px) } }
-.ir2-prompt-flourish{ width:min(46vw,180px); height:auto; opacity:.8; margin-top:2px; display:block; }
-.ir2-prompt-sub{ font-family:var(--font-serif), Georgia, serif; font-style:italic; font-size:13px; color:var(--ink-soft); margin:10px 0 0; }
-
-@media (prefers-reduced-motion:reduce){
-  .ir2-prompt-pill{ animation:none; }
-  .ir2-flap,.ir2-seal-btn,.ir2-seal-stage::before{ transition-duration:.001ms !important; transition-delay:0s !important; }
+   It deliberately does NOT clip, even though the reference's does: there the
+   artboard is a page section and its 850px edge IS the edge of what you see,
+   but here the overlay fills the screen, so clipping at 850 would draw a hard
+   horizontal seam across the paper on any viewport taller than that. The
+   equivalent of the reference's crop, for a full-screen overlay, is the
+   viewport itself — which .ir3-root already clips to. */
+.ir3-artboard{
+  position:absolute; left:0; right:0; top:50%;
+  height:${ARTBOARD_H}px; margin-top:${-ARTBOARD_H / 2}px;
 }
+
+/* --mx/--my/--sc are what the open sequence animates; every layer starts at
+   rest and the generated .is-open rules below supply that layer's own
+   destination, duration and delay. */
+.ir3-layer{
+  position:absolute; margin:0; padding:0; border:0;
+  transform:translate(var(--mx,0px),var(--my,0px)) scale(var(--sc,1));
+  /* These boxes are hundreds of px across and several of them are painted
+     above the seal, so only the seal itself may take a pointer — otherwise
+     the label's box alone would swallow taps along the seal's bottom edge. */
+  pointer-events:none;
+}
+.ir3-atom{ display:block; width:100%; height:100%; }
+/* object-fit:fill is deliberate, not an oversight: the reference paints these
+   triangles at box sizes that do not match the artwork's own aspect ratio,
+   and that stretch is part of how its envelope is shaped. */
+.ir3-layer img{ display:block; width:100%; height:100%; object-fit:fill; }
+
+.ir3-tx{
+  color:#866739; text-align:center;
+  font-family:var(--font-serif), Georgia, serif;
+  font-size:20px; line-height:1.55; font-weight:400;
+}
+
+.ir3-sl{ background:none; cursor:pointer; pointer-events:auto; -webkit-tap-highlight-color:transparent; }
+.ir3-seal-face{ position:relative; }
+/* No circular clip on the wax: its silhouette is a hand-pressed wavy edge and
+   the artwork carries its own transparency, so masking it to a circle would
+   shave exactly the detail that makes it read as wax. */
+.ir3-root.is-open .ir3-sl{ pointer-events:none; }
 
 /* On-brand gold focus rings on every interactive element in this overlay. */
-.ir2-skip:focus-visible, .ir2-langchip:focus-visible, .ir2-seal-btn:focus-visible{
+.ir3-skip:focus-visible, .ir3-langchip:focus-visible, .ir3-sl:focus-visible{
   outline:2px solid var(--gold); outline-offset:3px;
 }
+
+/* Users who asked for reduced motion get the static fallback card above and
+   never reach this stylesheet; this is belt-and-braces for anyone who flips
+   the setting mid-reveal. */
+@media (prefers-reduced-motion:reduce){
+  .ir3-layer{ transition-duration:.001ms !important; transition-delay:0s !important; }
+}
+
+${buildRotationCSS()}
+
+${buildArtboardCSS()}
+
+${buildMotionCSS()}
 `;
