@@ -14,10 +14,16 @@ const { sendBulkSMSCampaign } = require('../controllers/campaignController');
 
 t.beforeEach(() => mock.reset());
 
+// `consentAttested` is REQUIRED by the controller (TCPA/CTIA + Terms §5 — the
+// organizer must affirm they hold prior express consent for every host-supplied
+// number). It was added with the Twilio toll-free verification work but never
+// added here, so every test below this line was hitting the attestation gate and
+// asserting against a 400 CONSENT_ATTESTATION_REQUIRED instead of the behaviour it
+// meant to cover. The gate itself is now covered by its own test at the bottom.
 const baseReq = (overrides = {}) =>
   mockReq({
     params: { eventId: 'evt-1' },
-    body: { messageTemplate: 'Hi {name} {url}', audience: 'all' },
+    body: { messageTemplate: 'Hi {name} {url}', audience: 'all', consentAttested: true },
     user: { id: 'owner-1' },
     ...overrides
   });
@@ -120,4 +126,43 @@ test('a guest whose atomic deduction fails is counted as failed, not sent', asyn
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.sentCount, 1);
   assert.equal(res.body.failedCount, 1);
+});
+
+// ─── Consent attestation gate (TCPA/CTIA + Terms §5) ───
+// This is the compliance control that the whole suite was accidentally exercising
+// instead of its own subject matter. Assert it directly so it can't regress, and
+// so a future change to the default fixture can't silently disable it again.
+
+test('a campaign without a consent attestation is rejected (400)', async () => {
+  mock.setResolver(() => ({}));
+  const { res } = await invoke(sendBulkSMSCampaign, baseReq({
+    body: { messageTemplate: 'Hi {name} {url}', audience: 'all' },
+  }));
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'CONSENT_ATTESTATION_REQUIRED');
+  // Nothing may be looked up, let alone sent, before consent is affirmed.
+  assert.equal(mock.calls.length, 0);
+});
+
+test('an explicit consentAttested: false is rejected (400)', async () => {
+  mock.setResolver(() => ({}));
+  const { res } = await invoke(sendBulkSMSCampaign, baseReq({
+    body: { messageTemplate: 'Hi {name} {url}', audience: 'all', consentAttested: false },
+  }));
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'CONSENT_ATTESTATION_REQUIRED');
+});
+
+test("the string 'true' is accepted for form-encoded/hand-rolled API clients", async () => {
+  mock.setResolver(({ table, op }) => {
+    if (table === 'events' && op === 'select') return { data: { slug: 'wedding' } };
+    if (table === 'rsvp_parties' && op === 'select') return { data: [] };
+    return {};
+  });
+  const { res } = await invoke(sendBulkSMSCampaign, baseReq({
+    body: { messageTemplate: 'Hi {name} {url}', audience: 'all', consentAttested: 'true' },
+  }));
+  // Past the gate: reaches the real handler and reports an empty audience.
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.sentCount, 0);
 });

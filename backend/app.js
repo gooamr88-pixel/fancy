@@ -104,11 +104,41 @@ if (!RATE_LIMIT_DISABLED && process.env.REDIS_URL) {
     logger.warn(`REDIS_URL set but ioredis unavailable — falling back to in-memory rate limiter. (${e.message})`);
   }
 }
+// `rate-limit-redis` is resolved ONCE, here, rather than inside storeFor(). It is
+// an optional dependency, so it can legitimately be absent — and when it was
+// required lazily per limiter, having ioredis installed WITHOUT it threw an
+// uncaught MODULE_NOT_FOUND while the limiters were being constructed, i.e. the
+// API refused to boot at all. A missing optional dep must degrade to the
+// in-memory store with a warning, never take the server down.
+let RedisStore = null;
+if (redisClient) {
+  try {
+    ({ RedisStore } = require('rate-limit-redis'));
+  } catch (e) {
+    RedisStore = null;
+    redisClient = null;
+    logger.warn(`REDIS_URL set and ioredis present, but rate-limit-redis is not installed — falling back to the per-process in-memory rate limiter. Install it with: npm install rate-limit-redis (${e.message})`);
+  }
+}
+
 const storeFor = (prefix) => {
-  if (!redisClient) return undefined; // undefined => express-rate-limit's default MemoryStore
-  const { RedisStore } = require('rate-limit-redis');
+  // undefined => express-rate-limit's default MemoryStore. NOTE: MemoryStore is
+  // PER PROCESS, and ecosystem.config.js runs the API with `instances: 'max'` in
+  // cluster mode — so without Redis each worker keeps its own counter and the
+  // effective limit is N× and, worse, non-deterministic: the same client can be
+  // allowed or throttled depending purely on which worker answered. Set REDIS_URL
+  // (and install the two optional deps) to make limits coherent.
+  if (!redisClient || !RedisStore) return undefined;
   return new RedisStore({ sendCommand: (...args) => redisClient.call(...args), prefix: `rl:${prefix}:` });
 };
+
+// The Next.js server renders public event pages by calling this API. Those calls
+// arrive from the box itself, so they all collapse onto ONE rate-limit key and
+// would otherwise throttle server-side rendering for every guest on earth after a
+// few dozen renders. Loopback is not a threat model — exempt it everywhere.
+// (See frontend/src/app/[slug]/page.js, which now targets INTERNAL_API_URL.)
+const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+const skipInternal = (req) => LOOPBACK_IPS.has(req.ip);
 
 if (RATE_LIMIT_DISABLED) {
   logger.warn('⚠️  Rate limiting is DISABLED (DISABLE_RATE_LIMIT=true). Do NOT run production like this.');
@@ -120,6 +150,7 @@ if (RATE_LIMIT_DISABLED) {
     message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many requests. Please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: skipInternal,
     store: storeFor('api'),
   });
   app.use('/api', apiLimiter);
@@ -140,20 +171,50 @@ if (RATE_LIMIT_DISABLED) {
   app.use('/api/v1/auth/verify-registration', authLimiter);
   app.use('/api/v1/auth/google', authLimiter);
 
-  // Limiter for public RSVP submissions
-  const publicLimiter = rateLimit({
+  // ─── Public guest surface: READS and WRITES are limited SEPARATELY ───
+  //
+  // These used to share one 30-per-15-minutes limiter mounted on the whole
+  // `/api/v1/public/events` PREFIX. That prefix is not just RSVP submissions — it
+  // is also `GET /public/events/:slug`, i.e. the invitation page itself, plus the
+  // analytics beacon and the seating lookups. Since `trust proxy` correctly
+  // resolves req.ip to the real client, and guests overwhelmingly arrive from
+  // shared addresses (mobile carrier CGNAT, one household/office/venue Wi-Fi),
+  // ~15 invitation opens per address per 15 minutes would start returning 429 —
+  // which the guest UI rendered as a permanent "Event Not Found". Reads now get a
+  // budget sized for humans sharing an IP; only the state-changing endpoints keep
+  // the strict submission cap.
+  const publicWriteLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 30, // 30 RSVP submissions per 15 minutes per IP
+    max: 30, // 30 submissions per 15 minutes per IP
     message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many submissions. Please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
-    store: storeFor('public'),
+    skip: skipInternal,
+    store: storeFor('publicwrite'),
   });
-  app.use('/api/v1/public/events', publicLimiter);
+  const publicReadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1200, // ~80 invitation opens/minute from a single shared address
+    message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many requests. Please try again in a moment.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => skipInternal(req) || req.method === 'OPTIONS',
+    store: storeFor('publicread'),
+  });
+
+  // Writes first — these are the abuse surface (ballot stuffing, seating probing).
+  app.post('/api/v1/public/events/:slug/rsvp', publicWriteLimiter);
+  app.post('/api/v1/public/events/:slug/seating/verify', publicWriteLimiter);
+  app.post('/api/v1/public/events/:slug/self-checkin', publicWriteLimiter);
+  app.post('/api/v1/public/rsvp/respond', publicWriteLimiter);
+
+  // Then the generous read budget for everything else on the guest surface.
+  app.use('/api/v1/public/events', publicReadLimiter);
   // SEC-1: the token-based RSVP paths (one-click respond, guest/invite resolvers)
-  // live under /public/rsvp and were previously covered only by the general 1000/15m
-  // limiter. Apply the strict public limiter here too.
-  app.use('/api/v1/public/rsvp', publicLimiter);
+  // live under /public/rsvp and were previously covered only by the general
+  // 1000/15m limiter. They stay covered here; the one state-changing route among
+  // them (/rsvp/respond) is additionally capped by publicWriteLimiter above.
+  app.use('/api/v1/public/rsvp', publicReadLimiter);
 }
 
 // Request logging middleware

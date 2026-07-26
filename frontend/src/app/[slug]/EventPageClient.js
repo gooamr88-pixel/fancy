@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
 import { translations } from '../utils/translations';
 import { useGuestAnalytics } from '../utils/useGuestAnalytics';
 import { useIsClient } from '../utils/useIsClient';
@@ -37,11 +37,40 @@ import {
 import { ScrollProgressBar as LegacyScrollProgressBar, DotNav as LegacyDotNav, FloatingCalendarButton as LegacyFloatingCalendarButton, ScrollHint as LegacyScrollHint } from '../components/guest/LegacyChrome';
 import InvitationReveal from '../components/guest/InvitationReveal';
 import InvitationCard from '../components/templates/InvitationCard';
-import RsvpExperience from '../components/guest/rsvp/RsvpExperience';
-import RsvpWizard from './rsvp/RsvpWizard';
 import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
-import HeritageArchPage from '../components/templates/heritageArch/HeritageArchPage';
 import Icon from '../components/icons/Icon';
+
+/* ═══════════════════════════════════════════════════════════════
+   Route-level code splitting
+   ═══════════════════════════════════════════════════════════════
+   This component renders exactly ONE of two mutually exclusive experiences,
+   chosen at runtime from event.template_type (see FULL_PAGE_TEMPLATES below):
+
+     • the full-page snap-scroll engine  → HeritageArchPage + its ~20 sections
+     • the legacy continuous-scroll page → RsvpExperience + the RsvpWizard steps
+
+   Statically importing both meant every guest downloaded and parsed both. A
+   wedding guest — the overwhelming majority — was shipped the entire legacy RSVP
+   wizard and its step components that can never render for them, and a
+   corporate/birthday/gala guest was shipped the whole heritageArch section set
+   for the same reason.
+
+   ssr is left ON (the default) deliberately: the server still renders the chosen
+   branch into the HTML, so there is no blank frame and no change to first paint —
+   this only removes dead weight from the hydration bundle. Do NOT set ssr:false
+   here; that would re-create the "invitation is a spinner until JS loads" problem
+   that lifting searchParams out of this component just fixed.
+
+   InvitationCard is intentionally NOT split: both branches use it (the legacy page
+   directly, the full-page engine via HeroSection), so the bundler already emits it
+   as a shared chunk and splitting it would only add a request. */
+const HeritageArchPage = dynamic(
+  () => import('../components/templates/heritageArch/HeritageArchPage')
+);
+const RsvpExperience = dynamic(
+  () => import('../components/guest/rsvp/RsvpExperience')
+);
+const RsvpWizard = dynamic(() => import('./rsvp/RsvpWizard'));
 
 /* ═══════════════════════════════════════════════════════════════
    Helpers
@@ -349,11 +378,22 @@ function HeroFloralAccent({ color, mirror = false }) {
    COMPONENT
    ═══════════════════════════════════════════════════════════════ */
 
-export default function EventPageClient({ initialEvent, slug: serverSlug }) {
-  const searchParams = useSearchParams();
-  // Per-guest invitation token. Unlocks private events and lets the RSVP form pre-fill.
-  const invitationRsvpId = searchParams?.get('party_id') || null;
-  const invitationGuestId = searchParams?.get('g') || null;
+export default function EventPageClient({
+  initialEvent,
+  slug: serverSlug,
+  // Per-guest invitation token. Unlocks private events and lets the RSVP form
+  // pre-fill. Passed down from the server component (page.js) rather than read
+  // here with useSearchParams(): a client component reading search params inside
+  // a Suspense boundary makes Next bail that subtree out of prerendering, so the
+  // HTML shipped to guests was the spinner fallback and nothing else — the whole
+  // invitation then depended on a large bundle hydrating before anything appeared.
+  invitationPartyId = null,
+  invitationGuestId = null,
+  // ?noreveal=1 — the compliance/reviewer bypass (Twilio TFV) that skips the
+  // envelope. Resolved on the server for the same reason as the tokens above.
+  noReveal = false,
+}) {
+  const invitationRsvpId = invitationPartyId;
   // Reading localStorage must be deferred to after hydration (#418): on the
   // server, rememberedId() returns null (no window), but on the client it may
   // return a stored UUID — producing different HTML trees if read up front.
@@ -379,16 +419,15 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   const themeColor = customColors.primary || (isWedding ? '#B8944F' : '#191B1E');
 
 
-  // Dynamic Google Font Injection for calligraphy
-  useEffect(() => {
-    const link = document.createElement("link");
-    link.href = "https://fonts.googleapis.com/css2?family=Great+Vibes&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap";
-    link.rel = "stylesheet";
-    document.head.appendChild(link);
-    return () => {
-      try { document.head.removeChild(link); } catch (e) {}
-    };
-  }, []);
+  // NOTE: there used to be a runtime <link> injection here pulling Great Vibes and
+  // Playfair Display from fonts.googleapis.com. Both are already loaded — SELF-HOSTED
+  // — by next/font in layout.js (--font-script and --font-playfair), so it was pure
+  // duplication, and it made the invitation route the only page on the site that
+  // needs a third-party host at render time. fonts.googleapis.com is blackholed in
+  // several countries and by many corporate proxies; a blackholed host doesn't reset,
+  // it hangs, and a stylesheet appended to <head> blocks rendering while pending —
+  // so the invitation froze for exactly those guests while the marketing site (pure
+  // next/font) loaded fine for them.
 
   // Sync HTML lang attribute with active language choice to support correct glyph-shaping/fonts
   useEffect(() => {
@@ -620,7 +659,7 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
   // viewing has been dismissed; a fresh page load always starts undismissed.
   // Sole exception: ?noreveal=1, a compliance/reviewer bypass (Twilio TFV)
   // that renders the page content directly. Normal guest links never carry it.
-  const [revealDismissed, setRevealDismissed] = useState(() => searchParams?.get('noreveal') === '1');
+  const [revealDismissed, setRevealDismissed] = useState(() => noReveal);
   // Derived, not stored: visible once the reveal closes, until the guest
   // scrolls or 5s pass (legacyHintDismissed, set by the effect further down).
   const legacyShowScrollHint = revealDismissed && !legacyHintDismissed && !!event && !FULL_PAGE_TEMPLATES.has(event.template_type);
@@ -718,7 +757,19 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       // Forward the invitation/guest token (or the device-remembered id) so the
       // backend can unlock a private event and return this guest's existing RSVP.
       const query = effectiveRsvpId ? `?party_id=${encodeURIComponent(effectiveRsvpId)}` : '';
-      const res = await fetch(`${apiUrl}/public/events/${slug}${query}`, { headers });
+      // Bound the request. Without a signal a stalled connection just hangs — nginx
+      // gives upstreams 120s — and `loading` only clears in the finally, so a guest
+      // on a flaky mobile link stared at the skeleton for two minutes and then got
+      // "Event Not Found". 12s is well past a slow-3G round trip and well short of
+      // the point where a guest gives up and closes the tab.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      let res;
+      try {
+        res = await fetch(`${apiUrl}/public/events/${slug}${query}`, { headers, signal: controller.signal });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -737,6 +788,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
         if (res.status === 403 && data.error === 'EVENT_PRIVATE') { setIsPrivate(true); setLoading(false); return; }
         // INV-1: a paused/completed ("closed") event — distinct from not-found.
         if (res.status === 403 && data.error === 'EVENT_CLOSED') { setError('EVENT_CLOSED'); setLoading(false); return; }
+        // A throttle or a server hiccup is NOT a missing event. Collapsing 429/5xx
+        // into EVENT_NOT_FOUND told guests their invitation link was dead — with no
+        // retry and nothing in the console — which is exactly how a transient
+        // rate-limit reads to a customer as "the link doesn't work".
+        if (res.status === 429 || res.status >= 500) throw new Error('TEMPORARILY_UNAVAILABLE');
         throw new Error('EVENT_NOT_FOUND');
       }
       const data = await res.json();
@@ -754,7 +810,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
       setPasswordRequired(false);
       setIsPrivate(false);
       setNotLive(false);
-    } catch (err) { setError(err.message); } finally { setLoading(false); }
+    } catch (err) {
+      // A timeout/abort is a transient network condition, not a missing event —
+      // route it to the retryable state rather than the dead-link screen.
+      setError(err.name === 'AbortError' ? 'TEMPORARILY_UNAVAILABLE' : err.message);
+    } finally { setLoading(false); }
   }, [slug, effectiveRsvpId]);
 
   useEffect(() => {
@@ -765,39 +825,48 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
     // The demo event is set via lazy initial state above — nothing to fetch.
     if (isDemoSlug) return;
     if (!slug) return;
-    // `initialEvent` is only the guest-agnostic SSR/ISR snapshot (cached up to 60s,
-    // see page.js) — it's used as the instant first paint (no loading flash), but
-    // it can be stale (e.g. the organizer just added/edited a custom RSVP field
-    // like the meal picker after this slug was last cached). Always refresh
-    // client-side so the interactive form guests actually fill in reflects the
-    // organizer's current configuration, not a snapshot from up to a minute ago.
-    // fetchEvent is also used imperatively by the password-retry form (a plain
-    // event handler, not an effect) — it stays a shared useCallback rather
-    // than being duplicated. Invoking it through this IIFE (the same "run an
-    // async function from inside the effect" shape as useRsvpResolver.js's
-    // resolver effect) keeps the actual state updates inside a nested async
-    // callback rather than as a direct statement of the effect body itself.
+    // `initialEvent` is the guest-agnostic SSR snapshot (backend payload cached up
+    // to 60s, see page.js). It is used as the instant first paint, and it is now
+    // also ENOUGH on its own for a plain public link: refetching it unconditionally
+    // doubled every guest's request cost against the public rate limit for data we
+    // already had, and each open also fires an analytics beacon on the same budget.
+    //
+    // We still go to the network when the snapshot genuinely can't answer:
+    //   • no snapshot at all (SSR fetch failed, or a demo/uncached path), or
+    //   • a per-guest token is present — `guestRsvp` is deliberately NOT part of the
+    //     shared cached payload, so the prefill/lock state only exists client-side.
+    // fetchEvent stays a shared useCallback because the password-retry form calls it
+    // imperatively. The IIFE keeps state updates inside a nested async callback
+    // rather than in the effect body itself (see useRsvpResolver.js for the pattern).
+    if (initialEvent && !effectiveRsvpId) { setLoading(false); return; }
     (async () => { await fetchEvent(); })();
-  }, [slug, isDemoSlug, fetchEvent]);
+  }, [slug, isDemoSlug, fetchEvent, initialEvent, effectiveRsvpId]);
 
   /* ─── Countdown ─── */
+  // Depends on the DATE, not the whole `event` object: keying this on `event` meant
+  // every refetch handed back a new object identity and tore down/rebuilt the
+  // interval for no reason. It also now stops itself once the date passes instead
+  // of running a setState every second forever on a page that never goes idle
+  // (which, alongside the infinite decorative animations, is what makes low-end
+  // phones and in-app browsers evict the tab mid-load).
   useEffect(() => {
-    if (!event) return;
-    const timer = setInterval(() => {
-      const difference = +new Date(event.event_date) - +new Date();
-      let newTimeLeft = {};
-      if (difference > 0) {
-        newTimeLeft = {
-          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-          minutes: Math.floor((difference / 1000 / 60) % 60),
-          seconds: Math.floor((difference / 1000) % 60),
-        };
-      }
-      setTimeLeft(newTimeLeft);
-    }, 1000);
+    const target = event?.event_date ? +new Date(event.event_date) : null;
+    if (!target || Number.isNaN(target)) return undefined;
+    let timer;
+    const tick = () => {
+      const difference = target - Date.now();
+      if (difference <= 0) { setTimeLeft({}); clearInterval(timer); return; }
+      setTimeLeft({
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+      });
+    };
+    tick();
+    timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [event]);
+  }, [event?.event_date]);
 
   /* ─── Document meta & fonts ─── */
   useEffect(() => {
@@ -817,6 +886,13 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
             link.id = id;
             link.rel = 'stylesheet';
             link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}&display=swap`;
+            // Organizer-chosen faces are genuinely dynamic, so this one third-party
+            // request has to stay. It must NOT be render-blocking though: load it as
+            // a print stylesheet (browsers fetch those without blocking paint) and
+            // promote it to `all` once it lands. Where fonts.googleapis.com is
+            // unreachable it now simply never applies instead of freezing the page.
+            link.media = 'print';
+            link.onload = () => { link.media = 'all'; };
             document.head.appendChild(link);
           }
         });
@@ -960,7 +1036,11 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                   Access Event
                 </PremiumButton>
               </form>
-              {error && <p style={{ color: '#C45E5E', fontSize: '13px', marginTop: '12px' }}>Incorrect password. Please try again.</p>}
+              {/* Only a genuinely rejected password says "incorrect" — a throttled
+                  or timed-out retry sets TEMPORARILY_UNAVAILABLE and must not
+                  accuse the guest of typing the wrong password. */}
+              {error === 'WRONG_PASSWORD' && <p style={{ color: '#C45E5E', fontSize: '13px', marginTop: '12px' }}>Incorrect password. Please try again.</p>}
+              {error === 'TEMPORARILY_UNAVAILABLE' && <p style={{ color: '#77736A', fontSize: '13px', marginTop: '12px' }}>We couldn’t reach the server. Please try again in a few seconds.</p>}
             </GlassmorphismCard>
           </ScaleIn>
         </div>
@@ -981,6 +1061,35 @@ export default function EventPageClient({ initialEvent, slug: serverSlug }) {
                 This event isn’t active yet. If you’re the host, please complete the platform fee — your event goes live once payment is confirmed.
               </p>
               <Link href="/" style={{ display: 'inline-block', marginTop: '24px', padding: '12px 28px', background: '#B8944F', color: '#FFFFFF', borderRadius: '12px', textDecoration: 'none', fontWeight: 700, fontSize: '14px' }}>Go to Homepage</Link>
+            </GlassmorphismCard>
+          </ScaleIn>
+        </div>
+      </PageTransition>
+    );
+  }
+
+  // ─── TEMPORARILY UNAVAILABLE (throttled / server hiccup / timed out) ───
+  // Distinct from "not found" on purpose. This state is recoverable and usually
+  // clears within seconds, so it offers a retry instead of telling a guest their
+  // invitation is dead — which is what a 429 used to render as.
+  if (error === 'TEMPORARILY_UNAVAILABLE') {
+    return (
+      <PageTransition>
+        <div style={{ minHeight: '100dvh', background: '#F8F4EC', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'var(--font-sans)' }}>
+          <ScaleIn>
+            <GlassmorphismCard bg="rgba(255,255,255,0.92)" style={{ maxWidth: '440px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
+              <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 12, delay: 0.2 }} style={{ display: 'flex', justifyContent: 'center' }}>
+                <Icon name="hourglass" size={44} color="#B8944F" strokeWidth={1.3} />
+              </motion.div>
+              <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#191B1E', marginTop: '12px' }}>Just a moment</h1>
+              <p style={{ color: '#77736A', marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>
+                We couldn’t load this invitation right now. Your link is fine — please try again in a few seconds.
+              </p>
+              <div style={{ marginTop: '24px' }}>
+                <PremiumButton variant="gold" onClick={() => { setError(null); setLoading(true); fetchEvent(); }}>
+                  Try Again
+                </PremiumButton>
+              </div>
             </GlassmorphismCard>
           </ScaleIn>
         </div>

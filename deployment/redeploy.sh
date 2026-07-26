@@ -21,8 +21,29 @@ git pull
 echo "→ Installing dependencies..."
 npm install
 
+# STALE-TAB SAFETY: `next build` writes a new buildId and replaces .next/static,
+# so every chunk filename changes. Any client still holding the PREVIOUS document
+# — an open tab, a bfcache entry, an in-app browser (WhatsApp/Gmail) resurrecting
+# a backgrounded page — then requests chunks that no longer exist and silently
+# fails to hydrate: the guest sees a page that never finishes loading. nginx
+# caches /_next/static as `immutable` for a year, which makes those requests
+# especially likely to be re-issued. Keeping ONE generation of old chunks on disk
+# costs a few MB and makes a redeploy invisible to anyone mid-session.
+echo "→ Preserving the previous build's static chunks (stale-tab safety)..."
+rm -rf frontend/.next-prev-static
+if [ -d frontend/.next/static ]; then
+  cp -r frontend/.next/static frontend/.next-prev-static
+fi
+
 echo "→ Building frontend (required — see comment above)..."
 npm run build --workspace=frontend
+
+if [ -d frontend/.next-prev-static ]; then
+  echo "→ Restoring previous-generation chunks alongside the new build..."
+  # -n: never overwrite anything the new build produced.
+  cp -rn frontend/.next-prev-static/. frontend/.next/static/ || true
+  rm -rf frontend/.next-prev-static
+fi
 
 echo "→ Restarting both processes..."
 pm2 restart ecosystem.config.js

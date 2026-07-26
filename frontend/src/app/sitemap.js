@@ -2,7 +2,10 @@
 // post. Event pages are per-customer and deliberately excluded; the
 // compliance-relevant URLs (/sms-opt-in, /privacy, /terms) are always present.
 const BASE = 'https://fancyrsvp.com';
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+// Loopback for server-side fetches — see the comment in [slug]/page.js.
+const API_URL = process.env.INTERNAL_API_URL
+  || process.env.NEXT_PUBLIC_API_URL
+  || 'http://localhost:5000/api/v1';
 
 // Individual /blog/[slug] posts were never listed here even after the real,
 // admin-authored blog shipped — a real SEO-oriented blog needs its posts

@@ -1,5 +1,5 @@
 import "./globals.css";
-import { Cormorant_Garamond, EB_Garamond, Great_Vibes, Aref_Ruqaa, Playfair_Display, Montserrat, Dancing_Script } from 'next/font/google';
+import { Cormorant_Garamond, EB_Garamond, Great_Vibes, Aref_Ruqaa, Playfair_Display, Montserrat, Dancing_Script, Mrs_Saint_Delafield } from 'next/font/google';
 import ToastHost from './components/ToastHost';
 
 /* ═══ Google Fonts — Formal Typography Stack ═══ */
@@ -65,6 +65,17 @@ const dancingScript = Dancing_Script({
   display: 'swap',
 });
 
+/* INVITATION REVEAL: the envelope's copperplate script. Declared here so it is
+   SELF-HOSTED with the rest of the stack — InvitationReveal.js used to pull it
+   from fonts.googleapis.com at mount time, which put a third-party host on the
+   critical path of the first thing a guest ever sees. */
+const mrsSaintDelafield = Mrs_Saint_Delafield({
+  subsets: ['latin'],
+  weight: ['400'],
+  variable: '--font-delafield',
+  display: 'swap',
+});
+
 export const metadata = {
   title: "Fancy RSVP — Elegant RSVPs. Effortless Planning.",
   description: "The all-in-one RSVP and guest management platform for weddings and special events. Create beautiful digital invitations with real-time tracking.",
@@ -102,7 +113,7 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${cormorant.variable} ${ebGaramond.variable} ${greatVibes.variable} ${arefRuqaa.variable} ${playfairDisplay.variable} ${montserrat.variable} ${dancingScript.variable}`}
+      className={`${cormorant.variable} ${ebGaramond.variable} ${greatVibes.variable} ${arefRuqaa.variable} ${playfairDisplay.variable} ${montserrat.variable} ${dancingScript.variable} ${mrsSaintDelafield.variable}`}
     >
       <body>
         {children}

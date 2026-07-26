@@ -64,6 +64,11 @@ async function resolveToken(token, signal) {
     data = await publicApiFetch(`/public/rsvp/invite?token=${encodeURIComponent(token)}`, { signal });
   } catch (err) {
     if (err.name === 'AbortError') throw err;
+    // Same distinction as resolveSlug: a throttle/5xx/transport failure is
+    // recoverable and must not be reported as an expired invitation.
+    if (err.status === 429 || err.status >= 500 || err.status === 0) {
+      const e = new Error('temporarily unavailable'); e.phase = 'temporarilyUnavailable'; throw e;
+    }
     const e = new Error(err.message || 'This invitation link is invalid or has expired.');
     e.phase = 'unavailable';
     throw e;
@@ -96,6 +101,13 @@ async function resolveSlug({ slug, guestId, partyId }, signal) {
     if (err.status === 402) { const e = new Error('not live'); e.phase = 'paymentRequired'; throw e; }
     if (err.status === 403 && err.code === 'EVENT_UNDER_REVIEW') { const e = new Error('review'); e.phase = 'underReview'; throw e; }
     if (err.status === 403 && err.code === 'EVENT_CLOSED') { const e = new Error('closed'); e.phase = 'closed'; throw e; }
+    // A throttle, a server hiccup or a transport failure is recoverable — it is NOT
+    // "this event doesn't exist". Falling through to `unavailable` told guests their
+    // invitation was dead and offered them nothing to do about it, which is how a
+    // few seconds of rate limiting turned into a support ticket about broken links.
+    if (err.status === 429 || err.status >= 500 || err.status === 0) {
+      const e = new Error('temporarily unavailable'); e.phase = 'temporarilyUnavailable'; throw e;
+    }
     const e = new Error('This event could not be found.'); e.phase = 'unavailable'; throw e;
   }
 

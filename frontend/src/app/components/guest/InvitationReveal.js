@@ -157,21 +157,22 @@ export default function InvitationReveal({
     // to descendants of the element they're set on, and this component's
     // root is never an ancestor of the rest of the guest page, so this is
     // scoping by construction, not by convention.
-    "--font-serif": "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
-    "--font-script": "'Mrs Saint Delafield', cursive",
+    // Resolved from the SELF-HOSTED next/font variables declared on <html> in
+    // layout.js, not from a family name that only exists if a third-party
+    // stylesheet loaded. The literal names stay as the fallback so the reveal
+    // still renders correctly if a face ever fails to resolve.
+    "--font-serif": "var(--font-heading), 'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+    "--font-script": "var(--font-delafield), 'Mrs Saint Delafield', cursive",
   }), [P]);
 
-  // Loads the two reveal-only display faces once per mount. Same pattern
-  // EventPageClient already uses for its own Google Font injection (a
-  // plain <link> appended to <head> and removed on unmount) — not a new
-  // convention.
-  useEffect(() => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Mrs+Saint+Delafield&display=swap";
-    document.head.appendChild(link);
-    return () => { try { document.head.removeChild(link); } catch { /* already gone */ } };
-  }, []);
+  // The two reveal display faces are now SELF-HOSTED via next/font in layout.js
+  // (Cormorant Garamond as --font-heading, Mrs Saint Delafield as --font-delafield).
+  // This used to inject a <link> to fonts.googleapis.com on every mount, which made
+  // the envelope — the very first thing a guest sees — wait on a third-party host
+  // that is blackholed in several countries and by many corporate proxies. A
+  // blackholed host hangs rather than failing, and a <head> stylesheet blocks paint
+  // while pending, so those guests got a frozen reveal and never reached the
+  // invitation at all. Nothing to load at runtime now.
 
   const td = event?.template_data || {};
   const hasArabic = !!(event?.title_ar || td.title_ar || isArabic(event?.title));

@@ -38,7 +38,15 @@ module.exports = {
       max_memory_restart: '1500M',
       env: {
         NODE_ENV: 'production',
-        PORT: 3000
+        PORT: 3000,
+        // Server-side rendering talks to the backend over loopback. Without this,
+        // Server Components fall back to NEXT_PUBLIC_API_URL (the PUBLIC hostname),
+        // so every SSR request hairpins out through nginx and back — landing on the
+        // API as traffic from the box's own address. That collapses all server
+        // rendering onto ONE rate-limit key and adds a TLS round trip per render.
+        // Not NEXT_PUBLIC_*: this must never be inlined into the client bundle, and
+        // it's read at runtime by `next start`, so no rebuild is needed to change it.
+        INTERNAL_API_URL: 'http://127.0.0.1:5000/api/v1'
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       error_file: '../logs/frontend-error.log',

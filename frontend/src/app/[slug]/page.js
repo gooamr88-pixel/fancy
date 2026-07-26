@@ -2,7 +2,16 @@ import { Suspense, cache } from 'react';
 import EventPageClient from './EventPageClient';
 import { safeJsonLdHtml } from '../utils/jsonLdSafe.mjs';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+// Server-side renders talk to the backend over LOOPBACK, never via the public
+// hostname. Going out through https://fancyrsvp.com hairpins back in through
+// nginx, which (a) makes every SSR request on the box share ONE rate-limit key —
+// the server's own address — so server rendering silently dies for all guests
+// after a few dozen renders, and (b) pays a full TLS round trip per render.
+// NEXT_PUBLIC_API_URL is kept as the fallback so nothing breaks if the internal
+// URL isn't configured, and so local dev keeps working unchanged.
+const API_URL = process.env.INTERNAL_API_URL
+  || process.env.NEXT_PUBLIC_API_URL
+  || 'http://localhost:5000/api/v1';
 
 // PERF-2: React.cache() dedupes this within a single render so generateMetadata()
 // and the page component share ONE backend call instead of two.
@@ -66,8 +75,18 @@ export async function generateMetadata({ params }) {
   };
 }
 
-export default async function EventPage({ params }) {
+export default async function EventPage({ params, searchParams }) {
   const { slug } = await params;
+  // Read the per-guest invitation token HERE, on the server, instead of letting
+  // EventPageClient call useSearchParams(). A client component reading search
+  // params inside a Suspense boundary makes Next bail that whole subtree out of
+  // prerendering — the shipped HTML was only the spinner fallback, so `initialEvent`
+  // below never reached the browser and the entire invitation was gated on a large
+  // client bundle downloading and hydrating first. Awaiting searchParams marks this
+  // route dynamic, which is correct: the response genuinely varies per guest. The
+  // backend payload stays cached by the fetch() revalidate window either way.
+  const sp = (await searchParams) || {};
+  const first = (v) => (Array.isArray(v) ? v[0] : v) || null;
   const event = await fetchEvent(slug);
 
   const jsonLd = event
@@ -106,7 +125,13 @@ export default async function EventPage({ params }) {
           <div style={{ width: '48px', height: '48px', border: '3px solid #E8E2D6', borderTop: '3px solid #B8944F', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
         </div>
       }>
-        <EventPageClient initialEvent={event} slug={slug} />
+        <EventPageClient
+          initialEvent={event}
+          slug={slug}
+          invitationPartyId={first(sp.party_id)}
+          invitationGuestId={first(sp.g)}
+          noReveal={first(sp.noreveal) === '1'}
+        />
       </Suspense>
     </>
   );

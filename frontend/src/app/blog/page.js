@@ -3,7 +3,10 @@ import Navbar from '../components/landing/Navbar';
 import FooterSection from '../components/landing/FooterSection';
 import BlogListClient from './BlogListClient';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+// Loopback for server-side fetches — see the comment in [slug]/page.js.
+const API_URL = process.env.INTERNAL_API_URL
+  || process.env.NEXT_PUBLIC_API_URL
+  || 'http://localhost:5000/api/v1';
 
 // Cached within a single render so generateMetadata() and the page component
 // share ONE backend call. Short revalidate window — this is a public,

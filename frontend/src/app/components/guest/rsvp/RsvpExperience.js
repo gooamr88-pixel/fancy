@@ -71,8 +71,10 @@ function RsvpSkeleton() {
   );
 }
 
-/** Generic terminal status card (closed / under review / unpaid / unavailable). */
-function StatusCard({ icon, title, message, slug }) {
+/** Generic terminal status card (closed / under review / unpaid / unavailable).
+ *  `onRetry` makes it non-terminal — used by the recoverable transient state,
+ *  which must offer a way forward instead of reading as a dead invitation. */
+function StatusCard({ icon, title, message, slug, onRetry, retryLabel }) {
   return (
     <Centered>
       <ScaleIn>
@@ -84,8 +86,13 @@ function StatusCard({ icon, title, message, slug }) {
           }}>{icon}</motion.span>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: '#B8944F', marginTop: '12px' }}>{title}</h1>
           <p style={{ color: STONE, marginTop: '12px', fontSize: '14px', lineHeight: 1.7, fontWeight: 300 }}>{message}</p>
-          {slug && (
+          {onRetry && (
             <div style={{ marginTop: '24px' }}>
+              <PremiumButton variant="gold" onClick={onRetry}>{retryLabel || 'Try Again'}</PremiumButton>
+            </div>
+          )}
+          {slug && (
+            <div style={{ marginTop: onRetry ? '12px' : '24px' }}>
               <Link href={`/${slug}`} style={{ textDecoration: 'none' }}>
                 <PremiumButton variant="outline">View Event Details</PremiumButton>
               </Link>
@@ -267,6 +274,20 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
   if (engine.phase === 'underReview')   return <StatusCard icon={<CelebrateIcon size={34} strokeWidth={1.5} />} title={isRTL ? 'جاهز قريباً' : 'Almost Ready'} message={isRTL ? 'تتم مراجعة هذه الدعوة وستكون جاهزة قريباً.' : 'This invitation is getting its final touches and will be live shortly.'} />;
   if (engine.phase === 'closed')        return <StatusCard icon={<DoorIcon size={34} strokeWidth={1.5} />} title={isRTL ? 'انتهت فترة الرد' : 'RSVPs Are Closed'} message={isRTL ? 'لم يعد بالإمكان الرد على هذه الدعوة.' : 'Responses are no longer being accepted for this event.'} slug={engine.event?.slug} />;
   if (engine.phase === 'unavailable')   return <StatusCard icon={<SearchIcon size={34} strokeWidth={1.5} />} title={isRTL ? 'الدعوة غير متاحة' : 'Invitation Unavailable'} message={engine.error || (isRTL ? 'تعذّر العثور على هذه الدعوة.' : 'This invitation could not be found.')} />;
+  // Recoverable, unlike every other status above: the guest's link is valid, the
+  // server just couldn't answer this instant (throttled, restarting, flaky link).
+  // Offer a retry rather than reporting a dead invitation.
+  if (engine.phase === 'temporarilyUnavailable') return (
+    <StatusCard
+      icon={<ClockIcon size={34} strokeWidth={1.5} />}
+      title={isRTL ? 'لحظة من فضلك' : 'Just a moment'}
+      message={isRTL
+        ? 'تعذّر تحميل الدعوة الآن. الرابط سليم — برجاء المحاولة مرة أخرى بعد ثوانٍ.'
+        : 'We couldn’t load this invitation right now. Your link is fine — please try again in a few seconds.'}
+      onRetry={engine.refetch}
+      retryLabel={isRTL ? 'إعادة المحاولة' : 'Try Again'}
+    />
+  );
 
   const envelopeOverlay = envelopeOpen && engine.event ? (
     <InvitationReveal

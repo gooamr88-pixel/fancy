@@ -34,5 +34,12 @@
     "nodemon": "^3.1.2",
     "pg": "^8.22.0"
   },
+  "comments": {
+    "optionalDependencies": "Shared rate-limit store. Without these, express-rate-limit falls back to its per-process MemoryStore — and ecosystem.config.js runs this API with instances:'max' in cluster mode, so each worker keeps its own counter and throttling becomes non-deterministic (the same client is allowed or blocked depending on which worker answered). Optional, not required: app.js degrades gracefully with a warning when they're absent or when REDIS_URL is unset, so a deploy without Redis still boots."
+  },
+  "optionalDependencies": {
+    "ioredis": "^5.4.1",
+    "rate-limit-redis": "^4.2.0"
+  },
   "private": true
 }
