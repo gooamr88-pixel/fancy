@@ -251,6 +251,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     proposalStory: '', giftRegistry: '', loveStory: '', accommodations: '',
     celebrant: '', age: '', partyTheme: '',
     honoree: '', program: '', sponsorPackages: '',
+    seal_text: '',
     title_ar: '', description_ar: '', dress_code_ar: '',
     // Custom Canvas — "what kind of event is this?" category + its
     // per-kind fields (see utils/customEventCategories.js), and the
@@ -611,6 +612,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         honoree: event.template_data?.honoree || '',
         program: event.template_data?.program || '',
         sponsorPackages: event.template_data?.sponsorPackages || '',
+        seal_text: event.template_data?.seal_text || '',
         title_ar: event.template_data?.title_ar || '',
         description_ar: event.template_data?.description_ar || '',
         dress_code_ar: event.template_data?.dress_code_ar || '',
@@ -1531,6 +1533,28 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           <span style={{ fontSize: '11px', color: COLORS.stone, display: 'block', marginTop: '6px' }}>
             Upload an audio file, or paste a YouTube link, to play music on the public event page.
           </span>
+        </div>
+      </div>
+
+      {/* ═══ INVITATION SEAL & STATIONERY ═══ */}
+      <div style={sectionStyle}>
+        <h3 style={sectionTitleStyle}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={iconBadgeStyle}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={COLORS.gold} strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg></span>
+            Invitation Seal &amp; Stationery
+          </span>
+        </h3>
+        <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+          This powers the cinematic wax seal guests unseal when they open the link. Leave blank to use your event name — the seal, stationery and gold light are all generated automatically and coloured to match your event.
+        </p>
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Seal Name / Monogram</label>
+          <input value={templateData.seal_text} onChange={(e) => setTemplateData(prev => ({ ...prev, seal_text: e.target.value }))}
+            placeholder="Auto from event name" maxLength={24} style={inputStyle}
+            onFocus={(e) => { e.target.style.borderColor = COLORS.gold; e.target.style.boxShadow = '0 0 0 3px rgba(184,148,79,0.1)'; }}
+            onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
+          />
         </div>
       </div>
 

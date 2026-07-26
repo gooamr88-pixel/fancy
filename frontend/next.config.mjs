@@ -36,11 +36,7 @@ const nextConfig = {
           // Kept in sync with deployment/nginx.conf (both edge layers emit a CSP; the
           // browser enforces the intersection, so they MUST allow the same sources).
           // Any change here must be mirrored there.
-          // frame-src 'blob:': InvitationReveal.js embeds the Tilda envelope export by
-          // fetching it same-origin and mounting it via a blob: URL (X-Frame-Options:
-          // DENY below blocks framing it directly) — CSP's frame-src governs what THIS
-          // page may put in an <iframe>, so blob: has to be allowed there too.
-          { key: 'Content-Security-Policy', value: `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; connect-src 'self' ${apiConnectSrc} https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://fancyrsvp.com https://accounts.google.com https://oauth2.googleapis.com https://maps.googleapis.com https://challenges.cloudflare.com; frame-src 'self' blob: https://accounts.google.com https://www.google.com https://maps.googleapis.com https://challenges.cloudflare.com https://www.youtube.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'` },
+          { key: 'Content-Security-Policy', value: `default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' data: https: blob:; connect-src 'self' ${apiConnectSrc} https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://fancyrsvp.com https://accounts.google.com https://oauth2.googleapis.com https://maps.googleapis.com https://challenges.cloudflare.com; frame-src 'self' https://accounts.google.com https://www.google.com https://maps.googleapis.com https://challenges.cloudflare.com https://www.youtube.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'` },
         ],
       },
     ];

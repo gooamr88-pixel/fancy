@@ -790,8 +790,18 @@ export default function Stage2_FormConfiguration({
           </Section>
         )}
 
-        {/* ═══ Hero Background Video ═══ */}
-        <Section title="Hero Background" icon="sparkle">
+        {/* ═══ Premium Invitation Seal & Stationery ═══ */}
+        <Section title="Invitation Seal & Stationery" icon="sparkle">
+          <p style={{ fontSize: 12.5, color: C.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+            This powers the cinematic wax seal your guests unseal when they open the link.
+            Leave it blank to use your event name — the seal, stationery and gold light are all generated automatically and coloured to match your event.
+          </p>
+
+          <Field label="Seal Name / Monogram" hint="Engraved at the centre of the wax seal — e.g. حسن, or initials like A&J. Defaults to your event name.">
+            <input type="text" value={td('seal_text')} onChange={e => setTd('seal_text')(e.target.value)}
+              placeholder="Auto from event name" style={iStyle} onFocus={onFocus} onBlur={onBlur} maxLength={24} />
+          </Field>
+
           <Field label="Hero Background Video" hint="Optional — a looping video behind the hero heading, fading to nothing at the bottom. Leave empty to keep the generated gradient background.">
             <div
               onClick={() => {
