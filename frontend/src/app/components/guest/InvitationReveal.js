@@ -14,12 +14,15 @@ import Icon from "../icons/Icon";
      • mode="rsvp"        gates the RSVP route; per-session "seen" memory.
 
    Four envelope-flap photos (three plain sides, the top carrying an embossed
-   scroll flourish — the real artwork, not a generated recreation) meet at a
-   circular tap-to-open wax seal. Tap it: the "tap to open" text cuts
-   instantly, the seal zooms and dissolves, and the flaps peel outward
-   together (top/bottom staying in place, the side pair fading once clear)
-   — quick and immediate, not a slow multi-second reveal — handing straight
-   back to the real page underneath with no intermediate summary card.
+   scroll flourish — the real artwork, not a generated recreation) lap over one
+   another around a circular tap-to-open wax seal, forming the back of a closed
+   envelope. On arrival they fold themselves shut in the order paper would be
+   folded by hand — sides, bottom, then the sealed top flap. Tap the seal: the
+   "tap to open" label cuts instantly, the seal zooms and dissolves, and the
+   flaps release in the reverse order, each taking a couple of degrees of its
+   own spin (the side pair fading once clear) — quick and immediate, not a slow
+   multi-second reveal — handing straight back to the real page underneath with
+   no intermediate summary card.
 
    The flap/seal/flourish artwork (public/images/reveal/) is a fixed, shared
    asset set — deliberately NOT tinted per event's custom_colors: it's the one
@@ -119,6 +122,16 @@ function buildRevealPalette(customColors) {
   };
 }
 
+/* The stage the reveal is in, as classes on the root — the choreography lives
+   in REVEAL_CSS, not in per-element JS animation.
+     preload   flaps sit slightly open and invisible (their at-rest style)
+     settled   the envelope folds itself shut
+     rest      folded and waiting; "tap to open" is showing
+     pressing  the seal has been tapped; the label cuts before anything moves
+     opening   flaps release outward
+   Everything from "settled" on keeps that class, so the folded geometry is
+   never re-triggered mid-sequence. "rest" and "pressing" carry no styling of
+   their own — they mark state the JSX reads. */
 const STAGE_CLASSES = {
   preload: [],
   settled: ["ir2-settled"],
@@ -233,12 +246,14 @@ export default function InvitationReveal({
     startedRef.current = true;
     clearTimers(); // cancel any still-pending intro timers (e.g. the resting-prompt timer)
     musicRef?.current?.play().catch((err) => console.error("Background music playback failed:", err));
-    // "pressing" hides the prompt instantly (see .ir2-pressing rule) so
-    // there's no frame where "tap to open" is still visible while the
-    // flaps are already moving.
+    // "pressing" cuts the "tap to open" label on a 120ms fade; "opening" waits
+    // that fade out so there is never a frame with the label still on screen
+    // while the flaps are already moving. finish() then clears the longest
+    // flap (0.1s stagger + 0.62s flight = 720ms) with room to spare, and hands
+    // over to the overlay's own exit cross-fade.
     setStage("pressing");
-    after(60, () => setStage("opening"));
-    after(800, finish);
+    after(110, () => setStage("opening"));
+    after(900, finish);
   }, [after, clearTimers, finish, musicRef]);
 
   useEffect(() => {
@@ -331,11 +346,18 @@ export default function InvitationReveal({
       </button>
 
       <div className="ir2-scene">
+        {/* DOM order IS the fold order of a real envelope, and the paint order
+            that follows from it: the two side flaps fold in first, the bottom
+            flap laps over them, and the sealed top flap (the decorated one)
+            closes over everything. Reversing this — sides painted last, as
+            they were — puts a plain flap on top of the embossed one and the
+            stack stops reading as folded paper. .ir2-flap's z-index makes the
+            same order explicit so it survives future reordering. */}
         <div className="ir2-seal-stage">
-          <div className="ir2-flap top"><img src={REVEAL_ASSETS.flapDeco} alt="" aria-hidden="true" /></div>
-          <div className="ir2-flap bottom"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
           <div className="ir2-flap left"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
           <div className="ir2-flap right"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
+          <div className="ir2-flap bottom"><img src={REVEAL_ASSETS.flapPlain} alt="" aria-hidden="true" /></div>
+          <div className="ir2-flap top"><img src={REVEAL_ASSETS.flapDeco} alt="" aria-hidden="true" /></div>
 
           <button
             type="button"
@@ -364,24 +386,36 @@ export default function InvitationReveal({
         </div>
 
         {/* A sibling of .ir2-seal-stage (not nested inside it) — that stage is
-            a fixed square sized for the flap geometry, and its own
-            non-absolute children lay out in a row; nesting this here made
-            "tap to open" render BESIDE the seal instead of centered below
-            it. .ir2-scene's own column flex direction stacks it correctly.
-            Stays mounted through pressing/opening (not just "rest") so its
-            hide timing is driven by REVEAL_CSS's own .ir2-pressing/.ir2-
-            opening rules — cut the instant the seal is tapped, before any
-            flap motion starts — instead of racing an unmount against the
-            flap CSS transitions. */}
+            a fixed square, and its own non-absolute children lay out in a row;
+            nesting this here made "tap to open" render BESIDE the seal instead
+            of centered below it. .ir2-scene's own column flex direction stacks
+            it correctly.
+
+            Stays mounted through pressing/opening (not just "rest") so it is
+            cut on a fast fade the instant the seal is tapped, before any flap
+            motion starts, rather than racing an unmount against the flap CSS
+            transitions.
+
+            That fade is driven from here, not from REVEAL_CSS: motion.div
+            writes opacity as an INLINE style, which no class rule in the
+            injected stylesheet can override, so the .ir2-pressing/.ir2-opening
+            opacity rules this used to rely on never took effect and the "tap
+            to open" label sat there through the whole opening. Keeping the
+            value in one place — framer-motion's — is what makes it actually
+            cut. */}
         <AnimatePresence>
           {(stage === "rest" || stage === "pressing" || stage === "opening") && (
             <motion.div
               key="prompt"
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: stage === "rest" ? 1 : 0, y: 0 }}
+              transition={stage === "rest" ? { duration: 0.6, delay: 0.2 } : { duration: 0.12 }}
               className="ir2-prompt"
             >
-              <div className="ir2-prompt-pill"><span aria-hidden style={{ fontSize: 12 }}>✦</span> {copy.tap}</div>
+              {/* The hairline rules flanking this label are drawn by
+                  .ir2-prompt-pill's own ::before/::after — engraved stationery
+                  rather than the frosted app-UI pill this used to be. */}
+              <div className="ir2-prompt-pill">{copy.tap}</div>
               <img className="ir2-prompt-flourish" src={REVEAL_ASSETS.flourish} alt="" aria-hidden="true" />
               <p className="ir2-prompt-sub">{copy.special}</p>
             </motion.div>
@@ -416,6 +450,13 @@ const REVEAL_CSS = `
   position:fixed; inset:0; overflow:hidden;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
   font-family:var(--font-sans);
+  /* Two sizes drive the whole scene, and everything else is derived from
+     them — so the geometry holds at every screen size instead of only where
+     it was eyeballed. --stage-w is the box that sizes the seal; --flap-w is
+     the folded envelope, which is deliberately larger and overhangs it. */
+  --stage-w:min(52vw,300px);
+  --flap-w:min(70vw,340px);
+  --flap-ov:calc(var(--flap-w) * 0.2486);
   background:
     radial-gradient(46% 38% at 38% 8%, rgba(255,252,240,.65) 0%, transparent 60%),
     radial-gradient(120% 90% at 50% -6%, var(--card-hi), var(--card) 62%);
@@ -429,27 +470,107 @@ const REVEAL_CSS = `
 
 .ir2-scene{ position:relative; z-index:3; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
 
-.ir2-seal-stage{ position:relative; width:min(52vw,300px); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
+.ir2-seal-stage{ position:relative; width:var(--stage-w); aspect-ratio:1; display:flex; align-items:center; justify-content:center; }
 
-/* Four envelope-flap panels meeting at the seal. First pass ported the
-   reference's own ti/dt timing verbatim (a ~1.5s dead beat before anything
-   moved, ~5s total) — live testing showed that read as broken (nothing
-   happens when you tap) rather than premium, so this is deliberately much
-   faster: the prompt cuts the instant you tap, the seal and flaps all
-   start moving together with only a hair of stagger between pairs, and the
-   whole thing resolves in well under a second. Direction/fade-vs-stay
-   pattern (top/bottom stay, left/right fade) is kept from the source. */
-.ir2-flap{ position:absolute; top:50%; left:50%; width:min(70vw,340px); aspect-ratio:700/524; }
-.ir2-flap img{ width:100%; height:100%; display:block; object-fit:fill; filter:drop-shadow(0 6px 14px rgba(40,26,8,.2)); }
-.ir2-flap.top    { transform:translate(-50%,-100%) rotate(180deg); transition:transform .55s cubic-bezier(.4,0,.2,1); }
-.ir2-flap.bottom { transform:translate(-50%,0%) rotate(0deg); transition:transform .55s cubic-bezier(.4,0,.2,1); }
-.ir2-flap.left   { transform:translate(-100%,-50%) rotate(270deg); transition:transform .55s cubic-bezier(.4,0,.2,1) .06s, opacity .2s ease .45s; }
-.ir2-flap.right  { transform:translate(0%,-50%) rotate(90deg); transition:transform .55s cubic-bezier(.4,0,.2,1) .06s, opacity .2s ease .45s; }
+/* The shadow the closed envelope casts on the card stock behind it. Absolute,
+   so it never becomes a flex item of the stage; fades in with the fold and
+   cuts fast on opening so nothing is left hanging under the flying flaps. */
+.ir2-seal-stage::before{
+  content:""; position:absolute; left:50%; top:50%; z-index:0; pointer-events:none;
+  width:calc(var(--flap-w) * 1.04); height:calc(var(--flap-w) * 1.04);
+  transform:translate(-50%,-46%);
+  background:radial-gradient(50% 50% at 50% 54%, rgba(58,40,14,.17), rgba(58,40,14,.06) 56%, transparent 72%);
+  filter:blur(20px);
+  opacity:0; transition:opacity .9s ease .15s;
+}
+.ir2-root.ir2-settled .ir2-seal-stage::before{ opacity:1; }
+.ir2-root.ir2-opening .ir2-seal-stage::before{ opacity:0; transition:opacity .3s ease; }
 
-.ir2-root.ir2-opening .ir2-flap.top    { transform:translate(-50%,-210%) rotate(180deg); }
-.ir2-root.ir2-opening .ir2-flap.bottom { transform:translate(-50%,110%) rotate(0deg); }
-.ir2-root.ir2-opening .ir2-flap.left   { transform:translate(-210%,-50%) rotate(270deg); opacity:0; }
-.ir2-root.ir2-opening .ir2-flap.right  { transform:translate(110%,-50%) rotate(90deg); opacity:0; }
+/* ─── The envelope back: four flaps folded in around the seal ───────────────
+   The geometry is DERIVED, not eyeballed. Every flap is the same triangle
+   artwork (apex at the bottom of its own box). Each one is centred on the
+   stage, rotated so its apex points inward, then pushed back out along its
+   OWN axis by half its height less the overlap — so all four apexes cross the
+   centre by exactly --flap-ov at any screen size, and one transform serves
+   all four.
+
+   --flap-ov is the value that closes the four bases into a true square: a
+   base is W wide and sits (H − ov) from the centre, so the corners meet when
+   ov = H − W/2 = W·(524/700 − ½) ≈ 0.2486·W. Less than that and the corners
+   gap open; more and the square shrinks away from the artwork's proportions.
+   The heavy centre overlap is the point, not a side effect — real envelope
+   flaps lap over one another and the seal sits on the join.
+
+   This replaces a hand-written per-flap transform set whose top/bottom
+   rotations were swapped: both of those flaps pointed away from the centre
+   with their wide bases along the centre line, so the four pieces read as a
+   star rather than an envelope and the embossed flourish sat upside down. */
+.ir2-flap{
+  --rot:0deg;
+  --tilt:0deg;
+  /* Distance each flap sits out along its own axis. Non-zero before the
+     envelope settles (the fold-in entrance) and large on opening. */
+  --fly:calc(var(--flap-w) * .17);
+  position:absolute; top:50%; left:50%;
+  width:var(--flap-w); aspect-ratio:700/524;
+  opacity:0; will-change:transform;
+  transform:
+    translate(-50%,-50%)
+    rotate(var(--rot))
+    translateY(calc(-50% + var(--flap-ov) - var(--fly)))
+    rotate(var(--tilt));
+  transition:transform .85s cubic-bezier(.16,.84,.44,1), opacity .55s ease;
+}
+.ir2-flap.left  { --rot:270deg; z-index:1; }
+.ir2-flap.right { --rot:90deg;  z-index:1; }
+.ir2-flap.bottom{ --rot:180deg; z-index:2; }
+.ir2-flap.top   { --rot:0deg;   z-index:3; }
+
+/* Lit from the upper left, matching .ir2-daylight. Each layer casts onto the
+   one beneath it, and the buried side flaps sit a shade darker — that pair of
+   cues, not outlines, is what makes the stack read as overlapping paper. */
+.ir2-flap img{ width:100%; height:100%; display:block; object-fit:fill; }
+.ir2-flap.left img,
+.ir2-flap.right img { filter:brightness(.965) drop-shadow(1px 2px 5px rgba(58,40,14,.14)); }
+.ir2-flap.bottom img{ filter:brightness(.988) drop-shadow(1px 3px 8px rgba(58,40,14,.16)); }
+.ir2-flap.top img   { filter:drop-shadow(1px 5px 12px rgba(58,40,14,.2)) drop-shadow(0 14px 30px rgba(58,40,14,.13)); }
+
+/* Entrance: the envelope folds itself shut, in the order it would be folded
+   by hand — sides, then bottom, then the sealed top flap last. */
+.ir2-flap.left, .ir2-flap.right{ transition-delay:0s; }
+.ir2-flap.bottom{ transition-delay:.09s; }
+.ir2-flap.top{ transition-delay:.18s; }
+.ir2-root.ir2-settled .ir2-flap{ --fly:0px; opacity:1; }
+
+/* Opening. The first port ran the reference's own ti/dt timing verbatim (a
+   ~0.8s dead beat before anything moved, ~1.6s total) — that read as broken,
+   not premium, so this stays deliberately quick: the prompt cuts the instant
+   you tap and the flaps are clear inside .7s. The order reverses the fold —
+   the sealed top flap releases first — and each flap picks up a couple of
+   degrees of its own spin so it leaves like paper rather than a sliding
+   sprite. Sides fade as they clear; top/bottom ride out on the overlay's own
+   exit, the fade-vs-stay split kept from the source.
+
+   Each flap restates the whole transition shorthand rather than just a
+   transition-delay: the side pair needs its transform and its opacity on
+   DIFFERENT delays (fly first, fade only once clear), and a bare
+   transition-delay would have collapsed both onto the same one. */
+.ir2-root.ir2-opening .ir2-flap{ --fly:calc(var(--flap-w) * 1.45); }
+.ir2-root.ir2-opening .ir2-flap.top{
+  --tilt:-2.5deg;
+  transition:transform .62s cubic-bezier(.32,0,.24,1);
+}
+.ir2-root.ir2-opening .ir2-flap.left,
+.ir2-root.ir2-opening .ir2-flap.right{
+  opacity:0;
+  transition:transform .62s cubic-bezier(.32,0,.24,1) .06s, opacity .22s ease .4s;
+}
+.ir2-root.ir2-opening .ir2-flap.left { --tilt:2deg; }
+.ir2-root.ir2-opening .ir2-flap.right{ --tilt:-2deg; }
+.ir2-root.ir2-opening .ir2-flap.bottom{
+  --tilt:2.5deg;
+  transition:transform .62s cubic-bezier(.32,0,.24,1) .1s;
+}
 
 .ir2-seal-btn{ width:38%; aspect-ratio:1; border-radius:50%; border:none; padding:0; cursor:pointer;
   position:relative; z-index:5; background:none; filter:drop-shadow(0 14px 26px rgba(40,26,8,.35));
@@ -461,28 +582,44 @@ const REVEAL_CSS = `
 .ir2-seal-btn:active{ transform:scale(.96); }
 .ir2-root.ir2-opening .ir2-seal-btn{ transform:scale(1.22); opacity:0; pointer-events:none; }
 
-/* Cuts the instant the seal is tapped — no lingering "tap to open" visible
-   while the flaps are already moving. */
+/* The folded envelope is --flap-w tall and so overhangs the seal-sizing stage
+   this sits under; the first term of margin-top is exactly that overhang, so
+   the label clears the paper by the same visual gap at every width rather
+   than being crowded (or worse, overlapped) on narrow phones, where the
+   overhang is largest.
+
+   Its opacity is deliberately NOT set here — motion.div owns it inline (see
+   the .ir2-prompt JSX). A transition or an opacity rule at this level would
+   only fight that inline value. */
 .ir2-prompt{ position:relative; z-index:12; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
-  margin-top:clamp(16px,4dvh,30px); padding:0 24px;
-  transition:opacity .12s ease; }
-.ir2-root.ir2-pressing .ir2-prompt,
-.ir2-root.ir2-opening .ir2-prompt{ opacity:0; }
-.ir2-prompt-pill{ display:inline-flex; align-items:center; gap:8px; padding:9px 18px; border-radius:999px;
-  background:rgba(255,255,255,.6); border:1px solid color-mix(in srgb,var(--accent) 36%, transparent);
-  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
-  font-family:var(--font-sans); font-size:10px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); animation:ir2Nudge 2.4s ease-in-out infinite; }
+  margin-top:calc(max(0px, (var(--flap-w) - var(--stage-w)) / 2) + clamp(18px,4dvh,32px)); padding:0 24px; }
+/* Engraved label between two hairline rules — the frosted, blurred pill this
+   used to be read as app chrome dropped onto stationery. Nothing is painted
+   behind the text now, so it has to carry itself: wider tracking, and the
+   accent (already clamped to a legible mid-tone in buildRevealPalette). */
+.ir2-prompt-pill{ display:inline-flex; align-items:center; gap:14px;
+  font-family:var(--font-sans); font-size:10.5px; font-weight:700; letter-spacing:.28em; text-transform:uppercase; color:var(--accent); animation:ir2Nudge 2.6s ease-in-out infinite;
+  /* letter-spacing also trails the LAST letter, which would push the closing
+     rule one space further out than the opening one; this puts that space
+     back on the front so the label sits optically centred between them. */
+  text-indent:.28em; }
+/* One symmetric hairline serves both sides: brightest at its middle, fading
+   at both ends. A direction-aware pair (transparent→gold) would have to be
+   mirrored for RTL, where these pseudo-elements swap sides. */
+.ir2-prompt-pill::before,
+.ir2-prompt-pill::after{ content:""; width:clamp(20px,7vw,38px); height:1px; flex:none;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb,var(--gold) 80%, transparent) 50%, transparent); }
 /* Wide tracking is a deliberate look on English all-caps — but Arabic script
    needs its letters to stay connected to render properly, so the same
    tracking pries them apart into disjointed, "broken"-looking text. */
-[dir="rtl"] .ir2-prompt-pill{ letter-spacing:normal; text-transform:none; }
+[dir="rtl"] .ir2-prompt-pill{ letter-spacing:normal; text-transform:none; text-indent:0; }
 @keyframes ir2Nudge{ 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-4px) } }
 .ir2-prompt-flourish{ width:min(46vw,180px); height:auto; opacity:.8; margin-top:2px; display:block; }
 .ir2-prompt-sub{ font-family:var(--font-serif), Georgia, serif; font-style:italic; font-size:13px; color:var(--ink-soft); margin:10px 0 0; }
 
 @media (prefers-reduced-motion:reduce){
   .ir2-prompt-pill{ animation:none; }
-  .ir2-flap,.ir2-seal-btn,.ir2-prompt{ transition-duration:.001ms !important; transition-delay:0s !important; }
+  .ir2-flap,.ir2-seal-btn,.ir2-seal-stage::before{ transition-duration:.001ms !important; transition-delay:0s !important; }
 }
 
 /* On-brand gold focus rings on every interactive element in this overlay. */
