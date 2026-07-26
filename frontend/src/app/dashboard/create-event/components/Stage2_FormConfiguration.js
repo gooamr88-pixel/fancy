@@ -793,8 +793,8 @@ export default function Stage2_FormConfiguration({
         {/* ═══ Premium Invitation Seal & Stationery ═══ */}
         <Section title="Invitation Seal & Stationery" icon="sparkle">
           <p style={{ fontSize: 12.5, color: C.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
-            This powers the cinematic wax seal your guests unseal when they open the link.
-            Leave it blank to use your event name — the seal, stationery and gold light are all generated automatically and coloured to match your event.
+            This is engraved on the gold wax seal your guests unseal when they open the link.
+            Leave it blank and we&apos;ll use your event name automatically.
           </p>
 
           <Field label="Seal Name / Monogram" hint="Engraved at the centre of the wax seal — e.g. حسن, or initials like A&J. Defaults to your event name.">

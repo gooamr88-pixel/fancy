@@ -22,12 +22,13 @@ import Icon from "../icons/Icon";
    back to the real page underneath with no intermediate summary card.
 
    The flap/seal/flourish artwork (public/images/reveal/) is a fixed, shared
-   asset set — deliberately NOT tinted per event's custom_colors and NOT
-   carrying a couple's monogram (the seal is intentionally left blank): this
-   is the one default look for every event, chosen over the previous
-   per-event generated SVG rendering for its photoreal, cinematic quality.
-   Personalisation instead lives entirely in the text below the seal (guest
-   welcome line, event title, date) — unchanged from before.
+   asset set — deliberately NOT tinted per event's custom_colors: it's the one
+   photoreal look for every event. The seal artwork itself ships blank, with
+   the organizer's own monogram ("Seal Name / Monogram" in the dashboard →
+   template_data.seal_text, auto-derived from the couple/event name when left
+   empty) drawn over it as an SVG engraving — so one shared image still
+   personalises per event. The rest of the personalisation lives in the text
+   below the seal (guest welcome line, event title, date).
 
    CONTRACT (kept stable for callers + tests):
      • data-testid="guest-envelope-reveal" on the root
@@ -44,7 +45,22 @@ const REVEAL_ASSETS = {
   flourish: "/images/reveal/flourish.webp",
 };
 
-/* ─── Display name derivation from real event data ─── */
+/* The engraved-monogram look on the wax seal: a mid-gold fill with a light
+   highlight above and a darker shadow below, so the organizer's text reads as
+   raised gold pressed into the wax rather than flat type sitting on a photo.
+   Kept as plain objects (not a CSS class) because the reduced-motion fallback
+   below returns before REVEAL_CSS is injected and so can't rely on one. */
+const SEAL_TEXT_SVG_STYLE = {
+  position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none",
+  filter: "drop-shadow(0 -0.6px 0 rgba(255,250,232,.5)) drop-shadow(0 0.9px 0.7px rgba(86,58,16,.45))",
+  // Set here (and inherited by the <text> below) rather than as a font-family
+  // presentation attribute — var() is not reliably supported inside SVG
+  // presentation attributes, but works fine in an inline style.
+  fontFamily: "var(--font-serif), Georgia, serif",
+};
+const SEAL_TEXT_FILL = "#8d6c2c";
+
+/* ─── Name + monogram derivation from real event data ─── */
 function deriveIdentity(event, lang) {
   const td = event?.template_data || {};
   const a = (td.groom_name || td.partner1Name || td.partner1 || td.celebrant || td.honoree || td.company || "").trim();
@@ -55,7 +71,25 @@ function deriveIdentity(event, lang) {
   else if (a) full = a;
   else full = (lang === "ar" && (event?.title_ar || td.title_ar)) ? (event?.title_ar || td.title_ar) : (event?.title || "");
 
-  return { full: full || "You're Invited" };
+  // What gets engraved on the wax. The organizer's own "Seal Name / Monogram"
+  // (template_data.seal_text, set in the dashboard) always wins; everything
+  // below is only the auto-fallback for organizers who left it blank.
+  let sealText = (td.seal_text || "").trim();
+  if (!sealText) {
+    const arabicSource = [a, b, event?.title_ar, td.title_ar, event?.title].find((s) => isArabic(s));
+    if (arabicSource) {
+      sealText = arabicSource.trim().split(/\s+/).filter(Boolean)[0] || arabicSource.trim();
+    } else if (a && b) {
+      sealText = `${a[0]}${b[0]}`.toUpperCase();
+    } else if (a) {
+      sealText = a.slice(0, 2).toUpperCase();
+    } else {
+      const words = (event?.title || "").trim().split(/\s+/).filter(Boolean);
+      sealText = words.slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+    }
+  }
+  sealText = sealText || "✦";
+  return { full: full || "You're Invited", sealText };
 }
 
 /* ─── Reveal palette derived from the event's own custom_colors ───
@@ -144,9 +178,14 @@ export default function InvitationReveal({
   const identity = useMemo(() => deriveIdentity(event, lang), [event, lang]);
   // A known guest (resolved from their personal link/token — private events,
   // or a public event's per-guest invite) is personalised via the reveal
-  // panel's own welcome line — the seal image itself is deliberately NOT
-  // personalised: it's the same blank wax seal for every event, the way a
-  // shared piece of stationery would be.
+  // panel's own welcome line — the seal is deliberately NOT personalised per
+  // guest: it carries the couple/event's own monogram, the same for every
+  // guest, the way a real wax seal would.
+  const sealText = identity.sealText;
+  // Same 0–100 units as the SVG overlay's viewBox, so the engraving scales
+  // with the seal at any button size. Longer text steps down through the
+  // ladder instead of overflowing the wax face.
+  const sealFontSize = sealText.length <= 2 ? 26 : sealText.length <= 4 ? 19 : sealText.length <= 7 ? 13.5 : sealText.length <= 10 ? 10 : 8;
 
   /* Per-session "seen" memory (rsvp mode). */
   const seenKey = sessionKey ? `fancy_envelope_seen_${sessionKey}` : null;
@@ -233,6 +272,15 @@ export default function InvitationReveal({
         }}>
           <div style={{ width: 76, height: 76, margin: "0 auto 18px", position: "relative", borderRadius: "50%", overflow: "hidden" }}>
             <img src={REVEAL_ASSETS.seal} alt="" aria-hidden="true" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <svg viewBox="0 0 100 100" aria-hidden style={SEAL_TEXT_SVG_STYLE}>
+              <text
+                x="50" y="50" textAnchor="middle" dominantBaseline="central"
+                fontSize={sealFontSize}
+                fontWeight="600" letterSpacing="0.5" fill={SEAL_TEXT_FILL}
+              >
+                {sealText}
+              </text>
+            </svg>
           </div>
           <div style={{ fontSize: 10.5, letterSpacing: isRTL ? "normal" : "0.36em", textTransform: isRTL ? "none" : "uppercase", color: P.accent, fontWeight: 700 }}>{guestName ? (isRTL ? `مرحباً ${guestName}` : `Welcome, ${guestName}`) : copy.eyebrow}</div>
           <h1 style={{ fontFamily: "var(--font-serif), Georgia, serif", fontSize: "clamp(26px,7vw,38px)", margin: "12px 0 6px", color: P.ink, fontWeight: 500 }}>{displayTitle}</h1>
@@ -296,6 +344,20 @@ export default function InvitationReveal({
           >
             <span className="ir2-seal-face" aria-hidden="true">
               <img src={REVEAL_ASSETS.seal} alt="" />
+              {/* The organizer's monogram, engraved into the wax. Drawn as an
+                  SVG overlay in the same 0–100 space as the artwork so it
+                  tracks the seal at every size, and shaded light-above /
+                  dark-below (see .ir2-seal-text) so it reads as raised gold
+                  rather than flat text sitting on a photo. */}
+              <svg viewBox="0 0 100 100" aria-hidden style={SEAL_TEXT_SVG_STYLE}>
+                <text
+                  x="50" y="50" textAnchor="middle" dominantBaseline="central"
+                  fontSize={sealFontSize}
+                  fontWeight="600" letterSpacing="0.5" fill={SEAL_TEXT_FILL}
+                >
+                  {sealText}
+                </text>
+              </svg>
             </span>
           </button>
         </div>

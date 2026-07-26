@@ -1545,7 +1545,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           </span>
         </h3>
         <p style={{ fontSize: '12.5px', color: COLORS.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
-          This powers the cinematic wax seal guests unseal when they open the link. Leave blank to use your event name — the seal, stationery and gold light are all generated automatically and coloured to match your event.
+          This is engraved on the gold wax seal guests unseal when they open the link. Leave blank and we&apos;ll use your event name automatically.
         </p>
 
         <div style={fieldGroupStyle}>
