@@ -18,13 +18,17 @@ import Icon from "../icons/Icon";
    not a reinterpretation of it. A full-bleed envelope, larger than the
    viewport and cropped by it, built from four overlapping flap photographs
    with a wax seal at the centre and "tap to open" printed on the paper just
-   below it. Tap the seal: the label and flourish fade, the seal swells and
-   dissolves, and the four flaps slide apart — sideways pair first and
-   fading, top and bottom riding straight off the artboard.
+   below it. Tap the seal: the label and flourish clear, the seal presses in
+   and then breaks open, and the flaps leave in the order it was holding them
+   — the sealed top flap, then the sides (fading as they go), then the bottom.
 
-   EVERY position, size, distance, duration and delay below is transcribed
-   from that export rather than re-derived, and lives in one table (LAYERS)
-   so it stays checkable against the source. See the ARTBOARD block.
+   EVERY position and size below is transcribed from that export rather than
+   re-derived, and lives in one table (LAYERS) so it stays checkable against
+   the source. See the ARTBOARD block.
+
+   The TIMING is deliberately not the reference's — its 1.6s linear, all-at-
+   once release has been rebuilt into a ~2.07s staggered one. The MOTION block
+   sets out what changed and why.
 
    THE ONE DEPARTURE FROM THE REFERENCE — deliberate, and the reason this is
    a component and not a static page: the reference bakes its wax seal,
@@ -95,32 +99,37 @@ const SCREENS = [
    them, then the embossed top flap over everything — the order an envelope is
    actually folded. The flourish, seal and label print on top of the paper.
 
-   move/zoom/fade are the export's `data-animate-sbs-opts` keyframes: ms is
-   that step's `ti` (duration) and delay is the accumulated `dt` at which the
-   step begins. Easing is linear, matching the reference's `ea:'0'`. */
+   move/fade/anim are the OPEN CHOREOGRAPHY, and are the one part of this
+   table that is NOT the export's. The reference fires its steps on a linear
+   `ea:'0'` with every flap released at the same instant, 800ms after the tap,
+   and the whole thing over in 1.6s. See the MOTION block below for what
+   replaced it and why. */
 const LAYERS = [
   {
     cls: "fr", asset: "flapPlain", rot: 90,
     d: { x: 421, y: 25, w: 867, h: 800 },
     s960: { x: 295 }, s640: { x: 135 }, s480: { x: 55 },
     s320: { x: -75, y: 83, w: 856, h: 684 },
-    move: { x: 559, ms: 650, delay: 800 },
-    fade: { ms: 150, delay: 1450 },
+    move: { x: 559, ms: 1350, delay: 700, ease: "leave" },
+    fade: { ms: 300, delay: 1750, ease: "leave" },
   },
   {
     cls: "fl", asset: "flapPlain", rot: 270,
     d: { x: -87, y: 25, w: 867, h: 800 },
     s960: { x: -205 }, s640: { x: -360 }, s480: { x: -441 },
     s320: { x: -475, y: 105, w: 856, h: 640 },
-    move: { x: -559, ms: 650, delay: 800 },
-    fade: { ms: 150, delay: 1450 },
+    move: { x: -559, ms: 1350, delay: 700, ease: "leave" },
+    fade: { ms: 300, delay: 1750, ease: "leave" },
   },
   {
     cls: "fb", asset: "flapPlain", rot: 180,
     d: { x: 100, y: 221, w: 1000, h: 785 },
     s960: { x: -25 }, s640: { x: -185 }, s480: { x: -265 },
     s320: { x: -247, w: 815, h: 787 },
-    move: { y: 606, ms: 500, delay: 800 },
+    // This flap never fades, so it has to actually leave: 221 is its topmost
+    // artboard edge at rest (the same on every breakpoint).
+    move: { y: 606, ms: 1250, delay: 820, ease: "leave" },
+    clearBelow: 221,
   },
   {
     cls: "ft", asset: "flapDeco", rot: 0,
@@ -129,36 +138,99 @@ const LAYERS = [
     s640: { x: -175, y: -116, h: 593 },
     s480: { x: -255, w: 992, h: 598 },
     s320: { x: -244, y: -99, w: 807, h: 569 },
-    move: { y: -430, ms: 500, delay: 800 },
+    // 485 = its lowest artboard edge at rest (y + h), taken from the base
+    // breakpoint because that is the largest of the five.
+    move: { y: -430, ms: 1250, delay: 560, ease: "leave" },
+    clearAbove: 485,
   },
   {
     cls: "fw", asset: "flourish",
     d: { x: 506, y: 510, w: 188, h: 45 },
     s960: { x: 386 }, s640: { x: 226 }, s480: { x: 146 }, s320: { x: 66 },
-    fade: { ms: 500, delay: 0 },
+    fade: { ms: 360, delay: 0, ease: "leave" },
   },
   {
     cls: "sl", kind: "seal",
     d: { x: 520, y: 310, w: 160, h: 160 },
     s960: { x: 400 }, s640: { x: 235 }, s480: { x: 155 }, s320: { x: 80 },
-    zoom: { scale: 1.22, ms: 500, delay: 350 },
-    fade: { ms: 500, delay: 350 },
+    anim: { name: "ir3-seal-break", ms: 1250, delay: 0 },
   },
   {
     cls: "tx", kind: "text",
     d: { x: 492, y: 468, w: 217 },
     s960: { x: 372 }, s640: { x: 212 }, s480: { x: 132 }, s320: { x: 52 },
-    fade: { ms: 500, delay: 0 },
+    fade: { ms: 360, delay: 0, ease: "leave" },
   },
 ];
 
-/* How long the reference's sequence actually runs, read off the table rather
-   than restated: the last thing to finish is the side flaps' fade at
-   1450 + 150ms. finish() is scheduled on this, so re-timing a step in LAYERS
-   can never leave the handoff out of sync with the animation. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOTION — the one place this departs from the reference on purpose.
+
+   The reference opens in 1.6s on linear easing with all four flaps released
+   at the same instant. Slowing that down verbatim only makes the flaws
+   louder: linear motion has no weight (paper does not travel at a constant
+   speed), and four things starting together is one event, not a sequence.
+   Every extra millisecond of a flat animation reads as lag.
+
+   So the choreography is rebuilt around three rules:
+
+   1. NEVER A DEAD FRAME. Something is moving from the instant of the tap:
+      the label and flourish clear (0–360ms) while the seal presses and
+      breaks (0–1250ms), and the flaps are already in flight (from 560ms)
+      before the seal has finished dissolving. Overlapping beats are what
+      make a slow sequence read as unhurried instead of stalled — the
+      reference's own 800ms of stillness before any flap moves is exactly
+      what got the earlier port called broken.
+
+   2. THE SEAL ANSWERS THE TAP IMMEDIATELY. It compresses within ~110ms —
+      touch feedback fast enough to feel physical — and only then releases
+      and swells away. The reference waits 350ms before the seal reacts at
+      all. (See the ir3-seal-break keyframes.)
+
+   3. THE FLAPS LEAVE IN THE ORDER THE SEAL WAS HOLDING THEM: the sealed top
+      flap first, then the sides, then the bottom, ~130ms apart, each on an
+      accelerating curve so it starts with the weight of paper and is gone at
+      speed. Objects leaving the frame accelerate; only arriving objects
+      decelerate.
+
+   Total ≈ 2.07s, against the reference's 1.6s.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const EASE = {
+  // Accelerate-out. Anything leaving the frame uses this: it begins with
+  // visible resistance and ends at full speed, so the exit never looks braked.
+  leave: "cubic-bezier(.4,0,1,1)",
+};
+
+/* The reference's flap travel was tuned for its own ~850px-tall section, and
+   the two flaps that never fade (top and bottom) simply do not clear a taller
+   viewport — they stop with a band of paper still on screen. So each of those
+   travels the reference's distance OR exactly far enough to clear the
+   viewport, whichever is further; on screens up to ~740px tall the reference's
+   own number already wins and is used verbatim.
+
+   50vh, not 50dvh: dvh is the better measure but is not universally
+   supported, and an unsupported max() would drop the whole declaration and
+   leave the flap sitting still. vh resolves to the LARGER viewport height, so
+   erring toward it only ever overshoots — which is invisible off-screen. */
+function flyDistanceY(l) {
+  const half = ARTBOARD_H / 2;
+  if (l.clearAbove !== undefined) return `calc(-1 * max(${Math.abs(l.move.y)}px, ${l.clearAbove - half}px + 50vh))`;
+  if (l.clearBelow !== undefined) return `max(${l.move.y}px, calc(${half - l.clearBelow}px + 50vh))`;
+  return `${l.move.y}px`;
+}
+
+/* How long the sequence actually runs, read off the table rather than
+   restated, so re-timing any step above can never leave the handoff out of
+   sync with the animation. */
 const OPEN_DURATION = Math.max(
-  ...LAYERS.flatMap((l) => [l.move, l.zoom, l.fade].filter(Boolean).map((s) => s.delay + s.ms))
+  ...LAYERS.flatMap((l) => [l.move, l.fade, l.anim].filter(Boolean).map((s) => s.delay + s.ms))
 );
+
+/* The page underneath is cross-faded in slightly BEFORE the last flap lands,
+   so the handoff is a dissolve between two moving states rather than a cut
+   that waits for everything to come to a stop first. */
+const HANDOFF_OVERLAP = 220;
 
 function buildArtboardCSS() {
   return SCREENS.map(({ max, half, key }) => {
@@ -181,21 +253,21 @@ function buildMotionCSS() {
     const transitions = [];
     const opened = [];
     if (l.move) {
-      transitions.push(`transform ${l.move.ms}ms linear ${l.move.delay}ms`);
+      transitions.push(`transform ${l.move.ms}ms ${EASE[l.move.ease]} ${l.move.delay}ms`);
       if (l.move.x) opened.push(`--mx:${l.move.x}px`);
-      if (l.move.y) opened.push(`--my:${l.move.y}px`);
-    }
-    if (l.zoom) {
-      transitions.push(`transform ${l.zoom.ms}ms linear ${l.zoom.delay}ms`);
-      opened.push(`--sc:${l.zoom.scale}`);
+      if (l.move.y) opened.push(`--my:${flyDistanceY(l)}`);
     }
     if (l.fade) {
-      transitions.push(`opacity ${l.fade.ms}ms linear ${l.fade.delay}ms`);
+      transitions.push(`opacity ${l.fade.ms}ms ${EASE[l.fade.ease]} ${l.fade.delay}ms`);
       opened.push("opacity:0");
     }
-    if (!transitions.length) return "";
-    return `.ir3-${l.cls}{transition:${transitions.join(",")}}` +
-      `.ir3-root.is-open .ir3-${l.cls}{${opened.join(";")}}`;
+    // Anything needing more than one keyframe (only the seal, which presses
+    // before it swells) runs as an animation instead — `both` so it holds its
+    // final frame rather than snapping back once it ends.
+    if (l.anim) opened.push(`animation:${l.anim.name} ${l.anim.ms}ms linear ${l.anim.delay}ms both`);
+    if (!transitions.length && !opened.length) return "";
+    const rest = transitions.length ? `.ir3-${l.cls}{transition:${transitions.join(",")}}` : "";
+    return `${rest}.ir3-root.is-open .ir3-${l.cls}{${opened.join(";")}}`;
   }).filter(Boolean).join("\n");
 }
 
@@ -388,7 +460,7 @@ export default function InvitationReveal({
     startedRef.current = true;
     musicRef?.current?.play().catch((err) => console.error("Background music playback failed:", err));
     setOpen(true);
-    after(OPEN_DURATION, finish);
+    after(OPEN_DURATION - HANDOFF_OVERLAP, finish);
   }, [after, finish, musicRef]);
 
   useEffect(() => clearTimers, [clearTimers]);
@@ -552,12 +624,12 @@ const REVEAL_CSS = `
   height:${ARTBOARD_H}px; margin-top:${-ARTBOARD_H / 2}px;
 }
 
-/* --mx/--my/--sc are what the open sequence animates; every layer starts at
-   rest and the generated .is-open rules below supply that layer's own
-   destination, duration and delay. */
+/* --mx/--my are what the open sequence animates; every layer starts at rest
+   and the generated .is-open rules below supply that layer's own destination,
+   duration, easing and delay. */
 .ir3-layer{
   position:absolute; margin:0; padding:0; border:0;
-  transform:translate(var(--mx,0px),var(--my,0px)) scale(var(--sc,1));
+  transform:translate(var(--mx,0px),var(--my,0px));
   /* These boxes are hundreds of px across and several of them are painted
      above the seal, so only the seal itself may take a pointer — otherwise
      the label's box alone would swallow taps along the seal's bottom edge. */
@@ -582,6 +654,26 @@ const REVEAL_CSS = `
    shave exactly the detail that makes it read as wax. */
 .ir3-root.is-open .ir3-sl{ pointer-events:none; }
 
+/* The seal breaking. Three beats, each carrying its own easing so the shape
+   of the motion lives in the keyframes and the animation itself can stay
+   linear — a single curve spread across multiple stops would be re-applied
+   between every pair and come out lumpy.
+
+     0 → 9%    presses IN, accelerating. Immediate, physical answer to the tap.
+     9 → 40%   releases and blooms past its own size, on a long decelerate —
+               the wax giving way.
+     40 → 100% keeps swelling as it dissolves, so it reads as lifting toward
+               the viewer rather than simply being switched off.
+
+   Scale here overrides .ir3-layer's translate() entirely, which is fine: the
+   seal is the one layer that never travels. */
+@keyframes ir3-seal-break{
+  0%   { transform:scale(1);     opacity:1;  animation-timing-function:cubic-bezier(.4,0,1,1); }
+  9%   { transform:scale(.952);  opacity:1;  animation-timing-function:cubic-bezier(.16,.84,.44,1); }
+  40%  { transform:scale(1.13);  opacity:.9; animation-timing-function:cubic-bezier(.33,0,.67,1); }
+  100% { transform:scale(1.34);  opacity:0; }
+}
+
 /* On-brand gold focus rings on every interactive element in this overlay. */
 .ir3-skip:focus-visible, .ir3-langchip:focus-visible, .ir3-sl:focus-visible{
   outline:2px solid var(--gold); outline-offset:3px;
@@ -591,7 +683,10 @@ const REVEAL_CSS = `
    never reach this stylesheet; this is belt-and-braces for anyone who flips
    the setting mid-reveal. */
 @media (prefers-reduced-motion:reduce){
-  .ir3-layer{ transition-duration:.001ms !important; transition-delay:0s !important; }
+  .ir3-layer{
+    transition-duration:.001ms !important; transition-delay:0s !important;
+    animation-duration:.001ms !important; animation-delay:0s !important;
+  }
 }
 
 ${buildRotationCSS()}
