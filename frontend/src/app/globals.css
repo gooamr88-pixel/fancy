@@ -625,29 +625,66 @@ h3 {
    is what controls visibility now, and this content needs to actually be
    visible on screen for the preview to work at all. Triggering window.print()
    from inside that modal swaps to the @media print rule set below, which
-   hides everything else in the app (including the modal's own toolbar/
-   backdrop chrome, since those elements sit outside .print-seating-chart)
-   and shows only the export view — so printing (or "Print to PDF") produces
-   a clean chart with no toolbar, sidebar, or edit handles. Kept in the
+   collapses every other top-level node out of the page flow and strips the
+   modal's own toolbar/backdrop chrome — so printing (or "Print to PDF")
+   produces a clean single-sheet chart with no toolbar, sidebar, backdrop or
+   edit handles, and no stray blank pages around it. Kept in the
    global stylesheet rather than a component-scoped <style jsx> block, since
    scoped styles inside a nested (non-default-export) component were found
    not to reliably compile in this build (see FooterLink in FooterSection.js
    for the same issue). */
 @media print {
-  body * {
-    visibility: hidden;
+  /* WHY `display: none` AND NOT `visibility: hidden`:
+     this used to be `body * { visibility: hidden }`, which is why the export
+     printed across three sheets. A `visibility: hidden` element still
+     occupies its full layout box — so the dashboard shell, the whole
+     seating-map page and the modal's own scrolling backdrop all kept
+     generating page boxes, and the browser emitted extra (largely blank,
+     mis-aligned) sheets around the one real chart. `display: none` actually
+     removes them from the page flow, so only the sheet below produces a page.
+     PrintPreviewModal portals itself to <body> (see seating-map/page.js), so
+     the overlay is a direct child here and is the one node kept alive. */
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
   }
-  .print-seating-chart,
-  .print-seating-chart * {
-    visibility: visible;
+  body > *:not(.ppm-overlay) {
+    display: none !important;
+  }
+
+  /* On screen the overlay is a fixed, dark, scrollable shell; on paper it has
+     to collapse to a plain block so it contributes no offset or scroll of its
+     own, and its toolbar (Print/Close/drag hints) must not be printed. */
+  .ppm-overlay {
+    position: static !important;
+    display: block !important;
+    inset: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: none !important;
+    overflow: visible !important;
+  }
+  .ppm-toolbar {
+    display: none !important;
+  }
+  .ppm-sheet-wrap {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
   }
   .print-seating-chart {
     display: block !important;
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
+    width: 100% !important;
+    margin: 0 !important;
   }
+
   /* Chrome/Edge strip background fills, tints, and shadows from print output
      by default ("Background graphics" off) — losing exactly the zone tints
      and table shading that make the printed chart read as a real floor plan
@@ -658,21 +695,23 @@ h3 {
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
-  /* The whole export (floor plan + roster together) is explicitly height-
-     bounded (see .print-page inline style in PrintPreviewModal) to one
-     sheet — this is a safety net against a browser still trying to split it.
-     There is deliberately no break-before/break-after here anymore: the
-     floor plan and the "Table Assignments" roster used to be forced onto
-     separate pages (and a long roster would then overflow onto a third),
-     which is why a normal-sized guest list printed as three sheets instead
-     of one. They now share a single page side by side. */
+
+  /* Bound the sheet to exactly one page. The on-screen preview sizes itself
+     with `height: 95vh`, which is meaningless on paper, so it's overridden
+     with a real page-relative height: landscape default paper minus the 10mm
+     @page margins leaves 190mm on A4 and ~196mm on US Letter, so 186mm fits
+     either with room to spare. Anything that still doesn't fit is clipped
+     here rather than being pushed onto a second sheet. */
   .print-page {
+    height: 186mm !important;
+    max-height: 186mm !important;
+    overflow: hidden !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
   @page {
     size: landscape;
-    margin: 12mm;
+    margin: 10mm;
   }
 }
 

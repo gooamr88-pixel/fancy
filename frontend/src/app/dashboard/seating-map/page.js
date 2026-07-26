@@ -2,6 +2,7 @@
 import { toast } from '../../utils/toast';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logout, apiFetch } from '../../utils/apiClient';
@@ -2205,10 +2206,31 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
   const dragRef = useRef(null);
   const marqueeRef = useRef(null);
 
-  const displayElements = useMemo(() => (elements || []).map((el) => {
-    const o = overrides[el.id];
-    return o ? { ...el, position_x: o.x, position_y: o.y } : el;
-  }), [elements, overrides]);
+  // SVG has no z-index — it paints strictly in document order, so whatever
+  // comes last in this array lands on top. Left in raw insertion order, any
+  // zone created after a table painted OVER that table: a zone is large, has
+  // a translucent fill, and carries a solid white label chip up to 240×44,
+  // which is enough to tint or completely swallow the table number sitting
+  // inside it. That's the "elements merge into each other" in the export.
+  //
+  // Fixed ordering, back to front: zones (largest first, so an outer hall
+  // outline can never cover a smaller stage/bar drawn inside it), then all
+  // tables. Only affects paint order — positions, the bounding box and the
+  // roster below are all unchanged.
+  const displayElements = useMemo(() => {
+    const positioned = (elements || []).map((el) => {
+      const o = overrides[el.id];
+      return o ? { ...el, position_x: o.x, position_y: o.y } : el;
+    });
+    const area = (el) => (Number(elWidth(el)) || 0) * (Number(elHeight(el)) || 0);
+    return positioned.sort((a, b) => {
+      const az = isZone(a);
+      const bz = isZone(b);
+      if (az !== bz) return az ? -1 : 1; // zones behind tables
+      if (az && bz) return area(b) - area(a); // bigger zones behind smaller ones
+      return 0;
+    });
+  }, [elements, overrides]);
 
   const hasOverrides = Object.keys(overrides).length > 0;
   const isEmpty = !elements || elements.length === 0;
@@ -2370,7 +2392,15 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
     }
   };
 
-  return (
+  // Rendered into <body> rather than in place. The print stylesheet keeps a
+  // single top-level node alive (`body > *:not(.ppm-overlay)` is display:none
+  // — see globals.css) and that only works if this overlay actually IS a
+  // direct child of body; nested inside the dashboard tree, its ancestors
+  // would either be hidden with it or keep emitting their own page boxes,
+  // which is what produced the extra sheets. Safe without a mounted guard:
+  // the parent only renders this once the organizer clicks Print / Export,
+  // so it never executes during SSR.
+  return createPortal(
     <div className="ppm-overlay" role="dialog" aria-modal="true" aria-label="Print preview">
       <div className="ppm-toolbar">
         <div className="ppm-toolbar-copy">
@@ -2542,7 +2572,8 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

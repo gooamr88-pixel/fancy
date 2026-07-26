@@ -133,6 +133,22 @@ const button = (href, label, opts = {}) => {
   </table>`;
 };
 
+/**
+ * Small centered pill that calls out one capability the email unlocks (e.g.
+ * "this link opens the live seating map"). Deliberately a <table> rather than
+ * an inline-block span — Outlook collapses padding/border-radius on spans, so
+ * the pill would otherwise render as bare text in exactly the client most
+ * corporate guests read mail in.
+ */
+const badge = (label, opts = {}) => {
+  const bg = opts.bg || BRAND.ivory;
+  const fg = opts.fg || BRAND.goldDark;
+  const br = opts.border || 'rgba(184,148,79,0.45)';
+  return `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 10px;">
+    <tr><td align="center" bgcolor="${bg}" style="background-color:${bg}; border:1px solid ${br}; border-radius:999px; padding:9px 18px; font-family:${SANS}; font-size:11px; font-weight:bold; letter-spacing:1.2px; text-transform:uppercase; color:${fg};">${label}</td></tr>
+  </table>`;
+};
+
 /** Two-column label/value card. rows: [label, valueHtml, valueColor?][] */
 const dataTable = (rows) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${BRAND.softBg}; border:1px solid ${BRAND.border}; border-radius:14px; margin:24px 0;">
   <tr><td style="padding:4px 22px;">
@@ -443,10 +459,14 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticke
               ${ticketUrl ? '</a>' : ''}
             </td></tr>
           </table>
-          ${ticketUrl ? `<div style="margin-top:16px;"><a href="${ticketUrl}" style="font-family:${SANS}; font-size:13px; font-weight:bold; color:${BRAND.gold}; text-decoration:underline;">View my seat &amp; party details &rarr;</a></div>` : ''}
         </td></tr>
       </table>
-      ${para('Scan this QR with your phone to see your table on the venue map, or show it at the entrance for our team to check you in.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+      ${ticketUrl ? badge('&#128205; Your Seat on the Venue Map') : ''}
+      ${ticketUrl ? button(ticketUrl, 'View My Seat on the Map') : ''}
+      ${ticketUrl
+        ? para('Opens the venue map with your own table highlighted, plus your party details — no app or login needed.', { size: 13, color: BRAND.stone, align: 'center', mb: 14 })
+        : ''}
+      ${para('Show the QR code above at the entrance for our team to check you in.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
     `,
   });
 };
