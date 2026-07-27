@@ -688,11 +688,20 @@ export default function EventPageClient({
   const fetchEventWithPasswordRef = useRef(null);
 
   // Plays over the fully-loaded public event page only — never over the
-  // loading/password/private/review/error states. No localStorage check:
-  // every page load (email link, raw URL, QR scan, repeat visit) shows the
-  // same reveal until this mount's viewing is dismissed — except the
-  // ?noreveal=1 compliance bypass, which starts already-dismissed.
-  const showReveal = !!event && !loading && !error && !passwordRequired && !isPrivate && !underReview && !notLive && !revealDismissed;
+  // loading/password/private/review/error states, and never when the
+  // organizer has switched the envelope off (events.reveal_enabled). The
+  // `!== false` test rather than a truthy one is deliberate: an older cached
+  // payload with no such field must keep playing the reveal, not lose it.
+  // The ?noreveal=1 compliance bypass starts already-dismissed.
+  const revealEnabled = !!event && event.reveal_enabled !== false;
+  const showReveal = revealEnabled && !loading && !error && !passwordRequired && !isPrivate && !underReview && !notLive && !revealDismissed;
+
+  // Whether a return visit sees the envelope again. Passing a sessionKey is
+  // what gives InvitationReveal its per-session memory, so "replay every
+  // visit" is expressed by withholding one. Default (reveal_replay true, and
+  // any payload predating the column) keeps the long-standing behaviour of
+  // this page: every load is an arrival.
+  const revealSessionKey = event && event.reveal_replay === false ? slug : null;
 
   const handleRevealComplete = useCallback(() => {
     setRevealDismissed(true);
@@ -838,8 +847,14 @@ export default function EventPageClient({
     // fetchEvent stays a shared useCallback because the password-retry form calls it
     // imperatively. The IIFE keeps state updates inside a nested async callback
     // rather than in the effect body itself (see useRsvpResolver.js for the pattern).
-    if (initialEvent && !effectiveRsvpId) { setLoading(false); return; }
-    (async () => { await fetchEvent(); })();
+    // The early-out lives INSIDE the IIFE for the same reason the fetch does:
+    // out here it is a setState in the effect body, which is what the comment
+    // above says this pattern exists to avoid (and what lint flags as an
+    // error). Behaviour is unchanged — the branch still just skips the fetch.
+    (async () => {
+      if (initialEvent && !effectiveRsvpId) { setLoading(false); return; }
+      await fetchEvent();
+    })();
   }, [slug, isDemoSlug, fetchEvent, initialEvent, effectiveRsvpId]);
 
   /* ─── Countdown ─── */
@@ -1183,6 +1198,7 @@ export default function EventPageClient({
               event={event}
               guestName={guestRsvp?.guest_name || ''}
               lang={lang}
+              sessionKey={revealSessionKey}
               onComplete={handleRevealComplete}
               musicRef={musicRef}
             />
@@ -1242,6 +1258,7 @@ export default function EventPageClient({
             event={event}
             guestName={guestRsvp?.guest_name || ''}
             lang={lang}
+            sessionKey={revealSessionKey}
             onComplete={handleRevealComplete}
             musicRef={musicRef}
           />

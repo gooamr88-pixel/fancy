@@ -235,7 +235,16 @@ export default function RsvpExperience({ context, lang = 'en', envelope = false,
   // memory, consistent with the main event page's envelope), and never when
   // the guest prefers reduced motion. Shown only for the rich (slug) experience.
   const [envelopeDismissed, setEnvelopeDismissed] = useState(false);
-  const envelopeOpen = !!envelope && !reduceMotion && engine.phase !== 'resolving' && !!engine.event && !envelopeDismissed;
+  // Also off when the organizer has switched the envelope off for this event
+  // (events.reveal_enabled). `!== false` so a payload predating the column
+  // keeps the reveal rather than silently losing it.
+  //
+  // NOTE: reveal_replay is deliberately NOT read here. It governs the
+  // invitation page, where the envelope is the arrival moment. This one gates
+  // a form the guest is part-way through, so it stays once-per-session
+  // regardless — replaying it on every refresh mid-RSVP would be hostile.
+  const envelopeOpen = !!envelope && !reduceMotion && engine.phase !== 'resolving'
+    && !!engine.event && engine.event.reveal_enabled !== false && !envelopeDismissed;
 
   const closeEnvelope = () => setEnvelopeDismissed(true);
 

@@ -425,6 +425,8 @@ const getPublicEventBySlug = async (req, res, next) => {
         track_guest_side,
         no_kids_allowed,
         collect_dietary_restrictions,
+        reveal_enabled,
+        reveal_replay,
         tier_remove_watermark,
         updated_at,
         custom_form_fields(*)
@@ -605,7 +607,11 @@ const updateEvent = async (req, res, next) => {
     'allow_guest_edits',
     'track_guest_side',
     'no_kids_allowed',
-    'collect_dietary_restrictions'
+    'collect_dietary_restrictions',
+    // The sealed-envelope reveal. Both default true in the schema, so an
+    // organizer who never opens the setting keeps exactly today's behaviour.
+    'reveal_enabled',
+    'reveal_replay'
   ];
 
   // Status transitions the organizer may request:

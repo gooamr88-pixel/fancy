@@ -10,6 +10,8 @@ import RepeatableListEditor from './RepeatableListEditor';
 import Icon from '../../components/icons/Icon';
 import EventCategoryIcon from '../../components/icons/EventCategoryIcon';
 import TagListEditor, { toTagArray } from './TagListEditor';
+import InvitationReveal, { REVEAL_TONES } from '../../components/guest/InvitationReveal';
+import { preloadRevealAssets } from '../../components/guest/revealAssets';
 import ImageUploadField from './ImageUploadField';
 import DaysEditor from '../create-event/components/DaysEditor';
 import CustomBuilder from '../create-event/components/CustomBuilder';
@@ -238,7 +240,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     allow_guest_edits: false,
     track_guest_side: false,
     no_kids_allowed: false,
-    collect_dietary_restrictions: true
+    collect_dietary_restrictions: true,
+    // Both default ON, matching the schema — an organizer who never opens
+    // this section keeps exactly the behaviour their event already had.
+    reveal_enabled: true,
+    reveal_replay: true
   });
   // Key names mirror the create-event wizard's Stage2_FormConfiguration (the
   // canonical writer of these fields) so the digital card never has to guess
@@ -251,7 +257,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     proposalStory: '', giftRegistry: '', loveStory: '', accommodations: '',
     celebrant: '', age: '', partyTheme: '',
     honoree: '', program: '', sponsorPackages: '',
-    seal_text: '',
+    seal_text: '', reveal_tone: 'classic',
     title_ar: '', description_ar: '', dress_code_ar: '',
     // Custom Canvas — "what kind of event is this?" category + its
     // per-kind fields (see utils/customEventCategories.js), and the
@@ -315,6 +321,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   // the curated pills (e.g. a legacy free-text value), so it displays instead
   // of silently looking like nothing was chosen. Mirrors Stage2's customDressMode.
   const [customDressMode, setCustomDressMode] = useState(false);
+  const [revealPreviewOpen, setRevealPreviewOpen] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const handleMusicUpload = async (e) => {
@@ -566,7 +573,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         allow_guest_edits: !!event.allow_guest_edits,
         track_guest_side: !!event.track_guest_side,
         no_kids_allowed: !!event.no_kids_allowed,
-        collect_dietary_restrictions: event.collect_dietary_restrictions !== false
+        collect_dietary_restrictions: event.collect_dietary_restrictions !== false,
+        // `!== false`, not truthy: an event saved before these columns existed
+        // comes back undefined and must read as ON, not silently switch off.
+        reveal_enabled: event.reveal_enabled !== false,
+        reveal_replay: event.reveal_replay !== false
       });
       setCustomDressMode(!!event.dress_code && !DRESS_CODES.includes(event.dress_code));
       setHasAccessPassword(!!event.has_access_password);
@@ -613,6 +624,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         program: event.template_data?.program || '',
         sponsorPackages: event.template_data?.sponsorPackages || '',
         seal_text: event.template_data?.seal_text || '',
+        reveal_tone: event.template_data?.reveal_tone || 'classic',
         title_ar: event.template_data?.title_ar || '',
         description_ar: event.template_data?.description_ar || '',
         dress_code_ar: event.template_data?.dress_code_ar || '',
@@ -1556,7 +1568,103 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
             onBlur={(e) => { e.target.style.borderColor = COLORS.border; e.target.style.boxShadow = 'none'; }}
           />
         </div>
+
+        {/* Wax & paper tone. Curated presets rather than a colour picker —
+            the envelope is photography, and an arbitrary hex applied to it
+            stops looking like paper. See REVEAL_TONES. */}
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Wax &amp; paper tone</label>
+          <div role="radiogroup" aria-label="Wax and paper tone" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {Object.entries(REVEAL_TONES).map(([key, t]) => {
+              const active = (templateData.reveal_tone || 'classic') === key;
+              return (
+                <button
+                  key={key} type="button" role="radio" aria-checked={active}
+                  onClick={() => { setTemplateData(prev => ({ ...prev, reveal_tone: key })); setSuccess(false); }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '8px',
+                    padding: '8px 14px', minHeight: '40px', cursor: 'pointer',
+                    borderRadius: '10px', fontFamily: 'var(--font-sans)', fontSize: '12.5px', fontWeight: 600,
+                    border: `1px solid ${active ? COLORS.gold : COLORS.border}`,
+                    background: active ? 'rgba(184,148,79,0.08)' : COLORS.white,
+                    color: COLORS.charcoal,
+                  }}
+                >
+                  <span aria-hidden style={{ width: 14, height: 14, borderRadius: '50%', background: t.swatch, border: '1px solid rgba(0,0,0,.12)', flex: 'none' }} />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: '#191B1E', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={form.reveal_enabled}
+              onChange={(e) => { setForm(prev => ({ ...prev, reveal_enabled: e.target.checked })); setSuccess(false); }}
+              style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: 'pointer' }}
+            />
+            <span>
+              Open with the sealed envelope
+              <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
+                On by default. Turn this off and guests land straight on the invitation with no envelope to unseal.
+              </span>
+            </span>
+          </label>
+
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '13px', color: form.reveal_enabled ? '#191B1E' : '#A9A399', cursor: form.reveal_enabled ? 'pointer' : 'default', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              disabled={!form.reveal_enabled}
+              checked={form.reveal_replay}
+              onChange={(e) => { setForm(prev => ({ ...prev, reveal_replay: e.target.checked })); setSuccess(false); }}
+              style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: COLORS.gold, cursor: form.reveal_enabled ? 'pointer' : 'default' }}
+            />
+            <span>
+              Show it again on every visit
+              <span style={{ display: 'block', color: '#77736A', fontSize: '12px', marginTop: '3px', fontWeight: 400, lineHeight: 1.5 }}>
+                On by default. Turn it off and a returning guest sees the envelope only once per browser session. (The RSVP form&apos;s envelope is always once per session — it would be tiresome to replay it mid-form.)
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setRevealPreviewOpen(true)}
+          disabled={!form.reveal_enabled}
+          style={{
+            marginTop: '16px', padding: '10px 18px', minHeight: '42px',
+            background: form.reveal_enabled ? COLORS.charcoal : COLORS.border,
+            color: form.reveal_enabled ? COLORS.white : '#8A857B',
+            border: 'none', borderRadius: '30px', cursor: form.reveal_enabled ? 'pointer' : 'not-allowed',
+            fontFamily: 'var(--font-sans)', fontSize: '12.5px', fontWeight: 700,
+            display: 'inline-flex', alignItems: 'center', gap: '7px',
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          Preview the envelope
+        </button>
       </div>
+
+      {revealPreviewOpen && (
+        <RevealPreviewModal
+          onClose={() => setRevealPreviewOpen(false)}
+          event={{
+            // Built from the CURRENT form, not from the saved event, so the
+            // organizer previews the edit they are making rather than the one
+            // they made last time.
+            slug: 'demo',            // keeps previews out of the reveal funnel
+            title: form.title,
+            title_ar: templateData.title_ar,
+            event_date: form.event_date,
+            custom_colors: { primary: form.primary_color, secondary: form.secondary_color, accent: form.accent_color },
+            template_data: { ...event?.template_data, ...templateData },
+          }}
+        />
+      )}
 
       {/* ═══ HERO BACKGROUND VIDEO ═══ */}
       <div style={sectionStyle}>
@@ -2454,6 +2562,92 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
           .es-save-bar { bottom: calc(60px + env(safe-area-inset-bottom)) !important; }
         }
       `}</style>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RevealPreviewModal — the organizer's own envelope, at phone size.
+
+   This renders THE REAL InvitationReveal, not a mock-up of it: same artwork,
+   same choreography, same monogram, driven off the unsaved form values. The
+   whole point of the exercise is that there is exactly one envelope in this
+   product, so a preview that reimplemented it would recreate the problem it
+   exists to solve.
+
+   `embedded` swaps the reveal from fixed to absolute and hands its
+   breakpoints to the container instead of the window, so a 320px box gets the
+   mobile composition — the one the great majority of guests will actually
+   see — rather than the desktop grid squeezed into a phone.
+
+   `key` on the reveal is what makes "Play again" work: the reveal is a
+   one-shot by design (it calls onComplete exactly once), so replaying it
+   means mounting a fresh one, not resetting the old one.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function RevealPreviewModal({ event, onClose }) {
+  const [run, setRun] = useState(0);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    preloadRevealAssets();
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const replay = () => { setDone(false); setRun((n) => n + 1); };
+
+  return (
+    <div
+      role="dialog" aria-modal="true" aria-label="Envelope preview"
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1200, display: 'flex',
+        alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '16px',
+        background: 'rgba(20,18,15,0.72)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
+        padding: '24px',
+      }}
+    >
+      {/* The phone. Its own stacking + overflow context, so the reveal's
+          full-bleed envelope is cropped by the screen exactly the way a real
+          handset crops it. */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'relative', width: 320, height: 'min(640px, 72vh)',
+          borderRadius: 30, overflow: 'hidden', background: '#fff',
+          boxShadow: '0 40px 90px -25px rgba(0,0,0,.6)', border: '6px solid #1c1a17',
+        }}
+      >
+        {!done ? (
+          <InvitationReveal
+            key={run}
+            embedded
+            event={event}
+            onComplete={() => setDone(true)}
+          />
+        ) : (
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center',
+            background: '#F8F4EC', fontFamily: 'var(--font-sans)',
+          }}>
+            <p style={{ margin: 0, fontSize: 13, color: '#77736A', lineHeight: 1.6 }}>
+              The envelope has opened — this is the moment your invitation takes over.
+            </p>
+            <button type="button" onClick={replay} style={{
+              padding: '10px 20px', minHeight: 42, borderRadius: 30, border: 'none', cursor: 'pointer',
+              background: '#B8944F', color: '#fff', fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 700,
+            }}>Play it again</button>
+          </div>
+        )}
+      </div>
+
+      <button type="button" onClick={onClose} style={{
+        padding: '9px 20px', minHeight: 40, borderRadius: 30, cursor: 'pointer',
+        background: 'rgba(255,255,255,.12)', color: '#fff', border: '1px solid rgba(255,255,255,.25)',
+        fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 600,
+      }}>Close preview</button>
     </div>
   );
 }

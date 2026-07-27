@@ -1,6 +1,7 @@
 import { Suspense, cache } from 'react';
 import EventPageClient from './EventPageClient';
 import { safeJsonLdHtml } from '../utils/jsonLdSafe.mjs';
+import { preloadRevealAssets } from '../components/guest/revealAssets';
 
 // Server-side renders talk to the backend over LOOPBACK, never via the public
 // hostname. Going out through https://fancyrsvp.com hairpins back in through
@@ -111,6 +112,16 @@ export default async function EventPage({ params, searchParams }) {
         eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
       }
     : null;
+
+  // The envelope reveal is the first thing rendered over this page, and its
+  // artwork is static (the same four files for every event), so it can be
+  // requested from the server render — in the initial HTML, in parallel with
+  // the client's own event fetch — instead of only once the overlay mounts.
+  // Deliberately unconditional: whether the reveal actually plays depends on
+  // client-side state (password gate, private link, ?noreveal=1), and those
+  // are the rare paths — waiting to find out would cost every normal guest
+  // the head start this exists to give them.
+  preloadRevealAssets();
 
   return (
     <>

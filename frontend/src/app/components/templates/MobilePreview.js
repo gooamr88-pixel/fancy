@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import EnvelopeAnimation from "./EnvelopeAnimation";
+import InvitationReveal from "../guest/InvitationReveal";
 import RSVPBottomSheet from "./RSVPBottomSheet";
 import InvitationCard from "./InvitationCard";
 import Icon from "../icons/Icon";
@@ -299,6 +299,11 @@ export default function MobilePreview({
   config,
   step: controlledStep,
   onStepChange,
+  // The real event, where the caller has one (the dashboard's settings
+  // preview). Without it the envelope falls back to demo copy — which is
+  // right for /templates and the create-event wizard, where no event exists
+  // yet.
+  event,
 }) {
   const sections = config?.sections || { details: true, gallery: true, messageHost: true };
   const ctaLabel = config?.ctaLabel || "RSVP Now";
@@ -330,6 +335,29 @@ export default function MobilePreview({
 
   const accentColor = theme?.primary || theme?.accent || template?.accent || "#B8944F";
   const secondaryColor = theme?.secondary || "#D7BE80";
+
+  /* The event the embedded reveal reads. When the caller has a real one it is
+     used verbatim, so the organizer sees their own monogram and colours; the
+     fallback mirrors the demo names the invitation card already shows, so the
+     seal and the card never disagree on whose wedding this is.
+
+     slug 'demo' is load-bearing, not filler: useGuestAnalytics short-circuits
+     on it, so an organizer opening the preview twenty times while choosing a
+     template can never pollute a real event's reveal funnel. */
+  const previewEvent = React.useMemo(() => event || {
+    slug: "demo",
+    title: (template?.pattern === "custom") ? "Your Event" : "Aria & Julian",
+    custom_colors: { primary: accentColor, secondary: secondaryColor },
+    template_data: {},
+  }, [event, template?.pattern, accentColor, secondaryColor]);
+
+  // NOT preloaded here, deliberately. This component also renders on the
+  // PUBLIC /templates marketing page, and a high-priority preload would pull
+  // ~170KB of envelope photography onto it ahead of that page's own critical
+  // resources. On the guest routes — where the envelope really is the first
+  // paint — the two route files preload it, and the settings preview does so
+  // when its modal opens. Here the reveal's own <img> tags and its decode
+  // gate are enough.
   const isOpened = OPENED_FAMILY.includes(step);
   const showSheet = step === "attending" || step === "declined";
   const pattern = template?.pattern || "serif";
@@ -433,19 +461,28 @@ export default function MobilePreview({
               <span className="text-[9px] text-white/70 font-sans mt-3 tracking-wide">Tap the notification to continue</span>
             </motion.div>
           ) : step === "envelope" ? (
-            /* ─── Phase: Envelope (closed → opening) ─── */
+            /* ─── Phase: Envelope ───
+               THE REAL GUEST REVEAL, embedded. This used to be a separate
+               hand-drawn SVG envelope that shared nothing with what a guest
+               actually opens — so an organizer tuned their invitation against
+               one envelope and their guests received a different one. That is
+               not a visual inconsistency, it is a preview that lies.
+
+               InvitationReveal lays itself out from its CONTAINER's width
+               (see its @container breakpoints), so dropped into this phone
+               screen it renders exactly the mobile composition a guest gets,
+               same artwork and same choreography, at phone scale. */
             <motion.div
               key="envelope"
               className="absolute inset-0 z-10"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}
             >
-              <EnvelopeAnimation
+              <InvitationReveal
                 key={`${template?.pattern || "default"}`}
-                template={template}
-                theme={theme}
+                embedded
+                event={previewEvent}
                 guestName={guestName}
-                config={config}
-                onOpenComplete={() => setStep("opened")}
+                onComplete={() => setStep("opened")}
               />
             </motion.div>
           ) : (

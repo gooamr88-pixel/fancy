@@ -908,6 +908,31 @@ export default function DashboardPage() {
                 )}
 
                 <Link
+                  href="/dashboard/analytics"
+                  id="btn-open-analytics"
+                  style={{
+                    padding: '9px 18px',
+                    background: COLORS.white,
+                    color: COLORS.charcoal,
+                    border: `1px solid ${COLORS.border}`,
+                    borderRadius: '30px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    textDecoration: 'none',
+                    fontFamily: 'var(--font-sans)',
+                    transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(25, 27, 30, 0.12)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3.5 3.5L21 7"/></svg>
+                  Analytics
+                </Link>
+
+                <Link
                   href="/checkin"
                   id="btn-open-checkin"
                   style={{

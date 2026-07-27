@@ -1,0 +1,20 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`reveal artboard — coordinates > matches the open choreography exactly 1`] = `
+"  opacity:0; visibility:hidden; transition:opacity .45s ease;
+.ir3-fr{transition:transform 1350ms cubic-bezier(.4,0,1,1) 700ms,opacity 300ms cubic-bezier(.4,0,1,1) 1750ms}.ir3-root.is-open .ir3-fr{--mx:559px;opacity:0}
+.ir3-fl{transition:transform 1350ms cubic-bezier(.4,0,1,1) 700ms,opacity 300ms cubic-bezier(.4,0,1,1) 1750ms}.ir3-root.is-open .ir3-fl{--mx:-559px;opacity:0}
+.ir3-fb{transition:transform 1250ms cubic-bezier(.4,0,1,1) 820ms}.ir3-root.is-open .ir3-fb{--my:max(606px, calc(204px + 50vh))}
+.ir3-ft{transition:transform 1250ms cubic-bezier(.4,0,1,1) 560ms}.ir3-root.is-open .ir3-ft{--my:calc(-1 * max(430px, 60px + 50vh))}
+.ir3-fw{transition:opacity 360ms cubic-bezier(.4,0,1,1) 0ms}.ir3-root.is-open .ir3-fw{opacity:0}
+.ir3-root.is-open .ir3-sl{animation:ir3-seal-break 1250ms linear 0ms both}
+.ir3-tx{transition:opacity 360ms cubic-bezier(.4,0,1,1) 0ms}.ir3-root.is-open .ir3-tx{opacity:0}"
+`;
+
+exports[`reveal artboard — coordinates > matches the transcribed artboard exactly 1`] = `
+".ir3-fr{left:calc(50% - 600px + 421px);top:25px;width:867px;height:800px}.ir3-fl{left:calc(50% - 600px + -87px);top:25px;width:867px;height:800px}.ir3-fb{left:calc(50% - 600px + 100px);top:221px;width:1000px;height:785px}.ir3-ft{left:calc(50% - 600px + 105px);top:-98px;width:991px;height:583px}.ir3-fw{left:calc(50% - 600px + 506px);top:510px;width:188px;height:45px}.ir3-sl{left:calc(50% - 600px + 520px);top:310px;width:160px;height:160px}.ir3-tx{left:calc(50% - 600px + 492px);top:468px;width:217px}
+@container ir3 (max-width:1199px){.ir3-fr{left:calc(50% - 480px + 295px)}.ir3-fl{left:calc(50% - 480px + -205px)}.ir3-fb{left:calc(50% - 480px + -25px)}.ir3-ft{left:calc(50% - 480px + -15px);top:-102px;height:586px}.ir3-fw{left:calc(50% - 480px + 386px)}.ir3-sl{left:calc(50% - 480px + 400px)}.ir3-tx{left:calc(50% - 480px + 372px)}}
+@container ir3 (max-width:959px){.ir3-fr{left:calc(50% - 320px + 135px)}.ir3-fl{left:calc(50% - 320px + -360px)}.ir3-fb{left:calc(50% - 320px + -185px)}.ir3-ft{left:calc(50% - 320px + -175px);top:-116px;height:593px}.ir3-fw{left:calc(50% - 320px + 226px)}.ir3-sl{left:calc(50% - 320px + 235px)}.ir3-tx{left:calc(50% - 320px + 212px)}}
+@container ir3 (max-width:639px){.ir3-fr{left:calc(50% - 240px + 55px)}.ir3-fl{left:calc(50% - 240px + -441px)}.ir3-fb{left:calc(50% - 240px + -265px)}.ir3-ft{left:calc(50% - 240px + -255px);width:992px;height:598px}.ir3-fw{left:calc(50% - 240px + 146px)}.ir3-sl{left:calc(50% - 240px + 155px)}.ir3-tx{left:calc(50% - 240px + 132px)}}
+@container ir3 (max-width:479px){.ir3-fr{left:calc(50% - 160px + -75px);top:83px;width:856px;height:684px}.ir3-fl{left:calc(50% - 160px + -475px);top:105px;width:856px;height:640px}.ir3-fb{left:calc(50% - 160px + -247px);width:815px;height:787px}.ir3-ft{left:calc(50% - 160px + -244px);top:-99px;width:807px;height:569px}.ir3-fw{left:calc(50% - 160px + 66px)}.ir3-sl{left:calc(50% - 160px + 80px)}.ir3-tx{left:calc(50% - 160px + 52px)}}"
+`;

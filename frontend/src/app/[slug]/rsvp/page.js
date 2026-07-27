@@ -12,6 +12,7 @@
 import React, { Suspense, use } from 'react';
 import { useSearchParams } from 'next/navigation';
 import RsvpExperience from '../../components/guest/rsvp/RsvpExperience';
+import { preloadRevealAssets } from '../../components/guest/revealAssets';
 import RsvpWizard from './RsvpWizard';
 
 function RsvpRoute({ slug }) {
@@ -27,6 +28,14 @@ function RsvpRoute({ slug }) {
   // directly with no envelope intro. Normal guest links never carry it, so the
   // premium reveal is untouched for real guests.
   const noReveal = sp.get('noreveal') === '1';
+
+  // Ask for the envelope artwork now, while the engine is still resolving the
+  // guest — not when the overlay mounts, which is several round trips later.
+  // This route is client-rendered, so unlike the event page these preloads
+  // can't ship in the HTML; they still beat the overlay by the whole
+  // resolve-the-guest round trip. Skipped entirely on the ?noreveal=1 bypass,
+  // where the reveal provably never plays.
+  if (!noReveal) preloadRevealAssets();
 
   return (
     <RsvpExperience context={context} lang={lang} envelope={!noReveal}>

@@ -891,7 +891,8 @@ const getRsvpInvite = async (req, res, next) => {
       .select(`id, label, response, created_by_organizer, guests(id, full_name, is_primary_contact, email, meal_selection, dietary_notes, phone),
         events!inner(id, title, description, event_date, event_end_date, slug, location_name, location_address,
           is_paid, status, rsvp_deadline, template_type, event_type, template_data, cover_image_url,
-          custom_colors, custom_fonts, allow_guest_edits, track_guest_side, access_password, custom_form_fields(*))`)
+          custom_colors, custom_fonts, allow_guest_edits, track_guest_side,
+          reveal_enabled, reveal_replay, access_password, custom_form_fields(*))`)
       .eq('id', payload.partyId)
       .eq('event_id', payload.eventId)
       .single();
