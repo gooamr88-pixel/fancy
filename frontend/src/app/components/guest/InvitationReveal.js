@@ -546,17 +546,23 @@ export default function InvitationReveal({
     // layout.js, not from a family name that only exists if a third-party
     // stylesheet loaded. The literal names stay as the fallback so the reveal
     // still renders correctly if a face ever fails to resolve.
-    "--font-serif": "var(--font-heading), 'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+    // The literal fallback here tracks whatever layout.js currently assigns
+    // to --font-heading (previously Cormorant Garamond, now Aboreto) — it is
+    // read live via var(), so the reveal follows the platform's own brand
+    // font automatically; the string after it is only what renders in the
+    // (essentially theoretical) case where the variable fails to resolve,
+    // and is kept in sync so it never names a font the app no longer loads.
+    "--font-serif": "var(--font-heading), 'Aboreto', Georgia, 'Times New Roman', serif",
     "--font-script": "var(--font-delafield), 'Mrs Saint Delafield', cursive",
-    // Cormorant Garamond carries no Arabic, so an Arabic label was silently
-    // dropping to whatever the system happened to have — usually a UI sans
-    // sitting on stationery. Aref Ruqaa is a real naskh face and is already
-    // self-hosted alongside the rest (layout.js, --font-aref).
+    // Aboreto carries no Arabic, so an Arabic label was silently dropping to
+    // whatever the system happened to have — usually a UI sans sitting on
+    // stationery. Aref Ruqaa is a real naskh face and is already self-hosted
+    // alongside the rest (layout.js, --font-aref).
     "--font-serif-ar": "var(--font-aref), 'Aref Ruqaa', 'Noto Naskh Arabic', Georgia, serif",
   }), [P]);
 
   // The two reveal display faces are now SELF-HOSTED via next/font in layout.js
-  // (Cormorant Garamond as --font-heading, Mrs Saint Delafield as --font-delafield).
+  // (Aboreto as --font-heading, Mrs Saint Delafield as --font-delafield).
   // This used to inject a <link> to fonts.googleapis.com on every mount, which made
   // the envelope — the very first thing a guest sees — wait on a third-party host
   // that is blackholed in several countries and by many corporate proxies. A
@@ -761,11 +767,18 @@ export default function InvitationReveal({
     return () => { settled = true; clearTimeout(gate); };
   }, [prefersReduced, alreadySeen, mode, trackEvent, trackShown]);
 
-  // Give the seal the focus as soon as there is a seal to focus, so a
-  // keyboard or screen-reader user starts on the one control that matters.
+  // Focus the DIALOG, not the seal. Focusing the seal directly was the more
+  // obvious move and was wrong twice over: it made browsers paint the seal's
+  // focus ring the instant the reveal appeared, so every guest — including
+  // the ones who never touch a keyboard — met the wax with a ring around it;
+  // and it skipped the dialog itself, which is the thing a screen reader
+  // needs to land on to announce what just took over the screen. Moving focus
+  // to the container is the standard modal pattern: the announcement happens,
+  // Tab still reaches the seal first, and the ring only ever appears for
+  // someone actually navigating by keyboard.
   useEffect(() => {
     if (embedded || alreadySeen) return;
-    if (prefersReduced || artwork === "ready") sealRef.current?.focus();
+    if (prefersReduced || artwork === "ready") dialogRef.current?.focus({ preventScroll: true });
   }, [embedded, alreadySeen, prefersReduced, artwork]);
 
   if (alreadySeen) return null;
@@ -779,7 +792,7 @@ export default function InvitationReveal({
   if (prefersReduced || artworkFailed) {
     return (
       <motion.div
-        data-testid="guest-envelope-reveal" ref={dialogRef} role="dialog" aria-modal={!embedded} aria-label="Open your invitation"
+        data-testid="guest-envelope-reveal" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal={!embedded} aria-label="Open your invitation"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}
         dir={isRTL ? "rtl" : "ltr"}
         style={{
@@ -835,7 +848,7 @@ export default function InvitationReveal({
 
   return (
     <motion.div
-      data-testid="guest-envelope-reveal" ref={dialogRef} role="dialog" aria-modal={!embedded} aria-label="Open your invitation"
+      data-testid="guest-envelope-reveal" ref={dialogRef} tabIndex={-1} role="dialog" aria-modal={!embedded} aria-label="Open your invitation"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.7, ease: [0.4, 0, 0.2, 1] } }}
       transition={{ duration: 0.5 }}
@@ -981,7 +994,15 @@ const REVEAL_CSS = `
    height — naskh ascenders and descenders need the room. */
 [dir="rtl"] .ir3-tx{ font-family:var(--font-serif-ar), Georgia, serif; line-height:1.75; }
 
-.ir3-sl{ background:none; cursor:pointer; pointer-events:auto; -webkit-tap-highlight-color:transparent; }
+/* border-radius on a button with no background sounds pointless — it matters
+   because the FOCUS RING follows the border box. The seal is a round piece of
+   wax inside a square 160x160 button, so without this any ring is drawn as a
+   rectangle boxing the wax in, which reads as a stray outline rather than as
+   focus. Round, it hugs the seal and looks deliberate. */
+.ir3-sl{
+  background:none; cursor:pointer; pointer-events:auto;
+  border-radius:50%; -webkit-tap-highlight-color:transparent;
+}
 .ir3-seal-face{ position:relative; }
 /* No circular clip on the wax: its silhouette is a hand-pressed wavy edge and
    the artwork carries its own transparency, so masking it to a circle would
@@ -1012,6 +1033,9 @@ const REVEAL_CSS = `
 .ir3-skip:focus-visible, .ir3-langchip:focus-visible, .ir3-sl:focus-visible{
   outline:2px solid var(--gold); outline-offset:3px;
 }
+/* The dialog is focused on open so the overlay is announced; it is a
+   container, not a control, so it must never draw a ring of its own. */
+.ir3-root:focus, .ir3-root:focus-visible{ outline:none; }
 
 /* The two chips are translucent with a blur behind them. Anyone who has asked
    the OS for less transparency has asked for exactly that not to happen —

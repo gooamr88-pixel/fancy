@@ -155,7 +155,7 @@ export default function OrganizersPage() {
                 </div>
               </div>
               <style jsx>{`
-                @media (max-width: 480px) {
+                @media (max-width: 639.98px) {
                   .org-detail-grid { grid-template-columns: 1fr !important; }
                 }
               `}</style>

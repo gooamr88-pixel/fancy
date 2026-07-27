@@ -206,7 +206,7 @@ export default function MarketingPage() {
           {/* Config */}
           <section style={{ ...card, padding: 18, marginBottom: 20 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, color: T.text900, margin: '0 0 14px' }}>Program Settings</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }} className="mkt-grid">
+            <div className="mkt-grid fx-grid" style={{ '--fx-col': '200px', '--fx-gap': '14px' }}>
               <Field label="Program status">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: manage ? 'pointer' : 'default' }}>
                   <input
@@ -420,7 +420,7 @@ export default function MarketingPage() {
       </Modal>
 
       <style jsx>{`
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .mkt-grid { grid-template-columns: 1fr !important; }
           .mkt-adjust-grid { grid-template-columns: 1fr !important; }
         }

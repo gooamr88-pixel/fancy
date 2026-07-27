@@ -5,6 +5,19 @@ const nextConfig = {
   turbopack: {
     root: path.resolve('..'),
   },
+  // /templates (the "Template Gallery" marketing page) has been retired —
+  // every internal link to it (Navbar, FooterSection, solutions/planners,
+  // sitemap.js) was removed alongside this. The redirect exists for what
+  // those removals can't reach: search-engine listings, other sites' links,
+  // and anyone with the URL bookmarked. `permanent: true` (308) tells
+  // crawlers to update their index to the new URL rather than keep the old
+  // one live — the correct signal for a page that is gone for good, not
+  // temporarily moved.
+  async redirects() {
+    return [
+      { source: '/templates', destination: '/', permanent: true },
+    ];
+  },
   async headers() {
     const isDev = process.env.NODE_ENV !== 'production';
 

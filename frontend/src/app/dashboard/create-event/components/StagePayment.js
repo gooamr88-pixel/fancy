@@ -134,7 +134,7 @@ function PromoCodeBox({ onRedeem, processing }) {
       )}
       <style jsx>{`
         .promo-submit:not(:disabled):hover { filter: brightness(1.06); box-shadow: 0 6px 18px rgba(184, 148, 79, 0.3); transform: translateY(-1px); }
-        @media (max-width: 460px) {
+        @media (max-width: 639.98px) {
           .promo-row { flex-direction: column; }
           .promo-row button { width: 100%; }
         }
@@ -252,7 +252,7 @@ export default function StagePayment({
   };
 
   return (
-    <div className="sp-page" style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
+    <div className="sp-page fx-container fx-container--xl fx-gutter" style={{ '--fx-pad-x': '24px', paddingTop: '40px', paddingBottom: '140px' }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{
@@ -794,16 +794,24 @@ export default function StagePayment({
       <style jsx>{`
         /* Same failure Stage2's footer already fixed: Back + "Skip & pay later"
            + Continue is a no-wrap row ~380px wide plus 48px padding, and
-           body{overflow-x:hidden} CLIPS rather than scrolls — so on any phone the
+           the root overflow guard CLIPS rather than scrolls — so on any phone the
            Continue button (the only way to actually pay) was pushed off-screen and
            became untappable. Stack full-width, Continue on top as the primary
            action, and grow the page's bottom padding to clear the now-taller
            fixed footer so the last tier card isn't hidden behind it. */
-        @media (max-width: 600px) {
+        @media (max-width: 639.98px) {
           .sp-footer-inner { flex-direction: column-reverse !important; align-items: stretch !important; gap: 10px !important; }
           .sp-footer-actions { flex-direction: column-reverse !important; align-items: stretch !important; width: 100% !important; gap: 10px !important; }
           .sp-footer-btn { width: 100% !important; justify-content: center !important; }
-          .sp-page { padding: 32px 16px 240px !important; }
+          /* Was a "padding: … !important" shorthand, which beat .fx-gutter's
+             padding-left/right and discarded the landscape safe-area inset.
+             Feeding --fx-pad-x is the class's documented input, so it
+             composes instead of overriding. */
+          .sp-page {
+            --fx-pad-x: 16px;
+            padding-top: 32px !important;
+            padding-bottom: 240px !important;
+          }
         }
       `}</style>
     </div>

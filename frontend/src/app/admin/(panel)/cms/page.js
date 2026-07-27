@@ -337,7 +337,7 @@ function Testimonials() {
         </div>
 
         <style jsx>{`
-          @media (max-width: 480px) {
+          @media (max-width: 639.98px) {
             .tst-grid { grid-template-columns: 1fr !important; }
           }
         `}</style>
@@ -550,7 +550,7 @@ function PressMentions() {
         </div>
 
         <style jsx>{`
-          @media (max-width: 480px) {
+          @media (max-width: 639.98px) {
             .prs-grid { grid-template-columns: 1fr !important; }
           }
         `}</style>
@@ -790,7 +790,7 @@ function BlogPosts() {
         </div>
 
         <style jsx>{`
-          @media (max-width: 480px) {
+          @media (max-width: 639.98px) {
             .blog-grid { grid-template-columns: 1fr !important; }
           }
         `}</style>

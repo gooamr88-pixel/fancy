@@ -60,9 +60,9 @@ export default function VenuesSolutionsPage() {
       <Navbar />
       <main style={{ paddingTop: "78px" }}>
         {/* ════════════════════ HERO ════════════════════ */}
-        <section style={{ background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)", padding: "100px 48px 80px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <section className="fx-section fx-section--tight-bottom" style={{ background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)", textAlign: "center", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: "-40px", right: "-40px", width: "180px", height: "180px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none" }} />
-          <div style={{ maxWidth: "760px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--lg" style={{ position: "relative", zIndex: 1 }}>
             <SectionEyebrow>For Venues &amp; Event Spaces</SectionEyebrow>
             <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(2.4rem, 5vw, 3.8rem)", fontWeight: 700, color: "#191B1E", lineHeight: 1.15, marginBottom: "24px", letterSpacing: "-1px" }}>
               Match the guest experience to{" "}<span style={{ color: "#B8944F" }}>your venue</span>
@@ -78,13 +78,13 @@ export default function VenuesSolutionsPage() {
         </section>
 
         {/* ════════════════════ PAIN POINTS ════════════════════ */}
-        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "80px 48px 40px" }}>
+        <section className="fx-container fx-container--4xl fx-section fx-section--sm fx-section--tight-bottom" >
           <div style={{ textAlign: "center", marginBottom: "56px" }}>
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "36px", fontWeight: 700, color: "#191B1E", marginBottom: "12px" }}>
               What generic RSVP tools get wrong for a venue
             </h2>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px" }} className="vs-grid-3">
+          <div style={{ "--fx-gap": "32px" }} className="vs-grid-3 fx-grid fx-grid--3">
             {PAIN_POINTS.map((p) => (
               <div key={p.title} style={{ background: "#FFFFFF", border: "1px solid #E8E2D6", borderRadius: "16px", padding: "32px 28px" }}>
                 <div style={{ width: "52px", height: "52px", borderRadius: "14px", background: "rgba(184,148,79,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#B8944F", marginBottom: "20px" }}>
@@ -98,14 +98,14 @@ export default function VenuesSolutionsPage() {
         </section>
 
         {/* ════════════════════ CAPABILITIES ════════════════════ */}
-        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "80px 48px 100px" }}>
+        <section className="fx-container fx-container--4xl fx-section" style={{ paddingTop: "var(--fx-pad-y-sm)" }}>
           <GoldDivider variant="wide" />
           <div style={{ textAlign: "center", margin: "32px 0 56px" }}>
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "38px", fontWeight: 700, color: "#191B1E", marginBottom: "12px" }}>
               Built around how a venue actually operates
             </h2>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px 40px" }} className="vs-grid-3">
+          <div style={{ "--fx-gap-y": "32px", "--fx-gap-x": "40px",}} className="vs-grid-3 fx-grid fx-grid--3">
             {CAPABILITIES.map((c) => (
               <div key={c.title} style={{ display: "flex", gap: "14px" }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, marginTop: "3px" }}>
@@ -122,8 +122,8 @@ export default function VenuesSolutionsPage() {
         </section>
 
         {/* ════════════════════ CTA BAND ════════════════════ */}
-        <section style={{ background: "linear-gradient(135deg, #191B1E 0%, #2A2D32 100%)", padding: "80px 48px", textAlign: "center" }}>
-          <div style={{ maxWidth: "620px", margin: "0 auto" }}>
+        <section className="fx-section fx-section--sm" style={{ background: "linear-gradient(135deg, #191B1E 0%, #2A2D32 100%)", textAlign: "center" }}>
+          <div className="fx-container fx-container--md" >
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "34px", fontWeight: 700, color: "#FFFFFF", marginBottom: "16px", lineHeight: 1.25 }}>
               Give every booking your standard of polish
             </h2>
@@ -138,7 +138,7 @@ export default function VenuesSolutionsPage() {
         </section>
 
         {/* ════════════════════ INQUIRY FORM ════════════════════ */}
-        <section id="talk-to-sales" style={{ maxWidth: "1100px", margin: "0 auto", padding: "100px 48px 120px" }}>
+        <section className="fx-container fx-container--3xl fx-section fx-section--lg" id="talk-to-sales" >
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "56px", alignItems: "center" }} className="vs-form-grid">
             <div>
               <SectionEyebrow>Let&apos;s Talk</SectionEyebrow>
@@ -162,18 +162,11 @@ export default function VenuesSolutionsPage() {
       <FooterSection />
 
       <style jsx>{`
-        @media (max-width: 900px) {
-          .vs-form-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
-        }
-        @media (max-width: 860px) {
-          .vs-grid-3 { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 640px) {
-          section { padding-left: 20px !important; padding-right: 20px !important; padding-top: 56px !important; }
+        @media (max-width: 639.98px) {
           h1 { line-height: 1.2 !important; }
           h2 { font-size: 28px !important; }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .btn-gold, .btn-outline, .btn-ghost-gold { width: 100% !important; }
         }
       `}</style>

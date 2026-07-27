@@ -651,7 +651,7 @@ export default function CheckInPage() {
       <style jsx>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes shrink { from { width: 100%; } to { width: 0%; } }
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           /* The page had a hard 32px padding with no mobile override — 64px of a
              375px phone spent on empty margins before any content. */
           .checkin-page { padding: 16px !important; }
@@ -661,7 +661,7 @@ export default function CheckInPage() {
              slivers, then to a single column below. */
           .checkin-detail-grid { grid-template-columns: 1fr 1fr !important; }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .checkin-detail-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>

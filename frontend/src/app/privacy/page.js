@@ -283,10 +283,8 @@ export default function PrivacyPolicy() {
 
         {/* ── Gold Divider ── */}
         <div
+          className="fx-container fx-container--5xl fx-gutter"
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "0 48px",
             display: "flex",
             alignItems: "center",
             gap: "20px",
@@ -300,11 +298,14 @@ export default function PrivacyPolicy() {
         </div>
 
         {/* ── Content Area with Sidebar ── */}
+        {/* Vertical padding stays inline (the 56/80 asymmetry is deliberate)
+            but is now fluid; the horizontal 48px moves to .fx-gutter, which
+            tapers to 20px at 320px and clears the landscape notch. */}
         <section
+          className="fx-container fx-container--5xl fx-gutter"
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "56px 48px 80px",
+            paddingTop: "clamp(32px, 1.5rem + 2.5vw, 56px)",
+            paddingBottom: "var(--fx-pad-y-sm)",
           }}
         >
           <div className="privacy-layout">
@@ -478,13 +479,13 @@ export default function PrivacyPolicy() {
         .privacy-content {
           min-width: 0;
         }
-        @media (max-width: 1024px) {
+        @media (max-width: 1023.98px) {
           .privacy-layout {
             grid-template-columns: 220px 1fr !important;
             gap: 32px !important;
           }
         }
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .privacy-layout {
             grid-template-columns: 1fr !important;
           }
@@ -492,11 +493,9 @@ export default function PrivacyPolicy() {
             display: none !important;
           }
         }
-        @media (max-width: 640px) {
-          .privacy-layout {
-            grid-template-columns: 1fr !important;
-          }
-        }
+        /* The old @media (max-width: 640px) block re-declared exactly the
+           1fr the 768px rule above already applies, and could never match
+           without it also matching. Removed. */
       `}</style>
     </>
   );

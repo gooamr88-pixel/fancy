@@ -295,7 +295,7 @@ export default function FAQSection() {
         }
 
         /* Responsive */
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .faq-section {
             padding: 64px 24px;
           }

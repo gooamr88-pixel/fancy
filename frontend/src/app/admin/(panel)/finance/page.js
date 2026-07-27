@@ -86,7 +86,7 @@ export default function FinancePage() {
         {series.length === 0 ? (
           <p style={{ color: T.text400, fontSize: 13 }}>No revenue recorded in this window.</p>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160, overflowX: 'auto' }}>
+          <div className="fx-scroll-x" style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160 }}>
             {series.map((s) => {
               const net = s.net_cents || 0;
               // A day with more refunds than gross has negative net — flooring that

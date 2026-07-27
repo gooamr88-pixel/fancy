@@ -511,7 +511,7 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
           </div>
 
           <style jsx>{`
-            @media (max-width: 640px) {
+            @media (max-width: 639.98px) {
               .rsvps-table-wrap { display: none; }
               .rsvps-cards-wrap { display: flex !important; }
             }

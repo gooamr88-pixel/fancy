@@ -592,7 +592,7 @@ export default function LoginPage() {
         }
 
         /* ── Responsive ── */
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .auth-page { flex-direction: column; }
           .auth-image-panel { display: none; }
           .auth-form-panel {

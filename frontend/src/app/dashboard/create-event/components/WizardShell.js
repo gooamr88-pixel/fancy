@@ -162,7 +162,7 @@ export default function WizardShell({ step, onStepClick, children, labels }) {
           50% { box-shadow: 0 0 0 8px rgba(184,148,79,0.08); }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           /* Drop the fixed-width circle chain entirely and give the room to a
              fluid "3/5 · CONFIGURE" + progress bar, which names the current step
              and cannot overflow at any width. */

@@ -338,7 +338,7 @@ export default function FormBuilder({ eventId }) {
           // Wrap-safe row: a long label plus up to three badges and the
           // key/type/options meta line easily exceeds a phone's width. Without
           // flexWrap (and minWidth:0 so the text column may actually shrink) the
-          // row overflowed and body{overflow-x:hidden} clipped the edit/delete
+          // row overflowed and the root overflow guard clipped the edit/delete
           // buttons right off the card.
           fields.map(f => (
             <div key={f.id} style={{ background: '#FAFAF8', padding: '16px', border: '1px solid #F0ECE3', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', transition: 'border-color 0.2s' }}
@@ -387,7 +387,7 @@ export default function FormBuilder({ eventId }) {
 
       <style jsx>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .fb-row { grid-template-columns: 1fr !important; }
         }
       `}</style>

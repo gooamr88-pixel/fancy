@@ -2527,7 +2527,7 @@ export default function EventPageClient({
             }
           }
 
-          @media (max-width: 480px) {
+          @media (max-width: 639.98px) {
             .ep-hero-title {
               font-size: 26px !important;
             }

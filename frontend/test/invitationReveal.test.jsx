@@ -75,15 +75,29 @@ describe('InvitationReveal — caller contract', () => {
   });
 
   it('calls onComplete exactly once after the seal is tapped, however many times it is tapped', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
     const onComplete = vi.fn();
     renderReveal({ onComplete });
+
+    // Waiting for the seal is load-bearing, and worth understanding: the
+    // component injects its own <style>, jsdom applies it, and the artboard is
+    // visibility:hidden until the artwork has decoded — so until then the seal
+    // is genuinely absent from the accessibility tree and getByRole cannot
+    // (and should not) find it. That is the a11y gate working.
+    //
+    // This wait runs on REAL timers on purpose. Doing it under fake ones is
+    // what made this test pass alone and time out whenever the suite ran in
+    // parallel: waitFor's poller and a faked clock advance independently, so
+    // the poll can outlive the test without the gate ever resolving. Fake
+    // timers are installed only for the part that actually needs them — the
+    // handoff delay after the tap.
     await waitFor(() => expect(seal()).toBeEnabled());
 
+    vi.useFakeTimers();
     await act(async () => { seal().click(); seal().click(); });
     expect(onComplete).not.toHaveBeenCalled();       // the animation still has to run
     await act(async () => { vi.advanceTimersByTime(4000); });
     expect(onComplete).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 });
 
@@ -174,8 +188,20 @@ describe('InvitationReveal — keyboard', () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it('moves focus onto the seal once the artwork is ready', async () => {
+  it('moves focus into the dialog once the artwork is ready, without ringing the seal', async () => {
     renderReveal();
-    await waitFor(() => expect(seal()).toHaveFocus());
+    // The DIALOG, not the seal: focusing the control directly made browsers
+    // paint its focus ring for every guest, keyboard user or not.
+    await waitFor(() => expect(screen.getByTestId('guest-envelope-reveal')).toHaveFocus());
+    expect(seal()).not.toHaveFocus();
+  });
+
+  it('keeps the seal reachable by Tab from there', async () => {
+    renderReveal();
+    await waitFor(() => expect(screen.getByTestId('guest-envelope-reveal')).toHaveFocus());
+    await userEvent.setup().tab();
+    // Focus has left the container and landed on something operable inside it.
+    expect(document.activeElement).not.toBe(document.body);
+    expect(screen.getByTestId('guest-envelope-reveal')).toContainElement(document.activeElement);
   });
 });

@@ -1,25 +1,15 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useSyncExternalStore } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import TemplateCard from './TemplateCard';
 import PhoneSimulator from './PhoneSimulator';
 import CustomBuilder from './CustomBuilder';
 import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
-
-/* ═══ Media-query hook (SSR-safe, no setState-in-effect) ═══ */
-const MOBILE_QUERY = '(max-width: 768px)';
-function subscribeMobile(callback) {
-  if (typeof window === 'undefined') return () => {};
-  const mq = window.matchMedia(MOBILE_QUERY);
-  mq.addEventListener('change', callback);
-  return () => mq.removeEventListener('change', callback);
-}
-function getMobileSnapshot() {
-  return typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches;
-}
-function useIsMobile() {
-  return useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false);
-}
+// This file's own SSR-safe useSyncExternalStore hook was the good one in
+// the codebase; it has been promoted to src/app/hooks/useMediaQuery.js so
+// everything else can share it. Same 768px threshold, so no behaviour
+// change here.
+import { useIsMobile } from '../../../hooks/useMediaQuery';
 
 /* ═══ Template → MobilePreview pattern mapping ═══ */
 const TEMPLATE_PREVIEW_MAP = {
@@ -298,7 +288,7 @@ export default function Stage1_TemplatesSimulator({
         pointerEvents: 'none', zIndex: 0,
       }} />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1280, margin: '0 auto' }} className="s1-inner">
+      <div style={{ position: 'relative', zIndex: 1 }} className="s1-inner fx-container fx-container--5xl">
         {/* ═══ HEADER ═══ */}
         <div style={{ textAlign: 'center' }} className="s1-header">
           <div style={{
@@ -551,12 +541,12 @@ export default function Stage1_TemplatesSimulator({
         .s1-header { margin-bottom: 48px; }
         .s1-mobile-layout { display: none; }
 
-        @media (max-width: 1024px) {
+        @media (max-width: 1023.98px) {
           .s1-split { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
         }
 
         /* ── Mobile: full reimagination ── */
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .s1-root { padding: 16px 0 32px !important; }
           .s1-header { margin-bottom: 12px !important; padding: 0 20px; }
           .s1-subtitle { font-size: 12px !important; margin-top: 8px !important; }
@@ -574,7 +564,7 @@ export default function Stage1_TemplatesSimulator({
           .s1-carousel::-webkit-scrollbar { display: none; }
         }
 
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .s1-header h1 { font-size: clamp(20px, 6vw, 28px) !important; }
           .s1-header h1 span { font-size: inherit !important; }
           .s1-header h1 span:nth-child(2) { font-size: clamp(26px, 7.5vw, 36px) !important; }

@@ -325,10 +325,9 @@ export default function FeaturesPage() {
       <Navbar />
       <main style={{ paddingTop: "78px" }}>
         {/* ════════════════════ HERO SECTION ════════════════════ */}
-        <section
+        <section className="fx-section fx-section--tight-bottom"
           style={{
             background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)",
-            padding: "100px 48px 80px",
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
@@ -338,7 +337,7 @@ export default function FeaturesPage() {
           <div style={{ position: "absolute", top: "-60px", left: "-60px", width: "200px", height: "200px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none" }} />
           <div style={{ position: "absolute", bottom: "-40px", right: "-40px", width: "160px", height: "160px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.06)", pointerEvents: "none" }} />
 
-          <div style={{ maxWidth: "780px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--lg" style={{ position: "relative", zIndex: 1 }}>
             <div
               style={{
                 display: "inline-block",
@@ -378,14 +377,12 @@ export default function FeaturesPage() {
               <span style={{ color: "#B8944F" }}>Features</span>
             </h1>
 
-            <p
+            <p className="fx-container fx-container--sm"
               style={{
                 fontFamily: "var(--font-sans)",
                 fontSize: "19px",
                 lineHeight: 1.7,
                 color: "#5E5A52",
-                maxWidth: "600px",
-                margin: "0 auto",
               }}
             >
               From custom invitations to real-time analytics, Fancy RSVP gives you every tool
@@ -395,25 +392,17 @@ export default function FeaturesPage() {
         </section>
 
         {/* ════════════════════ FEATURES GRID ════════════════════ */}
-        <section
-          style={{
-            maxWidth: "1200px",
-            margin: "0 auto",
-            padding: "80px 48px 100px",
-          }}
-        >
+        <section className="fx-container fx-container--4xl fx-section"
+          >
           <div style={{ marginBottom: "60px" }}>
             <GoldDivider variant="wide" />
           </div>
 
           <h2 className="sr-only">Platform Features</h2>
           <div
-            className="features-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "32px",
-            }}
+            className="features-grid fx-grid fx-grid--2"
+            style={{ "--fx-gap": "32px",
+}}
           >
             {features.map((feature, index) => (
               <FeatureCard key={feature.title} feature={feature} index={index} />
@@ -422,21 +411,15 @@ export default function FeaturesPage() {
         </section>
 
         {/* ════════════════════ STATS BAR ════════════════════ */}
-        <section
+        <section className="fx-section fx-section--sm"
           style={{
             background: "#191B1E",
-            padding: "64px 48px",
           }}
         >
           <div
-            className="stats-grid"
-            style={{
-              maxWidth: "1200px",
-              margin: "0 auto",
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "40px",
-              textAlign: "center",
+            className="fx-container fx-container--4xl stats-grid fx-grid fx-grid--3"
+            style={{ "--fx-gap": "40px",
+textAlign: "center",
             }}
           >
             {stats.map((stat) => (
@@ -469,8 +452,8 @@ export default function FeaturesPage() {
         </section>
 
         {/* ════════════════════ WHY CHOOSE US ════════════════════ */}
-        <section style={{ padding: "100px 48px", background: "#FFFFFF" }}>
-          <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        <section className="fx-section" style={{ background: "#FFFFFF" }}>
+          <div className="fx-container fx-container--4xl" >
             <div style={{ textAlign: "center", marginBottom: "64px" }}>
               <h2
                 style={{
@@ -484,13 +467,11 @@ export default function FeaturesPage() {
                 Why Event Planners{" "}
                 <span style={{ color: "#B8944F" }}>Love Us</span>
               </h2>
-              <p
+              <p className="fx-container fx-container--sm"
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "17px",
                   color: "#5E5A52",
-                  maxWidth: "540px",
-                  margin: "0 auto",
                   lineHeight: 1.7,
                 }}
               >
@@ -499,12 +480,9 @@ export default function FeaturesPage() {
             </div>
 
             <div
-              className="why-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: "48px",
-              }}
+              className="why-grid fx-grid fx-grid--3"
+              style={{ "--fx-gap": "48px",
+}}
             >
               {[
                 {
@@ -561,10 +539,9 @@ export default function FeaturesPage() {
         </section>
 
         {/* ════════════════════ CTA SECTION ════════════════════ */}
-        <section
+        <section className="fx-section"
           style={{
             background: "linear-gradient(135deg, #191B1E 0%, #2A2D32 100%)",
-            padding: "100px 48px",
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
@@ -585,7 +562,7 @@ export default function FeaturesPage() {
             }}
           />
 
-          <div style={{ position: "relative", zIndex: 1, maxWidth: "600px", margin: "0 auto" }}>
+          <div className="fx-container fx-container--sm" style={{ position: "relative", zIndex: 1 }}>
             <h2
               style={{
                 fontFamily: "var(--font-serif)",
@@ -613,9 +590,8 @@ export default function FeaturesPage() {
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
               <Link
                 href="/register"
-                className="btn-gold features-cta-gold"
+                className="fx-section fx-section--xs btn-gold features-cta-gold"
                 style={{
-                  padding: "16px 48px",
                   fontSize: "16px",
                   fontWeight: 700,
                   borderRadius: "8px",
@@ -634,38 +610,6 @@ export default function FeaturesPage() {
       <FooterSection />
 
       <style jsx>{`
-        @media (max-width: 1024px) {
-          .features-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 24px !important;
-          }
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .features-grid {
-            grid-template-columns: 1fr !important;
-            gap: 20px !important;
-          }
-          .why-grid {
-            grid-template-columns: 1fr !important;
-            gap: 36px !important;
-          }
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 32px !important;
-          }
-        }
-        @media (max-width: 640px) {
-          section {
-            padding-left: 20px !important;
-            padding-right: 20px !important;
-          }
-          .stats-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
         /* .btn-gold's own :hover already sets an identical, slightly heavier
            shadow (globals.css) — only the resting/base shadow needs a custom
            value here, so it's left to override on hover automatically. */

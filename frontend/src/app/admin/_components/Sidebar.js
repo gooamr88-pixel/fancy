@@ -254,7 +254,16 @@ export default function Sidebar({ can, open, onNavigate, onLogout, onClose }) {
           background: rgba(239, 68, 68, 0.15) !important;
         }
         .sidebar-backdrop { display: none; }
-        @media (max-width: 900px) {
+        /* MUST stay in lockstep with AdminShell.js's useIsDesktop() — that
+           hook decides whether sidebarOpen defaults open, this rule
+           decides whether the sidebar is a persistent column or a fixed
+           overlay with a backdrop. If the two disagree, every viewport in
+           the gap gets a full-screen drawer that opens by itself over the
+           content, with a z-index:150 backdrop swallowing every click.
+           Was 900px here and 900px there; both are now the lg step
+           (1024px), which also brings the iPad landscape 1024×768 case
+           onto the drawer instead of a 256px column in a 1024px viewport. */
+        @media (max-width: 1023.98px) {
           nav[data-admin-sidebar] {
             position: fixed;
             top: 0;

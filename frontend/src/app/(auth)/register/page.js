@@ -546,7 +546,7 @@ export default function RegisterPage() {
           grid-template-columns: 1fr 1fr;
           gap: 16px;
         }
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .auth-field-grid { grid-template-columns: 1fr; }
         }
       `}</style>
@@ -646,7 +646,7 @@ const sharedStyles = `
   @keyframes authFadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes authSpin { to { transform: rotate(360deg); } }
 
-  @media (max-width: 768px) {
+  @media (max-width: 767.98px) {
     .auth-page { flex-direction: column; }
     .auth-image-panel { display: none; }
     .auth-form-panel { width: 100%; min-height: 100dvh; background: linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 40%); padding: 40px 24px; }

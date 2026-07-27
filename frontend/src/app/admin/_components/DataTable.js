@@ -156,7 +156,7 @@ export default function DataTable({
           background-color: ${T.surfaceAlt};
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .admin-table-wrap-rows { display: none; }
           .admin-cards-wrap { display: flex !important; }
         }

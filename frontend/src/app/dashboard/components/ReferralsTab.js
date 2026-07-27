@@ -25,7 +25,7 @@ function StatCard({ label, value, sub }) {
       <p style={{ fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 700, color: COLORS.charcoal, margin: 0, overflowWrap: 'break-word' }}>{value}</p>
       {sub && <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: COLORS.stone, margin: '4px 0 0' }}>{sub}</p>}
       <style jsx>{`
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .ref-stat-card { padding: 16px 18px !important; }
         }
       `}</style>
@@ -214,7 +214,7 @@ export default function ReferralsTab() {
       )}
 
       <style jsx>{`
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .ref-stats-grid { grid-template-columns: 1fr !important; }
           .ref-hero { padding: 20px !important; border-radius: 14px !important; }
           .ref-hero-heading { font-size: 20px !important; }

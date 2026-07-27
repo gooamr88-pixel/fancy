@@ -57,19 +57,21 @@ export default function HeroSection() {
           }}
         />
 
+        {/* --fx-col 380px keeps the copy and the envelope side by side down
+            to roughly the 1024px the old .hero-grid query used, then stacks
+            intrinsically. Vertical padding stays inline because the 80/100
+            asymmetry is deliberate; the horizontal 48px moves to .fx-gutter. */}
         <div
+          className="hero-grid fx-container fx-container--5xl fx-gutter fx-grid"
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "80px 48px 100px",
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "64px",
+            "--fx-col": "380px",
+            "--fx-gap": "clamp(40px, 2.083rem + 2.5vw, 64px)",
+            paddingTop: "var(--fx-pad-y-sm)",
+            paddingBottom: "var(--fx-pad-y)",
             alignItems: "center",
             position: "relative",
             zIndex: 2,
           }}
-          className="hero-grid"
         >
           {/* ─── Left Column: Text Content ─── */}
           <div
@@ -183,12 +185,8 @@ export default function HeroSection() {
         }}
       >
         <div
-          style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "0 48px",
-            textAlign: "center",
-          }}
+          className="fx-container fx-container--5xl fx-gutter"
+          style={{ textAlign: "center" }}
         >
           {/* Eyebrow */}
           <span
@@ -217,19 +215,16 @@ export default function HeroSection() {
               letterSpacing: "-0.3px",
             }}
           >
-            Weddings, custom, and engagements.
+            Weddings, Engagements &amp; Custom Events
           </h2>
 
           {/* Occasion Cards Grid */}
+          {/* Was repeat(3, 1fr) + two media queries stepping 3→2→1.
+              .fx-grid--3 (--fx-col 340px) does the same ladder with no
+              breakpoints: 3 tracks in the 960px container, then 2, then 1. */}
           <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "24px",
-              maxWidth: "960px",
-              margin: "0 auto",
-            }}
-            className="occasions-grid"
+            className="occasions-grid fx-container fx-container--2xl fx-grid fx-grid--3"
+            style={{ "--fx-gap": "24px" }}
           >
             {[
               {
@@ -298,11 +293,14 @@ export default function HeroSection() {
 
       {/* ─── Responsive Styles ─── */}
       <style jsx>{`
-        @media (max-width: 1024px) {
+        /* .hero-grid keeps ONLY text-align here now — its columns, padding
+           and gap come from .fx-grid / .fx-gutter and stack intrinsically.
+           The centring still needs a breakpoint because it is a typographic
+           choice, not a consequence of the layout: 1024px is where the two
+           columns actually become one. The .occasions-grid rules are gone
+           entirely — .fx-grid--3 walks 3→2→1 on its own. */
+        @media (max-width: 1023.98px) {
           .hero-grid {
-            grid-template-columns: 1fr !important;
-            padding: 48px 32px 64px !important;
-            gap: 40px !important;
             text-align: center;
           }
           .hero-headline {
@@ -311,11 +309,8 @@ export default function HeroSection() {
           .hero-buttons {
             justify-content: center !important;
           }
-          .occasions-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
         }
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .hero-headline {
             font-size: 34px !important;
           }
@@ -323,9 +318,14 @@ export default function HeroSection() {
             flex-direction: column !important;
             width: 100%;
           }
+          /* Preserves the old "max-width: 360px" on the stacked occasion
+             cards, which .fx-grid alone would not reproduce: with three
+             items always present, auto-fit has no empty track to collapse,
+             so a single column would stretch the full container width.
+             Setting --fx-w is .fx-container's documented input, so this
+             needs no !important and does not fight the class. */
           .occasions-grid {
-            grid-template-columns: 1fr !important;
-            max-width: 360px !important;
+            --fx-w: 360px;
           }
         }
       `}</style>

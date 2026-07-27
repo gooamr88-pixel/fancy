@@ -51,7 +51,7 @@ export default function ShareTab({ event }) {
       <EventSharePanel event={event} />
 
       <style jsx>{`
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .share-tab-card { padding: 16px; }
         }
       `}</style>

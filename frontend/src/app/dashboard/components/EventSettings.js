@@ -194,7 +194,7 @@ function PromoCodeRedeemBox({ eventId, apiUrl, onRedeemed }) {
       )}
       <style jsx>{`
         .promo-redeem-submit:not(:disabled):hover { filter: brightness(1.06); box-shadow: 0 6px 18px rgba(184, 148, 79, 0.3); transform: translateY(-1px); }
-        @media (max-width: 420px) {
+        @media (max-width: 639.98px) {
           .promo-redeem-row { flex-direction: column; }
           .promo-redeem-row button { width: 100%; }
         }
@@ -2542,7 +2542,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
            largest, most-used settings surface in the dashboard was entirely
            desktop-fixed. Mirrors OrganizerProfile.js's existing breakpoint
            for the same 2-column-row pattern. */
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .es-row { grid-template-columns: 1fr !important; }
           .es-swatch-row { grid-template-columns: 1fr 1fr !important; }
           .es-privacy-grid { grid-template-columns: 1fr !important; }
@@ -2558,7 +2558,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
            in place while scrolling. Docking this bar's stuck position above
            the tab bar (same breakpoint + same calc() page.js uses for main's
            reserved padding) puts it back in view for the whole scroll range. */
-        @media (max-width: 1024px) {
+        @media (max-width: 1023.98px) {
           .es-save-bar { bottom: calc(60px + env(safe-area-inset-bottom)) !important; }
         }
       `}</style>
@@ -2614,7 +2614,13 @@ function RevealPreviewModal({ event, onClose }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'relative', width: 320, height: 'min(640px, 72vh)',
+          // Was a flat `width: 320`. Inside the overlay's 24px padding that
+          // needed 368px, so this phone-frame preview was clipped on a 360px
+          // Pixel/Galaxy and a 320px iPhone SE — exactly the handsets it
+          // exists to simulate. width:100% + maxWidth keeps the 320px frame
+          // wherever it fits and shrinks it where it does not; the height
+          // was already guarded with min().
+          position: 'relative', width: '100%', maxWidth: 320, height: 'min(640px, 72vh)',
           borderRadius: 30, overflow: 'hidden', background: '#fff',
           boxShadow: '0 40px 90px -25px rgba(0,0,0,.6)', border: '6px solid #1c1a17',
         }}

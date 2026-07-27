@@ -134,7 +134,7 @@ function AttendanceChoice({ value, onSelect, C, isRTL }) {
   ];
   return (
     <div role="radiogroup" aria-label={isRTL ? 'هل ستحضر؟' : 'Will you attend?'}
-      className="ha-attend-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+      className="ha-attend-grid fx-grid" style={{ '--fx-col': '190px', '--fx-gap': '12px' }}>
       {OPTIONS.map((opt) => {
         const selected = value === opt.key;
         const isYes = opt.key === 'yes';
@@ -1193,16 +1193,20 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
         /* Stop iOS Safari from zooming in whenever a sub-16px field gains focus —
            the single biggest mobile RSVP annoyance. Scoped to this section via the
            SnapShell's #ha-rsvp wrapper so it can't leak to other sections. */
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           :global(#ha-rsvp input),
           :global(#ha-rsvp select),
           :global(#ha-rsvp textarea) { font-size: 16px !important; }
         }
-        /* Stack the yes/no choice on phones; tighten the cards on the smallest. */
-        @media (max-width: 460px) {
-          :global(.ha-attend-grid) { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 360px) {
+        /* The yes/no choice used to stack via an off-scale 460px query, with
+           a second 360px tier tightening the buttons. Both are gone: the
+           grid is now .fx-grid with a 190px column floor, so two cards need
+           2x190+12 = 392px and it goes one-up on its own somewhere just
+           under a 430px viewport — the same place the 460px rule was aiming
+           for — with no breakpoint to keep in sync. min(190px, 100%) also
+           means it can never overflow, which the old "1fr 1fr" could once
+           the button labels grew. */
+        @media (max-width: 639.98px) {
           :global(.ha-attend-grid) button { min-height: 92px !important; padding: 15px !important; }
         }
       `}</style>

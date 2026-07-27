@@ -420,7 +420,7 @@ export default function GuestPassCard({
            overflow:hidden). Stack the QR full-width below the details
            instead of shrinking it, since a shrunk QR risks becoming
            unscannable at the door. */
-        @media (max-width: 420px) {
+        @media (max-width: 639.98px) {
           .gp-front-row { flex-direction: column; }
           .gp-main-stub { flex: 1 1 auto; }
           .gp-qr-stub { flex: 1 1 auto; width: 100%; padding: 18px 14px 24px; border-top: 1px dashed rgba(255,255,255,0.1); }

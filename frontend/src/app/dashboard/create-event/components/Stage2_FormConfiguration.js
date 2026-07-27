@@ -241,7 +241,7 @@ export default function Stage2_FormConfiguration({
   }));
 
   return (
-    <div style={{ padding: '40px 24px 120px', maxWidth: 860, margin: '0 auto' }}>
+    <div className="fx-container fx-container--xl fx-gutter" style={{ '--fx-pad-x': '24px', paddingTop: '40px', paddingBottom: '120px' }}>
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
         <div style={{
@@ -1366,18 +1366,18 @@ export default function Stage2_FormConfiguration({
       </div>
 
       <style jsx>{`
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .s2-row { grid-template-columns: 1fr !important; }
           .s2-privacy { grid-template-columns: 1fr !important; }
           .s2-category-grid { grid-template-columns: repeat(3, 1fr) !important; }
           .s2-swatch-row { grid-template-columns: repeat(2, 1fr) !important; }
         }
         /* The 3-button footer (Back / Save as Draft / Continue) has no wrap
-           and body{overflow-x:hidden} clips rather than scrolls, so past
+           and the root overflow guard clips rather than scrolls, so past
            ~550px combined width "Continue" — the only way to advance the
            wizard — gets pushed off-screen and becomes untappable. Stack it
            full-width instead, Continue on top since it's the primary action. */
-        @media (max-width: 600px) {
+        @media (max-width: 639.98px) {
           .s2-footer-inner { flex-direction: column-reverse !important; align-items: stretch !important; gap: 10px !important; }
           .s2-footer-actions { flex-direction: column-reverse !important; align-items: stretch !important; width: 100% !important; gap: 10px !important; }
           .s2-footer-btn { width: 100% !important; justify-content: center !important; }

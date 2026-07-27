@@ -243,7 +243,7 @@ export default function SolutionsInquiryForm({
       </form>
 
       <style jsx>{`
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .siq-row { flex-direction: column !important; gap: 16px !important; }
           .siq-card { padding: 26px 22px !important; }
         }

@@ -82,9 +82,10 @@ export default function SmsOptInPage() {
       <main style={{ paddingTop: "78px", background: "#FFFFFF" }}>
         {/* ── Hero ── */}
         <section
+          className="fx-section fx-section--sm fx-section--tight-bottom"
           style={{
             background: "linear-gradient(180deg, #FAF7F0 0%, #FFFFFF 100%)",
-            padding: "72px 24px 56px",
+            "--fx-pad-x": "24px",
             textAlign: "center",
           }}
         >
@@ -120,16 +121,15 @@ export default function SmsOptInPage() {
               fontSize: "16px",
               color: BODY,
               lineHeight: 1.6,
-              maxWidth: "620px",
-              margin: "0 auto",
             }}
+            className="fx-container fx-container--md"
           >
             This page explains exactly how Fancy RSVP collects consent before sending any text message, what
             guests agree to, and how to opt out at any time.
           </p>
         </section>
 
-        <section style={{ maxWidth: "780px", margin: "0 auto", padding: "48px 24px 80px" }}>
+        <section className="fx-container fx-container--lg fx-gutter" style={{ "--fx-pad-x": "24px", paddingTop: "var(--fx-pad-y-xs)", paddingBottom: "var(--fx-pad-y-sm)" }}>
           {/* ── Who operates this program ── */}
           <div style={{ marginBottom: "44px" }}>
             <SectionTitle>Who Operates This Program</SectionTitle>

@@ -26,13 +26,16 @@
   --card-border: #E8E2D6;
   --section-bg: var(--warm-ivory);
 
-  /* ═══ LUXURY TYPOGRAPHY STACK ═══ */
-  /* Tier 1 — Headings: Elegant Serif Display. Arabic-script fallbacks appended so
-     guest/event text in Arabic doesn't fall back to tofu when rendered through the
-     Latin-only Playfair/Lato fonts instead of the dedicated --font-arabic stack. */
-  --font-serif: var(--font-heading), 'Cormorant Garamond', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
-  /* Tier 2 — Body & Buttons: Formal Serif */
-  --font-sans: var(--font-body), 'EB Garamond', Georgia, 'Noto Naskh Arabic', serif;
+  /* ═══ CORE TYPOGRAPHY STACK ═══ */
+  /* Tier 1 — Headings: Aboreto, an engraved display face. Arabic-script fallbacks
+     appended so guest/event text in Arabic doesn't fall back to tofu when rendered
+     through this Latin-only face instead of the dedicated --font-arabic stack. */
+  --font-serif: var(--font-heading), 'Aboreto', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
+  /* Tier 2 — Body & Buttons: Google Sans, a geometric UI sans. The fallback tail is
+     a real sans stack (not the Georgia/serif one this replaced) — if the webfont
+     ever fails to load, text should still land on a sans face, not silently become
+     serif body copy. Noto Naskh Arabic stays for the same reason as Tier 1. */
+  --font-sans: var(--font-body), 'Google Sans', -apple-system, 'Segoe UI', Roboto, 'Noto Naskh Arabic', Arial, sans-serif;
   /* Tier 3 — Logo / Brand Moments: High-end Luxury Script */
   --font-script: 'Great Vibes', cursive;
   /* Tier 4 — Arabic: ornate calligraphic display (seal & titles) + naskh fallback */
@@ -77,6 +80,76 @@
   --admin-sky: #0EA5E9;
   --admin-violet: #8B5CF6;
   --admin-white: #FFFFFF;
+
+  /* ═══════════════════════════════════════════════════════════════════
+     RESPONSIVE FOUNDATION — fluid spacing, sizing and safe-area tokens
+     ═══════════════════════════════════════════════════════════════════
+     Plain custom properties, deliberately NOT in an @theme block: these
+     are read by the hand-written .fx-* classes below AND directly from
+     inline style={{}} objects. @theme vars only exist to generate
+     Tailwind utilities, which nothing here needs.
+
+     Every clamp() below is a straight line through exactly two anchor
+     points — the value at a 320px viewport (the floor) and at 1280px
+     (--breakpoint-xl, the ceiling) — written as
+         clamp(FLOOR, Arem + Bvw, CEIL)
+     where B = (CEIL-FLOOR)/960*100 and A = (FLOOR - B/100*320)/16.
+     Consequence, and it is the whole point: at ANY viewport <= 320px the
+     floor applies EXACTLY, so proving a layout fits 320px is a single
+     substitution with no interpolation to reason about.
+
+     Watch the argument order. `clamp(100px, …, 56px)` does not error —
+     CSS resolves min > max as "min wins", silently pinning the page at
+     desktop spacing forever. Every clamp here reads clamp(small,…,large). */
+
+  /* Horizontal page gutter. 20px @320 → 48px @1280.
+     48px is the value the 63 existing `padding: Npx 48px` sections
+     already use, so DESKTOP IS PIXEL-IDENTICAL to today; only widths
+     below 1280 change, and only downward. */
+  --fx-pad-x: clamp(20px, 0.667rem + 2.917vw, 48px);
+
+  /* Vertical section rhythm — four steps covering every observed value. */
+  --fx-pad-y-xs: clamp(24px, 1.167rem + 1.667vw, 40px);  /* 40 / 28px bands   */
+  --fx-pad-y-sm: clamp(44px, 2rem     + 3.75vw,  80px);  /* 80 / 72 / 64 / 60 */
+  --fx-pad-y:    clamp(56px, 2.583rem + 4.583vw, 100px); /* the 100px default */
+  --fx-pad-y-lg: clamp(64px, 2.833rem + 5.833vw, 120px); /* heroes            */
+
+  /* Grid / flex gaps. Observed: 8, 10, 12, 16, 20, 24, 32 — three steps
+     absorb all of them. */
+  --fx-gap-sm: clamp(10px, 0.5rem   + 0.625vw, 16px);
+  --fx-gap:    clamp(16px, 0.667rem + 1.667vw, 32px);
+  --fx-gap-lg: clamp(24px, 1rem     + 2.5vw,   48px);
+
+  /* Container max-widths — replaces ~20 ad-hoc values across the 125
+     `margin: 0 auto` + maxWidth pairs. Every observed width snaps to a
+     step within ±10%, so no layout moves perceptibly. */
+  --fx-w-xs:   440px;   /* 400 / 420 / 440 / 460 / 480 */
+  --fx-w-sm:   560px;   /* 500 / 520 / 540 / 560       */
+  --fx-w-md:   640px;   /* 600 / 620 / 640             */
+  --fx-w-lg:   720px;   /* 680 / 700 / 720 / 760       */
+  --fx-w-xl:   860px;   /* 780 / 800 / 860             */
+  --fx-w-2xl:  960px;   /* 900 / 960                   */
+  --fx-w-3xl: 1100px;   /* 1000 / 1100                 */
+  --fx-w-4xl: 1200px;   /* 1200                        */
+  --fx-w-5xl: 1280px;   /* 1280 — matches --breakpoint-xl */
+  --fx-w-wide:1480px;   /* admin wide tables / print sheet */
+
+  /* Radius. Observed: 4, 6, 8, 10, 12, 14, 16, 20, and pill. */
+  --fx-r-xs: 4px;
+  --fx-r-sm: 6px;
+  --fx-r:    8px;
+  --fx-r-md: 12px;
+  --fx-r-lg: 16px;
+  --fx-r-xl: 20px;
+  --fx-r-pill: 999px;
+
+  /* Safe-area insets, normalised once. The `, 0px` fallback is required:
+     it is what keeps max() supplied with two valid operands on engines
+     that don't know env(). See the .fx-safe-* classes below. */
+  --fx-safe-t: env(safe-area-inset-top, 0px);
+  --fx-safe-r: env(safe-area-inset-right, 0px);
+  --fx-safe-b: env(safe-area-inset-bottom, 0px);
+  --fx-safe-l: env(safe-area-inset-left, 0px);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -117,12 +190,52 @@
   --color-card-bg: var(--card-bg);
   --color-card-border: var(--card-border);
   --color-section-bg: var(--section-bg);
-  --font-serif: var(--font-heading), 'Cormorant Garamond', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
-  --font-sans: var(--font-body), 'EB Garamond', Georgia, 'Noto Naskh Arabic', serif;
+  /* Kept byte-identical to the :root declarations above — Tailwind v4's
+     @theme inline block and the plain :root custom properties are two
+     separate places the same values have to be repeated, not two sources
+     of truth, so a change to one must always be mirrored to the other. */
+  --font-serif: var(--font-heading), 'Aboreto', Georgia, 'Noto Naskh Arabic', 'Amiri', serif;
+  --font-sans: var(--font-body), 'Google Sans', -apple-system, 'Segoe UI', Roboto, 'Noto Naskh Arabic', Arial, sans-serif;
   --font-script: 'Great Vibes', cursive;
   --font-display: var(--font-playfair), Georgia, 'Noto Naskh Arabic', serif;
   --font-minimal: var(--font-montserrat), 'Helvetica Neue', Arial, sans-serif;
   --font-whimsical: var(--font-dancing), 'Great Vibes', cursive;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RESPONSIVE FOUNDATION — Breakpoints
+   ═══════════════════════════════════════════════════════════════════════
+   These four values ARE Tailwind v4's own defaults (sm 40rem / md 48rem /
+   lg 64rem / xl 80rem). Re-declaring them changes nothing about the
+   generated utilities — it makes the scale an explicit, greppable
+   declaration in this file rather than an implicit framework default, so
+   there is one place to read "what are our breakpoints".
+
+   Kept OUT of the @theme inline block above on purpose: that block's
+   "must be kept byte-identical to :root" caveat applies to the color and
+   font vars only. Breakpoints are inlined into media queries by Tailwind
+   regardless of which block declares them.
+
+   HARD CONSTRAINT, do not try to work around it: a CSS custom property
+   CANNOT appear in a media condition. `@media (max-width: var(--bp-md))`
+   is invalid CSS and is dropped silently. In THIS file the supported way
+   to reference the token is Tailwind's build-time theme() function:
+       @media (width >= theme(--breakpoint-md)) { … }
+   That function is resolved by @tailwindcss/postcss. It therefore does
+   NOT work inside a <style jsx> block — those are compiled by styled-jsx
+   (SWC), never by PostCSS, so neither theme() nor @apply exists there.
+   Inside <style jsx> the pixel literal must be written out, and
+   src/app/lib/breakpoints.js plus the grep check in AGENTS.md are what
+   keep those literals honest.
+
+   rem in a media query always resolves against the INITIAL font size
+   (16px), never against html{font-size}, so 48rem is 768px for everyone.
+   ═══════════════════════════════════════════════════════════════════════ */
+@theme {
+  --breakpoint-sm: 40rem;   /*  640px — large phone / small tablet portrait   */
+  --breakpoint-md: 48rem;   /*  768px — tablet portrait; the mobile↔desktop line */
+  --breakpoint-lg: 64rem;   /* 1024px — tablet landscape / small laptop       */
+  --breakpoint-xl: 80rem;   /* 1280px — desktop; where the fluid clamps top out */
 }
 
 /* ─── Base Reset ─── */
@@ -147,7 +260,272 @@
   border: 0;
 }
 
-@media (max-width: 420px) {
+/* ═══════════════════════════════════════════════════════════════════════
+   RESPONSIVE FOUNDATION — Layout primitives
+   ═══════════════════════════════════════════════════════════════════════
+   These classes exist to delete, respectively:
+     .fx-section   → the 63 inline `padding: Npx 48px` section paddings
+     .fx-container → the 125 inline `margin: '0 auto'` + `maxWidth` pairs
+     .fx-grid      → the 57 inline `repeat(N, 1fr)` fixed-column grids
+     .fx-row       → nowrap flex toolbars, the 2nd-largest overflow source
+
+   WHY GLOBAL CLASSES AND NOT <style jsx>: styled-jsx has three silent
+   failure modes this codebase has already hit in production —
+     1. a <style jsx> block inside a nested, non-default-export component
+        does not reliably compile in this build (see FooterLink in
+        FooterSection.js and PrintPreviewModal in seating-map/page.js,
+        both documented further down this file);
+     2. styled-jsx only stamps its jsx-<hash> class onto lowercase
+        intrinsic elements, so a scoped rule aimed at a class sitting on
+        a <motion.div> (219 of them across 35 files) compiles to
+        `.foo.jsx-hash` and matches nothing — valid CSS, present in the
+        DOM, completely dead;
+     3. a rule never reaches an element rendered by a DIFFERENT function,
+        which is why pricing/page.js's `section {…}` override never
+        applied to the <section> inside CTASection.js.
+   A global class is immune to all three. That immunity is the whole
+   architectural argument for this foundation.
+
+   IMPORTANT — these are CLASSES, and an inline style beats any class.
+   Migrating a component means DELETING the inline padding/maxWidth/
+   margin/gridTemplateColumns keys, not leaving them in place expecting
+   the class to override. Nothing errors when you get this wrong; the
+   class is simply inert. Do NOT "fix" that with !important here either:
+   winning over inline styles would mean adding .fx-section to an element
+   with deliberate asymmetric padding silently destroys it, trading a
+   loud greppable failure for a quiet visual one.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── .fx-section — full-bleed band with fluid gutters ──────────────────
+   padding-left/right are PHYSICAL, not padding-inline, on purpose: the
+   env(safe-area-inset-left/right) values are physical screen edges, and
+   this app renders RTL Arabic content (see the insetInlineStart/End usage
+   in components/guest/InvitationReveal.js). A logical property would swap
+   the two insets in RTL and put the notch gutter on the wrong edge. */
+.fx-section {
+  padding-top: var(--fx-pad-y);
+  padding-bottom: var(--fx-pad-y);
+  padding-left: max(var(--fx-pad-x), var(--fx-safe-l));
+  padding-right: max(var(--fx-pad-x), var(--fx-safe-r));
+}
+.fx-section--xs { padding-top: var(--fx-pad-y-xs); padding-bottom: var(--fx-pad-y-xs); }
+.fx-section--sm { padding-top: var(--fx-pad-y-sm); padding-bottom: var(--fx-pad-y-sm); }
+.fx-section--lg { padding-top: var(--fx-pad-y-lg); padding-bottom: var(--fx-pad-y-lg); }
+/* For the `padding: "100px 48px 80px"` shape — a smaller bottom than top. */
+.fx-section--tight-bottom { padding-bottom: var(--fx-pad-y-sm); }
+.fx-section--flush-top    { padding-top: 0; }
+.fx-section--flush-bottom { padding-bottom: 0; }
+/* Horizontal gutters only — for a band that manages its own vertical space. */
+.fx-gutter {
+  padding-left: max(var(--fx-pad-x), var(--fx-safe-l));
+  padding-right: max(var(--fx-pad-x), var(--fx-safe-r));
+}
+
+/* ── .fx-container — centred measure ───────────────────────────────────
+   NO horizontal padding here: .fx-section already supplied it, and a
+   container inside a section that also padded itself would double-gutter
+   to 40px at 320px. Use `.fx-container.fx-gutter` for the rarer case of a
+   container that is NOT inside an .fx-section.
+
+   min-width: 0 is load-bearing, not defensive: a grid/flex child defaults
+   to min-width:auto, which floors it at its min-content width and pushes
+   the whole page wide — which the overflow guard then silently clips.
+   This is the single most common cause of "I made it 1fr and it still
+   overflows". */
+.fx-container {
+  width: 100%;
+  min-width: 0;
+  max-width: var(--fx-w, var(--fx-w-5xl));
+  margin-inline: auto;
+}
+.fx-container--xs   { --fx-w: var(--fx-w-xs); }
+.fx-container--sm   { --fx-w: var(--fx-w-sm); }
+.fx-container--md   { --fx-w: var(--fx-w-md); }
+.fx-container--lg   { --fx-w: var(--fx-w-lg); }
+.fx-container--xl   { --fx-w: var(--fx-w-xl); }
+.fx-container--2xl  { --fx-w: var(--fx-w-2xl); }
+.fx-container--3xl  { --fx-w: var(--fx-w-3xl); }
+.fx-container--4xl  { --fx-w: var(--fx-w-4xl); }
+.fx-container--5xl  { --fx-w: var(--fx-w-5xl); }
+.fx-container--wide { --fx-w: var(--fx-w-wide); }
+.fx-container--full { --fx-w: none; }
+
+/* ── .fx-grid — intrinsically responsive grid ──────────────────────────
+   The `min(var(--fx-col), 100%)` is not decoration, it is the entire
+   point. Plain `repeat(auto-fit, minmax(280px, 1fr))` STILL overflows a
+   container narrower than 280px, because minmax()'s min is a hard floor —
+   that is exactly the bug in dashboard/analytics/page.js today. Wrapping
+   it in min(…, 100%) caps that floor at the container's own width, so a
+   track can never be wider than the space it is in and the grid CANNOT
+   contribute horizontal overflow at any viewport. That property is what
+   makes the 320px arithmetic proof trivial: an .fx-grid's min-content
+   width is just the largest min-content width among its items.
+
+   auto-fit vs auto-fill: auto-fit collapses empty tracks so a lone item
+   stretches full width; auto-fill keeps them so a lone item stays
+   card-width. Default to auto-fit; use .fx-grid--fill for card galleries
+   where a single result should not become a full-width slab. */
+.fx-grid {
+  display: grid;
+  gap: var(--fx-gap-y, var(--fx-gap)) var(--fx-gap-x, var(--fx-gap));
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--fx-col, 280px), 100%), 1fr));
+  min-width: 0;
+}
+.fx-grid--fill {
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--fx-col, 280px), 100%), 1fr));
+}
+/* Column-width presets, chosen so each yields the intended desktop column
+   count inside a .fx-container--4xl (1200px) at --fx-gap (32px @1280):
+   floor((1200 + gap) / (col + gap)). Below those widths the browser drops
+   a column on its own — no media query, no !important, no breakpoint to
+   keep in sync anywhere. */
+.fx-grid--2 { --fx-col: 560px; }
+.fx-grid--3 { --fx-col: 340px; }
+.fx-grid--4 { --fx-col: 260px; }
+.fx-grid--5 { --fx-col: 200px; }
+.fx-grid--6 { --fx-col: 160px; }
+.fx-grid--gap-sm { --fx-gap: var(--fx-gap-sm); }
+.fx-grid--gap-lg { --fx-gap: var(--fx-gap-lg); }
+/* Grid children get min-width:0 for free; .fx-min0 is for flex children
+   elsewhere, which need it just as badly. */
+.fx-grid > *, .fx-min0 { min-width: 0; }
+
+/* ── .fx-stack — vertical rhythm ───────────────────────────────────────*/
+.fx-stack { display: flex; flex-direction: column; gap: var(--fx-gap); min-width: 0; }
+.fx-stack--sm { --fx-gap: var(--fx-gap-sm); }
+.fx-stack--lg { --fx-gap: var(--fx-gap-lg); }
+
+/* ── .fx-row — horizontal group that WRAPS ─────────────────────────────
+   flex-wrap: wrap is the default here, not an option. A nowrap flex row
+   is the second-largest source of horizontal overflow in this codebase
+   after fixed-column grids, because its min-content width is the SUM of
+   its children's: a three-button toolbar cannot fit 280px however small
+   you make the buttons. */
+.fx-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fx-gap-sm);
+  min-width: 0;
+}
+.fx-row--between { justify-content: space-between; }
+.fx-row--center  { justify-content: center; }
+.fx-row--gap     { gap: var(--fx-gap); }
+
+/* ── .fx-scroll-x — the escape hatch ───────────────────────────────────
+   Some content genuinely cannot reflow: the pricing comparison table, the
+   seating chart, the admin DataTables. Do NOT squeeze those — give them a
+   scroll port. The port itself is 100%-wide so IT never overflows, and
+   overscroll-behavior-x stops a swipe past the end of the table from
+   triggering browser back-navigation. */
+.fx-scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Visibility by breakpoint ──────────────────────────────────────────
+   For the cases where an element must genuinely not exist on a narrow
+   viewport — typically a desktop-only chrome element whose mobile
+   counterpart is a different component (a sidebar column vs an off-canvas
+   drawer). Prefer making a layout reflow over hiding content; use these
+   only when the two viewports really do show different things.
+
+   These are global classes rather than <style jsx> rules on purpose: the
+   places that need them are often nested, non-default-export components
+   (loading skeletons, modal shells) where a scoped block does not reliably
+   compile in this build. */
+.fx-hide-below-lg { display: none; }
+@media (width >= theme(--breakpoint-lg)) {
+  .fx-hide-below-lg { display: revert; }
+}
+.fx-hide-below-md { display: none; }
+@media (width >= theme(--breakpoint-md)) {
+  .fx-hide-below-md { display: revert; }
+}
+.fx-hide-from-lg { display: revert; }
+@media (width >= theme(--breakpoint-lg)) {
+  .fx-hide-from-lg { display: none; }
+}
+
+/* ── Text overflow ─────────────────────────────────────────────────────
+   `overflow-wrap: break-word` prevents VISUAL overflow but does NOT
+   reduce an element's min-content contribution, so a 1fr grid track —
+   which is floored at min-content — still blows out on a long unbreakable
+   token. `anywhere` reduces both. Use the global break-word for prose and
+   .fx-break on the known offenders: emails, URLs, event slugs, invite
+   codes, transaction ids, phone numbers. */
+p, li, dd, dt, td, th, label, blockquote,
+h1, h2, h3, h4, h5, h6 { overflow-wrap: break-word; }
+.fx-break { overflow-wrap: anywhere; word-break: break-word; }
+.fx-truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ═══ Safe-area — role-based, not selector-based ════════════════════════
+   layout.js sets viewportFit:"cover", so the layout viewport extends
+   under the notch, the home indicator and — in LANDSCAPE — the side
+   cutouts. The 19 hand-rolled env() call sites in this codebase all
+   handle top and/or bottom and NONE handle left/right, so every
+   left-anchored fixed element currently sits under the sensor housing
+   when a notched iPhone is held sideways.
+
+   Every rule below uses max(designValue, inset), never
+   calc(designValue + inset). calc() ADDS the inset, so on a device with
+   no inset (every Android, every desktop, iPhone SE) you get the design
+   value, and on an iPhone 15 you get design + 34px — a bar that floats
+   visibly higher on some phones for no reason a designer asked for.
+   max() means "at least the design value, and at least clear of the
+   hardware", which is the actual requirement.
+
+   Note env() returns 0px on every non-notched device, including all
+   desktop browsers. None of this is visible in ordinary testing —
+   verifying it means confirming the class is applied and the expression
+   is max()-shaped, not calc()-shaped. */
+
+/* ROLE 1 — full-bleed bar pinned to the bottom edge. The element's
+   BACKGROUND must reach the physical screen edge, so it stays at
+   bottom:0 and grows its padding rather than being lifted. Set
+   --fx-bar-pad to the bar's own design padding. */
+.fx-safe-bottom {
+  padding-bottom: max(var(--fx-bar-pad, 0px), var(--fx-safe-b));
+  padding-left:   max(var(--fx-bar-pad-x, 0px), var(--fx-safe-l));
+  padding-right:  max(var(--fx-bar-pad-x, 0px), var(--fx-safe-r));
+}
+
+/* ROLE 2 — floating element that does NOT touch the edge (FAB, toast,
+   pill CTA). Here the element is LIFTED, because its background is meant
+   to end before the edge. --fx-offset is the design gap. */
+.fx-safe-float-b { bottom: max(var(--fx-offset, 24px), calc(var(--fx-safe-b) + 8px)); }
+.fx-safe-float-t { top:    max(var(--fx-offset, 24px), calc(var(--fx-safe-t) + 8px)); }
+.fx-safe-float-r { right:  max(var(--fx-offset, 24px), calc(var(--fx-safe-r) + 8px)); }
+.fx-safe-float-l { left:   max(var(--fx-offset, 24px), calc(var(--fx-safe-l) + 8px)); }
+
+/* ROLE 3 — full-bleed bar pinned to the top edge (headers, banners). */
+.fx-safe-top {
+  padding-top:   max(var(--fx-bar-pad, 0px), var(--fx-safe-t));
+  padding-left:  max(var(--fx-bar-pad-x, 0px), var(--fx-safe-l));
+  padding-right: max(var(--fx-bar-pad-x, 0px), var(--fx-safe-r));
+}
+
+/* ROLE 4 — full-screen overlay (inset:0 modals, drawers, the invitation
+   reveal, the fullscreen seating map). All four edges, physical
+   properties for the RTL reason given on .fx-section. */
+.fx-safe-inset {
+  padding-top:    max(var(--fx-inset-pad, 0px), var(--fx-safe-t));
+  padding-right:  max(var(--fx-inset-pad, 0px), var(--fx-safe-r));
+  padding-bottom: max(var(--fx-inset-pad, 0px), var(--fx-safe-b));
+  padding-left:   max(var(--fx-inset-pad, 0px), var(--fx-safe-l));
+}
+
+/* A scrollable region INSIDE a full-screen overlay: the overlay's own
+   padding-bottom would clip the scroll extent, so the SCROLLER takes the
+   inset instead and the last item scrolls clear of the home indicator. */
+.fx-safe-scroll-b { padding-bottom: max(var(--fx-scroll-pad, 16px), var(--fx-safe-b)); }
+
+/* Migrated from an off-scale 420px onto the < sm step. The role label is
+   supplementary text next to the admin avatar; dropping it below 640
+   costs nothing and buys the topbar its width back. */
+@media (max-width: 639.98px) {
   .admin-topbar-role {
     display: none;
   }
@@ -165,7 +543,9 @@ body {
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.6;
-  overflow-x: hidden;
+  /* overflow-x deliberately NOT set here — it now lives on html only.
+     See the "Horizontal overflow guard" block further down for why
+     declaring it on body was actively harmful. */
 }
 
 /* ─── Luxury Typography Hierarchy ─── */
@@ -491,8 +871,11 @@ h3 {
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Enhanced Mobile Responsive */
-@media (max-width: 768px) {
+/* Enhanced Mobile Responsive — on the canonical scale (< md, < sm).
+   767.98 rather than 768: at fractional CSS-pixel widths (browser zoom,
+   Windows display scaling, iOS pinch) a whole-pixel boundary against a
+   min-width:768px rule leaves a band where neither matches. */
+@media (max-width: 767.98px) {
   .guest-hero { height: 55vh !important; }
   .guest-grid-2col { grid-template-columns: 1fr !important; }
   .guest-title-lg { font-size: 32px !important; }
@@ -501,7 +884,11 @@ h3 {
   .attendance-cards-grid { grid-template-columns: 1fr !important; }
 }
 
-@media (max-width: 480px) {
+/* Was 480px. Folded onto the < sm step rather than inventing an off-scale
+   `xs` tier: these are font-size and height reductions, and each one is
+   equally appropriate anywhere in the 320–640 band — a 26px hero title
+   and a 48px countdown digit are not "too small" at 560px. */
+@media (max-width: 639.98px) {
   .guest-hero { height: 45vh !important; }
   .guest-title-lg { font-size: 26px !important; }
   .guest-countdown-digit { width: 48px !important; height: 56px !important; }
@@ -540,10 +927,14 @@ h3 {
 
 /* ─── MOB-1: Safe-area for sticky/floating actions ───
    The floating "RSVP Now" CTA and sticky form footers must clear the iPhone home
-   indicator. */
+   indicator. Now expressed through the shared token so there is one place
+   that knows what a safe-area inset is; --fx-bar-pad is unset here, so it
+   resolves to 0px and the computed result is byte-identical to what this
+   rule produced before. Retire this pair once both consumers carry
+   .fx-safe-bottom explicitly. */
 .floating-cta,
 .guest-sticky-footer {
-  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  padding-bottom: max(var(--fx-bar-pad, 0px), var(--fx-safe-b));
 }
 
 /* ─── A11Y-4 / MOB-3: Respect reduced-motion globally ───
@@ -570,16 +961,52 @@ h3 {
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* ─── MOB-GENERAL: iOS and Mobile Optimizations ─── */
-@media (max-width: 768px) {
-  /* Prevent horizontal scroll wobble on mobile */
-  html, body {
-    overflow-x: hidden;
-    width: 100%;
-    /* Prevent bouncy rubber-band effect causing layout shifts */
-    overscroll-behavior-y: none;
-  }
+/* ═══ Horizontal overflow guard ═════════════════════════════════════════
+   `clip`, not `hidden`, and on the root only.
+
+   WHAT THE PREVIOUS PAIR OF RULES DID WRONG: body carried
+   overflow-x:hidden unconditionally, and at <=768px BOTH html and body
+   did. The root element's overflow value propagates to the viewport,
+   which leaves body's own declaration applying to body AS AN ELEMENT —
+   and per CSS Overflow, overflow-x:hidden paired with overflow-y:visible
+   forces overflow-y to compute to `auto`. So <body> silently became a
+   scroll container on every phone: position:sticky descendants stuck to
+   body instead of the viewport, the 55 uses of 100dvh measured a viewport
+   that was no longer the scroller, and `width:100%` on html+body inside a
+   clipping viewport is a documented iOS Safari layout-jump trigger.
+
+   overflow-x: clip clips exactly the same pixels but establishes NO
+   scroll container and imposes no computed value on overflow-y, so none
+   of that happens. It is also strictly non-scrollable, whereas a `hidden`
+   box is still scrollable programmatically via scrollLeft /
+   scrollIntoView — which is how a focused off-screen input used to yank
+   the whole page sideways with no way to scroll back.
+
+   This is a GUARD, not a fix. It hides horizontal overflow; it does not
+   remove it. Use .fx-debug-overflow below to see what it is hiding, and
+   the min-content-width arithmetic in AGENTS.md to prove a layout no
+   longer needs it. Do not re-add `body { overflow-x: hidden }`. */
+html {
+  overflow-x: clip;
 }
+
+/* Kept from the old <=768px block: disables Android Chrome's
+   pull-to-refresh and the iOS rubber-band that caused layout shifts.
+   Deliberately NOT re-declaring overflow-x here — see above. */
+@media (max-width: 767.98px) {
+  body { overscroll-behavior-y: none; }
+}
+
+/* ═══ Overflow diagnostic (opt-in, zero runtime cost) ═══════════════════
+   Ships in production and costs one unused ruleset. To use it: in
+   devtools, add class="fx-debug-overflow" to <html>. The guard lifts, so
+   anything overflowing produces a real horizontal scrollbar you can
+   actually scroll to, and every element gets a hairline outline so the
+   culprit is visible at the scroll extreme. Toggling a class here cannot
+   cause a hydration mismatch — nothing in React renders or reads it. */
+html.fx-debug-overflow { overflow-x: visible; }
+html.fx-debug-overflow * { outline: 1px solid rgba(255, 0, 0, 0.2); }
+html.fx-debug-overflow *:not(html):not(body) { outline-offset: -1px; }
 
 /* A11Y-6/MOB-4: the iOS zoom-prevention and touch-target rules were keyed
    purely on viewport WIDTH (max-width:768px), so a large phone in LANDSCAPE
@@ -591,7 +1018,7 @@ h3 {
    this rule (verified: `!important` here always wins over a plain inline
    style), so widening ITS condition is the single highest-leverage fix
    rather than editing font-size in each component individually. */
-@media (max-width: 768px), (pointer: coarse) {
+@media (max-width: 767.98px), (pointer: coarse) {
   /* Prevent iOS Safari from auto-zooming when focusing on inputs */
   input, select, textarea {
     font-size: 16px !important;
@@ -793,10 +1220,12 @@ h3 {
   padding: 28px;
   box-sizing: border-box;
 }
-/* Tablet: toolbar copy and actions still fit one row down to ~720px, then
-   the sheet's own internal flex (floor plan + roster) is what needs room —
-   letting the wrap scroll horizontally beats squeezing the diagram unreadable. */
-@media (max-width: 720px) {
+/* Tablet (< md): toolbar copy and actions still fit one row down to about
+   this width, then the sheet's own internal flex (floor plan + roster) is
+   what needs room — letting the wrap scroll horizontally beats squeezing
+   the diagram unreadable. Moved from an off-scale 720px onto the md step;
+   the extra 48px only means the toolbar centres marginally sooner. */
+@media (max-width: 767.98px) {
   .ppm-overlay { padding: 14px 10px; }
   .ppm-toolbar { justify-content: center; text-align: center; }
   .ppm-toolbar-copy { width: 100%; }
@@ -809,7 +1238,7 @@ h3 {
    proportions and let it scroll horizontally within the wrap, same as
    scrolling a wide table. The toolbar above it (drag hint, Print/Close)
    stays fully usable at any width regardless. */
-@media (max-width: 480px) {
+@media (max-width: 639.98px) {
   .ppm-sheet-wrap { padding: 10px; }
 }
 

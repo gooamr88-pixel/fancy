@@ -75,7 +75,7 @@ export default function OptInForm() {
         <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '19px', fontWeight: 600, color: INK, margin: '0 0 8px' }}>
           You&rsquo;re opted in
         </h3>
-        <p style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', color: BODY, lineHeight: 1.7, maxWidth: '440px', margin: '0 auto' }}>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', color: BODY, lineHeight: 1.7, }} className="fx-container fx-container--xs">
           Your consent has been recorded. You&rsquo;ll only receive texts about Fancy RSVP events you&rsquo;re
           invited to. Reply <strong style={{ color: INK }}>STOP</strong> to any message to opt out, or{' '}
           <strong style={{ color: INK }}>HELP</strong> for help. (If you previously texted STOP, reply START

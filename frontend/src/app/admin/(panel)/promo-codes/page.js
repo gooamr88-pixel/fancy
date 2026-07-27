@@ -354,7 +354,7 @@ function PromoCodeFormModal({ initial, tiers, onClose, onSaved }) {
           </select>
         </Field>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="fx-grid" style={{ '--fx-col': '200px', '--fx-gap': '12px' }}>
           <Field label="Max Redemptions">
             <input
               type="number" min="1" value={maxRedemptions}

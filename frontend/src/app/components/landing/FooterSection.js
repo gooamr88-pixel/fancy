@@ -4,10 +4,11 @@ import { useState } from 'react';
 import Link from 'next/link';
 
 const footerLinks = {
+  // 'Templates' removed: the gallery page is retired (redirected in
+  // next.config.mjs), so this list no longer links to it.
   Product: [
     { text: 'Features', href: '/features' },
     { text: 'Pricing', href: '/pricing' },
-    { text: 'Templates', href: '/templates' },
     { text: 'Integrations', href: '/integrations' },
   ],
   Solutions: [
@@ -17,6 +18,7 @@ const footerLinks = {
   ],
   Company: [
     { text: 'About', href: '/about' },
+    { text: 'Blog', href: '/blog' },
     { text: 'Careers', href: '/careers' },
   ],
   Support: [
@@ -153,21 +155,23 @@ export default function FooterSection() {
       {/* Gold shimmer divider */}
       <div className="gold-shimmer-line" />
 
-      {/* Main footer content */}
+      {/* Main footer content.
+          --fx-pad-x pinned to 24px so .fx-gutter keeps the footer's own
+          tighter gutter rather than the 48px page default, while still
+          picking up the landscape safe-area inset via its max(). */}
       <div
-        style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          padding: '72px 24px 0',
-        }}
+        className="fx-container fx-container--4xl fx-gutter"
+        style={{ paddingTop: '72px', '--fx-pad-x': '24px' }}
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr)',
-            gap: '40px',
-          }}
-        >
+        {/* gridTemplateColumns and gap live in <style jsx> below, NOT here:
+            they have to change at two breakpoints, and a rule can never
+            override an inline style. This grid keeps its asymmetric track
+            sizing (the brand blurb and the newsletter form genuinely need
+            more room than a link list) rather than moving to .fx-grid,
+            which would equalise them and leave the email input + Subscribe
+            button sharing a 200px column. The minmax(0,…) floors are what
+            keep it from overflowing, and they were already correct. */}
+        <div className="footer-grid">
           {/* Brand column */}
           <div>
             <div
@@ -406,16 +410,40 @@ export default function FooterSection() {
         .footer-subscribe-btn-done {
           background: linear-gradient(135deg, #2e7d32 0%, #4caf50 100%);
         }
-        @media (max-width: 900px) {
-          footer > div:nth-child(2) > div:first-child {
-            grid-template-columns: minmax(0,1fr) minmax(0,1fr) !important;
-            gap: 40px 32px !important;
+        /* Was "footer > div:nth-child(2) > div:first-child", twice, both
+           with !important. That selector targeted DOM POSITION, not the
+           element: inserting anything into the footer — a cookie banner, a
+           locale switcher, even a conditional isLoggedIn && div —
+           shifted nth-child(2) and the 6→2→1 collapse silently stopped
+           applying, leaving six fixed columns on a 320px phone. It failed
+           only on mobile, only after an unrelated edit, and with the cause
+           in a different part of the file. A real class cannot do that.
+           Both !importants are gone too, since the properties are no
+           longer competing with an inline style. */
+        .footer-grid {
+          display: grid;
+          grid-template-columns:
+            minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)
+            minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+          gap: 40px;
+        }
+        /* Six columns need ~1000px to stay legible; below lg go to two.
+           At 640px (the tightest 2-column case) each track is
+           (640 − 48 gutters − 32 gap) / 2 = 280px, which fits the
+           newsletter input and its Subscribe button. Was 900px. */
+        @media (max-width: 1023.98px) {
+          .footer-grid {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 40px 32px;
           }
         }
-        @media (max-width: 560px) {
-          footer > div:nth-child(2) > div:first-child {
-            grid-template-columns: minmax(0,1fr) !important;
-            gap: 36px !important;
+        /* Single column below sm. At 320px: 320 − 48 = 272px per column,
+           against a longest-link min-content of ~114px ("Terms of
+           Service" at 13px). Was 560px. */
+        @media (max-width: 639.98px) {
+          .footer-grid {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 36px;
           }
         }
       `}</style>

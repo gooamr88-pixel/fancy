@@ -123,9 +123,9 @@ export default function AboutPage() {
 
         {/* ════════════ HERO ════════════ */}
         <section
+          className="fx-section fx-section--tight-bottom"
           style={{
             background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)",
-            padding: "100px 48px 80px",
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
@@ -143,7 +143,7 @@ export default function AboutPage() {
             border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none",
           }} />
 
-          <div style={{ maxWidth: "800px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--xl" style={{ position: "relative", zIndex: 1 }}>
             <p
               style={{
                 fontFamily: "var(--font-sans)",
@@ -170,13 +170,12 @@ export default function AboutPage() {
               Our Story
             </h1>
             <p
+              className="fx-container fx-container--md"
               style={{
                 fontFamily: "var(--font-sans)",
                 fontSize: "19px",
                 color: "#5E5A52",
                 lineHeight: 1.75,
-                maxWidth: "640px",
-                margin: "0 auto",
               }}
             >
               We believe every celebration deserves a first impression as
@@ -187,32 +186,49 @@ export default function AboutPage() {
         </section>
 
         {/* ════════════ MISSION ════════════ */}
-        <section style={{ padding: "100px 48px", background: "#FFFFFF" }}>
+        <section className="fx-section" style={{ background: "#FFFFFF" }}>
+          {/* .fx-container and .fx-grid compose on one element — the former
+              owns width/max-width/margin, the latter display/gap/columns.
+              --fx-col 340px keeps this two-up until the available width
+              drops below 2×340+gap, i.e. at roughly the same ~768px the
+              old .mission-grid media query used, then it goes single
+              column on its own with no breakpoint to maintain.
+              --fx-gap is set explicitly because this section's 80px desktop
+              gap is far from the 32px default; leaving it unset would have
+              silently halved the space between the illustration and copy. */}
           <div
+            className="fx-container fx-container--5xl fx-grid"
             style={{
-              maxWidth: "1280px",
-              margin: "0 auto",
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "80px",
+              "--fx-col": "340px",
+              "--fx-gap": "clamp(40px, 1.667rem + 4.167vw, 80px)",
               alignItems: "center",
             }}
-            className="mission-grid"
           >
             {/* Left — Illustration */}
+            {/* Padding was a flat 60px 48px around a fixed 200px SVG, giving
+                this card a min-content width of 48+200+48 = 296px against
+                the 280px available at a 320px viewport — it overflowed, and
+                the guard clipped it rather than scrolling. Both halves are
+                now fluid: the padding tapers and the SVG scales. */}
             <div
               style={{
                 background: "linear-gradient(135deg, #F8F4EC 0%, #FFFFFF 100%)",
                 borderRadius: "20px",
                 border: "1px solid #E8E2D6",
-                padding: "60px 48px",
+                padding: "clamp(32px, 1.5rem + 3.75vw, 60px) clamp(20px, 0.667rem + 2.917vw, 48px)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 minHeight: "360px",
               }}
             >
-              <svg width="200" height="200" viewBox="0 0 200 200" fill="none">
+              <svg
+                width="200"
+                height="200"
+                viewBox="0 0 200 200"
+                fill="none"
+                style={{ width: "100%", maxWidth: "200px", height: "auto" }}
+              >
                 {/* Decorative envelope illustration */}
                 <rect x="30" y="60" width="140" height="90" rx="8" stroke="#B8944F" strokeWidth="2" fill="none" />
                 <path d="M30 68L100 120L170 68" stroke="#B8944F" strokeWidth="2" fill="none" strokeLinejoin="round" />
@@ -291,8 +307,8 @@ export default function AboutPage() {
         </section>
 
         {/* ════════════ VALUES ════════════ */}
-        <section style={{ padding: "100px 48px", background: "#F8F4EC" }}>
-          <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+        <section className="fx-section" style={{ background: "#F8F4EC" }}>
+          <div className="fx-container fx-container--5xl">
             <div style={{ textAlign: "center", marginBottom: "60px" }}>
               <GoldDivider />
               <h2
@@ -308,26 +324,22 @@ export default function AboutPage() {
                 Our Values
               </h2>
               <p
+                className="fx-container fx-container--sm"
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "17px",
                   color: "#5E5A52",
-                  maxWidth: "560px",
-                  margin: "0 auto",
                   lineHeight: 1.7,
                 }}
               >
                 The principles that guide every decision, every design, and every line of code we write.
               </p>
             </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
-                gap: "28px",
-              }}
-              className="values-grid"
-            >
+            {/* Was repeat(4, 1fr) plus three media queries stepping it
+                4→2→2→1. .fx-grid--4 does the whole ladder intrinsically:
+                --fx-col 260px yields 4 tracks in a 1280px container and
+                the browser drops to 3, 2 and 1 as the space runs out. */}
+            <div className="fx-grid fx-grid--4">
               {values.map((v) => (
                 <ValueCard key={v.title} value={v} />
               ))}
@@ -337,8 +349,8 @@ export default function AboutPage() {
 
         {/* ════════════ CTA ════════════ */}
         <section
+          className="fx-section"
           style={{
-            padding: "100px 48px",
             background: "linear-gradient(135deg, #191B1E 0%, #2a2d32 100%)",
             textAlign: "center",
             position: "relative",
@@ -359,7 +371,7 @@ export default function AboutPage() {
               pointerEvents: "none",
             }}
           />
-          <div style={{ maxWidth: "640px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--md" style={{ position: "relative", zIndex: 1 }}>
             <GoldDivider />
             <h2
               style={{
@@ -412,31 +424,6 @@ export default function AboutPage() {
       </main>
       <FooterSection />
 
-      <style jsx>{`
-        @media (max-width: 1024px) {
-          .mission-grid {
-            gap: 48px !important;
-          }
-          .values-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .mission-grid {
-            grid-template-columns: 1fr !important;
-            gap: 40px !important;
-          }
-          .values-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 20px !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .values-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </>
   );
 }

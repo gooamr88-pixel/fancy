@@ -460,7 +460,7 @@ const DashboardPreviewSection = () => {
           opacity: 0.5,
         }} />
 
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div className="fx-container fx-container--4xl">
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{
@@ -480,9 +480,7 @@ const DashboardPreviewSection = () => {
               fontWeight: 400,
               color: COLORS.charcoal,
               lineHeight: 1.25,
-              maxWidth: 600,
-              margin: '0 auto',
-            }}>
+            }} className="fx-container fx-container--md">
               Manage everything from one elegant dashboard.
             </h2>
             <div style={{
@@ -754,7 +752,7 @@ const DashboardPreviewSection = () => {
         padding: '100px 24px',
         position: 'relative',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div className="fx-container fx-container--4xl">
           {/* Header */}
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
             <div style={{
@@ -774,9 +772,7 @@ const DashboardPreviewSection = () => {
               fontWeight: 400,
               color: COLORS.charcoal,
               lineHeight: 1.25,
-              maxWidth: 640,
-              margin: '0 auto',
-            }}>
+            }} className="fx-container fx-container--md">
               Interactive seating charts and event check-in tools.
             </h2>
             <div style={{
@@ -955,7 +951,7 @@ const DashboardPreviewSection = () => {
           ══════════════════════════════════════════ */}
       <style jsx>{`
         /* ── Large tablets / small laptops ── */
-        @media (max-width: 1024px) {
+        @media (max-width: 1023.98px) {
           .dashboard-body {
             flex-direction: column !important;
           }
@@ -988,7 +984,7 @@ const DashboardPreviewSection = () => {
         }
 
         /* ── Tablets ── */
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .stats-row {
             flex-wrap: wrap !important;
           }
@@ -1005,7 +1001,7 @@ const DashboardPreviewSection = () => {
         }
 
         /* ── Mobile ── */
-        @media (max-width: 560px) {
+        @media (max-width: 639.98px) {
           .dashboard-sidebar {
             flex-wrap: nowrap !important;
           }

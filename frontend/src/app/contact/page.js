@@ -356,13 +356,12 @@ export default function ContactPage() {
             Get in Touch
           </h1>
           <p
+            className="fx-container fx-container--sm"
             style={{
               fontFamily: "var(--font-sans)",
               fontSize: "18px",
               color: "#5E5A52",
               lineHeight: 1.6,
-              maxWidth: "540px",
-              margin: "0 auto",
             }}
           >
             Have a question or suggestion? We&apos;d love to hear from you.
@@ -371,10 +370,8 @@ export default function ContactPage() {
 
         {/* ── Gold Divider ── */}
         <div
+          className="fx-container fx-container--5xl fx-gutter"
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "0 48px",
             display: "flex",
             alignItems: "center",
             gap: "20px",
@@ -389,10 +386,10 @@ export default function ContactPage() {
 
         {/* ── Two-Column Layout ── */}
         <section
+          className="fx-container fx-container--5xl fx-gutter"
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "64px 48px",
+            paddingTop: "var(--fx-pad-y-sm)",
+            paddingBottom: "var(--fx-pad-y-sm)",
           }}
         >
           <div className="contact-grid">
@@ -619,13 +616,14 @@ export default function ContactPage() {
 
         {/* ── Help Center CTA ── */}
         <section
+          className="fx-section fx-section--sm"
           style={{
-            padding: "80px 24px",
+            "--fx-pad-x": "24px",
             textAlign: "center",
             background: "linear-gradient(180deg, #FFFFFF 0%, #FAF7F0 100%)",
           }}
         >
-          <div style={{ maxWidth: "580px", margin: "0 auto" }}>
+          <div className="fx-container fx-container--sm">
             <div
               style={{
                 width: "64px",
@@ -702,17 +700,14 @@ export default function ContactPage() {
         select {
           color: #191B1E;
         }
-        @media (max-width: 1024px) {
+        /* The old 768px copy of this rule was byte-identical to the 1024px
+           one and could never match without it also matching. Removed. */
+        @media (max-width: 1023.98px) {
           .contact-grid {
             grid-template-columns: 1fr !important;
           }
         }
-        @media (max-width: 768px) {
-          .contact-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .form-row {
             flex-direction: column !important;
             gap: 20px !important;

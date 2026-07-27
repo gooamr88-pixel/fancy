@@ -337,7 +337,7 @@ const keyframesCSS = `
     grid-column: span 2;
   }
 
-  @media (max-width: 1024px) {
+  @media (max-width: 1023.98px) {
     .osc-grid {
       grid-template-columns: repeat(2, 1fr);
     }
@@ -348,9 +348,20 @@ const keyframesCSS = `
      six full-width cards made the overview an endless heavy stack. The RSVP
      card keeps the full row (it carries the three progress bars). Trim the
      card padding and the 36px value so the denser grid still breathes. */
-  @media (max-width: 640px) {
+  @media (max-width: 639.98px) {
     .osc-grid {
-      grid-template-columns: 1fr 1fr;
+      /* Was a flat "1fr 1fr" here plus a separate sub-sm media query at
+         380 CSS pixels that dropped it back to one column. That number was
+         real information — two cards genuinely stop fitting around there —
+         but it was also the only breakpoint of its kind in the codebase.
+         Expressing it as an auto-fit track with a 150px floor reproduces
+         exactly that threshold intrinsically: two tracks need 2×150+12 =
+         312px, which fits a 360px phone but not a 320px one, so the grid
+         goes 2-up and 1-up on its own with no breakpoint to maintain.
+         min(150px, 100%) keeps the floor from ever causing overflow, and
+         .osc-rsvp-span's "grid-column: 1 / -1" still spans whatever number
+         of tracks results. */
+      grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
       gap: 12px;
     }
     .osc-rsvp-span { grid-column: 1 / -1 !important; }
@@ -363,9 +374,6 @@ const keyframesCSS = `
   }
   /* Very narrow (small/older phones): fall back to a single column so the
      compact cards never get uncomfortably cramped. */
-  @media (max-width: 380px) {
-    .osc-grid { grid-template-columns: 1fr; }
-  }
 `;
 
 /* ═══════════════════════════════════════════════════════════════

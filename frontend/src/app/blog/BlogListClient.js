@@ -144,9 +144,9 @@ export default function BlogListClient({ posts = [] }) {
   return (
     <main style={{ paddingTop: '78px' }}>
       {/* ════════════ HERO ════════════ */}
-      <section className="blog-hero" style={{ background: 'linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)', padding: '100px 48px 60px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+      <section className="blog-hero fx-section fx-section--tight-bottom" style={{ background: 'linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: '-100px', left: '50%', transform: 'translateX(-50%)', width: '700px', height: '700px', borderRadius: '50%', border: '1px solid rgba(184,148,79,0.06)', pointerEvents: 'none' }} />
-        <div style={{ maxWidth: '700px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
+        <div className="fx-container fx-container--lg" style={{ position: 'relative', zIndex: 1 }}>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 700, letterSpacing: '3px', textTransform: 'uppercase', color: '#B8944F', marginBottom: '20px' }}>
             Stories & Insights
           </p>
@@ -160,7 +160,7 @@ export default function BlogListClient({ posts = [] }) {
       </section>
 
       {posts.length === 0 ? (
-        <section className="blog-empty-section" style={{ padding: '40px 48px 120px', background: '#FFFFFF', textAlign: 'center' }}>
+        <section className="blog-empty-section fx-section fx-section--xs" style={{ paddingBottom: 'var(--fx-pad-y-lg)', background: '#FFFFFF', textAlign: 'center' }}>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: '16px', color: '#5E5A52' }}>
             No articles published yet. Check back soon!
           </p>
@@ -169,8 +169,8 @@ export default function BlogListClient({ posts = [] }) {
         <>
           {/* ════════════ FEATURED ════════════ */}
           {featured && (
-            <section className="blog-featured-section" style={{ padding: '40px 48px 80px', background: '#FFFFFF' }}>
-              <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+            <section className="blog-featured-section fx-section fx-section--xs" style={{ paddingBottom: 'var(--fx-pad-y-sm)', background: '#FFFFFF' }}>
+              <div className="fx-container fx-container--5xl">
                 <Link href={`/blog/${featured.slug}`} style={{ textDecoration: 'none' }}>
                   <div className="featured-grid" style={{ borderRadius: '20px', overflow: 'hidden', background: 'linear-gradient(135deg, #191B1E 0%, #2a2d32 60%, #3a3226 100%)', display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '400px', position: 'relative' }}>
                     {/* minHeight matters once this stacks on mobile: the cover <img>
@@ -225,8 +225,8 @@ export default function BlogListClient({ posts = [] }) {
           )}
 
           {/* ════════════ FILTERS + GRID ════════════ */}
-          <section className="blog-grid-section" style={{ padding: '0 48px 100px', background: '#FFFFFF' }}>
-            <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+          <section className="blog-grid-section fx-section fx-section--flush-top" style={{ background: '#FFFFFF' }}>
+            <div className="fx-container fx-container--5xl">
               {categories.length > 1 && (
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '48px', flexWrap: 'wrap', justifyContent: 'center' }}>
                   {categories.map((cat) => (
@@ -247,7 +247,7 @@ export default function BlogListClient({ posts = [] }) {
               )}
 
               {gridArticles.length > 0 ? (
-                <div className="articles-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '28px' }}>
+                <div className="articles-grid fx-grid fx-grid--3" style={{ '--fx-gap': '28px' }}>
                   {gridArticles.map((article) => (
                     <ArticleCard key={article.id} article={article} colors={colorForCategory(article.category, categories)} />
                   ))}
@@ -269,8 +269,8 @@ export default function BlogListClient({ posts = [] }) {
       )}
 
       {/* ════════════ NEWSLETTER ════════════ */}
-      <section className="blog-newsletter-section" style={{ padding: '100px 48px', background: 'linear-gradient(135deg, #F8F4EC 0%, #FFF 100%)' }}>
-        <div style={{ maxWidth: '680px', margin: '0 auto', textAlign: 'center' }}>
+      <section className="blog-newsletter-section fx-section" style={{ background: 'linear-gradient(135deg, #F8F4EC 0%, #FFF 100%)' }}>
+        <div className="fx-container fx-container--lg" style={{ textAlign: 'center' }}>
           <GoldDivider />
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(1.6rem, 3vw, 2.2rem)', fontWeight: 600, color: '#191B1E', marginTop: '8px', marginBottom: '16px' }}>
             Stay Inspired
@@ -282,7 +282,7 @@ export default function BlogListClient({ posts = [] }) {
             <p style={{ fontFamily: 'var(--font-sans)', fontSize: '15px', color: '#3B9B6D', fontWeight: 700 }}>✓ You&apos;re subscribed — thank you!</p>
           ) : (
             <>
-              <div className="newsletter-form" style={{ display: 'flex', gap: '12px', maxWidth: '480px', margin: '0 auto' }}>
+              <div className="newsletter-form fx-container fx-container--xs" style={{ display: 'flex', gap: '12px' }}>
                 <input
                   type="email"
                   autoComplete="email"
@@ -316,36 +316,31 @@ export default function BlogListClient({ posts = [] }) {
       </section>
 
       <style jsx>{`
-        @media (max-width: 1024px) {
-          .articles-grid { grid-template-columns: repeat(2, 1fr) !important; }
-        }
-        /* Every section shipped with a hard 48px side padding and no mobile
-           override — on a 360px phone that ate 96px (>25%) of the viewport. Step
-           it down in two stages instead. */
-        @media (max-width: 900px) {
-          .blog-hero { padding: 72px 24px 48px !important; }
-          .blog-featured-section { padding: 32px 24px 56px !important; }
-          .blog-grid-section { padding: 0 24px 72px !important; }
-          .blog-newsletter-section { padding: 72px 24px !important; }
-          .blog-empty-section { padding: 32px 24px 96px !important; }
-        }
-        @media (max-width: 768px) {
+        /* The two hand-rolled padding tiers that used to be here — an
+           off-scale 900px stage and a 480px one, ten !important overrides
+           between them, all working around the same hard 48px side padding
+           on five sections — are gone. .fx-section makes the gutter fluid
+           (48px at 1280 down to 20px at 320) with no breakpoint at all, and
+           adds the landscape safe-area inset those rules never had. The
+           .articles-grid column queries go too: .fx-grid--3 steps 3→2→1
+           on its own. */
+        @media (max-width: 767.98px) {
           .featured-grid { grid-template-columns: 1fr !important; }
           .featured-media { padding: 32px !important; min-height: 200px !important; }
           .featured-content { padding: 32px 32px 40px 32px !important; }
-          .articles-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 20px !important; }
         }
-        @media (max-width: 640px) {
-          .articles-grid { grid-template-columns: 1fr !important; }
+        @media (max-width: 639.98px) {
           .newsletter-form { flex-direction: column !important; }
           .blog-hero-sub { font-size: 16px !important; }
         }
-        @media (max-width: 480px) {
-          .blog-hero { padding: 56px 18px 40px !important; }
-          .blog-featured-section { padding: 24px 18px 40px !important; }
-          .blog-grid-section { padding: 0 18px 56px !important; }
-          .blog-newsletter-section { padding: 56px 18px !important; }
-          .blog-empty-section { padding: 24px 18px 72px !important; }
+        /* The five section paddings that were also in this block are gone
+           for the same reason as the 900px tier above — left in place they
+           would have won on !important below 480px and thrown away
+           .fx-section's max(--fx-pad-x, --fx-safe-l), silently removing the
+           landscape notch gutter while portrait looked perfect. Folded from
+           480px onto the < sm step; only the featured card's own internal
+           padding still needs a breakpoint. */
+        @media (max-width: 639.98px) {
           .featured-media { padding: 24px !important; min-height: 170px !important; }
           .featured-content { padding: 24px 24px 32px 24px !important; }
         }

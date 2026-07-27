@@ -138,7 +138,13 @@ export default function AnalyticsPage() {
 
   return (
     <div style={{ minHeight: '100dvh', background: C.softBg, fontFamily: SANS }}>
-      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 22px 72px' }}>
+      {/* --fx-pad-x pinned to 22px so .fx-gutter keeps this page's own
+          tighter gutter, while still tapering on a phone and picking up
+          the landscape safe-area inset. */}
+      <div
+        className="fx-container fx-container--3xl fx-gutter"
+        style={{ '--fx-pad-x': '22px', paddingTop: 28, paddingBottom: 72 }}
+      >
 
         <nav style={{ marginBottom: 18 }}>
           <Link href="/dashboard" style={{
@@ -276,17 +282,31 @@ function Dashboard({ data }) {
     <div style={{ display: 'grid', gap: 16 }}>
 
       {/* ─── 1 + 2: the headline ─── */}
-      <section style={{
-        background: VIZ.surface, border: `1px solid ${C.border}`, borderRadius: 14,
-        padding: '22px 24px', display: 'grid', gap: 22,
-        gridTemplateColumns: 'minmax(180px, 260px) 1fr', alignItems: 'center',
-      }}>
+      {/* Was `gridTemplateColumns: 'minmax(180px, 260px) 1fr'` with no media
+          query anywhere in this file. minmax()'s min is a HARD floor, so at
+          a 320px viewport this asked for 180 + 22 gap + the nested grid's
+          own 140px floor = 342px inside 268px of available width, and the
+          four headline stat tiles were pushed off-screen — then clipped,
+          not scrolled, by the overflow guard. .fx-grid caps every track
+          floor at 100% of the container, so it cannot overflow at any
+          width; --fx-col 260px reproduces the intended desktop split. */}
+      <section
+        className="fx-grid"
+        style={{
+          background: VIZ.surface, border: `1px solid ${C.border}`, borderRadius: 14,
+          padding: '22px 24px', '--fx-col': '260px', '--fx-gap': '22px',
+          alignItems: 'center',
+        }}
+      >
         <Hero
           label="Confirmed guests"
           value={compact(overview.totalHeadcount || 0)}
           sub={`${compact(overview.attendingCount || 0)} parties attending${stateNote ? ` · ${stateNote}` : ''}`}
         />
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+        {/* minmax(140px, …) was the second half of the overflow above — the
+            140px floor survives auto-fit. --fx-col 140px keeps the same
+            desktop behaviour with the floor capped at the container. */}
+        <div className="fx-grid" style={{ '--fx-col': '140px', '--fx-gap': '10px' }}>
           <Stat label="Invitation views" value={compact(overview.totalPageViews || 0)} />
           <Stat label="Unique visitors" value={compact(overview.uniqueVisitors || 0)} />
           <Stat label="Responses" value={compact(overview.totalRsvps || 0)} sub={`${overview.pendingCount || 0} still to reply${stateNote ? ` · ${stateNote}` : ''}`} />
@@ -315,7 +335,7 @@ function Dashboard({ data }) {
       >
         {reveal.shown ? (
           <>
-            <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', alignItems: 'start' }}>
+            <div className="fx-grid" style={{ '--fx-col': '210px', '--fx-gap': '20px', alignItems: 'start' }}>
               <Meter
                 label="Opened the seal"
                 value={reveal.openRate || 0}
@@ -397,7 +417,10 @@ function Dashboard({ data }) {
       </Card>
 
       {/* ─── 7: the rest ─── */}
-      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+      {/* minmax(320px, …) plus Card's own 44px of horizontal padding needed
+          364px against the 316px available at 360px — the three cards
+          clipped on the right. */}
+      <div className="fx-grid" style={{ '--fx-col': '320px', '--fx-gap': '16px' }}>
         <Card
           title="What guests did"
           table={{ columns: ['Action', 'Times'], rows: engagementItems.map((i) => [i.label, compact(i.value)]) }}

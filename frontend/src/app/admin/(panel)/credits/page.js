@@ -174,7 +174,7 @@ function PackageCatalog() {
           <Button variant="primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</Button>
         </>}
       >
-        <div className="credit-pkg-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="credit-pkg-grid fx-grid" style={{ '--fx-col': '200px', '--fx-gap': '12px' }}>
           <Field label="Type">
             <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={inputStyle} disabled={editing !== 'new'}>
               <option value="sms">SMS</option>
@@ -189,7 +189,7 @@ function PackageCatalog() {
           <Field label="Sort order"><input type="number" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: e.target.value })} style={inputStyle} /></Field>
         </div>
         <style jsx>{`
-          @media (max-width: 480px) {
+          @media (max-width: 639.98px) {
             .credit-pkg-grid { grid-template-columns: 1fr !important; }
           }
         `}</style>

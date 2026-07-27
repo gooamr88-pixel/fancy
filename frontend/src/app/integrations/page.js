@@ -275,10 +275,9 @@ export default function IntegrationsPage() {
       <Navbar />
       <main style={{ paddingTop: "78px" }}>
         {/* ════════════════════ HERO ════════════════════ */}
-        <section
+        <section className="fx-section fx-section--tight-bottom"
           style={{
             background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)",
-            padding: "100px 48px 80px",
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
@@ -287,7 +286,7 @@ export default function IntegrationsPage() {
           <div style={{ position: "absolute", top: "-40px", right: "-40px", width: "180px", height: "180px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none" }} />
           <div style={{ position: "absolute", bottom: "20px", left: "5%", width: "120px", height: "120px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.06)", pointerEvents: "none" }} />
 
-          <div style={{ maxWidth: "700px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--lg" style={{ position: "relative", zIndex: 1 }}>
             <div
               style={{
                 display: "inline-block",
@@ -327,14 +326,12 @@ export default function IntegrationsPage() {
               <span style={{ color: "#B8944F" }}>Integrations</span>
             </h1>
 
-            <p
+            <p className="fx-container fx-container--sm"
               style={{
                 fontFamily: "var(--font-sans)",
                 fontSize: "19px",
                 lineHeight: 1.7,
                 color: "#5E5A52",
-                maxWidth: "560px",
-                margin: "0 auto",
               }}
             >
               Connect Fancy RSVP with the tools you already love. Automate your workflows, sync data effortlessly, and supercharge your event planning.
@@ -343,17 +340,14 @@ export default function IntegrationsPage() {
         </section>
 
         {/* ════════════════════ INTEGRATIONS GRID ════════════════════ */}
-        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "60px 48px 100px" }}>
+        <section className="fx-container fx-container--4xl fx-section" style={{ paddingTop: "clamp(36px, 1.75rem + 2.5vw, 60px)" }}>
           <GoldDivider variant="wide" />
 
           <h2 className="sr-only">Available Integrations</h2>
           <div
-            className="integrations-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "24px",
-              marginTop: "56px",
+            className="integrations-grid fx-grid fx-grid--4"
+            style={{ "--fx-gap": "24px",
+marginTop: "56px",
             }}
           >
             {integrations.map((integration) => (
@@ -363,8 +357,8 @@ export default function IntegrationsPage() {
         </section>
 
         {/* ════════════════════ HOW IT WORKS ════════════════════ */}
-        <section style={{ background: "#F8F4EC", padding: "100px 48px" }}>
-          <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+        <section className="fx-section" style={{ background: "#F8F4EC" }}>
+          <div className="fx-container fx-container--2xl" >
             <div style={{ textAlign: "center", marginBottom: "64px" }}>
               <h2
                 style={{
@@ -378,14 +372,12 @@ export default function IntegrationsPage() {
                 How It{" "}
                 <span style={{ color: "#B8944F" }}>Works</span>
               </h2>
-              <p
+              <p className="fx-container fx-container--xs"
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "17px",
                   color: "#5E5A52",
                   lineHeight: 1.7,
-                  maxWidth: "500px",
-                  margin: "0 auto",
                 }}
               >
                 Setting up integrations is effortless. Connect your favorite tools in three simple steps.
@@ -393,12 +385,9 @@ export default function IntegrationsPage() {
             </div>
 
             <div
-              className="steps-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: "48px",
-                position: "relative",
+              className="steps-grid fx-grid fx-grid--3"
+              style={{ "--fx-gap": "48px",
+position: "relative",
               }}
             >
               {/* Connecting line */}
@@ -519,16 +508,11 @@ export default function IntegrationsPage() {
         </section>
 
         {/* ════════════════════ STATS ════════════════════ */}
-        <section style={{ background: "#191B1E", padding: "64px 48px" }}>
+        <section className="fx-section fx-section--sm" style={{ background: "#191B1E" }}>
           <div
-            className="stats-grid"
-            style={{
-              maxWidth: "1000px",
-              margin: "0 auto",
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "40px",
-              textAlign: "center",
+            className="fx-container fx-container--2xl stats-grid fx-grid fx-grid--3"
+            style={{ "--fx-gap": "40px",
+textAlign: "center",
             }}
           >
             {[
@@ -565,10 +549,9 @@ export default function IntegrationsPage() {
         </section>
 
         {/* ════════════════════ CTA ════════════════════ */}
-        <section
+        <section className="fx-section"
           style={{
             background: "linear-gradient(135deg, #191B1E 0%, #2A2D32 100%)",
-            padding: "100px 48px",
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
@@ -588,7 +571,7 @@ export default function IntegrationsPage() {
             }}
           />
 
-          <div style={{ position: "relative", zIndex: 1, maxWidth: "600px", margin: "0 auto" }}>
+          <div className="fx-container fx-container--sm" style={{ position: "relative", zIndex: 1 }}>
             <h2
               style={{
                 fontFamily: "var(--font-serif)",
@@ -616,9 +599,8 @@ export default function IntegrationsPage() {
             <div style={{ display: "flex", gap: "16px", justifyContent: "center", flexWrap: "wrap" }}>
               <Link
                 href="/register"
-                className="btn-gold"
+                className="fx-section fx-section--xs btn-gold"
                 style={{
-                  padding: "16px 48px",
                   fontSize: "16px",
                   fontWeight: 700,
                   borderRadius: "8px",
@@ -636,34 +618,9 @@ export default function IntegrationsPage() {
       <FooterSection />
 
       <style jsx>{`
-        @media (max-width: 1024px) {
-          .integrations-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .integrations-grid {
-            grid-template-columns: 1fr !important;
-            max-width: 480px !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-          }
-          .steps-grid {
-            grid-template-columns: 1fr !important;
-            gap: 36px !important;
-          }
+        @media (max-width: 767.98px) {
           .steps-line {
             display: none !important;
-          }
-          .stats-grid {
-            grid-template-columns: 1fr !important;
-            gap: 32px !important;
-          }
-        }
-        @media (max-width: 640px) {
-          section {
-            padding-left: 20px !important;
-            padding-right: 20px !important;
           }
         }
       `}</style>

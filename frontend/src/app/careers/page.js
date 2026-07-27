@@ -254,9 +254,9 @@ export default function CareersPage() {
 
         {/* ════════════ HERO ════════════ */}
         <section
+          className="fx-section fx-section--tight-bottom"
           style={{
             background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)",
-            padding: "100px 48px 80px",
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
@@ -287,7 +287,7 @@ export default function CareersPage() {
             }}
           />
 
-          <div style={{ maxWidth: "800px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--xl" style={{ position: "relative", zIndex: 1 }}>
             <p
               style={{
                 fontFamily: "var(--font-sans)",
@@ -313,14 +313,16 @@ export default function CareersPage() {
             >
               Join Our Team
             </h1>
+            {/* marginBottom kept: .fx-container only sets margin-inline, so
+                the 36px from the old "0 auto 36px" shorthand would be lost. */}
             <p
+              className="fx-container fx-container--md"
               style={{
                 fontFamily: "var(--font-sans)",
                 fontSize: "19px",
                 color: "#5E5A52",
                 lineHeight: 1.75,
-                maxWidth: "640px",
-                margin: "0 auto 36px",
+                marginBottom: "36px",
               }}
             >
               Help us build the world&apos;s most beautiful event platform. We&apos;re looking for
@@ -337,8 +339,8 @@ export default function CareersPage() {
         </section>
 
         {/* ════════════ PERKS ════════════ */}
-        <section style={{ padding: "100px 48px", background: "#FFFFFF" }}>
-          <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+        <section className="fx-section" style={{ background: "#FFFFFF" }}>
+          <div className="fx-container fx-container--5xl">
             <div style={{ textAlign: "center", marginBottom: "60px" }}>
               <GoldDivider />
               <h2
@@ -354,26 +356,19 @@ export default function CareersPage() {
                 Why You&apos;ll Love Working Here
               </h2>
               <p
+                className="fx-container fx-container--sm"
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "17px",
                   color: "#5E5A52",
-                  maxWidth: "560px",
-                  margin: "0 auto",
                   lineHeight: 1.7,
                 }}
               >
                 We invest in our people the way we invest in our product — with care, intention, and generosity.
               </p>
             </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: "28px",
-              }}
-              className="perks-grid"
-            >
+            {/* Was repeat(3, 1fr) + three media queries stepping 3→2→2→1. */}
+            <div className="fx-grid fx-grid--3">
               {perks.map((p) => (
                 <PerkCard key={p.title} perk={p} />
               ))}
@@ -382,8 +377,8 @@ export default function CareersPage() {
         </section>
 
         {/* ════════════ OPEN POSITIONS ════════════ */}
-        <section id="positions" style={{ padding: "100px 48px", background: "#F8F4EC" }}>
-          <div style={{ maxWidth: "920px", margin: "0 auto" }}>
+        <section id="positions" className="fx-section" style={{ background: "#F8F4EC" }}>
+          <div className="fx-container fx-container--2xl">
             <div style={{ textAlign: "center", marginBottom: "60px" }}>
               <GoldDivider />
               <h2
@@ -432,13 +427,12 @@ export default function CareersPage() {
                     No open roles right now
                   </h3>
                   <p
+                    className="fx-container fx-container--xs"
                     style={{
                       fontFamily: "var(--font-sans)",
                       fontSize: "15px",
                       color: "#5E5A52",
                       lineHeight: 1.7,
-                      maxWidth: "480px",
-                      margin: "0 auto",
                     }}
                   >
                     We&apos;re not actively hiring at the moment, but we&apos;re always glad to hear from
@@ -457,16 +451,19 @@ export default function CareersPage() {
         </section>
 
         {/* ════════════ CULTURE ════════════ */}
-        <section style={{ padding: "100px 48px", background: "#FFFFFF" }}>
-          <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+        <section className="fx-section" style={{ background: "#FFFFFF" }}>
+          <div className="fx-container fx-container--5xl">
+            {/* --fx-col 340px holds this two-up down to roughly the 768px
+                the old .culture-grid query used, then single-column on its
+                own. --fx-gap set explicitly so the 80px desktop gap between
+                the copy and the illustration survives. */}
             <div
+              className="fx-grid"
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "80px",
+                "--fx-col": "340px",
+                "--fx-gap": "clamp(40px, 1.667rem + 4.167vw, 80px)",
                 alignItems: "center",
               }}
-              className="culture-grid"
             >
               {/* Left */}
               <div>
@@ -543,14 +540,23 @@ export default function CareersPage() {
                   background: "linear-gradient(135deg, #F8F4EC 0%, #FFFFFF 100%)",
                   borderRadius: "20px",
                   border: "1px solid #E8E2D6",
-                  padding: "60px 48px",
+                  // Fluid: a flat 48px each side around a fixed 220px SVG
+                  // gave this card a 316px min-content width, against the
+                  // 280px available at a 320px viewport.
+                  padding: "clamp(32px, 1.5rem + 3.75vw, 60px) clamp(20px, 0.667rem + 2.917vw, 48px)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   minHeight: "400px",
                 }}
               >
-                <svg width="220" height="220" viewBox="0 0 220 220" fill="none">
+                <svg
+                  width="220"
+                  height="220"
+                  viewBox="0 0 220 220"
+                  fill="none"
+                  style={{ width: "100%", maxWidth: "220px", height: "auto" }}
+                >
                   {/* People illustration */}
                   <circle cx="70" cy="80" r="20" stroke="#B8944F" strokeWidth="1.5" fill="none" />
                   <circle cx="150" cy="80" r="20" stroke="#B8944F" strokeWidth="1.5" fill="none" />
@@ -576,8 +582,8 @@ export default function CareersPage() {
 
         {/* ════════════ CTA ════════════ */}
         <section
+          className="fx-section"
           style={{
-            padding: "100px 48px",
             background: "linear-gradient(135deg, #191B1E 0%, #2a2d32 100%)",
             textAlign: "center",
             position: "relative",
@@ -597,7 +603,7 @@ export default function CareersPage() {
               pointerEvents: "none",
             }}
           />
-          <div style={{ maxWidth: "640px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--md" style={{ position: "relative", zIndex: 1 }}>
             <GoldDivider />
             <h2
               style={{
@@ -635,31 +641,6 @@ export default function CareersPage() {
       </main>
       <FooterSection />
 
-      <style jsx>{`
-        @media (max-width: 1024px) {
-          .perks-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-          .culture-grid {
-            gap: 48px !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .perks-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 20px !important;
-          }
-          .culture-grid {
-            grid-template-columns: 1fr !important;
-            gap: 40px !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .perks-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </>
   );
 }

@@ -468,7 +468,7 @@ export default function CampaignsPage() {
       )}
 
       {/* ─── Header ─── */}
-      <div style={{ maxWidth: 1200, margin: '0 auto', borderBottom: `1px solid ${C.border}`, paddingBottom: 24, marginBottom: 32, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+      <div className="fx-container fx-container--4xl" style={{ borderBottom: `1px solid ${C.border}`, paddingBottom: 24, marginBottom: 32, display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Link href="/dashboard" style={{ color: C.gold, fontSize: 13, textDecoration: 'none', fontFamily: 'var(--font-sans)' }}
@@ -509,7 +509,7 @@ export default function CampaignsPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr', gap: 32 }}>
+      <div className="fx-container fx-container--4xl" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 32 }}>
         
         {/* Left/Middle Column: Template Composer & Campaign launcher */}
         <div className="camp-main-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 32 }}>
@@ -969,11 +969,11 @@ export default function CampaignsPage() {
         /* MOB-11: the SMS composer's editor+preview split, the wallet stat
            row, and the outer content/audience split were all fixed grids
            with zero breakpoints — unusable side-by-side on a phone. */
-        @media (max-width: 900px) {
+        @media (max-width: 1023.98px) {
           .camp-main-grid { grid-template-columns: 1fr !important; }
           .camp-composer-grid { grid-template-columns: 1fr !important; }
         }
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .camp-wallet-grid { grid-template-columns: 1fr !important; }
           .camp-page { padding: 16px !important; }
         }

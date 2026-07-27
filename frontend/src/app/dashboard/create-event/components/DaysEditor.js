@@ -211,7 +211,7 @@ export default function DaysEditor({ days, onChange, onUploadImage }) {
       </button>
 
       <style jsx>{`
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .de-venue-row { grid-template-columns: 1fr !important; }
         }
       `}</style>

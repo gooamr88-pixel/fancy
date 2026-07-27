@@ -770,7 +770,7 @@ export default function OrganizerProfile({ events = [], forcePasswordReset = fal
         .profile-social-grid {
           grid-template-columns: repeat(3, 1fr);
         }
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .profile-row-grid,
           .profile-stats-grid,
           .profile-social-grid {

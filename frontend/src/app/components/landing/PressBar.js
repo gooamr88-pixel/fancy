@@ -121,7 +121,7 @@ export default function PressBar() {
           letter-spacing: 0.3px;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .press-bar-inner {
             padding: 22px 24px;
             gap: 16px;
@@ -132,7 +132,7 @@ export default function PressBar() {
             gap: 28px;
           }
         }
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .press-bar-inner {
             padding: 18px 20px;
           }

@@ -366,7 +366,7 @@ export default function HelpCenter() {
             <svg width="80" height="80" viewBox="0 0 80 80"><rect width="80" height="80" rx="40" fill="#B8944F" /></svg>
           </div>
 
-          <div style={{ maxWidth: "680px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--lg" style={{ position: "relative", zIndex: 1 }}>
             <span
               style={{
                 fontFamily: "var(--font-sans)",
@@ -473,10 +473,8 @@ export default function HelpCenter() {
 
         {/* ── Gold Divider ── */}
         <div
+          className="fx-container fx-container--5xl fx-gutter"
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "0 48px",
             display: "flex",
             alignItems: "center",
             gap: "20px",
@@ -491,10 +489,10 @@ export default function HelpCenter() {
 
         {/* ── Category Grid ── */}
         <section
+          className="fx-container fx-container--5xl fx-gutter"
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "64px 48px",
+            paddingTop: "var(--fx-pad-y-sm)",
+            paddingBottom: "var(--fx-pad-y-sm)",
           }}
         >
           <div style={{ textAlign: "center", marginBottom: "48px" }}>
@@ -520,7 +518,7 @@ export default function HelpCenter() {
             </p>
           </div>
 
-          <div className="category-grid">
+          <div className="fx-grid fx-grid--3" style={{ "--fx-gap": "24px" }}>
             {filteredCategories.map((cat, i) => (
               <CategoryCard key={cat.title} category={cat} index={i} onCategoryClick={scrollToFaq} />
             ))}
@@ -538,12 +536,13 @@ export default function HelpCenter() {
         {/* ── Popular Articles / FAQ ── */}
         <section
           id="faq-section"
+          className="fx-section fx-section--sm"
           style={{
             background: "#FAF7F0",
-            padding: "80px 24px",
+            "--fx-pad-x": "24px",
           }}
         >
-          <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+          <div className="fx-container fx-container--xl">
             <div style={{ textAlign: "center", marginBottom: "48px" }}>
               <span
                 style={{
@@ -611,13 +610,14 @@ export default function HelpCenter() {
 
         {/* ── Contact Support CTA ── */}
         <section
+          className="fx-section fx-section--sm"
           style={{
-            padding: "80px 24px",
+            "--fx-pad-x": "24px",
             textAlign: "center",
             background: "linear-gradient(180deg, #FFFFFF 0%, #FAF7F0 100%)",
           }}
         >
-          <div style={{ maxWidth: "640px", margin: "0 auto" }}>
+          <div className="fx-container fx-container--md">
             <div
               style={{
                 width: "72px",
@@ -698,11 +698,6 @@ export default function HelpCenter() {
       <FooterSection />
 
       <style jsx>{`
-        .category-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 24px;
-        }
         input::placeholder {
           color: #9E9A92;
         }
@@ -710,22 +705,8 @@ export default function HelpCenter() {
           from { opacity: 0; transform: translateY(16px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @media (max-width: 1024px) {
-          .category-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .category-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 16px !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .category-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
+        /* .category-grid's columns and its three media queries are gone —
+           .fx-grid--3 walks 3→2→1 intrinsically. */
       `}</style>
     </>
   );

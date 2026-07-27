@@ -348,7 +348,7 @@ const SeatingManager = memo(function SeatingManager({
       )}
 
       <style jsx>{`
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .seating-table-wrap { display: none; }
           .seating-cards-wrap { display: flex !important; }
         }

@@ -326,7 +326,7 @@ export default function ConfigPage() {
   const currentTier = pricingTiers[selectedTierIdx];
 
   return (
-    <div style={{ maxWidth: 880, margin: '0 auto', paddingBottom: 60 }}>
+    <div className="fx-container fx-container--xl" style={{ paddingBottom: 60 }}>
       {/* Premium Elegant Header */}
       <header style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 24, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)', letterSpacing: '-0.02em' }}>System Configuration</h1>
@@ -711,7 +711,7 @@ export default function ConfigPage() {
              split, tier fields, offline-payment rows, landing-stat rows —
              the last one 5 columns wide) had no breakpoint at all, making the
              pricing/tiers editor genuinely unusable below ~600px. */
-          @media (max-width: 640px) {
+          @media (max-width: 639.98px) {
             .cfg-responsive-grid { grid-template-columns: 1fr !important; }
             /* Title + "Delete Tier" was a no-wrap space-between row. */
             .cfg-tier-head { flex-wrap: wrap; gap: 12px; }

@@ -87,7 +87,7 @@ function StatCounter({ target, suffix, label, decimals, shouldAnimate }) {
           text-transform: uppercase;
           letter-spacing: 2px;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .stat-value {
             font-size: 36px;
           }
@@ -95,7 +95,7 @@ function StatCounter({ target, suffix, label, decimals, shouldAnimate }) {
             font-size: 24px;
           }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .stat-value {
             font-size: 32px;
           }
@@ -120,7 +120,7 @@ function VerticalDivider() {
           flex-shrink: 0;
           align-self: center;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .vertical-divider {
             display: none;
           }
@@ -138,7 +138,7 @@ function HorizontalDivider() {
         .horizontal-divider {
           display: none;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .horizontal-divider {
             display: block;
             width: 64px;
@@ -185,12 +185,12 @@ export default function SocialProofBar() {
         width: '100%',
       }}
     >
+      {/* --fx-pad-x pinned to 24px: this bar sits inside a section that
+          already pads 24px, so the page default of 48px would double it.
+          .fx-gutter still contributes the landscape safe-area inset. */}
       <div
-        style={{
-          maxWidth: '1280px',
-          margin: '0 auto',
-          padding: '0 24px',
-        }}
+        className="fx-container fx-container--5xl fx-gutter"
+        style={{ '--fx-pad-x': '24px' }}
       >
         {/* Gold ornament */}
         <div
@@ -246,7 +246,7 @@ export default function SocialProofBar() {
           display: contents;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .stats-row {
             flex-direction: column;
             gap: 32px;
@@ -263,7 +263,7 @@ export default function SocialProofBar() {
           }
         }
 
-        @media (min-width: 769px) {
+        @media (min-width: 768px) {
           .stats-row {
             padding: 0 24px;
           }

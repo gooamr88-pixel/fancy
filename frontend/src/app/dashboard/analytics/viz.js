@@ -115,9 +115,15 @@ export function Card({ title, hint, table, children, span = 1 }) {
 
 /* The WCAG-clean twin of every chart. tabular-nums here (and only here and on
    axis ticks) — columns of numbers have to align vertically. */
+/* .fx-scroll-x rather than a bare overflowX:auto — it adds the
+   max-width:100% that stops this port from being the thing that overflows,
+   momentum scrolling on iOS, and overscroll-behavior-x so a swipe past the
+   end of the table does not trigger browser back-navigation. This table is
+   load-bearing on a phone: it is the accessible twin every chart above
+   falls back to. */
 export function DataTable({ columns, rows }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div className="fx-scroll-x">
       <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: SANS, fontSize: 12 }}>
         <thead>
           <tr>

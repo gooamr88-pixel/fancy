@@ -461,7 +461,7 @@ export default function GuestsTab({ rsvps, tables, customFields, eventId, event,
           </div>
           <style jsx>{`
             .guests-cards-grid { grid-template-columns: repeat(2, 1fr); }
-            @media (max-width: 640px) {
+            @media (max-width: 639.98px) {
               .guests-cards-grid { grid-template-columns: 1fr; }
             }
           `}</style>

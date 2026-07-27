@@ -344,7 +344,7 @@ export default function ForgotPasswordPage() {
               </div>
 
               <h1 className="auth-heading" style={{ textAlign: 'center' }}>Password Updated</h1>
-              <p className="auth-subtext" style={{ textAlign: 'center', maxWidth: '320px', margin: '0 auto 32px' }}>
+              <p className="auth-subtext fx-container" style={{ textAlign: 'center', '--fx-w': '320px', marginBottom: '32px' }}>
                 Your password has been successfully reset. You can now sign in with your new credentials.
               </p>
 
@@ -490,7 +490,7 @@ export default function ForgotPasswordPage() {
         @keyframes successPop { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
 
         /* ── Responsive ── */
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .auth-page { flex-direction: column; }
           .auth-image-panel { display: none; }
           .auth-form-panel { width: 100%; min-height: 100dvh; background: linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 40%); padding: 40px 24px; }

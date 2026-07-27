@@ -31,7 +31,9 @@ export default async function sitemap() {
     '/contact',
     '/features',
     '/pricing',
-    '/templates',
+    // '/templates' removed — the page is retired and now redirects (see
+    // next.config.mjs); listing a redirecting URL in the sitemap only tells
+    // search engines to crawl a page that immediately sends them elsewhere.
     '/integrations',
     '/help',
     '/blog',

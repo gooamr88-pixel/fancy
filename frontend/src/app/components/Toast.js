@@ -46,10 +46,15 @@ export default function Toast({ toast, onClose, duration }) {
           max-width: min(400px, calc(100vw - 32px));
           pointer-events: none;
         }
-        @media (max-width: 480px) {
+        /* Was 480px; folded onto the < sm step. The left edge now carries
+           the safe-area inset too — the right edge already did, but in
+           landscape on a notched phone it is the LEFT edge that sits under
+           the sensor housing, and no env() call site in this codebase was
+           handling that side. */
+        @media (max-width: 639.98px) {
           .toast-viewport {
-            left: 16px;
-            right: 16px;
+            left: max(16px, env(safe-area-inset-left));
+            right: max(16px, env(safe-area-inset-right));
             max-width: none;
           }
         }

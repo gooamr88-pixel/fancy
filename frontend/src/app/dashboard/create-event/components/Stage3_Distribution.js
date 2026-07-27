@@ -72,7 +72,7 @@ export default function Stage3_Distribution({
   ];
 
   return (
-    <div className="s3-page" style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
+    <div className="s3-page fx-container fx-container--xl fx-gutter" style={{ '--fx-pad-x': '24px', paddingTop: '40px', paddingBottom: '140px' }}>
       {/* Header */}
       <div style={{ marginBottom: 36 }}>
         <div style={{
@@ -516,14 +516,22 @@ export default function Stage3_Distribution({
 
       <style jsx>{`
         /* Back (~107px) + the wide "Publish Event" CTA (~206px) + 48px padding
-           overruns a 360px Android, and body{overflow-x:hidden} clips instead of
+           overruns a 360px Android, and the root overflow guard clips instead of
            scrolling — so the button that actually publishes the event fell off the
            screen. Stack full-width, primary on top (same as Stage2/StagePayment). */
-        @media (max-width: 600px) {
+        @media (max-width: 639.98px) {
           .s3-footer-inner { flex-direction: column-reverse !important; align-items: stretch !important; gap: 10px !important; }
           .s3-footer-btn { width: 100% !important; justify-content: center !important; }
           /* Clear the now-taller stacked footer so the last card isn't hidden behind it. */
-          .s3-page { padding: 32px 16px 220px !important; }
+          /* Was a "padding: … !important" shorthand, which beat .fx-gutter's
+             padding-left/right and discarded the landscape safe-area inset.
+             Feeding --fx-pad-x is the class's documented input, so it
+             composes instead of overriding. */
+          .s3-page {
+            --fx-pad-x: 16px;
+            padding-top: 32px !important;
+            padding-bottom: 220px !important;
+          }
         }
         .s3-shimmer {
           position: absolute; top: 0; left: -100%;

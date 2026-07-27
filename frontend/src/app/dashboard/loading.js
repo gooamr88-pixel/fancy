@@ -61,7 +61,7 @@ const globalStyles = `
    an off-canvas drawer below 1024px — the skeleton didn't match, so every
    cold mobile load flashed a desktop layout for a moment before the real,
    already-responsive dashboard replaced it. */
-@media (max-width: 1024px) {
+@media (max-width: 1023.98px) {
   .dl-sidebar { display: none !important; }
   .dl-main { padding: 16px !important; }
 }

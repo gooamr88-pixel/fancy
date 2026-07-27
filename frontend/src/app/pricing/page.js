@@ -369,10 +369,9 @@ export default function PricingPage() {
       <Navbar />
       <main style={{ paddingTop: "78px" }}>
         {/* ════════════════════ HERO ════════════════════ */}
-        <section
+        <section className="fx-section fx-section--tight-bottom"
           style={{
             background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)",
-            padding: "100px 48px 80px",
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
@@ -380,7 +379,7 @@ export default function PricingPage() {
         >
           <div style={{ position: "absolute", top: "30px", right: "10%", width: "120px", height: "120px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none" }} />
 
-          <div style={{ maxWidth: "700px", margin: "0 auto" }}>
+          <div className="fx-container fx-container--lg" >
             <div
               style={{
                 display: "inline-block",
@@ -420,14 +419,12 @@ export default function PricingPage() {
               <span style={{ color: "#B8944F" }}>Pricing</span>
             </h1>
 
-            <p
+            <p className="fx-container fx-container--sm"
               style={{
                 fontFamily: "var(--font-sans)",
                 fontSize: "19px",
                 lineHeight: 1.7,
                 color: "#5E5A52",
-                maxWidth: "520px",
-                margin: "0 auto",
               }}
             >
               No hidden fees. No surprises. Choose the plan that fits your event and start creating beautiful RSVPs today.
@@ -436,7 +433,7 @@ export default function PricingPage() {
         </section>
 
         {/* ════════════════════ PRICING CARDS ════════════════════ */}
-        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 48px 100px" }}>
+        <section className="fx-container fx-container--4xl fx-section fx-section--flush-top">
           <h2 className="sr-only">Pricing Plans</h2>
           {plans.length > 0 && <PlanRecommender tiers={tiers} />}
           {tiers === null && !error && (
@@ -469,8 +466,8 @@ export default function PricingPage() {
 
         {/* ════════════════════ COMPARISON TABLE ════════════════════ */}
         {plans.length > 0 && (
-        <section style={{ background: "#F8F4EC", padding: "100px 48px" }}>
-          <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+        <section className="fx-section" style={{ background: "#F8F4EC" }}>
+          <div className="fx-container fx-container--xl" >
             <div style={{ textAlign: "center", marginBottom: "56px" }}>
               <h2
                 style={{
@@ -577,8 +574,8 @@ export default function PricingPage() {
         )}
 
         {/* ════════════════════ FAQ ════════════════════ */}
-        <section style={{ padding: "100px 48px", background: "#FFFFFF" }}>
-          <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+        <section className="fx-section" style={{ background: "#FFFFFF" }}>
+          <div className="fx-container fx-container--lg" >
             <div style={{ textAlign: "center", marginBottom: "56px" }}>
               <h2
                 style={{
@@ -618,10 +615,9 @@ export default function PricingPage() {
         </section>
 
         {/* ════════════════════ CTA ════════════════════ */}
-        <section
+        <section className="fx-section"
           style={{
             background: "linear-gradient(135deg, #191B1E 0%, #2A2D32 100%)",
-            padding: "100px 48px",
             textAlign: "center",
             position: "relative",
             overflow: "hidden",
@@ -640,7 +636,7 @@ export default function PricingPage() {
               pointerEvents: "none",
             }}
           />
-          <div style={{ position: "relative", zIndex: 1, maxWidth: "600px", margin: "0 auto" }}>
+          <div className="fx-container fx-container--sm" style={{ position: "relative", zIndex: 1 }}>
             <h2
               style={{
                 fontFamily: "var(--font-serif)",
@@ -681,27 +677,6 @@ export default function PricingPage() {
         </section>
       </main>
       <FooterSection />
-
-      <style jsx>{`
-        @media (max-width: 1024px) {
-          .pricing-grid {
-            gap: 20px !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .pricing-grid {
-            grid-template-columns: 1fr !important;
-            max-width: 440px !important;
-            margin: 0 auto !important;
-          }
-        }
-        @media (max-width: 640px) {
-          section {
-            padding-left: 20px !important;
-            padding-right: 20px !important;
-          }
-        }
-      `}</style>
     </>
   );
 }

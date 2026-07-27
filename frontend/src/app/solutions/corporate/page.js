@@ -80,9 +80,9 @@ export default function CorporateSolutionsPage() {
       <Navbar />
       <main style={{ paddingTop: "78px" }}>
         {/* ════════════════════ HERO ════════════════════ */}
-        <section style={{ background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)", padding: "100px 48px 80px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <section className="fx-section fx-section--tight-bottom" style={{ background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)", textAlign: "center", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: "-40px", right: "-40px", width: "180px", height: "180px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none" }} />
-          <div style={{ maxWidth: "760px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--lg" style={{ position: "relative", zIndex: 1 }}>
             <SectionEyebrow>For Corporate &amp; Enterprise Teams</SectionEyebrow>
             <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(2.4rem, 5vw, 3.8rem)", fontWeight: 700, color: "#191B1E", lineHeight: 1.15, marginBottom: "24px", letterSpacing: "-1px" }}>
               Company events, run{" "}<span style={{ color: "#B8944F" }}>like a company runs</span>
@@ -98,13 +98,13 @@ export default function CorporateSolutionsPage() {
         </section>
 
         {/* ════════════════════ PAIN POINTS ════════════════════ */}
-        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "80px 48px 40px" }}>
+        <section className="fx-container fx-container--4xl fx-section fx-section--sm fx-section--tight-bottom" >
           <div style={{ textAlign: "center", marginBottom: "56px" }}>
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "36px", fontWeight: 700, color: "#191B1E", marginBottom: "12px" }}>
               Familiar problems at company-event scale
             </h2>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px" }} className="cs-grid-3">
+          <div style={{ "--fx-gap": "32px" }} className="cs-grid-3 fx-grid fx-grid--3">
             {PAIN_POINTS.map((p) => (
               <div key={p.title} style={{ background: "#FFFFFF", border: "1px solid #E8E2D6", borderRadius: "16px", padding: "32px 28px" }}>
                 <div style={{ width: "52px", height: "52px", borderRadius: "14px", background: "rgba(184,148,79,0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#B8944F", marginBottom: "20px" }}>
@@ -119,8 +119,8 @@ export default function CorporateSolutionsPage() {
 
         {/* ════════════════════ REAL TESTIMONIAL (admin-managed) ════════════════════ */}
         {spotlight && (
-          <section style={{ background: "#191B1E", padding: "80px 48px" }}>
-            <div style={{ maxWidth: "760px", margin: "0 auto", textAlign: "center" }}>
+          <section className="fx-section fx-section--sm" style={{ background: "#191B1E" }}>
+            <div className="fx-container fx-container--lg" style={{ textAlign: "center" }}>
               <span style={{ fontFamily: "var(--font-serif)", fontSize: "64px", color: "rgba(184,148,79,0.35)", lineHeight: 1, display: "block", marginBottom: "8px" }}>&ldquo;</span>
               <p style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(20px, 3vw, 28px)", fontStyle: "italic", color: "#FFFFFF", lineHeight: 1.5, marginBottom: "28px" }}>
                 {spotlight.quote}
@@ -149,17 +149,17 @@ export default function CorporateSolutionsPage() {
         )}
 
         {/* ════════════════════ CAPABILITIES ════════════════════ */}
-        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "100px 48px" }}>
+        <section className="fx-container fx-container--4xl fx-section" >
           <GoldDivider variant="wide" />
           <div style={{ textAlign: "center", margin: "32px 0 56px" }}>
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "38px", fontWeight: 700, color: "#191B1E", marginBottom: "12px" }}>
               Built for the scale of a company event
             </h2>
-            <p style={{ fontFamily: "var(--font-sans)", fontSize: "17px", color: "#5E5A52", maxWidth: "560px", margin: "0 auto", lineHeight: 1.7 }}>
+            <p className="fx-container fx-container--sm" style={{ fontFamily: "var(--font-sans)", fontSize: "17px", color: "#5E5A52", lineHeight: 1.7 }}>
               Every feature below is available today — no separate enterprise build required.
             </p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px 40px" }} className="cs-grid-3">
+          <div style={{ "--fx-gap-y": "32px", "--fx-gap-x": "40px",}} className="cs-grid-3 fx-grid fx-grid--3">
             {CAPABILITIES.map((c) => (
               <div key={c.title} style={{ display: "flex", gap: "14px" }}>
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0, marginTop: "3px" }}>
@@ -176,14 +176,14 @@ export default function CorporateSolutionsPage() {
         </section>
 
         {/* ════════════════════ TRUST / SECURITY ════════════════════ */}
-        <section style={{ background: "#F8F4EC", padding: "80px 48px" }}>
-          <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+        <section className="fx-section fx-section--sm" style={{ background: "#F8F4EC" }}>
+          <div className="fx-container fx-container--2xl" >
             <div style={{ textAlign: "center", marginBottom: "48px" }}>
               <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "34px", fontWeight: 700, color: "#191B1E", marginBottom: "12px" }}>
                 Your guest data, handled properly
               </h2>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "28px" }} className="cs-grid-3">
+            <div style={{ "--fx-gap": "28px" }} className="cs-grid-3 fx-grid fx-grid--3">
               {TRUST_POINTS.map((t) => (
                 <div key={t.label} style={{ background: "#FFFFFF", border: "1px solid #E8E2D6", borderRadius: "14px", padding: "26px 24px" }}>
                   <h4 style={{ fontFamily: "var(--font-sans)", fontSize: "14.5px", fontWeight: 700, color: "#191B1E", marginBottom: "8px" }}>{t.label}</h4>
@@ -199,7 +199,7 @@ export default function CorporateSolutionsPage() {
 
         {/* ════════════════════ ENTERPRISE TIER (live) ════════════════════ */}
         {enterpriseTier && (
-          <section style={{ maxWidth: "800px", margin: "0 auto", padding: "100px 48px 40px", textAlign: "center" }}>
+          <section className="fx-container fx-container--xl fx-section fx-section--tight-bottom" style={{ textAlign: "center" }}>
             <SectionEyebrow>Enterprise Plan</SectionEyebrow>
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "32px", fontWeight: 700, color: "#191B1E", marginBottom: "16px" }}>
               {enterpriseTier.name}
@@ -223,7 +223,7 @@ export default function CorporateSolutionsPage() {
         )}
 
         {/* ════════════════════ INQUIRY FORM ════════════════════ */}
-        <section id="talk-to-sales" style={{ maxWidth: "1100px", margin: "0 auto", padding: "60px 48px 120px" }}>
+        <section className="fx-container fx-container--3xl fx-section" id="talk-to-sales" style={{ paddingTop: "clamp(36px, 1.75rem + 2.5vw, 60px)", paddingBottom: "var(--fx-pad-y-lg)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "56px", alignItems: "center" }} className="cs-form-grid">
             <div>
               <SectionEyebrow>Get Started</SectionEyebrow>
@@ -247,18 +247,11 @@ export default function CorporateSolutionsPage() {
       <FooterSection />
 
       <style jsx>{`
-        @media (max-width: 900px) {
-          .cs-form-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
-        }
-        @media (max-width: 860px) {
-          .cs-grid-3 { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 640px) {
-          section { padding-left: 20px !important; padding-right: 20px !important; padding-top: 56px !important; }
+        @media (max-width: 639.98px) {
           h1 { line-height: 1.2 !important; }
           h2 { font-size: 28px !important; }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .btn-gold, .btn-outline { width: 100% !important; }
         }
       `}</style>

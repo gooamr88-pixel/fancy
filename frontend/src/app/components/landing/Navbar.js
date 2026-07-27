@@ -24,13 +24,20 @@ import { useModalA11y } from "../../hooks/useModalA11y";
 
 /* Primary navigation links — shared by desktop nav + mobile menu.
    "Home" links back to the landing page; the rest are the key
-   marketing pages that live under /src/app. */
+   marketing pages that live under /src/app.
+   "Templates" is deliberately absent: the gallery page itself has been
+   retired (see next.config.mjs's redirect), so linking to it here would
+   point at a dead end.
+   "Blog" was real, admin-authored content (see admin/(panel)/cms and
+   /blog's own real fetch) sitting behind a URL nobody was ever given —
+   it had no entry point anywhere on the site. Listed here, between the
+   product pages and Company, matching where it sits in FooterSection. */
 const NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "Features", href: "/features" },
-  { label: "Templates", href: "/templates" },
   { label: "Pricing", href: "/pricing" },
   { label: "Solutions", href: "/solutions" },
+  { label: "Blog", href: "/blog" },
   { label: "About", href: "/about" },
   { label: "Contact", href: "/contact" },
 ];
@@ -72,11 +79,15 @@ export default function Navbar() {
           boxShadow: scrolled ? "0 1px 20px rgba(0,0,0,0.04)" : "none",
         }}
       >
+        {/* .fx-gutter as well as .fx-container because this bar is not inside
+            an .fx-section — nothing else supplies its horizontal padding. It
+            replaces a hardcoded `padding: "0 48px"` that never reduced: on a
+            320px iPhone SE that left 224px for a ~183px logo plus a 44px
+            minimum hamburger, i.e. it did not fit. The gutter is now 20px
+            there, and clears the sensor housing in landscape. */}
         <div
+          className="fx-container fx-gutter"
           style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "0 48px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -192,11 +203,14 @@ export default function Navbar() {
           </Link>
 
           {/* ─── Desktop Navigation ─── */}
+          {/* `gap` deliberately lives in the <style jsx> block below rather
+              than here: it has to be fluid, and an inline style cannot hold
+              a clamp that a media query could also touch. Leaving it inline
+              would make the CSS rule inert. */}
           <nav
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "28px",
             }}
             className="desktop-nav"
           >
@@ -341,7 +355,7 @@ export default function Navbar() {
           aria-modal="true"
           aria-label="Navigation menu"
           tabIndex={-1}
-          className="mobile-menu-overlay"
+          className="mobile-menu-overlay fx-safe-scroll-b"
           style={{
             position: "fixed",
             top: "78px",
@@ -357,6 +371,19 @@ export default function Navbar() {
             gap: "28px",
             animation: "fadeIn 0.25s ease",
             outline: "none",
+            // This menu is ~560px tall (7 links at 24px serif + Log In + the
+            // CTA, with 28px gaps). A phone in LANDSCAPE has roughly 297px
+            // below the 78px header — and useModalA11y locks body scroll,
+            // so without this the bottom of the list was simply unreachable.
+            // "Get Started", the primary conversion CTA, was the last item.
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
+            // Keeps the scroll gesture from chaining to the locked body.
+            overscrollBehavior: "contain",
+            // --fx-scroll-pad feeds .fx-safe-scroll-b: at least 32px of
+            // breathing room under the CTA, more on a device with a home
+            // indicator so the last item clears it.
+            "--fx-scroll-pad": "32px",
           }}
         >
           {NAV_LINKS.map((item) => (
@@ -445,7 +472,35 @@ export default function Navbar() {
         .desktop-nav-link-active {
           color: #B8944F;
         }
-        @media (max-width: 768px) {
+
+        /* Fluid link spacing: 20px at 1024px, 28px at 1280px and above.
+           This is what makes the lg swap below actually safe. The desktop
+           nav cannot shrink — every link is whiteSpace:nowrap — so its
+           width is the sum of its parts, and the gaps are the only part
+           that can give. Budget at a 1024px viewport, the tightest case
+           where this nav still renders:
+             gutters      2 × 40.5 = 81   → 943px available
+             7 links      ~339 (15px sans, 44 chars)
+             8 gaps       8 × 20   = 160
+             Log In       ~45
+             Get Started  ~141 (11 chars @14px bold + 56px padding)
+             logo         ~183 (42 icon + 10 + 59 script + 6 + 66 serif)
+             ────────────────────────────────────────────────────────
+             total        ~868 ≤ 943 ✓  (75px, ~8% headroom)
+           At the old flat 28px the total was ~932 against the same 943 —
+           inside the margin of error on font metrics, which is why this
+           needs to taper rather than just moving the breakpoint. */
+        .desktop-nav {
+          gap: clamp(20px, 3.125vw - 12px, 28px);
+        }
+
+        /* Was 768px, and that was the bug: the desktop nav needs ~1080px
+           to lay out, so iPad Air portrait (820), iPad Pro 11" portrait
+           (834) and iPad landscape (1024) all rendered it and overflowed.
+           Above 768px the overflow guard does not clip either, so those
+           devices got a real horizontal page scrollbar with the "Get
+           Started" CTA hanging off the right edge. */
+        @media (max-width: 1023.98px) {
           .desktop-nav {
             display: none !important;
           }

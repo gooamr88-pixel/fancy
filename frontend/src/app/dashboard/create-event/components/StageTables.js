@@ -89,7 +89,7 @@ export default function StageTables({ apiUrl, eventId, onContinue, onBack }) {
   };
 
   return (
-    <div style={{ padding: '40px 24px 140px', maxWidth: 860, margin: '0 auto' }}>
+    <div className="fx-container fx-container--xl fx-gutter" style={{ '--fx-pad-x': '24px', paddingTop: '40px', paddingBottom: '140px' }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <div style={{

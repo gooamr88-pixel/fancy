@@ -51,10 +51,14 @@ export default function ToastHost() {
           gap: 10px;
           pointer-events: none;
         }
-        @media (max-width: 480px) {
+        /* Kept byte-identical in intent to Toast.js's .toast-viewport rule —
+           these two viewports have drifted apart once already. Was 480px;
+           folded onto the < sm step, with the left safe-area inset added
+           for the landscape notch case. */
+        @media (max-width: 639.98px) {
           .toast-stack-viewport {
-            left: 16px;
-            right: 16px;
+            left: max(16px, env(safe-area-inset-left));
+            right: max(16px, env(safe-area-inset-right));
             max-width: none;
             align-items: stretch;
           }

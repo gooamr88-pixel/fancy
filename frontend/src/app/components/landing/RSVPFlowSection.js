@@ -612,19 +612,13 @@ export default function RSVPFlowSection() {
           overflow: "hidden",
         }}
       >
-        <div
-          style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            padding: "0 48px",
-          }}
-        >
+        <div className="fx-container fx-container--5xl fx-gutter">
           {/* ─── Section Header ─── */}
           <div
+            className="fx-container fx-container--md"
             style={{
               textAlign: "center",
-              maxWidth: "640px",
-              margin: "0 auto 64px",
+              marginBottom: "64px",
             }}
           >
             {/* Eyebrow */}
@@ -674,12 +668,17 @@ export default function RSVPFlowSection() {
           </div>
 
           {/* ─── Phone Mockups Row ─── */}
+          {/* These two grids MUST always resolve to the same column count —
+              the step labels below sit under their phones. Both now use
+              .fx-grid--4 with the same --fx-col (260px, which is exactly
+              PhoneFrame's max-width) inside the same container, so they
+              step 4→3→2→1 together by construction. Previously that
+              alignment depended on two separate pairs of media queries
+              staying manually in sync. */}
           <div
-            className="rsvp-phones-grid"
+            className="fx-grid fx-grid--4"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "28px",
+              "--fx-gap": "28px",
               justifyItems: "center",
               alignItems: "start",
               marginBottom: "56px",
@@ -700,14 +699,7 @@ export default function RSVPFlowSection() {
           </div>
 
           {/* ─── Step Labels Row ─── */}
-          <div
-            className="rsvp-steps-grid"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "28px",
-            }}
-          >
+          <div className="fx-grid fx-grid--4" style={{ "--fx-gap": "28px" }}>
             {steps.map((step) => (
               <div
                 key={step.num}
@@ -763,33 +755,13 @@ export default function RSVPFlowSection() {
 
       {/* ─── Responsive Styles ─── */}
       <style jsx>{`
-        @media (max-width: 1100px) {
-          .rsvp-phones-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 32px 24px !important;
-            max-width: 600px !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-          }
-          .rsvp-steps-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 28px 24px !important;
-            max-width: 600px !important;
-            margin-left: auto !important;
-            margin-right: auto !important;
-          }
-        }
-        @media (max-width: 640px) {
-          .rsvp-phones-grid {
-            grid-template-columns: 1fr !important;
-            max-width: 280px !important;
-            gap: 36px !important;
-          }
-          .rsvp-steps-grid {
-            grid-template-columns: 1fr !important;
-            max-width: 300px !important;
-            gap: 24px !important;
-          }
+        /* The .rsvp-phones-grid / .rsvp-steps-grid rules that used to live
+           here — ten !important declarations across an off-scale 1100px
+           tier and a 640px one, duplicated between the two grids — are
+           gone. .fx-grid--4 reflows both intrinsically and, because they
+           share a container and a --fx-col, keeps them at the same column
+           count without anything to maintain. */
+        @media (max-width: 639.98px) {
           .rsvp-flow-title {
             font-size: 28px !important;
           }

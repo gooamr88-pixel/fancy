@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { useIsDesktop } from '../../hooks/useMediaQuery';
 import Link from 'next/link';
 import { T } from './theme';
 import Sidebar from './Sidebar';
@@ -26,34 +27,39 @@ const PERM_BY_PATH = NAV_GROUPS.flatMap((g) => g.items).reduce((map, item) => {
  *
  * Responsive: on narrow viewports the sidebar collapses behind a ☰ toggle.
  */
-// Matches Sidebar.js's own `@media (max-width: 900px)` breakpoint, where the
-// sidebar switches from a persistent desktop column to a fixed overlay drawer.
-const MOBILE_QUERY = '(max-width: 900px)';
-
 export default function AdminShell({ children }) {
   const { me, loading, error, can, isSuperAdmin, reload } = usePermissions();
-  // Default true so desktop (the common dev/SSR case) never flashes a hidden
-  // sidebar; the effect below corrects this to closed on an actual mobile
-  // viewport before the user can interact with it.
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isNarrowViewport, setIsNarrowViewport] = useState(false);
+
+  // The threshold this reads (lg, 1024px) MUST match Sidebar.js's own
+  // `@media (max-width: 1023.98px)` rule, which is what actually turns the
+  // sidebar from a persistent column into a fixed overlay + backdrop. This
+  // hook only decides whether the drawer starts open. If the two drift
+  // apart, every viewport in the gap gets a self-opening full-screen nav
+  // with a click-swallowing backdrop — and it is invisible on a desktop
+  // monitor. Both were 900px; both are now lg, which correctly moves iPad
+  // landscape (1024×768) onto the drawer.
+  const isDesktop = useIsDesktop();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const pathname = usePathname();
 
-  // The drawer must default CLOSED on a phone (previously always opened on
-  // every viewport, forcing mobile visitors to fight a full-screen nav
-  // overlay on first paint) and re-evaluate on resize/orientation change.
-  useEffect(() => {
-    const mq = window.matchMedia(MOBILE_QUERY);
-    const applyForViewport = (e) => {
-      const narrow = e ? e.matches : mq.matches;
-      setIsNarrowViewport(narrow);
-      setSidebarOpen(!narrow);
-    };
-    applyForViewport();
-    mq.addEventListener('change', applyForViewport);
-    return () => mq.removeEventListener('change', applyForViewport);
-  }, []);
+  // The drawer must default CLOSED on a phone (it previously opened on every
+  // viewport, forcing mobile visitors to fight a full-screen nav overlay on
+  // first paint) and re-evaluate on resize/orientation change — while still
+  // honouring a manual toggle in between.
+  //
+  // Adjusting state during render, rather than in an effect, is React's
+  // documented pattern for "reset state when a derived value changes". It
+  // matters here beyond style: useIsDesktop is backed by
+  // useSyncExternalStore, so the correct value arrives in the re-render
+  // React performs before paint, and the sidebar never flashes into the
+  // wrong position. An effect would paint first and correct afterwards.
+  const [sidebarOpen, setSidebarOpen] = useState(isDesktop);
+  const [prevIsDesktop, setPrevIsDesktop] = useState(isDesktop);
+  if (prevIsDesktop !== isDesktop) {
+    setPrevIsDesktop(isDesktop);
+    setSidebarOpen(isDesktop);
+  }
+  const isNarrowViewport = !isDesktop;
 
   if (loading) {
     return (

@@ -100,7 +100,7 @@ function AudienceCard({ audience }) {
         .aud-card:hover, .aud-card:focus-visible { transform: translateY(-6px); box-shadow: 0 20px 60px rgba(0,0,0,0.08); border-color: ${audience.color}; }
         .aud-accent { opacity: 0; transition: opacity 0.3s ease; }
         .aud-card:hover .aud-accent, .aud-card:focus-visible .aud-accent { opacity: 1; }
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .aud-card { padding: 28px 22px !important; }
         }
       `}</style>
@@ -115,16 +115,16 @@ export default function SolutionsHubPage() {
       <Navbar />
       <main style={{ paddingTop: "78px" }}>
         {/* ════════════════════ HERO ════════════════════ */}
-        <section style={{ background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)", padding: "100px 48px 80px", textAlign: "center", position: "relative", overflow: "hidden" }}>
+        <section className="fx-section fx-section--tight-bottom" style={{ background: "linear-gradient(180deg, #F8F4EC 0%, #FFFFFF 100%)", textAlign: "center", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: "-40px", right: "-40px", width: "180px", height: "180px", borderRadius: "50%", border: "1px solid rgba(184,148,79,0.08)", pointerEvents: "none" }} />
-          <div style={{ maxWidth: "700px", margin: "0 auto", position: "relative", zIndex: 1 }}>
+          <div className="fx-container fx-container--lg" style={{ position: "relative", zIndex: 1 }}>
             <div style={{ display: "inline-block", padding: "8px 24px", borderRadius: "100px", background: "rgba(184, 148, 79, 0.08)", border: "1px solid rgba(184, 148, 79, 0.15)", marginBottom: "28px" }}>
               <span style={{ fontFamily: "var(--font-sans)", fontSize: "13px", fontWeight: 600, color: "#B8944F", letterSpacing: "1.5px", textTransform: "uppercase" }}>Solutions</span>
             </div>
             <h1 style={{ fontFamily: "var(--font-serif)", fontSize: "clamp(2.4rem, 5vw, 3.8rem)", fontWeight: 700, color: "#191B1E", lineHeight: 1.15, marginBottom: "24px", letterSpacing: "-1px" }}>
               Built for every kind of{" "}<span style={{ color: "#B8944F" }}>host</span>
             </h1>
-            <p style={{ fontFamily: "var(--font-sans)", fontSize: "19px", lineHeight: 1.7, color: "#5E5A52", maxWidth: "560px", margin: "0 auto" }}>
+            <p className="fx-container fx-container--sm" style={{ fontFamily: "var(--font-sans)", fontSize: "19px", lineHeight: 1.7, color: "#5E5A52" }}>
               From an intimate couple&apos;s wedding to a grand corporate gala, Fancy RSVP scales to how you actually plan events —{" "}
               <span style={{ color: "#B8944F", fontWeight: 600 }}>solo</span>,{" "}
               <span style={{ color: "#B8944F", fontWeight: 600 }}>professionally</span>, or at a{" "}
@@ -134,9 +134,9 @@ export default function SolutionsHubPage() {
         </section>
 
         {/* ════════════════════ AUDIENCE CARDS ════════════════════ */}
-        <section style={{ maxWidth: "1200px", margin: "0 auto", padding: "60px 48px 100px" }}>
+        <section className="fx-container fx-container--4xl fx-section" style={{ paddingTop: "clamp(36px, 1.75rem + 2.5vw, 60px)" }}>
           <GoldDivider variant="wide" />
-          <div style={{ marginTop: "48px", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "28px" }} className="sh-grid-3">
+          <div style={{ marginTop: "48px", "--fx-gap": "28px" }} className="sh-grid-3 fx-grid fx-grid--3">
             {AUDIENCES.map((a) => (
               <AudienceCard key={a.key} audience={a} />
             ))}
@@ -144,8 +144,8 @@ export default function SolutionsHubPage() {
         </section>
 
         {/* ════════════════════ TRUST BAND ════════════════════ */}
-        <section style={{ background: "#F8F4EC", padding: "72px 48px" }}>
-          <div style={{ maxWidth: "1000px", margin: "0 auto", display: "flex", justifyContent: "space-around", flexWrap: "wrap", gap: "40px", textAlign: "center" }}>
+        <section className="fx-section fx-section--sm" style={{ background: "#F8F4EC" }}>
+          <div className="fx-container fx-container--2xl" style={{ display: "flex", justifyContent: "space-around", flexWrap: "wrap", gap: "40px", textAlign: "center" }}>
             {stats.map((s) => (
               <div key={s.label}>
                 <div style={{ fontFamily: "var(--font-serif)", fontSize: "40px", fontWeight: 700, color: "#191B1E", lineHeight: 1 }}>{formatStatValue(s)}</div>
@@ -156,8 +156,8 @@ export default function SolutionsHubPage() {
         </section>
 
         {/* ════════════════════ CTA ════════════════════ */}
-        <section style={{ padding: "100px 48px", textAlign: "center" }}>
-          <div style={{ maxWidth: "540px", margin: "0 auto" }}>
+        <section className="fx-section" style={{ textAlign: "center" }}>
+          <div className="fx-container fx-container--sm" >
             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: "32px", fontWeight: 700, color: "#191B1E", marginBottom: "16px" }}>
               Not sure which fits your team?
             </h2>
@@ -173,15 +173,11 @@ export default function SolutionsHubPage() {
       <FooterSection />
 
       <style jsx>{`
-        @media (max-width: 900px) {
-          .sh-grid-3 { grid-template-columns: 1fr !important; }
-        }
-        @media (max-width: 640px) {
-          section { padding-left: 20px !important; padding-right: 20px !important; padding-top: 56px !important; padding-bottom: 56px !important; }
+        @media (max-width: 639.98px) {
           h1 { line-height: 1.2 !important; }
           h2 { font-size: 26px !important; }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .btn-gold { width: 100% !important; }
         }
       `}</style>

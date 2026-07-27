@@ -205,7 +205,7 @@ export default function TestimonialsSection() {
 
   return (
     <section className="testimonials-section">
-      <div className="container">
+      <div className="fx-section fx-container fx-container--5xl">
         <div className="section-header">
           <span className="eyebrow">TESTIMONIALS</span>
           <h2 className="heading">Loved by Event Planners Everywhere</h2>
@@ -214,7 +214,7 @@ export default function TestimonialsSection() {
           </p>
         </div>
 
-        <div className="cards-grid">
+        <div className="cards-grid fx-grid fx-grid--3" style={{ '--fx-gap': '28px' }}>
           {testimonials.map((t) => (
             <TestimonialCard key={t.id} {...t} />
           ))}
@@ -226,11 +226,12 @@ export default function TestimonialsSection() {
           background: #F8F4EC;
           width: 100%;
         }
-        .container {
-          max-width: 1280px;
-          margin: 0 auto;
-          padding: 100px 48px;
-        }
+        /* .container's max-width/margin/padding moved to
+           .fx-section .fx-container--5xl on the element itself — same
+           1280px measure, same 48px desktop gutter, but the gutter now
+           tapers to 20px at 320px and carries the landscape safe-area
+           inset. The class name is retired: "container" is generic enough
+           that only styled-jsx's scoping was keeping it from colliding. */
         .section-header {
           text-align: center;
           margin-bottom: 56px;
@@ -262,27 +263,24 @@ export default function TestimonialsSection() {
           margin: 0 auto;
           line-height: 1.65;
         }
-        .cards-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 28px;
+        /* .cards-grid's own display/grid-template-columns/gap are gone —
+           .fx-grid--3 reflows 3→2→1 intrinsically. All that survives is
+           the narrow measure once the cards are stacked, which the grid
+           cannot infer: a lone full-width testimonial reads badly. */
+        @media (max-width: 767.98px) {
+          .cards-grid {
+            max-width: 560px;
+            margin-inline: auto;
+          }
         }
 
-        @media (max-width: 1024px) {
-          .cards-grid {
-            grid-template-columns: 1fr;
-            max-width: 560px;
-            margin: 0 auto;
-          }
+        @media (max-width: 1023.98px) {
           .heading {
             font-size: 36px;
           }
         }
 
-        @media (max-width: 640px) {
-          .container {
-            padding: 64px 24px;
-          }
+        @media (max-width: 639.98px) {
           .heading {
             font-size: 30px;
           }

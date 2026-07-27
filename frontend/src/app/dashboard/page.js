@@ -94,17 +94,24 @@ const sidebarNav = [
 function DashboardSkeleton() {
   return (
     <div style={{ display: 'flex', minHeight: '100dvh', background: COLORS.ivory }}>
-      {/* Sidebar skeleton */}
-      <div style={{ width: '240px', background: COLORS.white, borderRight: `1px solid ${COLORS.border}`, padding: '24px' }}>
+      {/* Sidebar skeleton. Hidden below lg to match the real chrome, where
+          the sidebar is an off-canvas drawer rather than a 240px column —
+          otherwise the skeleton reserved 240px of a 320px phone. */}
+      <div className="fx-hide-below-lg" style={{ width: '240px', flexShrink: 0, background: COLORS.white, borderRight: `1px solid ${COLORS.border}`, padding: '24px' }}>
         <div style={{ width: '120px', height: '24px', background: COLORS.border, borderRadius: '8px', marginBottom: '48px' }} />
         {[...Array(7)].map((_, i) => (
           <div key={i} style={{ width: '100%', height: '36px', background: COLORS.ivory, borderRadius: '8px', marginBottom: '8px' }} />
         ))}
       </div>
       {/* Content skeleton */}
-      <div style={{ flex: 1, padding: '32px' }}>
-        <div style={{ width: '300px', height: '32px', background: COLORS.border, borderRadius: '8px', marginBottom: '32px' }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '32px' }}>
+      {/* minWidth:0 so this flex child can shrink; the title bar was a hard
+          300px inside 32px padding (364px) and the stat row a fixed
+          repeat(5, 1fr) — neither had any breakpoint, and the @media block
+          at the bottom of this file targets the real dashboard chrome, not
+          the skeleton. .fx-grid gives the tiles an intrinsic ladder. */}
+      <div className="fx-gutter" style={{ flex: 1, minWidth: 0, '--fx-pad-x': '32px', paddingTop: '32px', paddingBottom: '32px' }}>
+        <div style={{ width: '100%', maxWidth: '300px', height: '32px', background: COLORS.border, borderRadius: '8px', marginBottom: '32px' }} />
+        <div className="fx-grid" style={{ '--fx-col': '150px', '--fx-gap': '16px', marginBottom: '32px' }}>
           {[...Array(5)].map((_, i) => (
             <div key={i} style={{ height: '96px', background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: '12px' }} />
           ))}
@@ -1132,7 +1139,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="content-container" style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
+        <div className="content-container fx-container fx-container--4xl fx-gutter" style={{ '--fx-pad-x': '32px', paddingTop: '32px', paddingBottom: '32px' }}>
 
           {activeTab === 'profile' ? (
             <OrganizerProfile events={events} forcePasswordReset={forcePasswordReset} onPasswordReset={() => setForcePasswordReset(false)} />
@@ -1588,7 +1595,7 @@ export default function DashboardPage() {
           font-size: 10px;
           font-weight: 600;
         }
-        @media (max-width: 1024px) {
+        @media (max-width: 1023.98px) {
           .sidebar-close { display: flex !important; }
           .sidebar-overlay { display: block !important; }
           .dashboard-sidebar { transform: ${sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'}; }
@@ -1596,11 +1603,21 @@ export default function DashboardPage() {
           /* Was padding-left:72px to dodge the old floating hamburger; that button
              is gone, so the header title gets the full width back. */
           .top-bar { padding-left: 16px !important; padding-right: 16px !important; }
-          .content-container { padding: 16px !important; }
+          /* Was "padding: 16px !important", which beat both .fx-gutter's
+             padding-left/right AND the inline vertical padding — throwing
+             away the landscape safe-area inset .fx-gutter contributes.
+             Feeding --fx-pad-x instead is the class's documented input, so
+             it needs no !important and composes rather than overriding:
+             the gutter becomes max(16px, safe-area) on its own. */
+          .content-container {
+            --fx-pad-x: 16px;
+            padding-top: 16px !important;
+            padding-bottom: 16px !important;
+          }
           .dashboard-bottom-tabbar { display: flex !important; }
           .action-btn-divider { display: none !important; }
         }
-        @media (max-width: 900px) {
+        @media (max-width: 1023.98px) {
           .seating-form-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>

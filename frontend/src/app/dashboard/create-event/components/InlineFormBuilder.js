@@ -373,7 +373,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
               >
                 {/* flex/minWidth:0 so the text column can actually shrink — otherwise
                     a long label + options list pushed the edit/delete buttons past the
-                    card edge on a phone, where overflow-x:hidden clips them away. */}
+                    card edge on a phone, where the root overflow guard clips them away. */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 200px', minWidth: 0 }}>
                   {/* Label + badges */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -468,7 +468,7 @@ export default function InlineFormBuilder({ fields, onFieldsChange }) {
         )}
       </div>
       <style jsx>{`
-        @media (max-width: 640px) {
+        @media (max-width: 639.98px) {
           .ifb-row { grid-template-columns: 1fr !important; }
         }
       `}</style>

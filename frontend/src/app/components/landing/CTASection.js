@@ -17,11 +17,10 @@ export default function CTASection() {
       style={{
         width: '100%',
         background: 'linear-gradient(135deg, #191B1E 0%, #2A2D32 50%, #191B1E 100%)',
-        padding: '100px 48px',
         position: 'relative',
         overflow: 'hidden',
       }}
-      className="cta-section"
+      className="cta-section fx-section"
     >
       {/* ─── Top Shimmer Line ─── */}
       <div
@@ -77,9 +76,8 @@ export default function CTASection() {
 
       {/* ─── Content ─── */}
       <div
+        className="fx-container fx-container--lg"
         style={{
-          maxWidth: '680px',
-          margin: '0 auto',
           textAlign: 'center',
           position: 'relative',
           zIndex: 2,
@@ -224,19 +222,15 @@ export default function CTASection() {
           }
         }
 
-        /* Responsive: < 768px */
-        @media (max-width: 768px) {
-          .cta-section {
-            padding: 80px 24px !important;
-          }
-        }
-
-        /* Responsive: < 640px */
-        @media (max-width: 640px) {
-          .cta-section {
-            padding: 80px 24px !important;
-          }
-
+        /* The two .cta-section padding overrides that used to live here —
+           one at 768px, one at 640px, byte-identical to each other and both
+           !important — are gone. .fx-section supplies the padding fluidly
+           now, and it had to be deleted here in the same change: an
+           !important override still in the sheet would have beaten
+           .fx-section's max(--fx-pad-x, --fx-safe-l) below 768px, silently
+           dropping the landscape safe-area gutter on the one surface that
+           needs it while portrait looked perfect. */
+        @media (max-width: 639.98px) {
           .cta-buttons {
             flex-direction: column !important;
             align-items: stretch !important;

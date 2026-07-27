@@ -59,7 +59,7 @@ const GLOBAL_STYLES = `
   flex-wrap: wrap;
   gap: 12px;
 }
-@media (max-width: 900px) {
+@media (max-width: 1023.98px) {
   .ov-charts-grid,
   .ov-bottom-grid {
     grid-template-columns: 1fr;
@@ -68,7 +68,7 @@ const GLOBAL_STYLES = `
     grid-template-columns: repeat(2, 1fr);
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 639.98px) {
   .ov-skeleton-stats {
     grid-template-columns: 1fr;
     gap: 14px;

@@ -37,7 +37,14 @@ function CopyLinkButton() {
 export default function BlogPostClient({ post }) {
   return (
     <main style={{ paddingTop: '78px' }}>
-      <article className="post-article" style={{ maxWidth: '760px', margin: '0 auto', padding: '64px 24px 100px' }}>
+      <article
+        className="post-article fx-container fx-container--lg fx-gutter"
+        style={{
+          '--fx-pad-x': 'clamp(16px, 0.333rem + 2.5vw, 24px)',
+          paddingTop: 'clamp(32px, 1.667rem + 3.333vw, 64px)',
+          paddingBottom: 'clamp(64px, 3.333rem + 3.75vw, 100px)',
+        }}
+      >
         <Link href="/blog" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 700, color: '#B8944F', textDecoration: 'none', marginBottom: '32px' }}>
           ← Back to Blog
         </Link>
@@ -99,16 +106,17 @@ export default function BlogPostClient({ post }) {
       <style jsx>{`
         .post-share { margin-left: auto; }
 
-        @media (max-width: 640px) {
-          .post-article { padding: 40px 20px 72px !important; }
+        /* .post-article's two padding overrides (40px/20px at 640, 32px/16px
+           at an off-scale 420) are gone — the padding is fluid on the element
+           now, interpolating 16→24px horizontally and 32→64px on top across
+           the same range, and .fx-gutter adds the landscape safe-area inset
+           the !important shorthands were discarding. */
+        @media (max-width: 639.98px) {
           .post-cover { max-height: 260px !important; margin-bottom: 32px !important; }
           .post-meta { padding-bottom: 24px !important; margin-bottom: 32px !important; gap: 10px !important; }
           /* Once the meta row wraps, a right-shoved share button reads as a stray
              orphan — give it its own full-width line instead. */
           .post-share { margin-left: 0 !important; width: 100%; margin-top: 6px; }
-        }
-        @media (max-width: 420px) {
-          .post-article { padding: 32px 16px 64px !important; }
         }
       `}</style>
     </main>

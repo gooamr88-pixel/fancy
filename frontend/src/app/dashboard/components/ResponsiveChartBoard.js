@@ -319,7 +319,7 @@ export default function ResponsiveChartBoard({ stats }) {
         </div>
       </div>
       <style>{`
-        @media (max-width: 768px) {
+        @media (max-width: 767.98px) {
           .rcb-grid {
             grid-template-columns: 1fr !important;
             gap: 24px !important;

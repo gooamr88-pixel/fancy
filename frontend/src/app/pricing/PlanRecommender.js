@@ -240,10 +240,10 @@ export default function PlanRecommender({ tiers }) {
       </div>
 
       <style jsx>{`
-        @media (max-width: 760px) {
+        @media (max-width: 767.98px) {
           .pr-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
         }
-        @media (max-width: 480px) {
+        @media (max-width: 639.98px) {
           .pr-card { padding: 28px 22px !important; }
         }
       `}</style>
