@@ -543,34 +543,61 @@ body {
   font-family: var(--font-sans);
   font-size: 16px;
   line-height: 1.6;
+  /* Google Sans's real Medium cut, not a synthetic one — 400 (the browser's
+     unstyled default) read noticeably light for the platform's own body copy
+     once the brand switched from EB Garamond to a genuine geometric sans.
+     Only affects text that doesn't already set its own weight: the ~5,100
+     inline `style` objects across the app that DO request a weight of their
+     own inherit nothing from here — a plain declaration is always beaten by
+     one closer to the element, inline or not. */
+  font-weight: 500;
   /* overflow-x deliberately NOT set here — it now lives on html only.
      See the "Horizontal overflow guard" block further down for why
      declaring it on body was actively harmful. */
 }
 
-/* ─── Luxury Typography Hierarchy ─── */
+/* ─── Luxury Typography Hierarchy ───
+   Aboreto — the brand's display face — ships as a SINGLE static weight (400,
+   confirmed against next/font's own Google Fonts metadata before relying on
+   it). Every font-weight below this point on an Aboreto-rendered heading is
+   therefore never a real heavier cut, only the browser's own synthetic
+   ("faux") bold, which Chromium/Firefox scale more aggressively the further
+   the requested weight sits above 400 — hence values further from 400 than a
+   multi-weight face would ever need.
+   -webkit-text-stroke is the second, complementary lever, and the one that
+   is NOT synthesis-dependent: it is a real hairline paint stroke around each
+   glyph's actual outline, so it thickens Aboreto by a fixed, engine-
+   independent amount regardless of how faithfully any given browser's faux-
+   bold happens to render, and regardless of whether a specific heading
+   overrides font-weight inline further down the cascade — nothing in this
+   app sets its own text-stroke, so every h1–h6 picks this up. currentColor
+   keeps the stroke the same ink as the glyph fill (reinforcing the letter,
+   not outlining it in a contrasting colour), and it is inherited, so h1's own
+   heavier override below still carries the same stroke without repeating it. */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-serif);
   color: var(--deep-charcoal);
   line-height: 1.15;
-  font-weight: 600;
+  font-weight: 700;
+  -webkit-text-stroke: 0.4px currentColor;
+  text-stroke: 0.4px currentColor;
 }
 
 h1 {
   font-size: clamp(2.2rem, 5vw, 3.6rem);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.02em;
 }
 
 h2 {
   font-size: clamp(1.6rem, 3.5vw, 2.4rem);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 h3 {
   font-size: clamp(1.1rem, 2vw, 1.5rem);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* ─── Selection ─── */
