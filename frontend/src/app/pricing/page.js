@@ -79,7 +79,15 @@ function PricingCard({ plan }) {
         ...(plan.highlight
           ? {
               border: "2px solid #B8944F",
-              transform: "translateY(-8px)",
+              // The -8px "floating above its neighbours" lift only means
+              // something when there ARE side-by-side neighbours — moved to
+              // .pricing-card-highlight below, gated to hover-capable
+              // pointers, precisely because that's the same condition under
+              // which .fx-grid is actually laying these out in a row rather
+              // than stacking them. Left inline and unconditional, this lift
+              // shifted the recommended card up into the card ABOVE it in
+              // every single-column mobile stack — an overlap, not a "raised
+              // card" effect, on every phone.
               boxShadow: "0 24px 80px rgba(184,148,79,0.2), 0 8px 32px rgba(0,0,0,0.08)",
             }
           : {}),
@@ -241,6 +249,21 @@ function PricingCard({ plan }) {
           border-color: #B8944F;
           transform: translateY(-8px);
           box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+        }
+        /* (hover: hover) rather than a width breakpoint on purpose: .fx-grid
+           collapses to one column at a width that depends on how many plans
+           are loaded (--fx-col varies by the fx-grid--N picked in the JS
+           above), so there is no single pixel threshold to hardcode here
+           that stays correct for every possible plan count. Hover capability
+           is what the lift is actually FOR — a raised card reads as "pick me
+           out of the row beside it," which only means something on the
+           pointer-driven, side-by-side layout a real mouse implies in the
+           first place. Every touch device — where cards are always stacked,
+           regardless of how many there are — skips it entirely. */
+        @media (hover: hover) and (pointer: fine) {
+          .pricing-card-highlight {
+            transform: translateY(-8px);
+          }
         }
       `}</style>
     </div>
@@ -448,15 +471,29 @@ export default function PricingPage() {
             </p>
           )}
           {plans.length > 0 && (
-            <div
-              className="pricing-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: `repeat(${plans.length}, 1fr)`,
-                gap: "28px",
-                alignItems: "start",
-              }}
-            >
+            /* This was a HARD fixed-column grid — repeat(plans.length, 1fr),
+               no fallback of any kind — on a container designed for a
+               ~1200px desktop layout. plans.length is whatever the admin has
+               configured (3, 4, however many tiers), so on a 375px phone
+               this laid out that many equal columns side by side with zero
+               reflow: each card's OWN 36–44px of padding alone already
+               exceeded the resulting column width, before a single price
+               digit or feature line was drawn. That is what "terrible on
+               mobile" was — cards squeezed into unreadable slivers, not a
+               cosmetic spacing complaint.
+               .fx-grid (see globals.css) replaces it with the same visual
+               column count on desktop — the modifier below is chosen FROM
+               the live plan count precisely because it's data-driven, not a
+               fixed constant — but its auto-fit/minmax(min(...),100%)
+               mechanism drops to fewer columns, and eventually one, purely
+               from available width. No breakpoint to keep in sync with
+               however many tiers pricing happens to have this month.
+               Clamped to [2,6] — the range globals.css actually defines
+               presets for (.fx-grid--2 … --6) — rather than trusting
+               plans.length outright; a plan count outside that range would
+               otherwise reference a modifier class that doesn't exist and
+               silently fall back to .fx-grid's own 280px default column. */
+            <div className={`fx-grid fx-grid--${Math.min(Math.max(plans.length, 2), 6)}`} style={{ alignItems: "start" }}>
               {plans.map((plan) => (
                 <PricingCard key={plan.name} plan={plan} />
               ))}
@@ -493,7 +530,18 @@ export default function PricingPage() {
               </p>
             </div>
 
-            <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+            {/* globals.css's own .fx-scroll-x comment names this exact table
+                as one of the two things it exists for — a feature-comparison
+                table's columns genuinely cannot reflow/wrap the way cards
+                can, so this is the one place on the page a horizontal
+                scroll port is the correct answer, not a bug. It was already
+                scrolling via a hand-written overflowX before this, just
+                missing max-width:100% (nothing capped this port to its
+                container, only the auto-scroll itself) and
+                overscroll-behavior-x (without it, swiping past the last
+                column on iOS/Android triggers the browser's own back-
+                navigation instead of just stopping). */}
+            <div className="fx-scroll-x">
             <div
               style={{
                 background: "#FFFFFF",

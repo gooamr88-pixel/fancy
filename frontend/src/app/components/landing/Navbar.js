@@ -223,7 +223,7 @@ export default function Navbar() {
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
-                  fontWeight: 400,
+                  fontWeight: 700,
                   textDecoration: "none",
                   cursor: "pointer",
                   padding: "4px 0",
@@ -243,7 +243,7 @@ export default function Navbar() {
                 style={{
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
-                  fontWeight: 400,
+                  fontWeight: 600,
                   textDecoration: "none",
                   cursor: "pointer",
                 }}
@@ -261,7 +261,7 @@ export default function Navbar() {
                   border: "none",
                   fontFamily: "var(--font-sans)",
                   fontSize: "15px",
-                  fontWeight: 400,
+                  fontWeight: 600,
                   textDecoration: "none",
                   cursor: "pointer",
                 }}
@@ -395,7 +395,7 @@ export default function Navbar() {
               style={{
                 fontFamily: "var(--font-serif)",
                 fontSize: "24px",
-                fontWeight: 500,
+                fontWeight: 700,
                 color: pathname === item.href ? "#B8944F" : "#191B1E",
                 textDecoration: "none",
                 cursor: "pointer",
@@ -412,7 +412,7 @@ export default function Navbar() {
               style={{
                 fontFamily: "var(--font-sans)",
                 fontSize: "16px",
-                fontWeight: 400,
+                fontWeight: 600,
                 color: "#77736A",
                 textDecoration: "none",
               }}
@@ -428,7 +428,7 @@ export default function Navbar() {
                 border: "none",
                 fontFamily: "var(--font-sans)",
                 fontSize: "16px",
-                fontWeight: 400,
+                fontWeight: 600,
                 color: "#77736A",
                 cursor: "pointer",
               }}
@@ -473,25 +473,33 @@ export default function Navbar() {
           color: #B8944F;
         }
 
-        /* Fluid link spacing: 20px at 1024px, 28px at 1280px and above.
+        /* Fluid link spacing: 16px at 1024px, 28px at 1280px and above.
            This is what makes the lg swap below actually safe. The desktop
            nav cannot shrink — every link is whiteSpace:nowrap — so its
            width is the sum of its parts, and the gaps are the only part
            that can give. Budget at a 1024px viewport, the tightest case
            where this nav still renders:
              gutters      2 × 40.5 = 81   → 943px available
-             7 links      ~339 (15px sans, 44 chars)
-             8 gaps       8 × 20   = 160
-             Log In       ~45
-             Get Started  ~141 (11 chars @14px bold + 56px padding)
+             7 links      ~373 (15px sans @700, 44 chars — bold runs
+                           measurably wider than regular; ~10% padded onto
+                           the previous regular-weight estimate below)
+             8 gaps       8 × 16   = 128
+             Log In       ~50 (15px sans @600)
+             Get Started  ~141 (11 chars @14px bold + 56px padding —
+                           already bold before this pass, unaffected)
              logo         ~183 (42 icon + 10 + 59 script + 6 + 66 serif)
              ────────────────────────────────────────────────────────
-             total        ~868 ≤ 943 ✓  (75px, ~8% headroom)
-           At the old flat 28px the total was ~932 against the same 943 —
-           inside the margin of error on font metrics, which is why this
-           needs to taper rather than just moving the breakpoint. */
+             total        ~916 ≤ 943 ✓  (27px, ~2.9% headroom)
+           The floor dropped from 20px to 16px specifically to buy back
+           room for the links moving from regular to bold (this file's own
+           earlier note on the OLD flat-28px regression — a tablet width
+           overflowing with only ~11px of true margin — is exactly the
+           failure mode a thin headroom number like this one risks; the
+           10% bold-width figure is a font-metrics estimate, not a
+           measured one, so treat this margin as tighter than it looks and
+           re-check on an actual 1024px viewport before trusting it blind). */
         .desktop-nav {
-          gap: clamp(20px, 3.125vw - 12px, 28px);
+          gap: clamp(16px, 4.6875vw - 32px, 28px);
         }
 
         /* Was 768px, and that was the bug: the desktop nav needs ~1080px
