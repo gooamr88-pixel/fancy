@@ -17,7 +17,7 @@ number + Twilio Console webhooks + viamarketing.ca + dry run).
 | Business website | `https://fancyrsvp.com` |
 | Corporate website (if asked) | `https://viamarketing.ca` |
 | Business address | `2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada` |
-| Business contact email | `info@viamarketing.ca` (corporate) / `info@fancyrsvp.com` (product) |
+| Business contact email | `info@fancyrsvp.com` — **the only accepted value.** A free provider (Gmail/Yahoo/Hotmail) is auto-rejected as **30482 — Business email requires an official domain**; the address must be on the same domain as the submitted business website and be published on it (it is: `/contact`, `/terms`, `/privacy`, `/sms-opt-in`). Must be a real, monitored mailbox — reviewers may write to it. |
 | **Opt-in URL** | `https://fancyrsvp.com/sms-opt-in` — **never `https://viamarketing.ca/`** (that URL's interstitial caused Rejection Reason 1) |
 | Opt-in type | Web Form |
 | Use case category | Events / notifications (transactional event communications) |

@@ -141,7 +141,6 @@ const sections = [
       "If you have questions about these Terms of Service, please contact us through any of the following channels:",
       "**Legal Entity:** 16941460 Canada Corp., operating as Via Marketing",
       "**Email:** info@fancyrsvp.com",
-      "**Corporate Email:** info@viamarketing.ca",
       "**Mail:** 16941460 Canada Corp. o/a Via Marketing, Attn: Legal, 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada",
       "**Corporate Website:** viamarketing.ca",
       "For urgent legal matters, including DMCA takedown requests, subpoenas, or law enforcement inquiries, please contact info@fancyrsvp.com with \"URGENT\" in the subject line.",

@@ -14,7 +14,10 @@ const { SMS_CONSENT_TEXT_VERSION } = require('../utils/smsConsent');
  * write is already the durable record.
  */
 
-const NOTIFY_EMAIL = process.env.CONTACT_NOTIFY_EMAIL || 'info@viamarketing.ca';
+// One business identity everywhere (Twilio TFV 30482 / DMARC alignment): every
+// business + contact address on the platform is info@fancyrsvp.com, the address
+// published on /contact, /terms, /privacy and /sms-opt-in.
+const NOTIFY_EMAIL = process.env.CONTACT_NOTIFY_EMAIL || 'info@fancyrsvp.com';
 
 const NEWSLETTER_SOURCES = ['footer', 'blog'];
 

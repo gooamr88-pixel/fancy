@@ -7,11 +7,14 @@ const { getRSVPConfirmationTemplate } = require('./emailTemplates');
  */
 const sendEmailViaBrevo = async (to, subject, htmlContent) => {
   const apiKey = process.env.BREVO_API_KEY;
-  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@fancyrsvp.com';
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'info@fancyrsvp.com';
   const fromName = process.env.BREVO_FROM_NAME || 'Fancy RSVP';
 
   if (!apiKey) {
-    logger.info(`[MOCK BREVO EMAIL] To: ${to} | Subject: ${subject}`);
+    // Silently mocking every email is right for local dev and catastrophic in
+    // production (guests get nothing, nothing looks broken) — warn, not info,
+    // so it survives a production log level and is greppable.
+    logger.warn(`[MOCK BREVO EMAIL — BREVO_API_KEY not set, nothing was delivered] To: ${to} | Subject: ${subject}`);
     return true;
   }
 
@@ -55,9 +58,13 @@ const sendConfirmationEmail = async (eventId, partyId) => {
     throw new Error('partyId is required.');
   }
 
+  // `response` is read from the party row (not passed in) so the resend
+  // endpoint and the live submit path always describe the SAME response —
+  // omitting it made every confirmation render "Response: Pending", since
+  // responseMeta() falls back to Pending for an undefined value.
   const { data: party, error } = await supabase
     .from('rsvp_parties')
-    .select('id, label, guests(is_primary_contact, email), events(title, event_date)')
+    .select('id, label, response, guests(is_primary_contact, email), events(title, event_date)')
     .eq('id', partyId)
     .eq('event_id', eventId)
     .single();
@@ -68,15 +75,20 @@ const sendConfirmationEmail = async (eventId, partyId) => {
 
   const primaryEmail = (party.guests || []).find((g) => g.is_primary_contact)?.email || null;
   if (!primaryEmail) {
-    logger.info(`[Notification Service] Party ${party.label} has no email configured. Skipping confirmation email.`);
+    // warn, not info: a guest who answered and got nothing back is a defect to
+    // investigate, and this is the only trace of it.
+    logger.warn({ partyId, eventId, label: party.label }, 'Confirmation email skipped — party has no primary-contact email on file');
     return false;
   }
 
   const partySize = (party.guests || []).length || 1;
-  const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize };
+  const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize, response: party.response };
   const emailHtml = getRSVPConfirmationTemplate(shimParty, party.events);
+  const subject = party.response === 'maybe'
+    ? `RSVP Received: ${party.events.title}`
+    : `RSVP Confirmed: ${party.events.title}`;
 
-  return sendEmailViaBrevo(primaryEmail, `RSVP Confirmed: ${party.events.title}`, emailHtml);
+  return sendEmailViaBrevo(primaryEmail, subject, emailHtml);
 };
 
 const sendCompanionConfirmationEmail = async ({

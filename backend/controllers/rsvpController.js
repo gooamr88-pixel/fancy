@@ -212,13 +212,19 @@ const submitPublicRSVP = async (req, res, next) => {
       partyId: result.party_id, guestName, response: result.response, partySize: computedPartySize,
     });
 
-    // Confirmation / decline email (best-effort)
-    if (result.response === 'yes') {
+    // Confirmation / decline email (best-effort). A 'maybe' is acknowledged
+    // too — it used to fall through both branches and receive nothing at all,
+    // which reads to the guest as "my response was never recorded".
+    if (result.response === 'yes' || result.response === 'maybe') {
       if (result.guest_email) {
         notificationService.sendConfirmationEmail(eventId, result.party_id)
           .catch((err) => logger.error({ err }, 'Confirmation email error'));
+      } else {
+        logger.warn({ partyId: result.party_id, eventId, response: result.response },
+          'RSVP recorded without a guest email — confirmation email skipped');
       }
-      if (Array.isArray(sanitizedAdditional)) {
+      // Companions are only registered (and mailed) on an actual 'yes'.
+      if (result.response === 'yes' && Array.isArray(sanitizedAdditional)) {
         sanitizedAdditional.forEach((companion) => {
           if (companion && companion.email && companion.email.trim()) {
             notificationService.sendCompanionConfirmationEmail({
@@ -232,7 +238,9 @@ const submitPublicRSVP = async (req, res, next) => {
           }
         });
       }
-    } else if (result.response === 'no' && result.guest_email) {
+    } else if (result.response === 'no' && !result.guest_email) {
+      logger.warn({ partyId: result.party_id, eventId }, 'Decline recorded without a guest email — thank-you email skipped');
+    } else if (result.response === 'no') {
       const declineHtml = getDeclineConfirmationTemplate(
         { guest_name: guestName },
         { title: result.event_title, event_date: result.event_date, slug: result.event_slug },
@@ -1028,13 +1036,19 @@ const respondViaToken = async (req, res, next) => {
     broadcast(event.id, 'rsvp_updated', { partyId: payload.partyId, guestName, response: mapped, partySize: computedPartySize });
 
     if (primaryEmail) {
-      if (mapped === 'yes') {
+      // Same rule as submitPublicRSVP: 'maybe' is acknowledged, not ignored.
+      if (mapped === 'yes' || mapped === 'maybe') {
         notificationService.sendConfirmationEmail(event.id, payload.partyId).catch((err) => logger.error({ err }, 'Confirmation email error'));
       } else if (mapped === 'no') {
         const declineHtml = getDeclineConfirmationTemplate({ guest_name: guestName, id: payload.partyId }, event);
         notificationService.sendEmailViaBrevo(primaryEmail, `Thank You – ${escapeHtml(event.title)}`, declineHtml)
           .catch((err) => logger.error({ err }, 'Decline email error'));
       }
+    } else {
+      // The one-click path never collects an address, so an organizer-imported
+      // party with no email on file silently gets nothing back. Make it visible.
+      logger.warn({ partyId: payload.partyId, eventId: event.id, response: mapped },
+        'Token RSVP recorded without a primary-contact email — no guest email sent');
     }
 
     // Notify organizer + groom/bride of the new RSVP (best-effort). Unlike

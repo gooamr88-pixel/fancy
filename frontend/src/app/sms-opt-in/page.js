@@ -148,13 +148,9 @@ export default function SmsOptInPage() {
                   </a>
                 </li>
                 <li>
-                  Product support:{" "}
+                  Contact:{" "}
                   <a href="mailto:info@fancyrsvp.com" style={{ color: GOLD, fontWeight: 600 }}>
                     info@fancyrsvp.com
-                  </a>
-                  {" "}· Corporate contact:{" "}
-                  <a href="mailto:info@viamarketing.ca" style={{ color: GOLD, fontWeight: 600 }}>
-                    info@viamarketing.ca
                   </a>
                 </li>
               </ul>

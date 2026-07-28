@@ -232,6 +232,29 @@ test('a "maybe" RSVP labels the organizer email "Maybe" (amber), never "Declined
   assert.match(html, /#9A7B3F/); // gold accent, not the red decline colour
 });
 
+test('a "maybe" RSVP with an email acknowledges the guest too (not only the organizer)', async () => {
+  rpcResult({
+    success: true, rsvp_id: 'r1', party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
+    response: 'maybe', party_size: 1, guest_email: 'a@x.com', notification_preferences: { email: false },
+  });
+  const { res } = await invoke(submitPublicRSVP, req({ guestName: 'Alice', email: 'a@x.com', response: 'maybe' }));
+  assert.equal(res.statusCode, 201);
+  assert.equal(confirmCalls.length, 1, 'tentative guest gets an acknowledgement email');
+  assert.deepEqual(confirmCalls[0], ['evt-1', 'r1']);
+});
+
+test('a "maybe" never registers companions (only an actual yes does)', async () => {
+  rpcResult({
+    success: true, rsvp_id: 'r1', party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
+    response: 'maybe', party_size: 1, guest_email: 'a@x.com', notification_preferences: { email: false },
+  });
+  await invoke(submitPublicRSVP, req({
+    guestName: 'Alice', email: 'a@x.com', response: 'maybe',
+    additionalGuests: [{ fullName: 'Bob', email: 'bob@x.com', phone: '+15551234567' }],
+  }));
+  assert.equal(emailCalls.some(a => a[0] === 'bob@x.com'), false, 'no companion email on a tentative response');
+});
+
 test('a DB-level RPC error is forwarded to the Express error handler', async () => {
   mock.setResolver((s) => (s.op === 'rpc' ? { error: { message: 'connection reset' } } : {}));
   const { nextErr } = await invoke(submitPublicRSVP, req({ guestName: 'A', response: 'yes', partySize: 1 }));

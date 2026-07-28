@@ -341,10 +341,14 @@ const getInvitationTemplate = (rsvp, event, links) => {
   });
 };
 
-/** RSVP confirmation (response recorded). */
+/**
+ * RSVP confirmation (response recorded). Also used for a 'maybe' — the copy
+ * adapts rather than promising a seat to someone who hasn't committed yet.
+ */
 const getRSVPConfirmationTemplate = (rsvp, event) => {
   const formattedDate = formatEventDate(event.event_date);
   const r = responseMeta(rsvp.response);
+  const isMaybe = rsvp.response === 'maybe';
   const partySize = rsvp.party_size || 1;
   const rows = [
     ['Response', `<span style="color:${r.color};">${r.label}</span>`, r.color],
@@ -353,15 +357,21 @@ const getRSVPConfirmationTemplate = (rsvp, event) => {
   if (formattedDate) rows.push(['Date', escapeHtml(formattedDate)]);
 
   return emailShell({
-    preheader: `Your RSVP for ${event.title} is confirmed`,
-    eyebrow: 'RSVP confirmed',
+    preheader: isMaybe
+      ? `We've noted your response for ${event.title}`
+      : `Your RSVP for ${event.title} is confirmed`,
+    eyebrow: isMaybe ? 'Response received' : 'RSVP confirmed',
     heading: escapeHtml(event.title),
     contentHtml: `
       ${greeting(rsvp.guest_name)}
-      ${para('Your RSVP has been successfully recorded. Here are the details we have on file:')}
+      ${para(isMaybe
+        ? 'Thank you for letting us know. Your response has been recorded as tentative — here is what we have on file:'
+        : 'Your RSVP has been successfully recorded. Here are the details we have on file:')}
       ${dataTable(rows)}
-      ${noticeBox('Your table placement is being coordinated. You\'ll receive a separate email with your QR check-in pass once seating is finalized.', 'neutral')}
-      ${para('We look forward to celebrating with you.', { mb: 0 })}
+      ${isMaybe
+        ? noticeBox('We\'ll hold your place for now. As soon as you know either way, just reopen your invitation and update your response — the host would love a final answer before the deadline.', 'warn')
+        : noticeBox('Your table placement is being coordinated. You\'ll receive a separate email with your QR check-in pass once seating is finalized.', 'neutral')}
+      ${para(isMaybe ? 'We hope you can make it.' : 'We look forward to celebrating with you.', { mb: 0 })}
     `,
   });
 };

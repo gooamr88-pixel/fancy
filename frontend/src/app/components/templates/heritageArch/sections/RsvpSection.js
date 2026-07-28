@@ -629,6 +629,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       side: event?.track_guest_side ? (side || undefined) : undefined,
       smsConsent,
       consentSource: 'guest_form_template', // provenance for the sms_consent record (backend whitelists values)
+      // The widget is rendered and the token validated above, but it was never
+      // actually sent — with TURNSTILE_SECRET set the backend rejects every
+      // submission from this surface with CAPTCHA_REQUIRED (RsvpWizard sends it).
+      ...(captchaToken ? { captchaToken } : {}),
     };
 
     const r = await submit({ url: `/public/events/${slug}/rsvp`, body, reconcileId: body.partyId });

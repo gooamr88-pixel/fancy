@@ -142,7 +142,6 @@ const sections = [
       "If you have any questions, concerns, or requests related to this Privacy Policy or our data practices, please contact us through any of the following channels:",
       "**Legal Entity:** Fancy RSVP is owned and operated by 16941460 Canada Corp., operating as Via Marketing.",
       "**Email:** info@fancyrsvp.com",
-      "**Corporate Email:** info@viamarketing.ca",
       "**Mail:** 16941460 Canada Corp. o/a Via Marketing, Attn: Privacy, 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada",
       "**Corporate Website:** viamarketing.ca",
       "**Data Protection Officer:** For GDPR-related inquiries, contact our DPO at info@fancyrsvp.com",
