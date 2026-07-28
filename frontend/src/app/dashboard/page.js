@@ -47,6 +47,50 @@ const COLORS = {
 };
 
 /* ═══════════════════════════════════════════════
+   Guest list — fetch EVERY page
+   ═══════════════════════════════════════════════ */
+/**
+ * GET /rsvps is server-paginated (default 50 per page, hard cap 100), but the
+ * dashboard filters, sorts and paginates the guest list entirely client-side —
+ * so it needs every party, not the first page.
+ *
+ * Requesting it without page/limit returned only the first 50 parties: the
+ * RSVPs/Guests tabs showed a headcount lower than the stats cards (which count
+ * server-side over the whole event), every party past #50 was unreachable, and
+ * the client-side pager capped out early. Walk the pages until we've collected
+ * `total`, then hand back the same envelope shape the single call returned.
+ */
+const RSVP_PAGE_LIMIT = 100; // the endpoint's hard cap — fewest round-trips
+const RSVP_MAX_PAGES = 200;  // 20k parties; a stop so a bad `total` can't loop forever
+
+async function fetchAllRsvps(eventId) {
+  const first = await apiFetch(`/events/${eventId}/rsvps?page=1&limit=${RSVP_PAGE_LIMIT}`);
+  if (!first?.success) return first;
+
+  const all = [...(first.data?.rsvps || [])];
+  const total = Number(first.meta?.pagination?.total);
+  const wanted = Number.isFinite(total) ? total : all.length;
+
+  for (let page = 2; all.length < wanted && page <= RSVP_MAX_PAGES; page++) {
+    let batch = [];
+    try {
+      const next = await apiFetch(`/events/${eventId}/rsvps?page=${page}&limit=${RSVP_PAGE_LIMIT}`);
+      batch = next?.success ? (next.data?.rsvps || []) : [];
+    } catch {
+      // apiFetch throws on a non-2xx. A later page failing must not discard the
+      // pages already in hand — show a partial list rather than an empty one.
+      break;
+    }
+    // An empty page means we've run out (a `total` that disagrees with reality) —
+    // stop rather than spin to RSVP_MAX_PAGES.
+    if (batch.length === 0) break;
+    all.push(...batch);
+  }
+
+  return { ...first, data: { ...first.data, rsvps: all } };
+}
+
+/* ═══════════════════════════════════════════════
    Sidebar Navigation Items
    ═══════════════════════════════════════════════ */
 const sidebarNav = [
@@ -367,7 +411,7 @@ export default function DashboardPage() {
       const [statsResult, tablesResult, rsvpsResult, fieldsResult, profileResult] = await Promise.allSettled([
         apiFetch(`/events/${eventId}/stats`),
         apiFetch(`/events/${eventId}/tables`),
-        apiFetch(`/events/${eventId}/rsvps`),
+        fetchAllRsvps(eventId),
         apiFetch(`/events/${eventId}/fields`),
         apiFetch('/auth/profile'),
       ]);

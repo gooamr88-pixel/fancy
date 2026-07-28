@@ -55,6 +55,49 @@ test('CSV export consumes { rows, meta } and streams a populated CSV (no throw)'
   assert.equal(res.headers['X-Export-Truncated'], undefined);
 });
 
+// The Side column used to emit the raw 'partner1'/'partner2' enum, so the
+// organizer's sheet never said WHICH partner a guest came for.
+test('CSV export writes the side as the named partner, not the raw enum', async () => {
+  mock.setResolver((s) => {
+    if (s.table === 'events' && s.op === 'select') {
+      return { data: { event_type: 'wedding', template_data: { partner1: 'Ahmed', partner2: 'Sara' } } };
+    }
+    if (s.table === 'rsvp_parties' && s.op === 'select') {
+      return { data: [
+        { id: 'r1', label: 'Jane Doe', response: 'yes', notes: '', side: 'partner2',
+          guests: [{ full_name: 'Jane Doe', is_primary_contact: true }],
+          seating_assignments: [], check_ins: [] },
+      ] };
+    }
+    return {};
+  });
+
+  const { res, nextErr } = await invoke(exportGuestsCSV, exportReq());
+
+  assert.equal(nextErr, null, nextErr ? `handler threw: ${nextErr.message}` : '');
+  assert.ok(res.body.includes("Sara's Side"), `expected the bride's name in the Side column, got: ${res.body}`);
+  assert.ok(!res.body.includes('partner2'), 'the raw side enum must not reach the sheet');
+});
+
+test('CSV export falls back to Groom/Bride when the partners are unnamed', async () => {
+  mock.setResolver((s) => {
+    if (s.table === 'events' && s.op === 'select') {
+      return { data: { event_type: 'wedding', template_data: {} } };
+    }
+    if (s.table === 'rsvp_parties' && s.op === 'select') {
+      return { data: [
+        { id: 'r1', label: 'Jane Doe', response: 'yes', notes: '', side: 'partner1',
+          guests: [{ full_name: 'Jane Doe', is_primary_contact: true }],
+          seating_assignments: [], check_ins: [] },
+      ] };
+    }
+    return {};
+  });
+
+  const { res } = await invoke(exportGuestsCSV, exportReq());
+  assert.ok(res.body.includes("Groom's Side"), `expected the generic wedding label, got: ${res.body}`);
+});
+
 test('CSV export of an empty event still succeeds with a header-only CSV', async () => {
   mock.setResolver((s) => {
     if (s.table === 'rsvp_parties' && s.op === 'select') return { data: [] };

@@ -24,7 +24,7 @@ serve(async (req) => {
     }
 
     const apiKey = Deno.env.get('BREVO_API_KEY')
-    const fromEmail = Deno.env.get('BREVO_FROM_EMAIL') || 'noreply@fancyrsvp.com'
+    const fromEmail = Deno.env.get('BREVO_FROM_EMAIL') || 'info@fancyrsvp.com'
     const fromName = Deno.env.get('BREVO_FROM_NAME') || 'Fancy RSVP'
 
     if (!apiKey) {

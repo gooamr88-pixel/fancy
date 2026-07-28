@@ -485,22 +485,9 @@ const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticke
    ORGANIZER NOTIFICATIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/**
- * "<Partner Name>'s Side" when the organizer has named that partner
- * (template_data.partner1/partner2 — e.g. the actual groom/bride name on an
- * Eternal Love/engagement or wedding event), falling back to "Groom's/Bride's
- * Side" for weddings or "Partner 1/2's Side" otherwise. Null if unset/invalid.
- */
-const sideLabel = (side, eventType, partner1Name, partner2Name) => {
-  if (side !== 'partner1' && side !== 'partner2') return null;
-  const isWedding = eventType === 'wedding';
-  if (side === 'partner1') {
-    if (partner1Name && String(partner1Name).trim()) return `${String(partner1Name).trim()}'s Side`;
-    return isWedding ? "Groom's Side" : "Partner 1's Side";
-  }
-  if (partner2Name && String(partner2Name).trim()) return `${String(partner2Name).trim()}'s Side`;
-  return isWedding ? "Bride's Side" : "Partner 2's Side";
-};
+// Moved to utils/sideLabel.js so the dashboard export writes the SAME label
+// these emails do (it used to dump the raw 'partner1'/'partner2' enum).
+const { sideLabel } = require('./sideLabel');
 
 /**
  * Alerts the organizer that a guest just submitted an RSVP. Also sent, verbatim

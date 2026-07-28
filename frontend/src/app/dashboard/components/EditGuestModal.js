@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { normalizeToE164 } from '../../utils/phone';
 import { findMealField } from '../../utils/mealField';
+import { sideLabel } from '../../utils/sideLabel';
 import PhoneNumberInput from '../../components/PhoneNumberInput';
 import { useModalA11y } from '../../hooks/useModalA11y';
 
@@ -298,8 +299,8 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
                 <label style={labelStyle}>{event?.event_type === 'wedding' ? 'Side' : "Partner's Side"}</label>
                 <select value={formData.side} onChange={handleChange('side')} style={{ ...inputStyle, cursor: 'pointer' }}>
                   <option value="">Not set</option>
-                  <option value="partner1">{event?.event_type === 'wedding' ? "Groom's Side" : "Partner 1's Side"}</option>
-                  <option value="partner2">{event?.event_type === 'wedding' ? "Bride's Side" : "Partner 2's Side"}</option>
+                  <option value="partner1">{sideLabel('partner1', event)}</option>
+                  <option value="partner2">{sideLabel('partner2', event)}</option>
                 </select>
               </div>
             )}

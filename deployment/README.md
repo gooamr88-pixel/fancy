@@ -156,7 +156,7 @@ sudo apt install certbot python3-certbot-nginx -y
 
      # Email Credentials (Brevo)
      BREVO_API_KEY=xkeysib-...
-     BREVO_FROM_EMAIL=noreply@fancyrsvp.com
+     BREVO_FROM_EMAIL=info@fancyrsvp.com
      BREVO_FROM_NAME="Fancy RSVP"
      ```
 3. Configure your Next.js frontend environment variables:

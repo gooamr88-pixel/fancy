@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback, memo } from 'react';
 import { toast } from '../../utils/toast';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { findMealField } from '../../utils/mealField';
+import { sideLabel } from '../../utils/sideLabel';
 import FeatureGate from './FeatureGate';
 import EditGuestModal from './EditGuestModal';
 
@@ -102,9 +103,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
                 padding: '2px 10px', borderRadius: '6px', fontSize: '9px', fontWeight: 700,
                 background: 'rgba(99,102,241,0.1)', color: '#6366F1', fontFamily: 'var(--font-sans)',
               }}>
-                {event?.event_type === 'wedding'
-                  ? (guest.side === 'partner1' ? "Groom's Side" : "Bride's Side")
-                  : (guest.side === 'partner1' ? "Partner 1's Side" : "Partner 2's Side")}
+                {sideLabel(guest.side, event)}
               </span>
             )}
             <span style={{

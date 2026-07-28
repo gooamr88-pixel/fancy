@@ -13,6 +13,7 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { normalizeEmail, escapeLikePattern } = require('../utils/normalize');
 const { normalizeToE164 } = require('../utils/phone');
+const { sideLabelForEvent } = require('../utils/sideLabel');
 
 const MAX_ADDITIONAL_GUESTS = 100;
 const MAX_CUSTOM_ANSWERS = 200;
@@ -595,6 +596,11 @@ async function importGuests(eventId, actorUserId, rows) {
 /** Export dataset for CSV/Excel. */
 async function exportParties(eventId, { attendingOnly, sort } = {}) {
   const EXPORT_LIMIT = 10000;
+  // Needed only to write the Side column as "<Name>'s Side" instead of the raw
+  // 'partner1'/'partner2' enum, which told the organizer nothing about WHICH
+  // partner the guest came for.
+  const { data: event } = await supabase
+    .from('events').select('event_type, template_data').eq('id', eventId).maybeSingle();
   const { data: parties, error } = await supabase
     .from('rsvp_parties')
     .select(`
@@ -651,7 +657,7 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
       phone: primary.phone || '',
       response: p.response,
       party_size: partySize,
-      side: p.side || '',
+      side: sideLabelForEvent(p.side, event) || '',
       table_name: tableName,
       meal_selections: meals,
       checked_in: checkIns.length > 0 ? 'Yes' : 'No',
