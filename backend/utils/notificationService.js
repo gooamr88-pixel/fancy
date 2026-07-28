@@ -53,7 +53,7 @@ const sendEmailViaBrevo = async (to, subject, htmlContent) => {
  * acknowledgement of the guest's own response, not an outbound invitation, so
  * it isn't tracked there.
  */
-const sendConfirmationEmail = async (eventId, partyId) => {
+const sendConfirmationEmail = async (eventId, partyId, lang = 'en') => {
   if (!partyId) {
     throw new Error('partyId is required.');
   }
@@ -83,10 +83,14 @@ const sendConfirmationEmail = async (eventId, partyId) => {
 
   const partySize = (party.guests || []).length || 1;
   const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize, response: party.response };
-  const emailHtml = getRSVPConfirmationTemplate(shimParty, party.events);
-  const subject = party.response === 'maybe'
-    ? `RSVP Received: ${party.events.title}`
-    : `RSVP Confirmed: ${party.events.title}`;
+  const emailHtml = getRSVPConfirmationTemplate(shimParty, party.events, lang);
+  // Subject line follows the guest's language too — a mail whose subject and
+  // body disagree reads like a phishing attempt.
+  const isMaybe = party.response === 'maybe';
+  const isAr = String(lang || '').toLowerCase().startsWith('ar');
+  const subject = isAr
+    ? `${isMaybe ? 'تم استلام ردّك' : 'تم تأكيد حضورك'}: ${party.events.title}`
+    : `${isMaybe ? 'RSVP Received' : 'RSVP Confirmed'}: ${party.events.title}`;
 
   return sendEmailViaBrevo(primaryEmail, subject, emailHtml);
 };
@@ -98,6 +102,7 @@ const sendCompanionConfirmationEmail = async ({
   eventDate,
   eventSlug,
   companionEmail,
+  lang = 'en',
 }) => {
   const { getCompanionRSVPConfirmationTemplate, buildGuestEventUrl } = require('./emailTemplates');
   const eventUrl = buildGuestEventUrl(eventSlug);
@@ -105,9 +110,13 @@ const sendCompanionConfirmationEmail = async ({
     companionName,
     mainGuestName,
     { title: eventTitle, event_date: eventDate, slug: eventSlug },
-    eventUrl
+    eventUrl,
+    lang,
   );
-  return sendEmailViaBrevo(companionEmail, `You're registered for ${eventTitle}`, emailHtml);
+  const subject = String(lang || '').toLowerCase().startsWith('ar')
+    ? `تم تسجيلك في ${eventTitle}`
+    : `You're registered for ${eventTitle}`;
+  return sendEmailViaBrevo(companionEmail, subject, emailHtml);
 };
 
 module.exports = {

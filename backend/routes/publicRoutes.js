@@ -198,6 +198,9 @@ router.post('/events/:slug/rsvp', [
   body('decline_reason').optional({ values: 'falsy' }).trim().isLength({ max: 100 }).withMessage('Decline reason too long'),
   body('maybe_confirm_by').optional({ values: 'falsy' }).trim().isIn(['24h', '3d', '1w', '']).withMessage('Invalid follow-up duration'),
   body('side').optional({ values: 'falsy' }).isIn(['partner1', 'partner2']).withMessage('Invalid side'),
+  // Language the guest filled the form in — decides the confirmation email's
+  // language only. Whitelisted rather than free text since it reaches a template.
+  body('lang').optional({ values: 'falsy' }).isIn(['en', 'ar']).withMessage('Unsupported language'),
   validate
 ], verifyTurnstile, submitPublicRSVP);
 

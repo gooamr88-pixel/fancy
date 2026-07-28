@@ -32,10 +32,11 @@ const escapeHtml = (str) => {
  * skipped when the organizer already gave the table a descriptive name
  * (e.g. "Rose Garden") since prefixing there would just be noise.
  */
-const formatTableLabel = (tableName) => {
+const formatTableLabel = (tableName, lang) => {
   const trimmed = String(tableName || '').trim();
   if (!trimmed) return '';
-  return /^\d+$/.test(trimmed) ? `Table ${trimmed}` : trimmed;
+  if (!/^\d+$/.test(trimmed)) return trimmed;
+  return String(lang || '').toLowerCase().startsWith('ar') ? `طاولة ${trimmed}` : `Table ${trimmed}`;
 };
 
 /**
@@ -83,6 +84,7 @@ const buildGuestRsvpUrl = (slug, partyId) => {
 const BRAND = {
   gold: '#B8944F',
   goldDark: '#9A7B3F',
+  goldLight: '#EBD9A6',   // the logo gradient's top stop
   champagne: '#D7BE80',
   charcoal: '#191B1E',
   ivory: '#F8F4EC',
@@ -100,8 +102,46 @@ const BRAND = {
   dangerBorder: '#EBC9C9',
 };
 
-const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, Helvetica, sans-serif";
-const SERIF = "Georgia, 'Times New Roman', serif";
+/**
+ * ONE font stack per role, covering Latin AND Arabic in a single declaration.
+ *
+ * Mail clients fall back per CHARACTER, not per string: Latin glyphs resolve to
+ * Georgia/Segoe UI and Arabic glyphs fall through to the first stack entry that
+ * actually has them. That is why the Arabic faces are appended here rather than
+ * swapped in per language — it keeps every helper below language-agnostic (no
+ * `lang` argument to thread through 25 templates) while still rendering Arabic
+ * in a real Arabic face instead of a browser default.
+ *
+ * Tahoma is the workhorse: shipped on Windows + macOS + Outlook, and one of the
+ * few web-safe faces with a genuinely well-drawn Arabic.
+ */
+const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, 'Geeza Pro', Arial, Helvetica, sans-serif";
+const SERIF = "Georgia, 'Times New Roman', 'Amiri', 'Traditional Arabic', 'Al Bayan', serif";
+
+/* ═══ Language ═══
+ * Guest-facing mail is sent in the language the guest actually used on the RSVP
+ * page; organizer/system mail stays English (the dashboard is English-only).
+ * `lang` is always one of 'en' | 'ar' — normalize defensively since it arrives
+ * from a request body.
+ */
+const normalizeLang = (lang) => (String(lang || '').toLowerCase().startsWith('ar') ? 'ar' : 'en');
+const isRtl = (lang) => normalizeLang(lang) === 'ar';
+
+/** Picks the right string from an { en, ar } pair. */
+const pick = (lang, pair) => (pair && typeof pair === 'object' && !Array.isArray(pair))
+  ? (pair[normalizeLang(lang)] ?? pair.en ?? '')
+  : (pair ?? '');
+
+/** Shared chrome — the wording that appears on EVERY email regardless of type. */
+const CHROME = {
+  tagline:      { en: 'Elegant RSVPs. Effortless planning.', ar: 'دعوات أنيقة. تنظيم بلا عناء.' },
+  automated:    { en: 'This is an automated message — please do not reply to this email.',
+                  ar: 'هذه رسالة آلية — برجاء عدم الرد على هذا البريد.' },
+  linkFallback: { en: "If the button doesn't work, paste this link into your browser:",
+                  ar: 'إذا لم يعمل الزر، انسخ هذا الرابط والصقه في المتصفح:' },
+  dear:         { en: 'Dear', ar: 'عزيزنا' },
+  there:        { en: 'there', ar: 'ضيفنا الكريم' },
+};
 
 /** Long, friendly event-date string, or null when no/invalid date. */
 const formatEventDate = (d) => {
@@ -118,8 +158,31 @@ const money = (cents) => `$${((Number(cents) || 0) / 100).toFixed(2)} USD`;
 const para = (html, opts = {}) =>
   `<p style="margin:0 0 ${opts.mb != null ? opts.mb : 16}px; font-family:${SANS}; font-size:${opts.size || 15}px; line-height:1.65; color:${opts.color || BRAND.ink};${opts.align ? ` text-align:${opts.align};` : ''}">${html}</p>`;
 
-const greeting = (name) =>
-  para(`Dear <strong style="color:${BRAND.charcoal};">${escapeHtml(name || 'there')}</strong>,`);
+const greeting = (name, lang) => {
+  const who = escapeHtml(name || pick(lang, CHROME.there));
+  // Arabic uses its own comma (U+060C); a Latin one reads as a typo in RTL text.
+  const comma = isRtl(lang) ? '،' : ',';
+  return para(`${pick(lang, CHROME.dear)} <strong class="fr-ink" style="color:${BRAND.charcoal};">${who}</strong>${comma}`);
+};
+
+/**
+ * Ornament under a heading — a hairline rule broken by the diamond from the
+ * logo mark, the way engraved stationery closes a title.
+ *
+ * The rules are `border-top` on an empty cell, NOT a background-color block:
+ * a 1px-high <td> with a background is not honoured as 1px (the cell grows to
+ * its line box) and renders as a thick gold bar. Zeroing font-size/line-height
+ * and using a border is the only construction that stays a hairline in Outlook.
+ * It is left-aligned with the heading rather than centered — a centered rule
+ * under a left-aligned title reads as a mistake.
+ */
+const ornament = (color = BRAND.champagne, lang) => `<table role="presentation" cellpadding="0" cellspacing="0" align="${isRtl(lang) ? 'right' : 'left'}" style="margin:16px 0 2px;">
+  <tr>
+    <td style="width:38px; border-top:1px solid ${color}; font-size:0; line-height:0;">&nbsp;</td>
+    <td style="padding:0 9px; font-family:${SERIF}; font-size:9px; line-height:9px; color:${color};">&#9670;</td>
+    <td style="width:38px; border-top:1px solid ${color}; font-size:0; line-height:0;">&nbsp;</td>
+  </tr>
+</table>`;
 
 /** Centered pill button (bulletproof: bgcolor on the td for Outlook). */
 const button = (href, label, opts = {}) => {
@@ -149,20 +212,31 @@ const badge = (label, opts = {}) => {
   </table>`;
 };
 
-/** Two-column label/value card. rows: [label, valueHtml, valueColor?][] */
-const dataTable = (rows) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${BRAND.softBg}; border:1px solid ${BRAND.border}; border-radius:14px; margin:24px 0;">
+/**
+ * Two-column label/value card. rows: [label, valueHtml, valueColor?][]
+ *
+ * `lang` only mirrors the value column's alignment — in RTL the label sits
+ * right and the value left, otherwise the value collides with the label.
+ * Letter-spacing is dropped for Arabic labels: it breaks the cursive joins
+ * between letters and renders the word as disconnected glyphs.
+ */
+const dataTable = (rows, lang) => {
+  const rtl = isRtl(lang);
+  const labelSpacing = rtl ? '' : 'letter-spacing:1.2px; text-transform:uppercase;';
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="fr-panel" style="background-color:${BRAND.softBg}; border:1px solid ${BRAND.border}; border-radius:14px; margin:24px 0;">
   <tr><td style="padding:4px 22px;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       ${rows.map(([label, value, color], i) => {
         const line = i < rows.length - 1 ? `border-bottom:1px solid ${BRAND.border};` : '';
         return `<tr>
-          <td style="padding:13px 0; ${line} font-family:${SANS}; font-size:11px; font-weight:bold; letter-spacing:1.2px; text-transform:uppercase; color:${BRAND.stone}; vertical-align:middle;">${escapeHtml(label)}</td>
-          <td style="padding:13px 0; ${line} font-family:${SANS}; font-size:15px; font-weight:600; color:${color || BRAND.charcoal}; text-align:right; vertical-align:middle;">${value}</td>
+          <td class="fr-hr-b" style="padding:13px 0; ${line} font-family:${SANS}; font-size:${rtl ? '12' : '11'}px; font-weight:bold; ${labelSpacing} color:${BRAND.stone}; vertical-align:middle; text-align:${rtl ? 'right' : 'left'};">${escapeHtml(label)}</td>
+          <td class="fr-hr-b fr-ink" dir="auto" style="padding:13px 0; ${line} font-family:${SANS}; font-size:15px; font-weight:600; color:${color || BRAND.charcoal}; text-align:${rtl ? 'left' : 'right'}; vertical-align:middle;">${value}</td>
         </tr>`;
       }).join('')}
     </table>
   </td></tr>
 </table>`;
+};
 
 /** Large, beautifully highlighted one-time code. */
 const codeBox = (code) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0 18px;">
@@ -199,16 +273,88 @@ const statGrid = (items) => {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;"><tr>${cells}</tr></table>`;
 };
 
-/* ═══ The shared shell every email is wrapped in ═══ */
-const emailShell = ({ preheader = '', eyebrow = '', accent = BRAND.gold, heading = '', contentHtml = '', footerNote = '' }) => `<!DOCTYPE html>
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+/**
+ * The brand lockup. A real logo (rasterized — SVG is unsupported in Outlook,
+ * Gmail and Yahoo) served from the public site, retina-crisp by shipping the
+ * @2x asset and pinning the display width.
+ *
+ * Every desktop Outlook and many corporate clients block remote images by
+ * default, so the ALT text is styled to BE the fallback wordmark: with images
+ * off the recipient still sees "Fancy RSVP" set in gold serif rather than a
+ * broken-image icon. That is why alt text and inline font styling are on the
+ * <img> itself — both are applied to alt text when the image doesn't load.
+ */
+/**
+ * `logo-email.png` is a DEDICATED email lockup, not the site header logo.
+ *
+ * The site logo is a wide horizontal bar (envelope, then a large gap, then
+ * "Fancy", then another gap, then "RSVP"): scaled down to fit a 600px email it
+ * reads as three disconnected fragments with hairline strokes. This asset is
+ * the stacked lockup — mark over wordmark over a rule — drawn at 3x (480px
+ * wide, shown at 160px) so it stays crisp on HiDPI, on a transparent
+ * background, with no "@" in the filename (some mail proxies parse it as an
+ * address delimiter and break the URL).
+ *
+ * Regenerate with scratchpad/logo-export.html via headless Chrome — the script
+ * face is a webfont, so it MUST be rasterized; no mail client will render it.
+ */
+const LOGO_WIDTH = 160;
+const LOGO_HEIGHT = 118; // 480x354 source, scaled 1:3
+const logoBlock = () => {
+  const src = `${getPublicBaseUrl()}/logo-email.png`;
+  return `<img src="${src}" width="${LOGO_WIDTH}" height="${LOGO_HEIGHT}" alt="Fancy RSVP"
+    style="display:block; width:${LOGO_WIDTH}px; height:${LOGO_HEIGHT}px; max-width:${LOGO_WIDTH}px; border:0; outline:none; text-decoration:none; font-family:${SERIF}; font-size:22px; font-style:italic; letter-spacing:1px; color:${BRAND.gold};">`;
+};
+
+/**
+ * The shared shell every email is wrapped in.
+ *
+ * Beyond layout it carries three things worth knowing about:
+ *  • `lang` flips the whole document to RTL (dir on <html>, <body> and the
+ *    content cell) — not just text-align, so punctuation, list markers and
+ *    mixed Latin/Arabic runs order correctly.
+ *  • Dark mode: clients that honour prefers-color-scheme get a charcoal card
+ *    instead of an inverted-white one. `[data-ogsc]` covers Outlook.com, which
+ *    rewrites colours instead of supporting the media query.
+ *  • The footer carries the legal entity + postal address. That is a CAN-SPAM
+ *    requirement and a real inbox-placement signal, not decoration.
+ */
+const emailShell = ({
+  preheader = '', eyebrow = '', accent = BRAND.gold, heading = '',
+  contentHtml = '', footerNote = '', lang = 'en',
+}) => {
+  const rtl = isRtl(lang);
+  const dir = rtl ? 'rtl' : 'ltr';
+  const align = rtl ? 'right' : 'left';
+  // Arabic loses its cursive joins under letter-spacing, and uppercase is a
+  // no-op for a script with no case — so the eyebrow drops both in RTL.
+  const eyebrowType = rtl
+    ? 'font-size:12px; letter-spacing:0;'
+    : 'font-size:11px; letter-spacing:2.5px; text-transform:uppercase;';
+
+  return `<!DOCTYPE html>
+<html lang="${normalizeLang(lang)}" dir="${dir}" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>Fancy RSVP</title>
-  <!--[if mso]><style>* { font-family: Arial, Helvetica, sans-serif !important; }</style><![endif]-->
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <style>* { font-family: Arial, Helvetica, sans-serif !important; }</style>
+  <![endif]-->
   <style>
+    /* LIGHT ONLY — deliberately.
+     * This layout is inline-styled (the only thing Outlook honours), and an
+     * inline color: can't be overridden by a prefers-color-scheme block without
+     * tagging every single text node. A partial inversion is what you get
+     * otherwise: dark card, dark body text, white panels stranded inside it —
+     * unreadable. Declaring light-only tells Apple Mail / Outlook / Gmail not to
+     * auto-invert, so the design renders as designed everywhere.
+     * Do NOT add a dark-mode block here without also inverting every helper. */
+    :root { color-scheme: light; supported-color-schemes: light; }
     body { margin:0 !important; padding:0 !important; width:100% !important; background-color:${BRAND.ivory}; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
     table { border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; }
     img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic; }
@@ -216,42 +362,45 @@ const emailShell = ({ preheader = '', eyebrow = '', accent = BRAND.gold, heading
     .fr-btn:hover { opacity:0.92 !important; }
     @media only screen and (max-width:620px) {
       .fr-container { width:100% !important; }
-      .fr-px { padding-left:24px !important; padding-right:24px !important; }
-      .fr-h1 { font-size:23px !important; }
+      .fr-px { padding-left:26px !important; padding-right:26px !important; }
+      .fr-h1 { font-size:24px !important; line-height:1.3 !important; }
       .fr-code { font-size:31px !important; letter-spacing:9px !important; }
+      .fr-stat { display:block !important; width:100% !important; }
     }
   </style>
 </head>
-<body style="margin:0; padding:0; background-color:${BRAND.ivory};">
+<body dir="${dir}" style="margin:0; padding:0; background-color:${BRAND.ivory};">
   <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">${escapeHtml(preheader)}</div>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:${BRAND.ivory};">
+  <!-- Preheader padding: stops the client pulling body copy into the inbox preview. -->
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="fr-bg" style="background-color:${BRAND.ivory};">
     <tr>
-      <td align="center" style="padding:32px 16px 44px;">
+      <td align="center" style="padding:36px 16px 48px;">
         <table role="presentation" class="fr-container" width="600" cellpadding="0" cellspacing="0" style="width:600px; max-width:600px;">
-          <!-- Wordmark -->
+          <!-- Logo -->
           <tr>
-            <td align="center" style="padding:6px 0 24px;">
-              <div style="font-family:${SERIF}; color:${BRAND.gold}; line-height:1;">
-                <span style="font-size:28px; font-style:italic; letter-spacing:0.5px;">Fancy</span>&nbsp;<span style="font-size:21px; font-weight:bold; letter-spacing:6px; text-transform:uppercase;">RSVP</span>
-              </div>
-              <div style="margin:13px auto 0; width:46px; height:2px; background-color:${BRAND.champagne}; line-height:2px; font-size:0;">&nbsp;</div>
+            <td align="center" style="padding:2px 0 26px;">
+              ${logoBlock()}
             </td>
           </tr>
           <!-- Card -->
           <tr>
-            <td style="background-color:${BRAND.white}; border:1px solid ${BRAND.border}; border-radius:18px; overflow:hidden;">
+            <td class="fr-card" style="background-color:${BRAND.white}; border:1px solid ${BRAND.border}; border-radius:18px; overflow:hidden;">
+              <!-- Foil edge: a solid accent bar over a champagne hairline. -->
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr><td style="height:4px; background-color:${accent}; line-height:4px; font-size:0;">&nbsp;</td></tr>
+                <tr><td style="height:1px; background-color:${BRAND.champagne}; line-height:1px; font-size:0;">&nbsp;</td></tr>
               </table>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" dir="${dir}">
                 <tr>
-                  <td class="fr-px" style="padding:40px 40px 6px;">
-                    ${eyebrow ? `<p style="margin:0 0 10px; font-family:${SANS}; font-size:11px; font-weight:bold; letter-spacing:2.5px; text-transform:uppercase; color:${accent};">${escapeHtml(eyebrow)}</p>` : ''}
-                    ${heading ? `<h1 class="fr-h1" style="margin:0; font-family:${SERIF}; font-size:27px; font-weight:normal; line-height:1.28; color:${BRAND.charcoal};">${heading}</h1>` : ''}
+                  <td class="fr-px" align="${align}" style="padding:42px 42px 0; text-align:${align};">
+                    ${eyebrow ? `<p style="margin:0 0 12px; font-family:${SANS}; font-weight:bold; ${eyebrowType} color:${accent};">${escapeHtml(eyebrow)}</p>` : ''}
+                    ${heading ? `<h1 class="fr-h1 fr-ink" style="margin:0; font-family:${SERIF}; font-size:28px; font-weight:normal; line-height:1.3; color:${BRAND.charcoal};">${heading}</h1>` : ''}
+                    ${heading ? ornament(accent === BRAND.gold ? BRAND.champagne : accent, lang) : ''}
                   </td>
                 </tr>
                 <tr>
-                  <td class="fr-px" style="padding:18px 40px 40px;">
+                  <td class="fr-px fr-body" align="${align}" style="padding:14px 42px 42px; text-align:${align}; color:${BRAND.ink};">
                     ${contentHtml}
                   </td>
                 </tr>
@@ -260,11 +409,15 @@ const emailShell = ({ preheader = '', eyebrow = '', accent = BRAND.gold, heading
           </tr>
           <!-- Footer -->
           <tr>
-            <td align="center" style="padding:26px 24px 6px;">
-              <p style="margin:0 0 6px; font-family:${SERIF}; font-size:16px; font-style:italic; color:${BRAND.gold};">Fancy RSVP</p>
-              <p style="margin:0; font-family:${SANS}; font-size:11px; line-height:1.7; color:${BRAND.muted};">
-                ${footerNote || 'Elegant RSVPs. Effortless planning.'}<br>
-                This is an automated message — please do not reply to this email.
+            <td align="center" style="padding:28px 24px 6px; text-align:center;">
+              <p style="margin:0 0 8px; font-family:${SERIF}; font-size:16px; font-style:italic; color:${BRAND.gold};">Fancy RSVP</p>
+              <p class="fr-muted" style="margin:0 0 10px; font-family:${SANS}; font-size:11px; line-height:1.7; color:${BRAND.muted};">
+                ${footerNote || pick(lang, CHROME.tagline)}<br>
+                ${pick(lang, CHROME.automated)}
+              </p>
+              <p class="fr-muted" style="margin:0; font-family:${SANS}; font-size:10px; line-height:1.7; color:${BRAND.muted};" dir="ltr">
+                16941460 Canada Corp. o/a Via Marketing<br>
+                2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada
               </p>
             </td>
           </tr>
@@ -274,12 +427,40 @@ const emailShell = ({ preheader = '', eyebrow = '', accent = BRAND.gold, heading
   </table>
 </body>
 </html>`;
+};
 
-const responseMeta = (response) => {
-  if (response === 'yes' || response === 'accepted') return { label: 'Attending', color: BRAND.success };
-  if (response === 'maybe') return { label: 'Maybe', color: BRAND.goldDark };
-  if (response === 'no' || response === 'declined') return { label: 'Declined', color: BRAND.danger };
-  return { label: 'Pending', color: BRAND.stone };
+const responseMeta = (response, lang) => {
+  if (response === 'yes' || response === 'accepted') return { label: pick(lang, { en: 'Attending', ar: 'سيحضر' }), color: BRAND.success };
+  if (response === 'maybe') return { label: pick(lang, { en: 'Maybe', ar: 'ربما' }), color: BRAND.goldDark };
+  if (response === 'no' || response === 'declined') return { label: pick(lang, { en: 'Declined', ar: 'اعتذر' }), color: BRAND.danger };
+  return { label: pick(lang, { en: 'Pending', ar: 'بانتظار الرد' }), color: BRAND.stone };
+};
+
+/**
+ * Long, friendly event-date string in the recipient's language.
+ *
+ * `ar-EG-u-nu-latn` — Arabic month/weekday names with WESTERN digits. Plain
+ * 'ar-EG' renders Arabic-Indic numerals (٢٠٢٦) while every other number in the
+ * mail (party size, table number, times) stays Western, so the email ends up
+ * mixing two numeral systems. Latin digits are also the norm in Egyptian and
+ * Gulf digital products.
+ */
+const formatEventDateLang = (d, lang) => {
+  if (!d) return null;
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return null;
+  const locale = isRtl(lang) ? 'ar-EG-u-nu-latn' : 'en-US';
+  return dt.toLocaleDateString(locale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+/** Party-size phrase — Arabic needs real dual/plural forms, not "1 Guests". */
+const guestCount = (n, lang) => {
+  const size = Number(n) || 1;
+  if (!isRtl(lang)) return `${size} ${size === 1 ? 'Guest' : 'Guests'}`;
+  if (size === 1) return 'ضيف واحد';
+  if (size === 2) return 'ضيفان';
+  if (size <= 10) return `${size} ضيوف`;
+  return `${size} ضيفًا`;
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -319,25 +500,35 @@ const getPasswordResetTemplate = (name, otp) => emailShell({
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /** Guest INVITATION with one-click Accept / Maybe / Decline (signed per-guest links). */
-const getInvitationTemplate = (rsvp, event, links) => {
-  const formattedDate = formatEventDate(event.event_date);
+const getInvitationTemplate = (rsvp, event, links, lang = 'en') => {
+  const formattedDate = formatEventDateLang(event.event_date, lang);
   const where = event.location_name || event.location_address || null;
-  const rows = [['Event', escapeHtml(event.title)]];
-  if (formattedDate) rows.push(['Date', escapeHtml(formattedDate)]);
-  if (where) rows.push(['Where', escapeHtml(where)]);
+  const rows = [[pick(lang, { en: 'Event', ar: 'المناسبة' }), escapeHtml(event.title)]];
+  if (formattedDate) rows.push([pick(lang, { en: 'Date', ar: 'التاريخ' }), escapeHtml(formattedDate)]);
+  if (where) rows.push([pick(lang, { en: 'Where', ar: 'المكان' }), escapeHtml(where)]);
 
   return emailShell({
-    preheader: `You're invited to ${event.title}`,
-    eyebrow: "You're invited",
+    lang,
+    preheader: pick(lang, {
+      en: `You're invited to ${event.title}`,
+      ar: `أنت مدعو إلى ${event.title}`,
+    }),
+    eyebrow: pick(lang, { en: "You're invited", ar: 'دعوة خاصة' }),
     heading: escapeHtml(event.title),
     contentHtml: `
-      ${greeting(rsvp.guest_name)}
-      ${para("You're warmly invited to join us. Open your invitation below to see the full details and let us know if you'll be able to attend.")}
-      ${dataTable(rows)}
-      ${button(links.view, 'View Invitation')}
-      ${para(`If the button doesn't work, paste this link into your browser:<br><a href="${links.view}" style="color:${BRAND.gold}; word-break:break-all;">${links.view}</a>`, { size: 12, color: BRAND.muted, align: 'center', mb: 0 })}
+      ${greeting(rsvp.guest_name, lang)}
+      ${para(pick(lang, {
+        en: "You're warmly invited to join us. Open your invitation below to see the full details and let us know if you'll be able to attend.",
+        ar: 'يسعدنا دعوتك للانضمام إلينا. افتح دعوتك بالأسفل لمشاهدة كل التفاصيل وإخبارنا إن كان بإمكانك الحضور.',
+      }))}
+      ${dataTable(rows, lang)}
+      ${button(links.view, pick(lang, { en: 'View Invitation', ar: 'عرض الدعوة' }))}
+      ${para(`${pick(lang, CHROME.linkFallback)}<br><a href="${links.view}" style="color:${BRAND.gold}; word-break:break-all;" dir="ltr">${links.view}</a>`, { size: 12, color: BRAND.muted, align: 'center', mb: 0 })}
     `,
-    footerNote: 'Sent via Fancy RSVP on behalf of the event organizer.',
+    footerNote: pick(lang, {
+      en: 'Sent via Fancy RSVP on behalf of the event organizer.',
+      ar: 'أُرسلت عبر Fancy RSVP نيابةً عن منظّم المناسبة.',
+    }),
   });
 };
 
@@ -345,138 +536,201 @@ const getInvitationTemplate = (rsvp, event, links) => {
  * RSVP confirmation (response recorded). Also used for a 'maybe' — the copy
  * adapts rather than promising a seat to someone who hasn't committed yet.
  */
-const getRSVPConfirmationTemplate = (rsvp, event) => {
-  const formattedDate = formatEventDate(event.event_date);
-  const r = responseMeta(rsvp.response);
+const getRSVPConfirmationTemplate = (rsvp, event, lang = 'en') => {
+  const formattedDate = formatEventDateLang(event.event_date, lang);
+  const r = responseMeta(rsvp.response, lang);
   const isMaybe = rsvp.response === 'maybe';
-  const partySize = rsvp.party_size || 1;
   const rows = [
-    ['Response', `<span style="color:${r.color};">${r.label}</span>`, r.color],
-    ['Party Size', `${partySize} ${partySize === 1 ? 'Guest' : 'Guests'}`],
+    [pick(lang, { en: 'Response', ar: 'الرد' }), `<span style="color:${r.color};">${r.label}</span>`, r.color],
+    [pick(lang, { en: 'Party Size', ar: 'عدد الأفراد' }), guestCount(rsvp.party_size, lang)],
   ];
-  if (formattedDate) rows.push(['Date', escapeHtml(formattedDate)]);
+  if (formattedDate) rows.push([pick(lang, { en: 'Date', ar: 'التاريخ' }), escapeHtml(formattedDate)]);
 
   return emailShell({
+    lang,
     preheader: isMaybe
-      ? `We've noted your response for ${event.title}`
-      : `Your RSVP for ${event.title} is confirmed`,
-    eyebrow: isMaybe ? 'Response received' : 'RSVP confirmed',
+      ? pick(lang, { en: `We've noted your response for ${event.title}`, ar: `سجّلنا ردّك على ${event.title}` })
+      : pick(lang, { en: `Your RSVP for ${event.title} is confirmed`, ar: `تم تأكيد حضورك في ${event.title}` }),
+    eyebrow: isMaybe
+      ? pick(lang, { en: 'Response received', ar: 'تم استلام ردّك' })
+      : pick(lang, { en: 'RSVP confirmed', ar: 'تم تأكيد الحضور' }),
     heading: escapeHtml(event.title),
     contentHtml: `
-      ${greeting(rsvp.guest_name)}
+      ${greeting(rsvp.guest_name, lang)}
       ${para(isMaybe
-        ? 'Thank you for letting us know. Your response has been recorded as tentative — here is what we have on file:'
-        : 'Your RSVP has been successfully recorded. Here are the details we have on file:')}
-      ${dataTable(rows)}
+        ? pick(lang, {
+            en: 'Thank you for letting us know. Your response has been recorded as tentative — here is what we have on file:',
+            ar: 'شكرًا لإخبارنا. سُجّل ردّك مبدئيًا — وهذه البيانات المسجّلة لدينا:',
+          })
+        : pick(lang, {
+            en: 'Your RSVP has been successfully recorded. Here are the details we have on file:',
+            ar: 'تم تسجيل ردّك بنجاح. وهذه التفاصيل المسجّلة لدينا:',
+          }))}
+      ${dataTable(rows, lang)}
       ${isMaybe
-        ? noticeBox('We\'ll hold your place for now. As soon as you know either way, just reopen your invitation and update your response — the host would love a final answer before the deadline.', 'warn')
-        : noticeBox('Your table placement is being coordinated. You\'ll receive a separate email with your QR check-in pass once seating is finalized.', 'neutral')}
-      ${para(isMaybe ? 'We hope you can make it.' : 'We look forward to celebrating with you.', { mb: 0 })}
+        ? noticeBox(pick(lang, {
+            en: "We'll hold your place for now. As soon as you know either way, just reopen your invitation and update your response — the host would love a final answer before the deadline.",
+            ar: 'سنحتفظ لك بمكانك مبدئيًا. وبمجرد أن يتأكد لك الأمر، افتح دعوتك وحدّث ردّك — يسعد المضيف بمعرفة إجابتك النهائية قبل انتهاء الموعد.',
+          }), 'warn')
+        : noticeBox(pick(lang, {
+            en: "Your table placement is being coordinated. You'll receive a separate email with your QR check-in pass once seating is finalized.",
+            ar: 'يجري الآن ترتيب طاولتك. وستصلك رسالة منفصلة تحتوي على رمز الدخول QR فور اعتماد توزيع الجلوس.',
+          }), 'neutral')}
+      ${para(isMaybe
+        ? pick(lang, { en: 'We hope you can make it.', ar: 'نتمنى أن تتمكن من الحضور.' })
+        : pick(lang, { en: 'We look forward to celebrating with you.', ar: 'نتطلع للاحتفال معك.' }), { mb: 0 })}
     `,
   });
 };
 
 /** Thank-you for a declined RSVP, with a one-click "change my RSVP" link. */
-const getDeclineConfirmationTemplate = (rsvp, event) => {
-  const formattedDate = formatEventDate(event.event_date);
+const getDeclineConfirmationTemplate = (rsvp, event, lang = 'en') => {
+  const formattedDate = formatEventDateLang(event.event_date, lang);
   const eventPageUrl = buildGuestEventUrl(event.slug, rsvp.id);
-  const rows = [['Response', '<span style="color:' + BRAND.danger + ';">Regretfully Declined</span>', BRAND.danger]];
-  if (formattedDate) rows.push(['Date', escapeHtml(formattedDate)]);
+  const declined = pick(lang, { en: 'Regretfully Declined', ar: 'اعتذر عن الحضور' });
+  const rows = [[pick(lang, { en: 'Response', ar: 'الرد' }), `<span style="color:${BRAND.danger};">${declined}</span>`, BRAND.danger]];
+  if (formattedDate) rows.push([pick(lang, { en: 'Date', ar: 'التاريخ' }), escapeHtml(formattedDate)]);
+
+  const sorry = isRtl(lang)
+    ? `يؤسفنا أنك لن تتمكن من الانضمام إلينا${formattedDate ? ` يوم <strong>${escapeHtml(formattedDate)}</strong>` : ''}. نتفهّم ذلك تمامًا، ونقدّر لك إبلاغنا.`
+    : `We're sorry you won't be able to join us${formattedDate ? ` on <strong>${escapeHtml(formattedDate)}</strong>` : ''}. We completely understand, and we truly appreciate you taking the time to let us know.`;
 
   return emailShell({
-    preheader: `Thank you for letting us know — ${event.title}`,
-    eyebrow: 'Thank you for letting us know',
+    lang,
+    preheader: pick(lang, {
+      en: `Thank you for letting us know — ${event.title}`,
+      ar: `شكرًا لإخبارنا — ${event.title}`,
+    }),
+    eyebrow: pick(lang, { en: 'Thank you for letting us know', ar: 'شكرًا لإخبارنا' }),
     heading: escapeHtml(event.title),
     contentHtml: `
-      ${greeting(rsvp.guest_name)}
-      ${para(`We're sorry you won't be able to join us${formattedDate ? ` on <strong>${escapeHtml(formattedDate)}</strong>` : ''}. We completely understand, and we truly appreciate you taking the time to let us know.`)}
-      ${dataTable(rows)}
-      ${para('If your plans change, we would love to have you. You can update your RSVP any time before the deadline:')}
-      ${button(eventPageUrl, 'Change My RSVP')}
-      ${para('Wishing you all the best — we hope to see you at a future celebration.', { size: 13, color: BRAND.stone, mb: 0 })}
+      ${greeting(rsvp.guest_name, lang)}
+      ${para(sorry)}
+      ${dataTable(rows, lang)}
+      ${para(pick(lang, {
+        en: 'If your plans change, we would love to have you. You can update your RSVP any time before the deadline:',
+        ar: 'إذا تغيّرت خططك، يسعدنا حضورك. يمكنك تعديل ردّك في أي وقت قبل انتهاء الموعد:',
+      }))}
+      ${button(eventPageUrl, pick(lang, { en: 'Change My RSVP', ar: 'تعديل ردّي' }))}
+      ${para(pick(lang, {
+        en: 'Wishing you all the best — we hope to see you at a future celebration.',
+        ar: 'مع أطيب التمنيات — ونأمل أن نراك في مناسبة قادمة.',
+      }), { size: 13, color: BRAND.stone, mb: 0 })}
     `,
   });
 };
 
 /** Email sent to a companion guest confirming they are attending with the primary guest. */
-const getCompanionRSVPConfirmationTemplate = (companionName, mainGuestName, event, eventUrl) => {
-  const formattedDate = formatEventDate(event.event_date);
+const getCompanionRSVPConfirmationTemplate = (companionName, mainGuestName, event, eventUrl, lang = 'en') => {
+  const formattedDate = formatEventDateLang(event.event_date, lang);
   const where = event.location_name || event.location_address || null;
+  const registered = pick(lang, { en: 'Registered as Guest', ar: 'مسجّل كضيف' });
   const rows = [
-    ['Main Guest', escapeHtml(mainGuestName)],
-    ['Status', '<span style="color:' + BRAND.success + ';">Registered as Guest</span>', BRAND.success],
+    [pick(lang, { en: 'Main Guest', ar: 'الضيف الأساسي' }), escapeHtml(mainGuestName)],
+    [pick(lang, { en: 'Status', ar: 'الحالة' }), `<span style="color:${BRAND.success};">${registered}</span>`, BRAND.success],
   ];
-  if (formattedDate) rows.push(['Date', escapeHtml(formattedDate)]);
-  if (where) rows.push(['Where', escapeHtml(where)]);
+  if (formattedDate) rows.push([pick(lang, { en: 'Date', ar: 'التاريخ' }), escapeHtml(formattedDate)]);
+  if (where) rows.push([pick(lang, { en: 'Where', ar: 'المكان' }), escapeHtml(where)]);
+
+  const named = `<strong class="fr-ink" style="color:${BRAND.charcoal};">${escapeHtml(mainGuestName)}</strong>`;
 
   return emailShell({
-    preheader: `You're registered for ${event.title}`,
-    eyebrow: 'Companion RSVP Confirmed',
+    lang,
+    preheader: pick(lang, {
+      en: `You're registered for ${event.title}`,
+      ar: `تم تسجيلك في ${event.title}`,
+    }),
+    eyebrow: pick(lang, { en: 'Companion RSVP Confirmed', ar: 'تم تأكيد حضورك كمرافق' }),
     heading: escapeHtml(event.title),
     contentHtml: `
-      ${greeting(companionName)}
-      ${para(`<strong style="color:${BRAND.charcoal};">${escapeHtml(mainGuestName)}</strong> has confirmed their attendance and registered you as their guest for the event.`)}
-      ${dataTable(rows)}
-      ${para('We look forward to celebrating with you.', { mb: 16 })}
-      ${eventUrl ? button(eventUrl, 'View Event Details') : ''}
+      ${greeting(companionName, lang)}
+      ${para(isRtl(lang)
+        ? `${named} أكّد حضوره وسجّلك كمرافق له في هذه المناسبة.`
+        : `${named} has confirmed their attendance and registered you as their guest for the event.`)}
+      ${dataTable(rows, lang)}
+      ${para(pick(lang, { en: 'We look forward to celebrating with you.', ar: 'نتطلع للاحتفال معك.' }), { mb: 16 })}
+      ${eventUrl ? button(eventUrl, pick(lang, { en: 'View Event Details', ar: 'عرض تفاصيل المناسبة' })) : ''}
     `,
   });
 };
 
 /** Entry pass: QR ticket + table assignment. */
-const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticketUrl) => {
-  const partySize = rsvp.party_size || 1;
-  const formattedTable = formatTableLabel(tableName);
-  const formattedDate = formatEventDate(event.event_date);
+const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticketUrl, lang = 'en') => {
+  const formattedTable = formatTableLabel(tableName, lang);
+  const formattedDate = formatEventDateLang(event.event_date, lang);
   const hasLocation = event.location_name || event.location_address;
+  const rtl = isRtl(lang);
+  // The seat-card labels sit centered inside a panel, so they follow the mail's
+  // direction rather than the panel's own alignment.
+  const capType = rtl ? 'font-size:11px;' : 'font-size:10px; letter-spacing:2px; text-transform:uppercase;';
 
   const dateHtml = formattedDate ? `
     <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:12px;">
-      <strong>Date:</strong> ${escapeHtml(formattedDate)}
+      <strong>${pick(lang, { en: 'Date:', ar: 'التاريخ:' })}</strong> ${escapeHtml(formattedDate)}
     </div>
   ` : '';
 
   const mapsUrl = buildMapsUrl(event);
+  // dir="auto" on venue name/address: these are operator-entered free text that
+  // may be Latin inside an RTL mail. Without it the client applies the mail's
+  // RTL direction and a street number jumps to the wrong end of the line
+  // ("1089 Corniche El Nil" renders as "Corniche El Nil, Cairo 1089").
+  // "auto" resolves direction per value from its first strong character, so
+  // Latin and Arabic addresses both read correctly.
   const locationHtml = hasLocation ? `
     <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">
-      <strong>Venue:</strong> ${escapeHtml(event.location_name || '')}
-      ${event.location_address ? `<br/><span style="font-size:12px; color:${BRAND.stone}; opacity:0.85;">${escapeHtml(event.location_address)}</span>` : ''}
-      ${mapsUrl ? `<br/><a href="${mapsUrl}" style="font-size:12px; font-weight:700; color:${BRAND.gold}; text-decoration:underline;">Get Directions &rarr;</a>` : ''}
+      <strong>${pick(lang, { en: 'Venue:', ar: 'المكان:' })}</strong> <span dir="auto">${escapeHtml(event.location_name || '')}</span>
+      ${event.location_address ? `<br/><span dir="auto" style="font-size:12px; color:${BRAND.stone}; opacity:0.85;">${escapeHtml(event.location_address)}</span>` : ''}
+      ${mapsUrl ? `<br/><a href="${mapsUrl}" style="font-size:12px; font-weight:700; color:${BRAND.gold}; text-decoration:underline;">${pick(lang, { en: 'Get Directions &rarr;', ar: 'الاتجاهات &larr;' })}</a>` : ''}
     </div>
   ` : '';
 
+  const seatSentence = rtl
+    ? `مقعدك المخصّص على <strong class="fr-ink" style="color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</strong>. يُرجى إبراز هذه البطاقة عند مكتب الاستقبال.`
+    : `Your assigned seating will be on <strong class="fr-ink" style="color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</strong>. Please present this pass at the entrance check-in desk.`;
+
   return emailShell({
-    preheader: `Your entry pass & table for ${event.title}`,
-    eyebrow: 'Entry pass & seating',
+    lang,
+    preheader: pick(lang, {
+      en: `Your entry pass & table for ${event.title}`,
+      ar: `بطاقة دخولك وطاولتك في ${event.title}`,
+    }),
+    eyebrow: pick(lang, { en: 'Entry pass & seating', ar: 'بطاقة الدخول والجلوس' }),
     heading: escapeHtml(event.title),
     contentHtml: `
-      ${greeting(rsvp.guest_name)}
-      ${para(`Your assigned seating will be on <strong style="color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</strong>. Please present this pass at the entrance check-in desk.`)}
+      ${greeting(rsvp.guest_name, lang)}
+      ${para(seatSentence)}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
-        <tr><td align="center" style="background-color:${BRAND.ivory}; border:1px solid ${BRAND.border}; border-radius:16px; padding:26px 20px;">
-          <div style="font-family:${SANS}; font-size:10px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; color:${BRAND.stone}; margin-bottom:8px;">Your Seat Is At</div>
-          ${zoneName ? `<div style="font-family:${SANS}; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:${BRAND.gold}; margin-bottom:4px;">Zone: ${escapeHtml(zoneName)}</div>` : ''}
-          <div style="font-family:${SERIF}; font-size:34px; font-weight:bold; color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</div>
-          <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">Party of ${partySize}</div>
-          
+        <tr><td align="center" class="fr-panel" style="background-color:${BRAND.ivory}; border:1px solid ${BRAND.border}; border-radius:16px; padding:26px 20px; text-align:center;">
+          <div style="font-family:${SANS}; ${capType} font-weight:bold; color:${BRAND.stone}; margin-bottom:8px;">${pick(lang, { en: 'Your Seat Is At', ar: 'مكان جلوسك' })}</div>
+          ${zoneName ? `<div style="font-family:${SANS}; font-size:11px; font-weight:600; ${rtl ? '' : 'letter-spacing:1px; text-transform:uppercase;'} color:${BRAND.gold}; margin-bottom:4px;">${pick(lang, { en: 'Zone', ar: 'المنطقة' })}: ${escapeHtml(zoneName)}</div>` : ''}
+          <div class="fr-ink" style="font-family:${SERIF}; font-size:34px; font-weight:bold; color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</div>
+          <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">${rtl ? guestCount(rsvp.party_size, lang) : `Party of ${rsvp.party_size || 1}`}</div>
+
           ${dateHtml}
           ${locationHtml}
-          
+
           <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:22px auto 0;">
             <tr><td style="background-color:${BRAND.white}; border:1px solid ${BRAND.border}; border-radius:14px; padding:14px;">
               ${ticketUrl ? `<a href="${ticketUrl}" style="display:block;">` : ''}
-              <img src="${qrImageUrl}" alt="Your ticket QR code" width="200" height="200" style="display:block; width:200px; height:200px;" />
+              <img src="${qrImageUrl}" alt="${pick(lang, { en: 'Your ticket QR code', ar: 'رمز دخولك QR' })}" width="200" height="200" style="display:block; width:200px; height:200px;" />
               ${ticketUrl ? '</a>' : ''}
             </td></tr>
           </table>
         </td></tr>
       </table>
-      ${ticketUrl ? badge('&#128205; Your Seat on the Venue Map') : ''}
-      ${ticketUrl ? button(ticketUrl, 'View My Seat on the Map') : ''}
+      ${ticketUrl ? badge(pick(lang, { en: '&#128205; Your Seat on the Venue Map', ar: '&#128205; موقع مقعدك على خريطة القاعة' })) : ''}
+      ${ticketUrl ? button(ticketUrl, pick(lang, { en: 'View My Seat on the Map', ar: 'عرض مقعدي على الخريطة' })) : ''}
       ${ticketUrl
-        ? para('Opens the venue map with your own table highlighted, plus your party details — no app or login needed.', { size: 13, color: BRAND.stone, align: 'center', mb: 14 })
+        ? para(pick(lang, {
+            en: 'Opens the venue map with your own table highlighted, plus your party details — no app or login needed.',
+            ar: 'يفتح خريطة القاعة مع تمييز طاولتك وتفاصيل مرافقيك — بدون تطبيق أو تسجيل دخول.',
+          }), { size: 13, color: BRAND.stone, align: 'center', mb: 14 })
         : ''}
-      ${para('Show the QR code above at the entrance for our team to check you in.', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+      ${para(pick(lang, {
+        en: 'Show the QR code above at the entrance for our team to check you in.',
+        ar: 'اعرض رمز QR بالأعلى عند المدخل ليقوم فريقنا بتسجيل دخولك.',
+      }), { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
     `,
   });
 };
@@ -605,78 +859,120 @@ const getEventLiveTemplate = ({ orgName, eventTitle, eventUrl }) => emailShell({
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /** "You haven't responded yet" nudge as the RSVP deadline approaches. */
-const getRsvpReminderTemplate = (rsvp, event, links) => {
-  const formattedDate = formatEventDate(event.event_date);
-  const deadline = formatEventDate(event.rsvp_deadline);
+const getRsvpReminderTemplate = (rsvp, event, links, lang = 'en') => {
+  const formattedDate = formatEventDateLang(event.event_date, lang);
+  const deadline = formatEventDateLang(event.rsvp_deadline, lang);
+  const rtl = isRtl(lang);
   const choice = (href, label, bg, color, border) =>
     `<td align="center" style="padding:5px 5px;"><a class="fr-btn" href="${href}" target="_blank" rel="noopener" style="display:inline-block; font-family:${SANS}; font-size:14px; font-weight:bold; color:${color}; background-color:${bg}; text-decoration:none; padding:13px 22px; border-radius:10px; border:1px solid ${border};">${label}</a></td>`;
+
+  const ask = rtl
+    ? `يسعدنا معرفة ما إذا كان بإمكانك الانضمام إلينا${formattedDate ? ` يوم <strong>${escapeHtml(formattedDate)}</strong>` : ''}. لم يصلنا ردّك بعد${deadline ? ` — وسيُغلق باب الردود يوم <strong>${escapeHtml(deadline)}</strong>` : ''}.`
+    : `We'd love to know if you can join us${formattedDate ? ` on <strong>${escapeHtml(formattedDate)}</strong>` : ''}. We haven't received your response yet${deadline ? ` — RSVPs close on <strong>${escapeHtml(deadline)}</strong>` : ''}.`;
+
   return emailShell({
-    preheader: `Reminder: please RSVP for ${event.title}`,
-    eyebrow: 'A gentle reminder',
+    lang,
+    preheader: pick(lang, {
+      en: `Reminder: please RSVP for ${event.title}`,
+      ar: `تذكير: برجاء تأكيد حضورك في ${event.title}`,
+    }),
+    eyebrow: pick(lang, { en: 'A gentle reminder', ar: 'تذكير لطيف' }),
     heading: escapeHtml(event.title),
     contentHtml: `
-      ${greeting(rsvp.guest_name)}
-      ${para(`We'd love to know if you can join us${formattedDate ? ` on <strong>${escapeHtml(formattedDate)}</strong>` : ''}. We haven't received your response yet${deadline ? ` — RSVPs close on <strong>${escapeHtml(deadline)}</strong>` : ''}.`)}
-      <p style="margin:8px 0 14px; font-family:${SANS}; font-size:11px; font-weight:bold; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.stone}; text-align:center;">Will you attend?</p>
+      ${greeting(rsvp.guest_name, lang)}
+      ${para(ask)}
+      <p style="margin:8px 0 14px; font-family:${SANS}; font-size:${rtl ? '12' : '11'}px; font-weight:bold; ${rtl ? '' : 'letter-spacing:1.5px; text-transform:uppercase;'} color:${BRAND.stone}; text-align:center;">${pick(lang, { en: 'Will you attend?', ar: 'هل ستحضر؟' })}</p>
       <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 6px;"><tr>
-        ${choice(links.accept, '✓ Accept', BRAND.success, BRAND.white, BRAND.success)}
-        ${choice(links.decline, '✕ Decline', BRAND.danger, BRAND.white, BRAND.danger)}
+        ${choice(links.accept, pick(lang, { en: '✓ Accept', ar: '✓ سأحضر' }), BRAND.success, BRAND.white, BRAND.success)}
+        ${choice(links.decline, pick(lang, { en: '✕ Decline', ar: '✕ أعتذر' }), BRAND.danger, BRAND.white, BRAND.danger)}
       </tr></table>
-      ${para('It only takes a moment — thank you!', { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+      ${para(pick(lang, { en: 'It only takes a moment — thank you!', ar: 'لن يستغرق الأمر سوى لحظة — شكرًا لك!' }), { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
     `,
-    footerNote: 'Sent via Fancy RSVP on behalf of the event organizer.',
+    footerNote: pick(lang, {
+      en: 'Sent via Fancy RSVP on behalf of the event organizer.',
+      ar: 'أُرسلت عبر Fancy RSVP نيابةً عن منظّم المناسبة.',
+    }),
   });
 };
 
 /** "See you soon" sent to confirmed guests as the event nears (with table if revealed). */
-const getEventReminderTemplate = (rsvp, event, opts = {}) => {
-  const formattedDate = formatEventDate(event.event_date);
+const getEventReminderTemplate = (rsvp, event, opts = {}, lang = 'en') => {
+  const formattedDate = formatEventDateLang(event.event_date, lang);
   const where = event.location_name || event.location_address || null;
   const rows = [];
-  if (formattedDate) rows.push(['When', escapeHtml(formattedDate)]);
-  if (where) rows.push(['Where', escapeHtml(where)]);
-  if (opts.tableName) rows.push(['Your assigned seating', escapeHtml(formatTableLabel(opts.tableName)), BRAND.gold]);
+  if (formattedDate) rows.push([pick(lang, { en: 'When', ar: 'الموعد' }), escapeHtml(formattedDate)]);
+  if (where) rows.push([pick(lang, { en: 'Where', ar: 'المكان' }), escapeHtml(where)]);
+  if (opts.tableName) rows.push([pick(lang, { en: 'Your assigned seating', ar: 'مكان جلوسك' }), escapeHtml(formatTableLabel(opts.tableName, lang)), BRAND.gold]);
   return emailShell({
-    preheader: `See you soon at ${event.title}`,
-    eyebrow: 'See you soon',
+    lang,
+    preheader: pick(lang, { en: `See you soon at ${event.title}`, ar: `نراك قريبًا في ${event.title}` }),
+    eyebrow: pick(lang, { en: 'See you soon', ar: 'نراك قريبًا' }),
     heading: escapeHtml(event.title),
     contentHtml: `
-      ${greeting(rsvp.guest_name)}
-      ${para("Your event is almost here — we can't wait to celebrate with you. Here is everything you need:")}
-      ${rows.length ? dataTable(rows) : ''}
-      ${opts.tableName ? '' : noticeBox('Your table assignment and QR check-in pass will arrive in a separate email closer to the day.', 'neutral')}
-      ${para('See you there!', { mb: 0 })}
+      ${greeting(rsvp.guest_name, lang)}
+      ${para(pick(lang, {
+        en: "Your event is almost here — we can't wait to celebrate with you. Here is everything you need:",
+        ar: 'اقترب موعد المناسبة — ولا يسعنا الانتظار للاحتفال معك. إليك كل ما تحتاجه:',
+      }))}
+      ${rows.length ? dataTable(rows, lang) : ''}
+      ${opts.tableName ? '' : noticeBox(pick(lang, {
+        en: 'Your table assignment and QR check-in pass will arrive in a separate email closer to the day.',
+        ar: 'سيصلك رقم طاولتك ورمز الدخول QR في رسالة منفصلة مع اقتراب الموعد.',
+      }), 'neutral')}
+      ${para(pick(lang, { en: 'See you there!', ar: 'نراك هناك!' }), { mb: 0 })}
     `,
   });
 };
 
 /** Post-event thank-you to guests who attended. */
-const getPostEventThankYouTemplate = (rsvp, event) => emailShell({
-  preheader: `Thank you for celebrating ${event.title}`,
-  eyebrow: 'Thank you',
-  heading: 'Thank you for joining us',
-  contentHtml: `
-    ${greeting(rsvp.guest_name)}
-    ${para(`Thank you for being part of <strong style="color:${BRAND.charcoal};">${escapeHtml(event.title)}</strong>. It truly wouldn't have been the same without you.`)}
-    ${para('We hope you had a wonderful time, and we look forward to seeing you again at a future celebration.')}
-    ${para('With gratitude,<br>The host &amp; the Fancy RSVP team', { color: BRAND.stone, mb: 0 })}
-  `,
-});
+const getPostEventThankYouTemplate = (rsvp, event, lang = 'en') => {
+  const named = `<strong class="fr-ink" style="color:${BRAND.charcoal};">${escapeHtml(event.title)}</strong>`;
+  return emailShell({
+    lang,
+    preheader: pick(lang, {
+      en: `Thank you for celebrating ${event.title}`,
+      ar: `شكرًا لمشاركتنا الاحتفال بـ ${event.title}`,
+    }),
+    eyebrow: pick(lang, { en: 'Thank you', ar: 'شكرًا لك' }),
+    heading: pick(lang, { en: 'Thank you for joining us', ar: 'شكرًا لانضمامك إلينا' }),
+    contentHtml: `
+      ${greeting(rsvp.guest_name, lang)}
+      ${para(isRtl(lang)
+        ? `شكرًا لكونك جزءًا من ${named}. لم تكن المناسبة لتكتمل من دونك.`
+        : `Thank you for being part of ${named}. It truly wouldn't have been the same without you.`)}
+      ${para(pick(lang, {
+        en: 'We hope you had a wonderful time, and we look forward to seeing you again at a future celebration.',
+        ar: 'نتمنى أن تكون قد قضيت وقتًا رائعًا، ونتطلع لرؤيتك في مناسبة قادمة.',
+      }))}
+      ${para(pick(lang, {
+        en: 'With gratitude,<br>The host &amp; the Fancy RSVP team',
+        ar: 'مع خالص الامتنان،<br>المضيف وفريق Fancy RSVP',
+      }), { color: BRAND.stone, mb: 0 })}
+    `,
+  });
+};
 
 /** Sent to attending guests when an organizer changes the date/time/venue. */
-const getEventUpdatedTemplate = (rsvp, event, changes, eventUrl) => {
+const getEventUpdatedTemplate = (rsvp, event, changes, eventUrl, lang = 'en') => {
   const rows = (changes || []).map((c) => [c.label, escapeHtml(c.value)]);
   return emailShell({
-    preheader: `Update to ${event.title}`,
-    eyebrow: 'Event details updated',
+    lang,
+    preheader: pick(lang, { en: `Update to ${event.title}`, ar: `تحديث بخصوص ${event.title}` }),
+    eyebrow: pick(lang, { en: 'Event details updated', ar: 'تم تحديث تفاصيل المناسبة' }),
     accent: BRAND.goldDark,
     heading: escapeHtml(event.title),
     contentHtml: `
-      ${greeting(rsvp.guest_name)}
-      ${para("There's been an update to an event you're attending. Please review the latest details:")}
-      ${rows.length ? dataTable(rows) : ''}
-      ${button(eventUrl, 'View Event Details')}
-      ${para("We're sharing this so your plans stay accurate. See you there!", { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+      ${greeting(rsvp.guest_name, lang)}
+      ${para(pick(lang, {
+        en: "There's been an update to an event you're attending. Please review the latest details:",
+        ar: 'طرأ تحديث على مناسبة ستحضرها. يُرجى مراجعة أحدث التفاصيل:',
+      }))}
+      ${rows.length ? dataTable(rows, lang) : ''}
+      ${button(eventUrl, pick(lang, { en: 'View Event Details', ar: 'عرض تفاصيل المناسبة' }))}
+      ${para(pick(lang, {
+        en: "We're sharing this so your plans stay accurate. See you there!",
+        ar: 'أرسلنا لك هذا حتى تبقى خططك دقيقة. نراك هناك!',
+      }), { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
     `,
   });
 };

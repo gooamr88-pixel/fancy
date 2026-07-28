@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg version="1.2" baseProfile="tiny-ps" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Fancy RSVP</title>
+  <rect x="0" y="0" width="512" height="512" fill="#191B1E"/>
+  <g stroke="#C9A85C" stroke-width="16" fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="112" y="176" width="288" height="184" rx="14"/>
+    <path d="M112 196 L256 314 L400 196"/>
+    <path d="M126 176 L256 100 L386 176"/>
+  </g>
+  <path d="M256 118 L279 140 L256 162 L233 140 Z" fill="#EBD9A6"/>
+</svg>

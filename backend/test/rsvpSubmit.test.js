@@ -240,7 +240,25 @@ test('a "maybe" RSVP with an email acknowledges the guest too (not only the orga
   const { res } = await invoke(submitPublicRSVP, req({ guestName: 'Alice', email: 'a@x.com', response: 'maybe' }));
   assert.equal(res.statusCode, 201);
   assert.equal(confirmCalls.length, 1, 'tentative guest gets an acknowledgement email');
-  assert.deepEqual(confirmCalls[0], ['evt-1', 'r1']);
+  assert.deepEqual(confirmCalls[0], ['evt-1', 'r1', 'en']);
+});
+
+test('the confirmation email is sent in the language the guest used on the form', async () => {
+  rpcResult({
+    success: true, rsvp_id: 'r1', party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
+    response: 'yes', party_size: 1, guest_email: 'a@x.com', notification_preferences: { email: false },
+  });
+  await invoke(submitPublicRSVP, req({ guestName: 'Alice', email: 'a@x.com', response: 'yes', partySize: 1, lang: 'ar' }));
+  assert.deepEqual(confirmCalls[0], ['evt-1', 'r1', 'ar'], 'guest language must reach the template');
+});
+
+test('an unknown/missing lang falls back to English rather than reaching the template raw', async () => {
+  rpcResult({
+    success: true, rsvp_id: 'r1', party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
+    response: 'yes', party_size: 1, guest_email: 'a@x.com', notification_preferences: { email: false },
+  });
+  await invoke(submitPublicRSVP, req({ guestName: 'Alice', email: 'a@x.com', response: 'yes', partySize: 1, lang: 'klingon' }));
+  assert.equal(confirmCalls[0][2], 'en');
 });
 
 test('a "maybe" never registers companions (only an actual yes does)', async () => {

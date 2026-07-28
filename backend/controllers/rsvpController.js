@@ -47,6 +47,9 @@ const normalizeSideCsvValue = (raw) => {
 const submitPublicRSVP = async (req, res, next) => {
   const { slug } = req.params;
   const { partyId, guestName, email, phone, response, partySize, notes, additionalGuests, primaryGuestMeal, primaryGuestDietaryNotes, customAnswers, decline_reason, maybe_confirm_by, side, smsConsent } = req.body;
+  // The guest RSVP'd in a language they chose on the page — answer them in it.
+  // Nothing is stored: this only styles the immediate confirmation/decline mail.
+  const guestLang = String(req.body?.lang || '').toLowerCase().startsWith('ar') ? 'ar' : 'en';
 
   if (!guestName || !response) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'guestName and response are required.' });
@@ -217,7 +220,7 @@ const submitPublicRSVP = async (req, res, next) => {
     // which reads to the guest as "my response was never recorded".
     if (result.response === 'yes' || result.response === 'maybe') {
       if (result.guest_email) {
-        notificationService.sendConfirmationEmail(eventId, result.party_id)
+        notificationService.sendConfirmationEmail(eventId, result.party_id, guestLang)
           .catch((err) => logger.error({ err }, 'Confirmation email error'));
       } else {
         logger.warn({ partyId: result.party_id, eventId, response: result.response },
@@ -234,6 +237,7 @@ const submitPublicRSVP = async (req, res, next) => {
               eventDate: result.event_date,
               eventSlug: result.event_slug,
               companionEmail: companion.email.trim(),
+              lang: guestLang,
             }).catch((err) => logger.error({ err, companionEmail: companion.email }, 'Companion confirmation email error'));
           }
         });
@@ -244,8 +248,12 @@ const submitPublicRSVP = async (req, res, next) => {
       const declineHtml = getDeclineConfirmationTemplate(
         { guest_name: guestName },
         { title: result.event_title, event_date: result.event_date, slug: result.event_slug },
+        guestLang,
       );
-      notificationService.sendEmailViaBrevo(result.guest_email, `Thank You – ${escapeHtml(result.event_title)}`, declineHtml)
+      const declineSubject = guestLang === 'ar'
+        ? `شكرًا لإخبارنا – ${escapeHtml(result.event_title)}`
+        : `Thank You – ${escapeHtml(result.event_title)}`;
+      notificationService.sendEmailViaBrevo(result.guest_email, declineSubject, declineHtml)
         .catch((err) => logger.error({ err }, 'Decline email error'));
     }
 
