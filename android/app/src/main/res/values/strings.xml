@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Staff-facing text. English is the base; ar and fr are required for v1 (§9.9).
+
+  Two rules that come straight from the spec:
+
+  • Connection state is expressed in OPERATIONAL language, never technical
+    (§17.7). Staff must never see the words WebSocket, channel, socket, or sync
+    error. An amber "offline" indicator must not read as a fault — the app is
+    designed for that state, and a fault-shaped message makes staff stop working.
+
+  • Guest names are never in a string resource. They are rendered exactly as
+    stored, never transliterated (§9.9).
+-->
+<resources>
+    <string name="app_name">Fancy Check-in</string>
+
+    <!-- Event selection and preparation (§8.2) -->
+    <string name="prepare_title">Choose an event</string>
+    <string name="prepare_internet_notice">Internet is required now. It will not be required at the venue.</string>
+    <string name="prepare_ready">Ready offline</string>
+    <string name="prepare_ready_synced">Ready offline · refreshed %1$s</string>
+    <string name="prepare_needs_sync">Needs refresh</string>
+    <string name="prepare_not_prepared">Not prepared</string>
+    <string name="prepare_download">Download guest list</string>
+    <string name="prepare_refresh">Refresh</string>
+    <string name="prepare_guest_count">%1$d guests</string>
+
+    <!-- Download progress: real counts, never an indeterminate spinner (§8.2) -->
+    <string name="prepare_fetching_manifest">Checking the guest list…</string>
+    <string name="prepare_downloading">Downloading %1$d of %2$d guests (page %3$d of %4$d)</string>
+    <string name="prepare_verifying">Checking the download is complete…</string>
+    <string name="prepare_promoting">Saving to this device…</string>
+    <string name="prepare_done">Ready. %1$d guests saved. You can go offline now.</string>
+
+    <!-- Preparation failures. Each is distinct because each needs a different
+         action from the operator, and "the download was incomplete" must never
+         be presented as success. -->
+    <string name="prepare_failed_offline">No internet connection. Connect and try again before you leave.</string>
+    <string name="prepare_failed_not_authorised">This device is not authorised for that event.</string>
+    <string name="prepare_failed_feature">Check-in is not included in this event\'s plan.</string>
+    <string name="prepare_failed_incomplete">The download was incomplete (%1$d of %2$d guests). Nothing was saved. Try again.</string>
+    <string name="prepare_failed_corrupted">The guest list did not arrive intact. Nothing was saved. Try again.</string>
+    <string name="prepare_failed_server">The server could not be reached (%1$d). Try again.</string>
+    <string name="prepare_failed_unknown">Preparation failed. Nothing was saved.</string>
+
+    <!-- Staff login (§8.1) -->
+    <string name="login_title">Who is on the door?</string>
+    <string name="login_enter_pin">Enter %1$s\'s PIN</string>
+    <string name="login_verifying">Checking…</string>
+    <string name="login_wrong_pin">Wrong PIN. %1$d attempts left.</string>
+    <string name="login_locked_out">Locked for 5 minutes. A supervisor can reset this on this tablet.</string>
+    <string name="login_roster_empty">No staff have been added for this event yet.</string>
+    <string name="login_role_usher">Usher</string>
+    <string name="login_role_supervisor">Supervisor</string>
+
+    <!-- Device pairing (§18.3) -->
+    <string name="pair_title">Pair this tablet</string>
+    <string name="pair_instructions">Enter the 8-character code from the Fancy RSVP dashboard.</string>
+    <string name="pair_code_hint">Pairing code</string>
+    <string name="pair_submit">Pair</string>
+    <string name="pair_failed_invalid">That code is not valid.</string>
+    <string name="pair_failed_expired">That code has expired. Generate a new one.</string>
+    <string name="pair_failed_limit">This event already has the maximum number of devices.</string>
+
+    <!-- Connection state (§17.7). Operational language only. -->
+    <string name="conn_synced">Synced</string>
+    <string name="conn_offline_normal">Offline · working normally</string>
+    <string name="conn_offline_pending">Offline · %1$d pending</string>
+    <string name="conn_needs_attention">Needs attention</string>
+
+    <!-- Data freshness (§19.7) -->
+    <string name="freshness_current">Guest list current</string>
+    <string name="freshness_from">Guest list from %1$s</string>
+    <string name="freshness_stale">Guest list from %1$s · refresh when online</string>
+
+    <!-- Battery warnings (§21.9). These communicate STAKES, not just a level:
+         a tablet dying with unsynced check-ins is permanent data loss. -->
+    <string name="battery_low">Battery 20%%. Find a charger.</string>
+    <string name="battery_critical">Battery 10%%. %1$d check-ins have not been sent yet — they will be lost if this tablet dies.</string>
+    <string name="battery_critical_clean">Battery 10%%. Everything has been sent. Find a charger.</string>
+
+    <!-- Scanner (§8.3) -->
+    <string name="scanner_hint">Hold the guest\'s code inside the frame</string>
+    <string name="scanner_torch_on">Light on</string>
+    <string name="scanner_torch_off">Light off</string>
+    <string name="scanner_search">Search by name</string>
+    <string name="scanner_counter">%1$d of %2$d arrived</string>
+    <!-- Camera permission denial must degrade to manual search, never a dead
+         screen (§8.3). The message says what still works. -->
+    <string name="scanner_no_camera_title">Camera not available</string>
+    <string name="scanner_no_camera_body">You can still check guests in by name. Everything else works normally.</string>
+    <string name="scanner_grant_camera">Allow camera</string>
+
+    <!-- Scan result states (§8.4) -->
+    <string name="result_welcome">Welcome</string>
+    <string name="result_welcome_vip">VIP guest</string>
+    <string name="result_table">Table %1$s</string>
+    <string name="result_no_table">No table assigned</string>
+    <string name="result_admit">Check in</string>
+    <string name="result_admit_all">Check in all %1$d</string>
+    <string name="result_already_title">Already checked in</string>
+    <string name="result_already_detail">%1$s at %2$s</string>
+    <string name="result_already_detail_device">%1$s at %2$s · %3$s</string>
+    <string name="result_override">Supervisor override</string>
+    <string name="result_override_unavailable">A supervisor is needed to check this guest in again.</string>
+    <string name="result_not_found_title">Not on the list</string>
+    <string name="result_not_found_body">This code did not match any guest for this event. Try searching by name.</string>
+    <string name="result_unrecognised_title">Not a Fancy code</string>
+    <string name="result_unrecognised_body">That is not a guest ticket. Try searching by name.</string>
+    <string name="result_wrong_event_title">Wrong event</string>
+    <string name="result_wrong_event_body">This ticket belongs to a different event.</string>
+    <string name="result_expired_title">Ticket expired</string>
+    <string name="result_expired_body">This ticket is past its date. You can still check the guest in.</string>
+    <string name="result_party_of">Party of %1$d</string>
+    <string name="result_arriving_now">Who is arriving now?</string>
+    <string name="result_meal">Meal: %1$s</string>
+    <string name="result_dietary">Dietary: %1$s</string>
+    <string name="result_note">Note: %1$s</string>
+    <string name="result_no_kids">No children at this event</string>
+    <string name="result_tap_to_continue">Tap anywhere to continue</string>
+
+    <!-- Manual search (§8.5) -->
+    <string name="search_title">Search guests</string>
+    <string name="search_hint">Name or table</string>
+    <string name="search_no_results">No guests match \"%1$s\"</string>
+    <string name="search_arrived_badge">Arrived</string>
+    <string name="search_close">Close</string>
+
+    <!-- Live dashboard (§8.6) -->
+    <string name="dashboard_title">Attendance</string>
+    <string name="dashboard_loading">Loading…</string>
+    <string name="dashboard_open_guests">Guest list</string>
+    <string name="dashboard_entrance_display">Entrance display</string>
+    <string name="dashboard_of_invited">of %1$d invited</string>
+    <string name="dashboard_percent">%1$d%% arrived</string>
+    <string name="dashboard_arrivals_over_time">Arrivals, per 15 minutes</string>
+    <string name="dashboard_no_arrivals">No arrivals recorded yet</string>
+    <string name="dashboard_by_category">By category</string>
+    <string name="dashboard_arrived_of">%1$d of %2$d arrived</string>
+    <!-- Supervisor-only block (§18.2). Hidden from ushers as noise, not as secret. -->
+    <string name="dashboard_supervisor">Supervisor</string>
+    <string name="dashboard_pending">Waiting to send</string>
+    <string name="dashboard_stalled">Stuck — needs attention</string>
+    <string name="dashboard_conflicts">Duplicate admissions</string>
+    <string name="dashboard_per_staff">Checked in by</string>
+    <string name="dashboard_unattributed">Not attributed</string>
+
+    <!-- Guest list (§8.7) -->
+    <string name="guests_title">Guests</string>
+    <string name="guests_showing">%1$d shown</string>
+    <string name="guests_none">No guests match these filters</string>
+    <string name="guests_not_arrived">Not arrived</string>
+    <string name="guests_all_tables">All tables</string>
+    <string name="guests_filter_all">All</string>
+    <string name="guests_filter_arrived">Arrived</string>
+    <string name="guests_filter_not_arrived">Not arrived</string>
+    <string name="guests_filter_vip">VIP</string>
+
+    <!-- Supervisor undo (§9.6). The reason is mandatory. -->
+    <string name="guests_undo">Undo check-in</string>
+    <string name="guests_undo_title">Undo %1$s\'s check-in?</string>
+    <string name="guests_undo_body">The arrival stays in the record, marked as reversed. A reason is required.</string>
+    <string name="guests_undo_reason">Reason</string>
+    <string name="guests_undo_failed">Could not undo. Check the reason and try again.</string>
+
+    <!-- Entrance display (§8.8). Guest-facing: no names, no operational state. -->
+    <string name="entrance_waiting">Preparing…</string>
+    <string name="entrance_guests_arrived">guests arrived</string>
+
+    <!-- Session lock (§20.4) -->
+    <string name="session_locked_title">Locked</string>
+    <string name="session_locked_body">Enter %1$s\'s PIN to continue, or hand over to another staff member.</string>
+    <string name="session_switch_staff">Switch staff</string>
+
+    <!-- Close event and purge (§20.5) -->
+    <string name="close_title">Close event</string>
+    <string name="close_ready">%1$d of %2$d guests arrived. All check-ins have been sent.</string>
+    <string name="close_purge">Delete guest list from this tablet</string>
+    <string name="close_purge_explain">The guest list, staff PINs and arrival records are removed from this device. The event\'s data stays on the server.</string>
+    <!-- BLOCKED, not merely discouraged (§20.5). Those check-ins exist nowhere else. -->
+    <string name="close_blocked_title">Cannot close yet</string>
+    <string name="close_blocked_body">%1$d check-ins have not reached the server. Deleting now would lose them permanently.</string>
+    <string name="close_blocked_stalled">%1$d of them are stuck and will not send on their own — get help before closing.</string>
+    <string name="close_retry_sync">Try sending now</string>
+    <string name="close_purged">Guest list removed from this tablet.</string>
+    <string name="close_purging">Removing…</string>
+
+    <!-- Storage guard at preparation (§21.9) -->
+    <string name="prepare_no_space">Not enough free space on this tablet for %1$d guests. Free some space before leaving.</string>
+
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_retry">Try again</string>
+    <string name="action_dismiss">Dismiss</string>
+</resources>

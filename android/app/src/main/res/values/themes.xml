@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A minimal Material 3 host theme. The real visual layer lives in Compose
+  (ui/theme), so this only needs to give the Activity a sane window before the
+  first composition and avoid a white flash on a dark-lit entrance.
+
+  Fancy RSVP's palette: gold #B8944F, charcoal #191B1E, ivory #F8F4EC.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.FancyCheckin" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/charcoal</item>
+        <item name="android:statusBarColor">@color/charcoal</item>
+        <item name="android:navigationBarColor">@color/charcoal</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">false</item>
+    </style>
+</resources>

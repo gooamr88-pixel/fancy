@@ -4,6 +4,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { normalizeToE164 } from '../../utils/phone';
 import { findMealField } from '../../utils/mealField';
+
+/**
+ * Guest categories (decision D-4). Must match GUEST_CATEGORIES in
+ * backend/services/guestService.js — the server validates against its own list
+ * and rejects anything else, so an addition here alone would surface as a
+ * validation error rather than a new option.
+ */
+const GUEST_CATEGORIES = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'vip', label: 'VIP' },
+  { value: 'family', label: 'Family' },
+];
 import { sideLabel } from '../../utils/sideLabel';
 import PhoneNumberInput from '../../components/PhoneNumberInput';
 import { useModalA11y } from '../../hooks/useModalA11y';
@@ -35,7 +47,7 @@ const COLORS = {
  */
 export default function EditGuestModal({ isOpen, onClose, eventId, event, customFields, rsvp, onGuestUpdated }) {
   const [formData, setFormData] = useState({
-    guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '',
+    guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '', category: 'standard',
   });
   const [companions, setCompanions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -63,6 +75,11 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
         notes: rsvp.notes || '',
         side: rsvp.side || '',
         meal: rsvp.primary_meal || '',
+        // Read from the primary guest — the column lives on `guests`, and the
+        // party's members always share a value because this dropdown writes it
+        // to all of them.
+        category: (rsvp.guests || []).find((g) => g.is_primary_contact)?.category
+          || rsvp.category || 'standard',
       });
       // Real companion rows the organizer can now edit directly (previously
       // only a party-size number existed — extra companions were permanent
@@ -169,6 +186,7 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
           notes: formData.notes.trim(),
           side: formData.side || '',
           primaryGuestMeal: formData.meal || '',
+          category: formData.category || 'standard',
           additionalGuests: companionPayload,
         }),
       });
@@ -314,6 +332,23 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
                 </select>
               </div>
             )}
+
+            {/* Guest category (decision D-4, amendment A-16 item 6).
+                One dropdown, applied to everyone in the party — a VIP arrives with
+                their family and they are all VIPs at the door. `vip` is the value
+                the check-in app keys its premium welcome off, which is why this is
+                a fixed list and not free text. */}
+            <div>
+              <label style={labelStyle}>Category</label>
+              <select value={formData.category} onChange={handleChange('category')} style={{ ...inputStyle, cursor: 'pointer' }}>
+                {GUEST_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <p style={{ margin: '6px 0 0', fontSize: '12px', color: COLORS.stone }}>
+                Applies to everyone in this party. VIPs get a distinct welcome screen at check-in.
+              </p>
+            </div>
 
             {companions.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

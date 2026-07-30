@@ -1,0 +1,419 @@
+# Check-in system — instructions for the next phases
+
+Everything through Phase 7 is **written**. Almost none of it is **verified**.
+That gap is what the phases below close, in the order they must happen.
+
+Authority: `FANCY_RSVP_CHECKIN_SPEC.md` v1.0 as amended by
+`Checkin-Spec-Amendments.md` — the amendment record wins on any disagreement.
+Read Part D there before touching check-in code; it records the 2026-07-31
+review and ten fixes, several of which are themselves unverified.
+
+## Where the build actually stands
+
+| | State |
+|---|---|
+| Backend | Feature-complete. **499/499 unit tests pass.** |
+| Migrations | Written, **never applied anywhere**. All SQL unrun. |
+| Integration tests | 65 written, **never run** (need Docker). |
+| Android | ~56 `.kt` files, all 7 phases. **Never compiled.** No JDK/SDK/Gradle in the authoring environment. |
+| Frontend | 6 dashboard components + 2 pages. Rendered? **No.** |
+| Cross-language contracts | 4, pinned by golden vectors on both sides. Backend halves pass; **Kotlin halves never executed.** |
+
+Two rules that survive every phase below:
+
+- **`fallbackToDestructiveMigration` is a release blocker** (§21.2). It deletes
+  check-ins that exist nowhere else. Its absence from `CheckinDatabase` is
+  deliberate — a failed migration must fail loudly, never wipe.
+- **No raw control characters or literal Arabic in Kotlin source.** Character
+  sets are built from code points. One altered byte breaks a contract for the
+  whole fleet, and it is invisible in review.
+
+---
+
+# Phase 8 — Make the toolchain exist
+
+Nothing downstream can start until this is done. None of it is present today.
+
+### 8.1 Install
+
+| Tool | Why | Note |
+|---|---|---|
+| **JDK 17** | `app/build.gradle.kts` sets `jvmTarget = "17"` | Not 21. AGP 8.7.3 wants 17. |
+| **Android SDK, API 35** | `compileSdk = 35`, `targetSdk = 35` | The SDK directory on this machine exists but is unusable without a JDK. |
+| **Docker Desktop** | `supabase start` needs it | Phase 9 is blocked without it. |
+| **Gradle 8.9+** | *Only* to generate the wrapper, once | Then never used directly again. |
+
+### 8.2 Generate the Gradle wrapper — it does not exist
+
+`android/README.md` tells you to run `./gradlew`. **There is no `gradlew`.** No
+wrapper script, no `gradle/wrapper/` directory, no jar. It was never generated
+because no Gradle was available to generate it.
+
+```bash
+cd android
+gradle wrapper --gradle-version 8.9
+```
+
+Or open `android/` in Android Studio and accept the wrapper prompt. Commit the
+wrapper — including `gradle-wrapper.jar`. A wrapper that isn't committed means
+every machine builds with whatever Gradle happens to be installed, which is how
+"works on mine" starts.
+
+### 8.3 Create `local.properties` (untracked)
+
+```properties
+sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
+API_BASE_URL_DEBUG=http://10.0.2.2:5000/api/v1/
+API_BASE_URL_RELEASE=https://fancyrsvp.com/api/v1/
+```
+
+**The trailing slash is required.** Retrofit resolves relative paths against the
+base URL and silently drops the last segment without one — every call 404s and
+nothing explains why.
+
+`10.0.2.2` is the emulator's route to the host. A physical tablet needs your
+machine's LAN address, and `app/src/debug/network_security_config.xml` is what
+permits cleartext for it. That config is debug-only by design; do not widen it.
+
+**Done when:** `./gradlew --version` prints, and `./gradlew :app:dependencies`
+resolves. Versions in `gradle/libs.versions.toml` are pinned but were **never
+resolved against a repository** — expect at least one to need nudging. Two are
+not free choices and must not be swapped:
+
+- `mlkit-barcode-bundled` — the **bundled** model, never the Play-Services
+  download variant. A tablet with no internet at the venue may not have the
+  downloaded model, and scanning dies exactly when it matters (§4).
+- `sqlcipher` — required, not optional. The local DB holds the complete guest
+  list of a private event (§20.3).
+
+---
+
+# Phase 9 — Apply the migrations, run the integration suite
+
+**This is Phase 1's definition of done.** Not the unit tests — those mock the
+database, so they prove the JavaScript is consistent with itself and nothing
+more. Every RPC, constraint and index below is currently unexecuted SQL.
+
+### 9.1 Pre-flight: the entrance index can abort the migration
+
+`20260814000000` creates:
+
+```sql
+CREATE UNIQUE INDEX uq_tables_event_entrance_name
+  ON public.tables (event_id, lower(trim(table_name)))
+  WHERE element_type = 'zone' AND shape = 'entrance';
+```
+
+If **any existing event** already has two entrances whose names differ only by
+case or whitespace, index creation fails and the whole migration aborts. The old
+code allowed this — its uniqueness check was read-then-write with no constraint
+behind it. Check production **before** applying:
+
+```sql
+SELECT event_id, lower(trim(table_name)) AS name, count(*)
+FROM public.tables
+WHERE element_type = 'zone' AND shape = 'entrance'
+GROUP BY 1, 2 HAVING count(*) > 1;
+```
+
+Zero rows → proceed. Any rows → rename the duplicates first. The index is
+deliberately scoped to entrances rather than the whole table precisely so it
+only has to be true of the rows the check-in system depends on.
+
+### 9.2 Apply, in order
+
+```bash
+npx supabase start          # boots Postgres AND applies every migration in order
+```
+
+`20260814000000_checkin_offline_foundation.sql` → then
+`20260815000000_checkin_guest_delta_and_controls.sql`. The order matters:
+the second builds on tables the first creates.
+
+Watch for `checkin_undo`. It takes **six** parameters now. Adding defaulted
+parameters creates an *overload* rather than replacing the function, and
+PostgREST resolves RPCs by parameter name — with both forms present a 4-key call
+matches two candidates and fails as ambiguous. The migration drops the
+4-argument form explicitly. If you see `PGRST203` at runtime, that drop did not
+take.
+
+### 9.3 Run the suite
+
+```powershell
+cd backend
+$env:INTEGRATION_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+npm run test:integration
+```
+
+`checkinBatch.test.js` is the one that matters. It proves against real Postgres
+that `checkin_batch_upsert` is replay-safe, that a second offline admission
+becomes a conflict rather than an insert, that exactly one of six concurrent
+drains wins the advisory lock, that `checkin_undo` takes its own sequence
+position **without moving the original**, and that an undone guest can check in
+again through the partial unique index.
+
+Without `INTEGRATION_DB_URL` these **skip rather than fail**. A green run that
+says "skipped" has proven nothing — check the count.
+
+### 9.4 Verify what the 2026-07-31 review changed
+
+These were fixed after the last full pass and are unverified SQL:
+
+- [ ] `check_ins.undone_by_staff_id` and `undone_by_staff_name` exist.
+- [ ] A device undo by a supervisor writes both, and leaves `deleted_by` null.
+- [ ] An organizer undo writes `deleted_by` and leaves both staff columns null.
+- [ ] `checkin_undo` still allocates `undo_seq` without touching `server_seq`.
+
+**Done when:** all 65 pass, none skipped.
+
+---
+
+# Phase 10 — First Kotlin compile
+
+Expect this to fail repeatedly. That is the point of the phase — no Kotlin here
+has ever been near a compiler.
+
+```bash
+cd android
+./gradlew :app:testDebugUnitTest    # JVM tests, no device needed
+./gradlew :app:assembleDebug
+```
+
+### 10.1 Where errors are most likely
+
+Ranked by how much of the code was written without a type-checker to argue with:
+
+1. **Compose imports.** Material 3 and lifecycle APIs move between versions.
+   `LocalLifecycleOwner` in particular moved out of `compose.ui.platform`.
+2. **Hilt/KSP wiring.** Every `@HiltViewModel` constructor must be fully
+   satisfiable from `AppModule`. `GuestListViewModel` gained a `SessionManager`
+   parameter on 2026-07-31 — it is a `@Singleton` with an `@Inject` constructor,
+   so it should resolve, but this is exactly the kind of thing that only shows
+   up at compile time.
+3. **Room DAO signatures** against the entities, and the generated `_Impl`s.
+4. **Retrofit interface validation**, which happens at *interface-creation
+   time*, not per call. `undoCheckIn` uses `@HTTP(method = "DELETE", hasBody =
+   true)` deliberately: Retrofit's `@DELETE` declares `hasBody = false` and
+   throws `"Non-body HTTP method cannot contain @Body"`. Do not "simplify" it
+   back to `@DELETE`.
+5. **`SyncCoordinator`** now reads `MAX_TRUNCATED_FOLLOWUPS` from
+   `SyncRepository`'s companion, which was made non-private for it. If you see
+   a visibility error there, that is why.
+
+### 10.2 Generate and commit the Room schema baseline — do this once, now
+
+`ksp { arg("room.schemaLocation", "$projectDir/schemas") }` is configured, but
+`android/app/schemas/` **has never been generated**. A successful
+`assembleDebug` creates it.
+
+**Commit that JSON.** §21.2 requires migration tests against every previously
+released schema. Without a baseline captured *before* the first release, there
+is nothing to migrate *from* — and that hole cannot be filled retroactively once
+a tablet in the field holds version 1 data.
+
+There is also **no `app/src/androidTest/` directory**. Room migration tests are
+instrumented and need one. Create it in this phase, while the baseline is fresh.
+
+**Done when:** `assembleDebug` succeeds, all 6 JVM test files pass, and
+`schemas/` is committed.
+
+---
+
+# Phase 11 — Verify the four cross-language contracts
+
+The highest-risk part of the system. Each fails **silently and fleet-wide** —
+nothing crashes, everything just quietly stops working at every door at once.
+
+| Contract | Kotlin | Backend | Failure if they diverge |
+|---|---|---|---|
+| Bundle content hash | `util/BundleIntegrity.kt` | `canonicalizeGuests` | Every bundle fails verification. No device can be armed. Presents as "preparation is broken". |
+| Staff PIN hash | `data/security/PinVerifier.kt` | `hashPassword` | Every PIN rejected at the door. |
+| Name normalisation | `util/NameNormalizer.kt` | `normalizeNameForSearch` | Staff at one door get different search results from staff at another. |
+| QR ticket payload | `scan/TicketResolver.kt` | `signQrTicket` | Every scan resolves to "not found". |
+
+Run both halves and compare the golden vectors literally:
+
+```bash
+cd backend && npm test -- --test-name-pattern="contract"
+cd android && ./gradlew :app:testDebugUnitTest --tests "*BundleIntegrityTest*" \
+    --tests "*PinVerifierTest*" --tests "*NameNormalizerTest*" --tests "*TicketResolverTest*"
+```
+
+**The PIN trap, recorded so nobody "fixes" it:** the server passes the salt to
+`crypto.pbkdf2` as a hex **string**, so Node uses its 32 ASCII bytes as salt
+material — *not* the 16 bytes it decodes to. A natural Kotlin port decodes the
+hex first and rejects every PIN. The two derivations were verified to differ.
+`PinVerifier.kt` reproduces the quirk on purpose.
+
+**The ticket contract is about SHAPE, not signature.** Decision D-20 removed
+on-device verification; the bundle is the allowlist. One test exists because an
+RSVP invite link is signed with the *same secret* — only the `purpose` claim
+separates a login link from a door pass.
+
+**Neither side may change alone.** If a vector needs to move, move both in one
+commit or the fleet desynchronises.
+
+---
+
+# Phase 12 — On real hardware
+
+Emulators will not answer any of these.
+
+### 12.1 Measure PBKDF2 (decision D-1)
+
+600 000 SHA-512 iterations is ~0.2–0.5 s on a desktop and can be several times
+that on a low-end tablet. Acceptable once per shift — but §18.5 wants staff
+switching to be *fast*, because handover happens mid-rush.
+
+Time `PinVerifier` on the tablet you actually bought. If it exceeds ~1.5 s the
+fix is **a progress indicator, never fewer iterations**. Lowering the count
+silently weakens every PIN on the platform, and the hash is shared with
+`hashPassword`.
+
+### 12.2 Camera and scanning
+
+- Scan distance and angle under **venue lighting**, not office lighting.
+- The 3-second value-keyed debounce in `QrAnalyzer` — does one ticket held in
+  frame register once, and a second ticket immediately after register at once?
+- Torch toggle.
+- Confirm the **bundled** ML Kit model works with the device in airplane mode.
+  If it needs a download, the wrong artifact is on the classpath.
+
+### 12.3 Session, lock, security
+
+- `FLAG_SECURE`: screenshots blocked, and the app hidden in the recent-apps
+  switcher.
+- `KEEP_SCREEN_ON`: the screen never sleeps with a queue at the door.
+- Lock after inactivity, and after >5 minutes backgrounded.
+- **"Switch staff" reaches the login screen.** This was broken until
+  2026-07-31 — sign-out cleared the session but never navigated, stranding the
+  tablet on the scanner with no operator. The fix is read off source and has
+  never run. Test it deliberately.
+- Unlock returns to the scanner **without rebuilding the camera** (the overlay
+  is drawn over the nav host precisely so it doesn't).
+
+### 12.4 Battery and storage
+
+20% banner, 10% blocking modal (§21.9). Pre-travel storage guard.
+
+---
+
+# Phase 13 — Two-device rehearsal
+
+The scenarios that only fail with more than one tablet. Run these before any
+real event.
+
+| # | Scenario | Must happen |
+|---|---|---|
+| 1 | Same guest scanned at gate A, then gate B, **both online** | B shows "already checked in" within seconds (§9.2). Layer 2. |
+| 2 | Same guest at A and B, **both offline**, then both reconnect | Exactly one live check-in. The other becomes a **conflict**, surfaced on the dashboard — not silently dropped. Layers 3 + 4. |
+| 3 | Airplane mode, 50 scans, force-stop the app, reopen, reconnect | All 50 arrive. WorkManager survives process death. |
+| 4 | Supervisor undo on a device | Server accepts. Other device reflects it. Report names **who** reversed it and why. |
+| 5 | **Usher** attempts an undo | Refused with `SUPERVISOR_REQUIRED`. Nothing is reversed. |
+| 6 | Undo with a forged `staffId` from another event | Refused with `UNKNOWN_STAFF`. |
+| 7 | Batch claiming `staff_display_name` of someone else | Stored name comes from the **roster**, not the payload. |
+| 8 | Kill switch armed mid-event | Devices stop syncing, keep admitting guests locally. The door is never blocked. |
+| 9 | Revoke a device | Local wipe on next contact (§20.5). |
+| 10 | Close event with unsent work | Purge is **blocked**. |
+
+Scenarios 5–7 are the 2026-07-31 authorization fixes. They have unit tests but
+have never run against a real device token — and they are the difference between
+an audit trail and a suggestion.
+
+---
+
+# Phase 14 — Deploy
+
+### 14.1 Order
+
+1. **Migrations first.** The backend reads columns that do not exist yet.
+2. Backend.
+3. Frontend.
+
+### 14.2 The frontend trap
+
+`next start` serves a **prebuilt** `.next/`. `git pull` + `pm2 restart` does
+**not** update the frontend — it restarts a server that re-serves the old build.
+
+```bash
+cd frontend && npm ci && npm run build && pm2 restart <frontend-app>
+```
+
+Check `ecosystem.config.js` for the actual process names.
+
+### 14.3 Environment
+
+The live server's `.env` **overrides code defaults**. A value corrected in the
+repo does not take effect until the server's own env is corrected too — this has
+bitten before with email addresses. Confirm `QR_JWT_SECRET` is present and
+identical to whatever signed any tickets already in circulation; rotating it
+invalidates every issued QR code.
+
+### 14.4 Verify after deploy
+
+- [ ] All 35 check-in routes register (`/api/v1/checkin/*`, `/api/v1/admin/checkin/*`).
+- [ ] `checkin-setup` renders for an organizer; the admin device registry for a super admin.
+- [ ] `CheckinLive` on a **free-tier** event shows the upgrade prompt, not a raw error, and stops polling. (Fixed 2026-07-31, never rendered.)
+- [ ] Creating two entrances with the same name returns **409**, not 500. (Also fixed 2026-07-31, never run.)
+
+---
+
+# Phase 15 — Pilot
+
+One real event. Small. Two devices and a paper fallback list.
+
+Do not pilot on a wedding you cannot afford to disrupt. Watch conflicts and
+unresolved-conflict counts on the dashboard throughout, and pull the XLSX report
+afterwards — the anomalies sheet is the honest record of what the night actually
+did.
+
+---
+
+# Outstanding — decisions, not code
+
+### R-2 · Realtime channel authorisation — unsolved
+
+Supabase channels have no authorisation model here. Subscribing with the anon
+key would let any holder read any event's guest data. **Polling ships instead**
+and satisfies every §9.2 criterion, so this blocks nothing — but §17 stays
+unbuilt until there is an answer. Do not "just enable realtime".
+
+### PDF post-event report
+
+Needs a new dependency. Undecided. XLSX works today.
+
+### Localisation (§9.9)
+
+`strings.xml` is English only. Arabic and French were **explicitly descoped** by
+the owner, as was the VIP audio cue (§9.4). RTL layout has never been exercised.
+Most of this product's market reads Arabic — worth revisiting, but it is a
+product call, not a defect.
+
+### Release signing
+
+`app/build.gradle.kts` has **no signing config**. `assembleRelease` will not
+produce an installable artifact. Needed before any distribution, along with a
+decision on how the tablets are provisioned — sideload, internal Play track, or
+managed device. `isMinifyEnabled = true` on release means ProGuard rules matter;
+verify Room, Retrofit and kotlinx-serialization survive shrinking.
+
+### Per-event logo (§9.8)
+
+No such column exists on the platform (A-5 / D-19). Branding is colour-only.
+
+---
+
+## Gate summary
+
+Do not start a phase before its predecessor is genuinely done.
+
+| Phase | Done when |
+|---|---|
+| 8 · Toolchain | `./gradlew :app:dependencies` resolves |
+| 9 · Migrations + integration | 65 integration tests pass, **none skipped** |
+| 10 · Compile | `assembleDebug` succeeds, 6 test files pass, `schemas/` committed |
+| 11 · Contracts | All four verified on both sides |
+| 12 · Hardware | PBKDF2 measured, camera + session verified on the real tablet |
+| 13 · Two devices | All 10 scenarios pass, especially 5–7 |
+| 14 · Deploy | Post-deploy checklist clean |
+| 15 · Pilot | One real event, reviewed afterwards |

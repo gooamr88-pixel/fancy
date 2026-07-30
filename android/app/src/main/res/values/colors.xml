@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Fancy RSVP's brand palette, shared with the web platform.
+
+  The event's own primary colour arrives in the bundle (§9.8) and overrides the
+  accent at runtime; these are the fallbacks and the app chrome.
+
+  Status colours are chosen for a dim, decoratively-lit entrance and must hold a
+  4.5:1 contrast ratio against the surface they sit on (§11 accessibility).
+-->
+<resources>
+    <color name="gold">#FFB8944F</color>
+    <color name="gold_hover">#FFA6833F</color>
+    <color name="champagne">#FFD7BE80</color>
+    <color name="charcoal">#FF191B1E</color>
+    <color name="ivory">#FFF8F4EC</color>
+    <color name="stone">#FF77736A</color>
+    <color name="border">#FFE8E2D6</color>
+
+    <!-- Scan result states (§8.4). Each must be unmistakable at arm's length. -->
+    <color name="state_welcome">#FF2E7D5B</color>
+    <color name="state_vip">#FFB8944F</color>
+    <color name="state_already">#FFC8871B</color>
+    <color name="state_neutral">#FF77736A</color>
+    <color name="state_attention">#FFB03A2E</color>
+</resources>

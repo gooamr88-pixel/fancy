@@ -141,13 +141,42 @@ const searchGuests = async (req, res, next) => {
 const undoCheckIn = async (req, res, next) => {
   try {
     const { eventId } = req.params;
-    const { partyId } = req.body;
+    const { partyId, reason } = req.body;
     if (!partyId) return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'partyId is required.' });
 
-    const removed = await guestService.undoPartyCheckIn(eventId, partyId);
+    // Reversing an arrival is a privileged correction, so it carries a reason
+    // into the audit trail (spec §9.6). This endpoint previously hard-deleted
+    // the rows with no record of who did it or why — see migration
+    // 20260814000000 and the R-1 finding in docs/Checkin-Discovery-Report.md.
+    const undoReason = typeof reason === 'string' ? reason.trim() : '';
+    if (!undoReason) {
+      return sendFail(res, {
+        status: 400, error: 'REASON_REQUIRED',
+        message: 'A reason is required — it is recorded in the audit trail.',
+      });
+    }
+    if (undoReason.length > 300) {
+      return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Reason is too long.' });
+    }
+
+    const removed = await guestService.undoPartyCheckIn(eventId, partyId, {
+      actorId: req.user?.id || null,
+      reason: undoReason,
+    });
     if (removed === 0) return sendFail(res, { status: 404, error: 'NOT_FOUND', message: 'No check-in record found for this guest.' });
 
-    return sendOk(res, { message: 'Check-in reversed successfully.' });
+    await supabase.from('activity_logs').insert({
+      event_id: eventId,
+      actor_id: req.user?.id || null,
+      action: 'checkin_undone',
+      entity_type: 'check_in',
+      entity_id: partyId,
+      metadata: { reason: undoReason, reversed_count: removed, source: 'web_kiosk' },
+    });
+
+    broadcast(eventId, 'checkin_undone', { partyId, reversedCount: removed });
+
+    return sendOk(res, { message: 'Check-in reversed successfully.', reversedCount: removed });
   } catch (err) {
     next(err);
   }

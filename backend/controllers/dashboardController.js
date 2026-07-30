@@ -87,12 +87,15 @@ const getDashboardData = async (req, res, next) => {
           .in('event_id', eventIds)
       ),
 
-      // b) Check-ins count (check_ins table may not exist)
+      // b) Check-ins count (check_ins table may not exist).
+      // Undone check-ins are soft-deleted since migration 20260814000000, so
+      // they must be excluded or the dashboard overstates arrivals.
       safeQuery(
         supabase
           .from('check_ins')
           .select('id', { count: 'exact', head: true })
-          .in('event_id', eventIds),
+          .in('event_id', eventIds)
+          .is('deleted_at', null),
         { data: null, error: null, count: 0 }
       ),
 

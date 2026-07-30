@@ -570,8 +570,11 @@ const exportGuestsExcel = async (req, res, next) => {
     const { data: tables, error: tablesError } = await supabase.from('tables').select('*').eq('event_id', eventId);
     if (tablesError) throw tablesError;
 
+    // Live arrivals only. Undone check-ins are retained as evidence (soft
+    // delete, migration 20260814000000) but must never appear in the Check-in
+    // Log sheet as though the guest attended.
     const { data: checkins, error: checkinsError } = await supabase
-      .from('check_ins').select('*, rsvp_parties(label)').eq('event_id', eventId);
+      .from('check_ins').select('*, rsvp_parties(label)').eq('event_id', eventId).is('deleted_at', null);
     if (checkinsError) throw checkinsError;
 
     // Shape rows the way generateExcelExport expects (mirrors the pre-rebuild rsvp shape).
@@ -616,7 +619,7 @@ const deleteRSVP = async (req, res, next) => {
  */
 const updateRSVP = async (req, res, next) => {
   const { eventId, partyId } = req.params;
-  const { guestName, email, phone, response, partySize, notes, primaryGuestMeal, additionalGuests, side } = req.body;
+  const { guestName, email, phone, response, partySize, notes, primaryGuestMeal, additionalGuests, side, category } = req.body;
 
   try {
     if (response !== undefined && !['yes', 'no', 'maybe', 'pending', 'waitlist'].includes(response)) {
@@ -650,9 +653,18 @@ const updateRSVP = async (req, res, next) => {
     }
 
     const party = await guestService.updateParty(eventId, partyId, {
-      guestName, email, phone, response, partySize, notes, primaryMeal: primaryGuestMeal, additionalGuests, side,
+      guestName, email, phone, response, partySize, notes, primaryMeal: primaryGuestMeal, additionalGuests, side, category,
     });
     if (!party) return sendFail(res, { status: 404, error: 'RSVP_NOT_FOUND' });
+    // A-16 item 6: the category is a fixed enum, so an unrecognised value is a
+    // client bug rather than something to silently coerce to 'standard' — that
+    // would quietly downgrade a VIP.
+    if (party.error === 'INVALID_CATEGORY') {
+      return sendFail(res, {
+        status: 400, error: 'VALIDATION_ERROR',
+        message: `category must be one of: ${guestService.GUEST_CATEGORIES.join(', ')}.`,
+      });
+    }
 
     broadcast(eventId, 'rsvp_updated', { partyId, guestName: party.label, response: party.response });
     return sendOk(res, { message: 'RSVP updated successfully.', rsvp: party });

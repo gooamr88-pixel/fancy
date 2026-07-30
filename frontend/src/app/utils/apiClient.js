@@ -99,7 +99,14 @@ export async function apiFetch(path, options = {}) {
     }
 
     if (!response.ok) {
-      throw new Error(data.message || `Request failed with status ${response.status}`);
+      const err = new Error(data.message || `Request failed with status ${response.status}`);
+      // Attached, not thrown differently: every existing caller reads err.message
+      // and keeps working. These let a caller tell apart failures that need
+      // different UI — a feature-gated 403 wants an upgrade prompt, not the raw
+      // sentence the API returned.
+      err.status = response.status;
+      err.code = data.error || null;
+      throw err;
     }
     return data;
   } catch (err) {

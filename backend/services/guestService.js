@@ -11,7 +11,7 @@
  */
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
-const { normalizeEmail, escapeLikePattern } = require('../utils/normalize');
+const { normalizeEmail, escapeLikePattern, normalizeNameForSearch } = require('../utils/normalize');
 const { normalizeToE164 } = require('../utils/phone');
 const { sideLabelForEvent } = require('../utils/sideLabel');
 
@@ -406,15 +406,38 @@ async function listParties(eventId, {
   };
 }
 
+/**
+ * Guest categories the organizer UI offers (decision D-4, amendment A-16 item 6).
+ *
+ * A fixed enum, not free text: `vip` is the reserved value the check-in app keys
+ * its premium welcome treatment off (§8.4, §9.4), and a typo'd "VIP " would
+ * silently produce an ordinary welcome for someone the client considers important.
+ * The database column is deliberately wider so a future release can extend this
+ * without a migration.
+ */
+const GUEST_CATEGORIES = ['standard', 'vip', 'family'];
+
 /** Organizer edit of a party + its guests (full reconciliation of the headcount). */
 async function updateParty(eventId, partyId, {
-  guestName, email, phone, response, partySize, notes, primaryMeal, additionalGuests, side,
+  guestName, email, phone, response, partySize, notes, primaryMeal, additionalGuests, side, category,
 }) {
   const updates = {};
   if (guestName !== undefined) updates.label = guestName.trim();
   if (response !== undefined) updates.response = response;
   if (notes !== undefined) updates.notes = notes;
   if (side !== undefined) updates.side = side || null;
+
+  // Applied to every guest in the party, because the edit surface is party-shaped
+  // and A-16 item 6 asks for ONE dropdown. In practice a category is a party
+  // attribute anyway — a VIP arrives with their family, and they are all VIPs at
+  // the door. Validated against the enum rather than passed through, so a client
+  // cannot write a value the app will not recognise.
+  const normalizedCategory = category === undefined
+    ? undefined
+    : (GUEST_CATEGORIES.includes(String(category).toLowerCase()) ? String(category).toLowerCase() : null);
+  if (category !== undefined && normalizedCategory === null) {
+    return { error: 'INVALID_CATEGORY' };
+  }
 
   const { data: party, error } = await supabase
     .from('rsvp_parties')
@@ -433,7 +456,8 @@ async function updateParty(eventId, partyId, {
   // was gated on effectiveResponse === 'yes', so editing a Maybe/Pending/No
   // guest's party size silently did nothing.
   const guestDetailProvided = additionalGuests !== undefined || primaryMeal !== undefined
-    || guestName !== undefined || email !== undefined || phone !== undefined;
+    || guestName !== undefined || email !== undefined || phone !== undefined
+    || normalizedCategory !== undefined;
   const partySizeProvided = partySize !== undefined;
 
   if (guestDetailProvided || partySizeProvided) {
@@ -455,6 +479,9 @@ async function updateParty(eventId, partyId, {
       phone: phone !== undefined ? (phone ? normalizeToE164(phone) : null) : (existingPrimary?.phone || null),
       is_primary_contact: true,
       meal_selection: primaryMeal !== undefined ? (primaryMeal || null) : (existingPrimary?.meal_selection || null),
+      category: normalizedCategory !== undefined
+        ? normalizedCategory
+        : (existingPrimary?.category || 'standard'),
     };
     // If the primary already exists, update in place; otherwise insert.
     if (existingPrimary?.id) {
@@ -477,6 +504,9 @@ async function updateParty(eventId, partyId, {
         phone: fromBody && fromBody.phone !== undefined ? (fromBody.phone ? normalizeToE164(fromBody.phone) : null) : (prev?.phone || null),
         meal_selection: fromBody ? (fromBody.mealSelection || null) : (prev?.meal_selection || null),
         dietary_notes: fromBody ? (fromBody.dietaryNotes || null) : (prev?.dietary_notes || null),
+        category: normalizedCategory !== undefined
+          ? normalizedCategory
+          : (prev?.category || 'standard'),
       };
       if (prev?.id) {
         row.id = prev.id;
@@ -607,7 +637,7 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
       id, label, response, notes, side,
       guests(full_name, email, phone, is_primary_contact, meal_selection),
       seating_assignments(table_id, tables(table_name)),
-      check_ins(checked_in_at, method)
+      check_ins(checked_in_at, method, deleted_at, undo_reason)
     `)
     .eq('event_id', eventId)
     .limit(EXPORT_LIMIT);
@@ -650,7 +680,12 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
     const meals = (p.guests || []).filter((g) => g.meal_selection)
       .map((g) => `${g.full_name}: ${g.meal_selection}`).join('; ');
     const tableName = tableNameOf(p);
-    const checkIns = p.check_ins || [];
+    // An undone check-in is retained as evidence but is NOT an arrival. Without
+    // this split the export would report a guest the supervisor un-admitted as
+    // having attended (soft delete, migration 20260814000000).
+    const allCheckIns = p.check_ins || [];
+    const checkIns = allCheckIns.filter((c) => !c.deleted_at);
+    const undone = allCheckIns.filter((c) => c.deleted_at);
     return {
       guest_name: p.label,
       email: primary.email || '',
@@ -663,6 +698,9 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
       checked_in: checkIns.length > 0 ? 'Yes' : 'No',
       checked_in_at: checkIns[0]?.checked_in_at || '',
       check_in_method: checkIns[0]?.method || '',
+      // Surfaced so a reversed admission is visible in the export rather than
+      // looking identical to a guest who simply never arrived.
+      undone_check_in: undone.length > 0 ? (undone[0].undo_reason || 'Reversed') : '',
       notes: p.notes || '',
       guests: p.guests || [],
     };
@@ -697,7 +735,7 @@ async function checkInParty(eventId, partyId, { method, checkedInBy = null } = {
   if (!guests || guests.length === 0) return { success: false, error: 'GUEST_NOT_FOUND' };
 
   const { data: existing, error: existingErr } = await supabase
-    .from('check_ins').select('guest_id, checked_in_at').eq('event_id', eventId).in('guest_id', guests.map((g) => g.id));
+    .from('check_ins').select('guest_id, checked_in_at').eq('event_id', eventId).is('deleted_at', null).in('guest_id', guests.map((g) => g.id));
   if (existingErr) throw existingErr;
   const alreadyIn = new Set((existing || []).map((e) => e.guest_id));
 
@@ -723,7 +761,7 @@ async function checkInParty(eventId, partyId, { method, checkedInBy = null } = {
     // ALREADY_CHECKED_IN this function already returns for the non-racy case.
     if (err.code === '23505' || /duplicate key/i.test(err.message || '')) {
       const { data: recheck, error: recheckErr } = await supabase
-        .from('check_ins').select('guest_id, checked_in_at').eq('event_id', eventId).in('guest_id', guests.map((g) => g.id));
+        .from('check_ins').select('guest_id, checked_in_at').eq('event_id', eventId).is('deleted_at', null).in('guest_id', guests.map((g) => g.id));
       if (recheckErr) throw recheckErr;
       const nowIn = new Set((recheck || []).map((e) => e.guest_id));
       if (nowIn.size === guests.length) {
@@ -751,32 +789,175 @@ async function checkInParty(eventId, partyId, { method, checkedInBy = null } = {
   };
 }
 
-/** Reverses every check-in for a party (the staff "undo" action). */
-async function undoPartyCheckIn(eventId, partyId) {
+/**
+ * Reverses every check-in for a party (the staff "undo" action).
+ *
+ * SOFT delete since migration 20260814000000. This used to be a hard
+ * `DELETE`, which erased arrival evidence with no audit row anywhere — an
+ * organizer could silently un-admit a guest and nothing recorded it. Spec
+ * §9.6 requires every override and undo to remain visible, so the rows are
+ * now marked rather than destroyed.
+ *
+ * Already-undone rows are skipped, so a repeated undo is a no-op rather than
+ * a re-stamp that would overwrite the original actor and reason.
+ */
+async function undoPartyCheckIn(eventId, partyId, { actorId = null, reason = null } = {}) {
   const { data, error } = await supabase
-    .from('check_ins').delete().eq('event_id', eventId).eq('party_id', partyId).select();
+    .from('check_ins')
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: actorId,
+      undo_reason: reason || 'Reversed from the check-in console',
+    })
+    .eq('event_id', eventId)
+    .eq('party_id', partyId)
+    .is('deleted_at', null)
+    .select('id, guest_id');
   if (error) throw error;
   return data?.length || 0;
 }
 
-/** Autocomplete search for the check-in desk: name, party size, table, arrival status, meals. */
-async function searchGuestsForCheckin(eventId, term, limit = 10) {
-  const { data, error } = await supabase
-    .from('rsvp_parties')
-    .select(`
+/** Columns the check-in desk search needs — the full row the caller returns. */
+const CHECKIN_SEARCH_SELECT = `
       id, label, response,
       guests(id, full_name, meal_selection, dietary_notes),
       seating_assignments(tables(id, table_name)),
-      check_ins(id, checked_in_at, guest_id)
-    `)
+      check_ins(id, checked_in_at, guest_id, deleted_at)
+    `;
+
+/**
+ * The narrow projection the fallback scan reads.
+ *
+ * Just enough to decide whether a party matches — no seating, no check-ins, no
+ * meal or dietary text. The scan reads up to CHECKIN_SEARCH_SCAN_CAP rows on a
+ * keystroke, and the difference between this and CHECKIN_SEARCH_SELECT at that
+ * volume is three joins and most of the payload. The handful of rows that
+ * actually match are re-read in full afterwards.
+ */
+const CHECKIN_SEARCH_SCAN_SELECT = 'id, label, guests(full_name)';
+
+/**
+ * Upper bound on the normalized fallback scan. Well past the realistic ceiling
+ * for this market (§21.10 explicitly rejects designing for 100k), and it keeps
+ * a pathological event from turning one keystroke into an unbounded read.
+ */
+const CHECKIN_SEARCH_SCAN_CAP = 3000;
+
+/**
+ * Autocomplete search for the check-in desk: name, party size, table, arrival
+ * status, meals.
+ *
+ * Two passes, because the fast one is not correct on its own:
+ *
+ *   1. Indexed ILIKE on the party label. Covers most queries at index speed.
+ *   2. If that under-fills, a normalized scan over the event's parties AND
+ *      their individual guests.
+ *
+ * Pass 2 exists because pass 1 fails on real guest lists in two ways
+ * (discovery finding R-3 / amendment A-12):
+ *
+ *   • It only ever matched `rsvp_parties.label`, so searching a companion's
+ *     own name found NOTHING — and a companion arriving without the primary
+ *     guest is completely routine.
+ *   • It is byte-exact, so أحمد does not match احمد. Spec §8.5 requires
+ *     diacritic-, hamza- and alef-insensitive matching; without it the search
+ *     is unusable on an Arabic list, which is most of this product's market.
+ *
+ * The device does this locally against its bundle and is the primary search
+ * path; this endpoint serves the web kiosk. Both must agree, or staff at one
+ * door get different answers from staff at another — hence the shared
+ * normalizeNameForSearch, which the app mirrors.
+ */
+async function searchGuestsForCheckin(eventId, term, limit = 10) {
+  const raw = String(term || '').trim();
+  if (!raw) return [];
+
+  const { data: fast, error } = await supabase
+    .from('rsvp_parties')
+    .select(CHECKIN_SEARCH_SELECT)
     .eq('event_id', eventId)
-    .ilike('label', `%${escapeLikePattern(term)}%`)
+    .ilike('label', `%${escapeLikePattern(raw)}%`)
     .limit(limit);
   if (error) throw error;
 
-  return (data || []).map((p) => {
+  let data = fast || [];
+
+  // Pass 2: the same cheap ILIKE against companion names. The label pass misses
+  // a companion arriving without the primary guest, which is completely routine,
+  // and catching it here keeps most Latin-script searches off the scan below.
+  if (data.length < limit) {
+    const { data: guestRows, error: guestErr } = await supabase
+      .from('guests')
+      .select('party_id')
+      .eq('event_id', eventId)
+      .ilike('full_name', `%${escapeLikePattern(raw)}%`)
+      .limit(limit * 4);
+    if (guestErr) throw guestErr;
+
+    const seen = new Set(data.map((p) => p.id));
+    const ids = [...new Set((guestRows || []).map((g) => g.party_id))]
+      .filter((id) => id && !seen.has(id))
+      .slice(0, limit - data.length);
+
+    if (ids.length > 0) {
+      const { data: hydrated, error: hydrateErr } = await supabase
+        .from('rsvp_parties')
+        .select(CHECKIN_SEARCH_SELECT)
+        .eq('event_id', eventId)
+        .in('id', ids);
+      if (hydrateErr) throw hydrateErr;
+      data = data.concat(hydrated || []);
+    }
+  }
+
+  // Pass 3: the normalized scan. Only this pass satisfies §8.5 — أحمد matching
+  // احمد is not expressible as an ILIKE — but it is also the expensive one, and
+  // for an Arabic list the two passes above almost always come back empty, so
+  // this is the common path rather than a rare fallback.
+  //
+  // Read narrow, then hydrate: the scan pulls identity columns for up to
+  // CHECKIN_SEARCH_SCAN_CAP parties, and only the few that match are re-read
+  // with the full embeds.
+  if (data.length < limit) {
+    const needle = normalizeNameForSearch(raw);
+    if (needle) {
+      const { data: all, error: scanErr } = await supabase
+        .from('rsvp_parties')
+        .select(CHECKIN_SEARCH_SCAN_SELECT)
+        .eq('event_id', eventId)
+        .limit(CHECKIN_SEARCH_SCAN_CAP);
+      if (scanErr) throw scanErr;
+
+      const seen = new Set(data.map((p) => p.id));
+      const matchedIds = [];
+      for (const p of all || []) {
+        if (data.length + matchedIds.length >= limit) break;
+        if (seen.has(p.id)) continue;
+
+        const partyHit = normalizeNameForSearch(p.label).includes(needle);
+        const guestHit = (p.guests || []).some((g) => normalizeNameForSearch(g.full_name).includes(needle));
+        if (partyHit || guestHit) matchedIds.push(p.id);
+      }
+
+      if (matchedIds.length > 0) {
+        const { data: hydrated, error: hydrateErr } = await supabase
+          .from('rsvp_parties')
+          .select(CHECKIN_SEARCH_SELECT)
+          .eq('event_id', eventId)
+          .in('id', matchedIds);
+        if (hydrateErr) throw hydrateErr;
+        data = data.concat(hydrated || []);
+      }
+    }
+  }
+
+  return data.map((p) => {
     const totalGuests = (p.guests || []).length || 1;
-    const checkedInGuestIds = new Set((p.check_ins || []).map((c) => c.guest_id));
+    // Undone check-ins are retained as evidence but must not read as arrived
+    // (soft delete, migration 20260814000000). Filtered here rather than in the
+    // embed because an embedded filter would drop parties with no check-ins.
+    const liveCheckIns = (p.check_ins || []).filter((c) => !c.deleted_at);
+    const checkedInGuestIds = new Set(liveCheckIns.map((c) => c.guest_id));
     const checkedInCount = (p.guests || []).filter((g) => checkedInGuestIds.has(g.id)).length;
     const seating = Array.isArray(p.seating_assignments) ? p.seating_assignments[0] : p.seating_assignments;
     return {
@@ -792,7 +973,7 @@ async function searchGuestsForCheckin(eventId, term, limit = 10) {
       isCheckedIn: checkedInCount > 0,
       checkedInCount,
       totalGuests,
-      checkedInAt: (p.check_ins || [])[0]?.checked_in_at || null,
+      checkedInAt: liveCheckIns[0]?.checked_in_at || null,
       meals: (p.guests || []).map((g) => ({ fullName: g.full_name, mealSelection: g.meal_selection, dietaryNotes: g.dietary_notes })),
     };
   });
@@ -816,6 +997,7 @@ async function getPartyForSelfCheckIn(eventId, partyId, guestName) {
 module.exports = {
   MAX_ADDITIONAL_GUESTS,
   MAX_CUSTOM_ANSWERS,
+  GUEST_CATEGORIES,
   isSeatingRevealed,
   seatingRevealAtISO,
   submitPublicRsvp,

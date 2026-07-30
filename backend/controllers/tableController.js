@@ -27,6 +27,90 @@ async function hasNameCollision(eventId, name, excludeId) {
 }
 
 /**
+ * Turns a unique-violation into the same 409 the pre-flight check produces.
+ *
+ * `hasNameCollision` is read-then-write, so two organizers editing one seating
+ * map can both pass it and only the second insert fails. That used to be
+ * invisible — nothing enforced uniqueness in the database. Amendment A-17 added
+ * `uq_tables_event_entrance_name`, so the race now surfaces as a real 23505,
+ * and without this it would reach the user as a generic 500 on a core seating
+ * operation.
+ *
+ * Deliberately narrow: only the entrance-name index is translated. Any other
+ * constraint failing here is a bug, and reporting it as "choose another name"
+ * would send the organizer chasing the wrong thing.
+ */
+function duplicateNameResponse(error, name) {
+  if (error?.code !== '23505') return null;
+  if (!String(error.message || '').includes('uq_tables_event_entrance_name')) return null;
+  return {
+    success: false,
+    error: 'DUPLICATE_NAME',
+    message: `"${String(name || '').trim()}" is already used by another entrance on this seating map. Choose a different name.`,
+  };
+}
+
+/**
+ * Returns a 409 body when a seating element may not be deleted because it is
+ * acting as a check-in gate (amendment A-17); null when deletion is fine.
+ *
+ * Two independent reasons to refuse, reported separately because the remedy
+ * differs — a paired device can be revoked or moved, whereas recorded arrivals
+ * are history and the element must simply be kept.
+ *
+ * Deliberately fails OPEN on a lookup error: the check-in tables may not exist
+ * yet on a deployment that has not applied the 20260814000000 migration, and a
+ * missing table must not make ordinary seating-map editing impossible.
+ */
+async function gateDeletionBlocker(eventId, tableId) {
+  try {
+    const { data: devices, error: deviceErr } = await supabase
+      .from('event_devices')
+      .select('id, device_label')
+      .eq('event_id', eventId)
+      .eq('gate_table_id', tableId)
+      .limit(1);
+    if (deviceErr) throw deviceErr;
+
+    if (devices && devices.length > 0) {
+      return {
+        error: 'GATE_IN_USE',
+        message:
+          'A check-in device is paired to this entrance. Revoke the device, or move it to another gate, before deleting this element.',
+      };
+    }
+
+    // Historical arrivals recorded at this gate. check_ins stores the gate NAME
+    // as a snapshot (§18.6), so deleting the element would not corrupt existing
+    // records — but it would let a new element reuse the name and make the audit
+    // trail ambiguous about which gate a guest actually came through.
+    const { data: history, error: historyErr } = await supabase
+      .from('check_ins')
+      .select('id')
+      .eq('event_id', eventId)
+      .eq('gate_table_id', tableId)
+      .limit(1);
+    if (historyErr) throw historyErr;
+
+    if (history && history.length > 0) {
+      return {
+        error: 'GATE_HAS_HISTORY',
+        message:
+          'Guests were checked in at this entrance. It is kept so the arrival record stays accurate.',
+      };
+    }
+
+    return null;
+  } catch (err) {
+    logger.warn(
+      { err: err.message, eventId, tableId },
+      '[tables] gate deletion check failed — allowing delete',
+    );
+    return null;
+  }
+}
+
+/**
  * Creates a new seating element (table or venue zone) for an event.
  * POST /api/v1/events/:eventId/tables
  */
@@ -84,7 +168,11 @@ const createTable = async (req, res, next) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      const dup = duplicateNameResponse(error, tableName);
+      if (dup) return res.status(409).json(dup);
+      throw error;
+    }
 
     return res.status(201).json({
       success: true,
@@ -267,6 +355,23 @@ const deleteTable = async (req, res, next) => {
       });
     }
 
+    // ── Gate guard (amendment A-17) ──
+    // The check above only fires for elements with seating assignments, and
+    // parties are assigned to TABLES, never to entrance zones — so it has never
+    // protected a gate. Once a device binds to an entrance, that element's name
+    // is the identity the audit trail and every conflict report are written
+    // against, and deleting it would orphan them.
+    //
+    // Checked here rather than by a foreign key: `tables` and `event_devices`
+    // both cascade from `events`, and Postgres does not guarantee cascade order,
+    // so an ON DELETE RESTRICT would intermittently make deleting an EVENT fail.
+    // The FK is SET NULL; this is where the deletion is actually refused, and
+    // where a useful message can be returned.
+    const gateBlock = await gateDeletionBlocker(eventId, tableId);
+    if (gateBlock) {
+      return res.status(409).json({ success: false, ...gateBlock });
+    }
+
     const { error } = await supabase
       .from('tables')
       .delete()
@@ -358,7 +463,11 @@ const updateTable = async (req, res, next) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      const dup = duplicateNameResponse(error, updates.table_name);
+      if (dup) return res.status(409).json(dup);
+      throw error;
+    }
     if (!table) return res.status(404).json({ success: false, error: 'TABLE_NOT_FOUND' });
 
     return res.json({ success: true, message: 'Table updated successfully.', table });
@@ -431,7 +540,19 @@ const duplicateTable = async (req, res, next) => {
       .insert(insertRows)
       .select();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      // Duplicating an entrance races the same index as create/update. The
+      // generated "(Copy n)" names are chosen against a snapshot, so a
+      // concurrent editor can take one between the read and the insert.
+      const dup = duplicateNameResponse(insertError, source.table_name);
+      if (dup) {
+        return res.status(409).json({
+          ...dup,
+          message: 'Another editor took that name while the copy was being created. Try again.',
+        });
+      }
+      throw insertError;
+    }
 
     return res.status(201).json({
       success: true,

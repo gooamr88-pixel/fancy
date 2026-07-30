@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec §20.
+
+  Nothing leaves this device. The local database holds the complete guest list of
+  a private event, the sync queue holds check-ins that exist nowhere else, and the
+  Keystore-wrapped credentials authenticate a device.
+
+  cloud-backup and device-transfer are both excluded wholesale rather than
+  filtered path-by-path: an allowlist here would silently start including any new
+  file a future change adds, and the failure mode is a private guest list in
+  someone else's cloud account.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

@@ -33,7 +33,11 @@ async function getEventStats(eventId) {
     const { count } = await supabase
       .from('check_ins')
       .select('id', { count: 'exact', head: true })
-      .eq('event_id', eventId);
+      .eq('event_id', eventId)
+      // Undone check-ins are soft-deleted, not removed (migration
+      // 20260814000000) — counting them would overstate attendance in the
+      // organizer's recap email.
+      .is('deleted_at', null);
     stat.checkedIn = count || 0;
   } catch { /* check_ins optional */ }
 

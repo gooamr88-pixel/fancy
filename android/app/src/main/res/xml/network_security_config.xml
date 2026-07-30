@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spec §20.6.
+
+  Cleartext is disabled by default. The debug-only exception below exists so a
+  developer can point the app at a laptop on the LAN; it names specific private
+  ranges rather than opening cleartext generally, and it is confined to the
+  debug source set — release builds use only the base config here.
+
+  No certificate-validation bypass exists in any variant. Decision D-13 declined
+  certificate pinning for v1: a certificate rotation without a coordinated app
+  update would disable every device in the field simultaneously, and there is no
+  rotation procedure or remote kill switch for that yet.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

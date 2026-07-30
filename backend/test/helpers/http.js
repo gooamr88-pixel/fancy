@@ -2,13 +2,17 @@
  * Minimal Express req/res doubles for invoking controller handlers directly.
  */
 
-function mockReq({ params = {}, body = {}, query = {}, headers = {}, cookies = {}, user } = {}) {
+function mockReq({ params = {}, body = {}, query = {}, headers = {}, cookies = {}, user, device } = {}) {
   return {
     params, body, query, cookies,
     headers: Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v])),
     ip: '127.0.0.1',
     get(name) { return this.headers[String(name).toLowerCase()]; },
     user,
+    // Set by requireDevice for a paired tablet. Distinct from `user`: a device
+    // token identifies hardware, not a person, so handlers treat the two very
+    // differently — see checkinSyncController.deleteCheckIn.
+    device,
   };
 }
 

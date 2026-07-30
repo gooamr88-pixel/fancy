@@ -855,7 +855,9 @@ const getEventStats = async (req, res, next) => {
     //    are independent — fetch them concurrently.
     const [invitationsRes, checkinRes, seatingRes] = await Promise.all([
       supabase.from('invitations').select('party_id').eq('event_id', eventId).in('status', ['sent', 'delivered', 'opened', 'responded']),
-      supabase.from('check_ins').select('*', { count: 'exact', head: true }).eq('event_id', eventId),
+      // Undone check-ins are soft-deleted since migration 20260814000000 —
+      // excluded so the dashboard's arrival counter matches the room.
+      supabase.from('check_ins').select('*', { count: 'exact', head: true }).eq('event_id', eventId).is('deleted_at', null),
       supabase.from('seating_assignments').select('rsvp_parties(guests(id))').eq('event_id', eventId),
     ]);
 

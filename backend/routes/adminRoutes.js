@@ -15,6 +15,7 @@ const blogRoutes = require('./admin/blogRoutes');
 const referralAdminRoutes = require('./admin/referralAdminRoutes');
 const contactInquiriesRoutes = require('./admin/contactInquiriesRoutes');
 const promoCodeRoutes = require('./admin/promoCodeRoutes');
+const checkinAdminRoutes = require('./admin/checkinAdminRoutes');
 const {
   listPlatformUsers,
   setUserRole,
@@ -78,6 +79,9 @@ router.use('/blog', blogRoutes);
 router.use('/referrals', referralAdminRoutes);
 router.use('/inquiries', contactInquiriesRoutes);
 router.use('/promo-codes', promoCodeRoutes);
+
+// ── Check-in — cross-org device registry, global revoke/wipe, ops summary ──
+router.use('/checkin', checkinAdminRoutes);
 
 // ── Phase 2: RBAC & security — user/organizer lifecycle, audit, security, health ──
 router.use('/', userMgmtRoutes);

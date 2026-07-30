@@ -11,6 +11,7 @@ contention — not mocked.
 |---|---|
 | `smsConcurrency.test.js` | `deduct_sms_credit_atomic` never overspends (`FOR UPDATE`); the `idempotency_key` unique index backstops racy retries; `record_sms_purchase` credits a payment_intent exactly once under a webhook storm; a single wallet row survives the ensure race. |
 | `seatingConcurrency.test.js` | `assign_seat` never overbooks a table (advisory lock + capacity assertion); party-size SUM math holds; a guest can't be double-seated (`UNIQUE(event_id,rsvp_id)`); `force` deliberately allows overbooking. |
+| `checkinBatch.test.js` | `checkin_batch_upsert` is replay-safe (`client_checkin_id` idempotency), records a second offline admission as a conflict instead of inserting it, and admits exactly one of six concurrent drains (advisory lock). `checkin_undo` soft-deletes with a mandatory reason, is idempotent, takes its own sequence position without moving the original, and lets an undone guest check in again (partial unique index). Also: partial party arrivals, 200-record drains with contiguous sequencing, and every rejection path reporting rather than dropping. **This file is the Phase 1 definition of done for the check-in system.** |
 
 > If `INTEGRATION_DB_URL` is not set (or `pg` is missing), every test here **skips**
 > rather than fails — so the hermetic unit suite (`npm test`) and CI stay green.

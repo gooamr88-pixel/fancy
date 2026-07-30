@@ -26,6 +26,10 @@ export const NAV_GROUPS = [
     heading: 'Events & Guests',
     items: [
       { key: 'events', label: 'Events', href: '/admin/events', perm: 'events.view', ready: true },
+      // Cross-organization registry of door tablets (amendment A-16). Gated on
+      // events.view to READ; revoke and wipe additionally require
+      // security.manage, enforced server-side and mirrored in the page.
+      { key: 'checkin-devices', label: 'Check-in Devices', href: '/admin/checkin-devices', perm: 'events.view', ready: true },
       { key: 'invitations', label: 'Invitations', href: '/admin/invitations', perm: 'invitations.view', ready: false },
       { key: 'guests', label: 'Guests', href: '/admin/guests', perm: 'guests.view', ready: false },
     ],

@@ -171,6 +171,13 @@ if (RATE_LIMIT_DISABLED) {
   app.use('/api/v1/auth/verify-registration', authLimiter);
   app.use('/api/v1/auth/google', authLimiter);
 
+  // Device pairing and token refresh are UNAUTHENTICATED credential exchanges
+  // (the tablet has nothing else yet), so they get the same brute-force budget
+  // as login. An 8-char code from a 31-symbol alphabet is only safe inside its
+  // 10-minute window if guessing is rate-limited.
+  app.use('/api/v1/checkin/devices/pair', authLimiter);
+  app.use('/api/v1/checkin/devices/refresh', authLimiter);
+
   // ─── Public guest surface: READS and WRITES are limited SEPARATELY ───
   //
   // These used to share one 30-per-15-minutes limiter mounted on the whole
@@ -256,6 +263,7 @@ const seatingRoutes = require('./routes/seatingRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const checkinRoutes = require('./routes/checkinRoutes');
+const checkinSyncRoutes = require('./routes/checkinSyncRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const rsvpRoutes = require('./routes/rsvpRoutes');
 const publicRoutes = require('./routes/publicRoutes');
@@ -283,6 +291,11 @@ app.use('/api/v1/events/:eventId/campaigns', requireAuth, verifyEventOwner, camp
 app.use('/api/v1/events/:eventId/invitations', requireAuth, verifyEventOwner, invitationRoutes);
 app.use('/api/v1/events/:eventId/fields', requireAuth, verifyEventOwner, fieldRoutes);
 app.use('/api/v1/events/:eventId/analytics', requireAuth, verifyEventOwner, analyticsRoutes);
+// Offline-first check-in sync surface for the Android door app. Mounted at its
+// own top-level path, versioned independently of the organizer API (spec §21.4)
+// so a breaking change can ship as /checkin/v2 while tablets already at venues
+// keep talking to v1. The router applies requireAuth + verifyEventOwner itself.
+app.use('/api/v1/checkin', checkinSyncRoutes);
 app.use('/api/v1/dashboard', requireAuth, dashboardRoutes);
 app.use('/api/v1/referrals', requireAuth, referralRoutes);
 app.use('/api/v1/events', requireAuth, eventRoutes);
