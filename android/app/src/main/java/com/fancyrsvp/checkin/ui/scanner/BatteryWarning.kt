@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fancyrsvp.checkin.R
 import com.fancyrsvp.checkin.device.DeviceStatusMonitor
+import com.fancyrsvp.checkin.ui.components.DestructiveAction
 import com.fancyrsvp.checkin.ui.theme.StateAlready
 import com.fancyrsvp.checkin.ui.theme.StateAttention
 
@@ -120,14 +119,10 @@ fun BatteryCriticalDialog(
 
             Spacer(Modifier.height(40.dp))
 
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = StateAttention),
-                modifier = Modifier.height(72.dp).widthIn(min = 320.dp),
-            ) {
-                Text(
-                    stringResource(R.string.action_ok),
-                    style = MaterialTheme.typography.titleLarge,
+            Box(Modifier.widthIn(max = 480.dp)) {
+                DestructiveAction(
+                    text = stringResource(R.string.action_ok),
+                    onClick = onDismiss,
                 )
             }
         }

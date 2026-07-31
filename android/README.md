@@ -4,26 +4,23 @@ Offline-first door check-in for Fancy RSVP. Built to `FANCY_RSVP_CHECKIN_SPEC.md
 v1.0 **as amended by** `../docs/Checkin-Spec-Amendments.md` — the amendment record
 wins on any disagreement.
 
-> **Status: Phases 2–7 structurally complete, NOT YET COMPILED.**
-> No Android SDK or Gradle was available in the environment where this was
-> written, so no Kotlin here has ever been compiled or run. Expect syntax and
-> type errors. Everything is unverified until `./gradlew :app:testDebugUnitTest`
-> passes. See [Verification status](#verification-status).
+> **Status: Phases 2–7 complete. Compiles, assembles, and passes its tests.**
+> First successful build 2026-07-31 on Ubuntu 24.04 / JDK 17 / Gradle 8.9 /
+> SDK 35: `assembleDebug` produces a 63 MB debug APK and `testDebugUnitTest`
+> passes **108/108**. All four cross-language contracts are verified by
+> execution against the backend, not by reasoning.
+>
+> Still unverified: **nothing has run on a real device.** No instrumented tests
+> exist, PBKDF2 cost on tablet hardware is unmeasured, and the camera pipeline
+> has never seen a physical QR code. See [Verification status](#verification-status).
 
 ---
 
 ## Build
 
-> **There is no `gradlew` in this directory yet.** The wrapper was never
-> generated — no Gradle existed in the environment where this was written.
-> Generate and commit it first, or the commands below cannot run:
->
-> ```bash
-> cd android && gradle wrapper --gradle-version 8.9
-> ```
->
 > Requires **JDK 17** (not 21 — match AGP 8.7.3) and **Android SDK API 35**
-> (`platforms;android-35`, `build-tools;35.0.0`).
+> (`platforms;android-35`, `build-tools;35.0.0`). The wrapper is committed and
+> pinned to Gradle 8.9; `./gradlew` works out of the box.
 >
 > **Do not bump AGP, Kotlin, Gradle plugins, `compileSdk`/`targetSdk`, or any
 > dependency** to make an error go away. The pins are internally consistent and
@@ -82,6 +79,33 @@ material — *not* the 16 bytes it decodes to. A natural Kotlin port decodes the
 first and rejects every PIN. Verified: the two derivations differ.
 
 ---
+
+## SQLCipher must be loaded explicitly — do not remove this
+
+`CheckinDatabase.build()` calls `System.loadLibrary("sqlcipher")` before creating
+the `SupportOpenHelperFactory`. **This is required, and its absence does not fail
+anywhere near where it is caused.**
+
+`net.zetetic:sqlcipher-android` does not self-initialise. The older
+`android-database-sqlcipher` artifact loaded itself via
+`SQLiteDatabase.loadLibs(context)`; the rewrite dropped that for an explicit
+call. Without it the build succeeds, `build()` succeeds — Room is lazy — and the
+failure lands at the **first query**, as an `UnsatisfiedLinkError`.
+
+That is a `java.lang.Error`, not an `Exception`, so it passes through every
+`catch (e: Exception)` in the app. In this app the first query happens inside
+`DeviceHealthInterceptor` during device pairing, so it presented as a pairing
+failure on the tablet: type the code, press the button, app gone. It took a
+purpose-built crash recorder to see it, because a tablet at a venue has no adb.
+
+**Corollary, applied throughout the app:** boundaries that must never kill the
+process catch `Throwable`, not `Exception` — `DeviceHealthProvider.snapshot()`,
+`DeviceHealthInterceptor.intercept()`, `DeviceRepository.pair()`,
+`PairViewModel.submit()`. OkHttp makes this sharper than usual: `AsyncCall`
+reports an `IOException` to the caller and then **rethrows the original on its
+own dispatcher thread**, where no caller-side catch can reach it. An `Error`
+escaping an interceptor is therefore unsurvivable no matter how the call site is
+written.
 
 ## Two source conventions, both from real bugs
 
@@ -170,25 +194,68 @@ present an entrance display, lock itself, and be safely wiped at the end.
   has never been exercised.
 - **Per-event logo** (§9.8). No such column exists on the platform (amendment
   A-5 / decision D-19), so branding is colour-only.
-- **Release signing.** `app/build.gradle.kts` has no signing config, so
-  `assembleRelease` produces nothing installable.
-- **The Gradle wrapper** and the Room `schemas/` baseline — see above and §21.2.
+- **Instrumented / device testing.** Nothing here has ever executed on hardware.
+- **Instrumented tests.** There is no `app/src/androidTest/`. The Room migration
+  tests §21.2 requires need one, and the baseline to test against now exists.
 
 ---
 
 ## Verification status
 
-**Verified:** every `.kt` file scanned for stray control bytes (clean, 56 files).
-All backend contract halves pass (`npm test` in `../backend`, 500/500).
+**Verified by execution** (2026-07-31, Ubuntu 24.04 / JDK 17 / Gradle 8.9 / SDK 35):
+
+- `:app:dependencies` resolves — **every pin in `libs.versions.toml` is good**,
+  including the bundled ML Kit model and SQLCipher. No version needed changing.
+- `:app:compileDebugKotlin` — 56 files, **0 errors, 0 warnings**.
+- `:app:assembleDebug` — **63 MB debug APK**. `libbarhopper_v3.so` is packaged,
+  which is empirical proof the **bundled** ML Kit model is on the classpath and
+  not the Play-Services download variant (§4).
+- `:app:testDebugUnitTest` — **108/108 pass**, all six classes.
+- **All four cross-language contracts verified against the backend.** The PIN
+  hash agrees despite the hex-string-salt quirk; Arabic normalisation matches
+  Node byte-for-byte; the bundle canonicaliser produces the identical SHA-256
+  (`9908c857…dc9a`) that `checkinBundleHashContract.test.js` pins.
+- Room schema baseline exported and committed: version 1, 9 entities,
+  identityHash `5e1247bb14c14de72a4461c929d4cc2c`.
+
+Two real defects were found and fixed in that pass: a `return` inside an
+expression body in `SecureStore.kt` (would never compile), and an unsatisfiable
+assertion string in `BundleIntegrityTest.kt` (searched for a `"` that the format
+never produces, so it could not pass regardless of the implementation).
+
+**Release build (2026-07-31).** `assembleRelease` produces a **signed 44 MB APK**
+(63 MB debug → 44 MB, so R8 and resource shrinking are doing real work).
+`apksigner verify` passes with **APK Signature Scheme v2**, which is what minSdk
+26 uses. Signing credentials come from `local.properties` / environment via the
+existing `prop()` helper — never from the build file.
+
+> **The signing key is irreplaceable.** Android identifies an app by its signing
+> key, so an APK signed with a different one is a *different app* that cannot
+> upgrade an installed copy. Back up the keystore and its password off-server.
+>
+> Certificate SHA-256:
+> `e3f3109e74349d15e50150a4f3fa2f9dd3de8d0320f66824abdeb8c3ba0977ed`
+
+Building release surfaced a bug no debug build could: `AppModule` referenced
+`HttpLoggingInterceptor` under an `if (BuildConfig.DEBUG)` guard, but the
+library is `debugImplementation` and therefore absent from the release compile
+classpath — and Kotlin resolves types regardless of which branch can run. The
+fix is a debug/release source-set split (`src/{debug,release}/…/di/HttpLogging.kt`)
+rather than promoting the dependency to `implementation`, so the logging library
+stays **physically absent** from the release APK instead of merely switched off.
+Those request bodies carry guest names and device tokens (§20.7).
 
 **Not verified — treat as unknown:**
 
-- Nothing has been compiled. There may be syntax or type errors.
-- Library versions in `gradle/libs.versions.toml` are pinned but were never
-  resolved against a repository. Expect at least one to need nudging.
-- All Kotlin tests are written but unrun.
-- Room schema JSON has never been generated, so there is no baseline for the
-  migration tests §21.2 requires.
+- **Nothing has run on a device.** No emulator, no tablet. The camera pipeline,
+  CameraX binding and ML Kit decoding have never processed a real QR code.
+- **R8 output is unproven at runtime.** The build succeeding proves R8 *ran*, not
+  that it kept everything reflection needs. Over-aggressive shrinking of
+  kotlinx-serialization or Room shows up as failures on a device, never at build
+  time — which is exactly the risk the rules in `proguard-rules.pro` anticipate
+  but cannot demonstrate.
+- PBKDF2 cost on tablet hardware is unmeasured (decision D-1, below).
+- No instrumented tests exist, so the Room migration path is untested.
 
 ## Known items needing a decision or a measurement
 

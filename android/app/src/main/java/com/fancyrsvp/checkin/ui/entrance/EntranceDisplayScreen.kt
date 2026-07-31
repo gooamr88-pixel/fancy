@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,11 +18,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,13 +58,24 @@ import com.fancyrsvp.checkin.ui.theme.EventBranding
  *
  * Three consequences of "no operational controls":
  *
- *  • Nothing here is tappable. Guests walk past this screen and will touch it.
  *  • No guest NAMES appear. A wall-mounted display listing who has arrived at a
  *    private event is a disclosure to everyone in the lobby — the counter is the
  *    showcase, the guest list is not.
  *  • No connection state, no pending count, no staff name. Those are operator
  *    concerns, and §17.7's language rules exist because staff read them; a guest
  *    reading "Offline — 3 pending" learns only that something is wrong.
+ *  • Exactly ONE control, and it takes two deliberate taps.
+ *
+ * ── The exit ──
+ *
+ * This screen previously had no way out at all: the system back gesture was the
+ * only exit, which is an invisible affordance, and an operator who did not know
+ * the gesture had to restart the app to get their scanner back.
+ *
+ * The fix is not "add a button" — §8.8 is right that guests walk past this and
+ * will touch it. It is a small, low-contrast corner control that opens a large,
+ * unmissable confirmation. A passer-by brushing the corner sees a dialog and
+ * does nothing; an operator looking for the way out finds it and takes two taps.
  *
  * Per decision D-10 this is intended for separate hardware or a second paired
  * tablet: one device cannot both scan and present.
@@ -68,9 +83,11 @@ import com.fancyrsvp.checkin.ui.theme.EventBranding
 @Composable
 fun EntranceDisplayScreen(
     eventId: String,
+    onExit: () -> Unit,
     viewModel: EntranceDisplayViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsState()
+    var confirmingExit by remember { mutableStateOf(false) }
 
     LaunchedEffect(eventId) { viewModel.start(eventId) }
 
@@ -148,7 +165,56 @@ fun EntranceDisplayScreen(
                 accent = accent,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
+
+            // The only control. 72dp so an operator can hit it, 35% opacity so
+            // it does not read as part of the presentation.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(72.dp)
+                    .clickable { confirmingExit = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    stringResource(R.string.entrance_exit),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                )
+            }
         }
+    }
+
+    if (confirmingExit) {
+        AlertDialog(
+            onDismissRequest = { confirmingExit = false },
+            title = {
+                Text(
+                    stringResource(R.string.entrance_exit_confirm),
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmingExit = false
+                        onExit()
+                    },
+                ) {
+                    Text(
+                        stringResource(R.string.nav_back_to_scanner),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingExit = false }) {
+                    Text(
+                        stringResource(R.string.action_cancel),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+            },
+        )
     }
 }
 

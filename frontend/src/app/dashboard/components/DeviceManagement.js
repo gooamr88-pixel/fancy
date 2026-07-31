@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '../../utils/apiClient';
 import { toast } from '../../utils/toast';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { buildCheckinReadiness, BLOCK, WARN } from './checkinReadiness';
 
 const C = {
   gold: '#B8944F', charcoal: '#191B1E', ivory: '#F8F4EC', stone: '#77736A',
@@ -47,19 +49,28 @@ const relative = (iso) => {
 export default function DeviceManagement({ eventId }) {
   const [devices, setDevices] = useState([]);
   const [gates, setGates] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [canProvision, setCanProvision] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [selectedGate, setSelectedGate] = useState('');
   const [issued, setIssued] = useState(null); // { code, deviceLabel, expiresAt }
+  const [revoking, setRevoking] = useState(null); // the device awaiting confirmation
 
   const load = useCallback(async () => {
     try {
-      const [deviceRes, gateRes] = await Promise.all([
+      // The roster is fetched here as well as in the Door team tab, because
+      // readiness is not readiness without it: a perfectly prepared tablet with
+      // nobody on the sign-in list cannot check a single guest in. Both this
+      // panel and the page header must reach the same verdict, so both feed the
+      // same inputs into buildCheckinReadiness.
+      const [deviceRes, gateRes, staffRes] = await Promise.all([
         apiFetch(`/checkin/events/${eventId}/devices`),
         apiFetch(`/checkin/events/${eventId}/gates`),
+        apiFetch(`/checkin/events/${eventId}/staff`),
       ]);
       setDevices(deviceRes?.data?.devices || []);
+      setStaff(staffRes?.data?.staff || []);
       const list = gateRes?.data?.gates || [];
       setGates(list);
       setCanProvision(!!gateRes?.data?.canProvision);
@@ -102,18 +113,17 @@ export default function DeviceManagement({ eventId }) {
     }
   };
 
+  // Throws on failure so ConfirmDialog restores its buttons for a retry.
   const revoke = async (device) => {
-    if (!window.confirm(
-      `Revoke ${device.label}? The tablet stops working immediately and erases its copy of the guest list the next time it reaches the internet.`,
-    )) return;
-
     setBusy(true);
     try {
       await apiFetch(`/checkin/events/${eventId}/devices/${device.id}`, { method: 'DELETE' });
       toast.success('Device revoked.');
+      setRevoking(null);
       await load();
     } catch (err) {
       toast.error(err.message || 'Could not revoke that device.');
+      throw err;
     } finally {
       setBusy(false);
     }
@@ -137,8 +147,7 @@ export default function DeviceManagement({ eventId }) {
   };
 
   const activeDevices = devices.filter((d) => d.isActive);
-  const prepared = activeDevices.filter((d) => d.isPrepared);
-  const readiness = buildReadiness({ gates, activeDevices, prepared });
+  const readiness = buildCheckinReadiness({ gates, devices, staff, staffLoaded: !loading });
 
   return (
     <div className="fx-stack" style={{ gap: '24px' }}>
@@ -151,7 +160,7 @@ export default function DeviceManagement({ eventId }) {
         </p>
       </div>
 
-      <ReadinessPanel items={readiness} eventId={eventId} />
+      <ReadinessPanel items={readiness} />
 
       {/* ── Provision ── */}
       {!canProvision ? (
@@ -233,74 +242,29 @@ export default function DeviceManagement({ eventId }) {
               device={device}
               gates={gates}
               busy={busy}
-              onRevoke={() => revoke(device)}
+              onRevoke={() => setRevoking(device)}
               onMove={(gateId) => moveGate(device, gateId)}
             />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!revoking}
+        title={`Revoke ${revoking?.label ?? ''}?`}
+        body="The tablet stops working the moment it next reaches the internet, and erases its copy of the guest list. Anything it has already checked in but not yet sent would be lost with it — make sure it has nothing left to send before you do this."
+        confirmLabel="Revoke tablet"
+        danger
+        onConfirm={() => revoke(revoking)}
+        onCancel={() => setRevoking(null)}
+      />
     </div>
   );
 }
 
-/**
- * Builds the readiness list (§21.7, A-16 item 3).
- *
- * Problems only. A screen that lists everything that is fine buries the one thing
- * that is not, and this screen exists specifically to stop someone leaving for a
- * venue with an unprepared tablet.
- */
-function buildReadiness({ gates, activeDevices, prepared }) {
-  const items = [];
-
-  if (gates.length === 0) {
-    items.push({
-      level: 'block',
-      text: 'No entrance on the seating map, so no device can be paired.',
-    });
-  }
-  if (activeDevices.length === 0) {
-    items.push({ level: 'block', text: 'No tablet is paired for this event.' });
-  } else if (prepared.length === 0) {
-    items.push({
-      level: 'block',
-      text: 'No tablet has downloaded the guest list yet. A tablet without it cannot check anyone in at a venue with no internet.',
-    });
-  } else if (activeDevices.length === 1) {
-    // §21.7: "every event runs with at least one prepared spare", and an
-    // unprepared spare is worthless.
-    items.push({
-      level: 'warn',
-      text: 'Only one tablet is paired. If it is dropped or its battery dies, the door stops — pair a spare and download the guest list onto it too.',
-    });
-  } else if (prepared.length < 2) {
-    items.push({
-      level: 'warn',
-      text: 'Only one tablet has the guest list. A spare is only a spare once it has downloaded it.',
-    });
-  }
-
-  activeDevices.forEach((d) => {
-    if (d.batteryLevel != null && d.batteryLevel <= 20) {
-      items.push({ level: 'warn', text: `${d.label} is at ${d.batteryLevel}% battery.` });
-    }
-    if (d.storageFreeMb != null && d.storageFreeMb < 500) {
-      items.push({ level: 'warn', text: `${d.label} is low on storage (${d.storageFreeMb} MB free).` });
-    }
-    if (d.queueDepth) {
-      items.push({ level: 'warn', text: `${d.label} has ${d.queueDepth} check-ins still to send.` });
-    }
-    if (d.gateMissing) {
-      items.push({ level: 'warn', text: `${d.label}'s gate is no longer on the seating map.` });
-    }
-  });
-
-  return items;
-}
-
-function ReadinessPanel({ items, eventId }) {
-  const blockers = items.filter((i) => i.level === 'block');
-  const warnings = items.filter((i) => i.level === 'warn');
+function ReadinessPanel({ items }) {
+  const blockers = items.filter((i) => i.level === BLOCK);
+  const warnings = items.filter((i) => i.level === WARN);
   const clean = items.length === 0;
 
   const border = blockers.length ? C.danger : warnings.length ? C.warn : C.success;
@@ -322,7 +286,7 @@ function ReadinessPanel({ items, eventId }) {
               key={`${item.level}-${i}`}
               style={{
                 fontSize: '14px', lineHeight: 1.7,
-                color: item.level === 'block' ? C.danger : C.warn,
+                color: item.level === BLOCK ? C.danger : C.warn,
               }}
             >
               {item.text}

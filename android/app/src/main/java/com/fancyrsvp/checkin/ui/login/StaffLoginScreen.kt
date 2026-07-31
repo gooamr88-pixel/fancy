@@ -1,5 +1,7 @@
 package com.fancyrsvp.checkin.ui.login
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,16 +9,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,12 +29,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fancyrsvp.checkin.R
+import com.fancyrsvp.checkin.ui.components.Chevron
+import com.fancyrsvp.checkin.ui.components.PinDots
+import com.fancyrsvp.checkin.ui.components.SecondaryAction
+import com.fancyrsvp.checkin.ui.theme.LocalDimens
+import com.fancyrsvp.checkin.ui.theme.ScriptFont
 import com.fancyrsvp.checkin.ui.theme.StateAttention
 import java.text.DateFormat
 import java.util.Date
@@ -75,16 +82,30 @@ fun StaffLoginScreen(
         }
     }
 
+    val dimens = LocalDimens.current
+
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(40.dp),
+            modifier = Modifier.fillMaxSize().padding(dimens.screenPadding),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val current = selected
             if (current == null) {
+                // The wordmark, in the script face — the one brand moment in the
+                // whole app. It appears here and nowhere else: staff see this
+                // screen at the start of a shift and at every handover, which is
+                // exactly when it is worth saying whose product this is.
+                Text(
+                    "Fancy",
+                    style = MaterialTheme.typography.displayMedium.copy(
+                        fontFamily = ScriptFont,
+                    ),
+                    color = MaterialTheme.colorScheme.primary,
+                )
                 Text(
                     stringResource(R.string.login_title),
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(24.dp))
 
@@ -137,51 +158,65 @@ fun StaffLoginScreen(
     }
 }
 
+/**
+ * One person, as a card that is entirely the touch target.
+ *
+ * Previously the card was inert and only a small "OK" button at its end
+ * navigated — so the obvious thing to tap (the person's name) did nothing, and
+ * the working control was an unlabelled affirmative. The name IS the button now.
+ */
 @Composable
 private fun StaffRow(
     option: StaffLoginViewModel.StaffOption,
     onClick: () -> Unit,
 ) {
+    val dimens = LocalDimens.current
     val locked = option.isLocked()
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(option.displayName, style = MaterialTheme.typography.titleLarge)
-                Text(
-                    text = stringResource(
-                        if (option.role == "supervisor") {
-                            R.string.login_role_supervisor
-                        } else {
-                            R.string.login_role_usher
-                        },
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (locked && option.lockedUntil != null) {
-                    Text(
-                        text = DateFormat.getTimeInstance(DateFormat.SHORT)
-                            .format(Date(option.lockedUntil)),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = StateAttention,
-                    )
-                }
-            }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 88.dp)
+            .clip(RoundedCornerShape(dimens.cardRadius))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             // A locked entry is still tappable: the PIN screen is where a
             // supervisor performs the offline reset (§21.8), so blocking entry
             // here would remove the only recovery path at a venue.
-            Button(onClick = onClick, modifier = Modifier.height(52.dp)) {
-                Text(stringResource(R.string.action_ok))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 28.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                option.displayName,
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(
+                    if (option.role == "supervisor") {
+                        R.string.login_role_supervisor
+                    } else {
+                        R.string.login_role_usher
+                    },
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            if (locked && option.lockedUntil != null) {
+                Text(
+                    text = DateFormat.getTimeInstance(DateFormat.SHORT)
+                        .format(Date(option.lockedUntil)),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = StateAttention,
+                    maxLines = 1,
+                )
             }
         }
+        Chevron(color = MaterialTheme.colorScheme.primary, pointsBack = false)
     }
 }
 
@@ -204,16 +239,9 @@ private fun PinEntry(
         Spacer(Modifier.height(20.dp))
 
         // Masked, but showing how many digits have been entered — a door PIN is
-        // typed while people are watching, and a blank field gives no feedback at
-        // all on a tablet with no haptics.
-        Text(
-            text = buildString {
-                repeat(pin.length) { append("●  ") }
-                repeat(PIN_LENGTH - pin.length) { append("○  ") }
-            }.trim(),
-            fontSize = 40.sp,
-            color = MaterialTheme.colorScheme.primary,
-        )
+        // typed while people are watching, and a blank field gives no feedback
+        // at all on a tablet with no haptics.
+        PinDots(entered = pin.length, length = PIN_LENGTH)
 
         Spacer(Modifier.height(16.dp))
 
@@ -253,9 +281,12 @@ private fun PinEntry(
 
         Spacer(Modifier.height(24.dp))
 
-        OutlinedButton(onClick = onBack, modifier = Modifier.height(52.dp)) {
-            Text(stringResource(R.string.action_cancel))
-        }
+        // Says where it goes. "Cancel" on a PIN pad is ambiguous — cancel the
+        // digits, or cancel being this person?
+        SecondaryAction(
+            text = stringResource(R.string.login_someone_else),
+            onClick = onBack,
+        )
     }
 }
 
@@ -272,19 +303,26 @@ private fun Keypad(
     onDigit: (Char) -> Unit,
     onBackspace: () -> Unit,
 ) {
+    // Sized from the theme, not from literals. At the original fixed 88dp a row
+    // measured 3x88 + 2x12 = 288dp and did not fit inside a 360dp screen's
+    // padding — the right-hand column of keys was clipped off the edge, which
+    // makes a PIN impossible to type rather than merely ugly.
+    val dimens = LocalDimens.current
     val rows = listOf("123", "456", "789")
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+    Column(verticalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
         rows.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
                 row.forEach { digit ->
                     KeypadKey(digit.toString(), enabled) { onDigit(digit) }
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Spacer(Modifier.size(88.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
+            Spacer(Modifier.size(dimens.keypadKey))
             KeypadKey("0", enabled) { onDigit('0') }
-            KeypadKey("⌫", enabled) { onBackspace() }
+            // The glyph lives in strings.xml, not in Kotlin source.
+            KeypadKey(stringResource(R.string.keypad_backspace), enabled) { onBackspace() }
         }
     }
 }
@@ -295,12 +333,13 @@ private fun KeypadKey(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val dimens = LocalDimens.current
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.size(88.dp),
+        modifier = Modifier.size(dimens.keypadKey),
     ) {
-        Text(label, fontSize = 32.sp)
+        Text(label, fontSize = dimens.keypadFontSize)
     }
 }
 

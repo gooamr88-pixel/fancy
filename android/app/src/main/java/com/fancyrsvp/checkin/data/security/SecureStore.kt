@@ -71,20 +71,26 @@ class SecureStore(context: Context) {
         return Base64.encodeToString(iv + body, Base64.NO_WRAP)
     }
 
-    private fun decrypt(encoded: String): ByteArray? = try {
-        val all = Base64.decode(encoded, Base64.NO_WRAP)
-        if (all.size <= GCM_IV_BYTES) return null
-        val iv = all.copyOfRange(0, GCM_IV_BYTES)
-        val body = all.copyOfRange(GCM_IV_BYTES, all.size)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
-        cipher.doFinal(body)
-    } catch (_: Exception) {
-        // A failure here means the Keystore key is gone (device reset, app data
-        // cleared, restore onto different hardware). The correct response is to
-        // treat the secret as absent and re-pair — never to crash, and never to
-        // fall back to an unencrypted path.
-        null
+    // Block body, not an expression body: the length guard below is a `return`,
+    // and Kotlin prohibits `return` inside an expression body.
+    private fun decrypt(encoded: String): ByteArray? {
+        return try {
+            val all = Base64.decode(encoded, Base64.NO_WRAP)
+            // Anything this short cannot contain an IV plus a tag, so it is not
+            // something we wrote. copyOfRange would throw on it.
+            if (all.size <= GCM_IV_BYTES) return null
+            val iv = all.copyOfRange(0, GCM_IV_BYTES)
+            val body = all.copyOfRange(GCM_IV_BYTES, all.size)
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+            cipher.doFinal(body)
+        } catch (_: Exception) {
+            // A failure here means the Keystore key is gone (device reset, app data
+            // cleared, restore onto different hardware). The correct response is to
+            // treat the secret as absent and re-pair — never to crash, and never to
+            // fall back to an unencrypted path.
+            null
+        }
     }
 
     private fun putSecret(key: String, value: ByteArray) {

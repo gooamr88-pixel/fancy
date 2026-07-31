@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Launcher icon foreground: a gold checkmark inside a ticket outline.
+  Launcher icon foreground: an ivory checkmark inside a gold ticket outline.
 
   A vector rather than PNG densities so the icon lives in version control as
   reviewable text. Drawn inside the central 72x72dp safe zone of the 108x108dp
   adaptive canvas, so the launcher's mask cannot clip it on any device.
+
+  ── Why these two colours ──
+
+  The tile behind this is near-black, so the gold is GoldLift (#A8873F) rather
+  than the app's #8A6D34 accent: the accent is tuned for 4.5:1 against a WHITE
+  ground and only reaches about 3:1 against a dark one, which is muddy at
+  launcher size. GoldLift is the same hue lifted for dark grounds — it is
+  barred from being text anywhere in the app for exactly the opposite reason.
+
+  The checkmark is ivory rather than a second gold. It is the focal point, and
+  two similar golds at 48dp read as one shape.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -14,14 +25,14 @@
 
     <!-- Ticket outline -->
     <path
-        android:strokeColor="#B8944F"
+        android:strokeColor="#A8873F"
         android:strokeWidth="3.5"
         android:fillColor="#00000000"
         android:pathData="M30,40 L78,40 A4,4 0 0 1 82,44 L82,52 A6,6 0 0 0 82,64 L82,72 A4,4 0 0 1 78,76 L30,76 A4,4 0 0 1 26,72 L26,64 A6,6 0 0 0 26,52 L26,44 A4,4 0 0 1 30,40 Z" />
 
     <!-- Checkmark -->
     <path
-        android:strokeColor="#D7BE80"
+        android:strokeColor="#FBF7EE"
         android:strokeWidth="6"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"

@@ -30,14 +30,52 @@ android {
         // API 26 covers effectively every tablet in the market (spec §4).
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        // Bump both on every build you put on a device. versionCode is what
+        // Android uses to decide an upgrade is an upgrade; versionName is what
+        // the crash report prints, and without it a bug report cannot say which
+        // build actually failed.
+        versionCode = 10
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Locales the staff UI ships in (§9.9). resourceConfigurations keeps
-        // other locales' resources out of the APK.
-        resourceConfigurations += listOf("en", "ar", "fr")
+        // Locales the staff UI ships in. English only, by the owner's decision —
+        // §9.9's ar and fr are descoped and there is no values-ar/ or values-fr/
+        // to ship. Listing them here claimed support the APK did not have, and
+        // kept every AndroidX library's ar/fr translations in the build for no
+        // reason. Add a locale back here at the same time as its values- folder,
+        // never before.
+        resourceConfigurations += listOf("en")
+    }
+
+    /**
+     * Release signing (§ distribution).
+     *
+     * The keystore path and its passwords come from local.properties — which is
+     * untracked — or from the environment for CI. They are never written here: a
+     * signing password in version control is a signing password in every clone,
+     * and this key cannot be rotated. Losing or leaking it means the app can
+     * never be updated, because Android identifies an app by its signing key.
+     *
+     * Attached to the release variant only when a keystore is actually
+     * configured. Without that guard a machine that has no keystore — a CI
+     * runner, a new laptop — would fail at CONFIGURATION time and be unable to
+     * build debug or run tests either. Adding a release key must not cost
+     * everyone else the ability to compile.
+     */
+    val releaseKeystore = prop("RELEASE_KEYSTORE", "")
+
+    signingConfigs {
+        create("release") {
+            if (releaseKeystore.isNotBlank()) {
+                storeFile = file(releaseKeystore)
+                storePassword = prop("RELEASE_KEYSTORE_PASSWORD", "")
+                keyAlias = prop("RELEASE_KEY_ALIAS", "fancy-checkin")
+                // Defaults to the store password: `keytool` uses one password for
+                // both unless told otherwise, which is the normal PKCS12 case.
+                keyPassword = prop("RELEASE_KEY_PASSWORD", prop("RELEASE_KEYSTORE_PASSWORD", ""))
+            }
+        }
     }
 
     buildTypes {
@@ -63,6 +101,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Unsigned unless a keystore is configured — Android refuses to
+            // install an unsigned APK, so a silent fallback would produce an
+            // artifact that looks fine and cannot be used.
+            if (releaseKeystore.isNotBlank()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

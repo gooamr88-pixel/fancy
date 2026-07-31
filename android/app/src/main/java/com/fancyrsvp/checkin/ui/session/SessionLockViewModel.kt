@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.local.CheckinDatabase
 import com.fancyrsvp.checkin.data.security.PinVerifier
+import com.fancyrsvp.checkin.util.safeLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,7 +62,9 @@ class SessionLockViewModel @Inject constructor(
 
         if (_state.value is State.Verifying) return
 
-        viewModelScope.launch {
+        // A crash while unlocking would leave the tablet stuck behind the lock
+        // overlay with a queue at the door. WrongPin keeps the keypad live.
+        safeLaunch(onError = { _state.value = State.WrongPin(MAX_ATTEMPTS) }) {
             _state.value = State.Verifying
 
             _state.value = withContext<State>(io) {

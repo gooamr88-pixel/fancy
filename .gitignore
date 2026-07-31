@@ -10,3 +10,17 @@ frontend/.env.local
 *.log
 logs/
 .DS_Store
+
+# ── Android ──
+# Machine-specific: sdk.dir, and the release signing credentials.
+android/local.properties
+android/**/build/
+android/.gradle/
+
+# Signing keys. A keystore committed even once is compromised permanently —
+# git history keeps it after the file is deleted, and this key cannot be
+# rotated: Android identifies an app by its signing key, so a replacement key
+# produces an app that cannot upgrade an installed one.
+*.jks
+*.keystore
+*.p12

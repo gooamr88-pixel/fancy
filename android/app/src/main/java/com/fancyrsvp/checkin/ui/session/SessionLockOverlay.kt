@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,9 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fancyrsvp.checkin.R
+import com.fancyrsvp.checkin.ui.components.PinDots
+import com.fancyrsvp.checkin.ui.components.SecondaryAction
+import com.fancyrsvp.checkin.ui.theme.LocalDimens
 
 /**
  * The lock screen shown after a session times out (spec §20.4).
@@ -74,7 +75,9 @@ fun SessionLockOverlay(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(48.dp).widthIn(max = 640.dp),
+            modifier = Modifier
+                .padding(LocalDimens.current.screenPadding)
+                .widthIn(max = 640.dp),
         ) {
             Text(
                 stringResource(R.string.session_locked_title),
@@ -90,14 +93,7 @@ fun SessionLockOverlay(
 
             Spacer(Modifier.height(32.dp))
 
-            Text(
-                text = buildString {
-                    repeat(pin.length) { append("●  ") }
-                    repeat(PIN_LENGTH - pin.length) { append("○  ") }
-                }.trim(),
-                fontSize = 40.sp,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            PinDots(entered = pin.length, length = PIN_LENGTH)
 
             Spacer(Modifier.height(16.dp))
 
@@ -140,17 +136,15 @@ fun SessionLockOverlay(
             Spacer(Modifier.height(24.dp))
 
             // One tap to hand the tablet over — §18.5. Signing out is always
-            // available, because a supervisor arriving to relieve an usher must not
-            // need the usher's PIN first.
-            OutlinedButton(
+            // available, because a supervisor arriving to relieve an usher must
+            // not need the usher's PIN first.
+            SecondaryAction(
+                text = stringResource(R.string.session_switch_staff),
                 onClick = {
                     viewModel.signOut()
                     onSwitchStaff()
                 },
-                modifier = Modifier.height(56.dp),
-            ) {
-                Text(stringResource(R.string.session_switch_staff))
-            }
+            )
         }
     }
 }
@@ -161,24 +155,30 @@ private fun Keypad(
     onDigit: (Char) -> Unit,
     onBackspace: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // Same sizing rule as the login keypad: fixed 88dp keys overflowed a small
+    // screen and clipped the right-hand column, which makes the tablet
+    // impossible to unlock rather than merely cramped.
+    val dimens = LocalDimens.current
+
+    Column(verticalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
         listOf("123", "456", "789").forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
                 row.forEach { digit -> Key(digit.toString(), enabled) { onDigit(digit) } }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Spacer(Modifier.size(88.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
+            Spacer(Modifier.size(dimens.keypadKey))
             Key("0", enabled) { onDigit('0') }
-            Key("⌫", enabled) { onBackspace() }
+            Key(stringResource(R.string.keypad_backspace), enabled) { onBackspace() }
         }
     }
 }
 
 @Composable
 private fun Key(label: String, enabled: Boolean, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.size(88.dp)) {
-        Text(label, fontSize = 32.sp)
+    val dimens = LocalDimens.current
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.size(dimens.keypadKey)) {
+        Text(label, fontSize = dimens.keypadFontSize)
     }
 }
 

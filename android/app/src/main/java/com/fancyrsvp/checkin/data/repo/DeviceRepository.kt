@@ -86,8 +86,19 @@ class DeviceRepository @Inject constructor(
             // Pairing requires internet by design — it is done during
             // preparation, never at the venue (§18.3).
             PairResult.Offline
-        } catch (e: Exception) {
-            PairResult.Failed(-1, e.message)
+        } catch (t: Throwable) {
+            // Throwable, NOT Exception. The first database access in the whole app
+            // happens inside this call — DeviceHealthInterceptor asks
+            // DeviceHealthProvider for a snapshot, which opens the SQLCipher
+            // database — so this is where a native-library or class-initialisation
+            // failure surfaces. Those are Errors (UnsatisfiedLinkError,
+            // ExceptionInInitializerError, NoClassDefFoundError), not Exceptions,
+            // and `catch (e: Exception)` let them through to kill the process.
+            //
+            // The class name is included because on a tablet there is no logcat:
+            // the operator reads the cause off the screen, and "UnsatisfiedLinkError"
+            // versus "SocketTimeoutException" are completely different problems.
+            PairResult.Failed(-1, "${t.javaClass.simpleName}: ${t.message ?: "no message"}")
         }
     }
 

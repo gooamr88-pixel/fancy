@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../utils/apiClient';
 import { toast } from '../../utils/toast';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const C = {
   gold: '#B8944F', charcoal: '#191B1E', stone: '#77736A', border: '#E8E2D6',
@@ -32,6 +33,7 @@ export default function CheckinControls({ eventId }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [pendingConfirm, setPendingConfirm] = useState(null); // { patch, title, body }
 
   const load = useCallback(async () => {
     try {
@@ -52,9 +54,7 @@ export default function CheckinControls({ eventId }) {
     })();
   }, [eventId, load]);
 
-  const update = async (patch, confirmText) => {
-    if (confirmText && !window.confirm(confirmText)) return;
-
+  const apply = async (patch) => {
     setBusy(true);
     try {
       const res = await apiFetch(`/checkin/events/${eventId}/controls`, {
@@ -62,12 +62,26 @@ export default function CheckinControls({ eventId }) {
         body: JSON.stringify({ ...patch, note: note.trim() || null }),
       });
       setControls(res?.data || null);
+      setPendingConfirm(null);
       toast.success('Applied. Tablets pick this up on their next sync.');
     } catch (err) {
       toast.error(err.message || 'Could not apply that.');
+      throw err;
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * Switching a control ON is confirmed; switching it OFF is not.
+   *
+   * Turning one off restores normal behaviour, which is never the dangerous
+   * direction — and a confirmation in front of "put it back to normal" is
+   * exactly the friction you do not want during the incident it exists for.
+   */
+  const update = (patch, confirm) => {
+    if (confirm) setPendingConfirm({ patch, ...confirm });
+    else apply(patch);
   };
 
   if (loading) return <p style={{ color: C.stone }}>Loading…</p>;
@@ -130,7 +144,11 @@ export default function CheckinControls({ eventId }) {
           onToggle={(next) => update(
             { syncDisabled: next },
             next
-              ? 'Pause sending? Tablets keep checking guests in — nothing is lost, but nothing reaches the server until you switch this back.'
+              ? {
+                title: 'Pause sending to the server?',
+                body: 'Tablets keep scanning and keep saving every arrival — nothing is lost. But nothing reaches the server until you switch this back, and an event cannot be closed out while tablets still hold unsent check-ins.',
+                confirmLabel: 'Pause sending',
+              }
               : null,
           )}
         />
@@ -149,6 +167,15 @@ export default function CheckinControls({ eventId }) {
           onToggle={(next) => update({ realtimeDisabled: next })}
         />
       </div>
+
+      <ConfirmDialog
+        open={!!pendingConfirm}
+        title={pendingConfirm?.title ?? ''}
+        body={pendingConfirm?.body ?? ''}
+        confirmLabel={pendingConfirm?.confirmLabel ?? 'Apply'}
+        onConfirm={() => apply(pendingConfirm.patch)}
+        onCancel={() => setPendingConfirm(null)}
+      />
     </div>
   );
 }

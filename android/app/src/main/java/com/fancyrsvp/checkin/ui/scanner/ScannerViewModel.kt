@@ -9,6 +9,7 @@ import com.fancyrsvp.checkin.device.DeviceStatusMonitor
 import com.fancyrsvp.checkin.di.ApplicationScope
 import com.fancyrsvp.checkin.sync.ConnectionState
 import com.fancyrsvp.checkin.sync.SyncCoordinator
+import com.fancyrsvp.checkin.util.safeLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -105,6 +107,12 @@ class ScannerViewModel @Inject constructor(
                 }
             }
         }
+        // The status strip runs for the whole night over the encrypted database.
+        // Without this, any database error would propagate into viewModelScope and
+        // take the scanner down mid-rush — for a decorative counter. Hiding the
+        // strip is the correct degradation: the camera keeps working, and §5.3's
+        // local duplicate guard is unaffected by whether a total is displayed.
+        .catch { emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
@@ -136,6 +144,7 @@ class ScannerViewModel @Inject constructor(
 
     /** Battery and storage, for the §21.9 warnings. */
     val deviceStatus: StateFlow<DeviceStatusMonitor.Status> = deviceStatusMonitor.observe()
+        .catch { emit(deviceStatusMonitor.current()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), deviceStatusMonitor.current())
 
     /**
@@ -156,7 +165,7 @@ class ScannerViewModel @Inject constructor(
         _eventId.value = eventId
         _operator.value = Operator(staffId, staffName, role)
 
-        viewModelScope.launch {
+        safeLaunch {
             // Read from the bundle rather than defaulted. Showing the wrong answer
             // here means an usher either admits a child at an adults-only event or
             // turns a family away from one that welcomes them.
@@ -181,7 +190,19 @@ class ScannerViewModel @Inject constructor(
         if (_resolving.value || _outcome.value != null) return
 
         _resolving.value = true
-        viewModelScope.launch {
+        safeLaunch(
+            onError = {
+                // The scanner must never be left stuck "resolving" — an usher with
+                // a frozen screen and a queue behind them has no way out but to
+                // restart the app. Clearing the flag returns them to a live camera.
+                _resolving.value = false
+                // NotFound rather than a new error state: §8.4 requires every
+                // outcome to route somewhere, and this one routes to manual
+                // search. An usher who cannot resolve a code still has a way to
+                // admit the guest, which is the whole point.
+                _outcome.value = CheckInRepository.ScanOutcome.NotFound
+            },
+        ) {
             pendingScanToken = com.fancyrsvp.checkin.scan.TicketResolver.extractToken(value)
             _outcome.value = checkInRepository.resolveScan(value, eventId)
             _resolving.value = false
@@ -225,7 +246,19 @@ class ScannerViewModel @Inject constructor(
             else -> CheckInRepository.METHOD_SCAN
         }
 
-        viewModelScope.launch {
+        // The most important launch in the app: this is the door. A crash here
+        // takes the scanner down with a queue of guests in front of it, and any
+        // arrival already queued becomes unreachable until someone reopens the app
+        // (§21.3 — a queued check-in exists on this device and nowhere else).
+        safeLaunch(
+            onError = {
+                // Return to a live camera rather than stranding the usher on a
+                // result screen that will not dismiss. The local write is
+                // transactional, so it either landed or it did not; either way the
+                // next scan of this guest reports the truth.
+                dismiss()
+            },
+        ) {
             checkInRepository.checkIn(
                 eventId = eventId,
                 partyId = party.partyId,

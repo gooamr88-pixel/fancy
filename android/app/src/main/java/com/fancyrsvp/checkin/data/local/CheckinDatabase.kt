@@ -71,7 +71,30 @@ abstract class CheckinDatabase : RoomDatabase() {
          */
         val MIGRATIONS = emptyArray<androidx.room.migration.Migration>()
 
+        /**
+         * Loads SQLCipher's native library. Idempotent — the JVM ignores repeat
+         * calls for an already-loaded library.
+         *
+         * REQUIRED. `net.zetetic:sqlcipher-android` does NOT self-initialise: the
+         * older `android-database-sqlcipher` artifact loaded itself via
+         * `SQLiteDatabase.loadLibs(context)`, and the rewrite dropped that in
+         * favour of an explicit call. Omitting it does not fail at build time or
+         * when the database is constructed — Room is lazy, so it fails at the
+         * FIRST QUERY, with an UnsatisfiedLinkError.
+         *
+         * That error is a `java.lang.Error`, not an `Exception`, so it passes
+         * straight through every `catch (e: Exception)` in the app and terminates
+         * the process. In this app the first query happens inside an OkHttp
+         * interceptor during device pairing, which made it look like a pairing or
+         * networking fault rather than a missing initialisation.
+         */
+        private fun loadNativeLibrary() {
+            System.loadLibrary("sqlcipher")
+        }
+
         fun build(context: Context, passphrase: ByteArray): CheckinDatabase {
+            loadNativeLibrary()
+
             // SupportOpenHelperFactory zeroes the passphrase array it is given,
             // so the caller must not reuse or retain it afterwards.
             val factory = SupportOpenHelperFactory(passphrase)

@@ -19,6 +19,16 @@ class CheckinApp : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
 
+    override fun onCreate() {
+        // BEFORE super.onCreate(): Hilt's generated initialisation runs inside
+        // super, and a failure there — a missing binding, a native library that
+        // will not load — would otherwise go unrecorded. The base context is
+        // already attached by this point, and CrashLog touches the filesystem only
+        // when a crash actually happens.
+        CrashLog.install(this)
+        super.onCreate()
+    }
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)

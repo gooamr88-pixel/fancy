@@ -3,6 +3,8 @@ package com.fancyrsvp.checkin.ui.pair
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.repo.DeviceRepository
+import com.fancyrsvp.checkin.util.readable
+import com.fancyrsvp.checkin.util.safeLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,7 +64,12 @@ class PairViewModel @Inject constructor(
         if (!canSubmit) return
 
         _state.value = State.Pairing
-        viewModelScope.launch {
+        // Every failure has to become readable text on the screen. A tablet has no
+        // logcat, so an unhandled one is just the app disappearing — which is
+        // exactly how the SQLCipher initialisation bug presented during bring-up.
+        safeLaunch(
+            onError = { t -> _state.value = State.Error(Kind.SERVER, t.readable()) },
+        ) {
             _state.value = when (val result = deviceRepository.pair(_code.value)) {
                 is DeviceRepository.PairResult.Success ->
                     State.Paired(result.eventId, result.deviceLabel)

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.local.CheckinDatabase
 import com.fancyrsvp.checkin.data.local.StaffEntity
 import com.fancyrsvp.checkin.data.security.PinVerifier
+import com.fancyrsvp.checkin.util.safeLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,7 +64,12 @@ class StaffLoginViewModel @Inject constructor(
     val roster: StateFlow<List<StaffOption>> = _roster.asStateFlow()
 
     fun loadRoster(eventId: String) {
-        viewModelScope.launch {
+        safeLaunch(
+            // A database that will not open must present as an empty roster, not
+            // as the app disappearing. RosterEmpty is a state the screen already
+            // renders and explains.
+            onError = { _state.value = State.RosterEmpty },
+        ) {
             // Collected as a Flow, not read once, so a supervisor's local PIN
             // reset (§21.8) or a bundle refresh is reflected without a reload.
             db.staffDao().observeForEvent(eventId)
@@ -86,7 +92,12 @@ class StaffLoginViewModel @Inject constructor(
     fun submitPin(staffId: String, pin: String) {
         if (_state.value is State.Verifying) return
 
-        viewModelScope.launch {
+        // A crash here strands staff at the door mid-handover with no way in.
+        // WrongPin is the safe degradation: it keeps them on the keypad and lets
+        // them retry, rather than locking anyone out or admitting them.
+        safeLaunch(
+            onError = { _state.value = State.WrongPin(MAX_ATTEMPTS) },
+        ) {
             _state.value = State.Verifying
 
             // Explicit type parameter: the block returns several State subtypes
@@ -130,7 +141,7 @@ class StaffLoginViewModel @Inject constructor(
      * so it stays verifiable after the next bundle refresh overwrites it.
      */
     fun supervisorResetPin(staffId: String, newPin: String) {
-        viewModelScope.launch {
+        safeLaunch(onError = { _state.value = State.Idle }) {
             withContext(io) {
                 val saltHex = java.util.UUID.randomUUID().toString().replace("-", "")
                 val derived = PinVerifier.derive(newPin, saltHex)

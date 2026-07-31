@@ -1,16 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  A minimal Material 3 host theme. The real visual layer lives in Compose
-  (ui/theme), so this only needs to give the Activity a sane window before the
-  first composition and avoid a white flash on a dark-lit entrance.
+  A minimal host theme. The real visual layer lives in Compose (ui/theme), so
+  this only has to give the Activity a sane window before the first composition.
 
-  Fancy RSVP's palette: gold #B8944F, charcoal #191B1E, ivory #F8F4EC.
+  The window background is PARCHMENT, not charcoal. The app is a light product
+  by deliberate choice (see FancyCheckinTheme), and the previous dark window
+  meant every cold start flashed a near-black screen before the first frame —
+  which at a door reads as the app having crashed and reopened.
+
+  windowLightStatusBar follows: dark icons on a light bar.
 -->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.FancyCheckin" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/charcoal</item>
-        <item name="android:statusBarColor">@color/charcoal</item>
-        <item name="android:navigationBarColor">@color/charcoal</item>
-        <item name="android:windowLightStatusBar" tools:targetApi="23">false</item>
+    <style name="Theme.FancyCheckin" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/parchment</item>
+        <item name="android:statusBarColor">@color/parchment</item>
+        <item name="android:navigationBarColor">@color/parchment</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="23">true</item>
     </style>
 </resources>

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.local.CheckinDatabase
 import com.fancyrsvp.checkin.data.repo.CheckInRepository
+import com.fancyrsvp.checkin.util.safeLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,7 +69,7 @@ class GuestListViewModel @Inject constructor(
 
     fun start(eventId: String) {
         this.eventId = eventId
-        viewModelScope.launch {
+        safeLaunch {
             _tables.value = withContext(io) { db.guestDao().distinctTables(eventId) }
             reload()
         }
@@ -76,12 +77,12 @@ class GuestListViewModel @Inject constructor(
 
     fun setFilter(filter: Filter) {
         _filter.value = filter
-        viewModelScope.launch { reload() }
+        safeLaunch { reload() }
     }
 
     fun setTableFilter(tableName: String?) {
         _tableFilter.value = tableName
-        viewModelScope.launch { reload() }
+        safeLaunch { reload() }
     }
 
     private suspend fun reload() {

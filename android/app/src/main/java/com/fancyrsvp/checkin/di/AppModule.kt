@@ -20,7 +20,6 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
@@ -57,7 +56,13 @@ object AppModule {
     @ApplicationScope
     fun applicationScope(): kotlinx.coroutines.CoroutineScope =
         kotlinx.coroutines.CoroutineScope(
-            kotlinx.coroutines.SupervisorJob() + Dispatchers.Default,
+            // The handler is NOT redundant with SupervisorJob. SupervisorJob only
+            // stops a failed child cancelling its siblings — the exception still
+            // travels on to the default uncaught handler, which kills the process.
+            // Without this, a failed background poll could take the app down from
+            // a background thread while an usher was mid-scan.
+            kotlinx.coroutines.SupervisorJob() + Dispatchers.Default +
+                com.fancyrsvp.checkin.util.SyncExceptionHandler,
         )
 
     @Provides
@@ -154,14 +159,13 @@ object AppModule {
                 },
             )
 
-        if (BuildConfig.DEBUG) {
-            // BODY level only in debug. Guest names and device tokens travel in
-            // these payloads, and §20.7 forbids personal data in logs — a release
-            // build must never carry this interceptor.
-            builder.addInterceptor(
-                HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY },
-            )
-        }
+        // Resolved per source set: BODY logging in debug, null in release. Guest
+        // names and device tokens travel in these payloads and §20.7 forbids
+        // personal data in logs, so the logging library is `debugImplementation`
+        // and is physically absent from the release APK — which is also why this
+        // cannot be a `BuildConfig.DEBUG` branch in shared code. See
+        // src/{debug,release}/java/.../di/HttpLogging.kt.
+        httpLoggingInterceptor()?.let { builder.addInterceptor(it) }
 
         return builder.build()
     }

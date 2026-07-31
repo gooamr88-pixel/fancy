@@ -12,6 +12,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -100,6 +101,10 @@ class DashboardViewModel @Inject constructor(
                 }
             }
         }
+        // Room flow over the encrypted database: without this an error propagates
+        // into viewModelScope and kills the app. A dashboard that shows nothing is
+        // recoverable; one that closes the app during an event is not.
+        .catch { emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun start(eventId: String) {

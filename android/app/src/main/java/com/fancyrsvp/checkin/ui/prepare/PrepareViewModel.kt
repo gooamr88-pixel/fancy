@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.local.EventEntity
 import com.fancyrsvp.checkin.data.repo.BundleRepository
 import com.fancyrsvp.checkin.device.DeviceStatusMonitor
+import com.fancyrsvp.checkin.util.safeLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -42,8 +44,20 @@ class PrepareViewModel @Inject constructor(
         val lastSyncedAt: Long?,
     )
 
+    /**
+     * The `catch` is not optional. This is a Room Flow over the encrypted
+     * database, and an exception in a flow collected with `stateIn(viewModelScope)`
+     * propagates to the scope and terminates the process. This screen is reached
+     * immediately after pairing and the query runs on arrival with no user action,
+     * so a database that will not open would take the app down the instant it
+     * navigated here.
+     *
+     * Degrading to an empty list is right: the screen already renders "not
+     * prepared" for an event it cannot read, which is honest and recoverable.
+     */
     val events: StateFlow<List<EventRow>> = bundleRepository.observeEvents()
         .map { list -> list.map { it.toRow() } }
+        .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _progress = MutableStateFlow<BundleRepository.Progress?>(null)
@@ -51,6 +65,41 @@ class PrepareViewModel @Inject constructor(
 
     private val _preparingEventId = MutableStateFlow<String?>(null)
     val preparingEventId: StateFlow<String?> = _preparingEventId.asStateFlow()
+
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
+    /** Null when the last refresh succeeded; a message to show when it did not. */
+    private val _listError = MutableStateFlow<String?>(null)
+    val listError: StateFlow<String?> = _listError.asStateFlow()
+
+    init {
+        // The list is fetched on arrival. The screen renders from the local table,
+        // so without this a freshly paired tablet shows the instructions and no
+        // events beneath them, with nothing to indicate why.
+        refresh()
+    }
+
+    fun refresh() {
+        if (_refreshing.value) return
+        _refreshing.value = true
+
+        safeLaunch {
+            try {
+                _listError.value = when (val result = bundleRepository.refreshEvents()) {
+                    is BundleRepository.EventsRefresh.Ok -> null
+                    BundleRepository.EventsRefresh.NotPaired -> NOT_PAIRED_MESSAGE
+                    BundleRepository.EventsRefresh.Offline -> OFFLINE_MESSAGE
+                    is BundleRepository.EventsRefresh.Failed -> result.message
+                }
+            } catch (t: Throwable) {
+                // Bare launch: anything escaping here would terminate the process.
+                _listError.value = "${t.javaClass.simpleName}: ${t.message ?: "no message"}"
+            } finally {
+                _refreshing.value = false
+            }
+        }
+    }
 
     fun prepare(eventId: String, forceRestart: Boolean = false) {
         if (_preparingEventId.value != null) return // one at a time
@@ -71,9 +120,20 @@ class PrepareViewModel @Inject constructor(
         _preparingEventId.value = eventId
         _progress.value = BundleRepository.Progress.FetchingManifest
 
-        viewModelScope.launch {
+        safeLaunch {
             try {
                 bundleRepository.prepareEvent(eventId, forceRestart) { p -> _progress.value = p }
+            } catch (t: Throwable) {
+                // try/finally alone let the exception escape into viewModelScope,
+                // which terminates the process — the cleanup ran and the app still
+                // died. A failed download must report itself and leave the operator
+                // able to retry, because this is the step they do BEFORE travelling
+                // to the venue and it is the last chance to fix anything (§8.2).
+                _progress.value = BundleRepository.Progress.Failed(
+                    BundleRepository.Failure.Unknown(
+                        "${t.javaClass.simpleName}: ${t.message ?: "no message"}",
+                    ),
+                )
             } finally {
                 _preparingEventId.value = null
             }
@@ -87,6 +147,17 @@ class PrepareViewModel @Inject constructor(
         if (current is BundleRepository.Progress.Done || current is BundleRepository.Progress.Failed) {
             _progress.value = null
         }
+    }
+
+    private companion object {
+        const val OFFLINE_MESSAGE =
+            "No connection. Preparation needs internet — connect and tap Refresh."
+
+        // Should be unreachable: this screen is only entered after pairing. It
+        // exists because "no events" with no explanation is what sent us hunting
+        // through the app once already.
+        const val NOT_PAIRED_MESSAGE =
+            "This tablet is not paired to an event. Pair it again from the dashboard."
     }
 
     private fun EventEntity.toRow(): EventRow {

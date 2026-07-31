@@ -47,6 +47,7 @@ import javax.inject.Singleton
 class BundleRepository @Inject constructor(
     private val api: CheckinApi,
     private val db: CheckinDatabase,
+    private val secureStore: com.fancyrsvp.checkin.data.security.SecureStore,
     private val io: CoroutineDispatcher,
 ) {
 
@@ -88,6 +89,89 @@ class BundleRepository @Inject constructor(
     }
 
     fun observeEvents(): Flow<List<EventEntity>> = db.eventDao().observeAll()
+
+    /** Outcome of a refresh, so the screen can say WHY it is empty. */
+    sealed interface EventsRefresh {
+        data class Ok(val count: Int) : EventsRefresh
+        data object NotPaired : EventsRefresh
+        data object Offline : EventsRefresh
+        data class Failed(val message: String) : EventsRefresh
+    }
+
+    /**
+     * Loads the event this device is provisioned for (§8.2).
+     *
+     * ── Why this does NOT list events ──
+     *
+     * `GET /checkin/events` is behind `requireAuth` — an ORGANIZER session. A
+     * device token can never satisfy it, so calling it from the tablet returns
+     * 401 no matter what credential is attached. That is not a bug in the
+     * backend: listing every event an organizer owns is a dashboard concern, and
+     * a tablet has no business enumerating events it was not provisioned for.
+     *
+     * A device is paired to exactly one gate on exactly one event (§18.3), and
+     * the id is stored at pairing time. So there is nothing to choose between —
+     * the screen shows the one event this tablet exists to serve, fetched through
+     * the manifest endpoint, which IS device-accessible.
+     *
+     * An existing row gets a metadata-only update (see EventDao.updateSummary),
+     * so refreshing can never disarm an event that is already downloaded.
+     */
+    suspend fun refreshEvents(): EventsRefresh = withContext(io) {
+        val eventId = secureStore.pairedEventId
+            ?: return@withContext EventsRefresh.NotPaired
+
+        try {
+            val response = api.bundleManifest(eventId)
+            if (!response.isSuccessful) {
+                return@withContext EventsRefresh.Failed(
+                    "HTTP ${response.code()} ${response.errorBody()?.string()?.take(120) ?: ""}".trim(),
+                )
+            }
+
+            val manifest = response.body()?.data
+                ?: return@withContext EventsRefresh.Failed("Empty response from the server.")
+
+            val dto = manifest.event
+            val startsAt = dto.startsAt?.toEpochMillisOrNull() ?: 0L
+
+            if (db.eventDao().byId(dto.id) != null) {
+                db.eventDao().updateSummary(dto.id, dto.name, dto.venue, startsAt)
+            } else {
+                db.eventDao().upsert(
+                    EventEntity(
+                        id = dto.id,
+                        name = dto.name,
+                        venue = dto.venue,
+                        venueAddress = dto.venueAddress,
+                        startsAt = startsAt,
+                        brandingPrimaryColor = dto.brandingPrimaryColor,
+                        noKidsAllowed = dto.noKidsAllowed,
+                        // The real figure, from the manifest the download will be
+                        // verified against (§21.1). It also drives the pre-download
+                        // storage check, so a placeholder here would break §21.9.
+                        totalInvited = manifest.integrity.recordCount,
+                        bundleVersion = manifest.bundleVersion,
+                        lastAppliedSeq = 0L,
+                        // NOT ready: the guest list has not been downloaded yet.
+                        // Only a verified, promoted bundle may set these (§21.1).
+                        lastFullSyncAt = null,
+                        isReadyOffline = false,
+                    ),
+                )
+            }
+            EventsRefresh.Ok(1)
+        } catch (_: java.io.IOException) {
+            EventsRefresh.Offline
+        } catch (t: Throwable) {
+            // Throwable: a device that cannot load its event must say so on the
+            // screen rather than disappear.
+            EventsRefresh.Failed("${t.javaClass.simpleName}: ${t.message ?: "no message"}")
+        }
+    }
+
+    private fun String.toEpochMillisOrNull(): Long? =
+        runCatching { java.time.Instant.parse(this).toEpochMilli() }.getOrNull()
 
     fun observeEvent(eventId: String): Flow<EventEntity?> = db.eventDao().observe(eventId)
 

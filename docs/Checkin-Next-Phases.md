@@ -15,9 +15,15 @@ review and ten fixes, several of which are themselves unverified.
 | Backend | Feature-complete. **500/500 unit tests pass, 0 skipped** (`npm test`, verified 2026-07-31 after the review fixes). |
 | Migrations | Written, **never applied anywhere**. All SQL unrun. |
 | Integration tests | 65 written, **never run** (need Docker). |
-| Android | ~56 `.kt` files, all 7 phases. **Never compiled.** No JDK/SDK/Gradle in the authoring environment. |
+| Android | ~56 `.kt` files, all 7 phases. **Compiles, assembles, 108/108 tests pass** (2026-07-31). Never run on a device. |
 | Frontend | 6 dashboard components + 2 pages. Rendered? **No.** |
-| Cross-language contracts | 4, pinned by golden vectors on both sides. Backend halves pass; **Kotlin halves never executed.** |
+| Cross-language contracts | 4, pinned by golden vectors on both sides. **All four verified by execution on both sides.** |
+
+**Phase 8 and Phase 10 are done.** The build host is provisioned (Ubuntu 24.04,
+JDK 17, Gradle 8.9, SDK 35), the wrapper and Room schema baseline are committed,
+and the app builds clean. Phase 9 (migrations + integration tests) and Phases
+11–15 remain. Phase 11's contract verification was completed early, as a side
+effect of running the unit tests — see the Android README's verification section.
 
 Two rules that survive every phase below:
 

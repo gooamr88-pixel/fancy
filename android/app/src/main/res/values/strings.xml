@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Staff-facing text. English is the base; ar and fr are required for v1 (§9.9).
+  Staff-facing text.
+
+  ENGLISH ONLY, by the owner's decision. §9.9's ar and fr locales are descoped —
+  there is no values-ar/ or values-fr/ and adding one is a resource-only change,
+  because every layout in this app is written against start/end rather than
+  left/right and will mirror correctly without touching Kotlin.
 
   Two rules that come straight from the spec:
 
@@ -16,10 +21,18 @@
     <string name="app_name">Fancy Check-in</string>
 
     <!-- Event selection and preparation (§8.2) -->
-    <string name="prepare_title">Choose an event</string>
+    <string name="prepare_title">This tablet</string>
+    <string name="prepare_which_event">Which event?</string>
+    <string name="prepare_choose_another">Choose a different event</string>
+    <!-- The one action when the device is armed. "OK" said nothing about what
+         would happen next. -->
+    <string name="prepare_start">Start check-in</string>
     <string name="prepare_internet_notice">Internet is required now. It will not be required at the venue.</string>
+    <string name="prepare_refreshing">Loading…</string>
+    <!-- An empty list must explain itself. Silence reads as a broken app, and the
+         operator cannot otherwise tell "still loading" from "not assigned". -->
+    <string name="prepare_no_events">No events yet. This tablet is paired, but no event has been assigned to its gate — check the dashboard, then tap Refresh.</string>
     <string name="prepare_ready">Ready offline</string>
-    <string name="prepare_ready_synced">Ready offline · refreshed %1$s</string>
     <string name="prepare_needs_sync">Needs refresh</string>
     <string name="prepare_not_prepared">Not prepared</string>
     <string name="prepare_download">Download guest list</string>
@@ -53,6 +66,11 @@
     <string name="login_roster_empty">No staff have been added for this event yet.</string>
     <string name="login_role_usher">Usher</string>
     <string name="login_role_supervisor">Supervisor</string>
+    <!-- Says where it goes. "Cancel" on a PIN pad is ambiguous: cancel the
+         digits, or cancel being this person? -->
+    <string name="login_someone_else">Someone else</string>
+    <!-- The backspace glyph lives here rather than in Kotlin source. -->
+    <string name="keypad_backspace">⌫</string>
 
     <!-- Device pairing (§18.3) -->
     <string name="pair_title">Pair this tablet</string>
@@ -62,6 +80,10 @@
     <string name="pair_failed_invalid">That code is not valid.</string>
     <string name="pair_failed_expired">That code has expired. Generate a new one.</string>
     <string name="pair_failed_limit">This event already has the maximum number of devices.</string>
+    <!-- Shown after the app has been killed by an uncaught error. A tablet has no
+         logcat, so this is the only way an operator can report what happened. -->
+    <string name="pair_previous_crash">The app closed unexpectedly last time. Please send this to support:</string>
+    <string name="pair_dismiss_crash">Dismiss</string>
 
     <!-- Connection state (§17.7). Operational language only. -->
     <string name="conn_synced">Synced</string>
@@ -92,54 +114,69 @@
     <string name="scanner_no_camera_body">You can still check guests in by name. Everything else works normally.</string>
     <string name="scanner_grant_camera">Allow camera</string>
 
-    <!-- Scan result states (§8.4) -->
+    <!--
+      Scan result states (§8.4).
+
+      There are FOUR, not six. "Not a Fancy code", "Wrong event" and "Not on the
+      list" all asked the same thing of the person holding the tablet — search
+      by name — so they are one state with one message. Distinguishing them was
+      a distinction the app cared about and the usher did not.
+    -->
     <string name="result_welcome">Welcome</string>
     <string name="result_welcome_vip">VIP guest</string>
-    <string name="result_table">Table %1$s</string>
+    <!-- A small tracked label above the number, not "Table 12" set together:
+         the part read across a room is the number alone, at full size. -->
+    <string name="result_table_label">Table</string>
     <string name="result_no_table">No table assigned</string>
     <string name="result_admit">Check in</string>
     <string name="result_admit_all">Check in all %1$d</string>
+    <string name="result_not_everyone">Not everyone? Choose who</string>
+    <string name="result_choose_who">Who is arriving?</string>
     <string name="result_already_title">Already checked in</string>
     <string name="result_already_detail">%1$s at %2$s</string>
     <string name="result_already_detail_device">%1$s at %2$s · %3$s</string>
     <string name="result_override">Supervisor override</string>
     <string name="result_override_unavailable">A supervisor is needed to check this guest in again.</string>
     <string name="result_not_found_title">Not on the list</string>
-    <string name="result_not_found_body">This code did not match any guest for this event. Try searching by name.</string>
-    <string name="result_unrecognised_title">Not a Fancy code</string>
-    <string name="result_unrecognised_body">That is not a guest ticket. Try searching by name.</string>
-    <string name="result_wrong_event_title">Wrong event</string>
-    <string name="result_wrong_event_body">This ticket belongs to a different event.</string>
-    <string name="result_expired_title">Ticket expired</string>
-    <string name="result_expired_body">This ticket is past its date. You can still check the guest in.</string>
+    <string name="result_not_found_body">Search for them by name.</string>
+    <!-- Quiet line on an otherwise normal welcome. §5.3: the door is never
+         blocked by uncertainty, so this is a note, not a state. -->
+    <string name="result_expired_note">Ticket was past its date</string>
     <string name="result_party_of">Party of %1$d</string>
-    <string name="result_arriving_now">Who is arriving now?</string>
     <string name="result_meal">Meal: %1$s</string>
     <string name="result_dietary">Dietary: %1$s</string>
     <string name="result_note">Note: %1$s</string>
     <string name="result_no_kids">No children at this event</string>
-    <string name="result_tap_to_continue">Tap anywhere to continue</string>
 
     <!-- Manual search (§8.5) -->
-    <string name="search_title">Search guests</string>
     <string name="search_hint">Name or table</string>
+    <string name="search_prompt">Start typing a guest\'s name.</string>
     <string name="search_no_results">No guests match \"%1$s\"</string>
     <string name="search_arrived_badge">Arrived</string>
-    <string name="search_close">Close</string>
 
-    <!-- Live dashboard (§8.6) -->
-    <string name="dashboard_title">Attendance</string>
+    <!--
+      Navigation.
+
+      "Back to scanner" is written out in full on every screen. A bare arrow is
+      not enough: staff are hired that night, and an icon that means "up" to a
+      designer means nothing to someone holding a tablet for the first time.
+    -->
+    <string name="nav_menu">Menu</string>
+    <string name="nav_back_to_scanner">Back to scanner</string>
+
+    <!-- The menu (§8.6) -->
+    <string name="menu_title">Tonight</string>
+    <string name="menu_when_they_came">When they arrived</string>
+    <string name="menu_guests_detail">Search everyone, see who is still out</string>
+    <string name="menu_entrance_detail">Full-screen arrival counter for the lobby</string>
+    <string name="menu_close_detail">End the event and remove its data from this tablet</string>
     <string name="dashboard_loading">Loading…</string>
     <string name="dashboard_open_guests">Guest list</string>
     <string name="dashboard_entrance_display">Entrance display</string>
     <string name="dashboard_of_invited">of %1$d invited</string>
-    <string name="dashboard_percent">%1$d%% arrived</string>
-    <string name="dashboard_arrivals_over_time">Arrivals, per 15 minutes</string>
-    <string name="dashboard_no_arrivals">No arrivals recorded yet</string>
     <string name="dashboard_by_category">By category</string>
     <string name="dashboard_arrived_of">%1$d of %2$d arrived</string>
     <!-- Supervisor-only block (§18.2). Hidden from ushers as noise, not as secret. -->
-    <string name="dashboard_supervisor">Supervisor</string>
     <string name="dashboard_pending">Waiting to send</string>
     <string name="dashboard_stalled">Stuck — needs attention</string>
     <string name="dashboard_conflicts">Duplicate admissions</string>
@@ -150,6 +187,9 @@
     <string name="guests_title">Guests</string>
     <string name="guests_showing">%1$d shown</string>
     <string name="guests_none">No guests match these filters</string>
+    <!-- An empty list is almost always a filter left on from the last question
+         somebody asked, so the way out is offered rather than described. -->
+    <string name="guests_clear_filters">Show everyone</string>
     <string name="guests_not_arrived">Not arrived</string>
     <string name="guests_all_tables">All tables</string>
     <string name="guests_filter_all">All</string>
@@ -167,6 +207,10 @@
     <!-- Entrance display (§8.8). Guest-facing: no names, no operational state. -->
     <string name="entrance_waiting">Preparing…</string>
     <string name="entrance_guests_arrived">guests arrived</string>
+    <!-- The only control on the screen. Small and low-contrast so a passing
+         guest does not read it as an invitation, but a real 72dp target. -->
+    <string name="entrance_exit">Exit</string>
+    <string name="entrance_exit_confirm">Leave display mode?</string>
 
     <!-- Session lock (§20.4) -->
     <string name="session_locked_title">Locked</string>
@@ -192,5 +236,4 @@
     <string name="action_ok">OK</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_retry">Try again</string>
-    <string name="action_dismiss">Dismiss</string>
 </resources>

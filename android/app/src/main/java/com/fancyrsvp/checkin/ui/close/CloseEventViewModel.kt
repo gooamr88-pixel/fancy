@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.local.CheckinDatabase
 import com.fancyrsvp.checkin.data.repo.DeviceRepository
 import com.fancyrsvp.checkin.sync.SyncCoordinator
+import com.fancyrsvp.checkin.util.readable
+import com.fancyrsvp.checkin.util.safeLaunch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,7 +75,10 @@ class CloseEventViewModel @Inject constructor(
 
     fun refresh() {
         val id = eventId ?: return
-        viewModelScope.launch {
+        // A failure to COUNT the queue must never read as "nothing pending".
+        // Blocked with an unknown count is the safe direction: this screen guards
+        // a purge that destroys check-ins existing nowhere else (§20.5).
+        safeLaunch(onError = { _state.value = State.Blocked(pending = -1, stalled = 0) }) {
             _state.value = withContext(io) {
                 val pending = db.syncQueueDao().depthForEvent(id)
                 // Stalled entries are a subset of pending, counted separately so the
@@ -112,7 +117,9 @@ class CloseEventViewModel @Inject constructor(
         if (current !is State.Ready) return
 
         _state.value = State.Purging
-        viewModelScope.launch {
+        // Never leave this stuck on Purging: the operator cannot tell whether
+        // their data was destroyed, and the screen offers no way out.
+        safeLaunch(onError = { t -> _state.value = State.Failed(t.readable()) }) {
             val purged = withContext(io) { deviceRepository.purgeEventData(id) }
             _state.value = if (purged) {
                 State.Purged(current.guests)

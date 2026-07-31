@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../utils/apiClient';
 import { toast } from '../../utils/toast';
-import Icon from '../../components/icons/Icon';
+import ConfirmDialog from '../../components/ConfirmDialog';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -47,6 +47,7 @@ export default function TeamManagement({ eventId }) {
   const [form, setForm] = useState({ displayName: '', role: 'usher', pin: '' });
   const [resetting, setResetting] = useState(null); // staffId being reset
   const [resetPin, setResetPin] = useState('');
+  const [removing, setRemoving] = useState(null); // the member awaiting confirmation
 
   const load = useCallback(async () => {
     try {
@@ -114,16 +115,18 @@ export default function TeamManagement({ eventId }) {
     }
   };
 
-  const deactivate = async (staffId, name) => {
-    if (!window.confirm(`Remove ${name} from the door team? They will not be able to check guests in.`)) return;
-
+  // Throws on failure so ConfirmDialog can restore its buttons and let the
+  // organizer retry from the same dialog, rather than closing over an error.
+  const deactivate = async ({ id, displayName }) => {
     setSaving(true);
     try {
-      await apiFetch(`/checkin/events/${eventId}/staff/${staffId}`, { method: 'DELETE' });
-      toast.success(`${name} removed.`);
+      await apiFetch(`/checkin/events/${eventId}/staff/${id}`, { method: 'DELETE' });
+      toast.success(`${displayName} removed.`);
+      setRemoving(null);
       await load();
     } catch (err) {
       toast.error(err.message || 'Could not remove that person.');
+      throw err;
     } finally {
       setSaving(false);
     }
@@ -276,7 +279,7 @@ export default function TeamManagement({ eventId }) {
                     Reset PIN
                   </button>
                   <button
-                    onClick={() => deactivate(member.id, member.displayName)}
+                    onClick={() => setRemoving(member)}
                     style={{
                       background: 'transparent', color: C.danger, border: `1px solid ${C.border}`,
                       borderRadius: '8px', padding: '10px 16px', cursor: 'pointer', fontSize: '14px',
@@ -290,6 +293,16 @@ export default function TeamManagement({ eventId }) {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!removing}
+        title={`Remove ${removing?.displayName ?? ''} from the door team?`}
+        body="Their name disappears from the tablet's sign-in list and they can no longer check guests in. Arrivals they have already recorded keep their name — the record of who admitted whom is never rewritten."
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => deactivate(removing)}
+        onCancel={() => setRemoving(null)}
+      />
     </div>
   );
 }

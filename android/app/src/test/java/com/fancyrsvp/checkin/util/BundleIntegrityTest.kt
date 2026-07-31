@@ -86,7 +86,16 @@ class BundleIntegrityTest {
     fun `CONTRACT a null table and an empty table both serialise as empty string`() {
         val canon = BundleIntegrity.canonicalize(fixture)
         assertTrue("null tableName", canon.contains(""""a-1","p1","أحمد عبد الله","","vip""""))
-        assertTrue("empty tableName", canon.contains(""""Newline\\slash","","family""""))
+        // The WHOLE row, exactly as the backend half searches for it. An earlier
+        // version looked for a trailing fragment beginning `"Newline` — but in the
+        // output `Newline` is preceded by an escaped newline, not a quote, so the
+        // assertion could never hold no matter what canonicalize() produced.
+        // Matching the backend's search string verbatim is what stops the two
+        // halves drifting into asserting different things.
+        assertTrue(
+            "empty tableName",
+            canon.contains(""""d-4","p2","Tab\tand\nNewline\\slash","","family""""),
+        )
     }
 
     @Test

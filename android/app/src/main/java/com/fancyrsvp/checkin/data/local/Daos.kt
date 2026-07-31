@@ -19,6 +19,23 @@ interface EventDao {
     @Query("SELECT * FROM events WHERE id = :eventId")
     suspend fun byId(eventId: String): EventEntity?
 
+    /**
+     * Refreshes DISPLAY fields only, for the event-selection list (§8.2).
+     *
+     * Deliberately not `@Upsert`. Upserting a summary fetched from the list
+     * endpoint would overwrite isReadyOffline, lastFullSyncAt, bundleVersion and
+     * lastAppliedSeq with defaults — silently DISARMING a tablet that had already
+     * downloaded its bundle. An operator refreshing the list the morning of an
+     * event would arrive at the venue with an unprepared device and no indication
+     * anything had happened.
+     *
+     * totalInvited is untouched too: it comes from the bundle manifest, and the
+     * list endpoint does not carry it. Overwriting it with 0 would break the
+     * pre-download storage check (§21.9).
+     */
+    @Query("UPDATE events SET name = :name, venue = :venue, startsAt = :startsAt WHERE id = :eventId")
+    suspend fun updateSummary(eventId: String, name: String, venue: String?, startsAt: Long)
+
     @Query("SELECT * FROM events WHERE id = :eventId")
     fun observe(eventId: String): Flow<EventEntity?>
 

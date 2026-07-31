@@ -25,6 +25,24 @@ class DeviceHealthProvider(
     private val database: CheckinDatabase,
 ) {
 
+    /**
+     * Throwable, NOT Exception, on both guards.
+     *
+     * This is the first code in the app to touch the database, and it runs on an
+     * OkHttp dispatcher thread inside an interceptor. A database that cannot open
+     * fails with an Error, not an Exception — UnsatisfiedLinkError if the native
+     * library is missing, ExceptionInInitializerError if its static setup throws.
+     * `catch (Exception)` does not catch those.
+     *
+     * That distinction is not academic here. OkHttp's AsyncCall reports an
+     * IOException to the caller and then RETHROWS the original on its own thread,
+     * where no caller-side catch can reach it — so an Error escaping this method
+     * kills the process, and it looked like a pairing failure because pairing is
+     * the first request the app ever makes.
+     *
+     * Health reporting is diagnostics. It must degrade to null and let the sync
+     * proceed; it must never be able to stop a device working (§21.6).
+     */
     fun snapshot(): DeviceHealth? = try {
         // One blocking block rather than several: this runs on an OkHttp
         // dispatcher thread inside an interceptor, and two indexed aggregates are
@@ -33,7 +51,7 @@ class DeviceHealthProvider(
             runBlocking {
                 database.syncQueueDao().totalDepth() to database.eventDao().maxPreparedBundleVersion()
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null to null
         }
 
@@ -44,7 +62,7 @@ class DeviceHealthProvider(
             bundleVersion = bundleVersion,
             appVersion = BuildConfig.VERSION_NAME,
         )
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
         null
     }
 

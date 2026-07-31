@@ -123,9 +123,17 @@ class DeviceHealthInterceptor(
 ) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
+        // Throwable, not Exception. Anything escaping an interceptor is reported
+        // to the caller as an IOException and then RETHROWN by OkHttp on its own
+        // dispatcher thread, where nothing can catch it — so an Error here (a
+        // native library that will not load, a failed static initialiser) does not
+        // fail the request, it kills the process.
+        //
+        // Health headers are diagnostics. Losing them must never cost the device
+        // the request they were attached to (§21.6).
         val snapshot = try {
             health()
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         } ?: return chain.proceed(chain.request())
 

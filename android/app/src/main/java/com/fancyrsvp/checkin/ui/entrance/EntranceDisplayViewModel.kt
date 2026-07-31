@@ -9,6 +9,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -62,6 +63,10 @@ class EntranceDisplayViewModel @Inject constructor(
                 }
             }
         }
+        // §8.8: this screen faces guests and has no operational controls, so a
+        // crash here is both visible to the public and unrecoverable without an
+        // operator noticing. It must degrade silently, never die.
+        .catch { emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun start(eventId: String) {
