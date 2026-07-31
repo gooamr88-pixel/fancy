@@ -9,7 +9,7 @@ import { RsvpSectionHeading, RsvpDivider } from '../components';
 import { darken } from '../../../utils/color';
 import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
 import CountryCodePhoneInput from '../../../components/CountryCodePhoneInput';
-import SmsConsentText from '../../../components/guest/SmsConsentText';
+import SmsConsentText, { SmsConsentIndependence } from '../../../components/guest/SmsConsentText';
 import { BoltIcon, CalendarIcon, PlaneIcon, ClipboardIcon, HeartPulseIcon, DotsIcon, ClockIcon, EnvelopeIcon, PeopleIcon } from '../../../components/guest/RsvpIcons';
 
 const MAYBE_OPTIONS = [
@@ -154,37 +154,35 @@ export default function StepPartyDetails({
             </div>
 
             {/* SMS opt-in consent — shown only when a phone number is actually
-                being collected (TCPA / Twilio A2P 10DLC): always for attendees
-                (phone required) and for a decline only once a number is entered.
-                Persisted to rsvp_parties.sms_consent as a timestamped record. */}
+                being collected (TCPA / Twilio TFV): always for attendees (phone
+                required) and for a decline only once a number is entered.
+                Persisted to rsvp_parties.sms_consent as a timestamped record.
+
+                OPTIONAL by design. There is no validation error for leaving it
+                unticked — see RsvpWizard's matching comment. The independence
+                notice below sits OUTSIDE the <label> so that ticking the box
+                agrees to the SMS sentence and nothing else. */}
             {showSmsConsent && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <div style={{
                 display: 'flex', alignItems: 'flex-start', gap: '10px',
                 padding: '12px 14px', borderRadius: '12px',
-                background: validationErrors.smsConsent ? 'rgba(239,68,68,0.05)' : `${themeColor}0D`,
-                border: `1px solid ${validationErrors.smsConsent ? '#ef4444' : `${themeColor}40`}`,
+                background: `${themeColor}0D`,
+                border: `1px solid ${themeColor}40`,
                 transition: 'all 0.2s ease',
               }}>
                 <input
                   type="checkbox"
                   id="sms-consent-checkbox"
                   checked={smsConsent}
-                  onChange={e => {
-                    setSmsConsent(e.target.checked);
-                    if (validationErrors.smsConsent) {
-                      setValidationErrors(prev => { const n = { ...prev }; delete n.smsConsent; return n; });
-                    }
-                  }}
+                  onChange={e => setSmsConsent(e.target.checked)}
                   style={{ marginTop: '3px', width: '16px', height: '16px', accentColor: themeColor, cursor: 'pointer', flexShrink: 0 }}
                 />
                 <label htmlFor="sms-consent-checkbox" style={{ fontSize: '12px', color: '#5E5A52', lineHeight: 1.6, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  <SmsConsentText isRTL={isRTL} linkStyle={{ color: themeColor }} />
+                  <SmsConsentText isRTL={isRTL} />
                 </label>
               </div>
-              {validationErrors.smsConsent && (
-                <span style={{ fontSize: '11px', color: '#ef4444', fontFamily: 'var(--font-sans)', paddingLeft: '2px' }}>{validationErrors.smsConsent}</span>
-              )}
+              <SmsConsentIndependence isRTL={isRTL} linkStyle={{ color: themeColor }} style={{ margin: '2px 0 0', padding: '0 2px' }} />
             </div>
             )}
 

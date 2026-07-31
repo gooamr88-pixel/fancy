@@ -72,13 +72,17 @@ const submitPublicRSVP = async (req, res, next) => {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'A phone number is required.' });
   }
 
-  // TCPA/A2P 10DLC: affirmative SMS consent is required whenever we actually
-  // collect a phone number (regardless of yes/no) — enforced server-side, not
-  // just in the UI, so a direct API call can't store a number without consent. A
-  // decliner who leaves the phone blank is never asked to opt into SMS at all.
-  if (normalizedPhone && !smsConsent) {
-    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Please confirm you agree to receive SMS updates about this event.' });
-  }
+  // TCPA / Twilio Toll-Free Verification: SMS consent is INDEPENDENT of the
+  // RSVP itself. This endpoint used to reject a phone number submitted without
+  // consent, which — since a phone is mandatory for attendees — made opting in
+  // to SMS a precondition of attending. Bundled consent of exactly that shape
+  // is what TFV review rejects.
+  //
+  // The submission is now accepted either way and `smsConsent` is persisted as
+  // given (submit_rsvp_v2 stamps sms_consent_at on every write, so an explicit
+  // `false` is itself a dated record of refusal). Consent is enforced where it
+  // actually matters — at send time, in smsDispatch.fetchRecipients, which
+  // excludes any party that was asked and declined.
 
   // Email is required for attendees (confirmation + logistics), optional for a
   // decline; when present it must be valid either way.
@@ -190,10 +194,18 @@ const submitPublicRSVP = async (req, res, next) => {
     const computedPartySize = result.party_size;
 
     // Consent provenance (Privacy Policy §3 record-keeping): stamp which
-    // canonical consent-text version the guest agreed to and which surface
-    // captured it. Best-effort second write — never blocks or fails the RSVP;
-    // sms_consent + sms_consent_at were already persisted atomically by the RPC.
-    if (normalizedPhone && smsConsent && result.party_id) {
+    // canonical consent-text version the guest was shown and which surface
+    // captured the decision. Best-effort second write — never blocks or fails
+    // the RSVP; sms_consent + sms_consent_at were already persisted atomically
+    // by the RPC.
+    //
+    // Written for a REFUSAL as well as an opt-in (it used to require
+    // `smsConsent`): now that the checkbox is optional, an unticked box is a
+    // dated, deliberate decline that smsDispatch enforces as an exclusion, so
+    // the record needs to show which wording was declined and where. The
+    // condition stays keyed on `normalizedPhone` because a guest who gave no
+    // number was never shown the checkbox at all.
+    if (normalizedPhone && result.party_id) {
       supabase
         .from('rsvp_parties')
         .update({

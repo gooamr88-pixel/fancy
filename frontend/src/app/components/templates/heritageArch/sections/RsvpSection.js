@@ -7,7 +7,7 @@ import { LockIcon } from '../../../guest/RsvpIcons';
 import { ConfettiExplosion } from '../../../guest/GuestAnimations';
 import GuestPassCard from '../../../guest/GuestPassGenerator';
 import CountryCodePhoneInput from '../../../CountryCodePhoneInput';
-import SmsConsentText from '../../../guest/SmsConsentText';
+import SmsConsentText, { SmsConsentIndependence } from '../../../guest/SmsConsentText';
 import TurnstileWidget, { turnstileEnabled } from '../../../guest/TurnstileWidget';
 import { normalizeToE164 } from '../../../../utils/phone';
 import { useIdempotentRsvpSubmit } from '../../../guest/rsvp/useIdempotentRsvpSubmit';
@@ -552,8 +552,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       e.email = isRTL ? 'بريد إلكتروني غير صالح' : 'Invalid email';
     }
 
-    // SMS consent — only when a phone number is actually being submitted.
-    if (normalizedPhone && !smsConsent) e.smsConsent = true;
+    // SMS consent is INDEPENDENT and OPTIONAL — deliberately not validated.
+    // See RsvpWizard's matching comment and SmsConsentText.js: an unticked box
+    // must never block an RSVP, or SMS opt-in becomes a condition of attending.
+    // The false value is still recorded and enforced at send time.
 
     // Bot check — only when Turnstile is configured (mirrors the backend gate).
     if (turnstileEnabled && !captchaToken) e.captcha = true;
@@ -897,30 +899,39 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                         {isRTL ? 'رقم الهاتف' : 'Phone number'}{attending === 'yes' && <span style={{ color: ERR }}> *</span>}
                         {attending === 'no' && <span style={{ opacity: 0.5, fontWeight: 500 }}> {isRTL ? '(اختياري)' : '(optional)'}</span>}
                       </label>
-                      <CountryCodePhoneInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); if (!v.trim()) clearError('smsConsent'); }} hasError={!!errors.phone} />
+                      <CountryCodePhoneInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); }} hasError={!!errors.phone} />
                       {errors.phone && <span style={errorTextStyle}>{typeof errors.phone === 'string' ? errors.phone : (isRTL ? 'مطلوب' : 'Required')}</span>}
                     </div>
 
-                    {/* SMS consent — only when a phone is actually being collected. */}
+                    {/* SMS consent — only when a phone is actually being collected.
+                        OPTIONAL: leaving it unticked never blocks the RSVP (see the
+                        validate() comment). The independence notice renders OUTSIDE
+                        the <label>, so ticking the box agrees to the SMS sentence
+                        and nothing else — Privacy/Terms are linked from the notice,
+                        never from the label. */}
                     <AnimatePresence>
                       {showSmsConsent && (
-                        <motion.label
+                        <motion.div
                           initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                          style={{
-                            display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer',
-                            padding: '12px 14px', borderRadius: '12px', overflow: 'hidden',
-                            background: errors.smsConsent ? alpha(ERR, 0.06) : alpha(C.maroon, 0.05),
-                            border: `1px solid ${errors.smsConsent ? ERR : C.border}`,
-                          }}
+                          style={{ overflow: 'hidden' }}
                         >
-                          <input type="checkbox" checked={smsConsent} onChange={(e) => { setSmsConsent(e.target.checked); clearError('smsConsent'); }} style={{ marginTop: '2px', width: '17px', height: '17px', accentColor: C.maroon, flexShrink: 0 }} />
-                          <span style={{ fontSize: '12px', color: C.ink, opacity: 0.85, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
-                            <SmsConsentText isRTL={isRTL} linkStyle={{ color: C.maroon }} />
-                          </span>
-                        </motion.label>
+                          <label
+                            style={{
+                              display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer',
+                              padding: '12px 14px', borderRadius: '12px',
+                              background: alpha(C.maroon, 0.05),
+                              border: `1px solid ${C.border}`,
+                            }}
+                          >
+                            <input type="checkbox" checked={smsConsent} onChange={(e) => setSmsConsent(e.target.checked)} style={{ marginTop: '2px', width: '17px', height: '17px', accentColor: C.maroon, flexShrink: 0 }} />
+                            <span style={{ fontSize: '12px', color: C.ink, opacity: 0.85, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                              <SmsConsentText isRTL={isRTL} />
+                            </span>
+                          </label>
+                          <SmsConsentIndependence isRTL={isRTL} linkStyle={{ color: C.maroon }} style={{ margin: '8px 0 0', padding: '0 2px' }} />
+                        </motion.div>
                       )}
                     </AnimatePresence>
-                    {errors.smsConsent && <span style={errorTextStyle}>{isRTL ? 'يرجى الموافقة لتلقي الرسائل النصية للمتابعة.' : 'Please agree to receive SMS updates to continue.'}</span>}
                   </div>
                 </motion.div>
 

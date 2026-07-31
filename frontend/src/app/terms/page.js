@@ -63,7 +63,7 @@ const sections = [
     title: "5. SMS Messaging Terms & Conditions",
     content: [
       "If you (as an event host) or your guests send or receive text messages through the Service, the following additional terms apply and are incorporated into these Terms of Service and our Privacy Policy.",
-      "**Program Description:** Fancy RSVP's SMS feature allows event hosts to send transactional and informational text messages to their own guests, including RSVP confirmations, event updates, reminders, and check-in instructions. This is not a marketing or promotional messaging service. Hosts may not use it to send unsolicited advertising, political messaging, debt collection, or any content unrelated to the specific event the recipient was invited to.",
+      "**Program Description:** Fancy RSVP's SMS feature allows event hosts to send transactional and informational text messages to their own guests. The program covers exactly five message types and nothing else: event invitations, RSVP confirmations, RSVP updates, event reminders, and event updates (including day-of check-in and logistics instructions). This is not a marketing or promotional messaging service. Hosts may not use it to send unsolicited advertising, political messaging, debt collection, or any content unrelated to the specific event the recipient was invited to.",
       "**Host Consent Obligations:** If you upload, import, or otherwise add a guest's phone number to the Service rather than having the guest submit it themselves, you represent and warrant that: (a) you have obtained that guest's prior express consent to receive text messages about your event before adding their number; (b) you will honor any opt-out request immediately and will not re-add that guest's number to any future messaging list without obtaining fresh consent; and (c) you are solely responsible for your own compliance with the TCPA, CTIA guidelines, and any applicable state-level telemarketing and texting laws with respect to numbers you supply. You agree to indemnify and hold harmless 16941460 Canada Corp. o/a Via Marketing from any claim, fine, or penalty arising from your failure to obtain proper consent for a phone number you provided.",
       "**No Sale or Sharing of Mobile Data:** Consistent with our Privacy Policy, Fancy RSVP will never sell, rent, license, trade, or share any mobile phone number, opt-in record, or consent data collected through the SMS feature with any third party or affiliate for marketing or promotional purposes. This commitment cannot be waived or modified by any other provision of these Terms.",
       "**Message Frequency & Charges:** Message frequency varies by event and is generally limited to confirmations, reminders, and day-of logistics — typically 1–5 messages per event per guest. Message and data rates may apply. Neither Fancy RSVP nor the event host is responsible for charges imposed by a guest's wireless carrier.",
@@ -275,7 +275,7 @@ export default function TermsOfService() {
               fontWeight: 600,
             }}
           >
-            Last Updated: July 16, 2026
+            Last Updated: August 1, 2026
           </p>
         </section>
 

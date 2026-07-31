@@ -12,7 +12,7 @@
  * whenever the consent sentence changes, and archive the old wording in the
  * commit message.
  */
-const SMS_CONSENT_TEXT_VERSION = '2026-07-16';
+const SMS_CONSENT_TEXT_VERSION = '2026-08-01';
 
 // Whitelist of opt-in surfaces the frontend may report (anything else is
 // coerced to the generic 'guest_form' rather than trusting client input).

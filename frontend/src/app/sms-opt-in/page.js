@@ -14,8 +14,15 @@ import OptInForm from "./OptInForm";
      and persists a timestamped consent record — reviewers must
      see a working form, not a demonstration), and
    • an exact mirror of the consent language guests see inside
-     every event RSVP form (SmsConsentText is the same component
-     the live forms render — never fork the wording).
+     every event RSVP form (SmsConsentText + SmsConsentIndependence
+     are the same components the live forms render — never fork
+     the wording), and
+   • truthful about the flow it describes: SMS consent is
+     OPTIONAL everywhere. An RSVP submits with the box unticked
+     (RsvpWizard, heritageArch RsvpSection, rsvpController), and
+     unticked parties are excluded at send time
+     (smsDispatch.fetchRecipients). If any of those four change,
+     the "How a Guest Opts In" section below becomes false.
    ═══════════════════════════════════════════════════════════ */
 
 export const metadata = {
@@ -137,9 +144,18 @@ export default function SmsOptInPage() {
               <P style={{ marginBottom: "10px" }}>
                 <strong style={{ color: INK }}>Fancy RSVP</strong> (fancyrsvp.com) is an event invitation and
                 RSVP platform owned and operated by{" "}
-                <strong style={{ color: INK }}>16941460 Canada Corp., operating as Via Marketing</strong>.
+                <strong style={{ color: INK }}>16941460 Canada Corp., operating as Via Marketing</strong>. Both
+                the brand and the legal entity below are the sender of every text message described on this
+                page; there is no other party sending on our behalf.
               </P>
               <ul style={{ fontFamily: SANS, fontSize: "15px", color: BODY, lineHeight: 1.9, margin: 0, paddingLeft: "20px" }}>
+                <li>
+                  <strong style={{ color: INK }}>Brand:</strong> FancyRSVP — also written{" "}
+                  <strong style={{ color: INK }}>Fancy RSVP</strong> in our logo, on this website, and in the
+                  sender identification appended to every text message. The two spellings are the same brand
+                  and the same sender; there is no other.
+                </li>
+                <li><strong style={{ color: INK }}>Legal entity:</strong> 16941460 Canada Corp. o/a Via Marketing</li>
                 <li>Registered office: 2488 Selord Court, Mississauga, Ontario L5J 1P7, Canada</li>
                 <li>
                   Corporate website:{" "}
@@ -163,18 +179,20 @@ export default function SmsOptInPage() {
             <P>
               Fancy RSVP sends <strong style={{ color: INK }}>transactional and informational</strong> text
               messages only, on behalf of the host of an event the recipient was personally invited to. The
-              program covers exactly four message types:
+              program covers exactly these five message types and nothing else:
             </P>
             <ul style={{ fontFamily: SANS, fontSize: "15px", color: BODY, lineHeight: 2, margin: "0 0 14px", paddingLeft: "20px" }}>
               <li><strong style={{ color: INK }}>Event invitations</strong> — a personal invitation with the guest’s RSVP link</li>
-              <li><strong style={{ color: INK }}>RSVP updates</strong> — confirmations and changes to the guest’s own response</li>
-              <li><strong style={{ color: INK }}>Reminders</strong> — RSVP deadline and event-date reminders</li>
+              <li><strong style={{ color: INK }}>RSVP confirmations</strong> — confirmation that we received the guest’s response</li>
+              <li><strong style={{ color: INK }}>RSVP updates</strong> — changes to the guest’s own response, or a follow-up when no response has been received</li>
+              <li><strong style={{ color: INK }}>Event reminders</strong> — RSVP deadline and event-date reminders</li>
               <li><strong style={{ color: INK }}>Event updates</strong> — date, time, or venue changes and day-of logistics</li>
             </ul>
             <P style={{ marginBottom: 0 }}>
               This is not a marketing service. We never send promotional or advertising messages through this
-              program, and we never sell, rent, or share mobile numbers or consent records with any third party
-              for marketing purposes.
+              program, and we send nothing outside the five types above. The consent language on the checkbox
+              below covers this same set, referring to RSVP confirmations and RSVP updates together as
+              “RSVP updates.”
             </P>
           </div>
 
@@ -186,16 +204,25 @@ export default function SmsOptInPage() {
               <li>When responding, the guest enters their own phone number.</li>
               <li>
                 An <strong style={{ color: INK }}>unchecked</strong> consent checkbox appears with the exact
-                language shown below. It is never pre-checked.
+                language shown below. It is never pre-checked, and never checked on the guest’s behalf.
               </li>
               <li>
-                The form cannot be submitted with a phone number unless the guest affirmatively checks the box —
-                this is enforced on the server as well.
+                Ticking the box is <strong style={{ color: INK }}>entirely optional</strong>. A guest can leave
+                it unticked, submit the RSVP, and attend the event exactly as before — the form is accepted
+                either way. SMS opt-in is never a condition of responding, of attending, or of any purchase.
               </li>
-              <li>Consent is stored as a timestamped record tied to the guest’s response.</li>
+              <li>
+                The guest’s choice is stored as a timestamped record tied to their response, alongside an
+                identifier for the exact version of the consent wording they were shown.
+              </li>
+              <li>
+                Only numbers whose owner ticked the box are ever sent a text message. A guest who leaves it
+                unticked is excluded from every send until they choose to opt in themselves, and that exclusion
+                is enforced at the point of sending, not merely in the interface.
+              </li>
             </ol>
             <P style={{ marginBottom: 0 }}>
-              Guests who decline to provide a phone number, or who do not check the box, never receive text
+              Guests who decline to provide a phone number, or who leave the box unticked, never receive text
               messages from us.
             </P>
           </div>
@@ -204,8 +231,10 @@ export default function SmsOptInPage() {
           <div style={{ marginBottom: "44px" }}>
             <SectionTitle>Opt In to Fancy RSVP Texts</SectionTitle>
             <P>
-              This is a live opt-in form. It uses the exact same consent language every guest agrees to inside
-              their event&rsquo;s RSVP form, and submitting it records your consent with a timestamp:
+              This is a live opt-in form — not a demonstration. It uses the exact same consent language, and
+              the same independence notice, that every guest sees inside their event&rsquo;s RSVP form. The
+              checkbox is unchecked by default, and submitting the form records your consent together with a
+              timestamp, the version of the consent wording shown, and the phone number you entered:
             </P>
             <Card style={{ background: "#FCFAF5" }}>
               <OptInForm />
@@ -216,11 +245,50 @@ export default function SmsOptInPage() {
           <div style={{ marginBottom: "44px" }}>
             <SectionTitle>Message Frequency &amp; Rates</SectionTitle>
             <P style={{ marginBottom: 0 }}>
-              Message frequency varies by event; a typical guest receives approximately 1–5 messages per event
-              (for example, one invitation, one or two reminders, and a day-of update).{" "}
-              <strong style={{ color: INK }}>Message and data rates may apply</strong> depending on your mobile
-              carrier plan. Every message identifies Fancy RSVP as the sender.
+              <strong style={{ color: INK }}>Message frequency varies</strong> depending on the event and on
+              your own activity; a typical guest receives approximately 1–5 messages per event (for example,
+              one invitation, one or two reminders, and a day-of update). There is no recurring or scheduled
+              series — we send only when the host has something to tell you about an event you were invited
+              to.{" "}
+              <strong style={{ color: INK }}>Message &amp; data rates may apply</strong> depending on your
+              mobile carrier plan. Every message identifies Fancy RSVP as the sender and carries
+              “Reply STOP to opt out, HELP for help.”
             </P>
+          </div>
+
+          {/* ── Sample messages ──
+              These are literal renderings of what the dispatcher produces. The
+              trailing sentence is COMPLIANCE_FOOTER in
+              backend/services/smsDispatch.js, appended to EVERY outbound body —
+              if that constant ever changes, change these samples with it. */}
+          <div style={{ marginBottom: "44px" }}>
+            <SectionTitle>What Our Messages Look Like</SectionTitle>
+            <P>
+              Every message we send ends with the same sender identification, rates disclosure, and opt-out
+              instruction — it is appended automatically and cannot be removed by a host:
+            </P>
+            <Card style={{ background: "#FCFAF5", padding: "22px" }}>
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "14px" }}>
+                {[
+                  "Hello Alexander, you are cordially invited to Sophia & Julian's Wedding Gala on Oct 24th. Kindly RSVP at: https://fancyrsvp.com/sophia-julian/rsvp?g=8f2c",
+                  "Hi Alexander, we have your RSVP for Sophia & Julian's Wedding Gala - party of 2. See you on Oct 24th.",
+                  "Reminder: Sophia & Julian's Wedding Gala is this Saturday at 6pm, Cascade Hall. Doors open at 5:30pm.",
+                ].map((sample, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      fontFamily: SANS, fontSize: "13.5px", color: BODY, lineHeight: 1.75,
+                      background: "#FFFFFF", border: `1px solid ${LINE}`, borderRadius: "12px", padding: "14px 16px",
+                    }}
+                  >
+                    {sample}
+                    <span style={{ color: INK, fontWeight: 600 }}>
+                      {" "}- Fancy RSVP. Msg&amp;data rates may apply. Reply STOP to opt out, HELP for help.
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
           </div>
 
           {/* ── Opt out ── */}
@@ -246,6 +314,27 @@ export default function SmsOptInPage() {
               Opting out never affects a guest’s RSVP or their ability to attend an event — hosts can still reach
               them by email or other contact methods they’ve shared.
             </P>
+          </div>
+
+          {/* ── No sale / no sharing ──
+              Twilio checks for this clause explicitly. It also appears in
+              Privacy Policy §3; keep the two consistent. */}
+          <div style={{ marginBottom: "44px" }}>
+            <SectionTitle>We Never Sell or Share Your Number</SectionTitle>
+            <Card style={{ background: "#FCFAF5" }}>
+              <P style={{ marginBottom: 0, fontSize: "15.5px" }}>
+                <strong style={{ color: INK }}>
+                  Phone numbers and SMS consent records are never sold, rented, or shared with third parties
+                  for marketing purposes.
+                </strong>{" "}
+                No mobile information — including phone numbers, opt-in status, and consent records — is
+                shared with, sold to, rented to, or otherwise disclosed to any third party or affiliate for
+                their own marketing or promotional purposes. The only third party that ever receives a guest’s
+                number is our messaging carrier, Twilio, acting solely as our processor for the purpose of
+                delivering the messages described on this page. Text-message originator opt-in data and consent
+                are never shared with any third party.
+              </P>
+            </Card>
           </div>
 
           {/* ── Policies ── */}

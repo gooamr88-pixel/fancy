@@ -28,12 +28,13 @@ const { submitPublicRSVP } = require('../controllers/rsvpController');
 
 t.beforeEach(() => { mock.reset(); confirmCalls = []; emailCalls = []; });
 
-// submitPublicRSVP requires a valid phone + affirmative SMS consent + an email
-// for ATTENDING guests, but treats all three as optional for a decline (consent
-// is only required when a phone is actually supplied, in either case) — see
-// rsvpController.submitPublicRSVP. Most payloads here RSVP "yes", so inject those
-// as defaults to clear the attending gate; tests exercising a specific branch
-// override the relevant field (or build a bare request via mockReq directly).
+// submitPublicRSVP requires a valid phone + an email for ATTENDING guests, and
+// treats both as optional for a decline. SMS consent is NEVER required — it is
+// recorded as given (true or false) and enforced only at send time — see
+// rsvpController.submitPublicRSVP. Most payloads here RSVP "yes", so inject the
+// attending requirements as defaults to clear that gate; tests exercising a
+// specific branch override the relevant field (or build a bare request via
+// mockReq directly).
 const REQUIRED_DEFAULTS = { phone: '+15551234567', smsConsent: true, email: 'guest@example.com' };
 const req = (body) => mockReq({ params: { slug: 'wedding' }, body: { ...REQUIRED_DEFAULTS, ...body } });
 const rpcResult = (data) => mock.setResolver((s) => (s.op === 'rpc' && s.fn === 'submit_rsvp_v2' ? { data } : {}));
@@ -73,12 +74,27 @@ test('an attending RSVP still requires a phone (400, no RPC)', async () => {
   assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
 });
 
-test('a supplied phone with no SMS consent is rejected (400, no RPC) — even on a decline', async () => {
-  mock.setResolver(() => ({}));
-  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'no', phone: '+15551234567', smsConsent: false } }));
-  assert.equal(res.statusCode, 400);
-  assert.equal(res.body.error, 'VALIDATION_ERROR');
-  assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
+// Twilio TFV / TCPA: SMS consent must be INDEPENDENT of the RSVP. This endpoint
+// used to reject a phone number supplied without consent, which — since a phone
+// is mandatory for attendees — made opting in to SMS a precondition of
+// attending. It must now accept the submission and record the refusal, which
+// smsDispatch.fetchRecipients enforces as a send-time exclusion. Do not
+// "restore" a 400 here.
+test('a supplied phone with SMS consent REFUSED is accepted, and the refusal is recorded', async () => {
+  rpcResult({ success: true, party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W', response: 'yes', party_size: 1, guest_email: 'a@x.com', notification_preferences: { email: false } });
+  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'yes', partySize: 1, email: 'a@x.com', phone: '+15551234567', smsConsent: false } }));
+  assert.equal(res.statusCode, 201);
+  const rpc = mock.calls.find(c => c.op === 'rpc' && c.fn === 'submit_rsvp_v2');
+  assert.ok(rpc, 'submit_rsvp_v2 must still be called');
+  assert.equal(rpc.params.p_sms_consent, false, 'the refusal must be persisted, not silently dropped');
+});
+
+test('a supplied phone WITH SMS consent is accepted and records the opt-in', async () => {
+  rpcResult({ success: true, party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W', response: 'no', party_size: 1, guest_email: null, notification_preferences: { email: false } });
+  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'no', phone: '+15551234567', smsConsent: true } }));
+  assert.equal(res.statusCode, 201);
+  const rpc = mock.calls.find(c => c.op === 'rpc' && c.fn === 'submit_rsvp_v2');
+  assert.equal(rpc.params.p_sms_consent, true);
 });
 
 test('a decline with no phone/email/consent is accepted (consent only gates a supplied phone)', async () => {

@@ -392,14 +392,18 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
     } else if (attending === 'yes' && !normalizedPhone) {
       errors.phone = t.phone_required || 'Phone number is required';
     }
-    // TCPA/A2P 10DLC: affirmative SMS consent only when a phone number is actually
-    // being collected — mirrored server-side (rsvpController.js). A decline that
-    // leaves the phone blank is never asked to opt in.
-    if (normalizedPhone && !smsConsent) {
-      errors.smsConsent = isRTL
-        ? 'يرجى الموافقة على تلقي رسائل نصية بخصوص هذه الفعالية للمتابعة.'
-        : 'Please agree to receive SMS updates about this event to continue.';
-    }
+    // TCPA / Twilio Toll-Free Verification: SMS consent is INDEPENDENT and
+    // OPTIONAL. It is deliberately NOT validated here. Blocking submission on
+    // an unticked box (which this did until 2026-08-01) made SMS opt-in a
+    // condition of RSVPing — phone is required for attendees, so "attend" and
+    // "consent to texts" were the same act. That is precisely the bundled
+    // consent Twilio rejects, and it contradicts the independence notice
+    // rendered under the checkbox (SmsConsentText.js).
+    //
+    // The unticked state is not discarded: it is submitted as smsConsent:false,
+    // stored with a timestamp, and enforced as an exclusion at send time
+    // (backend/services/smsDispatch.js fetchRecipients). Do not reintroduce a
+    // validation error here.
 
     if (partySize < 1 || partySize > 20) errors.partySize = 'Party size must be between 1 and 20';
     if (attending === 'yes') {

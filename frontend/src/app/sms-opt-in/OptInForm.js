@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import PhoneNumberInput from '../components/PhoneNumberInput';
-import SmsConsentText from '../components/guest/SmsConsentText';
+import SmsConsentText, { SmsConsentIndependence } from '../components/guest/SmsConsentText';
 import { normalizeToE164 } from '../utils/phone';
 
 /* Live SMS opt-in form — the interactive half of /sms-opt-in (the Twilio TFV
@@ -120,11 +120,15 @@ export default function OptInForm() {
         <PhoneNumberInput value={phone} onChange={(v) => { setPhone(v); if (error) setError(''); }} defaultCountry="us" />
       </div>
 
+      {/* The checkbox and its label carry ONLY the SMS consent sentence. The
+          independence notice and the Privacy/Terms links sit outside the label,
+          below — Twilio requires SMS consent to be visibly unbundled from any
+          other agreement. See SmsConsentText.js. */}
       <div
         style={{
           display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px',
           borderRadius: '12px', background: 'rgba(184, 148, 79, 0.05)',
-          border: '1px solid rgba(184, 148, 79, 0.25)', marginBottom: '16px',
+          border: '1px solid rgba(184, 148, 79, 0.25)', marginBottom: '10px',
         }}
       >
         <input
@@ -138,9 +142,14 @@ export default function OptInForm() {
           htmlFor="optin-sms-consent"
           style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', color: BODY, lineHeight: 1.7, cursor: 'pointer' }}
         >
-          <SmsConsentText linkStyle={{ color: GOLD }} />
+          <SmsConsentText />
         </label>
       </div>
+
+      <SmsConsentIndependence
+        style={{ margin: '0 0 16px', padding: '0 2px' }}
+        linkStyle={{ color: GOLD }}
+      />
 
       {error && (
         <p style={{ fontFamily: 'var(--font-sans)', fontSize: '13px', color: ERR, margin: '0 0 14px' }}>{error}</p>

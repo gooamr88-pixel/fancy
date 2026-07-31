@@ -65,12 +65,35 @@ function resolveResponses(audiences) {
  * invitations target the primary contact's email — `id`/`guest_name` below
  * are the party id and label (the historical "rsvp"/"guest" naming downstream
  * in this file is kept as-is; only the underlying query changed).
+ *
+ * REFUSED-CONSENT EXCLUSION (TCPA / Twilio TFV). Since 2026-08-01 the SMS
+ * consent checkbox is optional on every RSVP surface — a guest can submit a
+ * phone number with the box left unticked, which is the only way SMS consent is
+ * genuinely independent of attending. That refusal has to bite somewhere, and
+ * this is the somewhere: the `.or()` below keeps a party only when it opted in,
+ * or when it was never asked.
+ *
+ *   sms_consent = true                       → guest ticked the box. Send.
+ *   sms_consent = false, sms_consent_at NULL → never asked. Host-supplied
+ *       number (CSV import / manual add), covered by the organizer's per-launch
+ *       consent attestation, the CTIA host-consent model in Terms §5. Send.
+ *       (add_guest_to_party takes no consent argument, so these rows keep the
+ *       column default and a NULL timestamp — that NULL is the discriminator.)
+ *   sms_consent = false, sms_consent_at SET  → asked and DECLINED. Never send.
+ *       submit_rsvp_v2 stamps sms_consent_at on every write, including a
+ *       `false`, precisely so a refusal is a dated record rather than an
+ *       absence.
+ *
+ * Hard-filtering on `sms_consent = true` alone would be wrong here: it would
+ * silently break the import → SMS-invitation flow the product is built around.
+ * This is the narrower rule that honours an actual refusal without doing that.
  */
 async function fetchRecipients(eventId, { audiences = ['pending'], guestIds = null, limit = 100000 } = {}) {
   let query = supabase
     .from('rsvp_parties')
     .select('id, label, response, guests!inner(is_primary_contact, phone)')
     .eq('event_id', eventId)
+    .or('sms_consent.eq.true,sms_consent_at.is.null')
     .eq('guests.is_primary_contact', true)
     .not('guests.phone', 'is', null);
 
