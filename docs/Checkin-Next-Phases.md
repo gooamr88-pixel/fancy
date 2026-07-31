@@ -12,7 +12,7 @@ review and ten fixes, several of which are themselves unverified.
 
 | | State |
 |---|---|
-| Backend | Feature-complete. **499/499 unit tests pass.** |
+| Backend | Feature-complete. **500/500 unit tests pass, 0 skipped** (`npm test`, verified 2026-07-31 after the review fixes). |
 | Migrations | Written, **never applied anywhere**. All SQL unrun. |
 | Integration tests | 65 written, **never run** (need Docker). |
 | Android | ~56 `.kt` files, all 7 phases. **Never compiled.** No JDK/SDK/Gradle in the authoring environment. |
@@ -32,59 +32,159 @@ Two rules that survive every phase below:
 
 # Phase 8 — Make the toolchain exist
 
-Nothing downstream can start until this is done. None of it is present today.
+Nothing downstream can start until this is done.
 
-### 8.1 Install
+**Governing rule for this phase:** restore the project, do not modernize it. Do
+not change AGP, Kotlin, Gradle plugins, `compileSdk`, `targetSdk`, or any
+dependency version unless you have *proven* an incompatibility. The pins below
+were checked against each other and are internally consistent — there is nothing
+to change.
 
-| Tool | Why | Note |
+### 8.0 The version matrix — install to match these exactly
+
+| Pinned in the project | Requires | Consistent |
 |---|---|---|
-| **JDK 17** | `app/build.gradle.kts` sets `jvmTarget = "17"` | Not 21. AGP 8.7.3 wants 17. |
-| **Android SDK, API 35** | `compileSdk = 35`, `targetSdk = 35` | The SDK directory on this machine exists but is unusable without a JDK. |
-| **Docker Desktop** | `supabase start` needs it | Phase 9 is blocked without it. |
-| **Gradle 8.9+** | *Only* to generate the wrapper, once | Then never used directly again. |
+| AGP **8.7.3** | Gradle ≥ **8.9**, JDK ≥ **17** | ✅ |
+| Kotlin **2.0.21** | — | ✅ |
+| KSP **2.0.21-1.0.28** | Kotlin **2.0.21** exactly — the prefix must match | ✅ |
+| `jvmTarget` / `sourceCompatibility` **17** | JDK 17 | ✅ |
+| `compileSdk` / `targetSdk` **35** | `platforms;android-35`, `build-tools;35.0.0` | ✅ |
+| Hilt **2.52**, Compose BOM **2024.12.01** | Kotlin 2.0.x + KSP | ✅ |
 
-### 8.2 Generate the Gradle wrapper — it does not exist
-
-`android/README.md` tells you to run `./gradlew`. **There is no `gradlew`.** No
-wrapper script, no `gradle/wrapper/` directory, no jar. It was never generated
-because no Gradle was available to generate it.
-
-```bash
-cd android
-gradle wrapper --gradle-version 8.9
-```
-
-Or open `android/` in Android Studio and accept the wrapper prompt. Commit the
-wrapper — including `gradle-wrapper.jar`. A wrapper that isn't committed means
-every machine builds with whatever Gradle happens to be installed, which is how
-"works on mine" starts.
-
-### 8.3 Create `local.properties` (untracked)
-
-```properties
-sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
-API_BASE_URL_DEBUG=http://10.0.2.2:5000/api/v1/
-API_BASE_URL_RELEASE=https://fancyrsvp.com/api/v1/
-```
-
-**The trailing slash is required.** Retrofit resolves relative paths against the
-base URL and silently drops the last segment without one — every call 404s and
-nothing explains why.
-
-`10.0.2.2` is the emulator's route to the host. A physical tablet needs your
-machine's LAN address, and `app/src/debug/network_security_config.xml` is what
-permits cleartext for it. That config is debug-only by design; do not widen it.
-
-**Done when:** `./gradlew --version` prints, and `./gradlew :app:dependencies`
-resolves. Versions in `gradle/libs.versions.toml` are pinned but were **never
-resolved against a repository** — expect at least one to need nudging. Two are
-not free choices and must not be swapped:
+Two dependency pins are **not free choices**:
 
 - `mlkit-barcode-bundled` — the **bundled** model, never the Play-Services
   download variant. A tablet with no internet at the venue may not have the
   downloaded model, and scanning dies exactly when it matters (§4).
 - `sqlcipher` — required, not optional. The local DB holds the complete guest
   list of a private event (§20.3).
+
+Known **warning**, not an error: `resourceConfigurations` is deprecated in AGP
+8.7 in favour of `androidResources.localeFilters`. Leave it alone — it works,
+and changing it is modernization.
+
+### 8.1 `gradle.properties` — was missing, now added
+
+The project had **no `gradle.properties` at all**, so `android.useAndroidX` was
+never set. Every dependency here is AndroidX, and AGP hard-fails at
+configuration time:
+
+```
+Configuration ':app:debugRuntimeClasspath' contains AndroidX dependencies,
+but the 'android.useAndroidX' property is not enabled.
+```
+
+That aborts before compilation and would mask every other error. The file now
+exists with two settings and nothing else — `useAndroidX`, and a daemon heap /
+UTF-8 pair. See the file's own comments for why each is required. This is
+restoration: it changes no version.
+
+### 8.2 Building on a VPS (headless Linux)
+
+Assumes **Ubuntu 22.04/24.04 LTS, x86_64**. No emulator is needed —
+`assembleDebug` and the JVM unit tests are the whole point of building here.
+
+**Size the box properly.** The Gradle daemon takes 2 GB, the Kotlin compile
+daemon runs alongside it, and KSP processes Room and Hilt together.
+
+- RAM: **4 GB minimum**, 8 GB comfortable. A 2 GB box will thrash or OOM.
+- Disk: **~15 GB free** for the SDK, Gradle distributions and `~/.gradle` caches.
+
+```bash
+# ── JDK 17 (not 21 — match AGP 8.7.3) ──────────────────────────────
+sudo apt update && sudo apt install -y openjdk-17-jdk unzip wget
+java -version          # must print 17.x
+
+# ── Gradle 8.9, only to generate the wrapper once ──────────────────
+# apt ships an old Gradle; do not use it.
+wget https://services.gradle.org/distributions/gradle-8.9-bin.zip
+sudo unzip -d /opt/gradle gradle-8.9-bin.zip
+export PATH="$PATH:/opt/gradle/gradle-8.9/bin"
+
+# ── Android SDK, command-line tools only ───────────────────────────
+# Check developer.android.com/studio#command-line-tools-only for the
+# current filename; the build number changes.
+sudo mkdir -p /opt/android-sdk/cmdline-tools
+cd /opt/android-sdk/cmdline-tools
+sudo wget https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+sudo unzip commandlinetools-linux-*.zip
+sudo mv cmdline-tools latest        # the path MUST be cmdline-tools/latest/
+export ANDROID_HOME=/opt/android-sdk
+export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools"
+
+yes | sdkmanager --licenses
+sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+```
+
+Persist the three exports in `~/.bashrc` or the next login loses them.
+
+### 8.3 Generate the Gradle wrapper — it does not exist
+
+`android/README.md` tells you to run `./gradlew`. **There is no `gradlew`.** No
+wrapper script, no `gradle/wrapper/` directory, no jar. It was never generated
+because no Gradle was available to generate it.
+
+```bash
+cd /path/to/fancy/android
+gradle wrapper --gradle-version 8.9
+```
+
+Commit the wrapper — including `gradle-wrapper.jar`. An uncommitted wrapper
+means every machine builds with whatever Gradle happens to be installed, which
+is how "works on mine" starts.
+
+### 8.4 Create `local.properties` (untracked)
+
+On the VPS:
+
+```properties
+sdk.dir=/opt/android-sdk
+API_BASE_URL_DEBUG=http://127.0.0.1:5000/api/v1/
+API_BASE_URL_RELEASE=https://fancyrsvp.com/api/v1/
+```
+
+On Windows the `sdk.dir` is escaped: `sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk`
+
+**The trailing slash on the URLs is required.** Retrofit resolves relative paths
+against the base URL and silently drops the last segment without one — every
+call 404s and nothing explains why.
+
+`10.0.2.2` is the *emulator's* route to its host. A physical tablet needs the
+LAN address of the machine running the API, and
+`app/src/debug/network_security_config.xml` is what permits cleartext for it.
+That config is debug-only by design; do not widen it.
+
+### 8.5 Build in escalating steps
+
+Each step gives a cleaner error surface than the next. Do not skip ahead — a
+failure at step 2 is unreadable inside step 4.
+
+```bash
+cd android
+./gradlew --version                      # 1. toolchain sanity
+./gradlew :app:dependencies              # 2. do the pinned versions resolve?
+./gradlew :app:compileDebugKotlin        # 3. fastest path to real compile errors
+./gradlew :app:assembleDebug             # 4. full build incl. KSP, Room, Hilt
+./gradlew :app:testDebugUnitTest         # 5. the 6 JVM test files
+```
+
+**Step 2 is the one genuine unknown.** Every version in
+`gradle/libs.versions.toml` is pinned but was **never resolved against a
+repository**. If one is unavailable, that is a *proven* incompatibility and the
+minimum correction is allowed — change that one pin, nothing else.
+
+Capture output for anything that fails:
+
+```bash
+./gradlew :app:assembleDebug --stacktrace 2>&1 | tee build.log
+```
+
+**When a step fails: stop.** Identify the root cause, report the exact error,
+and take the smallest next step. Do not apply speculative fixes, do not refactor,
+and do not bump versions to make an error go away — a version bump that "fixes"
+a compile error usually just moves it.
+
+**Done when:** `assembleDebug` succeeds and the 6 JVM test files pass.
 
 ---
 
@@ -409,7 +509,7 @@ Do not start a phase before its predecessor is genuinely done.
 
 | Phase | Done when |
 |---|---|
-| 8 · Toolchain | `./gradlew :app:dependencies` resolves |
+| 8 · Toolchain | `assembleDebug` succeeds and the 6 JVM test files pass |
 | 9 · Migrations + integration | 65 integration tests pass, **none skipped** |
 | 10 · Compile | `assembleDebug` succeeds, 6 test files pass, `schemas/` committed |
 | 11 · Contracts | All four verified on both sides |

@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const t = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
-const { createMockSupabase } = require('./helpers/mockSupabase');
+const { createMockSupabase, eqVal } = require('./helpers/mockSupabase');
 const { mockReq, invoke } = require('./helpers/http');
 const { injectModule } = require('./helpers/inject');
 
@@ -406,6 +406,29 @@ test('a device undo naming a staff id from ANOTHER event is refused', async () =
 
   assert.equal(res.statusCode, 403);
   assert.equal(res.body.error, 'UNKNOWN_STAFF');
+});
+
+test('the roster query is scoped to ACTIVE staff and to this event', async () => {
+  let rosterFilters = null;
+  mock.setResolver((s) => {
+    if (s.table === 'event_staff' && s.op === 'select') {
+      rosterFilters = s.filters;
+      return { data: [] };
+    }
+    return {};
+  });
+
+  await invoke(ctrl.deleteCheckIn, mockReq({
+    params: { eventId: EVENT, clientCheckinId: CID },
+    body: { reason: 'undo it', staffId: SUPERVISOR },
+    device: { id: 'dev-1', eventId: EVENT, label: 'Main entrance' },
+  }));
+
+  // Without is_active, a supervisor removed from the roster mid-event keeps the
+  // power to reverse admissions — deactivating them would change nothing.
+  assert.equal(eqVal(rosterFilters, 'is_active'), true);
+  // Without event_id, a supervisor on ANY event could authorize an undo here.
+  assert.equal(eqVal(rosterFilters, 'event_id'), EVENT);
 });
 
 test('the organizer still undoes without a staff id — the event owner outranks the roster', async () => {

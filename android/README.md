@@ -22,8 +22,16 @@ wins on any disagreement.
 > cd android && gradle wrapper --gradle-version 8.9
 > ```
 >
-> Requires **JDK 17** (`jvmTarget = "17"`) and **Android SDK API 35**.
-> Full sequence: `../docs/Checkin-Next-Phases.md`.
+> Requires **JDK 17** (not 21 — match AGP 8.7.3) and **Android SDK API 35**
+> (`platforms;android-35`, `build-tools;35.0.0`).
+>
+> **Do not bump AGP, Kotlin, Gradle plugins, `compileSdk`/`targetSdk`, or any
+> dependency** to make an error go away. The pins are internally consistent and
+> were verified against each other; a bump usually just moves the error. The one
+> exception is a pin that genuinely fails to resolve — that is a *proven*
+> incompatibility, and only that pin changes.
+>
+> Full setup, including a headless VPS build: `../docs/Checkin-Next-Phases.md` §8.
 
 ```bash
 cd android
@@ -171,7 +179,7 @@ present an entrance display, lock itself, and be safely wiped at the end.
 ## Verification status
 
 **Verified:** every `.kt` file scanned for stray control bytes (clean, 56 files).
-All backend contract halves pass (`npm test` in `../backend`, 499/499).
+All backend contract halves pass (`npm test` in `../backend`, 500/500).
 
 **Not verified — treat as unknown:**
 
