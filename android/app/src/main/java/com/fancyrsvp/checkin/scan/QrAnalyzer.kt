@@ -56,27 +56,58 @@ class QrAnalyzer(
      */
     private val inFlight = AtomicBoolean(false)
 
+    /**
+     * Set by [close], checked by [analyze].
+     *
+     * ML Kit throws `IllegalStateException` from `process()` once the detector has
+     * been closed, and `analyze` runs on a CAMERA thread — outside every coroutine
+     * guard in this app, so that throw reaches the default uncaught handler and
+     * kills the process.
+     *
+     * This is not a theoretical race. The screen closes the analyser when it leaves
+     * composition while CameraX is still detaching its use cases asynchronously, so
+     * every navigation away from the scanner — menu, guest list, entrance display —
+     * gives a frame already in flight the chance to land on a closed detector. That
+     * is the app vanishing at the door, several times a night, for nothing.
+     */
+    private val closed = AtomicBoolean(false)
+
     @SuppressLint("UnsafeOptInUsageError")
     override fun analyze(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
-        if (mediaImage == null || !inFlight.compareAndSet(false, true)) {
+        if (closed.get() || mediaImage == null || !inFlight.compareAndSet(false, true)) {
             imageProxy.close()
             return
         }
 
-        val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        // The `closed` check above narrows the window but cannot eliminate it: close()
+        // can land between the check and process(). Nothing on this thread may throw.
+        try {
+            val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
 
-        scanner.process(input)
-            .addOnSuccessListener { barcodes ->
-                barcodes.firstNotNullOfOrNull { it.rawValue }?.let { value -> accept(value) }
-            }
-            .addOnCompleteListener {
-                inFlight.set(false)
-                // Closing in onComplete rather than onSuccess: a failed decode must
-                // also release the frame, or the pipeline stalls after the first
-                // unreadable card and the scanner silently dies mid-event.
-                imageProxy.close()
-            }
+            scanner.process(input)
+                .addOnSuccessListener { barcodes ->
+                    // The listener runs on the main thread and calls into the view
+                    // model. Guarded for the same reason as everything else here —
+                    // an uncaught throw from a decode is not worth a process kill.
+                    runCatching {
+                        barcodes.firstNotNullOfOrNull { it.rawValue }?.let { value -> accept(value) }
+                    }
+                }
+                .addOnCompleteListener {
+                    inFlight.set(false)
+                    // Closing in onComplete rather than onSuccess: a failed decode must
+                    // also release the frame, or the pipeline stalls after the first
+                    // unreadable card and the scanner silently dies mid-event.
+                    imageProxy.close()
+                }
+        } catch (_: Throwable) {
+            // Release the slot and the frame, then wait for the next one. A camera
+            // that skips a frame is invisible to an usher; a camera that takes the
+            // app down with it is the whole complaint.
+            inFlight.set(false)
+            imageProxy.close()
+        }
     }
 
     private fun accept(value: String) {
@@ -101,6 +132,9 @@ class QrAnalyzer(
     }
 
     fun close() {
+        // Flag BEFORE closing, so any frame that arrives during the close is turned
+        // away rather than handed to a half-torn-down detector.
+        closed.set(true)
         runCatching { scanner.close() }
     }
 

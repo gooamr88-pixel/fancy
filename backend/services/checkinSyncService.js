@@ -36,6 +36,32 @@ const MAX_BATCH = 100;
 const BUNDLE_PAGE_SIZE = 500;
 
 /**
+ * Returns an absolute HTTPS URL, or null for anything else.
+ *
+ * The consumer is an Android tablet that fetches this once, at an office, and
+ * then renders it offline at a venue. A relative path, a `data:` URI or a blank
+ * string are all things it cannot download, so they are normalised to null here
+ * rather than shipped for the device to fail on later — where the failure would
+ * surface as a missing photograph at a wedding with nobody able to explain it.
+ *
+ * HTTPS ONLY, and that is not belt-and-braces. The app ships
+ * `network_security_config.xml` with `cleartextTrafficPermitted="false"` in every
+ * release build (§20.6), so an `http://` URL is not merely unwise — the platform
+ * refuses the request outright. Returning it would be handing the device an
+ * address it is guaranteed to fail on, which is exactly what this function exists
+ * to prevent.
+ */
+function httpUrlOrNull(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === 'https:' ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Extracts the bare JWT from a scanned value.
  *
  * The QR image encodes `<origin>/ticket/<urlencoded-token>` so an ordinary
@@ -619,7 +645,7 @@ async function getBundlePage(eventId, { page = 1, limit = BUNDLE_PAGE_SIZE } = {
 async function getBundleManifest(eventId) {
   const { data: event, error: eventErr } = await supabase
     .from('events')
-    .select('id, title, event_date, location_name, location_address, custom_colors, status, is_paid, tier_name, no_kids_allowed')
+    .select('id, title, event_date, location_name, location_address, custom_colors, cover_image_url, status, is_paid, tier_name, no_kids_allowed')
     .eq('id', eventId)
     .single();
   if (eventErr || !event) {
@@ -675,6 +701,15 @@ async function getBundleManifest(eventId) {
       venue: event.location_name || null,
       venueAddress: event.location_address || null,
       brandingPrimaryColor: (event.custom_colors && event.custom_colors.primary) || null,
+      // The event's own photograph — the couple, on a wedding. Same column the
+      // invitation and the share card use, so the tablet shows the picture the
+      // guests have already seen rather than a second one nobody chose.
+      //
+      // Only ever an absolute http(s) URL. The device downloads this ONCE during
+      // preparation and renders from disk thereafter (§9.8: branding must render
+      // with no network access), so a relative path or a data: URI would give it
+      // nothing it could fetch at an office and nothing to show at a venue.
+      coverImageUrl: httpUrlOrNull(event.cover_image_url),
       noKidsAllowed: !!event.no_kids_allowed,
     },
     // Roster ships as HASHES only. A plaintext PIN must never be transmitted

@@ -2,7 +2,6 @@ package com.fancyrsvp.checkin.ui.menu
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,19 +25,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.fancyrsvp.checkin.CrashLog
 import com.fancyrsvp.checkin.R
 import com.fancyrsvp.checkin.data.local.ArrivalBucket
 import com.fancyrsvp.checkin.ui.components.Chevron
+import com.fancyrsvp.checkin.ui.components.CrashReportScreen
+import com.fancyrsvp.checkin.ui.components.pressableSurface
 import com.fancyrsvp.checkin.ui.components.ScreenScaffold
 import com.fancyrsvp.checkin.ui.components.SectionLabel
 import com.fancyrsvp.checkin.ui.components.StatTile
@@ -82,6 +90,38 @@ fun MenuScreen(
 ) {
     val summary by viewModel.summary.collectAsState()
     val dimens = LocalDimens.current
+
+    /*
+     * The last crash, if the app died and was reopened (§21.6).
+     *
+     * Read once on arrival rather than observed — the file only changes by the
+     * process dying, and this composition does not survive that.
+     *
+     * It is offered as a CARD, not forced full-screen on arrival: a supervisor
+     * opens this menu mid-event to read the arrival figure, and a stack trace in
+     * front of that is an obstacle. But it must be reachable SOMEWHERE on a paired
+     * tablet, because the pairing screen that used to be the only way in is seen
+     * exactly once per install, in an office, weeks before the venue.
+     */
+    val context = LocalContext.current
+    var crashReport by remember { mutableStateOf(CrashLog.read(context)) }
+    var showCrashReport by remember { mutableStateOf(false) }
+
+    if (showCrashReport) {
+        crashReport?.let { report ->
+            CrashReportScreen(
+                report = report,
+                onDismiss = {
+                    // Cleared on read, so the next crash is unambiguously the next
+                    // crash rather than a report nobody is sure they already sent.
+                    CrashLog.clear(context)
+                    crashReport = null
+                    showCrashReport = false
+                },
+            )
+            return
+        }
+    }
 
     LaunchedEffect(eventId) { viewModel.start(eventId) }
 
@@ -156,8 +196,22 @@ fun MenuScreen(
             }
 
             // ── Right: what you can do ──
+            //
+            // Scrolls. Four action cards plus the queue tiles come to just over
+            // 500dp, which overflows a 10-inch tablet's content area and is
+            // roughly double a landscape phone's — and the card most likely to
+            // fall off the bottom is whichever was added last, which is exactly
+            // the one nobody has thought about.
+            //
+            // Two columns is kept even on a phone rather than collapsing to one.
+            // The app is locked to landscape, so width is the ABUNDANT axis on
+            // every device — a landscape phone is around 870dp wide. Stacking
+            // would spend the axis there is plenty of to make the shortage worse.
             Column(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 ActionCard(
@@ -179,8 +233,26 @@ fun MenuScreen(
                     )
                 }
 
+                // Present only when there is actually a report to read, so the menu
+                // carries no permanent reminder of a fault that is not happening.
+                if (crashReport != null) {
+                    ActionCard(
+                        title = stringResource(R.string.menu_crash_title),
+                        detail = stringResource(R.string.menu_crash_detail),
+                        onClick = { showCrashReport = true },
+                        accent = StateAttention,
+                    )
+                }
+
                 if (isSupervisor) {
-                    Spacer(Modifier.weight(1f))
+                    // A fixed gap, NOT `Modifier.weight(1f)`. A weighted child
+                    // inside a scrolling column is measured against an infinite
+                    // remaining height, so the tiles used to be pushed to the
+                    // bottom of the SCREEN and now would be pushed to the bottom
+                    // of nothing at all. The cost is that on a tall tablet the
+                    // tiles sit under the cards rather than pinned low, which
+                    // reads fine and is one layout instead of two.
+                    Spacer(Modifier.height(dimens.sectionGap))
                     // Queue depth is shown to supervisors at all times (§21.3).
                     // Three tiles rather than three label/value rows, because
                     // the only thing anyone reads here is whether a figure is
@@ -325,10 +397,21 @@ private fun ActionCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 96.dp)
-            .clip(RoundedCornerShape(dimens.cardRadius))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick)
+            // 96dp is right at arm's length on a tablet. On a phone four of them
+            // is the entire window, and the title and detail line fit comfortably
+            // in 76 — still well clear of the 64dp touch floor.
+            .heightIn(min = if (dimens.compact) 76.dp else 96.dp)
+            // Rimmed in its OWN accent, so a destructive card is outlined in red
+            // and a normal one in gold. The card was previously the same flat
+            // tinted panel as the breakdown lists on the other half of this
+            // screen — nothing but the chevron said which half was pressable.
+            .pressableSurface(
+                onClick = onClick,
+                shape = RoundedCornerShape(dimens.cardRadius),
+                borderColor = tint.copy(alpha = 0.45f),
+                elevation = 4.dp,
+                borderWidth = 2.dp,
+            )
             .padding(horizontal = 24.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

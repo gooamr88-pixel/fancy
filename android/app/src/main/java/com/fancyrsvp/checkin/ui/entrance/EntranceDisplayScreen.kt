@@ -8,22 +8,21 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -46,7 +46,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fancyrsvp.checkin.R
+import com.fancyrsvp.checkin.ui.components.CoverScrim
+import com.fancyrsvp.checkin.ui.components.EventCoverBackdrop
+import com.fancyrsvp.checkin.ui.components.pressableSurface
+import com.fancyrsvp.checkin.ui.components.rememberEventCover
 import com.fancyrsvp.checkin.ui.theme.EventBranding
+import com.fancyrsvp.checkin.ui.theme.LocalDimens
 
 /**
  * Entrance display mode (spec §8.8).
@@ -91,94 +96,175 @@ fun EntranceDisplayScreen(
 
     LaunchedEffect(eventId) { viewModel.start(eventId) }
 
-    val accent = EventBranding.accentFor(
-        state?.brandingColorHex,
-        MaterialTheme.colorScheme.background,
-    )
+    /*
+     * The couple's photograph, full-bleed behind everything (§9.8, §8.8).
+     *
+     * This is the screen the picture exists for. It faces the lobby for the whole
+     * night, guests look at it while they wait, and §8.8 says outright that
+     * "visual quality is the entire point of it". A counter on a plain wash is a
+     * status board; the same counter over the couple's own photograph is part of
+     * the event.
+     *
+     * BoxWithConstraints so the decode is downsampled to the real display width —
+     * this may be a 4K lobby screen or a 7-inch spare, and decoding a 4000px
+     * original for either is how a long-running display runs out of memory.
+     */
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val cover = rememberEventCover(
+            path = state?.coverImagePath,
+            targetWidth = maxWidth,
+        )
+        val hasCover = cover != null
 
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    // A very soft vertical wash rather than a flat fill: on a large
-                    // screen a single flat colour reads as a broken display.
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.background,
-                            accent.copy(alpha = 0.10f),
-                        ),
-                    ),
-                ),
-            contentAlignment = Alignment.Center,
+        /*
+         * Contrast is recomputed against what the type ACTUALLY sits on.
+         *
+         * With a photograph the ground is a dark scrim, without one it is the
+         * app's pale parchment — and a brand colour legible on one is frequently
+         * illegible on the other. Passing the real background to `accentFor` is
+         * what keeps an organizer's deep navy readable in both cases instead of
+         * vanishing into whichever one it happens to match.
+         */
+        val groundForContrast =
+            if (hasCover) Color.Black else MaterialTheme.colorScheme.background
+        val accent = EventBranding.accentFor(state?.brandingColorHex, groundForContrast)
+        val supportColor = if (hasCover) {
+            Color.White.copy(alpha = 0.82f)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+
+        EventCoverBackdrop(
+            image = cover,
+            modifier = Modifier.fillMaxSize(),
+            // No photograph: the original soft wash. A flat fill reads as a broken
+            // display on a large screen.
+            fallback = MaterialTheme.colorScheme.background,
+            // Text at BOTH ends — the event name above, the counter and bar below —
+            // so the middle of the frame, where the couple are, stays clear.
+            scrim = CoverScrim.Balanced,
+            drift = true,
         ) {
+            if (!hasCover) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.background,
+                                    accent.copy(alpha = 0.10f),
+                                ),
+                            ),
+                        ),
+                )
+            }
+
+            /*
+             * The waiting state is a BRANCH, not an early return.
+             *
+             * It used to `return` out of the layout when the event row could not
+             * be read — which skipped the exit control along with the counter. So
+             * the one failure that leaves this screen showing nothing useful was
+             * also the one that removed the only way off it, on a device that is
+             * usually wall-mounted with no operator watching. Recovering meant
+             * force-stopping the app.
+             *
+             * The way out must not depend on the content rendering, so it is
+             * drawn after this `when` regardless of which branch ran.
+             */
             val current = state
             if (current == null) {
                 Text(
                     stringResource(R.string.entrance_waiting),
                     style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = supportColor,
+                    modifier = Modifier.align(Alignment.Center),
                 )
-                return@Box
-            }
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(64.dp),
-            ) {
-                Text(
-                    text = current.eventName,
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = accent,
-                    textAlign = TextAlign.Center,
-                )
-
-                Spacer(Modifier.height(48.dp))
-
-                // The counter. Animated so an arrival is VISIBLE from across a lobby
-                // — a number that silently changes is indistinguishable from a static
-                // sign.
-                ArrivalCounter(count = current.arrived, accent = accent)
-
-                Spacer(Modifier.height(16.dp))
-
-                Text(
-                    text = stringResource(R.string.entrance_guests_arrived),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-
-                if (current.totalInvited > 0) {
-                    Spacer(Modifier.height(40.dp))
-                    ProgressBar(
-                        fraction = current.arrived.toFloat() / current.totalInvited,
-                        accent = accent,
+            } else {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(64.dp),
+                ) {
+                    Text(
+                        text = current.eventName,
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = accent,
+                        textAlign = TextAlign.Center,
                     )
+
+                    Spacer(Modifier.height(48.dp))
+
+                    // The counter. Animated so an arrival is VISIBLE from across a
+                    // lobby — a number that silently changes is indistinguishable
+                    // from a static sign.
+                    ArrivalCounter(count = current.arrived, accent = accent)
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Text(
+                        text = stringResource(R.string.entrance_guests_arrived),
+                        style = MaterialTheme.typography.titleLarge,
+                        color = supportColor,
+                        textAlign = TextAlign.Center,
+                    )
+
+                    if (current.totalInvited > 0) {
+                        Spacer(Modifier.height(40.dp))
+                        ProgressBar(
+                            fraction = current.arrived.toFloat() / current.totalInvited,
+                            accent = accent,
+                        )
+                    }
                 }
+
+                // A slow breathing accent line at the base. Subtle motion, per §8.8
+                // — enough to read as "live" without competing with the counter.
+                // Only with content: a pulse under an empty screen reads as a fault.
+                BreathingRule(
+                    accent = accent,
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
 
-            // A slow breathing accent line at the base. Subtle motion, per §8.8 —
-            // enough to read as "live" without competing with the counter.
-            BreathingRule(
-                accent = accent,
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
-
-            // The only control. 72dp so an operator can hit it, 35% opacity so
-            // it does not read as part of the presentation.
+            // The only control on the screen.
+            //
+            // This one is deliberately quieter than every other control in the
+            // app, and that is a considered exception rather than an oversight:
+            // this screen faces the LOBBY. Guests are looking at it. A gold
+            // hero button in the corner of an arrival display announces that
+            // the venue is running a piece of software, which is the opposite of
+            // what the display is for.
+            //
+            // But it was a 35%-opacity word with no edge and no shape, which is
+            // not a quiet control — it is an invisible one, and staff could not
+            // find it. It is now unmistakably a button at close range and still
+            // recedes from across a lobby: a rimmed pill on a scrim, readable
+            // text, and it moves when pressed.
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(72.dp)
-                    .clickable { confirmingExit = true },
+                    .padding(16.dp)
+                    .heightIn(min = 72.dp)
+                    .pressableSurface(
+                        onClick = { confirmingExit = true },
+                        shape = RoundedCornerShape(LocalDimens.current.cardRadius),
+                        container = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                        borderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        elevation = 2.dp,
+                    )
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     stringResource(R.string.entrance_exit),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                    // Was labelSmall at 35% alpha. Both are now at the app's
+                    // floors: no text below 16sp, and legible contrast.
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

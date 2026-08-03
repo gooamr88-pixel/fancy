@@ -128,7 +128,7 @@ fun FancyCheckinTheme(
     content: @Composable () -> Unit,
 ) {
     val dimens = currentDimens()
-    val compact = dimens === Dimens.Compact
+    val compact = dimens.compact
 
     MaterialTheme(
         // Dynamic colour is deliberately NOT used. The event's own brand colour

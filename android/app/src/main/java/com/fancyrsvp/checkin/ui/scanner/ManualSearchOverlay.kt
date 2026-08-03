@@ -1,7 +1,6 @@
 package com.fancyrsvp.checkin.ui.scanner
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
@@ -37,10 +35,13 @@ import androidx.compose.ui.unit.dp
 import com.fancyrsvp.checkin.R
 import com.fancyrsvp.checkin.data.repo.CheckInRepository
 import com.fancyrsvp.checkin.ui.components.BackToScannerBar
+import com.fancyrsvp.checkin.ui.components.Chevron
+import com.fancyrsvp.checkin.ui.components.pressableSurface
 import com.fancyrsvp.checkin.ui.theme.LocalDimens
 import com.fancyrsvp.checkin.ui.theme.StateAlready
 import com.fancyrsvp.checkin.ui.theme.StateVip
 import com.fancyrsvp.checkin.ui.theme.displayFamilyFor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /**
@@ -88,7 +89,21 @@ fun ManualSearchOverlay(
         }
         searching = true
         delay(180)
-        results = onSearch(query)
+        // This runs on the COMPOSITION's coroutine scope, which has no exception
+        // handler: anything the encrypted database throws — a corrupt page, a
+        // failed key read, a query error on a name with an unusual character —
+        // reaches the default uncaught handler and kills the process. The overlay
+        // is the fallback that makes every other failure survivable (§8.5), so it
+        // is the last thing in the app allowed to take it down.
+        results = try {
+            onSearch(query)
+        } catch (c: CancellationException) {
+            // Normal: the next keystroke cancelled this one. Re-thrown, or the
+            // debounce stops working.
+            throw c
+        } catch (_: Throwable) {
+            emptyList()
+        }
         searching = false
     }
 
@@ -152,6 +167,21 @@ fun ManualSearchOverlay(
     }
 }
 
+/**
+ * One match, as a control.
+ *
+ * ── Why it looks like a button now ──
+ *
+ * These rows were a tinted panel with text in it and nothing else — no edge, no
+ * shadow, no chevron, no press response. An usher who had found the right guest
+ * then had to guess that the guest's own name was the thing to tap, which is the
+ * one moment in the whole flow where hesitating is most expensive: the guest is
+ * standing there, the queue is behind them, and the row looks like a search
+ * result, because that is exactly what a search result looks like everywhere else.
+ *
+ * It is now the same object as every other control in the app — raised, rimmed,
+ * chevroned, and it moves when pressed.
+ */
 @Composable
 private fun SearchResultRow(
     party: CheckInRepository.PartyView,
@@ -163,10 +193,14 @@ private fun SearchResultRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 84.dp)
-            .clip(RoundedCornerShape(dimens.cardRadius))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick)
+            // Was 84dp. A row holding a name, a companion list, a table and a
+            // badge at arm's length needs the room, and the taller target is
+            // easier to hit while looking at the guest rather than the screen.
+            .heightIn(min = 96.dp)
+            .pressableSurface(
+                onClick = onClick,
+                shape = RoundedCornerShape(dimens.cardRadius),
+            )
             .padding(horizontal = 24.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -230,5 +264,11 @@ private fun SearchResultRow(
                 )
             }
         }
+
+        // The mark that says "tapping this goes somewhere". Same chevron, same
+        // direction, as every other forward move in the app — and the transition
+        // that follows confirms it.
+        Spacer(Modifier.width(16.dp))
+        Chevron(color = MaterialTheme.colorScheme.primary, pointsBack = false, iconSize = 26.dp)
     }
 }

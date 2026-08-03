@@ -34,8 +34,8 @@ android {
         // Android uses to decide an upgrade is an upgrade; versionName is what
         // the crash report prints, and without it a bug report cannot say which
         // build actually failed.
-        versionCode = 10
-        versionName = "1.2.0"
+        versionCode = 11
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

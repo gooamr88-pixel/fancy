@@ -28,6 +28,7 @@ class DeviceRepository @Inject constructor(
     private val api: CheckinApi,
     private val db: CheckinDatabase,
     private val secureStore: SecureStore,
+    private val eventImages: com.fancyrsvp.checkin.data.media.EventImageStore,
     private val io: CoroutineDispatcher,
 ) {
 
@@ -141,6 +142,13 @@ class DeviceRepository @Inject constructor(
 
         db.bundleDao().purgeGuestData(eventId)
         db.checkInDao().deleteForEvent(eventId)
+        // The photograph leaves WITH the guest list, not after it. It is a
+        // client's own picture of their wedding sitting on a tablet that gets
+        // hired out again next weekend, so it is covered by the same §20.5
+        // obligation as the names — and the file is outside the encrypted
+        // database, so nothing else would ever remove it.
+        eventImages.delete(eventId)
+        db.eventDao().clearCoverImage(eventId)
         db.eventDao().markNotReady(eventId)
         true
     }

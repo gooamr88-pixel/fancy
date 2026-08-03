@@ -142,6 +142,14 @@ data class BundleEventDto(
     val venue: String? = null,
     val venueAddress: String? = null,
     val brandingPrimaryColor: String? = null,
+    /**
+     * Absolute http(s) URL of the event's own photograph — the couple, on a
+     * wedding (§9.8). The same image the invitation uses.
+     *
+     * Null whenever the organizer never set one, which is normal and must render
+     * as the plain themed screens rather than as a gap.
+     */
+    val coverImageUrl: String? = null,
     val noKidsAllowed: Boolean = false,
 )
 

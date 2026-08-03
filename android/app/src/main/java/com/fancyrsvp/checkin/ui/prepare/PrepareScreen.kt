@@ -1,7 +1,6 @@
 package com.fancyrsvp.checkin.ui.prepare
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,10 +38,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.fancyrsvp.checkin.R
 import com.fancyrsvp.checkin.data.repo.BundleRepository
 import com.fancyrsvp.checkin.ui.components.Chevron
+import com.fancyrsvp.checkin.ui.components.EventCoverFrame
 import com.fancyrsvp.checkin.ui.components.PrimaryAction
 import com.fancyrsvp.checkin.ui.components.QuietAction
+import com.fancyrsvp.checkin.ui.components.ScrollableCenteredColumn
 import com.fancyrsvp.checkin.ui.components.SecondaryAction
 import com.fancyrsvp.checkin.ui.components.SectionLabel
+import com.fancyrsvp.checkin.ui.components.pressableSurface
+import com.fancyrsvp.checkin.ui.components.rememberEventCover
 import com.fancyrsvp.checkin.ui.theme.LocalDimens
 import com.fancyrsvp.checkin.ui.theme.StateAlready
 import com.fancyrsvp.checkin.ui.theme.StateAttention
@@ -86,47 +91,76 @@ fun PrepareScreen(
 
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(dimens.screenPadding),
+            modifier = Modifier
+                .fillMaxSize()
+                // Half the padding vertically. The app is locked to landscape, so
+                // height is always the scarce axis and the full inset is spent
+                // where there is least of it — on a phone, 24dp top and bottom is
+                // an eighth of the whole window given to empty margin.
+                .padding(
+                    horizontal = dimens.screenPadding,
+                    vertical = dimens.screenPadding * 0.5f,
+                ),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SectionLabel(stringResource(R.string.prepare_title))
             Spacer(Modifier.height(dimens.sectionGap))
 
             Box(Modifier.widthIn(max = 760.dp).weight(1f)) {
-                Column(
-                    Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    val currentProgress = progress
-                    when {
-                        // Progress replaces the card entirely while it runs. An
-                        // operator watching a 2000-guest download has exactly one
-                        // question, and a card behind the progress panel does not
-                        // help them answer it.
-                        currentProgress != null -> ProgressPanel(
+                /*
+                 * The scroll is applied per-branch rather than once around the
+                 * `when`, and that is not a style choice: three of these branches
+                 * are fixed columns and need one, but [EventPicker] owns a
+                 * LazyColumn, and a lazy list measured against an infinite height
+                 * throws rather than degrading.
+                 *
+                 * The card matters most here. Heading, date, guest count,
+                 * readiness sentence and a hero button do not fit a landscape
+                 * phone, and this is the screen an operator reads before deciding
+                 * whether they can leave for the venue.
+                 */
+                val currentProgress = progress
+                when {
+                    // Progress replaces the card entirely while it runs. An
+                    // operator watching a 2000-guest download has exactly one
+                    // question, and a card behind the progress panel does not
+                    // help them answer it.
+                    currentProgress != null -> ScrollableCenteredColumn(
+                        horizontalAlignment = Alignment.Start,
+                    ) {
+                        ProgressPanel(
                             progress = currentProgress,
                             onDismiss = viewModel::dismissProgress,
                         )
+                    }
 
-                        selected != null -> ReadyCard(
+                    selected != null -> ScrollableCenteredColumn(
+                        horizontalAlignment = Alignment.Start,
+                    ) {
+                        ReadyCard(
                             event = selected,
                             isBusy = preparingId == selected.id,
                             anyBusy = preparingId != null,
                             onPrepare = { viewModel.prepare(selected.id) },
                             onOpen = { onEventReady(selected.id) },
                         )
+                    }
 
-                        events.isEmpty() -> NothingAssigned(
+                    events.isEmpty() -> ScrollableCenteredColumn(
+                        horizontalAlignment = Alignment.Start,
+                    ) {
+                        NothingAssigned(
                             refreshing = refreshing,
                             error = listError,
                             onRefresh = viewModel::refresh,
                         )
-
-                        else -> EventPicker(
-                            events = events,
-                            onPick = { chosenId = it },
-                        )
                     }
+
+                    // Owns a LazyColumn. Already scrollable; must not be wrapped.
+                    else -> EventPicker(
+                        events = events,
+                        onPick = { chosenId = it },
+                    )
                 }
             }
 
@@ -178,6 +212,11 @@ private fun ReadyCard(
         PrepareViewModel.Readiness.NOT_PREPARED -> StateNeutral to stringResource(R.string.prepare_not_prepared)
     }
 
+    // Sized for the portrait it is: 168dp square on a tablet, 120 on a phone
+    // where the card has to share a much shorter window.
+    val portraitSize = if (dimens.compact) 120.dp else 168.dp
+    val cover = rememberEventCover(path = event.coverImagePath, targetWidth = portraitSize)
+
     Column(
         Modifier
             .fillMaxWidth()
@@ -185,27 +224,49 @@ private fun ReadyCard(
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(dimens.cardPadding),
     ) {
-        Text(
-            event.name,
-            style = MaterialTheme.typography.headlineLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = listOfNotNull(
-                event.venue,
-                DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-                    .format(Date(event.startsAt)),
-                event.totalInvited.takeIf { it > 0 }
-                    ?.let { stringResource(R.string.prepare_guest_count, it) },
-            ).joinToString("  ·  "),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
+        // The photograph BESIDE the name, not behind it.
+        //
+        // This card is read, not admired — an operator is checking a date, a
+        // venue and a guest count before they drive somewhere. Type over
+        // photography would cost legibility for no gain, so the picture sits
+        // alongside as a portrait and the text keeps its plain surface.
+        //
+        // It disappears entirely when the event has none, and the row collapses
+        // back to exactly the old layout rather than leaving a placeholder.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (cover != null) {
+                EventCoverFrame(
+                    image = cover,
+                    modifier = Modifier.size(portraitSize),
+                    cornerRadius = dimens.cardRadius * 0.7f,
+                )
+                Spacer(Modifier.width(dimens.cardPadding))
+            }
+
+            Column(Modifier.weight(1f)) {
+                Text(
+                    event.name,
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = listOfNotNull(
+                        event.venue,
+                        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
+                            .format(Date(event.startsAt)),
+                        event.totalInvited.takeIf { it > 0 }
+                            ?.let { stringResource(R.string.prepare_guest_count, it) },
+                    ).joinToString("  ·  "),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
 
         Spacer(Modifier.height(dimens.sectionGap))
 
@@ -291,9 +352,10 @@ private fun EventPicker(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 88.dp)
-                        .clip(RoundedCornerShape(dimens.cardRadius))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { onPick(event.id) }
+                        .pressableSurface(
+                            onClick = { onPick(event.id) },
+                            shape = RoundedCornerShape(dimens.cardRadius),
+                        )
                         .padding(horizontal = 24.dp, vertical = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -419,6 +481,7 @@ private fun progressText(progress: BundleRepository.Progress): String = when (pr
         progress.downloaded, progress.total, progress.page, progress.totalPages,
     )
     BundleRepository.Progress.Verifying -> stringResource(R.string.prepare_verifying)
+    BundleRepository.Progress.FetchingArtwork -> stringResource(R.string.prepare_fetching_artwork)
     BundleRepository.Progress.Promoting -> stringResource(R.string.prepare_promoting)
     is BundleRepository.Progress.Done -> stringResource(R.string.prepare_done, progress.recordCount)
     is BundleRepository.Progress.Failed -> failureText(progress.reason)

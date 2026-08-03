@@ -1,11 +1,8 @@
 package com.fancyrsvp.checkin.ui.close
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +22,7 @@ import com.fancyrsvp.checkin.R
 import com.fancyrsvp.checkin.ui.components.DestructiveAction
 import com.fancyrsvp.checkin.ui.components.PrimaryAction
 import com.fancyrsvp.checkin.ui.components.ScreenScaffold
+import com.fancyrsvp.checkin.ui.components.ScrollableCenteredColumn
 import com.fancyrsvp.checkin.ui.components.SecondaryAction
 import com.fancyrsvp.checkin.ui.theme.LocalDimens
 import com.fancyrsvp.checkin.ui.theme.StateAttention
@@ -39,9 +37,12 @@ import com.fancyrsvp.checkin.ui.theme.StateWelcome
  * look for the way around it. Those check-ins exist on this tablet and nowhere
  * else.
  *
- * The scroll the previous version needed is gone: the copy no longer competes
- * with the action for vertical space, so the confirm button cannot end up below
- * a fold on a small screen.
+ * The copy was cut back so it no longer competes with the action for vertical
+ * space, and the scroll was removed on the strength of that. It is back: cutting
+ * the copy shortened the CONTENT, but the "blocked" state still runs a heading,
+ * up to three lines and two stacked buttons, and a phone in landscape has about
+ * 270dp to put them in. Short content is still centred exactly as before — see
+ * [ScrollableCenteredColumn] — so nothing changes on a tablet.
  */
 @Composable
 fun CloseEventScreen(
@@ -59,10 +60,12 @@ fun CloseEventScreen(
         title = stringResource(R.string.close_title),
         onBackToScanner = onBackToScanner,
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
+        // The "blocked" state is the tallest thing on this screen — a heading, two
+        // or three explanatory lines, a hero button and a secondary — and it is
+        // also the state an operator is most likely to meet, because it appears
+        // whenever the queue has not drained. It does not fit a landscape phone,
+        // and clipping it takes away the retry button.
+        ScrollableCenteredColumn {
             Column(
                 modifier = Modifier.widthIn(max = 640.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,

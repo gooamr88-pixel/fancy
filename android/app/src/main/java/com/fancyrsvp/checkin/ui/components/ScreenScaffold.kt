@@ -2,8 +2,10 @@ package com.fancyrsvp.checkin.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -15,12 +17,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -126,20 +132,34 @@ fun BackToScannerBar(
     modifier: Modifier = Modifier,
 ) {
     val dimens = LocalDimens.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = pressLift(interactionSource, pressedScale = 0.985f)
 
     Column(modifier.fillMaxWidth()) {
+        // A 3dp rule in the accent, not a 1dp hairline in the outline colour. This
+        // is the seam between the page and the one control that is on every screen
+        // in the app; a divider-weight line made the bar look like the bottom of
+        // the content rather than like a separate thing to press.
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outline),
+                .height(3.dp)
+                .background(MaterialTheme.colorScheme.primary),
         )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = dimens.backBarHeight)
+                // Barely-there scale. The bar is full-bleed, so a 0.965 press would
+                // pull visible gaps in from both screen edges; the shift only has to
+                // be enough to confirm the tap landed.
+                .scale(scale)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .clickable(onClick = onClick)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick,
+                )
                 .padding(horizontal = dimens.screenPadding),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start,
@@ -154,6 +174,53 @@ fun BackToScannerBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/**
+ * Centred when it fits, scrollable when it does not.
+ *
+ * ── The problem this exists to end ──
+ *
+ * Every fixed-content screen in this app was a `Column` with
+ * `verticalArrangement = Center` inside a `fillMaxSize` box. That silently CLIPS
+ * whatever does not fit, and because the arrangement is centred it clips from
+ * BOTH ends — so what disappears first is the heading at the top and the button
+ * at the bottom, leaving explanatory prose and no way to act on it.
+ *
+ * The app is locked to landscape, where height is always the scarce axis, and
+ * nothing here ever scrolled. The PIN pad, the close-event confirmation and the
+ * prepare card are all taller than a phone's landscape content area.
+ *
+ * ── Why `heightIn(min = maxHeight)` and not just `verticalScroll` ──
+ *
+ * A `Column` inside `verticalScroll` is measured against an INFINITE maximum
+ * height, so its own `Arrangement.Center` has nothing to centre within and
+ * silently becomes a no-op — short content would jump to the top of the screen
+ * on every device that previously centred it correctly. Forcing a minimum height
+ * of the viewport gives the arrangement something to work against while still
+ * letting the column grow past it.
+ *
+ * NOT for content that contains a `LazyColumn` or any other lazy list: a lazy
+ * list measured with an unbounded height throws. Those screens are already
+ * scrollable by their own list and must not be wrapped in this.
+ */
+@Composable
+fun ScrollableCenteredColumn(
+    modifier: Modifier = Modifier,
+    horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = maxHeight),
+            horizontalAlignment = horizontalAlignment,
+            verticalArrangement = Arrangement.Center,
+            content = content,
+        )
     }
 }
 

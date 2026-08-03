@@ -42,6 +42,15 @@ class PrepareViewModel @Inject constructor(
         val totalInvited: Int,
         val readiness: Readiness,
         val lastSyncedAt: Long?,
+        /**
+         * Local path to the event's photograph, or null until it is downloaded.
+         *
+         * On this screen the picture is doing a job rather than decorating: a
+         * device is paired to exactly one event, and the way an operator confirms
+         * they armed the RIGHT tablet is by recognising it. A name and a date are
+         * checked by reading; a face is checked at a glance.
+         */
+        val coverImagePath: String?,
     )
 
     /**
@@ -176,6 +185,7 @@ class PrepareViewModel @Inject constructor(
             totalInvited = totalInvited,
             readiness = readiness,
             lastSyncedAt = lastFullSyncAt,
+            coverImagePath = coverImagePath,
         )
     }
 }

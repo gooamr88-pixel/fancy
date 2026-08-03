@@ -38,6 +38,17 @@ class EntranceDisplayViewModel @Inject constructor(
         val arrived: Int,
         val totalInvited: Int,
         val brandingColorHex: String?,
+        /**
+         * Local path to the event's photograph, or null (§9.8).
+         *
+         * A path, never a URL — this screen runs for hours at a venue with no
+         * internet, and the file was downloaded during preparation.
+         *
+         * Safe to show in a lobby, unlike everything else this view model
+         * deliberately withholds: it is the couple's own picture, already on the
+         * public invitation that every person in the room was sent.
+         */
+        val coverImagePath: String?,
     )
 
     private val _eventId = MutableStateFlow<String?>(null)
@@ -58,6 +69,7 @@ class EntranceDisplayViewModel @Inject constructor(
                             arrived = arrived,
                             totalInvited = it.totalInvited,
                             brandingColorHex = it.brandingPrimaryColor,
+                            coverImagePath = it.coverImagePath,
                         )
                     }
                 }

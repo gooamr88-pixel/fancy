@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -36,10 +35,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fancyrsvp.checkin.CrashLog
 import com.fancyrsvp.checkin.R
+import com.fancyrsvp.checkin.ui.components.CrashReportScreen
 import com.fancyrsvp.checkin.ui.components.PrimaryAction
 import com.fancyrsvp.checkin.ui.theme.LocalDimens
 
@@ -166,49 +165,8 @@ fun PairScreen(
     }
 }
 
-/**
- * The whole screen, given over to a crash from the previous run.
- *
- * A tablet at a venue has no adb, and the process simply vanishes — so this text
- * is the only account of what happened that anyone will ever get. It is
- * therefore full-screen and scrollable rather than tucked under the form, and
- * wrapped in a SelectionContainer so the operator can long-press, copy, and
- * paste it into a message instead of having to photograph and transcribe it.
- */
-@Composable
-private fun CrashReportScreen(report: String, onDismiss: () -> Unit) {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            Text(
-                text = stringResource(R.string.pair_previous_crash),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-            Spacer(Modifier.height(16.dp))
-
-            SelectionContainer {
-                Text(
-                    text = report,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
-            PrimaryAction(
-                text = stringResource(R.string.pair_dismiss_crash),
-                onClick = onDismiss,
-            )
-            Spacer(Modifier.height(24.dp))
-        }
-    }
-}
+// CrashReportScreen moved to ui/components/CrashReport.kt — the menu needs it too,
+// and this screen is unreachable once a tablet is paired.
 
 @Composable
 private fun pairErrorText(error: PairViewModel.State.Error): String = when (error.kind) {

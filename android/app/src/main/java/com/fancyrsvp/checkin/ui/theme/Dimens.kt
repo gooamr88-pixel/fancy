@@ -42,8 +42,35 @@ import androidx.compose.ui.unit.sp
  *
  * 600dp is Android's own compact/medium boundary and matches the 8-inch floor
  * in §4 — every 8-inch tablet reports 600dp or more in its shortest dimension.
+ *
+ * ── The axis this is measured on, and why it was wrong ──
+ *
+ * The boundary is tested against the SMALLEST of the two screen dimensions, not
+ * against the width. That distinction decides whether the app works on a phone
+ * at all.
+ *
+ * The activity is locked to landscape (§21.9). A modern phone in landscape
+ * reports roughly 870dp WIDE and 390dp TALL — so a width-only test classified
+ * every phone as a tablet and handed it the arm's-length metrics: 56dp screen
+ * padding, 96dp keypad keys, 88dp bars. The PIN pad alone is then 426dp tall
+ * inside a 280dp content area, which does not mean "slightly cramped" — it means
+ * the bottom row of keys is off the screen and a PIN cannot be typed at a door.
+ *
+ * Smallest-width is also exactly what Android's own `sw600dp` qualifier means, so
+ * this now agrees with the platform instead of inventing a second rule: a phone
+ * is compact in both orientations, a tablet is a tablet in both.
  */
 data class Dimens(
+    /**
+     * True for the compact set.
+     *
+     * Exposed so a screen can change its LAYOUT, not just its spacing — the menu
+     * drops a column, the PIN pad moves beside its heading. Read this rather than
+     * comparing against `Dimens.Compact` by identity, and never re-read
+     * `LocalConfiguration` in a screen: two components disagreeing about which
+     * size class they are in is worse than either choice.
+     */
+    val compact: Boolean,
     /** Outer padding on a full-screen column. */
     val screenPadding: Dp,
     /** Gap between major blocks. */
@@ -88,6 +115,7 @@ data class Dimens(
          * The product. An arm's-length scale for a tablet held at a door.
          */
         val Tablet = Dimens(
+            compact = false,
             screenPadding = 56.dp,
             sectionGap = 32.dp,
             cardPadding = 28.dp,
@@ -112,6 +140,10 @@ data class Dimens(
          * Note that [minTouch] does NOT shrink. It is a floor, not a scale.
          */
         val Compact = Dimens(
+            compact = true,
+            // Vertical space is the scarce axis on a phone: locked to landscape,
+            // a 390dp-tall window has to hold a heading, its content and an
+            // 72dp way home. Padding is the first thing to give.
             screenPadding = 24.dp,
             sectionGap = 20.dp,
             cardPadding = 18.dp,
@@ -119,7 +151,10 @@ data class Dimens(
             buttonHeight = 64.dp,
             heroButtonHeight = 72.dp,
             backBarHeight = 72.dp,
-            keypadKey = 72.dp,
+            // 4 rows x 64 + 3 x 10 = 286dp, which clears a phone's landscape
+            // content area. At the old 72dp it was 318dp and the bottom row —
+            // zero and backspace — sat below the fold.
+            keypadKey = 64.dp,
             keypadGap = 10.dp,
             codeFieldMin = 240.dp,
             codeFieldMax = 320.dp,
@@ -139,14 +174,19 @@ data class Dimens(
  */
 val LocalDimens = staticCompositionLocalOf { Dimens.Tablet }
 
-/** Picks the set for the current screen. Read this, never a raw dp literal. */
+/**
+ * Picks the set for the current screen. Read this, never a raw dp literal.
+ *
+ * Measured on the SMALLEST dimension — see the class doc. Using the width here
+ * classified every landscape phone as a tablet.
+ */
 @Composable
 @ReadOnlyComposable
-fun currentDimens(): Dimens =
-    if (LocalConfiguration.current.screenWidthDp >= COMPACT_WIDTH_BREAKPOINT) {
-        Dimens.Tablet
-    } else {
-        Dimens.Compact
-    }
+fun currentDimens(): Dimens {
+    val configuration = LocalConfiguration.current
+    val smallestWidth = minOf(configuration.screenWidthDp, configuration.screenHeightDp)
+    return if (smallestWidth >= COMPACT_WIDTH_BREAKPOINT) Dimens.Tablet else Dimens.Compact
+}
 
+/** Android's own `sw600dp` boundary. Named for the axis it is actually tested on. */
 const val COMPACT_WIDTH_BREAKPOINT = 600

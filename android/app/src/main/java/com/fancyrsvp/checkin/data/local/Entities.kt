@@ -33,6 +33,25 @@ data class EventEntity(
     /** Epoch millis. */
     val startsAt: Long,
     val brandingPrimaryColor: String?,
+    /**
+     * Where the event's photograph came from. Kept so a re-prepare can tell
+     * whether the organizer changed the picture and the cached copy is stale.
+     */
+    val coverImageUrl: String? = null,
+    /**
+     * Absolute path to the DOWNLOADED photograph on this device, or null.
+     *
+     * The path, not the bytes. A wedding cover is routinely 2–5MB and the
+     * database is SQLCipher-encrypted — putting it in a row would mean decrypting
+     * megabytes to draw one screen, and every query that touches `events` would
+     * carry it. The file lives in internal storage and is deleted by the same
+     * purge that clears the guest list (§20.5).
+     *
+     * Non-null means "downloaded and decodable", which is what the UI branches
+     * on. It is set only after the file is written and verified, so a half-
+     * finished download can never be rendered.
+     */
+    val coverImagePath: String? = null,
     val noKidsAllowed: Boolean,
     /** Derived server-side as count(guests); denormalised for the counter. */
     val totalInvited: Int,

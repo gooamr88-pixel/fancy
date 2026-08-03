@@ -39,8 +39,30 @@ interface EventDao {
     @Query("SELECT * FROM events WHERE id = :eventId")
     fun observe(eventId: String): Flow<EventEntity?>
 
+    /**
+     * The event this device is armed for, without needing its id.
+     *
+     * A device is paired to exactly one event (§18.3), so this is unambiguous in
+     * practice. Prefers a prepared one and falls back to the most imminent, for
+     * the window between pairing and the first successful bundle download —
+     * during which the row exists but `isReadyOffline` is still false.
+     */
+    @Query("SELECT * FROM events ORDER BY isReadyOffline DESC, startsAt ASC LIMIT 1")
+    suspend fun readyEvent(): EventEntity?
+
     @Query("UPDATE events SET bundleVersion = :version WHERE id = :eventId")
     suspend fun setBundleVersion(eventId: String, version: Long)
+
+    /**
+     * Forgets the event's photograph after the file has been deleted (§20.5).
+     *
+     * The row and the file are cleared together and in that order — a path
+     * pointing at a file that no longer exists would have every screen try to
+     * decode it once per composition and fall back silently, which looks exactly
+     * like an event that never had a picture but costs a disk hit each time.
+     */
+    @Query("UPDATE events SET coverImagePath = NULL, coverImageUrl = NULL WHERE id = :eventId")
+    suspend fun clearCoverImage(eventId: String)
 
     /**
      * Advances the applied check-in sequence.

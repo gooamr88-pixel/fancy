@@ -48,6 +48,7 @@ class BundleRepository @Inject constructor(
     private val api: CheckinApi,
     private val db: CheckinDatabase,
     private val secureStore: com.fancyrsvp.checkin.data.security.SecureStore,
+    private val eventImages: com.fancyrsvp.checkin.data.media.EventImageStore,
     private val io: CoroutineDispatcher,
 ) {
 
@@ -56,6 +57,18 @@ class BundleRepository @Inject constructor(
         data object FetchingManifest : Progress
         data class Downloading(val downloaded: Int, val total: Int, val page: Int, val totalPages: Int) : Progress
         data object Verifying : Progress
+
+        /**
+         * Fetching the event's photograph (§9.8).
+         *
+         * Its own state rather than part of [Promoting], because it is the one
+         * phase whose duration depends on a file of unknown size over the
+         * office's wifi. Folded into "Promoting" — which is otherwise a database
+         * transaction measured in milliseconds — a slow 5MB download presents as
+         * a frozen progress panel, and an operator who thinks preparation has
+         * hung will kill the app in the middle of it.
+         */
+        data object FetchingArtwork : Progress
         data object Promoting : Progress
         data class Done(val recordCount: Int) : Progress
         data class Failed(val reason: Failure) : Progress
@@ -146,6 +159,11 @@ class BundleRepository @Inject constructor(
                         venueAddress = dto.venueAddress,
                         startsAt = startsAt,
                         brandingPrimaryColor = dto.brandingPrimaryColor,
+                        // URL only. The file is fetched during preparation, not
+                        // here — a refresh is a metadata poll that may run
+                        // repeatedly, and it must not pull megabytes each time.
+                        coverImageUrl = dto.coverImageUrl,
+                        coverImagePath = null,
                         noKidsAllowed = dto.noKidsAllowed,
                         // The real figure, from the manifest the download will be
                         // verified against (§21.1). It also drives the pre-download
@@ -274,6 +292,28 @@ class BundleRepository @Inject constructor(
                 BundleIntegrity.Verification.Valid -> Unit
             }
 
+            /*
+             * The event's photograph, fetched while there is still internet
+             * (§9.8).
+             *
+             * Here rather than at first display, because first display is at a
+             * venue with no connectivity. This is the last moment the app is
+             * guaranteed to be online for this event.
+             *
+             * Deliberately NOT part of the integrity contract: it is downloaded
+             * after verification has already passed, and a failure returns null
+             * instead of throwing. A tablet with a complete, verified guest list
+             * and no picture is armed and correct; refusing to arm it over a
+             * decorative asset would be the wrong trade at 14:00 on the day.
+             *
+             * Announced only when there is actually something to fetch, so an
+             * event with no photograph does not flash a phase that does no work.
+             */
+            val coverPath = manifest.event.coverImageUrl?.let { url ->
+                onProgress(Progress.FetchingArtwork)
+                eventImages.download(eventId, url)
+            }
+
             onProgress(Progress.Promoting)
 
             // Parties are derived from the guest rows: the bundle is guest-shaped,
@@ -358,7 +398,7 @@ class BundleRepository @Inject constructor(
 
             // isReadyOffline is set ONLY here — after verification passed and the
             // promotion transaction committed (§21.1).
-            db.eventDao().upsert(manifest.toEventEntity(guests.size, existing))
+            db.eventDao().upsert(manifest.toEventEntity(guests.size, existing, coverPath))
 
             val done = Progress.Done(guests.size)
             onProgress(done)
@@ -485,6 +525,7 @@ class BundleRepository @Inject constructor(
     private fun BundleManifestDto.toEventEntity(
         guestCount: Int,
         previous: EventEntity?,
+        coverImagePath: String?,
     ) = EventEntity(
         id = event.id,
         name = event.name,
@@ -492,6 +533,11 @@ class BundleRepository @Inject constructor(
         venueAddress = event.venueAddress,
         startsAt = parseIsoMillis(event.startsAt) ?: previous?.startsAt ?: 0L,
         brandingPrimaryColor = event.brandingPrimaryColor,
+        coverImageUrl = event.coverImageUrl,
+        // Falls back to whatever was already cached. A re-prepare on venue-office
+        // wifi that cannot reach the image host must not blank a photograph the
+        // device successfully downloaded last week.
+        coverImagePath = coverImagePath ?: previous?.coverImagePath,
         noKidsAllowed = event.noKidsAllowed,
         totalInvited = guestCount,
         bundleVersion = bundleVersion,

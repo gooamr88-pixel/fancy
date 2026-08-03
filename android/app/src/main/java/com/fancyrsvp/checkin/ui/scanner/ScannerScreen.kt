@@ -13,9 +13,12 @@ import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -46,28 +49,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 // androidx.lifecycle.compose, not androidx.compose.ui.platform: the latter is
 // deprecated as of Compose 1.7 and resolves to a different instance in a
 // navigation graph, which would bind the camera to the wrong lifecycle.
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fancyrsvp.checkin.R
 import com.fancyrsvp.checkin.scan.QrAnalyzer
+import com.fancyrsvp.checkin.ui.components.CameraAction
 import com.fancyrsvp.checkin.ui.components.Chevron
+import com.fancyrsvp.checkin.ui.components.MagnifierIcon
 import com.fancyrsvp.checkin.ui.components.PrimaryAction
 import com.fancyrsvp.checkin.ui.components.SecondaryAction
 import com.fancyrsvp.checkin.ui.components.StatusDot
+import com.fancyrsvp.checkin.ui.components.TorchIcon
+import com.fancyrsvp.checkin.ui.components.pressLift
 import com.fancyrsvp.checkin.ui.theme.CameraScrim
 import com.fancyrsvp.checkin.ui.theme.Gold
 import com.fancyrsvp.checkin.ui.theme.LocalDimens
@@ -111,6 +123,7 @@ fun ScannerScreen(
     val context = LocalContext.current
     val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val dimens = LocalDimens.current
 
     val outcome by viewModel.outcome.collectAsState()
     val status by viewModel.status.collectAsState()
@@ -187,6 +200,32 @@ fun ScannerScreen(
     // a queue behind them.
     LaunchedEffect(outcome) { if (outcome == null) analyzer.reset() }
 
+    /*
+     * The chrome's real heights, measured rather than assumed.
+     *
+     * The viewfinder has to know what is drawn over the camera so its frame lands
+     * somewhere an usher can actually aim. The first version computed that from
+     * the theme — status-bar height, hero-button height, a shared padding
+     * constant — which is right until something CONDITIONAL appears. The 20%
+     * battery banner (§21.9) is exactly that: it is not in the theme, its height
+     * depends on how its text wraps, and when it shows the frame slid underneath
+     * it.
+     *
+     * Measuring removes the whole class of problem. Anything added to either bar
+     * later is accounted for automatically, and the two numbers cannot drift out
+     * of sync with the layout the way a duplicated constant can.
+     *
+     * Seeded with the theme estimate rather than zero: the chrome is composed
+     * AFTER the viewfinder, so a zero seed would size the frame to the whole
+     * screen for one frame and visibly snap. The estimate is already close, and
+     * the measurement corrects it before anyone could notice.
+     */
+    val density = LocalDensity.current
+    var topChrome by remember(dimens) { mutableStateOf(dimens.statusBarHeight) }
+    var bottomChrome by remember(dimens) {
+        mutableStateOf(dimens.heroButtonHeight + BOTTOM_BAR_PADDING * 2)
+    }
+
     Surface(modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
             if (hasCameraPermission) {
@@ -196,7 +235,7 @@ fun ScannerScreen(
                     lifecycleOwner = lifecycleOwner,
                     modifier = Modifier.fillMaxSize(),
                 )
-                Viewfinder()
+                Viewfinder(topInset = topChrome, bottomInset = bottomChrome)
             } else {
                 NoCameraFallback(
                     onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) },
@@ -204,7 +243,16 @@ fun ScannerScreen(
                 )
             }
 
-            Column(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    // Covers the status bar AND the battery banner, whether or not
+                    // the banner is showing and however many lines it wraps to.
+                    .onSizeChanged { size ->
+                        topChrome = with(density) { size.height.toDp() }
+                    },
+            ) {
                 StatusBar(
                     status = status,
                     onOpenMenu = onOpenMenu,
@@ -224,7 +272,11 @@ fun ScannerScreen(
                     torchOn = torchOn,
                     onToggleTorch = { torchOn = !torchOn },
                     onSearch = { showSearch = true },
-                    modifier = Modifier.align(Alignment.BottomCenter),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .onSizeChanged { size ->
+                            bottomChrome = with(density) { size.height.toDp() }
+                        },
                 )
             }
 
@@ -293,6 +345,16 @@ fun ScannerScreen(
  * KEEP_ONLY_LATEST because a backlog of stale frames is useless at a door — the
  * guest has already moved the card. Binding to the lifecycle owner means the
  * preview pauses when the app is backgrounded, which §11 requires for battery.
+ *
+ * ── Why every camera call here is guarded ──
+ *
+ * This block runs on the main executor, NOT inside a coroutine, so `safeLaunch`
+ * does nothing for it: an uncaught throw goes straight to the default handler and
+ * the process dies with no dialog. And camera bring-up throws for reasons that
+ * have nothing to do with this app being correct — another process holding the
+ * camera, a vendor HAL that fails to initialise, the operator leaving the screen
+ * before the provider future resolves. At a venue every one of those was the app
+ * disappearing mid-shift.
  */
 @Composable
 private fun CameraPreview(
@@ -304,12 +366,30 @@ private fun CameraPreview(
     val executor = remember { Executors.newSingleThreadExecutor() }
     var camera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
 
-    DisposableEffect(Unit) { onDispose { executor.shutdown() } }
+    // Retained so the use cases can be DETACHED before the analysis executor is
+    // shut down. Without the unbind, CameraX goes on delivering frames to an
+    // executor that no longer accepts work — a RejectedExecutionException raised
+    // on a camera thread, which is another silent process kill. It fired on the
+    // way back from the menu, when the previous binding is re-attached to a
+    // lifecycle that has just come round again.
+    var provider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            runCatching { provider?.unbindAll() }
+            executor.shutdown()
+        }
+    }
 
     LaunchedEffect(torchOn, camera) {
-        val control = camera?.cameraControl
-        if (control != null && camera?.cameraInfo?.hasFlashUnit() == true) {
-            control.enableTorch(torchOn)
+        // enableTorch on a camera that has just been unbound throws rather than
+        // returning a failed future on some devices, and the torch is the control
+        // staff hit most often in a dark venue.
+        runCatching {
+            val control = camera?.cameraControl
+            if (control != null && camera?.cameraInfo?.hasFlashUnit() == true) {
+                control.enableTorch(torchOn)
+            }
         }
     }
 
@@ -322,23 +402,39 @@ private fun CameraPreview(
 
             val providerFuture = ProcessCameraProvider.getInstance(ctx)
             providerFuture.addListener({
-                val provider = providerFuture.get()
+                runCatching {
+                    // The future resolves asynchronously. If the operator has moved
+                    // on in the meantime, binding to a destroyed lifecycle throws —
+                    // so check first and simply do nothing.
+                    if (lifecycleOwner.lifecycle.currentState == Lifecycle.State.DESTROYED) {
+                        return@runCatching
+                    }
 
-                val preview = Preview.Builder().build().also {
-                    it.setSurfaceProvider(previewView.surfaceProvider)
+                    // .get() on a failed future throws ExecutionException, wrapping
+                    // whatever the camera stack objected to.
+                    val cameraProvider = providerFuture.get()
+                    provider = cameraProvider
+
+                    val preview = Preview.Builder().build().also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
+                    val analysis = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
+                        .also { it.setAnalyzer(executor, analyzer) }
+
+                    cameraProvider.unbindAll()
+                    camera = cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        preview,
+                        analysis,
+                    )
                 }
-                val analysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-                    .also { it.setAnalyzer(executor, analyzer) }
-
-                provider.unbindAll()
-                camera = provider.bindToLifecycle(
-                    lifecycleOwner,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
-                    preview,
-                    analysis,
-                )
+                // Failure leaves `camera` null and the preview black. The status bar,
+                // the counter, MENU and SEARCH BY NAME are all drawn over this and
+                // stay live, so the door keeps working by name — which is exactly the
+                // degradation §8.3 asks for when the camera is unavailable.
             }, ContextCompat.getMainExecutor(ctx))
 
             previewView
@@ -356,11 +452,45 @@ private fun CameraPreview(
  *
  * Sized from the screen rather than fixed at 300dp, so it stays proportionate on
  * both a 7-inch spare and a 13-inch tablet.
+ *
+ * ── Why it takes the chrome's insets ──
+ *
+ * It used to size itself from the WHOLE screen height and centre in it, as if
+ * nothing else were drawn. On a tablet the slack absorbed that. On a landscape
+ * phone — 390dp tall, of which the status bar and the control row already own
+ * about 200 — the frame ran under both, and "Hold the guest's code inside the
+ * frame" was printed underneath the search button where it could not be read.
+ *
+ * The brackets mark where an usher is being asked to hold a guest's card. A
+ * frame that overlaps the chrome is not a cosmetic problem: it points at a place
+ * the camera cannot usefully see.
+ *
+ * @param topInset height of the status bar drawn above this.
+ * @param bottomInset height of the control row drawn below it.
  */
 @Composable
-private fun Viewfinder() {
-    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        val side = minOf(maxHeight * 0.62f, 360.dp)
+private fun Viewfinder(topInset: Dp, bottomInset: Dp) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = topInset, bottom = bottomInset),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Room for the gap and one line of the hint inside its scrim.
+        val hintSpace = 76.dp
+        // Below this there is no honest way to show both, and the frame is what
+        // matters — an usher who can see where to hold the card does not need to
+        // be told to.
+        val showHint = maxHeight > 240.dp
+
+        val side = minOf(
+            // Bounded by BOTH axes. Height alone was fine on a tablet, where
+            // there is always more width than height; on a narrow window it
+            // produced a frame wider than the screen.
+            if (showHint) maxHeight - hintSpace else maxHeight * 0.92f,
+            maxWidth * 0.6f,
+            360.dp,
+        ).coerceAtLeast(120.dp)
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Canvas(Modifier.size(side)) {
@@ -393,16 +523,21 @@ private fun Viewfinder() {
                 corner(right, bottom, -arm, -arm)
             }
 
-            Spacer(Modifier.height(24.dp))
-            Text(
-                stringResource(R.string.scanner_hint),
-                style = MaterialTheme.typography.titleMedium,
-                color = OnCamera,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CameraScrim)
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-            )
+            if (showHint) {
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    stringResource(R.string.scanner_hint),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = OnCamera,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CameraScrim)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                )
+            }
         }
     }
 }
@@ -510,24 +645,39 @@ private fun StatusBar(
         // The fix that matters most in this file. Everything that is not needed
         // at the door lives behind this control, and it is a labelled word, not
         // a hamburger, not a gesture, not a tap on something that looks inert.
+        //
+        // It fills the bar's height rather than floating inside it, so it cannot
+        // be mistaken for a badge — but it now separates from the bar with its own
+        // rim and a press response, which a flat gold block against a dark scrim
+        // did not have.
+        val menuInteraction = remember { MutableInteractionSource() }
+        val menuScale = pressLift(menuInteraction, pressedScale = 0.94f)
         Row(
             modifier = Modifier
                 .fillMaxHeight()
-                .widthIn(min = 150.dp)
+                .widthIn(min = 170.dp)
+                .scale(menuScale)
                 .background(Gold)
-                .clickable(onClick = onOpenMenu)
+                .border(BorderStroke(2.dp, Color.White.copy(alpha = 0.45f)))
+                .clickable(
+                    interactionSource = menuInteraction,
+                    indication = null,
+                    onClick = onOpenMenu,
+                )
                 .padding(horizontal = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
             Text(
                 stringResource(R.string.nav_menu),
-                style = MaterialTheme.typography.labelMedium,
+                // Was labelMedium — the same caption size as the freshness note it
+                // sits beside, on the only way into every other screen in the app.
+                style = MaterialTheme.typography.titleMedium,
                 color = Color.White,
                 maxLines = 1,
             )
-            Spacer(Modifier.width(8.dp))
-            Chevron(color = Color.White, pointsBack = false, iconSize = 22.dp)
+            Spacer(Modifier.width(10.dp))
+            Chevron(color = Color.White, pointsBack = false, iconSize = 24.dp)
         }
     }
 }
@@ -572,9 +722,25 @@ private fun FreshnessLabel(lastSyncedAt: Long?) {
  * Exactly two controls, always visible, always in the same place.
  *
  * Torch and search. Nothing else earns a permanent place at the bottom of the
- * screen — everything else is behind MENU. Both are words rather than icons: a
- * pictogram of a torch is a guess, and staff hired an hour ago read faster than
- * they decode.
+ * screen — everything else is behind MENU. Both carry their WORD as the label; the
+ * drawn icon beside it is a second cue for finding the control, never the label
+ * itself.
+ *
+ * ── Why SEARCH BY NAME is the biggest thing on this bar ──
+ *
+ * It is the fallback that makes every other failure at the door survivable
+ * (§8.5, §10): a printed code that is creased, a phone screen too dim to read, a
+ * guest who never opened their invitation at all. Every one of those ends with an
+ * usher needing this control, usually with a queue already forming and a guest
+ * watching them hunt for it.
+ *
+ * Both controls used to be the same 72dp slab with a 16sp caption in it, one
+ * slightly wider than the other, and neither carried a shadow or an edge. Over a
+ * bright entrance they read as two coloured smudges. The search control is now
+ * unambiguously the largest, brightest, most raised thing on the screen after the
+ * viewfinder itself: hero height, gold, 2dp rim, a real shadow, titleLarge type,
+ * and a magnifier beside the words. It is meant to be findable without looking
+ * for it.
  */
 @Composable
 private fun BottomControls(
@@ -583,58 +749,37 @@ private fun BottomControls(
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dimens = LocalDimens.current
-
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 24.dp, vertical = BOTTOM_BAR_PADDING),
         horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.Bottom,
     ) {
-        Box(
-            Modifier
-                .weight(1f)
-                .heightIn(min = dimens.buttonHeight)
-                .clip(RoundedCornerShape(dimens.cardRadius))
-                // The torch is the one control whose STATE matters at a glance:
-                // an usher must be able to see whether the light is already on
-                // without toggling it to find out. On is solid gold; off is a
-                // dark panel.
-                .background(if (torchOn) Gold else CameraScrim)
-                .clickable(onClick = onToggleTorch)
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                stringResource(
-                    if (torchOn) R.string.scanner_torch_off else R.string.scanner_torch_on,
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = if (torchOn) Color.White else OnCamera,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
-        }
+        // The torch is the one control whose STATE matters at a glance: an usher
+        // must be able to see whether the light is already on without toggling it
+        // to find out. On is solid gold; off is a dark panel.
+        CameraAction(
+            text = stringResource(
+                if (torchOn) R.string.scanner_torch_off else R.string.scanner_torch_on,
+            ),
+            onClick = onToggleTorch,
+            containerColor = if (torchOn) Gold else CameraScrim,
+            contentColor = if (torchOn) Color.White else OnCamera,
+            icon = { tint -> TorchIcon(color = tint) },
+            modifier = Modifier.weight(1f),
+        )
 
-        Box(
-            Modifier
-                .weight(1.4f)
-                .heightIn(min = dimens.buttonHeight)
-                .clip(RoundedCornerShape(dimens.cardRadius))
-                .background(Gold)
-                .clickable(onClick = onSearch)
-                .padding(horizontal = 20.dp, vertical = 18.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                stringResource(R.string.scanner_search),
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-            )
-        }
+        CameraAction(
+            text = stringResource(R.string.scanner_search),
+            onClick = onSearch,
+            prominent = true,
+            icon = { tint -> MagnifierIcon(color = tint, iconSize = 34.dp) },
+            // 2:1 against the torch. The weights were 1.4:1, which is not a
+            // difference anyone perceives as a hierarchy — it just looked like two
+            // buttons that failed to line up.
+            modifier = Modifier.weight(2f),
+        )
     }
 }
 
@@ -687,3 +832,13 @@ private fun NoCameraFallback(
         )
     }
 }
+
+/**
+ * Vertical inset around the bottom control row.
+ *
+ * Still named rather than a literal, but it is no longer load-bearing: the
+ * viewfinder MEASURES the control row now instead of reconstructing its height
+ * from this. It survives only as the first-frame estimate, so getting it slightly
+ * wrong costs a barely perceptible settle rather than an overlapping frame.
+ */
+private val BOTTOM_BAR_PADDING = 20.dp

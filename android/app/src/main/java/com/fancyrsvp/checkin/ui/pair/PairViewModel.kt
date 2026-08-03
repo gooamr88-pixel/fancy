@@ -1,7 +1,6 @@
 package com.fancyrsvp.checkin.ui.pair
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.repo.DeviceRepository
 import com.fancyrsvp.checkin.util.readable
 import com.fancyrsvp.checkin.util.safeLaunch
@@ -9,7 +8,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**

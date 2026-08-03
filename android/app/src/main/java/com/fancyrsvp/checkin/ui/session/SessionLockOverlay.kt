@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,8 +28,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.fancyrsvp.checkin.R
+import com.fancyrsvp.checkin.ui.components.EventCoverFrame
 import com.fancyrsvp.checkin.ui.components.PinDots
+import com.fancyrsvp.checkin.ui.components.PinKeypad
+import com.fancyrsvp.checkin.ui.components.ScrollableCenteredColumn
 import com.fancyrsvp.checkin.ui.components.SecondaryAction
+import com.fancyrsvp.checkin.ui.components.rememberEventCover
 import com.fancyrsvp.checkin.ui.theme.LocalDimens
 
 /**
@@ -54,7 +57,9 @@ fun SessionLockOverlay(
 ) {
     val state by viewModel.state.collectAsState()
     val staffName by viewModel.staffName.collectAsState()
+    val coverPath by viewModel.coverImagePath.collectAsState()
     var pin by remember { mutableStateOf("") }
+    val dimens = LocalDimens.current
 
     // LaunchedEffect, not a bare call: composition can run any number of times and
     // must stay free of side effects. Invoking the callback inline fires it again
@@ -73,112 +78,119 @@ fun SessionLockOverlay(
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .padding(LocalDimens.current.screenPadding)
-                .widthIn(max = 640.dp),
+        /*
+         * Two columns, and scrolled — the same shape as the login screen's PIN
+         * entry, for the same reason and with more at stake.
+         *
+         * Stacked, this ran a heading, a body line, the dots, a status line, a
+         * four-row keypad and a sign-out button down one column: over 700dp. A
+         * phone in landscape has around 340dp here. The bottom of that column is
+         * the keypad and the way to hand the tablet over, so an operator who let
+         * the screen lock at a venue could not unlock it OR pass it to a
+         * supervisor. There is no way out of that except restarting the app.
+         */
+        ScrollableCenteredColumn(
+            modifier = Modifier.padding(
+                horizontal = dimens.screenPadding,
+                vertical = dimens.screenPadding * 0.5f,
+            ),
         ) {
-            Text(
-                stringResource(R.string.session_locked_title),
-                style = MaterialTheme.typography.headlineLarge,
-            )
-            Spacer(Modifier.height(12.dp))
-            Text(
-                stringResource(R.string.session_locked_body, staffName ?: ""),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            PinDots(entered = pin.length, length = PIN_LENGTH)
-
-            Spacer(Modifier.height(16.dp))
-
-            when (val current = state) {
-                SessionLockViewModel.State.Verifying -> {
-                    CircularProgressIndicator()
-                    Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.login_verifying))
-                }
-                is SessionLockViewModel.State.WrongPin -> Text(
-                    stringResource(R.string.login_wrong_pin, current.attemptsRemaining),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                is SessionLockViewModel.State.LockedOut -> Text(
-                    stringResource(R.string.login_locked_out),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
-                )
-                else -> Spacer(Modifier.height(28.dp))
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            Keypad(
-                enabled = state !is SessionLockViewModel.State.Verifying,
-                onDigit = { digit ->
-                    if (pin.length < PIN_LENGTH) {
-                        pin += digit
-                        if (pin.length == PIN_LENGTH) {
-                            viewModel.submit(pin)
-                            pin = ""
+            Row(
+                modifier = Modifier.widthIn(max = 900.dp),
+                horizontalArrangement = Arrangement.spacedBy(32.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    // The couple, as a disc above the prompt (§9.8).
+                    //
+                    // Hidden on a compact screen: a landscape phone has about
+                    // 340dp here and every one of them is already spoken for by
+                    // the prompt and the keypad. A picture that pushes a key off
+                    // the bottom is worse than no picture.
+                    if (!dimens.compact) {
+                        val cover = rememberEventCover(path = coverPath, targetWidth = 96.dp)
+                        if (cover != null) {
+                            EventCoverFrame(
+                                image = cover,
+                                modifier = Modifier.size(96.dp),
+                                cornerRadius = 48.dp,
+                            )
+                            Spacer(Modifier.height(20.dp))
                         }
                     }
-                },
-                onBackspace = { if (pin.isNotEmpty()) pin = pin.dropLast(1) },
-            )
 
-            Spacer(Modifier.height(24.dp))
+                    Text(
+                        stringResource(R.string.session_locked_title),
+                        style = MaterialTheme.typography.headlineLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.session_locked_body, staffName ?: ""),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
 
-            // One tap to hand the tablet over — §18.5. Signing out is always
-            // available, because a supervisor arriving to relieve an usher must
-            // not need the usher's PIN first.
-            SecondaryAction(
-                text = stringResource(R.string.session_switch_staff),
-                onClick = {
-                    viewModel.signOut()
-                    onSwitchStaff()
-                },
-            )
-        }
-    }
-}
+                    Spacer(Modifier.height(24.dp))
 
-@Composable
-private fun Keypad(
-    enabled: Boolean,
-    onDigit: (Char) -> Unit,
-    onBackspace: () -> Unit,
-) {
-    // Same sizing rule as the login keypad: fixed 88dp keys overflowed a small
-    // screen and clipped the right-hand column, which makes the tablet
-    // impossible to unlock rather than merely cramped.
-    val dimens = LocalDimens.current
+                    PinDots(entered = pin.length, length = PIN_LENGTH)
 
-    Column(verticalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
-        listOf("123", "456", "789").forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
-                row.forEach { digit -> Key(digit.toString(), enabled) { onDigit(digit) } }
+                    Spacer(Modifier.height(16.dp))
+
+                    when (val current = state) {
+                        SessionLockViewModel.State.Verifying -> {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(8.dp))
+                            Text(stringResource(R.string.login_verifying))
+                        }
+                        is SessionLockViewModel.State.WrongPin -> Text(
+                            stringResource(R.string.login_wrong_pin, current.attemptsRemaining),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                        )
+                        is SessionLockViewModel.State.LockedOut -> Text(
+                            stringResource(R.string.login_locked_out),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                        )
+                        else -> Spacer(Modifier.height(28.dp))
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    // One tap to hand the tablet over — §18.5. Signing out is
+                    // always available, because a supervisor arriving to relieve
+                    // an usher must not need the usher's PIN first.
+                    SecondaryAction(
+                        text = stringResource(R.string.session_switch_staff),
+                        onClick = {
+                            viewModel.signOut()
+                            onSwitchStaff()
+                        },
+                    )
+                }
+
+                PinKeypad(
+                    enabled = state !is SessionLockViewModel.State.Verifying,
+                    onDigit = { digit ->
+                        if (pin.length < PIN_LENGTH) {
+                            pin += digit
+                            if (pin.length == PIN_LENGTH) {
+                                viewModel.submit(pin)
+                                pin = ""
+                            }
+                        }
+                    },
+                    onBackspace = { if (pin.isNotEmpty()) pin = pin.dropLast(1) },
+                )
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(dimens.keypadGap)) {
-            Spacer(Modifier.size(dimens.keypadKey))
-            Key("0", enabled) { onDigit('0') }
-            Key(stringResource(R.string.keypad_backspace), enabled) { onBackspace() }
-        }
-    }
-}
-
-@Composable
-private fun Key(label: String, enabled: Boolean, onClick: () -> Unit) {
-    val dimens = LocalDimens.current
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.size(dimens.keypadKey)) {
-        Text(label, fontSize = dimens.keypadFontSize)
     }
 }
 

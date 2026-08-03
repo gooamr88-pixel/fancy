@@ -44,8 +44,32 @@ class SessionLockViewModel @Inject constructor(
     private val _staffName = MutableStateFlow<String?>(null)
     val staffName: StateFlow<String?> = _staffName.asStateFlow()
 
+    /**
+     * The event's photograph, for the lock screen (§9.8).
+     *
+     * Read from the events table rather than passed in, because the session
+     * carries no event id — and it does not need to. A device is paired to
+     * exactly ONE event (§18.3), so there is nothing to disambiguate.
+     *
+     * On this screen the picture answers a real question. A locked tablet found
+     * on a table says only "enter your PIN"; with the couple on it, whoever
+     * picked it up knows which event it belongs to and where to return it. That
+     * is also why it is the photograph and not the guest list — the picture is
+     * already public on the invitation, and the names are the thing the lock
+     * exists to hide.
+     */
+    private val _coverImagePath = MutableStateFlow<String?>(null)
+    val coverImagePath: StateFlow<String?> = _coverImagePath.asStateFlow()
+
     init {
         _staffName.value = sessionManager.session.value?.displayName
+        // Guarded: a database that will not open must leave the operator a
+        // working PIN pad, not a lock screen that took the process down.
+        safeLaunch {
+            _coverImagePath.value = withContext(io) {
+                db.eventDao().readyEvent()?.coverImagePath
+            }
+        }
     }
 
     fun submit(pin: String) {

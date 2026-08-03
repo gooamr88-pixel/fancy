@@ -35,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -49,8 +48,8 @@ import com.fancyrsvp.checkin.ui.components.PrimaryAction
 import com.fancyrsvp.checkin.ui.components.QuietAction
 import com.fancyrsvp.checkin.ui.components.SecondaryAction
 import com.fancyrsvp.checkin.ui.components.SectionLabel
+import com.fancyrsvp.checkin.ui.components.pressableSurface
 import com.fancyrsvp.checkin.ui.theme.BandAlready
-import com.fancyrsvp.checkin.ui.theme.Dimens
 import com.fancyrsvp.checkin.ui.theme.LocalDimens
 import com.fancyrsvp.checkin.ui.theme.Motion
 import com.fancyrsvp.checkin.ui.theme.StateAlready
@@ -322,7 +321,7 @@ private fun GuestName(name: String, color: Color) {
  */
 @Composable
 private fun TableBlock(tableName: String?, color: Color) {
-    val compact = LocalDimens.current === Dimens.Compact
+    val compact = LocalDimens.current.compact
 
     if (tableName.isNullOrBlank()) {
         Text(
@@ -569,12 +568,24 @@ private fun MemberRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(dimens.cardRadius))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .heightIn(min = dimens.minTouch)
             // The whole row is the target, not just the checkbox. A 24dp
             // checkbox is not a touch target on a tablet held in one hand.
-            .clickable(enabled = !member.alreadyArrived, onClick = onToggle)
-            .heightIn(min = dimens.minTouch)
+            //
+            // A selected row is rimmed in the accent, so which people are about
+            // to be admitted is legible from the rim alone — the checkbox is
+            // 24dp of state on a screen read at arm's length.
+            .pressableSurface(
+                onClick = onToggle,
+                shape = RoundedCornerShape(dimens.cardRadius),
+                borderColor = if (checked) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                },
+                borderWidth = if (checked) 2.dp else 1.dp,
+                enabled = !member.alreadyArrived,
+            )
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

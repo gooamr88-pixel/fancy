@@ -1,7 +1,6 @@
 package com.fancyrsvp.checkin.ui.guests
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +41,7 @@ import com.fancyrsvp.checkin.R
 import com.fancyrsvp.checkin.ui.components.EmptyState
 import com.fancyrsvp.checkin.ui.components.ScreenScaffold
 import com.fancyrsvp.checkin.ui.components.SecondaryAction
+import com.fancyrsvp.checkin.ui.components.pressableSurface
 import com.fancyrsvp.checkin.ui.theme.LocalDimens
 import com.fancyrsvp.checkin.ui.theme.StateNeutral
 import com.fancyrsvp.checkin.ui.theme.StateVip
@@ -171,6 +171,11 @@ fun GuestListScreen(
  *
  * M3's chip is 32dp tall with a 14sp label. Both are below this app's floors,
  * and neither is overridable without fighting the component's internal padding.
+ *
+ * Selection is carried by fill AND by rim weight, not by fill alone: a selected
+ * chip is solid gold with a 2dp edge, an unselected one is a pale surface with a
+ * hairline. Under warm venue light the two fills alone were close enough that a
+ * supervisor could not tell which filter was active without changing it.
  */
 @Composable
 private fun Chip(
@@ -182,12 +187,21 @@ private fun Chip(
     Box(
         modifier = Modifier
             .heightIn(min = dimens.minTouch)
-            .clip(RoundedCornerShape(dimens.cardRadius))
-            .background(
-                if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant,
+            .pressableSurface(
+                onClick = onClick,
+                shape = RoundedCornerShape(dimens.cardRadius),
+                container = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
+                borderColor = if (selected) {
+                    Color.White.copy(alpha = 0.45f)
+                } else {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                },
+                borderWidth = if (selected) 2.dp else 1.dp,
             )
-            .clickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 16.dp),
         contentAlignment = Alignment.Center,
     ) {

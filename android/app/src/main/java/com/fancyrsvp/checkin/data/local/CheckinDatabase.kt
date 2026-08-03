@@ -42,7 +42,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
         VenueTableEntity::class,
         ConflictEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class CheckinDatabase : RoomDatabase() {
@@ -62,14 +62,43 @@ abstract class CheckinDatabase : RoomDatabase() {
         const val NAME = "fancy_checkin.db"
 
         /**
-         * All migrations, in order. Empty at v1.
+         * v1 → v2: the event's photograph (§9.8).
+         *
+         * Two nullable TEXT columns on `events`. ADD COLUMN is the safest change
+         * SQLite offers — no table rebuild, no data movement, and nothing to lose
+         * if the process dies mid-statement. Existing rows get NULL, which every
+         * reader already treats as "this event has no picture".
+         *
+         * `coverImagePath` holds a FILE PATH, never image bytes. See EventEntity.
+         *
+         * Deliberately does not touch check-in or queue tables. A tablet upgrading
+         * overnight before an event is holding arrivals that exist nowhere else
+         * (§21.2), and a migration that only appends nullable columns cannot
+         * endanger them.
+         */
+        private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                // No `DEFAULT NULL` clause, deliberately. A nullable column added
+                // by ALTER TABLE is already NULL for every existing row, so it buys
+                // nothing — and it makes SQLite record a default that the entity
+                // does not declare, which is a shape Room's schema validation
+                // compares. Writing the default only in the migration is a classic
+                // way to fail `runMigrationsAndValidate` on a change that is
+                // otherwise correct.
+                db.execSQL("ALTER TABLE events ADD COLUMN coverImageUrl TEXT")
+                db.execSQL("ALTER TABLE events ADD COLUMN coverImagePath TEXT")
+            }
+        }
+
+        /**
+         * All migrations, in order.
          *
          * When this grows: every entry must have a matching test in
          * androidTest/MigrationTest.kt that runs against the committed schema
          * JSON for the PREVIOUS version. A migration with no test is how a
          * fleet of tablets loses a night's check-ins.
          */
-        val MIGRATIONS = emptyArray<androidx.room.migration.Migration>()
+        val MIGRATIONS = arrayOf<androidx.room.migration.Migration>(MIGRATION_1_2)
 
         /**
          * Loads SQLCipher's native library. Idempotent — the JVM ignores repeat

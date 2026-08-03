@@ -22,9 +22,9 @@ t.beforeEach(() => mock.reset());
  * The `guests` table is queried twice with different shapes (once for the hash
  * over the full set, once per page), so this returns the manifest-shaped rows.
  */
-const manifestResolver = ({ guests = [], checkIns = [], staff = [], tables = [], changes = [] } = {}) => (s) => {
+const manifestResolver = ({ guests = [], checkIns = [], staff = [], tables = [], changes = [], event = {} } = {}) => (s) => {
   if (s.table === 'events') {
-    return { data: { id: EVENT, title: 'Nadia & Omar', event_date: '2026-08-01T18:00:00Z', location_name: 'Grand Hall', custom_colors: { primary: '#B8944F' }, no_kids_allowed: true } };
+    return { data: { id: EVENT, title: 'Nadia & Omar', event_date: '2026-08-01T18:00:00Z', location_name: 'Grand Hall', custom_colors: { primary: '#B8944F' }, no_kids_allowed: true, ...event } };
   }
   if (s.table === 'guests' && s.op === 'select') return { data: guests };
   if (s.table === 'check_ins' && s.op === 'select') return { data: checkIns };
@@ -164,6 +164,49 @@ test('branding colour is extracted from custom_colors', async () => {
   assert.equal(m.event.brandingPrimaryColor, '#B8944F');
   assert.equal(m.event.venue, 'Grand Hall');
   assert.equal(m.event.noKidsAllowed, true);
+});
+
+// ══════════════════════════════════════════════════════════════════
+// The event photograph (§9.8)
+// ══════════════════════════════════════════════════════════════════
+
+test('the cover photograph is carried on the manifest so the device can cache it', async () => {
+  mock.setResolver(manifestResolver({
+    guests: [],
+    event: { cover_image_url: 'https://cdn.fancyrsvp.com/events/nadia-omar.jpg' },
+  }));
+  const m = await svc.getBundleManifest(EVENT);
+  assert.equal(m.event.coverImageUrl, 'https://cdn.fancyrsvp.com/events/nadia-omar.jpg');
+});
+
+test('an event with no photograph reports null rather than omitting the field', async () => {
+  mock.setResolver(manifestResolver({ guests: [] }));
+  const m = await svc.getBundleManifest(EVENT);
+  assert.equal(m.event.coverImageUrl, null);
+});
+
+/**
+ * The device downloads this once, at an office, and renders it offline at a
+ * venue. Anything it cannot fetch must be nulled HERE — a `data:` URI or a
+ * relative path shipped to the tablet becomes a missing photograph at a wedding
+ * with nobody present who can explain it.
+ */
+test('a non-https cover value is nulled rather than shipped to a device that cannot fetch it', async () => {
+  const rejected = [
+    'data:image/png;base64,iVBORw0KGgo=',
+    '/uploads/cover.jpg',
+    'javascript:alert(1)',
+    // Cleartext is refused by the app's own network security config, so an
+    // http:// address would fail on the device no matter what.
+    'http://cdn.fancyrsvp.com/cover.jpg',
+    '   ',
+    null,
+  ];
+  for (const bad of rejected) {
+    mock.setResolver(manifestResolver({ guests: [], event: { cover_image_url: bad } }));
+    const m = await svc.getBundleManifest(EVENT);
+    assert.equal(m.event.coverImageUrl, null, `expected null for ${JSON.stringify(bad)}`);
+  }
 });
 
 test('an unknown event throws EVENT_NOT_FOUND rather than returning a hollow manifest', async () => {

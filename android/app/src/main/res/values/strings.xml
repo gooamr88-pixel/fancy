@@ -43,6 +43,7 @@
     <string name="prepare_fetching_manifest">Checking the guest list…</string>
     <string name="prepare_downloading">Downloading %1$d of %2$d guests (page %3$d of %4$d)</string>
     <string name="prepare_verifying">Checking the download is complete…</string>
+    <string name="prepare_fetching_artwork">Downloading the event photo…</string>
     <string name="prepare_promoting">Saving to this device…</string>
     <string name="prepare_done">Ready. %1$d guests saved. You can go offline now.</string>
 
@@ -170,6 +171,8 @@
     <string name="menu_guests_detail">Search everyone, see who is still out</string>
     <string name="menu_entrance_detail">Full-screen arrival counter for the lobby</string>
     <string name="menu_close_detail">End the event and remove its data from this tablet</string>
+    <string name="menu_crash_title">Problem report</string>
+    <string name="menu_crash_detail">The app closed unexpectedly. Open this and send it to support</string>
     <string name="dashboard_loading">Loading…</string>
     <string name="dashboard_open_guests">Guest list</string>
     <string name="dashboard_entrance_display">Entrance display</string>

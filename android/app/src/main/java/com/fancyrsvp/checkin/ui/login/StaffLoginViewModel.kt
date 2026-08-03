@@ -1,7 +1,6 @@
 package com.fancyrsvp.checkin.ui.login
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.local.CheckinDatabase
 import com.fancyrsvp.checkin.data.local.StaffEntity
 import com.fancyrsvp.checkin.data.security.PinVerifier
@@ -12,7 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -63,7 +61,20 @@ class StaffLoginViewModel @Inject constructor(
     private val _roster = MutableStateFlow<List<StaffOption>>(emptyList())
     val roster: StateFlow<List<StaffOption>> = _roster.asStateFlow()
 
+    /**
+     * The event's photograph, shown as a portrait beside the wordmark (§9.8).
+     *
+     * Separate from the roster flow rather than combined with it: the roster is
+     * the screen's PURPOSE and the picture is decoration on it, and a database
+     * hiccup reading one must not be able to blank the other. Failure here is a
+     * null, which the screen draws by simply omitting the portrait.
+     */
+    private val _coverImagePath = MutableStateFlow<String?>(null)
+    val coverImagePath: StateFlow<String?> = _coverImagePath.asStateFlow()
+
     fun loadRoster(eventId: String) {
+        safeLaunch { _coverImagePath.value = db.eventDao().byId(eventId)?.coverImagePath }
+
         safeLaunch(
             // A database that will not open must present as an empty roster, not
             // as the app disappearing. RosterEmpty is a state the screen already

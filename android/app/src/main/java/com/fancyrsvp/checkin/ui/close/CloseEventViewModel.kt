@@ -1,7 +1,6 @@
 package com.fancyrsvp.checkin.ui.close
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.fancyrsvp.checkin.data.local.CheckinDatabase
 import com.fancyrsvp.checkin.data.repo.DeviceRepository
 import com.fancyrsvp.checkin.sync.SyncCoordinator
@@ -12,7 +11,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 

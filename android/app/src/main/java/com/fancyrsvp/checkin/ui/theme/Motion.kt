@@ -60,9 +60,21 @@ object Motion {
     /** One slow pass of the VIP shimmer. Long enough to register as luxury. */
     const val DURATION_SHIMMER = 2600
 
+    /**
+     * A control acknowledging a finger.
+     *
+     * Much shorter than everything else in this file, and deliberately so. Press
+     * feedback is not a transition — it is the control reporting that it was hit,
+     * and anything an operator can perceive as a delay makes them press again. At
+     * a door that second press is a second scan.
+     */
+    const val DURATION_PRESS = 90
+
     fun <T> enter() = tween<T>(DURATION_ENTER, easing = Confident)
 
     fun <T> settle() = tween<T>(DURATION_SETTLE, easing = FastOutSlowInEasing)
+
+    fun <T> press() = tween<T>(DURATION_PRESS, easing = FastOutSlowInEasing)
 
     fun <T> flood() = tween<T>(DURATION_FLOOD, easing = Confident)
 

@@ -5,7 +5,6 @@ import com.fancyrsvp.checkin.BuildConfig
 import com.fancyrsvp.checkin.data.local.CheckinDatabase
 import com.fancyrsvp.checkin.data.remote.CheckinApi
 import com.fancyrsvp.checkin.data.remote.DeviceAuthInterceptor
-import com.fancyrsvp.checkin.data.remote.DeviceHealth
 import com.fancyrsvp.checkin.data.remote.DeviceHealthInterceptor
 import com.fancyrsvp.checkin.data.remote.Envelope
 import com.fancyrsvp.checkin.data.remote.RefreshRequest
@@ -38,6 +37,30 @@ import kotlinx.coroutines.Dispatchers
 @Retention(AnnotationRetention.BINARY)
 @javax.inject.Qualifier
 annotation class ApplicationScope
+
+/**
+ * Marks the client used to fetch third-party assets, which carries NO credentials.
+ *
+ * ── Why this qualifier has to exist ──
+ *
+ * `DeviceAuthInterceptor` decides whether to attach the device token by PATH, not
+ * by host — everything except `/checkin/devices/pair` and `/refresh` gets an
+ * `Authorization: Device <token>` header. That is correct for the app's own API,
+ * where every request goes to one known backend.
+ *
+ * The event's cover photograph does not. `cover_image_url` points wherever the
+ * organizer's upload landed — object storage, a CDN, in principle any host. Using
+ * the main client to fetch it would send that host the device access token, which
+ * reads the complete guest list and posts check-ins, plus the device-health
+ * headers (battery, storage, queue depth, bundle version). A credential handed to
+ * an arbitrary third party is a credential leak whether or not that party wanted
+ * it, and it would be invisible: the image downloads fine either way.
+ *
+ * So asset fetches get their own client with no interceptors at all.
+ */
+@Retention(AnnotationRetention.BINARY)
+@javax.inject.Qualifier
+annotation class MediaClient
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -169,6 +192,25 @@ object AppModule {
 
         return builder.build()
     }
+
+    /**
+     * A bare client for third-party assets. No interceptors — see [MediaClient].
+     *
+     * Not derived from the main client with `newBuilder()`, deliberately: that
+     * COPIES the interceptor list, so the credential would come with it and the
+     * only thing separating the two clients would be a call to
+     * `interceptors().clear()` that a later edit could quietly drop. Built from
+     * scratch, there is nothing to remove and nothing to forget.
+     */
+    @Provides
+    @Singleton
+    @MediaClient
+    fun mediaClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        // Longer than the API client's: this is a multi-megabyte photograph over
+        // whatever wifi the office has, and it is fetched once.
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
 
     @Provides
     @Singleton
