@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useFullPageTheme } from '../theme';
 import { DiamondDivider, ScrollToRsvpHint } from '../shared';
 import InvitationCard from '../../InvitationCard';
 import EventCategoryIcon from '../../../icons/EventCategoryIcon';
 import Icon from '../../../icons/Icon';
+// Shared with the continuous-scroll page's #lg-hero — see the note in the
+// component itself for why there is only one copy of this.
+import HeroVideoBackground from '../../../guest/HeroVideoBackground';
 
 // A small corner flourish drawn in the theme's gold — mirrored into each corner
 // of the stationery frame so the hero reads as an engraved invitation rather
@@ -18,74 +21,6 @@ function CornerFlourish({ color, style }) {
       <path d="M2 2 Q26 6 30 30" stroke={color} strokeWidth="1" fill="none" opacity="0.45" />
       <circle cx="2" cy="2" r="2.4" fill={color} opacity="0.6" />
     </svg>
-  );
-}
-
-// Organizer-uploaded looping hero video, drawn through a canvas so the bottom
-// edge can fade to transparent (destination-out punch-through) instead of
-// cutting off hard — the video element itself stays hidden and is only the
-// canvas's source frame. Falls back to nothing (parent keeps its gradient)
-// if the video never becomes playable.
-function HeroVideoBackground({ src }) {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return undefined;
-    const ctx = canvas.getContext('2d');
-    let raf;
-    let running = true;
-
-    const resize = () => {
-      if (!video.videoWidth) return;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    };
-    const draw = () => {
-      if (!running) return;
-      if (!video.paused && !video.ended && video.videoWidth) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const gradient = ctx.createLinearGradient(0, canvas.height * 0.7, 0, canvas.height);
-        gradient.addColorStop(0, 'rgba(0,0,0,0)');
-        gradient.addColorStop(1, 'rgba(0,0,0,1)');
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
-        ctx.globalCompositeOperation = 'source-over';
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    const play = () => video.play().catch(() => {});
-
-    video.addEventListener('loadedmetadata', resize);
-    video.addEventListener('canplay', play);
-    raf = requestAnimationFrame(draw);
-
-    return () => {
-      running = false;
-      cancelAnimationFrame(raf);
-      video.removeEventListener('loadedmetadata', resize);
-      video.removeEventListener('canplay', play);
-    };
-  }, [src]);
-
-  return (
-    <div aria-hidden="true" style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden' }}>
-      <video
-        ref={videoRef} src={src} muted loop playsInline preload="auto"
-        style={{ position: 'absolute', width: '100%', height: '100%', objectFit: 'cover', visibility: 'hidden' }}
-      />
-      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-      {/* Neutral dark scrim — works over any organizer-uploaded footage,
-          unlike a theme-colored one which could clash with the video itself.
-          Keeps foreground text legible regardless of what was uploaded. */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(180deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.32) 60%, rgba(0,0,0,0.5) 100%)',
-      }} />
-    </div>
   );
 }
 

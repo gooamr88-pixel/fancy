@@ -802,9 +802,14 @@ export default function Stage2_FormConfiguration({
               placeholder="Auto from event name" style={iStyle} onFocus={onFocus} onBlur={onBlur} maxLength={24} />
           </Field>
 
+          {/* Every template. Both guest render paths mount the same
+              HeroVideoBackground behind their hero — the full-page engine via
+              heritageArch/HeroSection, the continuous-scroll page via #lg-hero
+              — so this field is not gated on templateType. */}
           <Field label="Hero Background Video" hint="Optional — a looping video behind the hero heading, fading to nothing at the bottom. Leave empty to keep the generated gradient background.">
             <div
               onClick={() => {
+                if (heroVideoUploading) return;
                 const fi = document.createElement('input');
                 fi.type = 'file'; fi.accept = 'video/mp4,video/webm';
                 fi.onchange = (ev) => onHeroVideoUpload?.(ev);

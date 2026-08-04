@@ -39,6 +39,7 @@ import InvitationReveal from '../components/guest/InvitationReveal';
 import InvitationCard from '../components/templates/InvitationCard';
 import { rememberedId } from '../components/guest/rsvp/useRsvpResolver';
 import Icon from '../components/icons/Icon';
+import HeroVideoBackground from '../components/guest/HeroVideoBackground';
 
 /* ═══════════════════════════════════════════════════════════════
    Route-level code splitting
@@ -1399,6 +1400,14 @@ export default function EventPageClient({
             }}
             aria-hidden="true"
           />
+
+          {/* Organizer-uploaded hero video, same field (template_data
+              .ha_hero_video_url) and same component the full-page engine uses.
+              Sits above the ambient gradient and below the particles, so the
+              gradient stays as the base the video fades down into. */}
+          {td.ha_hero_video_url && (
+            <HeroVideoBackground src={td.ha_hero_video_url} zIndex={0} />
+          )}
 
           <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
             <FloatingParticles count={30} color={themeColor} />

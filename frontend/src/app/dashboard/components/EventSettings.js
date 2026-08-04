@@ -19,6 +19,7 @@ import SectionsOrderEditor from '../create-event/components/SectionsOrderEditor'
 import { getHaDays } from '../../utils/haDays';
 import { TEMPLATES } from '../../utils/curatedTemplates';
 import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../utils/customEventCategories';
+import { HERO_VIDEO_MAX_BYTES, heroVideoErrorMessage } from '../../utils/heroVideoUpload';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -438,8 +439,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
   // instead of silently trying a path that can't work.
   const handleHeroVideoUpload = async (e) => {
     const file = e.target.files?.[0];
+    // Clearing the input means picking the SAME file again after removing it
+    // still fires change; otherwise the second attempt silently does nothing.
+    e.target.value = '';
     if (!file) return;
-    if (file.size > 100 * 1024 * 1024) {
+    if (file.size > HERO_VIDEO_MAX_BYTES) {
       toast.error('Video exceeds 100MB. Please use a shorter or more compressed clip.');
       return;
     }
@@ -460,7 +464,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
       setSuccess(false);
     } catch (err) {
       console.error('Hero video upload failed:', err);
-      toast.error("Couldn't upload the video. Please check your connection and try again.");
+      toast.error(heroVideoErrorMessage(err));
     }
     setHeroVideoUploading(false);
   };
@@ -1666,7 +1670,11 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
         />
       )}
 
-      {/* ═══ HERO BACKGROUND VIDEO ═══ */}
+      {/* ═══ HERO BACKGROUND VIDEO ═══
+          Every template. Both guest render paths mount the same
+          HeroVideoBackground behind their hero — the full-page engine via
+          heritageArch/HeroSection, the continuous-scroll page via #lg-hero —
+          so this field no longer needs gating on template_type. */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}>
           <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

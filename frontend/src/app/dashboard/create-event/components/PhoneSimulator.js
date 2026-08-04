@@ -88,7 +88,7 @@ function FlowStepper({ step, onSelect, compact }) {
   );
 }
 
-export default function PhoneSimulator({ template, theme, guestName, onGuestNameChange, config, isMobile = false }) {
+export default function PhoneSimulator({ template, theme, guestName, onGuestNameChange, config, heroVideoUrl, isMobile = false }) {
   // The journey starts at the closed envelope. A fresh template layout resets
   // it because Stage1 remounts this component via `key={templateType}`.
   const [step, setStep] = useState('opened');
@@ -143,6 +143,7 @@ export default function PhoneSimulator({ template, theme, guestName, onGuestName
               theme={theme}
               guestName={guestName}
               config={config}
+              heroVideoUrl={heroVideoUrl}
               isBare={true}
               step={step}
               onStepChange={setStep}

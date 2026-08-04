@@ -228,6 +228,9 @@ export default function Stage1_TemplatesSimulator({
   templates, templateType, onTemplateSelect,
   selectedPresets, onPresetSelect, activePresetColors,
   customConfig, onCustomConfigChange, onNext,
+  // Only ever set when the organizer uploaded a hero video in Stage 2 and then
+  // stepped back here — the field itself lives on the next screen.
+  heroVideoUrl,
 }) {
   const isCustom = templateType === 'custom';
   const activeTemplate = templates.find(t => t.key === templateType) || templates[0];
@@ -343,6 +346,7 @@ export default function Stage1_TemplatesSimulator({
                 guestName={guestName}
                 onGuestNameChange={setGuestName}
                 config={simulatorConfig}
+                heroVideoUrl={heroVideoUrl}
                 isMobile={true}
               />
             </div>
@@ -522,6 +526,7 @@ export default function Stage1_TemplatesSimulator({
               guestName={guestName}
               onGuestNameChange={setGuestName}
               config={simulatorConfig}
+              heroVideoUrl={heroVideoUrl}
             />
           </div>
         </div>

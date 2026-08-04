@@ -6,6 +6,7 @@ import InvitationReveal from "../guest/InvitationReveal";
 import RSVPBottomSheet from "./RSVPBottomSheet";
 import InvitationCard from "./InvitationCard";
 import Icon from "../icons/Icon";
+import HeroVideoBackground from "../guest/HeroVideoBackground";
 
 /* ═══════════════════════════════════════════════════════════════
    FitScaler — proportionally shrinks a fixed-size design to fit its
@@ -304,6 +305,10 @@ export default function MobilePreview({
   // right for /templates and the create-event wizard, where no event exists
   // yet.
   event,
+  // Organizer-uploaded hero video (template_data.ha_hero_video_url). Passed
+  // explicitly rather than dug out of `event` because the wizard has no event
+  // object yet — it holds the upload in its own templateData state.
+  heroVideoUrl,
 }) {
   const sections = config?.sections || { details: true, gallery: true, messageHost: true };
   const ctaLabel = config?.ctaLabel || "RSVP Now";
@@ -419,6 +424,11 @@ export default function MobilePreview({
         <div className="pointer-events-none absolute inset-0 z-0" style={{ background: sceneStyles.overlay }} />
         {/* Vignette for depth */}
         <div className="pointer-events-none absolute inset-0 z-0" style={{ background: sceneStyles.vignette }} />
+        {/* Organizer-uploaded hero video — the same component both real guest
+            pages mount, so this card can't drift from what a guest sees. Above
+            the scene's own gradient/overlay/vignette (they stay as the base it
+            fades down into) and below the decor and particles. */}
+        {heroVideoUrl && <HeroVideoBackground src={heroVideoUrl} zIndex={0} />}
         {/* Template-specific decorative elements */}
         <SceneDecor pattern={pattern} accentColor={accentColor} />
         {/* Ambient floating particles */}

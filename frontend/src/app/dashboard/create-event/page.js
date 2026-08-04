@@ -8,6 +8,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { toTagArray } from '../components/TagListEditor';
 import { TEMPLATES } from '../../utils/curatedTemplates';
+import { HERO_VIDEO_MAX_BYTES, heroVideoErrorMessage } from '../../utils/heroVideoUpload';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -780,7 +781,7 @@ export default function CreateEventWizard() {
   const handleHeroVideoUpload = useCallback(async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 100 * 1024 * 1024) {
+    if (file.size > HERO_VIDEO_MAX_BYTES) {
       toast.error('Video exceeds 100MB. Please use a shorter or more compressed clip.');
       return;
     }
@@ -797,7 +798,7 @@ export default function CreateEventWizard() {
       setTemplateData(prev => ({ ...prev, ha_hero_video_url: publicUrl }));
     } catch (err) {
       console.error('Hero video upload failed:', err);
-      toast.error("Couldn't upload the video. Please check your connection and try again.");
+      toast.error(heroVideoErrorMessage(err));
     } finally {
       setHeroVideoUploading(false);
     }
@@ -1496,6 +1497,7 @@ export default function CreateEventWizard() {
               customConfig={customConfig}
               onCustomConfigChange={handleCustomConfigChange}
               onNext={handleTemplateNext}
+              heroVideoUrl={templateData.ha_hero_video_url}
             />
           </motion.div>
         )}

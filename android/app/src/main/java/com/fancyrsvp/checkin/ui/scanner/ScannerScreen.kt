@@ -189,6 +189,13 @@ fun ScannerScreen(
             ResultVisual.Welcome -> view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
             ResultVisual.Already -> view.performHapticFeedback(HapticFeedbackConstants.REJECT)
             ResultVisual.NotFound -> view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+            // REJECT, the same pulse as an already-arrived scan, and deliberately
+            // not a new one. The hand cannot rank five vibrations — three is
+            // already the limit of what an usher learns without being taught — so
+            // the vocabulary stays "yes", "yes and it matters", "stop", "nothing".
+            // Foreign and Already both mean stop and look at the screen; the
+            // screen is where they differ, and it differs by a whole colour.
+            ResultVisual.Foreign -> view.performHapticFeedback(HapticFeedbackConstants.REJECT)
         }
     }
 
