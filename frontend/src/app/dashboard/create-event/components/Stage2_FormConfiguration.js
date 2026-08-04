@@ -12,6 +12,7 @@ import { getHaDays } from '../../../utils/haDays';
 import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../../utils/customEventCategories';
 import EventCategoryIcon from '../../../components/icons/EventCategoryIcon';
 import Icon from '../../../components/icons/Icon';
+import { HERO_VIDEO_MAX_LABEL } from '../../../utils/heroVideoUpload';
 
 const C = {
   gold: '#B8944F', goldHover: '#a6833f',
@@ -828,7 +829,7 @@ export default function Stage2_FormConfiguration({
                 <span style={{ fontSize: 12, fontWeight: 600, color: C.stone, fontFamily: 'var(--font-sans)' }}>
                   {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
                 </span>
-                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>MP4, WebM • Max 100MB</span>
+                <span style={{ fontSize: 10, color: '#A09A91', fontFamily: 'var(--font-sans)' }}>MP4, WebM • Max {HERO_VIDEO_MAX_LABEL}</span>
               </div>
             </div>
             {td('ha_hero_video_url') && (

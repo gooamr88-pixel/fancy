@@ -8,7 +8,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { startSmsCreditPurchase } from '../../utils/smsPurchase';
 import { toTagArray } from '../components/TagListEditor';
 import { TEMPLATES } from '../../utils/curatedTemplates';
-import { HERO_VIDEO_MAX_BYTES, heroVideoErrorMessage } from '../../utils/heroVideoUpload';
+import { HERO_VIDEO_MAX_BYTES, HERO_VIDEO_TOO_LARGE, heroVideoErrorMessage } from '../../utils/heroVideoUpload';
 
 /* ═══════════════════════════════════════════════════════
    LAZY-LOADED STAGE COMPONENTS
@@ -782,7 +782,7 @@ export default function CreateEventWizard() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > HERO_VIDEO_MAX_BYTES) {
-      toast.error('Video exceeds 100MB. Please use a shorter or more compressed clip.');
+      toast.error(HERO_VIDEO_TOO_LARGE);
       return;
     }
     setHeroVideoUploading(true);

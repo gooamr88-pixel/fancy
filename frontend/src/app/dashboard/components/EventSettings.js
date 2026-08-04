@@ -19,7 +19,7 @@ import SectionsOrderEditor from '../create-event/components/SectionsOrderEditor'
 import { getHaDays } from '../../utils/haDays';
 import { TEMPLATES } from '../../utils/curatedTemplates';
 import { CUSTOM_CATEGORIES, CUSTOM_CATEGORY_BY_KEY } from '../../utils/customEventCategories';
-import { HERO_VIDEO_MAX_BYTES, heroVideoErrorMessage } from '../../utils/heroVideoUpload';
+import { HERO_VIDEO_MAX_BYTES, HERO_VIDEO_MAX_LABEL, HERO_VIDEO_TOO_LARGE, heroVideoErrorMessage } from '../../utils/heroVideoUpload';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -444,7 +444,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
     e.target.value = '';
     if (!file) return;
     if (file.size > HERO_VIDEO_MAX_BYTES) {
-      toast.error('Video exceeds 100MB. Please use a shorter or more compressed clip.');
+      toast.error(HERO_VIDEO_TOO_LARGE);
       return;
     }
     setHeroVideoUploading(true);
@@ -1709,7 +1709,7 @@ export default function EventSettings({ eventId, event, onEventUpdated, onEventD
               <span style={{ fontSize: '12px', fontWeight: 600, color: COLORS.stone }}>
                 {heroVideoUploading ? 'Uploading…' : 'Click to browse for a video'}
               </span>
-              <span style={{ fontSize: '10px', color: '#A09A91' }}>MP4, WebM • Max 100MB</span>
+              <span style={{ fontSize: '10px', color: '#A09A91' }}>MP4, WebM • Max {HERO_VIDEO_MAX_LABEL}</span>
             </label>
           </div>
 
