@@ -263,6 +263,7 @@ const seatingRoutes = require('./routes/seatingRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const checkinRoutes = require('./routes/checkinRoutes');
+const checkinAppRoutes = require('./routes/checkinAppRoutes');
 const checkinSyncRoutes = require('./routes/checkinSyncRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const rsvpRoutes = require('./routes/rsvpRoutes');
@@ -285,6 +286,9 @@ app.use('/api/v1/payments', paymentRoutes); // paymentRoutes handles internal pr
 app.use('/api/v1/events/:eventId/seating', requireAuth, verifyEventOwner, seatingRoutes);
 app.use('/api/v1/events/:eventId/notifications', requireAuth, verifyEventOwner, notificationRoutes);
 app.use('/api/v1/events/:eventId/checkin', requireAuth, verifyEventOwner, checkinRoutes);
+// Event-scoped because the entitlement is: this platform sells per event, so
+// the plan that unlocks the door app is the plan on THIS event.
+app.use('/api/v1/events/:eventId/checkin-app', requireAuth, verifyEventOwner, checkinAppRoutes);
 app.use('/api/v1/events/:eventId/rsvps', requireAuth, verifyEventOwner, rsvpRoutes);
 app.use('/api/v1/events/:eventId/tables', requireAuth, verifyEventOwner, tableRoutes);
 app.use('/api/v1/events/:eventId/campaigns', requireAuth, verifyEventOwner, campaignRoutes);

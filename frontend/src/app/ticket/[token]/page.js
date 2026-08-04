@@ -50,6 +50,7 @@ function TicketRoute({ token }) {
 
   const event = payload?.event;
   const guest = payload?.guest;
+  const qrSrc = `${API_URL}/public/qr/${encodeURIComponent(token)}.png`;
   const themeColor = event?.custom_colors?.primary || '#B8944F';
   const formattedDate = event?.event_date
     ? new Date(event.event_date).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
@@ -107,19 +108,12 @@ function TicketRoute({ token }) {
               </div>
             )}
 
-            {status === 'locked' && (
-              <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <Icon name="lock" size={34} color={themeColor} strokeWidth={1.3} />
-                <p style={{ color: '#191B1E', fontSize: '14px', fontWeight: 600, marginTop: '12px' }}>
-                  {isRTL ? 'خريطة الجلوس لسه مش متاحة.' : "The seating chart isn't available yet."}
-                </p>
-                <p style={{ color: '#77736A', fontSize: '12px', marginTop: '6px' }}>
-                  {isRTL ? 'هتظهر قبل الفعالية بيوم واحد.' : 'It unlocks 24 hours before the event.'}
-                </p>
-              </div>
-            )}
-
-            {status === 'ready' && guest && (
+            {/* The QR renders for BOTH 'ready' and 'locked'. Only the seating CHART
+                is embargoed until 24h before the event — the entrance credential
+                never is. Gating the whole body on 'ready' meant a guest opening
+                their emailed pass a week early got a padlock and no way to reach
+                the one thing the email told them to save. */}
+            {(status === 'ready' || status === 'locked') && guest && (
               <>
                 <div style={{ textAlign: 'center', paddingBottom: '4px', borderBottom: '1px solid #F0ECE3' }}>
                   <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1.2px', color: '#77736A', fontWeight: 700 }}>
@@ -133,10 +127,10 @@ function TicketRoute({ token }) {
                     signed token the door scanner verifies, so the QR rendered here (the
                     backend's own PNG, not a client-side re-encode) is always the real,
                     working ticket, unlike the decorative preview shown right after RSVP. */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '20px 0' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '20px 0 4px' }}>
                   <div style={{ padding: '14px', background: '#FFFFFF', border: '1px solid #E8E2D6', borderRadius: '16px', boxShadow: '0 8px 24px rgba(25,27,30,0.06)' }}>
                     <img
-                      src={`${API_URL}/public/qr/${encodeURIComponent(token)}.png`}
+                      src={qrSrc}
                       alt={isRTL ? 'رمز الدخول' : 'Entrance QR code'}
                       width={200}
                       height={200}
@@ -148,11 +142,45 @@ function TicketRoute({ token }) {
                   </span>
                 </div>
 
-                <SeatingResultPanel
-                  view={{ myTableName: payload.myTableName, myTableId: payload.myTableId, party: payload.party, tables: payload.tables }}
-                  loading={false}
-                  isRTL={isRTL}
-                />
+                {/* Saving the code is the point of this page: at the venue the guest
+                    may have no signal. A plain <a download> would be ignored here —
+                    the API is a different origin — so the attachment header comes
+                    from the backend via ?download=1. */}
+                <a
+                  href={`${qrSrc}?download=1`}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    padding: '13px 20px', borderRadius: '12px', textDecoration: 'none',
+                    background: themeColor, color: '#FFFFFF', fontSize: '14px', fontWeight: 700,
+                    boxShadow: '0 8px 20px -6px rgba(25,27,30,0.35)',
+                  }}
+                >
+                  <Icon name="download" size={16} strokeWidth={1.8} />
+                  {isRTL ? 'حمّل رمز الدخول' : 'Download my QR code'}
+                </a>
+                <p style={{ fontSize: '12px', color: '#A09A91', textAlign: 'center', lineHeight: 1.6, marginTop: '-8px' }}>
+                  {isRTL
+                    ? 'احفظه في صورك عشان يبقى معاك عند البوابة حتى من غير إنترنت.'
+                    : 'Save it to your photos so you have it at the gate even without a signal.'}
+                </p>
+
+                {status === 'locked' ? (
+                  <div style={{ textAlign: 'center', padding: '18px 0 4px', borderTop: '1px solid #F0ECE3' }}>
+                    <Icon name="lock" size={28} color={themeColor} strokeWidth={1.3} />
+                    <p style={{ color: '#191B1E', fontSize: '14px', fontWeight: 600, marginTop: '10px' }}>
+                      {isRTL ? 'خريطة الجلوس لسه مش متاحة.' : "The seating chart isn't available yet."}
+                    </p>
+                    <p style={{ color: '#77736A', fontSize: '12px', marginTop: '6px' }}>
+                      {isRTL ? 'هتظهر قبل الفعالية بيوم واحد — رمز الدخول شغّال من دلوقتي.' : 'It unlocks 24 hours before the event — your QR code already works.'}
+                    </p>
+                  </div>
+                ) : (
+                  <SeatingResultPanel
+                    view={{ myTableName: payload.myTableName, myTableId: payload.myTableId, party: payload.party, tables: payload.tables }}
+                    loading={false}
+                    isRTL={isRTL}
+                  />
+                )}
               </>
             )}
           </div>

@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>*,*::before,*::after{box-sizing:border-box}img,svg{display:block;max-width:100%}</style>
+
+</head>
+<body>
+<title>Check-in result screens — redesign proposal</title>
+
+<style>
+  /* ══════════════════════════════════════════════════════════════
+     PAGE CHROME — theme-aware. The panels themselves are locked to
+     the app's own light world, because the app is (FancyCheckinTheme
+     ships darkTheme = false on purpose: kiosk hardware must look
+     identical on every tablet at the door).
+     ══════════════════════════════════════════════════════════════ */
+  :root {
+    --page-bg:      #E8E4DB;
+    --page-panel:   #F5F2EB;
+    --page-ink:     #24211C;
+    --page-muted:   #6E6659;
+    --page-rule:    #CFC7B6;
+    --page-accent:  #8A6D34;
+    --page-flag:    #8C3B2A;
+
+    /* Display face: high-contrast old-style serif — the engraved register.
+       Label/UI face: a plain grotesque. The real app bundles its own faces;
+       these approximate the weight relationship between the two registers. */
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+    --sans:  "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page-bg:     #17150F;
+      --page-panel:  #201D16;
+      --page-ink:    #EDE8DC;
+      --page-muted:  #9C9384;
+      --page-rule:   #3A352A;
+      --page-accent: #C9A85F;
+      --page-flag:   #D97B63;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page-bg:     #17150F;
+    --page-panel:  #201D16;
+    --page-ink:    #EDE8DC;
+    --page-muted:  #9C9384;
+    --page-rule:   #3A352A;
+    --page-accent: #C9A85F;
+    --page-flag:   #D97B63;
+  }
+  :root[data-theme="light"] {
+    --page-bg:      #E8E4DB;
+    --page-panel:   #F5F2EB;
+    --page-ink:     #24211C;
+    --page-muted:   #6E6659;
+    --page-rule:    #CFC7B6;
+    --page-accent:  #8A6D34;
+    --page-flag:    #8C3B2A;
+  }
+
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 64px;
+  }
+
+  /* ── Page header ─────────────────────────────────────────────── */
+  .masthead { display: flex; flex-direction: column; gap: 18px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--page-muted); font-weight: 700;
+  }
+  .masthead h1 {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(30px, 4.4vw, 46px);
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .masthead p {
+    margin: 0; max-width: 62ch; color: var(--page-muted); font-size: 16px;
+  }
+  .rule { height: 1px; background: var(--page-rule); }
+
+  /* ── Section scaffolding ─────────────────────────────────────── */
+  .state { display: flex; flex-direction: column; gap: 20px; }
+  .state-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px 16px; }
+  .state-head h2 {
+    margin: 0; font-family: var(--serif); font-weight: 400;
+    font-size: 26px; letter-spacing: -0.01em;
+  }
+  .chip {
+    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    font-weight: 700; padding: 4px 10px; border-radius: 2px;
+    border: 1px solid var(--page-rule); color: var(--page-muted);
+  }
+  .chip.new { border-color: var(--page-flag); color: var(--page-flag); }
+  .state > .why { margin: 0; max-width: 68ch; color: var(--page-muted); font-size: 15px; }
+
+  /* ══════════════════════════════════════════════════════════════
+     THE TABLET PANEL
+     16:10, full-bleed ground, no rounded card. A wedding place card
+     is a rectangle with an engraved rule, not a rounded app tile.
+     ══════════════════════════════════════════════════════════════ */
+  .tablet {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    width: 100%;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    container-type: inline-size;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.22);
+    isolation: isolate;
+  }
+  /* Paper grain + a light source in the upper left. This is the whole
+     difference between "a coloured rectangle" and "a surface". */
+  .tablet::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(120% 90% at 12% 0%, rgba(255,255,255,0.14), transparent 62%),
+      radial-gradient(140% 120% at 100% 110%, rgba(0,0,0,0.24), transparent 58%);
+  }
+  .tablet::after {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    opacity: 0.5; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)' opacity='0.42'/></svg>");
+  }
+
+  .pane { position: relative; z-index: 1; display: flex; flex-direction: column; }
+  .pane-left  { padding: 4.2cqw 3cqw 4.2cqw 4.6cqw; justify-content: center; gap: 0; }
+  .pane-right {
+    padding: 4.2cqw 4.6cqw 4.2cqw 3cqw;
+    justify-content: center; align-items: flex-end; text-align: right;
+  }
+  /* The engraved seam. A hairline, not a border — it reads as a fold in
+     card stock rather than a div boundary. */
+  .seam {
+    position: absolute; z-index: 1; top: 12%; bottom: 12%; left: 53.5%;
+    width: 1px; opacity: 0.34;
+  }
+
+  /* ── Type inside the panel ───────────────────────────────────── */
+  .lbl {
+    font-size: 1.55cqw; letter-spacing: 0.26em; text-transform: uppercase;
+    font-weight: 700; opacity: 0.72;
+  }
+  .name {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 6.4cqw; line-height: 1.02; letter-spacing: -0.025em;
+    margin: 1.8cqw 0 0;
+    text-wrap: balance;
+  }
+  .table-lbl { font-size: 1.45cqw; letter-spacing: 0.28em; text-transform: uppercase; font-weight: 700; opacity: 0.62; }
+  .table-no {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 15cqw; line-height: 0.86; letter-spacing: -0.045em;
+    margin: 0.6cqw 0 0;
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+  .table-no.words { font-size: 6.6cqw; line-height: 1.0; letter-spacing: -0.02em; }
+
+  /* ── THE FIX THAT MATTERS MOST: the detail rows ──────────────── */
+  .facts {
+    margin: 3.4cqw 0 0; padding: 0; list-style: none;
+    display: grid; gap: 1.15cqw; max-width: 34cqw;
+  }
+  .facts li {
+    display: grid; grid-template-columns: 8.6cqw 1fr; align-items: baseline;
+    gap: 1.6cqw; padding-top: 1.15cqw;
+    border-top: 1px solid currentColor;
+  }
+  .facts li:first-child { border-top: 0; padding-top: 0; }
+  .facts .k {
+    font-size: 1.4cqw; letter-spacing: 0.2em; text-transform: uppercase;
+    font-weight: 700; opacity: 0.6;
+  }
+  .facts .v { font-size: 2.15cqw; line-height: 1.35; }
+  .facts li.flag .v { font-weight: 700; }
+
+  /* ── Actions ─────────────────────────────────────────────────── */
+  .actions { display: flex; gap: 1.6cqw; margin-top: 4cqw; align-items: stretch; }
+  .btn {
+    font-family: inherit; font-size: 2cqw; font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 1.9cqw 3.2cqw; border: 0; border-radius: 0.9cqw;
+    display: inline-flex; align-items: center; justify-content: center; gap: 1cqw;
+    box-shadow: 0 0.5cqw 1.4cqw rgba(0,0,0,0.26);
+  }
+  .btn.ghost { background: transparent; border: 0.22cqw solid currentColor; box-shadow: none; }
+  .btn .ic { width: 2.3cqw; height: 2.3cqw; flex: none; }
+
+  /* ══════════════════════════════════════════════════════════════
+     THE FIVE GROUNDS
+     Each is a two-stop gradient, never a flat fill. Flat is the thing
+     that reads as cheap on a large backlit panel.
+     ══════════════════════════════════════════════════════════════ */
+  .g-welcome { background: linear-gradient(158deg, #17493A 0%, #0E3125 100%); color: #F2EFE6; }
+  .g-welcome .seam { background: #F2EFE6; }
+
+  .g-vip { background: linear-gradient(158deg, #7C6224 0%, #4E3C12 100%); color: #FBF3E0; }
+  .g-vip .seam { background: #E8C87A; opacity: 0.55; }
+  .g-vip .table-no, .g-vip .name { color: #F6DFA8; }
+  /* Foil: gold only reads as metal when it has a light AND a dark. A single
+     flat #8A6D34 is the cheapest gold there is. */
+  .foil {
+    position: absolute; inset: 0; z-index: 2; pointer-events: none;
+    background: linear-gradient(104deg, transparent 34%, rgba(255,240,200,0.30) 48%, rgba(255,255,255,0.13) 52%, transparent 66%);
+    transform: translateX(-38%);
+    animation: sweep 7s cubic-bezier(0.4,0,0.2,1) infinite;
+  }
+  @keyframes sweep { 0%,62% { transform: translateX(-38%); } 100% { transform: translateX(38%); } }
+
+  .g-already { background: linear-gradient(158deg, #EFE3CB 0%, #DFCFAE 100%); color: #4E3410; }
+  .g-already .seam { background: #4E3410; }
+  .band { position: absolute; z-index: 2; inset: 0 0 auto 0; height: 1.15cqw; background: #8A5A18; }
+
+  .g-notfound { background: linear-gradient(158deg, #F0EBE1 0%, #DFD8C9 100%); color: #221E19; }
+  .g-notfound .seam { background: #221E19; }
+
+  .g-foreign { background: linear-gradient(158deg, #85251A 0%, #5A130C 100%); color: #FBEEEA; }
+  .g-foreign .seam { background: #FBEEEA; }
+
+  /* Entrance stagger — the rule settles, then the label, then the name,
+     then the number. One orchestrated moment, not four scattered effects. */
+  .anim > * { animation: rise 620ms cubic-bezier(0.16,1,0.3,1) both; }
+  .anim > *:nth-child(1) { animation-delay: 60ms; }
+  .anim > *:nth-child(2) { animation-delay: 130ms; }
+  .anim > *:nth-child(3) { animation-delay: 210ms; }
+  .anim > *:nth-child(4) { animation-delay: 290ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(0.9cqw); } to { opacity: 1; transform: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .anim > *, .foil { animation: none; }
+    .foil { opacity: 0.35; }
+  }
+
+  /* ── Annotation strip under each panel ───────────────────────── */
+  .notes {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1px; background: var(--page-rule); border: 1px solid var(--page-rule);
+  }
+  .notes div { background: var(--page-panel); padding: 16px 18px; }
+  .notes h3 {
+    margin: 0 0 6px; font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--page-accent); font-weight: 700;
+  }
+  .notes p { margin: 0; font-size: 14px; color: var(--page-muted); line-height: 1.55; }
+
+  /* ── Before / after ──────────────────────────────────────────── */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .compare > figure {
+    margin: 0; border: 1px solid var(--page-rule); background: var(--page-panel);
+    padding: 22px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .compare figcaption {
+    font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase;
+    font-weight: 700; color: var(--page-muted);
+  }
+  .compare .demo { font-family: var(--serif); font-size: 17px; color: var(--page-ink); }
+  .compare .demo .dim { color: var(--page-muted); }
+  .compare ul { margin: 0; padding-left: 18px; color: var(--page-muted); font-size: 14px; }
+  .compare li + li { margin-top: 4px; }
+  .kv { display: grid; grid-template-columns: 74px 1fr; gap: 6px 14px; align-items: baseline; }
+  .kv .k {
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    font-weight: 700; color: var(--page-muted); border-top: 1px solid var(--page-rule); padding-top: 6px;
+  }
+  .kv .v { font-size: 16px; border-top: 1px solid var(--page-rule); padding-top: 6px; }
+
+  /* ── Decision list ───────────────────────────────────────────── */
+  .decisions { display: grid; gap: 1px; background: var(--page-rule); border: 1px solid var(--page-rule); }
+  .decisions article { background: var(--page-panel); padding: 22px 24px; display: grid; grid-template-columns: 150px 1fr; gap: 20px; }
+  .decisions h3 { margin: 0; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--page-accent); }
+  .decisions p { margin: 0; color: var(--page-muted); font-size: 15px; }
+  .decisions strong { color: var(--page-ink); font-weight: 600; }
+
+  @media (max-width: 860px) {
+    .tablet { grid-template-columns: 1fr; aspect-ratio: 4 / 5; }
+    .pane-right { align-items: flex-start; text-align: left; padding-top: 0; }
+    .seam { display: none; }
+    .compare { grid-template-columns: 1fr; }
+    .decisions article { grid-template-columns: 1fr; gap: 8px; }
+    .lbl, .table-lbl, .facts .k { font-size: 3.1cqw; }
+    .name { font-size: 11cqw; }
+    .table-no { font-size: 26cqw; }
+    .table-no.words { font-size: 12cqw; }
+    .facts .v { font-size: 4.2cqw; }
+    .facts { max-width: none; }
+    .facts li { grid-template-columns: 22cqw 1fr; }
+    .btn { font-size: 4cqw; padding: 3.6cqw 5.6cqw; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">Fancy check-in · proposal, not shipped</span>
+    <h1>The scan result, redesigned as a place card</h1>
+    <p>
+      Five states an usher meets at the door. The direction below comes from the
+      event's own world — engraved stationery, foil, card stock — rather than from
+      app convention. Nothing here is in the build yet; it exists so you can reject
+      it before it costs a release.
+    </p>
+    <div class="rule"></div>
+  </header>
+
+  <!-- ═══════════════ WELCOME ═══════════════ -->
+  <section class="state">
+    <div class="state-head">
+      <h2>Welcome</h2>
+      <span class="chip">Most-seen state</span>
+    </div>
+    <p class="why">
+      The guest is standing in front of this screen too — it is the first thing they
+      see on arrival. So it stops reading as a status readout and starts reading as
+      the card they are about to be handed.
+    </p>
+
+    <div class="tablet g-welcome">
+      <div class="seam"></div>
+      <div class="pane pane-left anim">
+        <span class="lbl">Welcome</span>
+        <h3 class="name">Nadia &amp; Omar Khalil</h3>
+        <ul class="facts">
+          <li><span class="k">Party</span><span class="v">4 guests</span></li>
+          <li><span class="k">Meal</span><span class="v">2 × Chicken · 1 × Vegetarian · 1 × Child</span></li>
+          <li class="flag"><span class="k">Note</span><span class="v">Wheelchair access — seat near the aisle</span></li>
+        </ul>
+        <div class="actions">
+          <button class="btn" style="background:#F2EFE6;color:#123D2E">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 6"/></svg>
+            Check in all 4
+          </button>
+          <button class="btn ghost" style="color:#F2EFE6">Not everyone?</button>
+        </div>
+      </div>
+      <div class="pane pane-right anim">
+        <span class="table-lbl">Table</span>
+        <div class="table-no">12</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h3>Content</h3>
+        <p>Party, meal and note become <strong>labelled rows</strong>. Today they are one string joined by middle dots — a CSV pretending to be a layout.</p>
+      </div>
+      <div>
+        <h3>Structure</h3>
+        <p>Who on the left, <strong>where on the right</strong>. The usher's eye goes to the number; the guest's goes to their name. One screen, two readers.</p>
+      </div>
+      <div>
+        <h3>Surface</h3>
+        <p>A gradient with a light source and fine grain, not a flat fill. Flat colour is what reads as cheap on a big backlit panel.</p>
+      </div>
+      <div>
+        <h3>Motion</h3>
+        <p>Rule, label, name, number — a <strong>260ms stagger</strong>. One orchestrated arrival instead of the whole screen popping at once.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ VIP ═══════════════ -->
+  <section class="state">
+    <div class="state-head">
+      <h2>VIP welcome</h2>
+      <span class="chip">Recognised before it is read</span>
+    </div>
+    <p class="why">
+      The current VIP screen is the brand gold at full bleed — one flat tone, which
+      is the least metallic thing gold can do. Real foil needs a light and a dark.
+    </p>
+
+    <div class="tablet g-vip">
+      <div class="foil"></div>
+      <div class="seam"></div>
+      <div class="pane pane-left anim">
+        <span class="lbl" style="color:#F6DFA8">VIP guest</span>
+        <h3 class="name">Dr. Amina Farouk</h3>
+        <ul class="facts">
+          <li><span class="k">Party</span><span class="v">2 guests</span></li>
+          <li><span class="k">Meal</span><span class="v">2 × Seafood</span></li>
+          <li class="flag"><span class="k">Note</span><span class="v">Mother of the bride — escort to the top table</span></li>
+        </ul>
+        <div class="actions">
+          <button class="btn" style="background:#FBF3E0;color:#4E3C12">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 6"/></svg>
+            Check in both
+          </button>
+          <button class="btn ghost" style="color:#FBF3E0">Not everyone?</button>
+        </div>
+      </div>
+      <div class="pane pane-right anim">
+        <span class="table-lbl" style="color:#F6DFA8">Table</span>
+        <div class="table-no">1</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h3>Foil, not gold paint</h3>
+        <p>A dark bronze ground with a pale gold for type, plus a slow sweep every 7s. Metal is a <strong>range</strong>, never one hex value.</p>
+      </div>
+      <div>
+        <h3>Still legible first</h3>
+        <p>The sweep never crosses the type at full strength, so it cannot cost a word at arm's length in bad light.</p>
+      </div>
+      <div>
+        <h3>Kept from today</h3>
+        <p>The double haptic stays. VIP should be <strong>felt</strong> before the screen is looked at — that part was already right.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ ALREADY ═══════════════ -->
+  <section class="state">
+    <div class="state-head">
+      <h2>Already checked in</h2>
+    </div>
+    <p class="why">
+      Not a rejection — usually a photographed ticket, or a party arriving in two
+      halves. It has to say <em>who</em> let them in and <em>when</em>, because that is
+      the first question the guest asks.
+    </p>
+
+    <div class="tablet g-already">
+      <div class="band"></div>
+      <div class="seam"></div>
+      <div class="pane pane-left anim">
+        <span class="lbl">Already checked in</span>
+        <h3 class="name">Youssef Mansour</h3>
+        <ul class="facts">
+          <li><span class="k">Arrived</span><span class="v">21:04, 18 minutes ago</span></li>
+          <li><span class="k">By</span><span class="v">Amina — Main entrance</span></li>
+          <li><span class="k">Party</span><span class="v">3 of 3 already in</span></li>
+        </ul>
+        <div class="actions">
+          <button class="btn" style="background:#8A5A18;color:#FBF6EC">Let them in again</button>
+          <button class="btn ghost" style="color:#4E3410">Next guest</button>
+        </div>
+      </div>
+      <div class="pane pane-right anim">
+        <span class="table-lbl">Table</span>
+        <div class="table-no">7</div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h3>Answers the question</h3>
+        <p><strong>Who let them in, and when.</strong> A guest challenged at a door wants that, not the word "duplicate".</p>
+      </div>
+      <div>
+        <h3>The table stays</h3>
+        <p>They still need to be told where to sit. Today this screen drops it — the one number the usher has to say out loud.</p>
+      </div>
+      <div>
+        <h3>Override, plainly worded</h3>
+        <p>"Let them in again" instead of "Override". Supervisors only; still recorded in the audit trail.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ NOT FOUND ═══════════════ -->
+  <section class="state">
+    <div class="state-head">
+      <h2>Not on the list</h2>
+      <span class="chip">A real guest, unplaced</span>
+    </div>
+    <p class="why">
+      Their code is genuine — we just cannot match it. Someone is standing there,
+      so there is deliberately no red and no fault language anywhere on it.
+    </p>
+
+    <div class="tablet g-notfound">
+      <div class="seam"></div>
+      <div class="pane pane-left anim">
+        <span class="lbl">Not on tonight's list</span>
+        <h3 class="name">We can&#8217;t place this code</h3>
+        <ul class="facts">
+          <li><span class="k">Code</span><span class="v">Valid, issued for this event</span></li>
+          <li><span class="k">Likely</span><span class="v">A different spelling, or booked under someone else in their party</span></li>
+        </ul>
+        <div class="actions">
+          <button class="btn" style="background:#8A6D34;color:#fff">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+            Search by name
+          </button>
+          <button class="btn ghost" style="color:#221E19">Next guest</button>
+        </div>
+      </div>
+      <div class="pane pane-right anim">
+        <span class="table-lbl">Arrivals</span>
+        <div class="table-no">148<span style="font-size:0.36em;opacity:0.5">/240</span></div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h3>Says why</h3>
+        <p>Today it reads "Search for them by name" and stops. Naming the <strong>likely cause</strong> is what actually helps an usher resolve it.</p>
+      </div>
+      <div>
+        <h3>The right side earns its keep</h3>
+        <p>No table to show, so it carries the arrival count instead of sitting empty.</p>
+      </div>
+      <div>
+        <h3>No red</h3>
+        <p>Unchanged, and deliberate. The person holding this code has done nothing wrong.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ FOREIGN ═══════════════ -->
+  <section class="state">
+    <div class="state-head">
+      <h2>Unrecognised code</h2>
+      <span class="chip new">New state — built today</span>
+    </div>
+    <p class="why">
+      What you asked for. A code that was never ours: a loyalty card, a delivery
+      label, a QR on a poster behind the queue. Today this renders <em>identically</em>
+      to the screen above and tells the usher to search by name for something that has
+      no name.
+    </p>
+
+    <div class="tablet g-foreign">
+      <div class="seam"></div>
+      <div class="pane pane-left anim">
+        <span class="lbl">Unrecognised code</span>
+        <h3 class="name">This isn&#8217;t an invitation</h3>
+        <ul class="facts">
+          <li><span class="k">Read</span><span class="v">A code that wasn&#8217;t issued for this event</span></li>
+          <li><span class="k">Next</span><span class="v">Ask the guest to open their invitation, or find them by name</span></li>
+        </ul>
+        <div class="actions">
+          <button class="btn" style="background:#FBEEEA;color:#5A130C">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+            Next guest
+          </button>
+          <button class="btn ghost" style="color:#FBEEEA">
+            <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
+            Search by name
+          </button>
+        </div>
+      </div>
+      <div class="pane pane-right anim">
+        <svg viewBox="0 0 120 120" style="width:34%;opacity:0.30" fill="none" stroke="#FBEEEA" stroke-width="6" stroke-linecap="round">
+          <rect x="10" y="10" width="34" height="34" rx="3"/>
+          <rect x="76" y="10" width="34" height="34" rx="3"/>
+          <rect x="10" y="76" width="34" height="34" rx="3"/>
+          <path d="M76 76h14M104 76h6M76 96h6M92 92v18M104 96h6" stroke-width="7"/>
+          <path d="M14 106L106 14" stroke-width="8"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div>
+        <h3>Oxblood, not alarm red</h3>
+        <p>#7A1F14 at 9.5:1 contrast. A fire-engine rectangle in a marble lobby is the cheapest thing a screen can do.</p>
+      </div>
+      <div>
+        <h3>Two ways out</h3>
+        <p><strong>Next guest</strong> leads and is wider — the usual case is the wrong object was held up. Search stays one tap away.</p>
+      </div>
+      <div>
+        <h3>Why red is allowed here</h3>
+        <p>It is not a verdict on a person. Nobody was refused — the tablet is saying <em>that object is not a ticket</em>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ THE DETAIL LINE ═══════════════ -->
+  <section class="state">
+    <div class="state-head">
+      <h2>The single biggest content fix</h2>
+    </div>
+    <p class="why">
+      Every welcome screen today ends with one string of facts glued together by
+      middle dots. It is the detail that makes the whole screen read as unfinished.
+    </p>
+    <div class="compare">
+      <figure>
+        <figcaption>Today — one joined string</figcaption>
+        <p class="demo dim">Party of 4&nbsp; ·&nbsp; Chicken, Vegetarian&nbsp; ·&nbsp; No children at this event</p>
+        <ul>
+          <li>No hierarchy — a dietary note and a hard rule weigh the same</li>
+          <li>Wraps unpredictably at 3+ facts and is truncated by ellipsis</li>
+          <li>Nothing is scannable; it has to be read left to right</li>
+        </ul>
+      </figure>
+      <figure>
+        <figcaption>Proposed — labelled rows</figcaption>
+        <div class="kv">
+          <span class="k">Party</span><span class="v">4 guests</span>
+          <span class="k">Meal</span><span class="v">2 × Chicken · 1 × Veg · 1 × Child</span>
+          <span class="k">Note</span><span class="v"><strong>Wheelchair access</strong></span>
+        </div>
+        <ul>
+          <li>Each fact is findable without reading the others</li>
+          <li>A flagged note can carry weight the rest doesn't</li>
+          <li>Rows stack cleanly — no truncation at four facts</li>
+        </ul>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ═══════════════ DECISIONS ═══════════════ -->
+  <section class="state">
+    <div class="state-head"><h2>What this changes, and what it keeps</h2></div>
+    <div class="decisions">
+      <article>
+        <h3>Layout</h3>
+        <p><strong>One column becomes two.</strong> Landscape tablets have width to spare and height to spare none of — the same problem that broke the PIN pad. Identity left, destination right.</p>
+      </article>
+      <article>
+        <h3>Type</h3>
+        <p>The serif does names and numbers; the grotesque does labels and buttons. Today both registers sit at similar weights, which is most of why the screens read flat.</p>
+      </article>
+      <article>
+        <h3>Colour</h3>
+        <p>Every ground becomes a <strong>two-stop gradient with a light source</strong> and a grain overlay. Same hues, same contrast ratios — the palette is not being replaced, it is being given a surface.</p>
+      </article>
+      <article>
+        <h3>Motion</h3>
+        <p>A 260ms staggered entrance, and one slow foil sweep on VIP only. Everything else stays still: this is a door tool, and movement behind a queue is noise.</p>
+      </article>
+      <article>
+        <h3>Unchanged</h3>
+        <p>Every contrast ratio, the 64dp touch floor, the 16sp text floor, no-red-at-a-guest, and the four-state reduction. <strong>None of the safety rules move.</strong></p>
+      </article>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

@@ -305,6 +305,29 @@ function ReadinessPanel({ items }) {
  * the existing backend endpoint rather than a client-side library — it already
  * serves PNGs for guest tickets, so there is nothing new to add to the bundle.
  */
+/*
+ * Responsive sizing for the code itself.
+ *
+ * ── The arithmetic this fixes ──
+ *
+ * At a 320px viewport the space this component actually gets is 168px:
+ * 320 − 40 (.fx-gutter) − 56 (the tab panel's padding) − 56 (this card's).
+ * The code was set at 48px monospace with 10px of tracking, so eight
+ * characters needed 8 × (0.6 × 48 + 10) = 310px. It overflowed by 142px — the
+ * page's `overflow-x: clip` guard then HID the overflow rather than scrolling
+ * it, so the last characters of the pairing code were simply unreachable on a
+ * phone. An unreadable pairing code is an unpairable tablet.
+ *
+ * clamp() rather than a media query because these are inline styles, and an
+ * inline style object cannot hold one (see frontend/AGENTS.md). clamp is a
+ * value, not a rule, so it works here.
+ *
+ * At 320px this resolves to 24px / 2.88px → 8 × (14.4 + 2.88) = 138px, inside
+ * the 212px left once the paddings below shrink too.
+ */
+const CODE_SIZE = 'clamp(24px, 7.5vw, 48px)';
+const CODE_TRACKING = 'clamp(2px, 0.9vw, 10px)';
+
 function PairingCode({ issued, onDone }) {
   const [remaining, setRemaining] = useState(null);
 
@@ -323,15 +346,28 @@ function PairingCode({ issued, onDone }) {
 
   return (
     <div style={{
-      background: C.charcoal, borderRadius: '14px', padding: '28px', textAlign: 'center',
+      background: C.charcoal, borderRadius: '14px',
+      padding: 'clamp(16px, 4vw, 28px)', textAlign: 'center',
     }}>
       <p style={{ margin: 0, fontSize: '14px', color: C.ivory, opacity: 0.75 }}>
         On the tablet, enter this code for <strong>{issued.deviceLabel}</strong>
       </p>
 
       <div style={{
-        margin: '18px 0', fontFamily: 'monospace', fontSize: '48px',
-        letterSpacing: '10px', color: expired ? C.stone : C.gold,
+        margin: '18px 0',
+        // A real stack, not bare `monospace` — that resolves to the browser's
+        // default mono face, which on Windows is Courier New: narrow, light, and
+        // the worst possible face for reading a code off one screen and typing
+        // it into another.
+        fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+        fontSize: CODE_SIZE,
+        letterSpacing: CODE_TRACKING,
+        // letter-spacing adds its space AFTER every character including the
+        // last, so a centred run sits half a tracking-unit left of true centre.
+        // Padding the start by one full unit moves it back by half. Visible at
+        // 10px tracking; this is the difference between "centred" and "nearly".
+        paddingInlineStart: CODE_TRACKING,
+        color: expired ? C.stone : C.gold,
         textDecoration: expired ? 'line-through' : 'none',
       }}>
         {issued.code}

@@ -7,6 +7,7 @@ import { apiFetch } from '../../utils/apiClient';
 import { useIsClient } from '../../utils/useIsClient';
 import TeamManagement from '../components/TeamManagement';
 import DeviceManagement from '../components/DeviceManagement';
+import CheckinAppDownload from '../components/CheckinAppDownload';
 import CheckinConflicts from '../components/CheckinConflicts';
 import CheckinControls from '../components/CheckinControls';
 import CheckinLive from '../components/CheckinLive';
@@ -31,6 +32,13 @@ const C = {
  * days ahead at a desk, or standing in a venue while the event runs.
  */
 const GROUPS = [
+  {
+    title: 'Start here',
+    hint: 'The door runs on a dedicated Android app. Install it before anything else — the step below pairs a tablet that already has it.',
+    tabs: [
+      { key: 'app', label: 'The app', help: 'Download Fancy Check-in and install it on each tablet' },
+    ],
+  },
   {
     title: 'Before the event',
     hint: 'Done at a desk, days ahead. Both of these need internet — the tablets will not.',
@@ -66,7 +74,7 @@ export default function CheckinSetupPage() {
   const isClient = useIsClient();
   const [eventId, setEventId] = useState('');
   const [events, setEvents] = useState([]);
-  const [tab, setTab] = useState('devices');
+  const [tab, setTab] = useState('app');
   const [loading, setLoading] = useState(true);
 
   // Readiness for the header. Fetched here rather than lifted out of the
@@ -205,9 +213,12 @@ export default function CheckinSetupPage() {
               </div>
             ))}
 
+            {/* Padding shrinks on a phone. A flat 28px here plus another 28px
+                inside whatever panel is showing spent 112px of a 320px screen on
+                margin, which is what pushed the pairing code off the edge. */}
             <div style={{
               marginTop: '28px', background: C.white, border: `1px solid ${C.border}`,
-              borderRadius: '16px', padding: '28px',
+              borderRadius: '16px', padding: 'clamp(18px, 4vw, 28px)',
             }}>
               {/* Names the panel you are looking at. With five entry points and
                   no heading, it was easy to act on the wrong one. */}
@@ -218,6 +229,7 @@ export default function CheckinSetupPage() {
                 {active?.label}
               </p>
 
+              {tab === 'app' && <CheckinAppDownload eventId={eventId} />}
               {tab === 'devices' && <DeviceManagement eventId={eventId} />}
               {tab === 'team' && <TeamManagement eventId={eventId} />}
               {tab === 'live' && <CheckinLive eventId={eventId} />}

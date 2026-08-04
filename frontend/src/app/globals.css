@@ -1269,3 +1269,144 @@ html.fx-debug-overflow *:not(html):not(body) { outline-offset: -1px; }
   .ppm-sheet-wrap { padding: 10px; }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLOBAL ALERTS  (.fx-alert*)  — errors and confirmations, platform-wide
+   ───────────────────────────────────────────────────────────────────────────
+   Rendered by components/ToastCard.js inside one of two fixed viewports:
+   components/Toast.js (single, controlled — the auth pages) and
+   components/ToastHost.js (the global stacked queue behind toast.error/success,
+   107 call sites). One presentation, so an error looks the same everywhere.
+
+   THESE RULES LIVE HERE, NOT IN A <style jsx> BLOCK, AND THAT IS THE BUG FIX.
+   The card is a <motion.div>. styled-jsx stamps its jsx-<hash> class only onto
+   lowercase intrinsic elements (failure mode 2 at the top of this file), so the
+   old `.toast { background; padding; box-shadow; color }` rules compiled to
+   `.toast.jsx-hash` and matched nothing. The card therefore had NO background
+   and NO padding — while `.toast-message { color: #F3F0E8 }`, sitting on a
+   plain <span>, DID apply. Every error on the platform was near-white text
+   painted directly onto the page behind it: present in the DOM, announced to
+   screen readers, and invisible to everyone else.
+
+   Design follows from that. An alert has to survive landing on any background
+   this app has, so nothing here is translucent: solid hexes throughout, full
+   width, pinned to the top edge, with the colour carrying the meaning rather
+   than a 3px rule on the side of a card that looked identical either way.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Viewports ── */
+.fx-alert-viewport {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Above LogoutModal (100000) and every other overlay: an alert raised while
+     a modal is open must not render underneath it. */
+  z-index: 100001;
+  display: flex;
+  flex-direction: column;
+  /* Banners butt together so a stack reads as one block, not scattered cards. */
+  gap: 0;
+  pointer-events: none;
+}
+
+/* ── The banner ── */
+.fx-alert {
+  pointer-events: auto;
+  position: relative;
+  width: 100%;
+  color: #ffffff;
+  cursor: grab;
+  touch-action: pan-x;
+  box-shadow: 0 10px 34px rgba(10, 10, 12, 0.34);
+  font-family: var(--font-sans), Lato, sans-serif;
+  overflow: hidden;
+}
+.fx-alert:active { cursor: grabbing; }
+
+/* Deep enough for white text to clear WCAG AA at this size, saturated enough
+   to read as an alert rather than as decoration — and, unlike the charcoal
+   both kinds used to share, impossible to confuse with each other. */
+.fx-alert--error { background: #b3261e; }
+.fx-alert--success { background: #0f6e3f; }
+
+.fx-alert__inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+}
+
+.fx-alert__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #ffffff;
+}
+/* A solid darker disc of the same hue, not a white-alpha wash: alpha over the
+   banner renders as a different colour on every page it lands on. */
+.fx-alert--error .fx-alert__icon { background: #8c1d18; }
+.fx-alert--success .fx-alert__icon { background: #0a5230; }
+
+.fx-alert__message {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0.1px;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+}
+
+.fx-alert__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px — the same minimum tap target as the rest of the app. The old close
+     button was a 15px glyph at 50% opacity. */
+  width: 44px;
+  height: 44px;
+  margin: -8px -8px -8px 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.18s;
+}
+.fx-alert__close:hover { background: rgba(0, 0, 0, 0.22); }
+.fx-alert__close:focus-visible { outline: 2px solid #ffffff; outline-offset: -3px; }
+
+/* Makes the disappearance predictable instead of abrupt — you can see the
+   message is about to go and read faster, or reach for the close button. */
+.fx-alert__countdown {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  transform-origin: left center;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+@media (max-width: 639.98px) {
+  .fx-alert__inner {
+    gap: 12px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .fx-alert__message { font-size: 14.5px; }
+  .fx-alert__icon { width: 30px; height: 30px; }
+}

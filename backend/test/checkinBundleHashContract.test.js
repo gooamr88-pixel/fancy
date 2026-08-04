@@ -105,3 +105,40 @@ test('changing only a table assignment changes the hash', () => {
   const moved = FIXTURE.map((g) => (g.id === 'b-2' ? { ...g, tableName: 'Table 9' } : g));
   assert.notEqual(svc.canonicalizeGuests(moved), EXPECTED_CANONICAL);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The hash covers exactly five fields — [id, partyId, fullName, tableName,
+// category]. Everything else the bundle carries (mealSelection, dietaryNotes,
+// partyNotes, side, partyMealSummary) is payload the device displays, NOT part
+// of the integrity contract.
+//
+// That is what makes it safe for the backend to add a field: the hash is
+// unchanged, and the Android Json is configured `ignoreUnknownKeys = true`
+// precisely so a tablet that has been offline for a week keeps working
+// (AppModule.kt §21.4). This test pins that property, so a future change that
+// widens canonicalizeGuests has to be a deliberate, coordinated decision rather
+// than an accident that bricks every paired device.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('CONTRACT: adding a display-only field cannot change the hash', () => {
+  const enriched = FIXTURE.map((g) => ({
+    ...g,
+    partyMealSummary: '2 x Fish, 1 x Beef',
+    mealSelection: 'Chicken',
+    dietaryNotes: 'No nuts',
+    someFutureField: { anything: [1, 2, 3] },
+  }));
+  assert.equal(svc.canonicalizeGuests(enriched), EXPECTED_CANONICAL);
+});
+
+test('CONTRACT: the five hashed fields are still the five hashed fields', () => {
+  // Each of these MUST change the hash. If one stops doing so, the bundle can
+  // be corrupted in that field without any device noticing.
+  for (const field of ['id', 'partyId', 'fullName', 'tableName', 'category']) {
+    const mutated = FIXTURE.map((g, i) => (i === 0 ? { ...g, [field]: 'zzz-changed' } : g));
+    assert.notEqual(
+      svc.canonicalizeGuests(mutated), EXPECTED_CANONICAL,
+      `${field} is part of the integrity contract and must affect the hash`,
+    );
+  }
+});

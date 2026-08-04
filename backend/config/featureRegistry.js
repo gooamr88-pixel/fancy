@@ -34,6 +34,11 @@ const PLATFORM_FEATURES = [
   // ── Check-in ──
   { key: 'qr_checkin',           label: 'QR code check-in',             description: 'Scan QR ticket codes to check guests in at the door.',                               category: 'Check-in',          freeDefault: false },
   { key: 'manual_checkin',       label: 'Manual check-in',              description: 'Search and check in guests by name from the check-in console.',                      category: 'Check-in',          freeDefault: false },
+  // The dedicated Android door app, distinct from qr_checkin (which is the
+  // browser kiosk at /checkin and needs a live connection). This one gates the
+  // APK download; assign it to whichever tiers should get it in
+  // Admin -> Config -> Subscription Tiers. Nothing is assigned by default.
+  { key: 'checkin_app',          label: 'Fancy Check-in app (offline door scanner)', description: 'Dedicated Android app for the door: scans tickets and checks guests in with no internet at the venue.', category: 'Check-in', freeDefault: false },
 
   // ── Campaigns & SMS ──
   { key: 'sms_campaigns',        label: 'SMS campaign tools',            description: 'Send bulk SMS campaigns to guest segments with credit-based billing.',               category: 'Campaigns & SMS',   freeDefault: false },

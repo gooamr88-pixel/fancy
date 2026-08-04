@@ -3,7 +3,7 @@ const rateLimit = require('express-rate-limit');
 const { body, param, query } = require('express-validator');
 const validate = require('../middleware/validate');
 const { getPublicEventBySlug } = require('../controllers/eventController');
-const { submitPublicRSVP, searchPublicGuests, verifyPublicSeating, getGuestById, getGuestSeatingMap, getTicketSeatingView, getRsvpInvite, respondViaToken } = require('../controllers/rsvpController');
+const { submitPublicRSVP, searchPublicGuests, verifyPublicSeating, getGuestById, getGuestSeatingMap, getTicketSeatingView, getRsvpInvite, respondViaToken, claimRsvpByEmail } = require('../controllers/rsvpController');
 const checkinController = require('../controllers/checkinController');
 const { trackGuestEvent } = require('../controllers/analyticsController');
 const { handleSmsStatusCallback, handleInboundSms } = require('../controllers/campaignController');
@@ -15,6 +15,18 @@ const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { supabase } = require('../config/supabase');
 
 const router = express.Router();
+
+// Sends an email on every accepted call, so it is capped far tighter than the
+// ordinary public endpoints: a guest needs one link, maybe two after a typo.
+// Anything beyond that is somebody using the endpoint to post mail at an
+// address, and the flat reply means they cannot even tell whether it landed.
+const rsvpClaimLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many requests. Please try again later.' },
+});
 
 // Anonymous marketing forms — capped generously above normal human use, just
 // enough to stop scripted spam without penalizing a legitimate visitor.
@@ -204,6 +216,16 @@ router.post('/events/:slug/rsvp', [
   validate
 ], verifyTurnstile, submitPublicRSVP);
 
+// Emails the owner of an address a short-lived link to edit the RSVP registered
+// to it — the only way to change an answered response without the guest's own
+// link. Replies identically whether or not anything matched (see the handler),
+// so it can't be used to test who is on the guest list.
+router.post('/events/:slug/rsvp/claim', rsvpClaimLimiter, [
+  body('email').trim().isEmail().withMessage('Enter a valid email address'),
+  body('lang').optional({ values: 'falsy' }).isIn(['en', 'ar']).withMessage('Unsupported language'),
+  validate
+], claimRsvpByEmail);
+
 // Public self-service check-in
 router.post('/events/:slug/self-checkin', [
   body('partyId').isUUID().withMessage('Valid party ID is required'),
@@ -225,13 +247,26 @@ router.post('/events/:slug/analytics', [
 // ordinary phone camera — not just the organizer's check-in kiosk — opens
 // the guest's seating view directly. Aggressive cache headers (immutable, 30
 // days) because the same token always produces the same image.
+//
+// `?download=1` returns the SAME code as a saved file instead of an inline
+// image, so a guest can keep their pass in their photo roll and walk up to the
+// door with no signal and no inbox. It has to be driven by Content-Disposition
+// server-side: the HTML `download` attribute is ignored cross-origin, and the
+// API and the site are different origins in every deployment. The saved copy
+// renders at 1024px (vs the 200px the email displays) because it gets printed,
+// zoomed, and re-shared.
 router.get('/qr/:token.png', async (req, res) => {
   try {
+    const download = req.query.download === '1' || req.query.download === 'true';
     const ticketUrl = `${getPublicBaseUrl()}/ticket/${encodeURIComponent(req.params.token)}`;
-    const buffer = await generateQRCodeBuffer(ticketUrl);
+    const buffer = await generateQRCodeBuffer(ticketUrl, download ? { width: 1024, margin: 3 } : {});
     res.set({
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=2592000, immutable',
+      // Filename is deliberately generic — deriving it from the guest's name
+      // would mean decoding the token and hitting the DB on what is otherwise
+      // a pure, cacheable render.
+      ...(download ? { 'Content-Disposition': 'attachment; filename="check-in-qr-code.png"' } : {}),
     });
     res.send(buffer);
   } catch (err) {

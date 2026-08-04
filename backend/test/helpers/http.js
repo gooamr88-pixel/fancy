@@ -30,6 +30,18 @@ function mockRes() {
   res.send = (b) => { res.body = b; res.finished = true; return res; };
   res.setHeader = (k, v) => { res.headers[k] = v; return res; };
   res.sendFile = (p) => { res.body = `[file:${p}]`; res.finished = true; return res; };
+  // Express allows redirect(url) or redirect(status, url). Without this a
+  // handler that redirects throws a TypeError straight into next(), which the
+  // caller then reads as a 200 with an error — a confusing way to discover the
+  // double is incomplete.
+  res.redirect = (a, b) => {
+    const [status, url] = typeof a === 'number' ? [a, b] : [302, a];
+    res.statusCode = status;
+    res.redirectedTo = url;
+    res.headers.Location = url;
+    res.finished = true;
+    return res;
+  };
   res.cookie = (n, v, o) => { res.cookies[n] = { value: v, options: o }; return res; };
   res.clearCookie = (n) => { res.cleared.push(n); return res; };
   return res;

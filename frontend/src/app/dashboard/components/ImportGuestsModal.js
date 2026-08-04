@@ -42,6 +42,11 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
   // up front; .xlsx can't be inspected in the browser, so those rely on the
   // server-side check alone.
   const [csvHasPhones, setCsvHasPhones] = useState(false);
+  // .xlsx is uploaded as opaque base64 — we cannot see its columns client-side,
+  // so we cannot know whether it carries phone numbers. The consent attestation
+  // is offered anyway (it would otherwise be impossible to attest for an .xlsx
+  // import); the server applies it only to rows that actually have a number.
+  const [phonesUnknown, setPhonesUnknown] = useState(false);
   const fileRef = useRef(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -54,7 +59,7 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
     if (isOpen) {
       setFileContent(''); setFileName(''); setPreview([]); setTotalRows(0);
       setError(''); setResult(null); setLoading(false); setDragOver(false);
-      setConsentAttested(false); setCsvHasPhones(false);
+      setConsentAttested(false); setCsvHasPhones(false); setPhonesUnknown(false);
     }
   }
 
@@ -83,11 +88,12 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
         const dataRows = rows.length > 1 ? rows.slice(1) : rows;
         setTotalRows(dataRows.length);
         setPreview(rows.slice(0, 6)); // header + 5 data rows
-        // Gate the Import button on the attestation when the file actually
-        // carries phone numbers (mirrors the server-side requirement).
+        // Offer the SMS consent attestation only when the file actually carries
+        // phone numbers — there is nothing to attest about otherwise.
         const header = (rows[0] || []).map((c) => String(c).trim().toLowerCase());
         const phoneIdx = header.indexOf('phone');
         setCsvHasPhones(phoneIdx >= 0 && dataRows.some((r) => String(r[phoneIdx] || '').trim()));
+        setPhonesUnknown(false);
       };
       reader.onerror = () => setError('Failed to read file');
       reader.readAsText(file);
@@ -104,7 +110,8 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
         setFileContent(base64);
         setTotalRows(0); // Cannot count/preview an .xlsx binary client-side without a parser library
         setPreview([]);
-        setCsvHasPhones(false); // unknown for .xlsx — the server enforces the attestation instead
+        setCsvHasPhones(false);
+        setPhonesUnknown(true); // columns are invisible client-side; offer the attestation regardless
       };
       reader.onerror = () => setError('Failed to read file');
       reader.readAsArrayBuffer(file);
@@ -236,6 +243,21 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                   {result.skippedCount} duplicate{result.skippedCount === 1 ? '' : 's'} skipped
                 </p>
               )}
+              {/* What the import did to SMS eligibility. The server returns this
+                  in `message` too, but this panel renders counts rather than
+                  that string — so state it here, or the consequence of the
+                  consent checkbox is invisible at the one moment it took effect. */}
+              {result.phoneRowCount > 0 && (
+                <p style={{
+                  fontSize: '12px', lineHeight: 1.55, marginTop: '10px',
+                  color: result.smsConsentAttested ? '#8A6D34' : COLORS.stone,
+                  fontFamily: 'var(--font-sans)',
+                }}>
+                  {result.smsConsentAttested
+                    ? `${result.phoneRowCount} guest${result.phoneRowCount === 1 ? '' : 's'} with a phone number can receive event texts, based on your confirmation.`
+                    : `${result.phoneRowCount} guest${result.phoneRowCount === 1 ? '' : 's'} have a phone number but no SMS consent on record, so they won’t receive text messages. They can opt in on their RSVP form.`}
+                </p>
+              )}
               {result.errors && result.errors.length > 0 && (
                 <div style={{ marginTop: '12px', textAlign: 'left' }}>
                   <p style={{ fontSize: '12px', color: '#C45E5E', fontFamily: 'var(--font-sans)', fontWeight: 600, marginBottom: '6px' }}>
@@ -257,8 +279,8 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                 </div>
               )}
               <p style={{ fontSize: '13px', color: COLORS.stone, marginTop: '16px', fontFamily: 'var(--font-sans)', lineHeight: 1.5 }}>
-                Ready to invite them? Send invitations from the dashboard, or share your link / QR code. SMS invitations
-                go only to guests you confirmed have consented to receive texts about this event.
+                Ready to invite them? Send invitations from the dashboard, or share your link / QR code. Email
+                invitations reach everyone; text messages reach only guests with SMS consent on record.
               </p>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px', flexWrap: 'wrap' }}>
                 <button onClick={() => {
@@ -390,29 +412,39 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
                 </div>
               )}
 
-              {/* Terms §5 consent attestation — the backend rejects phone-bearing
-                  imports without it, so it's collected up front for every file. */}
-              {fileContent && (
-                <label style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '16px',
-                  padding: '12px 14px', borderRadius: '10px', background: 'rgba(184,148,79,0.06)',
-                  border: `1px solid ${COLORS.border}`, cursor: 'pointer',
+              {/* Host SMS consent attestation (TCPA/CTIA + Terms §5).
+                  Shown only when the file actually carries phone numbers —
+                  there is nothing to attest about otherwise. Unchecked by
+                  default and never blocks the import: without it the numbers
+                  still import, they simply stay un-messageable. */}
+              {fileContent && (csvHasPhones || phonesUnknown) && (
+                <div style={{
+                  marginTop: '16px', padding: '12px 14px', borderRadius: '10px',
+                  background: consentAttested ? 'rgba(184,148,79,0.08)' : COLORS.softBg,
+                  border: `1px solid ${consentAttested ? COLORS.champagne : COLORS.border}`,
+                  transition: 'background 0.2s, border-color 0.2s',
                 }}>
-                  <input
-                    type="checkbox"
-                    checked={consentAttested}
-                    onChange={(e) => setConsentAttested(e.target.checked)}
-                    style={{ marginTop: '2px', width: '15px', height: '15px', accentColor: COLORS.gold, flexShrink: 0, cursor: 'pointer' }}
-                  />
-                  <span style={{ fontSize: '12px', color: COLORS.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
-                    I confirm that every guest on this list whose phone number I&apos;m uploading has already given me
-                    their express consent to receive text messages about this event, as required by the{' '}
-                    <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, fontWeight: 700, textDecoration: 'underline' }}>Terms of Service</a>.
-                    {csvHasPhones
-                      ? <strong style={{ color: COLORS.gold }}> This file contains phone numbers, so this confirmation is required.</strong>
-                      : ' Files without phone numbers don’t need this.'}
-                  </span>
-                </label>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={consentAttested}
+                      onChange={(e) => setConsentAttested(e.target.checked)}
+                      style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: COLORS.gold, flexShrink: 0, cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '12.5px', color: COLORS.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                      I confirm that I have obtained these recipients&apos; consent to receive event-related SMS messages.
+                    </span>
+                  </label>
+                  <p style={{
+                    margin: '8px 0 0 26px', fontSize: '11.5px', lineHeight: 1.6,
+                    color: COLORS.stone, fontFamily: 'var(--font-sans)',
+                  }}>
+                    {consentAttested
+                      ? <>These guests can be included in SMS invitations and reminders. Your confirmation is recorded with your name and the date, as required by our{' '}
+                        <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: COLORS.gold, fontWeight: 700, textDecoration: 'underline' }}>Terms of Service</a>.</>
+                      : <>Optional. Without it the phone numbers are still imported to your guest list, but these guests won&apos;t receive any text messages until they opt in themselves on their RSVP form.</>}
+                  </p>
+                </div>
               )}
 
               {/* Error */}
@@ -442,17 +474,22 @@ export default function ImportGuestsModal({ isOpen, onClose, eventId, event, onI
               onMouseEnter={(e) => { e.currentTarget.style.background = COLORS.ivory; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = COLORS.white; }}
             >Cancel</button>
-            <button onClick={handleSubmit} disabled={loading || !fileContent || (csvHasPhones && !consentAttested)}
+            {/* The SMS consent attestation is optional and no longer gates this
+                button — it decides whether imported numbers become messageable,
+                not whether the import may proceed. Requiring it would push an
+                organizer to claim consent they may not hold just to store a
+                number. */}
+            <button onClick={handleSubmit} disabled={loading || !fileContent}
               style={{
                 padding: '10px 24px', borderRadius: '8px', border: 'none',
-                background: (loading || !fileContent || (csvHasPhones && !consentAttested)) ? COLORS.champagne : COLORS.gold,
+                background: (loading || !fileContent) ? COLORS.champagne : COLORS.gold,
                 color: COLORS.white, fontSize: '13px', fontWeight: 700, fontFamily: 'var(--font-sans)',
-                cursor: (loading || !fileContent || (csvHasPhones && !consentAttested)) ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                cursor: (loading || !fileContent) ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
                 display: 'flex', alignItems: 'center', gap: '8px',
                 opacity: !fileContent ? 0.6 : 1,
               }}
-              onMouseEnter={(e) => { if (!loading && fileContent && !(csvHasPhones && !consentAttested)) e.currentTarget.style.background = COLORS.goldHover; }}
-              onMouseLeave={(e) => { if (!loading && fileContent && !(csvHasPhones && !consentAttested)) e.currentTarget.style.background = COLORS.gold; }}
+              onMouseEnter={(e) => { if (!loading && fileContent) e.currentTarget.style.background = COLORS.goldHover; }}
+              onMouseLeave={(e) => { if (!loading && fileContent) e.currentTarget.style.background = COLORS.gold; }}
             >
               {loading && (
                 <span style={{

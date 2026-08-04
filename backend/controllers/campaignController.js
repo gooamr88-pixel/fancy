@@ -5,7 +5,7 @@ const logger = require('../utils/logger');
 const {
   chunk, sleep, normalizePhone, isValidPhone,
   normalizeAudiences, fetchRecipients, getTableMap, personalize, sendRecipient,
-  getOptedOutSet, canonicalPhone,
+  getOptedOutSet, canonicalPhone, getConsentedPhoneSet,
 } = require('../services/smsDispatch');
 
 /* ─── Tunables ─────────────────────────────────────────────────────────── */
@@ -40,13 +40,15 @@ const sendBulkSMSCampaign = async (req, res, next) => {
     return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Select at least one valid audience segment.' });
   }
 
-  // TCPA/CTIA + Terms §5 ("Host Consent Obligations"): every launch requires the
-  // organizer's recorded attestation that they hold prior express consent for
-  // every host-supplied number (guests who submitted their own number already
-  // consented in-form). The dashboard collects this as a required checkbox;
-  // direct API calls must send it too. Recorded on the campaign row (async) or
-  // in activity_logs metadata (sync). String 'true' is tolerated for
+  // Terms §5 ("Host Consent Obligations"): every launch requires the organizer's
+  // recorded attestation. Recorded on the campaign row (async) or in
+  // activity_logs metadata (sync). String 'true' is tolerated for
   // form-encoded/hand-rolled API clients.
+  //
+  // This is an ADDITIONAL gate, never a substitute for the guest's own consent.
+  // Since 2026-08-04 the audience query and sendRecipient both require
+  // rsvp_parties.sms_consent = true, so an attestation cannot authorize a send
+  // to anyone who did not personally opt in (Twilio TFV 30475).
   const consentAttested = req.body?.consentAttested === true || req.body?.consentAttested === 'true';
   if (!consentAttested) {
     return res.status(400).json({
@@ -78,7 +80,7 @@ const sendBulkSMSCampaign = async (req, res, next) => {
         success: true,
         message: suppressedCount > 0
           ? 'Every matching guest has opted out of SMS — nothing was sent.'
-          : 'No matching guests with a valid phone number were found for this segment.',
+          : 'No matching guests have a recorded SMS consent. A guest can be texted once they opt in on their RSVP form, or once you confirm their consent when adding or importing them.',
         sentCount: 0, failedCount: 0, skippedCount: 0, creditsUsed: 0, recipientCount: 0, suppressedCount,
       });
     }
@@ -112,14 +114,18 @@ const sendBulkSMSCampaign = async (req, res, next) => {
     }
 
     // ── Small → synchronous bounded/paced dispatch ──
-    return await dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount, attestedBy: req.user?.id || null, optedOut });
+    // Preloaded consent set: sendRecipient re-verifies consent per message, and
+    // without this it would issue one lookup per recipient. Not a substitute for
+    // that check — just the batched form of it.
+    const consented = await getConsentedPhoneSet(eventId);
+    return await dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount, attestedBy: req.user?.id || null, optedOut, consented });
   } catch (err) {
     next(err);
   }
 };
 
 /** Synchronous path for small campaigns. */
-async function dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount = 0, attestedBy = null, optedOut = null }) {
+async function dispatchInline(res, { eventId, event, recipients, messageTemplate, audienceLabel, clientToken, suppressedCount = 0, attestedBy = null, optedOut = null, consented = null }) {
   const tableMap = await getTableMap(eventId);
   const campaignToken = (typeof clientToken === 'string' && clientToken.trim())
     ? clientToken.trim().slice(0, 80)
@@ -142,7 +148,7 @@ async function dispatchInline(res, { eventId, event, recipients, messageTemplate
     const results = await Promise.allSettled(batches[i].map(async ({ guest, body, segments }) => {
       const result = await sendRecipient({
         eventId, phone: guest.phone, body, segments,
-        idemKey: `sms:${campaignToken}:${guest.id}`, twilio, fromNumber, optedOut,
+        idemKey: `sms:${campaignToken}:${guest.id}`, twilio, fromNumber, optedOut, consented,
       });
       return { guest, result };
     }));

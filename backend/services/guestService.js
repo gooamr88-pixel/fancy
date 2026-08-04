@@ -14,6 +14,7 @@ const logger = require('../utils/logger');
 const { normalizeEmail, escapeLikePattern, normalizeNameForSearch } = require('../utils/normalize');
 const { normalizeToE164 } = require('../utils/phone');
 const { sideLabelForEvent } = require('../utils/sideLabel');
+const { CONSENT_METHOD_HOST, logSmsConsentDecision } = require('../utils/smsConsent');
 
 const MAX_ADDITIONAL_GUESTS = 100;
 const MAX_CUSTOM_ANSWERS = 200;
@@ -34,6 +35,72 @@ function seatingRevealAtISO(eventDate) {
   return new Date(start - SEATING_REVEAL_WINDOW_MS).toISOString();
 }
 
+/**
+ * Coerces a client-supplied companion meal tally into a safe, bounded object.
+ *
+ * submit_rsvp_v2 validates the tally against the event's own meal options — but
+ * ONLY when the event actually has a meal field, since the check lives inside
+ * that branch. An event with no meal field would otherwise take whatever jsonb a
+ * caller posted straight into the column, unbounded and unchecked, from a public
+ * endpoint. Every other array on that endpoint is capped (100 companions, 200
+ * custom answers); this is the same idea for the one object.
+ *
+ * Returns null rather than {} for an empty result: the RPC and updateParty both
+ * treat null as "no tally", and an empty object would read as a deliberate
+ * "zero of everything".
+ *
+ * `capacity` additionally caps the TOTAL at the number of companions, trimming
+ * the smallest choices first — the same rule as the client's trimMealCounts, so
+ * the two never disagree. Passed on the organizer's edit path, where nothing
+ * else checks it. Deliberately NOT passed on the public submit path:
+ * submit_rsvp_v2 rejects an over-count loudly there, which is what a guest
+ * still looking at the form needs, rather than a silent trim.
+ */
+function sanitizeCompanionMealCounts(raw, capacity = null) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const clean = {};
+  // A real menu is a handful of dishes. The cap exists so a caller cannot post
+  // thousands of keys, not to constrain any genuine organizer.
+  for (const [meal, n] of Object.entries(raw).slice(0, 50)) {
+    const label = String(meal).trim().slice(0, 120);
+    const qty = Number(n);
+    if (!label || !Number.isInteger(qty) || qty <= 0 || qty > 20) continue;
+    clean[label] = qty;
+  }
+
+  let entries = Object.entries(clean);
+  if (capacity !== null && entries.reduce((sum, [, n]) => sum + n, 0) > Math.max(0, Number(capacity) || 0)) {
+    let remaining = Math.max(0, Number(capacity) || 0);
+    entries = entries
+      .sort((a, b) => b[1] - a[1]) // largest first — the group's main choice survives
+      .map(([meal, n]) => {
+        const keep = Math.min(n, remaining);
+        remaining -= keep;
+        return [meal, keep];
+      })
+      .filter(([, n]) => n > 0);
+  }
+
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+/**
+ * Renders a party's companion meal tally as "2 x Fish, 1 x Beef".
+ *
+ * Companions are names only, so their meals are a COUNT for the group rather
+ * than a dish attributed to a person (see migration 20260817000000). Anything
+ * displaying meals has to add this to the named per-guest selections, or it
+ * reports a party of four as one meal and three "No Selection".
+ */
+function formatCompanionMealCounts(counts) {
+  if (!counts || typeof counts !== 'object') return '';
+  return Object.entries(counts)
+    .filter(([, n]) => Number(n) > 0)
+    .sort((a, b) => Number(b[1]) - Number(a[1]) || naturalCompare(a[0], b[0]))
+    .map(([meal, n]) => `${Number(n)} x ${meal}`)
+    .join(', ');
+}
+
 /** Locale-aware natural comparator: "Table 2" < "Table 10", and orders Arabic names. */
 function naturalCompare(a, b) {
   return String(a == null ? '' : a)
@@ -48,7 +115,7 @@ function naturalCompare(a, b) {
 async function submitPublicRsvp({
   slug, partyId, guestName, email, phone, response, partySize, notes,
   primaryMeal, additionalGuests, customAnswers, declineReason, maybeConfirmBy, side, smsConsent,
-  dietaryNotes,
+  dietaryNotes, companionMealCounts,
 }) {
   const { data, error } = await supabase.rpc('submit_rsvp_v2', {
     p_slug: slug,
@@ -67,6 +134,10 @@ async function submitPublicRsvp({
     p_side: side || null,
     p_sms_consent: !!smsConsent,
     p_primary_dietary_notes: dietaryNotes || null,
+    // { "Beef": 2, "Fish": 1 } for the party's companions. Companions are names
+    // only, so their meals are a tally for the group rather than a choice
+    // attributed to a person.
+    p_companion_meal_counts: sanitizeCompanionMealCounts(companionMealCounts),
   });
   if (error) throw error;
   return data;
@@ -118,9 +189,61 @@ async function checkGuestCapacity(eventId, response, additionalCount) {
  * driven purely by partySize regardless of `response` — matching updateParty,
  * so the same "party size" concept behaves identically from Add vs Edit.
  */
+/**
+ * Record an organizer's attestation that they hold this guest's prior express
+ * consent to receive event-related texts, and make the number messageable.
+ *
+ * PRECEDENCE — the reason this is a guarded UPDATE and not a plain one: a
+ * guest's own decision always outranks a host's claim about it. The
+ * `.is('sms_consent_at', null)` filter means this can only ever write to a
+ * party that has NEVER recorded a consent decision. A guest who was shown our
+ * checkbox and left it unticked has a stamped `sms_consent_at`, so a host
+ * cannot attest over the top of their refusal — the update simply matches no
+ * rows. (A STOP reply is enforced separately and globally, in sms_opt_outs, so
+ * it also survives any attestation.)
+ *
+ * Best-effort by design: the guest has already been created and the phone
+ * already stored. Failing to stamp the attestation must leave the number
+ * un-messageable — the safe direction — never fail the add/import itself.
+ */
+async function recordHostConsentAttestation({ eventId, partyId, guestId = null, phone, actorUserId, source }) {
+  if (!partyId || !phone) return;
+  const nowISO = new Date().toISOString();
+  try {
+    const { data, error } = await supabase
+      .from('rsvp_parties')
+      .update({
+        sms_consent: true,
+        sms_consent_at: nowISO,
+        sms_consent_source: source,
+        sms_consent_method: CONSENT_METHOD_HOST,
+        sms_consent_attested_by: actorUserId || null,
+        sms_consent_attested_at: nowISO,
+      })
+      .eq('id', partyId)
+      .is('sms_consent_at', null)   // never overwrite a decision the guest made
+      .select('id');
+    if (error) {
+      logger.warn({ err: error, partyId }, '[addGuest] host SMS consent attestation write failed (apply 20260812000000_host_sms_consent_attestation.sql)');
+      return;
+    }
+    // No rows matched → the guest had already decided for themselves. Correct
+    // and expected; the number stays on whatever the guest chose.
+    if (!data || data.length === 0) return;
+
+    logSmsConsentDecision({
+      eventId, partyId, guestId, phone, consent: true, source,
+      method: CONSENT_METHOD_HOST, attestedBy: actorUserId || null,
+    });
+  } catch (err) {
+    logger.warn({ err, partyId }, '[addGuest] host SMS consent attestation threw');
+  }
+}
+
 async function addGuest({
   eventId, actorUserId, fullName, phone, partyId = null, email = null, response = 'pending',
   partySize = 1, notes = null, side = null, primaryMeal = null,
+  smsConsentAttested = false, consentSource = 'host_manual_add',
 }) {
   const isNewParty = !partyId;
   const extraCount = isNewParty ? Math.min(Math.max(partySize, 1), MAX_ADDITIONAL_GUESTS) - 1 : 0;
@@ -144,6 +267,21 @@ async function addGuest({
   });
   if (error) throw error;
   if (!data || data.success === false) return data;
+
+  // Host consent attestation — only when the organizer actually ticked it AND a
+  // number exists to attest about. Without it the phone is still stored for the
+  // organizer's own guest list; it is simply never texted.
+  //
+  // Restricted to NEW parties on purpose. Adding to an existing party creates a
+  // companion, and SMS is addressed to the party's PRIMARY contact — so
+  // attesting here would attach the companion's consent to somebody else's
+  // number. The primary contact's own consent is theirs to give.
+  if (smsConsentAttested && phone && isNewParty && data.party_id) {
+    await recordHostConsentAttestation({
+      eventId, partyId: data.party_id, guestId: data.guest_id || null,
+      phone, actorUserId, source: consentSource,
+    });
+  }
 
   // add_guest_to_party has no meal parameter (meal_selection didn't exist when it
   // was written) — set it with a follow-up update on the guest row it just created
@@ -418,14 +556,75 @@ async function listParties(eventId, {
 const GUEST_CATEGORIES = ['standard', 'vip', 'family'];
 
 /** Organizer edit of a party + its guests (full reconciliation of the headcount). */
+/**
+ * Finds an existing guest on this event, in a DIFFERENT party, already holding
+ * the email or phone an edit is trying to set.
+ *
+ * Contact details are unique per event at the DB level and the two indexes are
+ * scoped differently:
+ *   • idx_guests_event_email_unique — (event_id, lower(email)), UNCONDITIONAL:
+ *     any guest, primary or companion, holding that address collides.
+ *   • idx_guests_event_phone_unique — (event_id, phone) WHERE is_primary_contact,
+ *     because companions legitimately share a household number with their host
+ *     (see migration 20260711000000).
+ *
+ * Checked here rather than left to the write, because a raw 23505 propagates to
+ * the organizer as a bare "An unexpected error occurred on the server" — the
+ * constraint name never survives the error handler, so there was no way to tell
+ * that the address simply belongs to somebody else on the guest list.
+ *
+ * `escapeLikePattern` on the email is not optional: `ilike` is the only
+ * case-insensitive exact match available here, and an underscore is an ilike
+ * wildcard AND a perfectly ordinary email character — unescaped,
+ * "rouida_mousa@yahoo.com" would also match "rouida-mousa@yahoo.com" and
+ * reject a legitimate edit.
+ */
+async function findContactConflict(eventId, partyId, { email, phone }) {
+  if (email) {
+    const { data, error } = await supabase
+      .from('guests')
+      .select('full_name')
+      .eq('event_id', eventId)
+      .neq('party_id', partyId)
+      .ilike('email', escapeLikePattern(email))
+      .limit(1);
+    if (error) throw error;
+    if (data && data.length > 0) {
+      return { error: 'DUPLICATE_EMAIL', field: 'email', value: email, conflictWith: data[0].full_name || null };
+    }
+  }
+  if (phone) {
+    const { data, error } = await supabase
+      .from('guests')
+      .select('full_name')
+      .eq('event_id', eventId)
+      .neq('party_id', partyId)
+      .eq('is_primary_contact', true)
+      .eq('phone', phone)
+      .limit(1);
+    if (error) throw error;
+    if (data && data.length > 0) {
+      return { error: 'DUPLICATE_PHONE', field: 'phone', value: phone, conflictWith: data[0].full_name || null };
+    }
+  }
+  return null;
+}
+
 async function updateParty(eventId, partyId, {
   guestName, email, phone, response, partySize, notes, primaryMeal, additionalGuests, side, category,
+  companionMealCounts, smsConsentAttested = false, actorUserId = null,
 }) {
   const updates = {};
   if (guestName !== undefined) updates.label = guestName.trim();
   if (response !== undefined) updates.response = response;
   if (notes !== undefined) updates.notes = notes;
   if (side !== undefined) updates.side = side || null;
+  // Deliberately NOT written here. The tally has to be capped at the party's
+  // real companion count, and that is only known once the reconciliation below
+  // resolves `effectivePartySize` — so it is written there instead. Setting it
+  // here would let a direct API call (bypassing the modal, which caps it in the
+  // UI) record more meals than the party has people, inflating the caterer's
+  // breakdown in getEventStats.
 
   // Applied to every guest in the party, because the edit surface is party-shaped
   // and A-16 item 6 asks for ONE dropdown. In practice a category is a party
@@ -438,6 +637,16 @@ async function updateParty(eventId, partyId, {
   if (category !== undefined && normalizedCategory === null) {
     return { error: 'INVALID_CATEGORY' };
   }
+
+  // Run BEFORE any write, so a rejected edit leaves the party exactly as it
+  // was. Checking it inside the reconciliation below would have already
+  // committed the label/response/notes update to rsvp_parties by the time the
+  // guest rows failed, leaving the two half-applied.
+  const conflict = await findContactConflict(eventId, partyId, {
+    email: email !== undefined ? normalizeEmail(email) : null,
+    phone: phone !== undefined && phone ? normalizeToE164(phone) : null,
+  });
+  if (conflict) return conflict;
 
   const { data: party, error } = await supabase
     .from('rsvp_parties')
@@ -457,7 +666,7 @@ async function updateParty(eventId, partyId, {
   // guest's party size silently did nothing.
   const guestDetailProvided = additionalGuests !== undefined || primaryMeal !== undefined
     || guestName !== undefined || email !== undefined || phone !== undefined
-    || normalizedCategory !== undefined;
+    || normalizedCategory !== undefined || companionMealCounts !== undefined;
   const partySizeProvided = partySize !== undefined;
 
   if (guestDetailProvided || partySizeProvided) {
@@ -469,6 +678,19 @@ async function updateParty(eventId, partyId, {
       : Math.max(existing.length, 1);
     const provided = Array.isArray(additionalGuests) ? additionalGuests : null;
 
+    // The tally, now that the party's real companion count is known. Capped
+    // against it so a direct API call can't record more meals than there are
+    // people — the modal caps it in the UI, but nothing else did.
+    if (companionMealCounts !== undefined) {
+      const capped = sanitizeCompanionMealCounts(companionMealCounts, Math.max(0, effectivePartySize - 1));
+      const { error: mealErr } = await supabase
+        .from('rsvp_parties')
+        .update({ companion_meal_counts: capped })
+        .eq('id', partyId)
+        .eq('event_id', eventId);
+      if (mealErr) throw mealErr;
+    }
+
     // SEC C12: Atomic guest reconciliation — upsert existing, insert new, delete removed.
     // Build the desired guest list first.
     const primaryRow = {
@@ -479,6 +701,11 @@ async function updateParty(eventId, partyId, {
       phone: phone !== undefined ? (phone ? normalizeToE164(phone) : null) : (existingPrimary?.phone || null),
       is_primary_contact: true,
       meal_selection: primaryMeal !== undefined ? (primaryMeal || null) : (existingPrimary?.meal_selection || null),
+      // Carried through unchanged. Present only so this row has the SAME key
+      // set as the companion rows below — PostgREST rejects a bulk write whose
+      // objects don't all share one shape (PGRST102 "All object keys must
+      // match"), which made editing ANY party of 2+ fail with a bare 500.
+      dietary_notes: existingPrimary?.dietary_notes ?? null,
       category: normalizedCategory !== undefined
         ? normalizedCategory
         : (existingPrimary?.category || 'standard'),
@@ -502,8 +729,12 @@ async function updateParty(eventId, partyId, {
         is_primary_contact: false,
         email: fromBody && fromBody.email !== undefined ? (normalizeEmail(fromBody.email) || null) : (prev?.email || null),
         phone: fromBody && fromBody.phone !== undefined ? (fromBody.phone ? normalizeToE164(fromBody.phone) : null) : (prev?.phone || null),
-        meal_selection: fromBody ? (fromBody.mealSelection || null) : (prev?.meal_selection || null),
-        dietary_notes: fromBody ? (fromBody.dietaryNotes || null) : (prev?.dietary_notes || null),
+        // No meal and no dietary notes on a companion any more: both are carried
+        // for the party as a whole. Existing values are preserved rather than
+        // nulled — a row written before this change keeps what it had, it just
+        // stops being editable here.
+        meal_selection: prev?.meal_selection || null,
+        dietary_notes: prev?.dietary_notes || null,
         category: normalizedCategory !== undefined
           ? normalizedCategory
           : (prev?.category || 'standard'),
@@ -521,10 +752,23 @@ async function updateParty(eventId, partyId, {
     const existingIds = existing.map((g) => g.id).filter(Boolean);
     const toDelete = existingIds.filter((id) => !keepGuestIds.has(id));
 
+    // Split by whether the row already exists. Sending both shapes in ONE
+    // call cannot work: a row carrying `id` and a brand-new row without it are
+    // different object shapes, and PostgREST requires every object in a bulk
+    // write to share one key set (PGRST102) — so adding a guest to an existing
+    // party failed with a bare 500.
+    const existingRows = allRows.filter((r) => r.id);
+    const newRows = allRows.map(({ id, ...rest }) => (id ? null : rest)).filter(Boolean);
+
     try {
-      // Upsert all desired guests (update existing by id, insert new ones).
-      const { error: upsertErr } = await supabase.from('guests').upsert(allRows, { onConflict: 'id' });
-      if (upsertErr) throw upsertErr;
+      if (existingRows.length > 0) {
+        const { error: upsertErr } = await supabase.from('guests').upsert(existingRows, { onConflict: 'id' });
+        if (upsertErr) throw upsertErr;
+      }
+      if (newRows.length > 0) {
+        const { error: insertErr } = await supabase.from('guests').insert(newRows);
+        if (insertErr) throw insertErr;
+      }
 
       // Delete only the guests that were removed from the party.
       if (toDelete.length > 0) {
@@ -532,6 +776,14 @@ async function updateParty(eventId, partyId, {
         if (delErr) throw delErr;
       }
     } catch (reconcileErr) {
+      // A 23505 that gets this far is a race the pre-check above couldn't see
+      // (two organizers editing at once). Surface it as the same named
+      // conflict rather than a 500 — the constraint tells us which field.
+      if (reconcileErr?.code === '23505') {
+        const constraint = `${reconcileErr.message || ''} ${reconcileErr.details || ''}`;
+        if (constraint.includes('idx_guests_event_email_unique')) return { error: 'DUPLICATE_EMAIL', field: 'email' };
+        if (constraint.includes('idx_guests_event_phone_unique')) return { error: 'DUPLICATE_PHONE', field: 'phone' };
+      }
       // C12: Log the error with original guest data so recovery is possible.
       logger.error({
         err: reconcileErr, partyId, eventId,
@@ -543,7 +795,37 @@ async function updateParty(eventId, partyId, {
 
   // Seating cleanup on response leaving 'yes' is handled by trg_party_response_change.
 
+  // Host SMS consent attestation from the edit surface — the way an organizer
+  // fixes a guest they imported or added before confirming consent. Runs last so
+  // it only applies to an edit that otherwise succeeded, and uses the same
+  // guarded write as the add path: it cannot overwrite a guest's own decision.
+  // The number attested for is the party's CURRENT primary-contact phone, after
+  // any edit above.
+  if (smsConsentAttested) {
+    const attestPhone = phone !== undefined && phone
+      ? normalizeToE164(phone)
+      : (await getPrimaryPhone(partyId));
+    if (attestPhone) {
+      await recordHostConsentAttestation({
+        eventId, partyId, phone: attestPhone, actorUserId, source: 'host_manual_add',
+      });
+    }
+  }
+
   return party;
+}
+
+/** Current primary-contact phone for a party, or null. */
+async function getPrimaryPhone(partyId) {
+  const { data, error } = await supabase
+    .from('guests').select('phone')
+    .eq('party_id', partyId).eq('is_primary_contact', true)
+    .limit(1);
+  if (error) {
+    logger.warn({ err: error, partyId }, '[updateParty] primary phone lookup failed; consent attestation skipped');
+    return null;
+  }
+  return (data && data[0] && data[0].phone) || null;
 }
 
 /** Deletes a party and its related data (guests/custom_answers cascade via FK). */
@@ -585,8 +867,14 @@ async function getStats(eventId) {
  * dedup-safe — slower than the old single bulk `.insert()` into one flat
  * table, but correct: a partial chunk failure can no longer leave an
  * orphaned party with no guest row.
+ *
+ * `smsConsentAttested` is the organizer's per-import declaration that they hold
+ * prior express consent for every phone number in the file. It applies only to
+ * rows that actually carry a number, and only to genuinely new parties — a
+ * duplicate row is skipped entirely, so it can never retro-attest over a guest
+ * who already answered our own consent checkbox.
  */
-async function importGuests(eventId, actorUserId, rows) {
+async function importGuests(eventId, actorUserId, rows, { smsConsentAttested = false } = {}) {
   const CONCURRENCY = 20;
   const imported = [];
   const errors = [];
@@ -604,6 +892,8 @@ async function importGuests(eventId, actorUserId, rows) {
       partySize: row.party_size || 1,
       notes: row.notes || null,
       side: row.side || null,
+      smsConsentAttested,
+      consentSource: 'host_csv_import',
     })));
 
     results.forEach((r, idx) => {
@@ -634,7 +924,7 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
   const { data: parties, error } = await supabase
     .from('rsvp_parties')
     .select(`
-      id, label, response, notes, side,
+      id, label, response, notes, side, companion_meal_counts,
       guests(full_name, email, phone, is_primary_contact, meal_selection),
       seating_assignments(table_id, tables(table_name)),
       check_ins(checked_in_at, method, deleted_at, undo_reason)
@@ -677,8 +967,14 @@ async function exportParties(eventId, { attendingOnly, sort } = {}) {
     // Name-attributed so a party with different meals per person is legible in
     // the export ("John: Chicken; Guest 2: Fish") instead of an ambiguous
     // semicolon-joined blob with no way to tell whose meal is whose.
-    const meals = (p.guests || []).filter((g) => g.meal_selection)
-      .map((g) => `${g.full_name}: ${g.meal_selection}`).join('; ');
+    // The named selections (in practice the primary contact's — companions have
+    // none) plus the party's companion tally, which is where every meal for a
+    // group of 2+ now lives.
+    const namedMeals = (p.guests || []).filter((g) => g.meal_selection)
+      .map((g) => `${g.full_name}: ${g.meal_selection}`);
+    const companionMeals = formatCompanionMealCounts(p.companion_meal_counts);
+    const meals = [...namedMeals, companionMeals ? `Guests: ${companionMeals}` : '']
+      .filter(Boolean).join('; ');
     const tableName = tableNameOf(p);
     // An undone check-in is retained as evidence but is NOT an arrival. Without
     // this split the export would report a guest the supervisor un-admitted as
@@ -995,6 +1291,8 @@ async function getPartyForSelfCheckIn(eventId, partyId, guestName) {
 }
 
 module.exports = {
+  formatCompanionMealCounts,
+  sanitizeCompanionMealCounts,
   MAX_ADDITIONAL_GUESTS,
   MAX_CUSTOM_ANSWERS,
   GUEST_CATEGORIES,

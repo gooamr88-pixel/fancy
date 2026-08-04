@@ -49,7 +49,7 @@ export default function NotFound() {
           font-weight: 300;
         }
         .notfound-actions { margin-top: 32px; }
-        .notfound-btn {
+        :global(.notfound-btn) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
@@ -70,7 +70,7 @@ export default function NotFound() {
           .notfound-shell { background: #17181A; }
           .notfound-heading { color: #F8F4EC; }
           .notfound-body { color: #A8A397; }
-          .notfound-btn { background: #D7BE80; color: #191B1E; }
+          :global(.notfound-btn) { background: #D7BE80; color: #191B1E; }
         }
       `}</style>
     </div>

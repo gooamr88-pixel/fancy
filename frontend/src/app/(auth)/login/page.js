@@ -443,7 +443,7 @@ export default function LoginPage() {
           margin-bottom: 8px;
         }
         .auth-label-row .auth-label { margin-bottom: 0; }
-        .auth-forgot-link {
+        :global(.auth-forgot-link) {
           font-size: 11px;
           font-weight: 700;
           color: var(--gold-cta);
@@ -452,7 +452,7 @@ export default function LoginPage() {
           text-decoration: none;
           transition: color 0.2s;
         }
-        .auth-forgot-link:hover { color: var(--gold-cta-hover); }
+        :global(.auth-forgot-link):hover { color: var(--gold-cta-hover); }
 
         .auth-input {
           width: 100%;
@@ -498,7 +498,7 @@ export default function LoginPage() {
         .auth-eye-btn:hover { opacity: 1; }
 
         /* ── Submit Button ── */
-        .auth-submit-btn {
+        :global(.auth-submit-btn) {
           width: 100%;
           padding: 16px;
           background: linear-gradient(135deg, var(--gold-cta) 0%, var(--gold-cta-hover) 100%);
@@ -513,12 +513,12 @@ export default function LoginPage() {
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           margin-top: 4px;
         }
-        .auth-submit-btn:hover:not(:disabled) {
+        :global(.auth-submit-btn):hover:not(:disabled) {
           transform: translateY(-1px);
           box-shadow: 0 8px 24px rgba(184,148,79,0.3);
         }
-        .auth-submit-btn:active:not(:disabled) { transform: translateY(0); }
-        .auth-submit-btn:disabled {
+        :global(.auth-submit-btn):active:not(:disabled) { transform: translateY(0); }
+        :global(.auth-submit-btn):disabled {
           opacity: 0.55;
           cursor: not-allowed;
         }
@@ -570,13 +570,13 @@ export default function LoginPage() {
           color: #77736A;
           margin: 0;
         }
-        .auth-gold-link {
+        :global(.auth-gold-link) {
           color: var(--gold-cta);
           font-weight: 700;
           text-decoration: none;
           transition: color 0.2s;
         }
-        .auth-gold-link:hover { color: var(--gold-cta-hover); }
+        :global(.auth-gold-link):hover { color: var(--gold-cta-hover); }
 
         /* ── Animations ── */
         @keyframes authFadeIn {

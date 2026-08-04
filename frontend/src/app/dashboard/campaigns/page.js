@@ -854,6 +854,15 @@ export default function CampaignsPage() {
                 obtained their express consent, as required by the <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: C.gold, fontWeight: 700, textDecoration: 'underline' }}>Terms of Service</a>.
               </span>
             </label>
+            {/* Delivery is gated on a recorded consent decision per guest
+                (smsDispatch: sms_consent = true), whether that came from the
+                guest's own opt-in or the organizer's attestation at add/import
+                time. Say so, so a partial send reads as expected, not broken. */}
+            <p style={{ fontSize: 11.5, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)', margin: 0 }}>
+              Texts reach guests who opted in on their RSVP form, plus guests whose consent you confirmed when
+              adding or importing them. Anyone with no recorded consent — or who declined, or replied STOP — is
+              skipped automatically, and you are not charged for them.
+            </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8 }}>
               <button
                 type="button"

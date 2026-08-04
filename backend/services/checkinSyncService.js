@@ -28,6 +28,7 @@ const { supabase } = require('../config/supabase');
 const tokenService = require('./tokenService');
 const deviceService = require('./checkinDeviceService');
 const logger = require('../utils/logger');
+const { formatCompanionMealCounts } = require('./guestService');
 
 /** Max records accepted in one batch. A device draining 500 sends 5 requests. */
 const MAX_BATCH = 100;
@@ -592,7 +593,7 @@ async function getBundlePage(eventId, { page = 1, limit = BUNDLE_PAGE_SIZE } = {
     .from('guests')
     .select(`
       id, party_id, full_name, category, meal_selection, dietary_notes, is_primary_contact,
-      rsvp_parties!inner(id, label, response, notes, side,
+      rsvp_parties!inner(id, label, response, notes, side, companion_meal_counts,
                          seating_assignments(tables(id, table_name, element_type)))
     `, { count: 'exact' })
     .eq('event_id', eventId)
@@ -622,6 +623,18 @@ async function getBundlePage(eventId, { page = 1, limit = BUNDLE_PAGE_SIZE } = {
       dietaryNotes: g.dietary_notes || null,
       partyNotes: party.notes || null,
       side: party.side || null,
+      // Party-level, not this guest's own choice: companions are names only, so
+      // their meals are a tally for the group. `mealSelection` above stays the
+      // named pick (in practice the primary contact's) and is null for a
+      // companion — which is accurate, not missing data. Sent as a ready string
+      // because it is displayed verbatim, and because a new String? field costs
+      // the Android side nothing while a Map would need a new serializable type.
+      //
+      // Safe to add: the bundle hash canonicalizes only [id, partyId, fullName,
+      // tableName, category] (canonicalizeGuests), and the app's Json is
+      // configured ignoreUnknownKeys precisely so the backend can add a field
+      // without breaking a tablet that has been offline for a week (AppModule.kt).
+      partyMealSummary: formatCompanionMealCounts(party.companion_meal_counts) || null,
     };
   });
 

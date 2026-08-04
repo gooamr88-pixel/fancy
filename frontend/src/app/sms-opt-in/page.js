@@ -20,9 +20,15 @@ import OptInForm from "./OptInForm";
    • truthful about the flow it describes: SMS consent is
      OPTIONAL everywhere. An RSVP submits with the box unticked
      (RsvpWizard, heritageArch RsvpSection, rsvpController), and
-     unticked parties are excluded at send time
-     (smsDispatch.fetchRecipients). If any of those four change,
-     the "How a Guest Opts In" section below becomes false.
+     only parties with sms_consent = true are sendable — enforced
+     both in the audience query and per message
+     (smsDispatch.fetchRecipients + sendRecipient). sms_consent
+     becomes true two ways, and BOTH are described below: the
+     guest's own opt-in, or a host attestation recorded per guest
+     (guestService.recordHostConsentAttestation, which can never
+     overwrite a guest's own decision). If any of that changes,
+     the "How a Guest Opts In" and "Consent Obtained by the Event
+     Host" sections below become false.
    ═══════════════════════════════════════════════════════════ */
 
 export const metadata = {
@@ -191,8 +197,8 @@ export default function SmsOptInPage() {
             <P style={{ marginBottom: 0 }}>
               This is not a marketing service. We never send promotional or advertising messages through this
               program, and we send nothing outside the five types above. The consent language on the checkbox
-              below covers this same set, referring to RSVP confirmations and RSVP updates together as
-              “RSVP updates.”
+              below covers this same set, referring to event invitations as “invitation links” and to RSVP
+              confirmations and RSVP updates together as “RSVP confirmations.”
             </P>
           </div>
 
@@ -216,15 +222,94 @@ export default function SmsOptInPage() {
                 identifier for the exact version of the consent wording they were shown.
               </li>
               <li>
-                Only numbers whose owner ticked the box are ever sent a text message. A guest who leaves it
-                unticked is excluded from every send until they choose to opt in themselves, and that exclusion
-                is enforced at the point of sending, not merely in the interface.
+                A guest who leaves the box unticked is excluded from every send, and that exclusion is enforced
+                at the point of sending, not merely in the interface. Their refusal is permanent until they
+                choose otherwise — it cannot be overridden by anyone, including the event host (see
+                &ldquo;Consent Obtained by the Event Host&rdquo; below, which is the only other way a number can
+                become messageable).
               </li>
             </ol>
             <P style={{ marginBottom: 0 }}>
               Guests who decline to provide a phone number, or who leave the box unticked, never receive text
               messages from us.
             </P>
+          </div>
+
+          {/* ── Host-obtained consent ──
+              Truthfulness requirement: the platform DOES send to numbers an
+              organizer supplied, when that organizer formally attested they hold
+              the guest's consent. A reviewer must be told that plainly rather
+              than discovering it. Mirrors Terms §5 and Privacy §3 — keep all
+              three in step, and keep this honest about who obtained consent. */}
+          <div style={{ marginBottom: "44px" }}>
+            <SectionTitle>Consent Obtained by the Event Host</SectionTitle>
+            <P>
+              Event hosts often already hold their guests&rsquo; permission to text them about an event — a
+              wedding party, a company roster, a family list gathered long before the host chose our platform.
+              That consent belongs to the guest, and it remains valid regardless of which tool the host uses to
+              act on it. We therefore allow a second, narrower path onto our messaging list, with conditions:
+            </P>
+            <ul style={{ fontFamily: SANS, fontSize: "15px", color: BODY, lineHeight: 2, margin: "0 0 14px", paddingLeft: "20px" }}>
+              <li>
+                When a host adds or imports a guest&rsquo;s phone number, they are shown a separate, unchecked
+                box and must affirmatively confirm: <em>&ldquo;I have obtained this recipient&rsquo;s consent to
+                receive event-related SMS messages.&rdquo;</em>
+              </li>
+              <li>
+                That confirmation is recorded against that specific guest, with the host&rsquo;s identity and a
+                timestamp — not as a blanket setting. If the host does not confirm it, the number is stored on
+                their guest list and is <strong style={{ color: INK }}>never</strong> sent a text message.
+              </li>
+              <li>
+                The host warrants under our{" "}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: GOLD, fontWeight: 600 }}>Terms of Service</a>{" "}
+                that the consent is genuine, prior, and express, and they carry responsibility for it.
+              </li>
+              <li>
+                <strong style={{ color: INK }}>A guest&rsquo;s own decision always overrides a host&rsquo;s.</strong>{" "}
+                If a guest was shown our consent checkbox and left it unticked, no host attestation can enable
+                messaging for that number. A STOP reply likewise suppresses the number permanently and platform-wide,
+                whatever any host has confirmed.
+              </li>
+            </ul>
+            <P style={{ marginBottom: 0 }}>
+              Every message sent on this basis carries the same sender identification, rates disclosure, and
+              STOP/HELP instructions as any other, so a recipient can end it immediately. We never purchase,
+              rent, or scrape numbers, and a host&rsquo;s confirmation is never a substitute for the guest&rsquo;s
+              right to opt out.
+            </P>
+          </div>
+
+          {/* ── Independence of consent ──
+              Written for Twilio rejection code 30475 ("Consent for Messaging
+              Cannot Be Part of Other Agreements"). Mirrors the notice rendered
+              under every consent checkbox by SmsConsentIndependence — if that
+              component's wording changes, change this with it. */}
+          <div style={{ marginBottom: "44px" }}>
+            <SectionTitle>SMS Consent Is Separate From Every Other Agreement</SectionTitle>
+            <Card style={{ background: "#FCFAF5" }}>
+              <P>
+                <strong style={{ color: INK }}>
+                  SMS consent is voluntary and is not required to register, RSVP, attend an event, or use
+                  FancyRSVP.
+                </strong>{" "}
+                It is collected by a single dedicated checkbox that asks about text messaging and nothing else.
+                Ticking it agrees to receive texts — it does not accept our Terms of Service, our Privacy
+                Policy, or any other agreement, and no other agreement collects it on our behalf.
+              </P>
+              <P>
+                A guest&rsquo;s decision about text messages is completely independent from acceptance of our
+                Privacy Policy or Terms of Service. Neither document asks for SMS consent, neither one grants
+                it, and accepting either has no effect on whether a guest receives texts. Equally, a guest who
+                opts in to texts is not required to accept either document.
+              </P>
+              <P style={{ marginBottom: 0 }}>
+                Consent is never a condition of any purchase, of creating an account, of submitting an RSVP, or
+                of attending an event, and it is never pre-checked, bundled into a &ldquo;continue&rdquo; or
+                &ldquo;submit&rdquo; action, or inferred from a guest simply providing a phone number.
+                Withdrawing consent by replying STOP never affects a guest&rsquo;s RSVP or their attendance.
+              </P>
+            </Card>
           </div>
 
           {/* ── The live opt-in form ── */}

@@ -113,7 +113,10 @@ export default function Error({ error, reset }) {
           justify-content: center;
           flex-wrap: wrap;
         }
-        .errpage-btn-primary, .errpage-btn-secondary {
+        /* Both globalised, not just the one that needed it: they share this
+           base rule, and leaving the pair half-scoped means the two buttons
+           silently drift apart the next time someone edits it. */
+        :global(.errpage-btn-primary), :global(.errpage-btn-secondary) {
           padding: 12px 28px;
           font-size: 14px;
           font-weight: 700;
@@ -126,12 +129,12 @@ export default function Error({ error, reset }) {
           min-height: 44px;
           box-sizing: border-box;
         }
-        .errpage-btn-primary {
+        :global(.errpage-btn-primary) {
           background: var(--gold-cta, #8A6D34);
           color: #FFFFFF;
           border: none;
         }
-        .errpage-btn-secondary {
+        :global(.errpage-btn-secondary) {
           background: #F8F4EC;
           color: #191B1E;
           border: 1px solid #E8E2D6;
@@ -142,8 +145,8 @@ export default function Error({ error, reset }) {
           .errpage-card { background: #1E1E1B; border-color: #3D3A33; }
           .errpage-heading { color: #F8F4EC; }
           .errpage-body { color: #A8A397; }
-          .errpage-btn-primary { background: #D7BE80; color: #191B1E; }
-          .errpage-btn-secondary { background: #26282B; color: #F8F4EC; border-color: #3D3A33; }
+          :global(.errpage-btn-primary) { background: #D7BE80; color: #191B1E; }
+          :global(.errpage-btn-secondary) { background: #26282B; color: #F8F4EC; border-color: #3D3A33; }
         }
       `}</style>
     </div>

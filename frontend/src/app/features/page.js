@@ -121,8 +121,11 @@ const features = [
   },
   {
     title: "QR Check-In",
+    // `link` is optional and only this entry carries one so far — the door app
+    // is the one feature with enough behind it to need a page of its own.
+    link: { href: "/checkin-app", label: "See the door app" },
     description:
-      "Every guest carries a personal, scannable ticket. Check them in with a camera scan or name search at the door, or let them arrive themselves — either way it syncs to your dashboard in real time.",
+      "Every guest carries a personal, scannable ticket. Check them in with a camera scan or name search at the door, or let them arrive themselves — either way it syncs to your dashboard in real time. On the night, the dedicated Fancy Check-in tablet app runs the door with no internet at all.",
     icon: (
       <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
         <rect x="8" y="8" width="14" height="14" rx="2" stroke="#B8944F" strokeWidth="1.5" />
@@ -267,6 +270,28 @@ function FeatureCard({ feature, index }) {
       >
         {feature.description}
       </p>
+
+      {/* Only rendered for a feature that has somewhere deeper to go. */}
+      {feature.link && (
+        <Link
+          href={feature.link.href}
+          className="feature-card-link"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            marginTop: "18px",
+            fontFamily: "var(--font-sans)",
+            fontSize: "14px",
+            fontWeight: 700,
+            color: "#B8944F",
+            textDecoration: "none",
+          }}
+        >
+          {feature.link.label}
+          <span aria-hidden>&rarr;</span>
+        </Link>
+      )}
 
       {/* Bottom gold line accent on hover */}
       <div
@@ -613,7 +638,7 @@ textAlign: "center",
         /* .btn-gold's own :hover already sets an identical, slightly heavier
            shadow (globals.css) — only the resting/base shadow needs a custom
            value here, so it's left to override on hover automatically. */
-        .features-cta-gold {
+        :global(.features-cta-gold) {
           box-shadow: 0 4px 20px rgba(184, 148, 79, 0.2);
         }
       `}</style>

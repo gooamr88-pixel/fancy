@@ -4,10 +4,20 @@ import { useEffect, useRef } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 
 /**
- * A single toast bubble: icon, message, close button, auto-dismiss timer, and
- * a horizontal swipe-to-dismiss gesture (the expected mobile toast interaction).
- * Rendered inside a fixed-position viewport by <Toast/> (single) or
- * <ToastHost/> (stacked queue) — this component owns no positioning itself.
+ * One alert banner: icon, message, close button, auto-dismiss timer with a
+ * visible countdown, and swipe-up-to-dismiss. Rendered inside a fixed viewport
+ * by <Toast/> (single) or <ToastHost/> (stacked queue) — this component owns no
+ * positioning itself.
+ *
+ * ALL STYLING LIVES IN globals.css (.fx-alert*), NOT IN A <style jsx> BLOCK
+ * HERE, AND THAT IS DELIBERATE. This card's root is a <motion.div>, and
+ * styled-jsx stamps its jsx-<hash> class only onto lowercase intrinsic
+ * elements. The previous version put `.toast { background; padding; box-shadow;
+ * color }` in a scoped block, so those rules compiled to `.toast.jsx-hash` and
+ * matched nothing — the card had no background at all, while
+ * `.toast-message { color: #F3F0E8 }` on a plain <span> applied normally.
+ * Every error on the platform was near-white text painted straight onto the
+ * page behind it. Do not move these rules back.
  *
  * @param {{message: string, kind?: 'error'|'success'}} toast
  * @param {() => void} onClose
@@ -15,7 +25,11 @@ import { motion, useReducedMotion } from 'framer-motion';
  */
 export default function ToastCard({ toast, onClose, duration }) {
   const kind = toast?.kind === 'success' ? 'success' : 'error';
-  const autoMs = duration ?? (kind === 'success' ? 3500 : 6000);
+  // An error is something the reader has to ACT on, and 6s was not enough to
+  // read a sentence and reach for the thing it names. A success is only an
+  // acknowledgement and can leave sooner. Neither is permanent: a banner that
+  // never goes away ends up covering the header the reader needs next.
+  const autoMs = duration ?? (kind === 'success' ? 4000 : 10000);
   const reduceMotion = useReducedMotion();
 
   // Callers pass a fresh inline `onClose` on every render, so keeping it out of
@@ -33,125 +47,67 @@ export default function ToastCard({ toast, onClose, duration }) {
 
   if (!toast) return null;
 
-  const SWIPE_DISMISS_DISTANCE = 80;
-  const SWIPE_DISMISS_VELOCITY = 500;
+  const SWIPE_DISMISS_DISTANCE = 56;
+  const SWIPE_DISMISS_VELOCITY = 400;
 
   return (
     <motion.div
-      className={`toast toast-${kind}`}
-      drag={reduceMotion ? false : 'x'}
-      dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.6}
+      className={`fx-alert fx-alert--${kind}`}
+      // Up, not sideways: a full-width banner's escape route is the edge it
+      // arrived from, and there is nowhere for it to go horizontally.
+      drag={reduceMotion ? false : 'y'}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0.5, bottom: 0 }}
       onDragEnd={(_, info) => {
-        if (Math.abs(info.offset.x) > SWIPE_DISMISS_DISTANCE || Math.abs(info.velocity.x) > SWIPE_DISMISS_VELOCITY) {
+        if (info.offset.y < -SWIPE_DISMISS_DISTANCE || info.velocity.y < -SWIPE_DISMISS_VELOCITY) {
           onCloseRef.current();
         }
       }}
-      initial={reduceMotion ? false : { opacity: 0, x: 36, scale: 0.97 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 36, transition: { duration: 0.22 } }}
-      transition={{ duration: reduceMotion ? 0.01 : 0.32, ease: [0.16, 1, 0.3, 1] }}
+      initial={reduceMotion ? false : { y: '-100%' }}
+      animate={{ y: 0 }}
+      exit={reduceMotion ? { opacity: 0 } : { y: '-100%', transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}
+      transition={{ duration: reduceMotion ? 0.01 : 0.42, ease: [0.16, 1, 0.3, 1] }}
     >
-      <span className="toast-icon" aria-hidden="true">
-        {kind === 'success' ? (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.4">
-            <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        ) : (
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" strokeWidth="2.4">
-            <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </span>
-      <span className="toast-message">{toast.message}</span>
-      <button type="button" className="toast-close" onClick={onClose} aria-label="Dismiss">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
-        </svg>
-      </button>
+      <div className="fx-alert__inner">
+        <span className="fx-alert__icon" aria-hidden="true">
+          {kind === 'success' ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 7v6m0 4h.01" strokeLinecap="round" />
+            </svg>
+          )}
+        </span>
 
-      {/* Premium dark charcoal shell shared by every kind (matches the site's
-          own hero/footer dark tone, not a generic UI-kit default) — only the
-          icon badge and left accent rule change color, so the brand identity
-          (charcoal + gold) stays intact regardless of message type, and the
-          card reads clearly against any page background it lands on. */}
-      <style jsx>{`
-        .toast {
-          pointer-events: auto;
-          position: relative;
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 15px 16px 15px 18px;
-          border-radius: 12px;
-          font-size: 13.5px;
-          font-weight: 500;
-          line-height: 1.5;
-          font-family: var(--font-sans), Lato, sans-serif;
-          background: #21232A;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          box-shadow: 0 20px 45px rgba(10, 10, 12, 0.4), 0 2px 8px rgba(10, 10, 12, 0.25);
-          color: #F3F0E8;
-          cursor: grab;
-          touch-action: pan-y;
-          overflow: hidden;
-        }
-        .toast:active {
-          cursor: grabbing;
-        }
-        .toast::before {
-          content: '';
-          position: absolute;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          width: 3px;
-        }
-        .toast-error::before {
-          background: #C45E5E;
-        }
-        .toast-success::before {
-          background: #3B9B6D;
-        }
-        .toast-icon {
-          flex-shrink: 0;
-          margin-top: 1px;
-          width: 22px;
-          height: 22px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .toast-error .toast-icon {
-          background: #C45E5E;
-        }
-        .toast-success .toast-icon {
-          background: #3B9B6D;
-        }
-        .toast-message {
-          flex: 1;
-          min-width: 0;
-          word-break: break-word;
-          padding-top: 2px;
-          color: #F3F0E8;
-        }
-        .toast-close {
-          flex-shrink: 0;
-          background: none;
-          border: none;
-          padding: 2px;
-          margin: 0 -4px 0 0;
-          cursor: pointer;
-          color: #F3F0E8;
-          opacity: 0.5;
-          display: flex;
-          transition: opacity 0.2s;
-        }
-        .toast-close:hover {
-          opacity: 0.9;
-        }
-      `}</style>
+        {/* dir="auto" per message, not per app: this host lives in the LTR root
+            layout, but half the platform's messages are Arabic. Without it an
+            Arabic sentence renders with its punctuation stranded on the wrong
+            end. "auto" resolves direction from the first strong character, so
+            each banner orients itself. */}
+        <span className="fx-alert__message" dir="auto">{toast.message}</span>
+
+        <button type="button" className="fx-alert__close" onClick={onClose} aria-label="Dismiss">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Skipped when auto-dismiss is off, and when the reader has asked for
+          less motion — a 10-second linear animation is exactly the kind of
+          thing prefers-reduced-motion exists to stop. */}
+      {autoMs > 0 && !reduceMotion && (
+        <motion.div
+          className="fx-alert__countdown"
+          aria-hidden="true"
+          initial={{ scaleX: 1 }}
+          animate={{ scaleX: 0 }}
+          transition={{ duration: autoMs / 1000, ease: 'linear' }}
+        />
+      )}
     </motion.div>
   );
 }

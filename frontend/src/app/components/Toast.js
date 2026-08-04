@@ -13,52 +13,25 @@ import ToastCard from './ToastCard';
  *   <Toast toast={toast} onClose={() => setToast(null)} />
  *   setToast({ message: 'Invalid email or password.', kind: 'error' });
  *
- * For a global, stacked multi-toast queue (raised via `toast.error(...)` from
- * anywhere in the app), see <ToastHost/> instead — it renders the same
- * <ToastCard/> in its own viewport and handles more than one at a time.
+ * For the global, stacked queue (raised via `toast.error(...)` from anywhere in
+ * the app), see <ToastHost/> — same <ToastCard/>, same `.fx-alert-viewport`,
+ * but it handles more than one at a time.
  *
  * @param {{message: string, kind?: 'error'|'success'}|null} toast
  * @param {() => void} onClose
- * @param {number} [duration]  ms before auto-dismiss. Errors default to 6000,
- *                             success to 3500. Pass 0 to disable auto-dismiss.
+ * @param {number} [duration]  ms before auto-dismiss. Errors default to 10000,
+ *                             success to 4000. Pass 0 to disable auto-dismiss.
  */
 export default function Toast({ toast, onClose, duration }) {
   if (!toast) return null;
 
+  // Positioning is the shared global class, not a local <style jsx> block. The
+  // two viewports each used to carry their own copy with a comment asking the
+  // next person to keep them in sync — which is not a mechanism, and they had
+  // already drifted apart once.
   return (
-    <div className="toast-viewport" role="status" aria-live="assertive">
+    <div className="fx-alert-viewport" role="status" aria-live="assertive">
       <ToastCard toast={toast} onClose={onClose} duration={duration} />
-
-      <style jsx>{`
-        .toast-viewport {
-          position: fixed;
-          /* MOB-8: was a bare 24px, so a notch/Dynamic Island could clip it;
-             also raised above LogoutModal's z-index:100000 (and every other
-             modal) — a toast fired while a modal is open must stay visible,
-             not render invisibly underneath it.
-             Also cleared below the tallest sticky in-app header (the
-             organizer dashboard's title bar, ~92px) so it never lands on
-             top of a page heading — kept in sync with ToastHost's viewport. */
-          top: max(100px, calc(env(safe-area-inset-top) + 88px));
-          right: max(20px, calc(env(safe-area-inset-right) + 16px));
-          z-index: 100001;
-          width: max-content;
-          max-width: min(400px, calc(100vw - 32px));
-          pointer-events: none;
-        }
-        /* Was 480px; folded onto the < sm step. The left edge now carries
-           the safe-area inset too — the right edge already did, but in
-           landscape on a notched phone it is the LEFT edge that sits under
-           the sensor housing, and no env() call site in this codebase was
-           handling that side. */
-        @media (max-width: 639.98px) {
-          .toast-viewport {
-            left: max(16px, env(safe-area-inset-left));
-            right: max(16px, env(safe-area-inset-right));
-            max-width: none;
-          }
-        }
-      `}</style>
     </div>
   );
 }

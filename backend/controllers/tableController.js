@@ -2,9 +2,28 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { broadcast } = require('../utils/realtime');
 
-// Seatable table shapes vs non-seating venue zones (must match the DB shape CHECK).
+/**
+ * Seatable table shapes vs non-seating venue zones.
+ *
+ * FOUR places hold this catalogue and all four must agree — a shape missing
+ * from any of them fails differently and none of the failures point at the
+ * cause:
+ *   1. this list                                        → 400 "Invalid shape"
+ *   2. the DB CHECK `tables_shape_check`                → 500 on insert
+ *   3. frontend dashboard/seating-map/page.js SHAPES    → the organizer palette
+ *   4. frontend [slug]/rsvp/SeatingMiniMap.js +
+ *      SeatingMapFullscreen.js SHAPES                   → silently drawn as a
+ *                                                         round TABLE on the
+ *                                                         guest's map
+ * The organizer palette grew to 14 zone types while 1, 2 and 4 stayed at the
+ * original 6, so two thirds of the zone picker returned "Invalid shape".
+ */
 const TABLE_SHAPES = ['round', 'oval', 'square', 'rectangle', 'rectangular', 'banquet', 'head'];
-const ZONE_SHAPES = ['stage', 'dance_floor', 'bar', 'dj_booth', 'entrance', 'custom'];
+const ZONE_SHAPES = [
+  'stage', 'dance_floor', 'bar', 'dj_booth', 'entrance', 'custom',
+  'restroom', 'coat_check', 'gift_table', 'cake_table',
+  'photo_booth', 'welcome_desk', 'buffet', 'lounge',
+];
 const ALL_SHAPES = [...TABLE_SHAPES, ...ZONE_SHAPES];
 
 const toNum = (v) => (v === undefined || v === null || v === '' ? null : Number(v));
@@ -570,5 +589,10 @@ module.exports = {
   updateTablePositions,
   deleteTable,
   updateTable,
-  duplicateTable
+  duplicateTable,
+  // Exported for the cross-layer contract test that keeps this catalogue in
+  // step with the DB CHECK and the two frontend SHAPES maps.
+  TABLE_SHAPES,
+  ZONE_SHAPES,
+  ALL_SHAPES,
 };

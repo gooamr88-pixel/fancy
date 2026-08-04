@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { escapeHtml } = require('../utils/emailTemplates');
 const { normalizeToE164 } = require('../utils/phone');
-const { SMS_CONSENT_TEXT_VERSION } = require('../utils/smsConsent');
+const { SMS_CONSENT_TEXT_VERSION, logSmsConsentDecision } = require('../utils/smsConsent');
 
 /**
  * Public marketing forms (footer newsletter signup, Contact page). Both were
@@ -72,6 +72,12 @@ const submitSmsOptIn = async (req, res, next) => {
       .from('sms_optin_submissions')
       .insert({ full_name: fullName, phone, consent: true, consent_text_version: SMS_CONSENT_TEXT_VERSION, source: 'sms_opt_in_page', ip: req.ip || null });
     if (error) throw error;
+
+    // Mirror the opt-in into the unified append-only consent log so every
+    // consent decision — RSVP form or standalone opt-in page — is auditable
+    // from one place (Twilio TFV 30475). No event/party context here: this is a
+    // standalone web-form opt-in, not tied to a specific event's guest list.
+    logSmsConsentDecision({ phone, consent: true, source: 'sms_opt_in_page' });
 
     return res.json({ success: true, message: 'You are opted in. You will only receive texts about Fancy RSVP events you are invited to. Reply STOP to any message to opt out.' });
   } catch (err) {

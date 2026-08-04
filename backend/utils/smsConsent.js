@@ -12,14 +12,86 @@
  * whenever the consent sentence changes, and archive the old wording in the
  * commit message.
  */
-const SMS_CONSENT_TEXT_VERSION = '2026-08-01';
+const SMS_CONSENT_TEXT_VERSION = '2026-08-04';
 
-// Whitelist of opt-in surfaces the frontend may report (anything else is
-// coerced to the generic 'guest_form' rather than trusting client input).
-const SMS_CONSENT_SOURCES = ['guest_form_wizard', 'guest_form_template'];
+// Whitelist of GUEST-facing opt-in surfaces the frontend may report (anything
+// else is coerced to the generic 'guest_form' rather than trusting client
+// input). Host-attested sources are deliberately NOT in this list: a guest
+// request must never be able to label itself as an organizer attestation.
+const SMS_CONSENT_SOURCES = ['guest_form_wizard', 'guest_form_template', 'sms_opt_in_page'];
+
+// Sources set server-side only, from an authenticated organizer's action.
+const HOST_CONSENT_SOURCES = ['host_manual_add', 'host_csv_import'];
+
+// How consent was obtained. The distinction matters at audit time: a
+// host_attested row is consent we were TOLD about, a guest_optin row is consent
+// we WITNESSED. Never collapse the two.
+const CONSENT_METHOD_GUEST = 'guest_optin';
+const CONSENT_METHOD_HOST = 'host_attested';
 
 function normalizeConsentSource(source) {
   return SMS_CONSENT_SOURCES.includes(source) ? source : 'guest_form';
 }
 
-module.exports = { SMS_CONSENT_TEXT_VERSION, SMS_CONSENT_SOURCES, normalizeConsentSource };
+/**
+ * Append one row to sms_consent_log — the immutable, server-side record of a
+ * single SMS consent decision (Twilio TFV 30475, migration
+ * 20260811000000_sms_consent_log.sql). Captures all five required fields at the
+ * moment of the decision: phone, consent status, timestamp, event id, guest id.
+ *
+ * Called for REFUSALS as well as opt-ins: a dated decline is the evidence that
+ * consent was requested independently and freely refused.
+ *
+ * Deliberately fire-and-forget and never throwing. The authoritative consent
+ * value is already persisted transactionally by submit_rsvp_v2 before this runs,
+ * so a logging failure must degrade to a warning rather than break a guest's
+ * RSVP. `guestId` is resolved best-effort — the log is still valid without it,
+ * since party_id identifies the guest party SMS is addressed to.
+ */
+function logSmsConsentDecision({
+  eventId, partyId, guestId = null, phone, consent, source, textVersion,
+  method = CONSENT_METHOD_GUEST, attestedBy = null,
+}) {
+  // Required by the audit trail; without a number there is nothing to log.
+  if (!phone) return;
+
+  // Lazily required so this module stays importable by tests and tooling that
+  // never touch the database.
+  const { supabase } = require('../config/supabase');
+  const logger = require('./logger');
+
+  const row = {
+    event_id: eventId || null,
+    party_id: partyId || null,
+    guest_id: guestId,
+    phone,
+    consent: !!consent,
+    // A host attestation is a claim about consent obtained elsewhere, so no
+    // wording of ours was shown — recording a version would misrepresent it.
+    consent_text_version: method === CONSENT_METHOD_HOST ? null : (textVersion || SMS_CONSENT_TEXT_VERSION),
+    source: source || 'guest_form',
+    method,
+    attested_by: attestedBy,
+  };
+
+  try {
+    supabase.from('sms_consent_log').insert(row).then(
+      ({ error }) => {
+        if (error) logger.warn({ err: error, partyId }, 'sms consent log write failed (apply 20260811000000_sms_consent_log.sql)');
+      },
+      (err) => logger.warn({ err, partyId }, 'sms consent log write rejected'),
+    );
+  } catch (err) {
+    logger.warn({ err, partyId }, 'sms consent log write threw');
+  }
+}
+
+module.exports = {
+  SMS_CONSENT_TEXT_VERSION,
+  SMS_CONSENT_SOURCES,
+  HOST_CONSENT_SOURCES,
+  CONSENT_METHOD_GUEST,
+  CONSENT_METHOD_HOST,
+  normalizeConsentSource,
+  logSmsConsentDecision,
+};

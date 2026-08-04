@@ -22,16 +22,18 @@ const OPTION_ROW_STYLE = {
 
 /** Step 4 — organizer-configured custom questions + the free-text note. */
 export default function StepCustomQuestions({
-  t, isRTL, fields, guestName, companionFields = [], customAnswers, setAnswer, toggleMultiAnswer,
-  additionalGuests = [], setCompanionAnswer, toggleCompanionMultiAnswer,
+  // This was `companionFields` while a guest-scoped question was repeated for
+  // every companion. Companions are names now, so such a question is asked
+  // exactly once — of whoever is filling the form in — and the old name
+  // described the wrong person.
+  t, isRTL, fields, guestName, guestScopedFields = [], customAnswers, setAnswer, toggleMultiAnswer,
   notes, setNotes, validationErrors, submitting, onBack, onSubmit,
   themeColor = '#B8944F',
 }) {
 
-  /* Renders a set of custom question fields for a given answers object and handlers.
-     `fieldSet` lets the companion section render guest-scoped questions (with
-     real required/error wiring) instead of always repeating the party-scoped
-     `fields` with required hardcoded to false. */
+  /* Renders a set of custom question fields for a given answers object and
+     handlers. `fieldSet` keeps guest-scoped questions on their own error prefix
+     and required wiring, separate from the party-scoped `fields` loop below. */
   const renderFields = (fieldSet, answers, onSetAnswer, onToggleMulti, keyPrefix, errorPrefix) => (
     fieldSet.map(field => {
       // NOTE: custom questions have no Arabic-translation mechanism today
@@ -201,7 +203,7 @@ export default function StepCustomQuestions({
           primary guest unconditionally, then loops over companions. Answers
           share the same `customAnswers` bucket as party-scoped `fields` —
           field IDs never collide between scopes. */}
-      {companionFields.length > 0 && (
+      {guestScopedFields.length > 0 && (
         <FadeInUp y={12}>
           <div style={{
             border: '1px solid #F0ECE3', borderRadius: '14px', padding: '18px 16px',
@@ -215,39 +217,19 @@ export default function StepCustomQuestions({
               {guestName || (isRTL ? 'إجاباتك' : 'Your Answers')}
             </h4>
             <StaggerChildren staggerDelay={0.06}>
-              {renderFields(companionFields, customAnswers, setAnswer, toggleMultiAnswer, 'primary', 'primary')}
+              {renderFields(guestScopedFields, customAnswers, setAnswer, toggleMultiAnswer, 'primary', 'primary')}
             </StaggerChildren>
           </div>
         </FadeInUp>
       )}
 
-      {/* ═══ Companion custom questions (guest-scoped only) ═══ */}
-      {companionFields.length > 0 && additionalGuests.length > 0 && additionalGuests.map((guest, gIdx) => (
-        <FadeInUp key={guest.id || gIdx} y={12} delay={0.1 * (gIdx + 1)}>
-          <div style={{
-            border: '1px solid #F0ECE3', borderRadius: '14px', padding: '18px 16px',
-            background: 'rgba(248,244,236,0.45)',
-          }}>
-            <h4 style={{
-              fontFamily: 'var(--font-serif)', fontSize: '16px', fontWeight: 500,
-              color: '#191B1E', marginBottom: '14px', paddingBottom: '10px',
-              borderBottom: '1px solid #F0ECE3',
-            }}>
-              {guest.fullName || `${isRTL ? 'ضيف' : 'Guest'} ${gIdx + 2}`}
-            </h4>
-            <StaggerChildren staggerDelay={0.06}>
-              {renderFields(
-                companionFields,
-                guest.customAnswers,
-                (fieldId, value) => setCompanionAnswer(gIdx, fieldId, value),
-                (fieldId, opt) => toggleCompanionMultiAnswer(gIdx, fieldId, opt),
-                `companion_${gIdx}`,
-                `companion_${gIdx}`,
-              )}
-            </StaggerChildren>
-          </div>
-        </FadeInUp>
-      ))}
+      {/* Companions are no longer asked anything. A per-guest question block used
+          to render here, one card per companion; it went with the rest of the
+          companion fields (see StepPartyDetails' companion card). A guest-scoped
+          question is now simply asked once, of the person filling the form in —
+          the block above. `setCompanionAnswer` / `toggleCompanionMultiAnswer` /
+          `additionalGuests` are still accepted as props so RsvpWizard needs no
+          coordinated change, and are unused. */}
 
       <FadeInUp delay={0.15} y={15}>
         <FormField label={t.note_label}>
@@ -293,7 +275,7 @@ export default function StepCustomQuestions({
       <div style={{ display: 'flex', justifyContent: onBack ? 'space-between' : 'flex-end', paddingTop: '4px' }}>
         {onBack && <button onClick={onBack} style={S.backBtn}>{isRTL ? 'رجوع' : 'Back'}</button>}
         <GlowPulse color={themeColor} intensity={submitting ? 0 : 0.2}>
-          <PremiumButton testId="rsvp-submit" disabled={submitting} loading={submitting} onClick={onSubmit} accentColor={themeColor}>
+          <PremiumButton testId="rsvp-submit" disabled={submitting} loading={submitting} onClick={() => onSubmit()} accentColor={themeColor}>
             {submitting ? t.submitting : t.submit_rsvp}
           </PremiumButton>
         </GlowPulse>

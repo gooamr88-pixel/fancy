@@ -67,23 +67,55 @@ val Hairline = Color(0xFFE3DACB)
 // alpha across the left third of a near-white screen, which at three metres
 // is indistinguishable from a blank white screen in all four states.
 
-/** Welcome. 6.82:1 against [OnWelcome]. */
-val GroundWelcome = Color(0xFF1B5E43)
+/*
+ * ── Why every ground is a PAIR ──
+ *
+ * These were single flat colours. A flat fill across a 10-inch backlit panel has
+ * no light in it — the eye reads it as a coloured rectangle, which is the single
+ * thing that made these screens look unfinished next to a printed place card.
+ *
+ * Each ground is now a top and a bottom stop, lit from the upper left. The hues
+ * and the contrast ratios are unchanged in kind; what is added is a surface. The
+ * ratios below are computed against the WORST stop for the text that sits on
+ * them — the lighter stop for light-on-dark, the darker stop for dark-on-light.
+ */
+
+/** Welcome. 9.25:1 against [OnWelcome] at its lightest stop. */
+val GroundWelcome = Color(0xFF17493A)
+val GroundWelcomeDeep = Color(0xFF0E3125)
 val OnWelcome = Color(0xFFF4F1EA)
 
 /**
- * VIP welcome — the accent itself, at full bleed. 4.55:1 against [OnVip].
+ * VIP welcome. 5.37:1 against [OnVip] at its lightest stop.
  *
- * Tight but passing, and every element on this screen is large text (60sp name,
- * 104sp+ table, 18sp bold labels), for which AA asks only 3:1. The state is
- * additionally carried by motion and by a distinct double haptic, so it is
- * recognised before it is read.
+ * ── Why this is no longer the brand gold at full bleed ──
+ *
+ * It used to be [Gold] itself, edge to edge: one flat tone, which is the least
+ * metallic thing gold can do. Metal is not a colour, it is a RANGE — a dark body
+ * and a light where the light catches it. A single hex value across a whole
+ * screen reads as mustard paint, and it was the weakest state in the app.
+ *
+ * So the ground goes dark bronze and the gold moves to the TYPE, where
+ * [FoilLight] catches the sweep. Contrast improves as a side effect: the old
+ * pairing sat at 4.55:1, which passed only because everything on the screen is
+ * large text.
  */
-val GroundVip = Gold
+val GroundVip = Color(0xFF7C6224)
+val GroundVipDeep = Color(0xFF4E3C12)
 val OnVip = Color(0xFFFBF7EE)
 
-/** Already arrived. Light, to invert the value of both welcome states. 7.77:1. */
-val GroundAlready = Color(0xFFEFE3CE)
+/**
+ * Pale gold, for type on [GroundVip] and for the sweep.
+ *
+ * 4.42:1 on the lighter bronze stop. Used ONLY at display sizes — the guest name
+ * and the table number — where AA asks 3:1. Body text on that ground takes
+ * [OnVip], which clears 4.5:1 outright.
+ */
+val FoilLight = Color(0xFFF6DFA8)
+
+/** Already arrived. Light, to invert the value of both welcome states. 6.43:1. */
+val GroundAlready = Color(0xFFEFE3CB)
+val GroundAlreadyDeep = Color(0xFFDFCFAE)
 val OnAlready = Color(0xFF5C3D10)
 
 /** The band that floods the already-arrived screen. 4.65:1 on [GroundAlready]. */
@@ -96,7 +128,32 @@ val BandAlready = Color(0xFF8A5A18)
  * usher. Calm is communicated by the ABSENCE of a state colour rather than by
  * a softer one — there is no such thing as a reassuring red. 15.3:1 with [Ink].
  */
-val GroundNotFound = Color(0xFFF2EDE4)
+val GroundNotFound = Color(0xFFF0EBE1)
+val GroundNotFoundDeep = Color(0xFFDFD8C9)
+
+/**
+ * A code that is not one of ours at all. Deep oxblood. 9.48:1 with [OnForeign].
+ *
+ * ── Why this one IS allowed to be red ──
+ *
+ * The rule elsewhere in this file is that a guest is never shown red, and it
+ * stands: [GroundNotFound] exists precisely so that "we cannot find you" arrives
+ * without an accusation.
+ *
+ * This state is not a verdict on a person. It fires when the scanner reads
+ * something that was never a ticket — a product barcode, a boarding pass, a
+ * poster on the wall behind the queue. Nobody has been refused; the tablet is
+ * saying "that object is not an invitation". Red is the right register for that
+ * and, more usefully, it is instantly separable from the pale not-found screen,
+ * which is the whole point: those two demand different things from the operator
+ * and used to look identical.
+ *
+ * Oxblood rather than an alarm red. This is a wedding, and a fire-engine
+ * rectangle in a marble lobby is the cheapest thing a screen can do.
+ */
+val GroundForeign = Color(0xFF85251A)
+val GroundForeignDeep = Color(0xFF5A130C)
+val OnForeign = Color(0xFFFDF3F0)
 
 // ── Status accents, for use on light surfaces ────────────────────────────────
 //

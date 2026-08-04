@@ -252,14 +252,14 @@ function IntegrationCard({ integration }) {
         .integration-card:focus-within .integration-icon-box {
           transform: scale(1.05);
         }
-        .integration-connect-link {
+        :global(.integration-connect-link) {
           border: 1.5px solid #E8E2D6;
           background: transparent;
           color: #5E5A52;
           transition: all 0.3s ease;
         }
         .integration-connect-link:hover,
-        .integration-connect-link:focus-visible {
+        :global(.integration-connect-link):focus-visible {
           border-color: var(--accent);
           background: color-mix(in srgb, var(--accent) 3.1%, transparent);
           color: var(--accent);

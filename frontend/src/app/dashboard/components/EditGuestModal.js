@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { normalizeToE164 } from '../../utils/phone';
 import { findMealField } from '../../utils/mealField';
+import CompanionMealCounter, { trimMealCounts } from '../../components/guest/rsvp/CompanionMealCounter';
 
 /**
  * Guest categories (decision D-4). Must match GUEST_CATEGORIES in
@@ -50,8 +51,25 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
     guest_name: '', email: '', phone: '', party_size: 1, response: 'pending', notes: '', side: '', meal: '', category: 'standard',
   });
   const [companions, setCompanions] = useState([]);
+  // The party's companion meal tally. `dirty` gates whether it is sent at all:
+  // an untouched counter must never overwrite what the guest chose, whatever
+  // the modal happened to be prefilled with.
+  const [companionMealCounts, setCompanionMealCounts] = useState({});
+  const [mealCountsDirty, setMealCountsDirty] = useState(false);
+  const setCompanionMealCount = (option, n) => {
+    setMealCountsDirty(true);
+    setCompanionMealCounts((prev) => {
+      const next = { ...prev };
+      if (n > 0) next[option] = n; else delete next[option];
+      return next;
+    });
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Organizer's confirmation that they hold this guest's SMS consent. Only
+  // offered for a guest who has never recorded a decision of their own — see
+  // canAttestSms below.
+  const [smsConsentAttested, setSmsConsentAttested] = useState(false);
   const nameRef = useRef(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
   const mealField = findMealField(customFields);
@@ -81,6 +99,9 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
         category: (rsvp.guests || []).find((g) => g.is_primary_contact)?.category
           || rsvp.category || 'standard',
       });
+      // Never carried over between guests, and never pre-ticked from an existing
+      // attestation — re-opening the modal must not silently re-affirm consent.
+      setSmsConsentAttested(false);
       // Real companion rows the organizer can now edit directly (previously
       // only a party-size number existed — extra companions were permanent
       // "Guest 2"-style placeholders with no email/phone/name fix-up path).
@@ -91,9 +112,10 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
           fullName: g.full_name || '',
           email: cleanContact(g.email),
           phone: cleanContact(g.phone),
-          mealSelection: g.meal_selection || '',
         }));
       setCompanions(existingCompanions);
+      setCompanionMealCounts(rsvp.companion_meal_counts || {});
+      setMealCountsDirty(false);
       setError('');
       setLoading(false);
     }
@@ -121,8 +143,15 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
       const wanted = Math.max(size - 1, 0);
       if (wanted === prev.length) return prev;
       if (wanted < prev.length) return prev.slice(0, wanted);
-      const extra = Array.from({ length: wanted - prev.length }, () => ({ id: null, fullName: '', email: '', phone: '', mealSelection: '' }));
+      const extra = Array.from({ length: wanted - prev.length }, () => ({ id: null, fullName: '', email: '', phone: '' }));
       return [...prev, ...extra];
+    });
+    // Drop meals along with the companions they belonged to, so the counter
+    // can't sit on a total for a group that no longer exists.
+    setCompanionMealCounts((prev) => {
+      const trimmed = trimMealCounts(prev, Math.max(size - 1, 0));
+      if (trimmed !== prev) setMealCountsDirty(true);
+      return trimmed;
     });
   };
 
@@ -162,11 +191,12 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
         setError(`Enter a valid email address for Guest #${i + 2}, or leave it blank.`);
         return;
       }
+      // No mealSelection: a companion has no dish of their own any more, the
+      // party carries a tally instead (see companionMealCounts below).
       companionPayload.push({
         fullName: (c.fullName || '').trim() || `Guest ${i + 2}`,
         email: c.email ? c.email.trim() : '',
         phone: companionPhone,
-        mealSelection: c.mealSelection || '',
       });
     }
 
@@ -188,6 +218,11 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
           primaryGuestMeal: formData.meal || '',
           category: formData.category || 'standard',
           additionalGuests: companionPayload,
+          // Sent ONLY once the organizer has actually touched the counter.
+          // updateParty leaves the column alone when the key is absent, so an
+          // untouched modal can never blank a tally the guest filled in.
+          ...(mealCountsDirty ? { companionMealCounts: companionMealCounts } : {}),
+          ...(smsConsentAttested ? { smsConsentAttested: true } : {}),
         }),
       });
       const data = await res.json();
@@ -211,6 +246,12 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
     background: COLORS.white, outline: 'none', transition: 'border-color 0.2s',
     boxSizing: 'border-box',
   };
+
+  // A consent decision exists for this party — either an opt-in (from the guest
+  // or a previous attestation) or a recorded refusal. `sms_consent_at` is the
+  // discriminator: it is stamped on every decision, including a "no", so its
+  // absence is what "never asked" means.
+  const smsDecided = !!(rsvp?.sms_consent || rsvp?.sms_consent_at);
 
   return (
     <div
@@ -291,6 +332,57 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
                 <PhoneNumberInput value={formData.phone} onChange={(val) => handleChange('phone')({ target: { value: val } })} />
               </div>
             </div>
+
+            {/* SMS consent state for this guest.
+                Three distinct cases, and conflating them would be wrong:
+                • the guest already decided (either way) → read-only. Their own
+                  choice is final; an organizer must not be offered a control
+                  that appears to overturn it, because the backend would refuse
+                  anyway (recordHostConsentAttestation's IS NULL guard).
+                • no decision on record, phone present → offer the attestation.
+                • no phone → nothing to say. */}
+            {formData.phone.trim() && (
+              smsDecided ? (
+                <div style={{
+                  padding: '10px 14px', borderRadius: '10px', background: COLORS.softBg,
+                  border: `1px solid ${COLORS.border}`, fontSize: '11.5px', lineHeight: 1.6,
+                  color: COLORS.stone, fontFamily: 'var(--font-sans)',
+                }}>
+                  {rsvp?.sms_consent
+                    ? (rsvp?.sms_consent_method === 'host_attested'
+                        ? 'SMS consent on file — you confirmed you obtained this guest’s consent. They can receive event texts.'
+                        : 'SMS consent on file — this guest opted in themselves on their RSVP form. They can receive event texts.')
+                    : 'This guest was shown the SMS consent box and chose not to opt in. Their decision can’t be overridden, so they’re excluded from all text messages.'}
+                </div>
+              ) : (
+                <div style={{
+                  padding: '12px 14px', borderRadius: '10px',
+                  background: smsConsentAttested ? 'rgba(184,148,79,0.08)' : COLORS.softBg,
+                  border: `1px solid ${smsConsentAttested ? COLORS.champagne : COLORS.border}`,
+                  transition: 'background 0.2s, border-color 0.2s',
+                }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={smsConsentAttested}
+                      onChange={(e) => setSmsConsentAttested(e.target.checked)}
+                      style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: COLORS.gold, flexShrink: 0, cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '12.5px', color: COLORS.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                      I confirm that I have obtained this recipient&apos;s consent to receive event-related SMS messages.
+                    </span>
+                  </label>
+                  <p style={{
+                    margin: '8px 0 0 26px', fontSize: '11.5px', lineHeight: 1.6,
+                    color: COLORS.stone, fontFamily: 'var(--font-sans)',
+                  }}>
+                    {smsConsentAttested
+                      ? 'Saving will record your confirmation with your name and the date, and this guest can then be included in SMS sends.'
+                      : 'No SMS consent is on record for this guest, so they’re currently excluded from text messages.'}
+                  </p>
+                </div>
+              )
+            )}
 
             <div className="eg-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
@@ -373,6 +465,17 @@ export default function EditGuestModal({ isOpen, onClose, eventId, event, custom
                   </div>
                 ))}
               </div>
+            )}
+
+            {companions.length > 0 && mealField?.options?.length > 0 && (
+              <CompanionMealCounter
+                options={mealField.options}
+                counts={companionMealCounts}
+                onChange={setCompanionMealCount}
+                companionCount={companions.length}
+                required={false}
+                accentColor={COLORS.gold}
+              />
             )}
 
             <div>

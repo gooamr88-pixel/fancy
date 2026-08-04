@@ -36,6 +36,13 @@
 // MUST match backend/utils/smsConsent.js — bump both together whenever either
 // component's wording changes.
 //
+// 2026-08-04: reworded to the exact sentence filed against Twilio rejection
+//   30475 ("Consent for Messaging Cannot Be Part of Other Agreements"), and the
+//   independence notice reduced to the three sentences filed with it. Previous
+//   version: 2026-08-01 — "I agree to receive text messages from FancyRSVP
+//   about this event, including event invitations, RSVP updates, reminders, and
+//   event updates. Message frequency varies. Message & data rates may apply.
+//   Reply STOP to opt out at any time, or HELP for help."
 // 2026-08-01: links moved out of the label into SmsConsentIndependence; label
 //   reworded to the TFV-submitted sentence. Previous version: 2026-07-16 —
 //   "I agree to receive text messages from Fancy RSVP about this event,
@@ -43,7 +50,7 @@
 //   Message frequency varies. Message & data rates may apply. Reply STOP to opt
 //   out at any time, or HELP for help. See our Privacy Policy and Terms of
 //   Service."
-export const SMS_CONSENT_TEXT_VERSION = '2026-08-01';
+export const SMS_CONSENT_TEXT_VERSION = '2026-08-04';
 
 const linkBase = { fontWeight: 600, textDecoration: 'underline', color: 'inherit' };
 
@@ -63,13 +70,13 @@ export default function SmsConsentText({ isRTL = false }) {
   if (isRTL) {
     return (
       <>
-        أوافق على تلقي رسائل نصية (SMS) من FancyRSVP بخصوص هذه الفعالية، بما في ذلك دعوات الفعالية وتحديثات الردود (RSVP) والتذكيرات وتحديثات الفعالية. يختلف عدد الرسائل. وقد تُطبّق رسوم الرسائل والبيانات. أرسل STOP لإلغاء الاشتراك في أي وقت، أو HELP للمساعدة.
+        أوافق على تلقي رسائل نصية متعلقة بالفعاليات من FancyRSVP، بما في ذلك روابط الدعوات وتأكيدات الردود (RSVP) والتذكيرات وتحديثات الفعالية. يختلف عدد الرسائل. وقد تُطبّق رسوم الرسائل والبيانات. أرسل STOP لإلغاء الاشتراك في أي وقت أو HELP للمساعدة.
       </>
     );
   }
   return (
     <>
-      I agree to receive text messages from FancyRSVP about this event, including event invitations, RSVP updates, reminders, and event updates. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out at any time, or HELP for help.
+      I agree to receive event-related text messages from FancyRSVP, including invitation links, RSVP confirmations, reminders, and event updates. Message frequency varies. Message &amp; data rates may apply. Reply STOP to opt out at any time or HELP for assistance.
     </>
   );
 }
@@ -97,30 +104,28 @@ export function SmsConsentIndependence({ isRTL = false, style = {}, linkStyle = 
   if (isRTL) {
     return (
       <div style={wrap} dir="rtl">
-        <p style={line}>هذه الموافقة على الرسائل النصية منفصلة عن الموافقة على سياسة الخصوصية أو شروط الخدمة، وغير مشروطة بها.</p>
-        <p style={line}>لست مضطرًا لقبول سياسة الخصوصية أو شروط الخدمة للاشتراك في الرسائل النصية.</p>
-        <p style={line}>كذلك، الاشتراك في الرسائل النصية غير مطلوب لاستخدام FancyRSVP أو لحضور أي فعالية.</p>
+        <p style={line}>الموافقة على الرسائل النصية اختيارية وليست مطلوبة للتسجيل أو لتأكيد الحضور (RSVP) أو لحضور أي فعالية أو لاستخدام FancyRSVP.</p>
+        <p style={line}>قرارك بتلقي الرسائل النصية مستقل تمامًا عن قبول سياسة الخصوصية أو شروط الخدمة الخاصة بنا.</p>
         <p style={{ ...line, marginBottom: 0 }}>
           راجع{' '}
           <PolicyLink href="/privacy" style={linkStyle}>سياسة الخصوصية</PolicyLink>
           {' '}و{' '}
           <PolicyLink href="/terms" style={linkStyle}>شروط الخدمة</PolicyLink>
-          {' '}أدناه لمزيد من المعلومات.
+          {' '}لمزيد من المعلومات.
         </p>
       </div>
     );
   }
   return (
     <div style={wrap}>
-      <p style={line}>This SMS consent is separate from, and not conditioned on, agreement to our Privacy Policy or Terms of Service.</p>
-      <p style={line}>You are not required to accept our Privacy Policy or Terms of Service to opt in to SMS.</p>
-      <p style={line}>Likewise, opting in to SMS is not required to use FancyRSVP or attend an event.</p>
+      <p style={line}>SMS consent is voluntary and is not required to register, RSVP, attend an event, or use FancyRSVP.</p>
+      <p style={line}>Your decision to receive SMS messages is completely independent from acceptance of our Privacy Policy or Terms of Service.</p>
       <p style={{ ...line, marginBottom: 0 }}>
         See our{' '}
         <PolicyLink href="/privacy" style={linkStyle}>Privacy Policy</PolicyLink>
         {' '}and{' '}
         <PolicyLink href="/terms" style={linkStyle}>Terms of Service</PolicyLink>
-        {' '}below for additional information.
+        {' '}for additional information.
       </p>
     </div>
   );

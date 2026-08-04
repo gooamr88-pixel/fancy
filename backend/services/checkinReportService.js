@@ -23,6 +23,7 @@
  *     this report is the ONLY place a forged scan ever becomes visible.
  */
 const { supabase } = require('../config/supabase');
+const { formatCompanionMealCounts } = require('./guestService');
 
 /** Guests fetched per page while assembling the report. */
 const REPORT_PAGE = 1000;
@@ -179,7 +180,7 @@ async function gatherReportData(eventId) {
       .from('guests')
       .select(`
         id, party_id, full_name, category, meal_selection, dietary_notes, is_primary_contact,
-        rsvp_parties!inner(id, label, response, notes, side,
+        rsvp_parties!inner(id, label, response, notes, side, companion_meal_counts,
                            seating_assignments(tables(table_name, element_type))),
         check_ins(id, checked_in_at, server_received_at, method, staff_display_name,
                   device_label, token_verified, deleted_at, undo_reason,
@@ -224,6 +225,10 @@ async function gatherReportData(eventId) {
       dietaryNotes: g.dietary_notes || null,
       partyNotes: party.notes || null,
       side: party.side || null,
+      // See checkinSyncService: a companion has no meal of their own, the party
+      // carries a tally. Without this the report shows a party of four with one
+      // meal and three blanks.
+      partyMealSummary: formatCompanionMealCounts(party.companion_meal_counts) || null,
       arrived: !!live,
       checkedInAt: live?.checked_in_at || null,
       serverReceivedAt: live?.server_received_at || null,

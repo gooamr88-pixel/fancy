@@ -95,6 +95,29 @@ export default function GuestPassCard({
       ? { label: { en: 'Tentative', ar: 'مبدئي' }, color: '#6366f1', soft: 'rgba(99,102,241,0.15)' }
       : { label: { en: 'Registered', ar: 'مسجل' }, color: '#77736A', soft: 'rgba(255,255,255,0.08)' };
 
+  /**
+   * Saves the bare QR on its own, alongside the full-pass download below.
+   * Both exist because they solve different moments: the pass is the keepsake
+   * a guest shares, the bare code is what actually scans fastest at the door —
+   * a door scanner reading the QR out of the pass artwork is fighting the
+   * surrounding foil, the perforation and a 112px render. Re-encoded at 1024px
+   * here rather than reusing the on-screen data URL for the same reason.
+   */
+  const handleDownloadQr = useCallback(() => {
+    if (!qrData) return;
+    import('qrcode').then(QRCode => {
+      QRCode.toDataURL(qrData, {
+        width: 1024, margin: 3, errorCorrectionLevel: 'Q',
+        color: { dark: '#191B1E', light: '#FFFFFF' },
+      }).then(url => {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `check-in-qr-${(guestName || 'guest').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}.png`;
+        a.click();
+      }).catch(() => {});
+    }).catch(() => {});
+  }, [qrData, guestName]);
+
   const handleDownload = useCallback(async () => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -297,7 +320,7 @@ export default function GuestPassCard({
                 {tableName && (
                   <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
                     <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, display: 'block', marginBottom: '4px', fontFamily: PASS_FONT_SANS }}>
-                      {isRTL ? 'مكان جلوسك' : 'Your assigned seating'}
+                      {isRTL ? 'طاولتك' : 'Your table'}
                     </span>
                     <span style={{ fontSize: '17px', fontWeight: 800, color: accent, fontFamily: PASS_FONT_SANS }}>{formatTableLabel(tableName, isRTL)}</span>
                   </div>
@@ -350,6 +373,23 @@ export default function GuestPassCard({
             >
               ⬇ {isRTL ? 'تحميل بطاقة الدخول' : 'Download Guest Pass'}
             </button>
+            {qrImageUrl && (
+              <button
+                onClick={handleDownloadQr}
+                style={{
+                  width: '100%', padding: '11px', borderRadius: '10px',
+                  border: `1px solid ${accent}55`, background: 'transparent',
+                  color: accent, fontSize: '12.5px', fontWeight: 600,
+                  cursor: 'pointer', fontFamily: PASS_FONT_SANS,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = `${accent}14`; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                ⬇ {isRTL ? 'تحميل رمز الدخول فقط' : 'Download QR code only'}
+              </button>
+            )}
             <button
               onClick={() => setFlipped(true)}
               aria-label={isRTL ? 'عرض تفاصيل التذكرة' : 'View pass details'}

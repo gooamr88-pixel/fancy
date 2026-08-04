@@ -450,8 +450,17 @@ export default function DashboardPage() {
           // Name-attributed so a party of 2+ with different meals is legible
           // ("John: Chicken, Guest 2: Fish") instead of an ambiguous
           // comma-joined blob with no way to tell whose meal is whose.
-          const guestMeals = party.filter(g => g.meal_selection)
-            .map(g => `${g.full_name}: ${g.meal_selection}`).join(', ') || '-';
+          const namedMeals = party.filter(g => g.meal_selection)
+            .map(g => `${g.full_name}: ${g.meal_selection}`);
+          // Companions are names only, so their meals live as a per-party tally
+          // rather than one dish per person. Counting guest rows alone would
+          // show a party of four as one meal and three blanks.
+          const companionMeals = Object.entries(r.companion_meal_counts || {})
+            .filter(([, n]) => Number(n) > 0)
+            .map(([meal, n]) => `${Number(n)} x ${meal}`)
+            .join(', ');
+          const guestMeals = [...namedMeals, companionMeals ? `Guests: ${companionMeals}` : '']
+            .filter(Boolean).join(', ') || '-';
           // Channel-specific — previously a single flag conflated all channels,
           // so a guest only ever emailed would silently disappear from the
           // SMS tab's default "Not Invited" filter (and vice versa), meaning
@@ -465,9 +474,17 @@ export default function DashboardPage() {
             id: r.id, guest_name: r.label, party_size: party.length || 1, response: r.response,
             email: primary.email || '-', phone: primary.phone || '-', tableId: assignedTableId, meal: guestMeals,
             primary_meal: primary.meal_selection || null,
+            companion_meal_counts: r.companion_meal_counts || null,
             invitation_sent: wasInvitedEmail || wasInvitedSms,
             invitation_sent_email: wasInvitedEmail,
             invitation_sent_sms: wasInvitedSms,
+            // SMS eligibility, straight off the party row. `sms_consent` alone is
+            // ambiguous for the organizer — false means "declined" or "never
+            // asked" depending on whether a decision was ever recorded — so the
+            // timestamp and the method come along to tell those apart.
+            sms_consent: r.sms_consent === true,
+            sms_consent_at: r.sms_consent_at || null,
+            sms_consent_method: r.sms_consent_method || null,
             // Full per-companion details so the organizer sees everyone in the party.
             guests: party,
             // Custom-question answers (e.g. song requests, dietary preferences) the

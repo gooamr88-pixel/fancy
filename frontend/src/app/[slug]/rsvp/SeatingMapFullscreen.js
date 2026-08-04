@@ -4,45 +4,22 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useModalA11y } from '../../hooks/useModalA11y';
 import { formatTableLabel } from '../../utils/tableLabel';
 import Icon from '../../components/icons/Icon';
-
-// Maps a zone's SHAPES key to an Icon.js glyph name.
-const ZONE_ICON = { stage: 'mic', dance_floor: 'discoBall', bar: 'cocktail', dj_booth: 'headphones', entrance: 'door', custom: 'star' };
+import {
+  WORLD_W, WORLD_H, shapeMeta, isZone, elWidth, elHeight, pctToPx, elCenterX, elCenterY,
+} from '../../utils/seatingGeometry';
 
 /**
  * Fullscreen, pannable + zoomable viewer for the guest's seating chart.
  * Uses the same world-coordinate model as SeatingMiniMap (and the organizer
- * editor) so the layout the host drew is mirrored exactly — we just lift it
- * into a wrapper transform so the guest can pinch/scroll/drag it around. The
- * host's table is highlighted with a gold ring + "you" badge so it's obvious
- * at a glance among dozens of tables.
+ * editor) — imported from utils/seatingGeometry rather than re-declared, so
+ * the layout the host drew is mirrored exactly. We just lift it into a wrapper
+ * transform so the guest can pinch/scroll/drag it around. The host's table is
+ * highlighted with a gold ring + "you" badge so it's obvious at a glance among
+ * dozens of tables.
  */
-const WORLD_W = 2600;
-const WORLD_H = 1700;
-
-const SHAPES = {
-  round:       { cat: 'table', w: 96,  h: 96,  round: true },
-  oval:        { cat: 'table', w: 132, h: 86,  round: true },
-  square:      { cat: 'table', w: 96,  h: 96,  round: false },
-  rectangle:   { cat: 'table', w: 168, h: 84,  round: false },
-  banquet:     { cat: 'table', w: 230, h: 80,  round: false },
-  head:        { cat: 'table', w: 250, h: 76,  round: false },
-  stage:       { cat: 'zone',  w: 360, h: 150, color: '#3B3A55' },
-  dance_floor: { cat: 'zone',  w: 280, h: 280, color: '#6B5FA8' },
-  bar:         { cat: 'zone',  w: 240, h: 92,  color: '#9C5A3C' },
-  dj_booth:    { cat: 'zone',  w: 132, h: 112, color: '#2F5E8C' },
-  entrance:    { cat: 'zone',  w: 150, h: 70,  color: '#4A7C59' },
-  custom:      { cat: 'zone',  w: 190, h: 130, color: '#B8944F' },
-};
-
 const GOLD = '#B8944F';
 const MIN_SCALE = 0.15;
 const MAX_SCALE = 3;
-
-const shapeMeta = (shape) => SHAPES[shape === 'rectangular' ? 'rectangle' : shape] || SHAPES.round;
-const isZone = (el) => (el.element_type === 'zone') || (shapeMeta(el.shape).cat === 'zone');
-const elWidth = (el) => (isZone(el) ? Number(el.width) || shapeMeta(el.shape).w : shapeMeta(el.shape).w);
-const elHeight = (el) => (isZone(el) ? Number(el.height) || shapeMeta(el.shape).h : shapeMeta(el.shape).h);
-const pctToPx = (pct, total) => (Number(pct) || 0) / 100 * total;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export default function SeatingMapFullscreen({ tables, myTableId, myTableName, hostName, isRTL, onClose }) {
@@ -84,8 +61,8 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
     if (!c || !myTableId) return;
     const el = els.find((e) => e.id === myTableId);
     if (!el) return;
-    const cx = pctToPx(el.position_x, WORLD_W) + elWidth(el) / 2;
-    const cy = pctToPx(el.position_y, WORLD_H) + elHeight(el) / 2;
+    const cx = elCenterX(el);
+    const cy = elCenterY(el);
     const scale = clamp(0.85, MIN_SCALE, MAX_SCALE);
     const tx = c.clientWidth / 2 - cx * scale;
     const ty = c.clientHeight / 2 - cy * scale;
@@ -219,7 +196,7 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
             {isRTL ? 'خريطة الجلوس' : 'Seating Chart'}
           </span>
           <strong style={{ display: 'block', fontSize: '16px', fontFamily: 'var(--font-serif)', fontWeight: 600, color: '#191B1E' }}>
-            {myTableName ? (isRTL ? `مكان جلوسك: ${formatTableLabel(myTableName, isRTL)}` : `Your assigned seating: ${formatTableLabel(myTableName, isRTL)}`) : (isRTL ? 'حدد طاولتك من الخريطة' : 'Find your table')}
+            {myTableName ? (isRTL ? `طاولتك: ${formatTableLabel(myTableName, isRTL)}` : `Your table: ${formatTableLabel(myTableName, isRTL)}`) : (isRTL ? 'حدد طاولتك من الخريطة' : 'Find your table')}
           </strong>
         </div>
         <button
@@ -303,7 +280,7 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
                   fontFamily: 'var(--font-sans)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                 }}>
-                  {zone && ZONE_ICON[el.shape] && <Icon name={ZONE_ICON[el.shape]} size={Math.max(11, Math.min(18, h / 5))} strokeWidth={1.8} color={color} style={{ flexShrink: 0 }} />}
+                  {zone && meta.icon && <Icon name={meta.icon} size={Math.max(11, Math.min(18, h / 5))} strokeWidth={1.8} color={color} style={{ flexShrink: 0 }} />}
                   {el.table_name}
                 </span>
                 {mine && (
@@ -315,7 +292,7 @@ export default function SeatingMapFullscreen({ tables, myTableId, myTableName, h
                       padding: '5px 14px', borderRadius: '999px', whiteSpace: 'nowrap',
                       fontFamily: 'var(--font-sans)', letterSpacing: '0.05em',
                       boxShadow: '0 8px 20px rgba(184,148,79,0.55)',
-                    }}>♛ {isRTL ? (hostName ? `${hostName} — مكانك` : 'مكانك') : (hostName ? `${hostName} — your seat` : 'Your seat')}</span>
+                    }}>♛ {isRTL ? (hostName ? `${hostName} — طاولتك` : 'طاولتك') : (hostName ? `${hostName} — your table` : 'Your table')}</span>
                     {/* Pulsing ring */}
                     <span aria-hidden style={{
                       position: 'absolute', inset: -14,

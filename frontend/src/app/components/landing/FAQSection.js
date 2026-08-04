@@ -286,11 +286,11 @@ export default function FAQSection() {
           margin: 0 0 20px 0;
         }
 
-        .faq-cta-button {
+        :global(.faq-cta-button) {
           gap: 8px;
         }
 
-        .faq-cta-button:hover svg path {
+        :global(.faq-cta-button):hover svg path {
           stroke: #ffffff;
         }
 

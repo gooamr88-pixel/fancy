@@ -118,10 +118,14 @@
     <!--
       Scan result states (§8.4).
 
-      There are FOUR, not six. "Not a Fancy code", "Wrong event" and "Not on the
-      list" all asked the same thing of the person holding the tablet — search
-      by name — so they are one state with one message. Distinguishing them was
-      a distinction the app cared about and the usher did not.
+      FIVE, from six outcomes. "Wrong event" and "Not on the list" both mean a
+      PERSON the tablet cannot place, and both ask the same thing of the usher —
+      search by name — so they share one calm, colourless state.
+
+      "Not a Fancy code" was folded in with them and has been pulled back out. It
+      is not about a person at all: the scanner read something that was never an
+      invitation, so telling an usher to search by name sent them to a text field
+      with nothing to type. It has its own red state and its own words.
     -->
     <string name="result_welcome">Welcome</string>
     <string name="result_welcome_vip">VIP guest</string>
@@ -134,19 +138,47 @@
     <string name="result_not_everyone">Not everyone? Choose who</string>
     <string name="result_choose_who">Who is arriving?</string>
     <string name="result_already_title">Already checked in</string>
-    <string name="result_already_detail">%1$s at %2$s</string>
-    <string name="result_already_detail_device">%1$s at %2$s · %3$s</string>
     <string name="result_override">Supervisor override</string>
     <string name="result_override_unavailable">A supervisor is needed to check this guest in again.</string>
-    <string name="result_not_found_title">Not on the list</string>
-    <string name="result_not_found_body">Search for them by name.</string>
+    <string name="result_not_found_title">Not on tonight\'s list</string>
+    <string name="result_not_found_body">We can\'t place this code</string>
+    <string name="result_not_found_code">Valid, and issued for this event</string>
+    <string name="result_not_found_hint">A different spelling, or booked under someone else in their party</string>
+
+    <!--
+      Row labels for the scan result. Short, because they sit in a fixed 96dp
+      column beside the value; anything longer is truncated rather than wrapped.
+    -->
+    <string name="result_fact_party">Party</string>
+    <string name="result_fact_meal">Meal</string>
+    <string name="result_fact_note">Note</string>
+    <string name="result_fact_rule">Rule</string>
+    <string name="result_fact_ticket">Ticket</string>
+    <string name="result_fact_arrived">Arrived</string>
+    <string name="result_fact_by">By</string>
+    <string name="result_fact_code">Code</string>
+    <string name="result_fact_likely">Likely</string>
+    <string name="result_fact_read">Read</string>
+    <string name="result_fact_next">Next</string>
+    <string name="result_already_progress">%1$d of %2$d already in</string>
+
+    <!--
+      A code that is not one of ours (§8.4). Deliberately says nothing about the
+      guest: nobody has been refused, the scanner simply read something that was
+      never an invitation. "Not from this event" would be wrong — that is the
+      not-found screen above.
+    -->
+    <string name="result_foreign_label">Unrecognised code</string>
+    <string name="result_foreign_title">This isn\'t an invitation</string>
+    <string name="result_foreign_read">A code that wasn\'t issued for this event</string>
+    <string name="result_foreign_body">Ask the guest to open their invitation, or find them by name</string>
+    <string name="result_foreign_done">Next guest</string>
     <!-- Quiet line on an otherwise normal welcome. §5.3: the door is never
          blocked by uncertainty, so this is a note, not a state. -->
     <string name="result_expired_note">Ticket was past its date</string>
     <string name="result_party_of">Party of %1$d</string>
     <string name="result_meal">Meal: %1$s</string>
     <string name="result_dietary">Dietary: %1$s</string>
-    <string name="result_note">Note: %1$s</string>
     <string name="result_no_kids">No children at this event</string>
 
     <!-- Manual search (§8.5) -->

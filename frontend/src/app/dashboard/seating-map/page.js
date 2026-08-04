@@ -9,6 +9,12 @@ import { logout, apiFetch } from '../../utils/apiClient';
 import LogoutModal from '../../components/LogoutModal';
 import { useIsClient } from '../../utils/useIsClient';
 import Icon from '../../components/icons/Icon';
+// The shape catalogue and world geometry are shared with the two guest-facing
+// maps — see utils/seatingGeometry.js for why they must not be re-declared here.
+import {
+  WORLD_W, WORLD_H, SHAPES, shapeMeta, isZone,
+  elWidth, elHeight, pctToPx, elCenterX, elCenterY, elBox,
+} from '../../utils/seatingGeometry';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', danger: '#C45E5E' };
@@ -16,51 +22,17 @@ const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '
 const selectMenuInputStyle = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 8px', fontSize: 12, outline: 'none', marginTop: 3, background: C.white, color: C.charcoal, fontFamily: 'var(--font-sans, sans-serif)' };
 
 /* ════════════════════════════════════════════════════════════════
-   World / element catalog
-   The canvas is a large fixed logical world; positions are stored as
-   percentages (0–100) so existing data keeps working. Zones store an
-   explicit width/height (world px) so they can be resized.
+   Editor-only constants. The world size, the shape catalogue and every
+   coordinate helper live in utils/seatingGeometry.js and are imported
+   above — they are shared with the two guest-facing maps and must not be
+   re-declared here (see that file's header for the two bugs that caused).
    ════════════════════════════════════════════════════════════════ */
-const WORLD_W = 2600;
-const WORLD_H = 1700;
 const MIN_SCALE = 0.18;
 const MAX_SCALE = 2.5;
 const ROW_H = 58;          // guest row height (virtualization)
 const PAGE_SIZE = 100;     // server page size for guest list
 
-const SHAPES = {
-  // ── seatable tables ──
-  round:       { label: 'Round Table',     cat: 'table', w: 96,  h: 96,  seatable: true,  round: true,  defaultCap: 10 },
-  oval:        { label: 'Oval Table',       cat: 'table', w: 132, h: 86,  seatable: true,  round: true,  defaultCap: 10 },
-  square:      { label: 'Square Table',     cat: 'table', w: 96,  h: 96,  seatable: true,  round: false, defaultCap: 10 },
-  rectangle:   { label: 'Rectangle Table',  cat: 'table', w: 168, h: 84,  seatable: true,  round: false, defaultCap: 10 },
-  banquet:     { label: 'Banquet Table',    cat: 'table', w: 230, h: 80,  seatable: true,  round: false, defaultCap: 10 },
-  head:        { label: 'Head Table',       cat: 'table', w: 250, h: 76,  seatable: true,  round: false, defaultCap: 10 },
-  // ── non-seating venue zones ──
-  stage:         { label: 'Stage',            cat: 'zone',  w: 360, h: 150, icon: 'mic', color: '#3B3A55' },
-  dance_floor:   { label: 'Dance Floor',      cat: 'zone',  w: 280, h: 280, icon: 'discoBall', color: '#6B5FA8' },
-  bar:           { label: 'Bar',              cat: 'zone',  w: 240, h: 92,  icon: 'cocktail', color: '#9C5A3C' },
-  dj_booth:      { label: 'DJ Booth',         cat: 'zone',  w: 132, h: 112, icon: 'headphones', color: '#2F5E8C' },
-  entrance:      { label: 'Entrance',         cat: 'zone',  w: 150, h: 70,  icon: 'door', color: '#4A7C59' },
-  restroom:      { label: 'WC',               cat: 'zone',  w: 120, h: 100, icon: 'restroom', color: '#3C7A89' },
-  coat_check:    { label: 'Coat Check',       cat: 'zone',  w: 150, h: 90,  icon: 'coatHanger', color: '#6E5A46' },
-  gift_table:    { label: 'Gift Table',       cat: 'zone',  w: 150, h: 90,  icon: 'gift', color: '#B85C7A' },
-  cake_table:    { label: 'Cake Table',       cat: 'zone',  w: 130, h: 100, icon: 'cake', color: '#C97A9C' },
-  photo_booth:   { label: 'Photo Booth',      cat: 'zone',  w: 170, h: 130, icon: 'camera', color: '#4A6FA5' },
-  welcome_desk:  { label: 'Welcome Desk',     cat: 'zone',  w: 170, h: 85,  icon: 'clipboard', color: '#5A7A5E' },
-  buffet:        { label: 'Buffet',           cat: 'zone',  w: 220, h: 90,  icon: 'restaurant', color: '#A2662E' },
-  lounge:        { label: 'Lounge Area',      cat: 'zone',  w: 220, h: 160, icon: 'sofa', color: '#7D6A9A' },
-  custom:        { label: 'Custom Area',      cat: 'zone',  w: 190, h: 130, icon: 'star', color: '#B8944F' },
-};
-// Legacy alias from the original 2-shape model
-const shapeMeta = (shape) => SHAPES[shape === 'rectangular' ? 'rectangle' : shape] || SHAPES.round;
-const isZone = (el) => (el.element_type === 'zone') || (shapeMeta(el.shape).cat === 'zone');
-
-const elWidth  = (el) => (isZone(el) ? Number(el.width)  || shapeMeta(el.shape).w : shapeMeta(el.shape).w);
-const elHeight = (el) => (isZone(el) ? Number(el.height) || shapeMeta(el.shape).h : shapeMeta(el.shape).h);
-
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const pctToPx = (pct, total) => (Number(pct) || 0) / 100 * total;
 
 /* ── Seat dots around a table ── */
 function renderSeats(shape, capacity, occupied, w, h) {
@@ -708,9 +680,9 @@ export default function SeatingMapPage() {
     const worldB = worldT + containerSize.h / scale;
     const margin = 120;
     return elements.filter(el => {
-      const x = pctToPx(el.position_x, WORLD_W), y = pctToPx(el.position_y, WORLD_H);
-      return x + elWidth(el) >= worldL - margin && x <= worldR + margin &&
-             y + elHeight(el) >= worldT - margin && y <= worldB + margin;
+      const b = elBox(el);
+      return b.right >= worldL - margin && b.x <= worldR + margin &&
+             b.bottom >= worldT - margin && b.y <= worldB + margin;
     });
   }, [elements, view, containerSize]);
 
@@ -1142,16 +1114,16 @@ export default function SeatingMapPage() {
         if (right - left < 4 && bottom - top < 4) return;
         const { scale, tx, ty } = viewRef.current;
         const hits = elementsRef.current.filter((el) => {
-          const w = elWidth(el), h = elHeight(el);
-          const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
-          const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
-          // Axis-aligned bounding box in world space (ignores rotation, same
-          // simplification most box-select tools use) converted to the same
+          // elBox is the world-space AABB; convert it to the same
           // viewport-relative screen px the marquee rectangle was drawn in.
-          const elLeft = (cx - w / 2) * scale + tx;
-          const elRight = (cx + w / 2) * scale + tx;
-          const elTop = (cy - h / 2) * scale + ty;
-          const elBottom = (cy + h / 2) * scale + ty;
+          // This used to re-derive the box as x±w/2 — treating a top-left
+          // position as a centre — so the rubber band selected the elements
+          // NEXT to whatever it was actually drawn over.
+          const b = elBox(el);
+          const elLeft = b.x * scale + tx;
+          const elRight = b.right * scale + tx;
+          const elTop = b.y * scale + ty;
+          const elBottom = b.bottom * scale + ty;
           return elLeft < right && elRight > left && elTop < bottom && elBottom > top;
         }).map((el) => el.id);
         if (hits.length === 0) return;
@@ -1286,7 +1258,9 @@ export default function SeatingMapPage() {
     setSaving(true);
     try {
       for (const item of items) {
-        const meta = SHAPES[item.shape];
+        // shapeMeta, not SHAPES[...] — a raw lookup returns undefined for the
+        // legacy 'rectangular' alias and the next line throws on meta.cat.
+        const meta = shapeMeta(item.shape);
         const body = {
           tableName: item.tableName || item.name,
           shape: item.shape,
@@ -2197,8 +2171,9 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
   const svgRef = useRef(null);
   const elementsRef = useRef(elements);
   elementsRef.current = elements;
-  // Single-element drag: { mode: 'single', id, offX, offY } — offset from
-  // shape center to the grab point, in world px.
+  // Single-element drag: { mode: 'single', id, offX, offY } — offset from the
+  // shape's TOP-LEFT corner to the grab point, in world px (see elCenterX for
+  // why top-left and not centre).
   // Group drag: { mode: 'group', ids, startP, origins } — origins snapshots
   // every selected element's position at drag start, so the whole group
   // moves by the same delta and keeps its relative layout instead of
@@ -2240,14 +2215,11 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
   if (!isEmpty) {
     let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
     displayElements.forEach((el) => {
-      const w = elWidth(el);
-      const h = elHeight(el);
-      const x = ((Number(el.position_x) || 0) / 100) * WORLD_W;
-      const y = ((Number(el.position_y) || 0) / 100) * WORLD_H;
-      mnX = Math.min(mnX, x - w / 2);
-      mnY = Math.min(mnY, y - h / 2);
-      mxX = Math.max(mxX, x + w / 2);
-      mxY = Math.max(mxY, y + h / 2);
+      const b = elBox(el);
+      mnX = Math.min(mnX, b.x);
+      mnY = Math.min(mnY, b.y);
+      mxX = Math.max(mxX, b.right);
+      mxY = Math.max(mxY, b.bottom);
     });
     minX = mnX - PAD; minY = mnY - PAD;
     boxW = Math.max(1, mxX + PAD - minX);
@@ -2322,9 +2294,13 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
       dragRef.current = { mode: 'group', ids: Array.from(selectedIds), startP: p, origins };
     } else {
       setSelectedIds(new Set([el.id]));
-      const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
-      const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
-      dragRef.current = { mode: 'single', id: el.id, offX: p.x - cx, offY: p.y - cy };
+      // Grab offset is measured from the TOP-LEFT corner, because that is what
+      // onSvgPointerMove writes back into `overrides` (and overrides feed
+      // position_x/position_y directly). Measuring it from the centre made the
+      // element jump by half its size the instant you started dragging it.
+      const x = pctToPx(el.position_x, WORLD_W);
+      const y = pctToPx(el.position_y, WORLD_H);
+      dragRef.current = { mode: 'single', id: el.id, offX: p.x - x, offY: p.y - y };
     }
     setDragging(true);
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* unsupported — pointermove on the svg still covers it */ }
@@ -2383,10 +2359,11 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
       // A tap with no real drag shouldn't clear a selection being built.
       if (right - left < 4 && bottom - top < 4) return;
       const hits = (elementsRef.current || []).filter((el) => {
-        const w = elWidth(el), h = elHeight(el);
+        // Through elBox with this printout's dragged position applied, so the
+        // rubber band matches where the element is actually drawn right now.
         const p = posOf(el.id);
-        const cx = (p.x / 100) * WORLD_W, cy = (p.y / 100) * WORLD_H;
-        return (cx - w / 2) < right && (cx + w / 2) > left && (cy - h / 2) < bottom && (cy + h / 2) > top;
+        const b = elBox({ ...el, position_x: p.x, position_y: p.y });
+        return b.x < right && b.right > left && b.y < bottom && b.bottom > top;
       }).map((el) => el.id);
       if (hits.length > 0) setSelectedIds(new Set(hits));
     }
@@ -2460,8 +2437,8 @@ function PrintPreviewModal({ eventTitle, eventDate, organizerName, elements, nam
                       const meta = shapeMeta(el.shape);
                       const w = elWidth(el);
                       const h = elHeight(el);
-                      const cx = ((Number(el.position_x) || 0) / 100) * WORLD_W;
-                      const cy = ((Number(el.position_y) || 0) / 100) * WORLD_H;
+                      const cx = elCenterX(el);
+                      const cy = elCenterY(el);
                       const rot = Number(el.rotation) || 0;
                       const names = namesByTable[el.id] || [];
                       const cap = el.max_capacity || 0;

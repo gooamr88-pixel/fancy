@@ -1,6 +1,7 @@
 const { supabase } = require('../config/supabase');
 const logger = require('./logger');
-const { getRSVPConfirmationTemplate } = require('./emailTemplates');
+const { getRSVPConfirmationTemplate, buildTicketLinks } = require('./emailTemplates');
+const tokenService = require('../services/tokenService');
 
 /**
  * Sends a transactional email using Brevo's HTTP SMTP API.
@@ -83,7 +84,22 @@ const sendConfirmationEmail = async (eventId, partyId, lang = 'en') => {
 
   const partySize = (party.guests || []).length || 1;
   const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize, response: party.response };
-  const emailHtml = getRSVPConfirmationTemplate(shimParty, party.events, lang);
+
+  // The check-in pass rides along with the confirmation for a confirmed "yes".
+  // Previously this email only PROMISED a pass "once seating is finalized", so
+  // an organizer who never built a seating chart left every guest with nothing
+  // to show at the door. signQrTicketForResponse returns null for maybe/no and
+  // swallows its own errors, so a signing hiccup degrades this back to the old
+  // wording rather than failing the confirmation.
+  const qrToken = tokenService.signQrTicketForResponse({
+    response: party.response,
+    partyId,
+    eventId,
+    tableName: null,
+    partySize,
+    eventDate: party.events.event_date,
+  });
+  const emailHtml = getRSVPConfirmationTemplate(shimParty, party.events, lang, qrToken ? buildTicketLinks(qrToken) : null);
   // Subject line follows the guest's language too — a mail whose subject and
   // body disagree reads like a phishing attempt.
   const isMaybe = party.response === 'maybe';

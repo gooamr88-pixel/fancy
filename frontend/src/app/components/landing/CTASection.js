@@ -196,14 +196,14 @@ export default function CTASection() {
           font-size: clamp(1.8rem, 4vw, 2.6rem);
         }
 
-        .cta-primary-btn {
+        :global(.cta-primary-btn) {
           background: linear-gradient(135deg, #B8944F 0%, #D7BE80 100%);
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           transform: translateY(0);
           box-shadow: 0 4px 16px rgba(184, 148, 79, 0.2);
         }
         .cta-primary-btn:hover,
-        .cta-primary-btn:focus-visible {
+        :global(.cta-primary-btn):focus-visible {
           transform: translateY(-2px);
           box-shadow: 0 12px 32px rgba(184, 148, 79, 0.35);
         }

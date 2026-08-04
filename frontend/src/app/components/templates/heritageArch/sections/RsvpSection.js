@@ -6,10 +6,13 @@ import { CalendarButton, ShareButton } from '../../../guest/GuestUI';
 import { LockIcon } from '../../../guest/RsvpIcons';
 import { ConfettiExplosion } from '../../../guest/GuestAnimations';
 import GuestPassCard from '../../../guest/GuestPassGenerator';
+import ContactRegisteredNotice from '../../../guest/rsvp/ContactRegisteredNotice';
+import CompanionMealCounter, { trimMealCounts } from '../../../guest/rsvp/CompanionMealCounter';
 import CountryCodePhoneInput from '../../../CountryCodePhoneInput';
 import SmsConsentText, { SmsConsentIndependence } from '../../../guest/SmsConsentText';
 import TurnstileWidget, { turnstileEnabled } from '../../../guest/TurnstileWidget';
 import { normalizeToE164 } from '../../../../utils/phone';
+import { publicApiFetch } from '../../../../utils/publicApi';
 import { useIdempotentRsvpSubmit } from '../../../guest/rsvp/useIdempotentRsvpSubmit';
 import { rememberGuest } from '../../../guest/rsvp/useRsvpResolver';
 import { getCelebrationPreset } from '../../../../utils/patternCelebration';
@@ -249,7 +252,6 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const mealField = findMealField(allCustomFields);
   const mealOptions = (mealField?.options && mealField.options.length > 0) ? mealField.options : mealOptionsProp;
   const customQuestions = mealField ? allCustomFields.filter((f) => f.id !== mealField.id) : allCustomFields;
-  const guestScopedQuestions = customQuestions.filter((f) => f.scope === 'guest');
   const alwaysQuestions = customQuestions.filter((f) => f.condition === 'always');
   const attendingQuestions = customQuestions.filter((f) => f.condition !== 'always');
 
@@ -289,6 +291,21 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   // Signed entrance-ticket token minted by the submit response — powers the
   // scannable QR pass on the "yes" success screen.
   const [qrToken, setQrToken] = useState(null);
+  // A submitted email/phone that already belongs to an ANSWERED party. Kept out
+  // of `errors` because it carries an action ("That's me") and must survive
+  // until the guest edits the field or confirms, rather than clearing on the
+  // next submit attempt like a validation flag.
+  const [contactRegistered, setContactRegistered] = useState(null);
+  const [claiming, setClaiming] = useState(false);
+
+  // Companion meals: { "Beef": 2, "Fish": 1 } for the whole group — companions
+  // are names only, so a meal is a count, not a choice tied to a person.
+  const [companionMealCounts, setCompanionMealCounts] = useState({});
+  const setCompanionMealCount = (option, n) => setCompanionMealCounts((prev) => {
+    const next = { ...prev };
+    if (n > 0) next[option] = n; else delete next[option];
+    return next;
+  });
   const [submittedPartyId, setSubmittedPartyId] = useState(null);
 
   const { submit, submitting } = useIdempotentRsvpSubmit({
@@ -387,19 +404,6 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
   const toggleAllergy = (opt) => setAllergies((prev) => (prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]));
 
-  // Same pill-selection pattern as the primary guest's allergies, scoped to one
-  // companion — kept as its own array on that companion (not merged into their
-  // free-text `dietaryNotes` until submit) so re-toggling a pill doesn't have to
-  // re-parse text back out of a string.
-  const toggleCompanionAllergy = (idx, opt) => {
-    setAdditionalGuests((prev) => {
-      const copy = [...prev];
-      const cur = copy[idx]?.allergies || [];
-      copy[idx] = { ...(copy[idx] || {}), allergies: cur.includes(opt) ? cur.filter((o) => o !== opt) : [...cur, opt] };
-      return copy;
-    });
-  };
-
   const updateAdditionalGuest = (idx, patch) => {
     setAdditionalGuests((prev) => {
       const copy = [...prev];
@@ -411,6 +415,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
   const handlePartySizeChange = (v) => {
     setPartySize(v);
     setAdditionalGuests((prev) => prev.slice(0, Math.max(0, v - 1)));
+  // Dropping the party size must drop the meals with it. Without this the tally
+  // keeps a total for a group that no longer exists, and the guest is told
+  // "too many meals chosen" about companions they just removed.
+    setCompanionMealCounts((prev) => trimMealCounts(prev, Math.max(0, v - 1)));
   };
 
   const setCustomAnswer = (fieldId, value) => {
@@ -429,24 +437,23 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
   const clearError = (key) => setErrors((prev) => { if (!prev[key]) return prev; const n = { ...prev }; delete n[key]; return n; });
 
-  const setCompanionCustomAnswer = (gIdx, fieldId, value) => {
-    setAdditionalGuests((prev) => {
-      const copy = [...prev];
-      copy[gIdx] = { ...(copy[gIdx] || {}), customAnswers: { ...((copy[gIdx] || {}).customAnswers || {}), [fieldId]: value } };
-      return copy;
-    });
-    setErrors((prev) => { const k = `companion_${gIdx}_field_${fieldId}`; if (!prev[k]) return prev; const n = { ...prev }; delete n[k]; return n; });
-  };
-  const toggleCompanionCustomMulti = (gIdx, fieldId, opt) => {
-    setAdditionalGuests((prev) => {
-      const copy = [...prev];
-      const cur = (((copy[gIdx] || {}).customAnswers || {})[fieldId] || '').split(',').map((s) => s.trim()).filter(Boolean);
-      const idx = cur.indexOf(opt);
-      if (idx >= 0) cur.splice(idx, 1); else cur.push(opt);
-      copy[gIdx] = { ...(copy[gIdx] || {}), customAnswers: { ...((copy[gIdx] || {}).customAnswers || {}), [fieldId]: cur.join(', ') } };
-      return copy;
-    });
-    setErrors((prev) => { const k = `companion_${gIdx}_field_${fieldId}`; if (!prev[k]) return prev; const n = { ...prev }; delete n[k]; return n; });
+  /**
+   * "That's me" asks the server to email a short-lived link to the address on
+   * file, rather than merging on a click — a click proves nothing about who is
+   * holding the keyboard.
+   */
+  const requestClaimLink = async () => {
+    if (claiming) return;
+    setClaiming(true);
+    try {
+      await publicApiFetch(`/public/events/${slug}/rsvp/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, lang: isRTL ? 'ar' : 'en' }),
+      });
+    } catch { /* the reply is identical either way by design — see the handler */ }
+    setContactRegistered((prev) => (prev ? { ...prev, sent: true } : prev));
+    setClaiming(false);
   };
 
   const CUSTOM_INPUT_TYPE = { email: 'email', phone: 'tel', url: 'url', number: 'number', date: 'date' };
@@ -519,12 +526,6 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     onToggle: (opt) => toggleCustomMulti(field.id, opt),
     invalid: !!errors[`field_${field.id}`],
   });
-  const companionControl = (gIdx, field) => renderCustomControl(field, {
-    value: (additionalGuests[gIdx]?.customAnswers || {})[field.id] || '',
-    onSet: (v) => setCompanionCustomAnswer(gIdx, field.id, v),
-    onToggle: (opt) => toggleCompanionCustomMulti(gIdx, field.id, opt),
-    invalid: !!errors[`companion_${gIdx}_field_${field.id}`],
-  });
 
   // Consent is about *collecting a phone number*, not about attendance — so it's
   // only asked when a phone is actually present: always for attendees (phone is
@@ -568,13 +569,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
         // companion field blocked submission with the generic "review the
         // highlighted fields" banner but nothing was actually highlighted,
         // leaving the guest unable to tell which field needed fixing.
+        // A companion is a name — email, phone, meal and guest-scoped question
+        // checks used to sit here and went with the fields themselves. See the
+        // companion row in the render below.
         if (!g?.fullName?.trim()) e[`companion_${i}_fullName`] = true;
-        if (!g?.email?.trim()) e[`companion_${i}_email`] = true;
-        if (!g?.phone?.trim()) e[`companion_${i}_phone`] = true;
-        guestScopedQuestions.filter((f) => f.is_required).forEach((f) => {
-          const v = (g?.customAnswers || {})[f.id];
-          if (!v || !v.toString().trim()) e[`companion_${i}_field_${f.id}`] = true;
-        });
       }
     }
     // 'always'-condition required questions apply to every response.
@@ -585,6 +583,14 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     // Required meal + 'attending'-only required questions are asked of attendees.
     if (isAttending) {
       if (mealField?.is_required && !meal.trim()) e.meal = true;
+      // Same two rules the RPC enforces: never more meals than companions, and
+      // a complete tally when the organizer made the meal question required.
+      if (partySize > 1 && mealOptions?.length > 0) {
+        const assigned = Object.values(companionMealCounts).reduce((sum, n) => sum + (Number(n) || 0), 0);
+        if (assigned > partySize - 1 || (mealField?.is_required && assigned !== partySize - 1)) {
+          e.companionMealCounts = true;
+        }
+      }
       attendingQuestions.filter((f) => f.is_required).forEach((f) => {
         const v = customAnswers[f.id];
         if (!v || !v.toString().trim()) e[`field_${f.id}`] = true;
@@ -618,12 +624,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       notes,
       primaryGuestMeal: isAttending ? (meal || null) : null,
       primaryGuestDietaryNotes: isAttending ? dietaryNotes : null,
+      // Name only. The server ignores everything else on a companion now, and
+      // posting a stale draft's email would misrepresent what was collected.
       additionalGuests: isAttending
-        ? additionalGuests.slice(0, partySize - 1).map((g) => ({
-            ...g,
-            dietaryNotes: [...(g.allergies || []), (g.dietaryNotes || '').trim()].filter(Boolean).join(', ') || null,
-            customAnswers: g.customAnswers || {},
-          }))
+        ? additionalGuests.slice(0, partySize - 1).map((g) => ({ fullName: g.fullName }))
         : [],
       customAnswers: Object.keys(customAnswers)
         .filter((fieldId) => isAttending || alwaysQuestions.some((f) => f.id === fieldId))
@@ -631,6 +635,8 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
       side: event?.track_guest_side ? (side || undefined) : undefined,
       smsConsent,
       consentSource: 'guest_form_template', // provenance for the sms_consent record (backend whitelists values)
+      // A tally for the group rather than a dish per companion.
+      companionMealCounts: isAttending && partySize > 1 ? companionMealCounts : null,
       lang: isRTL ? 'ar' : 'en', // sends the confirmation email in the language the guest used
       // The widget is rendered and the token validated above, but it was never
       // actually sent — with TURNSTILE_SECRET set the backend rejects every
@@ -641,6 +647,9 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     const r = await submit({ url: `/public/events/${slug}/rsvp`, body, reconcileId: body.partyId });
     // Turnstile tokens are single-use — force a fresh challenge before any retry.
     if (!r.ok && turnstileEnabled) { turnstileRef.current?.reset(); setCaptchaToken(null); }
+    if (!r.ok && r.reason === 'CONTACT_REGISTERED') {
+      setContactRegistered({ field: r.field, canUpdate: r.canUpdate });
+    }
   };
 
   /* ═══════════════════════════ SUCCESS / LOCKED ═══════════════════════════ */
@@ -775,7 +784,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
             style={{ ...cardOuter, width: '100%', maxWidth: '440px', marginTop: '22px' }}
           >
             <div style={{ ...cardInner, gap: '10px' }}>
-              <span style={eyebrowStyle}>{isRTL ? 'مكان جلوسك' : "Where you'll sit"}</span>
+              <span style={eyebrowStyle}>{isRTL ? 'طاولتك' : 'Your table'}</span>
               <SeatingResultPanel view={seatingApi.seatingView} loading={seatingApi.seatingLoading} isRTL={isRTL} />
             </div>
           </motion.div>
@@ -891,7 +900,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                     </ThemedField>
 
                     <ThemedField label={isRTL ? 'البريد الإلكتروني' : 'Email'} required={attending === 'yes'} error={errors.email} labelColor={C.ink}>
-                      <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError('email'); }} placeholder="your@email.com" style={fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors.email)} />
+                      <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); clearError('email'); setContactRegistered(null); }} placeholder="your@email.com" style={fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors.email)} />
                     </ThemedField>
 
                     <div>
@@ -899,9 +908,23 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                         {isRTL ? 'رقم الهاتف' : 'Phone number'}{attending === 'yes' && <span style={{ color: ERR }}> *</span>}
                         {attending === 'no' && <span style={{ opacity: 0.5, fontWeight: 500 }}> {isRTL ? '(اختياري)' : '(optional)'}</span>}
                       </label>
-                      <CountryCodePhoneInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); }} hasError={!!errors.phone} />
+                      <CountryCodePhoneInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); setContactRegistered(null); }} hasError={!!errors.phone} />
                       {errors.phone && <span style={errorTextStyle}>{typeof errors.phone === 'string' ? errors.phone : (isRTL ? 'مطلوب' : 'Required')}</span>}
                     </div>
+
+                    {/* Under the two fields it can be about, so the guest reads
+                        it beside the value that caused it. */}
+                    {contactRegistered && (
+                      <ContactRegisteredNotice
+                        field={contactRegistered.field}
+                        canUpdate={contactRegistered.canUpdate}
+                        sent={!!contactRegistered.sent}
+                        onConfirm={requestClaimLink}
+                        busy={claiming}
+                        isRTL={isRTL}
+                        accentColor={C.maroon}
+                      />
+                    )}
 
                     {/* SMS consent — only when a phone is actually being collected.
                         OPTIONAL: leaving it unticked never blocks the RSVP (see the
@@ -1056,68 +1079,62 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
                         <PartyStepper value={partySize} onChange={handlePartySizeChange} label={isRTL ? 'عدد الضيوف (بما فيهم أنت)' : 'Number of guests (including you)'} isRTL={isRTL} C={C} />
 
-                        {/* Companions — each guest's own form immediately followed by
-                            their own allergies rectangle, mirroring the primary
-                            guest's [details] → [allergies] pairing above. */}
-                        {Array.from({ length: Math.max(0, partySize - 1) }).map((_, i) => (
-                          <React.Fragment key={i}>
-                            <div style={cardOuter}>
-                              <div style={cardInner}>
-                                <span style={{ ...eyebrowStyle, display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: alpha(C.maroon, 0.12), color: C.maroon, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>{i + 2}</span>
-                                  {isRTL ? `الضيف رقم ${i + 2}` : `Guest ${i + 2}`}
-                                </span>
-                                <ThemedField error={errors[`companion_${i}_fullName`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
-                                  <input placeholder={isRTL ? 'الاسم الكامل' : 'Full name'} value={additionalGuests[i]?.fullName || ''} onChange={(e) => { updateAdditionalGuest(i, { fullName: e.target.value }); clearError(`companion_${i}_fullName`); }} style={errors[`companion_${i}_fullName`] ? { ...fieldStyle, borderColor: ERR } : fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors[`companion_${i}_fullName`])} />
-                                </ThemedField>
-                                <ThemedField error={errors[`companion_${i}_email`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
-                                  <input type="email" placeholder="Email" value={additionalGuests[i]?.email || ''} onChange={(e) => { updateAdditionalGuest(i, { email: e.target.value }); clearError(`companion_${i}_email`); }} style={errors[`companion_${i}_email`] ? { ...fieldStyle, borderColor: ERR } : fieldStyle} onFocus={onFieldFocus} onBlur={(e) => onFieldBlur(e, !!errors[`companion_${i}_email`])} />
-                                </ThemedField>
-                                <div>
-                                  <CountryCodePhoneInput value={additionalGuests[i]?.phone || ''} onChange={(v) => { updateAdditionalGuest(i, { phone: v }); clearError(`companion_${i}_phone`); }} hasError={!!errors[`companion_${i}_phone`]} />
-                                  {errors[`companion_${i}_phone`] && <span style={errorTextStyle}>{isRTL ? 'مطلوب' : 'Required'}</span>}
-                                </div>
-                                {mealOptions && mealOptions.length > 0 && (
-                                  <div>
-                                    <span style={{ ...labelStyle, opacity: 0.7 }}>🍽 {isRTL ? 'الوجبة' : 'Meal'}</span>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                      {mealOptions.map((opt) => {
-                                        const sel = additionalGuests[i]?.mealSelection === opt;
-                                        return <button type="button" key={opt} aria-pressed={sel} onClick={() => updateAdditionalGuest(i, { mealSelection: opt })} style={pillStyle(sel, { size: 'sm' })}>{opt}</button>;
-                                      })}
-                                    </div>
+                        {/* Companions — one name each, in ONE card rather than a
+                            card per person. Each used to get a full block (email,
+                            phone, meal pills, per-guest questions, its own
+                            allergies rectangle); with a single field left, that
+                            shape turned a party of four into four near-empty
+                            panels. A numbered list reads as what it is: who else
+                            is coming, so the host can seat them. */}
+                        {partySize > 1 && (
+                          <div style={cardOuter}>
+                            <div style={cardInner}>
+                              <span style={eyebrowStyle}>
+                                {isRTL ? 'مين جاي معاك' : "Who's coming with you"}
+                              </span>
+                              <p style={{ ...labelStyle, opacity: 0.75, margin: 0 }}>
+                                {isRTL
+                                  ? 'الأسماء بس — دعوتك وباج الدخول بيغطّوا المجموعة كلها.'
+                                  : 'Names only — your invitation and entry pass cover the whole group.'}
+                              </p>
+                              {Array.from({ length: Math.max(0, partySize - 1) }).map((_, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <span aria-hidden style={{ width: '26px', height: '26px', flexShrink: 0, borderRadius: '50%', background: alpha(C.maroon, 0.12), color: C.maroon, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 800 }}>{i + 2}</span>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <ThemedField error={errors[`companion_${i}_fullName`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
+                                      <input
+                                        placeholder={isRTL ? `الاسم الكامل للضيف ${i + 2}` : `Guest ${i + 2} full name`}
+                                        aria-label={isRTL ? `الاسم الكامل للضيف ${i + 2}` : `Guest ${i + 2} full name`}
+                                        value={additionalGuests[i]?.fullName || ''}
+                                        onChange={(e) => { updateAdditionalGuest(i, { fullName: e.target.value }); clearError(`companion_${i}_fullName`); }}
+                                        style={errors[`companion_${i}_fullName`] ? { ...fieldStyle, borderColor: ERR } : fieldStyle}
+                                        onFocus={onFieldFocus}
+                                        onBlur={(e) => onFieldBlur(e, !!errors[`companion_${i}_fullName`])}
+                                      />
+                                    </ThemedField>
                                   </div>
-                                )}
-                                {guestScopedQuestions.map((field) => (
-                                  <ThemedField key={field.id} label={field.field_label} required={field.is_required} error={errors[`companion_${i}_field_${field.id}`] ? (isRTL ? 'مطلوب' : 'Required') : null} labelColor={C.ink}>
-                                    {companionControl(i, field)}
-                                  </ThemedField>
-                                ))}
-                              </div>
+                                </div>
+                              ))}
                             </div>
+                          </div>
+                        )}
 
-                            {/* This companion's own allergies rectangle — same
-                                organizer gate as the primary guest's above. */}
-                            {collectDietary && (
-                              <div style={cardOuter}>
-                                <div style={cardInner}>
-                                  <span style={eyebrowStyle}>⚠ {isRTL ? `الحساسية وقيود الطعام — الضيف ${i + 2}` : `Food allergies & intolerances — Guest ${i + 2}`}</span>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    {ALLERGY_OPTIONS.map((opt) => {
-                                      const sel = (additionalGuests[i]?.allergies || []).includes(opt);
-                                      return (
-                                        <button type="button" key={opt} aria-pressed={sel} onClick={() => toggleCompanionAllergy(i, opt)} style={pillStyle(sel, { size: 'sm' })}>
-                                          {sel ? '✓ ' : ''}{opt}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                  <input placeholder={isRTL ? 'حساسية أخرى أو قيود (اختياري)' : 'Other allergies or restrictions (optional)'} value={additionalGuests[i]?.dietaryNotes || ''} onChange={(e) => updateAdditionalGuest(i, { dietaryNotes: e.target.value })} style={fieldStyle} onFocus={onFieldFocus} onBlur={onFieldBlur} />
-                                </div>
-                              </div>
-                            )}
-                          </React.Fragment>
-                        ))}
+                        {partySize > 1 && mealOptions && mealOptions.length > 0 && (
+                          <div style={cardOuter}>
+                            <div style={cardInner}>
+                              <CompanionMealCounter
+                                options={mealOptions}
+                                counts={companionMealCounts}
+                                onChange={setCompanionMealCount}
+                                companionCount={partySize - 1}
+                                required={!!mealField?.is_required}
+                                invalid={!!errors.companionMealCounts}
+                                isRTL={isRTL}
+                                accentColor={C.maroon}
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         {/* Attending-only custom questions */}
                         {attendingQuestions.length > 0 && (
@@ -1180,7 +1197,7 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
                 </div>
 
                 <motion.button
-                  type="button" onClick={handleSubmit} disabled={submitting}
+                  type="button" onClick={() => handleSubmit()} disabled={submitting}
                   whileHover={submitting ? undefined : { y: -2 }} whileTap={submitting ? undefined : { scale: 0.99 }}
                   style={{
                     width: '100%', padding: '16px', borderRadius: '14px', border: 'none',

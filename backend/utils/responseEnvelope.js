@@ -36,6 +36,11 @@ const ERROR_STATUS = {
   RSVP_OWNERSHIP_FAILED: 403,
   DUPLICATE_RSVP: 409,
   DUPLICATE_GUEST: 409,
+  // A contact that already belongs to a party which has ANSWERED. Distinct from
+  // DUPLICATE_RSVP (a terminal "you already responded" lock) because this one is
+  // recoverable: the guest can claim the record with an explicit confirmation.
+  EMAIL_ALREADY_REGISTERED: 409,
+  PHONE_ALREADY_REGISTERED: 409,
   ALREADY_RESPONDED: 409,
   ALREADY_ASSIGNED: 409,
   ALREADY_CHECKED_IN: 409,
@@ -53,13 +58,22 @@ const ERROR_STATUS = {
   FEATURE_REQUIRES_PAYMENT: 402,
 };
 
-/** Sends an RPC's `{success:false, code|error, message}` result as a standardized failure. */
+/**
+ * Sends an RPC's `{success:false, code|error, message}` result as a standardized failure.
+ *
+ * `canUpdate` is forwarded into `meta` when the RPC supplies it: the
+ * EMAIL_ALREADY_REGISTERED / PHONE_ALREADY_REGISTERED replies need to tell the
+ * form whether to offer "That's me - update my response" or to send the guest to
+ * the host, and that depends on the event's allow_guest_edits, which only the
+ * RPC has already looked up.
+ */
 function sendRpcFailure(res, result, fallbackStatus = 400) {
   const code = result?.code || result?.error || 'ERROR';
   return sendFail(res, {
     status: ERROR_STATUS[code] || fallbackStatus,
     error: code,
     message: result?.message || 'Request could not be completed.',
+    ...(result?.canUpdate !== undefined ? { meta: { canUpdate: !!result.canUpdate } } : {}),
   });
 }
 

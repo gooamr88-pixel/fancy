@@ -18,6 +18,7 @@ if (!JWT_SECRET) throw new Error('FATAL: QR_JWT_SECRET environment variable is r
 const PURPOSES = {
   RSVP_INVITE: 'rsvp_invite',
   QR_TICKET: 'qr_ticket',
+  RSVP_CLAIM: 'rsvp_claim',
 };
 
 // Canonical human-facing verbs an invitation button may carry. mapIntentToResponse()
@@ -83,6 +84,36 @@ function verifyRsvpInvite(token) {
 }
 
 /**
+ * Proves the person holding this token can read the mail sent to a party's
+ * primary contact address — the only evidence we have that they are that guest.
+ *
+ * Issued by POST /public/events/:slug/rsvp/claim and emailed to the address on
+ * file, never returned in an API response. It replaces the earlier "That's me —
+ * update my response" button, which merged into an already-answered party on a
+ * click alone: explicit, but not authenticated.
+ *
+ * SHORT-LIVED, NOT SINGLE-USE. 30 minutes, and replayable within that window by
+ * whoever holds the mail. Making it genuinely one-shot needs a `used_at` record
+ * and would break the ordinary "opened the link, got interrupted, came back"
+ * case; the exposure is a half-hour window on an inbox the guest already
+ * controls, which does not warrant either cost.
+ *
+ * Its own purpose rather than a short-expiry signRsvpInvite: this file's whole
+ * design is one explicit discriminator per capability, so that a token minted
+ * for one thing can never be replayed as another.
+ */
+function signRsvpClaim({ partyId, eventId }) {
+  if (!partyId || !eventId) throw new Error('partyId and eventId are required');
+  return sign(PURPOSES.RSVP_CLAIM, { partyId, eventId }, { expiresIn: '30m' });
+}
+
+function verifyRsvpClaim(token) {
+  const decoded = verify(token, PURPOSES.RSVP_CLAIM);
+  if (!decoded.partyId || !decoded.eventId) throw new Error('INVALID_TOKEN');
+  return decoded;
+}
+
+/**
  * QR check-in ticket for one PARTY (the whole group checks in together via
  * one scan; the underlying check_ins rows stay per-individual-guest for
  * fine-grained arrival tracking — see checkinController.scanCheckIn).
@@ -138,6 +169,8 @@ module.exports = {
   mapIntentToResponse,
   signRsvpInvite,
   verifyRsvpInvite,
+  signRsvpClaim,
+  verifyRsvpClaim,
   signQrTicket,
   verifyQrTicket,
   signQrTicketForResponse,

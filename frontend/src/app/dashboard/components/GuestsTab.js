@@ -40,6 +40,37 @@ function StatMini({ icon, value, label, accent }) {
   );
 }
 
+/**
+ * SMS eligibility for one guest, as the organizer needs to read it.
+ *
+ * `sms_consent === false` is ambiguous on its own — it means "declined" or
+ * "never asked" depending on whether a decision was ever recorded — and those
+ * two call for different action, so `sms_consent_at` separates them. A guest who
+ * declined must never be presented as merely missing something the organizer can
+ * supply: no attestation can override their refusal (see
+ * guestService.recordHostConsentAttestation).
+ *
+ * Returns null when there is no number, since there is nothing to say.
+ */
+function smsConsentBadge(guest) {
+  const hasPhone = guest.phone && guest.phone !== '-';
+  if (!hasPhone) return null;
+
+  if (guest.sms_consent) {
+    return guest.sms_consent_method === 'host_attested'
+      ? { label: 'SMS ok — you confirmed', bg: 'rgba(184,148,79,0.12)', color: '#8A6D34',
+          title: 'You confirmed you obtained this guest’s consent to receive event texts. They can be included in SMS sends.' }
+      : { label: 'SMS opted in', bg: 'rgba(34,197,94,0.12)', color: '#15803D',
+          title: 'This guest ticked the SMS consent box themselves on their RSVP form.' };
+  }
+  if (guest.sms_consent_at) {
+    return { label: 'SMS declined', bg: 'rgba(196,94,94,0.12)', color: '#B04A4A',
+      title: 'This guest was shown the SMS consent box and left it unticked. Their choice cannot be overridden — they are excluded from every text.' };
+  }
+  return { label: 'No SMS consent', bg: COLORS.ivory, color: COLORS.stone,
+    title: 'No consent on record, so this guest is excluded from text messages. They can opt in on their RSVP form, or you can confirm their consent when editing them.' };
+}
+
 /* ── Guest Card ── */
 const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, customFields, event, onEdit, onDelete, deleting }) {
   const [expanded, setExpanded] = useState(false);
@@ -47,6 +78,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
   const no = isDeclined(guest.response);
   const maybe = isMaybe(guest.response);
   const accentColor = yes ? COLORS.gold : no ? '#C45E5E' : maybe ? '#6366F1' : COLORS.stone;
+  const smsBadge = smsConsentBadge(guest);
 
   const initials = guest.guest_name
     ? guest.guest_name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
@@ -147,6 +179,22 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
             <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
               {guest.phone}
+            </span>
+          )}
+          {/* Whether that number can actually be texted. Sits beside the phone
+              because it is a fact about the phone, not about the guest. */}
+          {smsBadge && (
+            <span
+              title={smsBadge.title}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                padding: '2px 8px', borderRadius: '5px', fontWeight: 700,
+                fontSize: '9.5px', letterSpacing: '0.03em', textTransform: 'uppercase',
+                background: smsBadge.bg, color: smsBadge.color, cursor: 'help',
+              }}
+            >
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              {smsBadge.label}
             </span>
           )}
         </div>

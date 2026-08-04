@@ -516,6 +516,20 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
               </span>
             </label>
           )}
+          {/* Sends go only to guests with a recorded consent decision — either
+              their own opt-in, or a number you confirmed consent for when adding
+              or importing them. Said here so a partial send reads as expected
+              behaviour rather than a bug. */}
+          {channel === 'sms' && (
+            <p style={{
+              flexBasis: '100%', margin: '-2px 0 0', fontSize: '11px', lineHeight: 1.6,
+              color: COLORS.stone, fontFamily: 'var(--font-sans)',
+            }}>
+              Texts reach guests who opted in on their RSVP form, plus guests whose consent you confirmed when
+              adding or importing them. Anyone with no recorded consent — or who declined, or replied STOP — is
+              skipped automatically, and you are not charged for them.
+            </p>
+          )}
           <span style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
             <strong style={{ color: COLORS.charcoal }}>{selectedIds.size}</strong> guest{selectedIds.size !== 1 ? 's' : ''} selected
           </span>

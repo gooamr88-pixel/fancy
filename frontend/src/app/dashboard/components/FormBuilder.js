@@ -36,6 +36,11 @@ export default function FormBuilder({ eventId }) {
   // supported this distinction since the guest-side-tagging work, but this UI
   // never exposed a way to actually set it — every question silently defaulted
   // to 'party', so a per-guest question could never be asked of each companion.
+  // No longer editable — the "Who answers this?" picker is gone (see the note
+  // where it used to render). Kept as state so an existing question's saved
+  // value round-trips through an edit instead of being silently rewritten to
+  // 'party'; new questions default to 'party', which is now what every question
+  // effectively is.
   const [scope, setScope] = useState('party');
   // 'always' (asked on every response, e.g. a song request) vs 'attending' (only
   // when the guest is coming). Persisted since the "Always Show" migration; this
@@ -265,33 +270,14 @@ export default function FormBuilder({ eventId }) {
             </div>
           </div>
 
-          {/* Meal options already have their own dedicated per-companion picker
-              (see the guest RSVP wizard) — scope only applies to generic
-              custom questions. */}
-          {!isMealField && (
-            <div>
-              <label style={labelStyle}>Who answers this?</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {[
-                  { value: 'party', label: 'Once per party', hint: 'e.g. "Will you need a hotel room?"' },
-                  { value: 'guest', label: 'Once per guest', hint: 'e.g. "T-shirt size"' },
-                ].map((opt) => (
-                  <label key={opt.value} style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', padding: '8px 12px',
-                    border: `1px solid ${scope === opt.value ? '#B8944F' : '#E8E2D6'}`,
-                    background: scope === opt.value ? 'rgba(184,148,79,0.06)' : '#FFFFFF',
-                    borderRadius: '8px', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                  }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 700, color: '#191B1E' }}>
-                      <input type="radio" name="field-scope" checked={scope === opt.value} onChange={() => setScope(opt.value)} style={{ accentColor: '#B8944F' }} />
-                      {opt.label}
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#A09A91', marginLeft: '20px' }}>{opt.hint}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* The "Who answers this?" picker (Once per party / Once per guest)
+              stood here. The RSVP form now asks the person who opened the
+              invitation for everything and records the people they bring as
+              names only, so there is no second person left to ask and the choice
+              had no effect. `scope` is still stored and still sent below, so
+              existing questions keep their saved value and nothing needs
+              migrating — a question saved as 'guest' is simply asked once, of
+              whoever is filling the form in. */}
 
           {/* Meal questions are inherently attending-only (you only pick a dish if
               you're coming), so the condition toggle only applies to generic questions. */}
@@ -348,9 +334,6 @@ export default function FormBuilder({ eventId }) {
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#191B1E', fontFamily: 'var(--font-sans)' }}>{f.field_label}</span>
                   {f.is_required && (
                     <span style={{ fontSize: '9px', background: 'rgba(184,148,79,0.1)', color: '#B8944F', border: '1px solid rgba(184,148,79,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Required</span>
-                  )}
-                  {f.scope === 'guest' && !findMealField([f]) && (
-                    <span style={{ fontSize: '9px', background: 'rgba(99,102,241,0.1)', color: '#6366F1', border: '1px solid rgba(99,102,241,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Per Guest</span>
                   )}
                   {f.condition === 'always' && !findMealField([f]) && (
                     <span style={{ fontSize: '9px', background: 'rgba(59,155,109,0.1)', color: '#3B9B6D', border: '1px solid rgba(59,155,109,0.25)', padding: '2px 6px', borderRadius: '10px', fontWeight: 800, textTransform: 'uppercase' }}>Always</span>

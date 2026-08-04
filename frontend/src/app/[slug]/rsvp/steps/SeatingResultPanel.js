@@ -43,7 +43,7 @@ export default function SeatingResultPanel({ view, loading, isRTL, onBack }) {
             fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1.2px',
             color: '#77736A', fontWeight: 700, display: 'block', fontFamily: 'var(--font-sans)',
           }}>
-            {isRTL ? 'مكان جلوسك' : 'Your assigned seating'}
+            {isRTL ? 'طاولتك' : 'Your table'}
           </span>
           <strong style={{
             fontSize: '18px', color: assigned ? '#B8944F' : '#A09A91',

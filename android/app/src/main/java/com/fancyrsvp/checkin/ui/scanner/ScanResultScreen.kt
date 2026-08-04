@@ -2,8 +2,10 @@ package com.fancyrsvp.checkin.ui.scanner
 
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,11 +15,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,8 +42,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.fancyrsvp.checkin.R
@@ -111,7 +119,8 @@ fun ScanResultScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(visual.ground)
+            // A lit surface, not a fill. See ResultGround.
+            .resultGround(visual)
             // Tap anywhere returns to the camera. No hit target to find, no back
             // button to hunt for. The primary action sits above this and
             // consumes its own taps.
@@ -136,50 +145,102 @@ fun ScanResultScreen(
             )
         }
 
-        Column(
+        /*
+         * ── Two columns, not one ──
+         *
+         * WHO on the left, WHERE on the right, with a hairline seam between.
+         *
+         * This screen has two readers at once and they want different things.
+         * The usher needs the table number — it is the thing they say out loud —
+         * and the guest, standing in front of the tablet, is looking for their own
+         * name. Stacked in one column those two compete for the same vertical
+         * space on a screen that has none to spare, and the table ends up either
+         * shrunk or pushed under the fold.
+         *
+         * Side by side, each reader has a half. It also puts the largest element
+         * on the screen — the table — nearest the usher's thumb rather than in
+         * the middle of the guest's sightline.
+         */
+        Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(
                     start = dimens.screenPadding,
                     end = dimens.screenPadding,
-                    top = dimens.screenPadding * 0.55f,
+                    top = dimens.screenPadding * 0.5f,
                     bottom = dimens.screenPadding * 0.45f,
                 ),
+            horizontalArrangement = Arrangement.spacedBy(dimens.sectionGap),
         ) {
-            // The content region is weighted and the action is NOT. If a very
-            // long name and a very long table name ever exceed the height, this
-            // region clips — the button never moves off the bottom of the
-            // screen. Losing a descender is survivable; losing the button is not.
             Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                // 1.15 against 1: the identity side carries more words, the table
+                // side carries one very large glyph. Equal halves would crowd the
+                // name and strand the number in whitespace.
+                modifier = Modifier.weight(1.15f).fillMaxHeight(),
                 verticalArrangement = Arrangement.Center,
             ) {
-                when (visual) {
-                    ResultVisual.Welcome, ResultVisual.Vip ->
-                        WelcomeContent(
-                            party = party,
-                            visual = visual,
-                            noKidsAllowed = noKidsAllowed,
-                            wasExpired = outcome is CheckInRepository.ScanOutcome.Expired,
-                        )
+                // The content region is weighted and the action is NOT. If a very
+                // long name and a long fact list ever exceed the height, this
+                // region clips — the button never moves off the bottom of the
+                // screen. Losing a descender is survivable; losing the button is
+                // not.
+                Column(
+                    modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    when (visual) {
+                        ResultVisual.Welcome, ResultVisual.Vip ->
+                            WelcomeContent(
+                                party = party,
+                                visual = visual,
+                                noKidsAllowed = noKidsAllowed,
+                                wasExpired = outcome is CheckInRepository.ScanOutcome.Expired,
+                            )
 
-                    ResultVisual.Already -> AlreadyContent(party = party, visual = visual)
+                        ResultVisual.Already -> AlreadyContent(party = party, visual = visual)
 
-                    ResultVisual.NotFound -> NotFoundContent(visual = visual)
+                        ResultVisual.NotFound -> NotFoundContent(visual = visual)
+
+                        ResultVisual.Foreign -> ForeignCodeContent(visual = visual)
+                    }
+                }
+
+                Spacer(Modifier.height(dimens.sectionGap))
+
+                Reveal(order = 4) {
+                    ResultActions(
+                        visual = visual,
+                        party = party,
+                        isSupervisor = isSupervisor,
+                        onAdmit = onAdmit,
+                        onOverride = onOverride,
+                        onSearch = onSearch,
+                        onDismiss = onDismiss,
+                        onPickMembers = { picking = true },
+                    )
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
-
-            ResultActions(
-                visual = visual,
-                party = party,
-                isSupervisor = isSupervisor,
-                onAdmit = onAdmit,
-                onOverride = onOverride,
-                onSearch = onSearch,
-                onPickMembers = { picking = true },
+            // The engraved seam. A hairline at 28% opacity, inset from both ends —
+            // it reads as a fold in card stock rather than as a divider between
+            // two panels of a form.
+            Box(
+                Modifier
+                    .padding(vertical = dimens.sectionGap)
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(visual.onGround.copy(alpha = 0.28f)),
             )
+
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.End,
+            ) {
+                Reveal(order = 3) {
+                    ResultDestination(visual = visual, party = party)
+                }
+            }
         }
 
         if (picking && party != null) {
@@ -207,35 +268,40 @@ private fun WelcomeContent(
     if (party == null) return
     val on = visual.onGround
 
-    SectionLabel(
-        text = stringResource(
-            if (visual == ResultVisual.Vip) R.string.result_welcome_vip else R.string.result_welcome,
-        ),
-        color = on.copy(alpha = 0.75f),
-    )
-    Spacer(Modifier.height(10.dp))
+    Reveal(order = 0) {
+        SectionLabel(
+            text = stringResource(
+                if (visual == ResultVisual.Vip) R.string.result_welcome_vip else R.string.result_welcome,
+            ),
+            color = on.copy(alpha = 0.75f),
+        )
+    }
+    Spacer(Modifier.height(12.dp))
 
-    GuestName(party.label, on)
-    Spacer(Modifier.height(18.dp))
-    TableBlock(party.tableName, on)
+    Reveal(order = 1) { GuestName(party.label, visual.onGroundDisplay) }
 
-    // Everything below is present but quiet: an usher reads it only if the
-    // guest asks. It never competes with the name or the table.
-    val details = buildList {
-        add(stringResource(R.string.result_party_of, party.members.size))
-        party.members.mapNotNull { it.mealSelection }.distinct().takeIf { it.isNotEmpty() }
-            ?.let { add(it.joinToString(", ")) }
-        if (wasExpired) add(stringResource(R.string.result_expired_note))
-        if (noKidsAllowed) add(stringResource(R.string.result_no_kids))
+    // Facts, as rows. The joined-string version this replaces is described at
+    // FactRows — it was the detail that made the whole screen read as unfinished.
+    val meals = party.members.mapNotNull { it.mealSelection }
+        .groupingBy { it }.eachCount()
+        .entries.joinToString(" · ") { (meal, count) ->
+            if (count > 1) "$count × $meal" else meal
+        }
+
+    val facts = buildList {
+        add(Fact(stringResource(R.string.result_fact_party), stringResource(R.string.result_party_of, party.members.size)))
+        if (meals.isNotBlank()) add(Fact(stringResource(R.string.result_fact_meal), meals))
+        party.notes?.takeIf { it.isNotBlank() }?.let {
+            add(Fact(stringResource(R.string.result_fact_note), it, emphasised = true))
+        }
+        // Rules about the event, not about this party. Last, and never
+        // emphasised over a guest's own access need above.
+        if (noKidsAllowed) add(Fact(stringResource(R.string.result_fact_rule), stringResource(R.string.result_no_kids)))
+        if (wasExpired) add(Fact(stringResource(R.string.result_fact_ticket), stringResource(R.string.result_expired_note)))
     }
 
-    Spacer(Modifier.height(16.dp))
-    QuietLine(details.joinToString("  ·  "), on)
-
-    party.notes?.takeIf { it.isNotBlank() }?.let {
-        Spacer(Modifier.height(6.dp))
-        QuietLine(stringResource(R.string.result_note, it), on)
-    }
+    Spacer(Modifier.height(26.dp))
+    Reveal(order = 2) { FactRows(facts, visual) }
 }
 
 @Composable
@@ -243,55 +309,367 @@ private fun AlreadyContent(party: CheckInRepository.PartyView?, visual: ResultVi
     if (party == null) return
     val on = visual.onGround
 
-    SectionLabel(stringResource(R.string.result_already_title), color = on)
-    Spacer(Modifier.height(10.dp))
-
-    GuestName(party.label, on)
-    Spacer(Modifier.height(18.dp))
-    // The same size rule as a welcome. The old screen shrank the table here to
-    // below the name, which made the two states read as different LAYOUTS as
-    // well as different colours — one more thing to learn at a door.
-    TableBlock(party.tableName, on)
-
-    Spacer(Modifier.height(16.dp))
-
-    // WHO admitted them and WHEN: the two facts that settle a dispute at the
-    // door without anyone having to look something up.
-    party.arrived.take(MAX_ARRIVAL_LINES).forEach { member ->
-        val time = member.arrivedAt?.let {
-            DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it))
-        }
-        val detail = when {
-            member.arrivedByStaff != null && member.arrivedAtDevice != null && time != null ->
-                stringResource(
-                    R.string.result_already_detail_device,
-                    member.arrivedByStaff, time, member.arrivedAtDevice,
-                )
-            member.arrivedByStaff != null && time != null ->
-                stringResource(R.string.result_already_detail, member.arrivedByStaff, time)
-            else -> time.orEmpty()
-        }
-        QuietLine("${member.fullName} — $detail", on)
+    Reveal(order = 0) {
+        SectionLabel(stringResource(R.string.result_already_title), color = on)
     }
+    Spacer(Modifier.height(12.dp))
+
+    Reveal(order = 1) { GuestName(party.label, visual.onGroundDisplay) }
+
+    /*
+     * WHO admitted them and WHEN — the two facts that settle a dispute at the
+     * door without anyone having to look anything up.
+     *
+     * The first arrival carries the row, because the question is almost always
+     * about the person standing there rather than about their whole party. The
+     * party's overall progress goes in its own row underneath, which is what
+     * tells an usher whether the rest are already inside.
+     */
+    val first = party.arrived.firstOrNull()
+    val time = first?.arrivedAt?.let {
+        DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it))
+    }
+
+    val facts = buildList {
+        if (time != null) add(Fact(stringResource(R.string.result_fact_arrived), time))
+        val by = listOfNotNull(first?.arrivedByStaff, first?.arrivedAtDevice)
+        if (by.isNotEmpty()) add(Fact(stringResource(R.string.result_fact_by), by.joinToString(" · ")))
+        add(
+            Fact(
+                stringResource(R.string.result_fact_party),
+                stringResource(
+                    R.string.result_already_progress,
+                    party.arrived.size,
+                    party.members.size,
+                ),
+            ),
+        )
+    }
+
+    Spacer(Modifier.height(26.dp))
+    Reveal(order = 2) { FactRows(facts, visual) }
 }
 
 @Composable
 private fun NotFoundContent(visual: ResultVisual) {
     val on = visual.onGround
 
-    SectionLabel(stringResource(R.string.result_not_found_title), color = on.copy(alpha = 0.7f))
-    Spacer(Modifier.height(14.dp))
+    Reveal(order = 0) {
+        SectionLabel(stringResource(R.string.result_not_found_title), color = on.copy(alpha = 0.7f))
+    }
+    Spacer(Modifier.height(12.dp))
+
     // Calm, and never an error. A guest standing here has done nothing wrong,
     // and neither has the usher — the screen offers the next step instead of a
     // diagnosis. There is deliberately no red anywhere on it.
-    Text(
-        stringResource(R.string.result_not_found_body),
-        style = MaterialTheme.typography.displayMedium,
-        color = on,
-        maxLines = 3,
-        overflow = TextOverflow.Ellipsis,
-    )
+    Reveal(order = 1) {
+        Text(
+            stringResource(R.string.result_not_found_body),
+            style = MaterialTheme.typography.displayMedium,
+            color = on,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+
+    Spacer(Modifier.height(26.dp))
+
+    // Naming the LIKELY CAUSE is the part that actually resolves this. The old
+    // screen said "search for them by name" and stopped, which tells an usher
+    // what to press but nothing about what to type or why the code failed.
+    Reveal(order = 2) {
+        FactRows(
+            listOf(
+                Fact(
+                    stringResource(R.string.result_fact_code),
+                    stringResource(R.string.result_not_found_code),
+                ),
+                Fact(
+                    stringResource(R.string.result_fact_likely),
+                    stringResource(R.string.result_not_found_hint),
+                ),
+            ),
+            visual,
+        )
+    }
 }
+
+/**
+ * A code that is not one of ours (§8.4).
+ *
+ * ── What this screen has to accomplish in under two seconds ──
+ *
+ * The old version of this was the not-found screen: a pale panel reading "Not on
+ * the list — search for them by name." That is actively misleading here. There is
+ * no "them". The scanner read a loyalty card, or the QR on a poster behind the
+ * queue, and telling an usher to search by name for it sends them into a text
+ * field with nothing to type.
+ *
+ * So the screen states the ONE fact that matters — this is not an invitation —
+ * and then says what to do about it in plain words. It is the only red ground in
+ * the app, which makes it unmistakable against the pale not-found screen at a
+ * glance, from an arm's length, in bad light.
+ */
+@Composable
+private fun ForeignCodeContent(visual: ResultVisual) {
+    val on = visual.onGround
+
+    Reveal(order = 0) {
+        SectionLabel(stringResource(R.string.result_foreign_label), color = on.copy(alpha = 0.75f))
+    }
+    Spacer(Modifier.height(12.dp))
+
+    Reveal(order = 1) {
+        Text(
+            stringResource(R.string.result_foreign_title),
+            style = MaterialTheme.typography.displayMedium,
+            color = on,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+
+    Spacer(Modifier.height(26.dp))
+
+    // Says what happened AND what to do, because an usher reading this has a
+    // guest in front of them and no idea whether the fault is theirs.
+    Reveal(order = 2) {
+        FactRows(
+            listOf(
+                Fact(
+                    stringResource(R.string.result_fact_read),
+                    stringResource(R.string.result_foreign_read),
+                ),
+                Fact(
+                    stringResource(R.string.result_fact_next),
+                    stringResource(R.string.result_foreign_body),
+                ),
+            ),
+            visual,
+        )
+    }
+}
+
+// ── Surface, motion, structure ───────────────────────────────────────────────
+
+/**
+ * The state's ground, as a lit surface.
+ *
+ * Two passes. First a linear gradient from the lit stop to the shaded one along
+ * the diagonal; then a radial highlight in the upper left, where the light is
+ * coming from. That second pass is what stops the gradient reading as a
+ * gradient — a plain two-stop ramp still looks like a CSS default, whereas a
+ * ramp with a source on it looks like a surface under a lamp.
+ *
+ * A modifier rather than a wrapper composable, so it composes onto the existing
+ * root Box without adding a layout node.
+ */
+private fun Modifier.resultGround(visual: ResultVisual): Modifier = this
+    .background(
+        Brush.linearGradient(
+            colors = listOf(visual.ground, visual.groundDeep),
+            start = Offset.Zero,
+            end = Offset.Infinite,
+        ),
+    )
+    .background(
+        Brush.radialGradient(
+            colors = listOf(
+                // White on a dark ground, warm cream on a light one. Lifting a
+                // pale sand ground with pure white flattens it instead.
+                (if (visual.isDarkGround) Color.White else Color(0xFFFFFBF2))
+                    .copy(alpha = if (visual.isDarkGround) 0.11f else 0.55f),
+                Color.Transparent,
+            ),
+            // Off-canvas to the upper left: a highlight centred in the frame reads
+            // as a spotlight aimed at the screen, not as ambient light in a room.
+            center = Offset(-120f, -160f),
+            radius = 1500f,
+        ),
+    )
+
+/**
+ * The entrance stagger.
+ *
+ * ── Why staggered and not all at once ──
+ *
+ * The whole screen used to scale up and fade in as one object, which is
+ * indistinguishable from a page load. Bringing the parts in on a 70ms ladder —
+ * label, name, table, actions — makes the result read as something ARRIVING in
+ * front of the operator, which is what actually happened: a guest presented a
+ * code and the answer appeared.
+ *
+ * Deliberately small and deliberately quick. 420ms on the house easing, 10dp of
+ * travel, no scale, no overshoot. The rule in Motion.kt still holds — nothing in
+ * this app bounces — and the whole sequence is finished well inside the two
+ * seconds an usher looks at the screen for.
+ *
+ * @param order position on the ladder, 0 first.
+ */
+@Composable
+private fun Reveal(order: Int, content: @Composable () -> Unit) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(order * REVEAL_STEP_MS)
+        shown = true
+    }
+
+    val progress by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(durationMillis = 420, easing = Motion.Confident),
+        label = "reveal",
+    )
+    val travel = with(LocalDensity.current) { 10.dp.toPx() }
+
+    Box(
+        Modifier.graphicsLayer {
+            alpha = progress
+            translationY = (1f - progress) * travel
+        },
+    ) {
+        content()
+    }
+}
+
+/**
+ * The right-hand pane: where they are going.
+ *
+ * Every state fills it, because an empty half is worse than a quiet one. The two
+ * welcomes and the already-arrived show the table; not-found has no table to show
+ * so it carries the arrival count instead, which is the figure an usher is asked
+ * for all night; the foreign-code state shows a struck-through code mark, because
+ * there is nothing true to put there in words.
+ */
+@Composable
+private fun ResultDestination(visual: ResultVisual, party: CheckInRepository.PartyView?) {
+    when (visual) {
+        ResultVisual.Welcome, ResultVisual.Vip, ResultVisual.Already ->
+            TableBlock(party?.tableName, visual)
+
+        ResultVisual.NotFound, ResultVisual.Foreign ->
+            BrokenCodeMark(visual.onGround.copy(alpha = 0.28f))
+    }
+}
+
+/**
+ * A QR frame with a line through it, drawn rather than imported.
+ *
+ * Same reasoning as every other mark in this app — no icon dependency, no glyph
+ * that might be missing on a vendor ROM. It is decoration with a job: it fills
+ * the destination pane on the two states that have no destination, and it says
+ * "the code" without a word, in a place where words would just repeat the left
+ * half of the screen.
+ */
+@Composable
+private fun BrokenCodeMark(color: Color) {
+    Canvas(Modifier.size(180.dp)) {
+        val s = size.minDimension
+        val stroke = s * 0.055f
+        val box = s * 0.30f
+        val gap = s * 0.10f
+
+        fun finder(x: Float, y: Float) {
+            drawRect(
+                color = color,
+                topLeft = Offset(x, y),
+                size = androidx.compose.ui.geometry.Size(box, box),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+            )
+        }
+
+        finder(0f, 0f)
+        finder(s - box, 0f)
+        finder(0f, s - box)
+
+        // A scatter of modules where the fourth finder would be — enough to read
+        // as a code without pretending to be a scannable one.
+        val m = box * 0.28f
+        listOf(0f to 0f, 2f to 0f, 1f to 1f, 0f to 2f, 2f to 2f).forEach { (cx, cy) ->
+            drawRect(
+                color = color,
+                topLeft = Offset(s - box + cx * (m + gap * 0.35f), s - box + cy * (m + gap * 0.35f)),
+                size = androidx.compose.ui.geometry.Size(m, m),
+            )
+        }
+
+        drawLine(
+            color = color,
+            start = Offset(s * 0.06f, s * 0.94f),
+            end = Offset(s * 0.94f, s * 0.06f),
+            strokeWidth = stroke * 1.4f,
+            cap = StrokeCap.Round,
+        )
+    }
+}
+
+/**
+ * The fact rows — the single biggest content change on this screen.
+ *
+ * ── What they replace ──
+ *
+ * One string, joined by middle dots: `Party of 4 · Chicken, Vegetarian · No
+ * children at this event`. That is a CSV pretending to be a layout, and it fails
+ * three ways at a door. A dietary preference and a hard rule about children carry
+ * identical weight. It has to be read left to right — nothing is findable. And it
+ * truncates with an ellipsis exactly when there are enough facts to matter.
+ *
+ * As labelled rows each fact is locatable without reading the others, a flagged
+ * one can carry weight the rest do not, and four facts stack instead of
+ * disappearing.
+ */
+@Composable
+private fun FactRows(rows: List<Fact>, visual: ResultVisual) {
+    if (rows.isEmpty()) return
+    val on = visual.onGround
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        rows.forEachIndexed { index, fact ->
+            if (index > 0) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(on.copy(alpha = 0.16f)),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = fact.label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = on.copy(alpha = 0.6f),
+                    modifier = Modifier.width(96.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = fact.value,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (fact.emphasised) on else on.copy(alpha = 0.86f),
+                    fontWeight = if (fact.emphasised) FontWeight.Bold else null,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One labelled fact.
+ *
+ * @param emphasised for the rare row that must outrank the others — an access
+ *   need, an adults-only rule. Never more than one per screen, or the emphasis
+ *   stops meaning anything.
+ */
+private data class Fact(
+    val label: String,
+    val value: String,
+    val emphasised: Boolean = false,
+)
 
 // ── Shared pieces ────────────────────────────────────────────────────────────
 
@@ -320,35 +698,44 @@ private fun GuestName(name: String, color: Color) {
  * alone, at full size, with nothing beside it.
  */
 @Composable
-private fun TableBlock(tableName: String?, color: Color) {
+private fun TableBlock(tableName: String?, visual: ResultVisual) {
     val compact = LocalDimens.current.compact
+    val color = visual.onGround
 
-    if (tableName.isNullOrBlank()) {
+    Column(horizontalAlignment = Alignment.End) {
+        if (tableName.isNullOrBlank()) {
+            Text(
+                stringResource(R.string.result_no_table),
+                style = MaterialTheme.typography.headlineLarge,
+                color = color.copy(alpha = 0.75f),
+                textAlign = TextAlign.End,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            return@Column
+        }
+
+        SectionLabel(stringResource(R.string.result_table_label), color = color.copy(alpha = 0.62f))
+        Spacer(Modifier.height(4.dp))
         Text(
-            stringResource(R.string.result_no_table),
-            style = MaterialTheme.typography.headlineLarge,
-            color = color.copy(alpha = 0.8f),
-            maxLines = 1,
+            text = tableName,
+            style = MaterialTheme.typography.displayLarge.copy(
+                fontSize = tableDisplaySize(tableName, compact),
+                // Line height must follow the computed size or a 140sp glyph is
+                // clipped by the 66sp line box inherited from the style.
+                lineHeight = tableDisplaySize(tableName, compact) * 1.02f,
+                fontFamily = displayFamilyFor(tableName),
+            ),
+            // The foil colour on VIP, the plain ink colour everywhere else. This
+            // is the largest glyph on the screen, so it is where the gold is
+            // worth spending.
+            color = visual.onGroundDisplay,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
-        return
     }
-
-    SectionLabel(stringResource(R.string.result_table_label), color = color.copy(alpha = 0.7f))
-    Spacer(Modifier.height(2.dp))
-    Text(
-        text = tableName,
-        style = MaterialTheme.typography.displayLarge.copy(
-            fontSize = tableDisplaySize(tableName, compact),
-            // Line height must follow the computed size or a 140sp glyph is
-            // clipped by the 66sp line box inherited from the style.
-            lineHeight = tableDisplaySize(tableName, compact) * 1.05f,
-            fontFamily = displayFamilyFor(tableName),
-        ),
-        color = color,
-        fontWeight = FontWeight.Bold,
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-    )
 }
 
 @Composable
@@ -376,9 +763,11 @@ private fun ResultActions(
     onAdmit: (CheckInRepository.PartyView, List<String>) -> Unit,
     onOverride: (CheckInRepository.PartyView, List<String>) -> Unit,
     onSearch: () -> Unit,
+    onDismiss: () -> Unit,
     onPickMembers: () -> Unit,
 ) {
     val on = visual.onGround
+    val dimens = LocalDimens.current
 
     when (visual) {
         ResultVisual.Welcome, ResultVisual.Vip -> {
@@ -435,6 +824,50 @@ private fun ResultActions(
             onClick = onSearch,
             hero = true,
         )
+
+        /*
+         * Two ways out, side by side, because there are genuinely two answers.
+         *
+         * Scanning something that is not a ticket usually means the wrong object
+         * was held up — a card, a phone showing the wrong screen, a label on a
+         * gift. The usual next move is simply "try again / next guest", so DONE
+         * leads and is the wider of the two. But sometimes the guest has no
+         * working code at all, and then it IS a name search — so that stays one
+         * tap away rather than behind a dismissal.
+         *
+         * Side by side rather than stacked: on a landscape tablet a stacked pair
+         * pushes the second button toward the bottom edge, and the whole point is
+         * that neither is the obvious one.
+         */
+        ResultVisual.Foreign -> Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.weight(1.2f)) {
+                PrimaryAction(
+                    text = stringResource(R.string.result_foreign_done),
+                    onClick = onDismiss,
+                    // Inverted, like every button on a coloured ground: the
+                    // ground's own text colour becomes the button. A gold button
+                    // on oxblood is the one combination in this palette that
+                    // genuinely looks cheap.
+                    containerColor = on,
+                    contentColor = visual.ground,
+                    hero = true,
+                )
+            }
+            SecondaryAction(
+                text = stringResource(R.string.scanner_search),
+                onClick = onSearch,
+                // Matched to the hero beside it. Two buttons of different heights
+                // in one row is the detail that makes a screen look assembled
+                // rather than designed.
+                modifier = Modifier.weight(1f).heightIn(min = dimens.heroButtonHeight),
+                contentColor = on,
+                borderColor = on.copy(alpha = 0.55f),
+            )
+        }
     }
 }
 
@@ -638,9 +1071,11 @@ private fun MemberRow(
 }
 
 /**
- * How many arrival lines the already-state prints.
+ * Delay between rungs of the entrance ladder — see [Reveal].
  *
- * A party of twelve would otherwise push the override button off the screen.
- * Four is enough to settle an argument; the full list is in the guest list.
+ * 70ms reads as one sequence; below about 50 the parts arrive together and the
+ * stagger is wasted, above about 100 the operator is waiting for the screen to
+ * finish assembling itself. Four rungs at 70 puts the last one on screen 210ms
+ * after the first, well inside the two seconds this screen gets looked at for.
  */
-private const val MAX_ARRIVAL_LINES = 4
+private const val REVEAL_STEP_MS = 70L

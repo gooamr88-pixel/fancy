@@ -17,7 +17,7 @@
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
-const { personalize, getTableMap, sendRecipient, sleep, getOptedOutSet } = require('./smsDispatch');
+const { personalize, getTableMap, sendRecipient, sleep, getOptedOutSet, getConsentedPhoneSet } = require('./smsDispatch');
 
 const INTERVAL_SEC = Math.max(5, parseInt(process.env.SMS_WORKER_INTERVAL_SEC, 10) || 15);
 const SLICE = Math.max(10, parseInt(process.env.SMS_WORKER_SLICE, 10) || 100); // recipients/campaign/tick
@@ -41,6 +41,11 @@ async function applyRecipientResult(r, result) {
   } else if (result.kind === 'skipped') {
     patch.status = 'skipped';
     patch.ledger_id = result.ledgerId || r.ledger_id || null;
+    // Keep WHY. A skip can now mean opted out, no consent on record, or an
+    // idempotent replay, and those need very different follow-up from the
+    // organizer — without the reason a half-delivered campaign is a mystery.
+    // (An idempotent replay reports no error; null is correct there.)
+    patch.error = result.error ? String(result.error).slice(0, 300) : null;
   } else {
     patch.status = 'failed';
     patch.error = String(result.error || 'FAILED').slice(0, 300);
@@ -103,6 +108,15 @@ async function processCampaign(campaign) {
     try { optedOut = await getOptedOutSet(claimed.map((r) => r.phone)); }
     catch (e) { logger.warn({ err: e, campaignId: campaign.id }, '[sms-worker] batch opt-out lookup failed; using per-message checks'); }
 
+    // Express-consent set for this event, refreshed per batch (Twilio TFV
+    // 30475). A campaign can sit queued for a long time, so consent is
+    // re-verified at send time rather than trusted from enqueue time. Left null
+    // on failure so sendRecipient falls back to its own per-message check —
+    // which fails closed — instead of this batch silently sending unchecked.
+    let consented = null;
+    try { consented = await getConsentedPhoneSet(eventId); }
+    catch (e) { logger.warn({ err: e, campaignId: campaign.id }, '[sms-worker] batch consent lookup failed; using per-message checks'); }
+
     await Promise.allSettled(claimed.map(async (r) => {
       const retryCount = r.retry_count || 0;
       try {
@@ -110,7 +124,7 @@ async function processCampaign(campaign) {
           slug: event.slug, guestName: r.guest_name, rsvpId: r.rsvp_id,
           tableName: tableMap[r.rsvp_id], eventTitle: event.title,
         });
-        const result = await sendRecipient({ eventId, phone: r.phone, body, segments, idemKey: r.idempotency_key, twilio, fromNumber, optedOut });
+        const result = await sendRecipient({ eventId, phone: r.phone, body, segments, idemKey: r.idempotency_key, twilio, fromNumber, optedOut, consented });
         await applyRecipientResult(r, result);
       } catch (err) {
         if (retryCount >= MAX_RECIPIENT_RETRIES) {

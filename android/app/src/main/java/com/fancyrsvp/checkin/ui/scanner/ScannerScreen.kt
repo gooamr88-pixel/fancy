@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedContent
@@ -190,10 +192,41 @@ fun ScannerScreen(
         }
     }
 
+    /*
+     * The analysis executor, hoisted out of CameraPreview.
+     *
+     * It has to be created here because the analyzer needs it too — ML Kit's
+     * completion callbacks run on it, which is what keeps frame-buffer release
+     * off the main thread. See QrAnalyzer.callbackExecutor.
+     *
+     * Priority is raised on the thread it creates: decode latency IS scan
+     * latency, and a default-priority thread on a busy cheap tablet gets
+     * descheduled behind the database and the sync drain.
+     */
+    val analysisExecutor = remember {
+        Executors.newSingleThreadExecutor { runnable ->
+            Thread {
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DISPLAY)
+                runnable.run()
+            }.apply { name = "qr-analysis" }
+        }
+    }
+
     // One analyzer instance for the screen's life, so the 3-second debounce is
     // continuous rather than resetting on every recomposition.
-    val analyzer = remember { QrAnalyzer { value -> viewModel.onDecoded(value) } }
-    DisposableEffect(Unit) { onDispose { analyzer.close() } }
+    val analyzer = remember {
+        QrAnalyzer(callbackExecutor = analysisExecutor) { value -> viewModel.onDecoded(value) }
+    }
+
+    // Both owned here, both released here. CameraPreview unbinds the camera on
+    // its own disposal — which Compose runs first, being the child — so by the
+    // time this executor stops accepting work, nothing is still feeding it.
+    DisposableEffect(Unit) {
+        onDispose {
+            analyzer.close()
+            analysisExecutor.shutdown()
+        }
+    }
 
     // Clearing the debounce when the result is dismissed lets a guest re-present
     // the same card immediately after a mis-tap, instead of waiting it out with
@@ -231,6 +264,7 @@ fun ScannerScreen(
             if (hasCameraPermission) {
                 CameraPreview(
                     analyzer = analyzer,
+                    executor = analysisExecutor,
                     torchOn = torchOn,
                     lifecycleOwner = lifecycleOwner,
                     modifier = Modifier.fillMaxSize(),
@@ -359,11 +393,16 @@ fun ScannerScreen(
 @Composable
 private fun CameraPreview(
     analyzer: QrAnalyzer,
+    /**
+     * The thread CameraX delivers frames on — created by the caller, because the
+     * analyzer runs ML Kit's callbacks on it too. Owned here: this composable
+     * shuts it down when the camera goes away.
+     */
+    executor: java.util.concurrent.ExecutorService,
     torchOn: Boolean,
     lifecycleOwner: androidx.lifecycle.LifecycleOwner,
     modifier: Modifier = Modifier,
 ) {
-    val executor = remember { Executors.newSingleThreadExecutor() }
     var camera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
 
     // Retained so the use cases can be DETACHED before the analysis executor is
@@ -376,8 +415,20 @@ private fun CameraPreview(
 
     DisposableEffect(Unit) {
         onDispose {
+            // Unbind ONLY. The executor belongs to the caller and is deliberately
+            // not shut down here.
+            //
+            // It used to be created and destroyed in this composable, which was
+            // safe while it was private to it. Now that the analyzer shares it,
+            // shutting it down here would kill a thread the caller still holds:
+            // if the camera permission is revoked and re-granted, this composable
+            // leaves and re-enters, and the second time it would hand CameraX an
+            // executor that no longer accepts work — a RejectedExecutionException
+            // on a camera thread, which is a process kill.
+            //
+            // Compose disposes children before parents, so the caller's shutdown
+            // still runs after this unbind, which is the order that matters.
             runCatching { provider?.unbindAll() }
-            executor.shutdown()
         }
     }
 
@@ -415,11 +466,53 @@ private fun CameraPreview(
                     val cameraProvider = providerFuture.get()
                     provider = cameraProvider
 
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
+                    /*
+                     * ── Resolution: 1280x720, explicitly ──
+                     *
+                     * CameraX defaults ImageAnalysis to 640x480. That is cheaper
+                     * per frame — decode cost scales with pixel count, so 720p is
+                     * roughly three times the work — and it is still the wrong
+                     * choice here.
+                     *
+                     * Time-to-decode is not frames-per-second, it is how many
+                     * frames pass before the code is RESOLVABLE at all. A QR on a
+                     * phone screen held at arm's length occupies a small part of a
+                     * tablet's wide field of view, and below a certain pixel
+                     * density ML Kit cannot decode it in any number of frames. At
+                     * 480p that guest has to be asked to step closer; at 720p the
+                     * first or second frame reads. Three times the work on frames
+                     * that succeed beats free frames that never do.
+                     *
+                     * The preview is capped at the same size for a different
+                     * reason: it shares the camera pipeline, and letting it run at
+                     * the sensor's full resolution spends bandwidth and ISP time
+                     * on pixels nobody decodes.
+                     */
+                    val resolution = ResolutionSelector.Builder()
+                        .setResolutionStrategy(
+                            ResolutionStrategy(
+                                android.util.Size(1280, 720),
+                                // Fall back to the closest available in either
+                                // direction rather than failing: a device without
+                                // exactly 720p must still scan.
+                                ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                            ),
+                        )
+                        .build()
+
+                    val preview = Preview.Builder()
+                        .setResolutionSelector(resolution)
+                        .build()
+                        .also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                        }
                     val analysis = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setResolutionSelector(resolution)
+                        // YUV_420_888 is the default and is kept deliberately:
+                        // ML Kit consumes YUV natively, so asking CameraX for RGBA
+                        // would add a full-frame colour conversion per frame for
+                        // nothing.
                         .build()
                         .also { it.setAnalyzer(executor, analyzer) }
 

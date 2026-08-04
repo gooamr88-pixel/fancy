@@ -70,4 +70,19 @@ function getPublicBaseUrl() {
   return httpsOrigin || origins[0] || 'http://localhost:3000';
 }
 
-module.exports = { normalizeOrigin, getAllowedOrigins, getPublicBaseUrl };
+/**
+ * The BACKEND's own public origin — the base for assets an email hot-links
+ * rather than links to (currently the ticket QR PNG, which must be a real
+ * image URL because no mail client renders a data: URI).
+ *
+ * Deliberately NOT run through normalizeOrigin: BACKEND_URL is set by us, not
+ * pasted by an operator, and normalizeOrigin strips any path component — which
+ * would silently break a deployment that mounts the API under a sub-path.
+ */
+function getBackendBaseUrl() {
+  return process.env.BACKEND_URL
+    ? process.env.BACKEND_URL.replace(/\/+$/, '')
+    : `http://localhost:${process.env.PORT || 5000}`;
+}
+
+module.exports = { normalizeOrigin, getAllowedOrigins, getPublicBaseUrl, getBackendBaseUrl };

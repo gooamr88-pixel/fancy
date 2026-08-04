@@ -5,14 +5,21 @@ import { AnimatePresence } from 'framer-motion';
 import ToastCard from './ToastCard';
 import { subscribeToasts } from '../utils/toast';
 
-// Cap how many toasts stack at once — a runaway caller (e.g. a retry loop)
-// shouldn't be able to fill the whole screen with toasts.
-const MAX_STACKED = 4;
+// Cap how many alerts stack at once — a runaway caller (e.g. a retry loop)
+// shouldn't be able to fill the whole screen. Lower than it used to be because
+// these are now full-width banners, not corner cards: three already occupy
+// ~180px of the viewport.
+const MAX_STACKED = 3;
 
 /**
- * Mounts once (in the root layout) and renders global toasts raised via `toast.*`
- * through the shared <ToastCard/> UI, stacked in the order they arrive so an
- * earlier toast isn't silently replaced/lost before it's read or dismissed.
+ * Mounts once (in the root layout) and renders global alerts raised via
+ * `toast.*` through the shared <ToastCard/>, stacked in arrival order so an
+ * earlier one isn't silently replaced before it's read or dismissed.
+ *
+ * Positioning is the shared `.fx-alert-viewport` class in globals.css — the
+ * same one <Toast/> uses. It used to be a <style jsx> block duplicated between
+ * the two files, each carrying a comment asking the next person to keep them in
+ * sync; they had already drifted once.
  */
 export default function ToastHost() {
   const [queue, setQueue] = useState([]);
@@ -26,44 +33,12 @@ export default function ToastHost() {
   }, []);
 
   return (
-    <div className="toast-stack-viewport" role="status" aria-live="assertive">
+    <div className="fx-alert-viewport" role="status" aria-live="assertive">
       <AnimatePresence initial={false}>
         {queue.map((t) => (
           <ToastCard key={t.id} toast={t} onClose={() => dismiss(t.id)} />
         ))}
       </AnimatePresence>
-
-      <style jsx>{`
-        .toast-stack-viewport {
-          position: fixed;
-          /* Cleared below the tallest sticky in-app header (the organizer
-             dashboard's title bar, ~92px) so a toast never lands on top of
-             a page heading — it was rendering at the very top of the
-             viewport and covering the dashboard's title/back bar. */
-          top: max(100px, calc(env(safe-area-inset-top) + 88px));
-          right: max(20px, calc(env(safe-area-inset-right) + 16px));
-          z-index: 100001;
-          width: max-content;
-          max-width: min(400px, calc(100vw - 32px));
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 10px;
-          pointer-events: none;
-        }
-        /* Kept byte-identical in intent to Toast.js's .toast-viewport rule —
-           these two viewports have drifted apart once already. Was 480px;
-           folded onto the < sm step, with the left safe-area inset added
-           for the landscape notch case. */
-        @media (max-width: 639.98px) {
-          .toast-stack-viewport {
-            left: max(16px, env(safe-area-inset-left));
-            right: max(16px, env(safe-area-inset-right));
-            max-width: none;
-            align-items: stretch;
-          }
-        }
-      `}</style>
     </div>
   );
 }

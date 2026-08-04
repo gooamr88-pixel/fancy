@@ -17,7 +17,9 @@ import { toast } from '../../../utils/toast';
  *  • Reconciliation: if the network drops the RESPONSE (write may have landed), we
  *    re-read the guest record before declaring failure, and treat a recorded
  *    response as success — no false errors, no duplicate retries.
- *  • Unified error mapping: DUPLICATE_RSVP / ALREADY_RESPONDED → lock; EVENT_CLOSED
+ *  • Unified error mapping: DUPLICATE_RSVP / ALREADY_RESPONDED → lock;
+ *    EMAIL_ALREADY_REGISTERED / PHONE_ALREADY_REGISTERED → a recoverable
+ *    CONTACT_REGISTERED state the caller renders beside the field; EVENT_CLOSED
  *    and GUEST_LIMIT_REACHED → professional toast; everything else → toast + retry.
  */
 
@@ -57,6 +59,24 @@ export function useIdempotentRsvpSubmit({ onSuccess, onLocked, messages = {} } =
         if (data.error === 'DUPLICATE_RSVP' || data.error === 'ALREADY_RESPONDED') {
           onLocked?.(data);
           return { ok: false, reason: 'LOCKED', data };
+        }
+        // The address (or number) already belongs to a party that has answered.
+        // Deliberately NOT routed through onLocked: that is a terminal state
+        // ("you have already responded", form gone), and this one is
+        // recoverable — the guest either fixes a typo, or asks for a link to be
+        // emailed to that address and comes back through it. No toast either:
+        // it belongs beside the field it is about, with the action attached.
+        if (data.error === 'EMAIL_ALREADY_REGISTERED' || data.error === 'PHONE_ALREADY_REGISTERED') {
+          return {
+            ok: false,
+            reason: 'CONTACT_REGISTERED',
+            field: data.error === 'EMAIL_ALREADY_REGISTERED' ? 'email' : 'phone',
+            // Whether the host allows a guest to change an answered RSVP at all,
+            // which decides between offering "That's me" and pointing them at
+            // the host. Resolved server-side; never guessed here.
+            canUpdate: !!data.meta?.canUpdate,
+            data,
+          };
         }
         if (data.error === 'EVENT_CLOSED') {
           toast.error(messages.closed || 'This event is no longer accepting RSVPs.');

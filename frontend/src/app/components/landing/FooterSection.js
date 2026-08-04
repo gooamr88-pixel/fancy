@@ -8,6 +8,7 @@ const footerLinks = {
   // next.config.mjs), so this list no longer links to it.
   Product: [
     { text: 'Features', href: '/features' },
+    { text: 'Check-in app', href: '/checkin-app' },
     { text: 'Pricing', href: '/pricing' },
     { text: 'Integrations', href: '/integrations' },
   ],

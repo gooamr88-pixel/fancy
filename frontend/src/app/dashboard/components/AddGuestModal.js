@@ -19,6 +19,10 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Organizer's attestation that they already hold this guest's consent to be
+  // texted. Unchecked by default and never required — an unattested number is
+  // still saved, it just can't be sent an SMS (backend: recordHostConsentAttestation).
+  const [smsConsentAttested, setSmsConsentAttested] = useState(false);
   const nameRef = useRef(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
   const mealField = findMealField(customFields);
@@ -34,6 +38,9 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
       setFormData({ guest_name: '', email: '', phone: '', party_size: 1, response: '', notes: '', side: '', meal: '' });
       setError('');
       setLoading(false);
+      // Consent must be re-affirmed per guest — never carried over from the
+      // previous add, or the organizer would silently attest for someone new.
+      setSmsConsentAttested(false);
     }
   }
 
@@ -96,6 +103,7 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
           notes: formData.notes.trim() || undefined,
           side: formData.side || undefined,
           primaryGuestMeal: formData.meal || undefined,
+          smsConsentAttested,
         }),
       });
       const data = await res.json();
@@ -208,6 +216,40 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
                   onChange={(val) => handleChange('phone')({ target: { value: val } })} />
               </div>
             </div>
+
+            {/* Host SMS consent attestation (TCPA/CTIA + Terms §5).
+                Appears only once a number has actually been typed — asking
+                before there is anything to attest about is noise. Unchecked by
+                default and never blocks the save: without it the number is
+                stored for the guest list but is never sent an SMS. */}
+            {formData.phone.trim() && (
+              <div style={{
+                padding: '12px 14px', borderRadius: '10px',
+                background: smsConsentAttested ? 'rgba(184,148,79,0.08)' : COLORS.softBg,
+                border: `1px solid ${smsConsentAttested ? COLORS.champagne : COLORS.border}`,
+                transition: 'background 0.2s, border-color 0.2s',
+              }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={smsConsentAttested}
+                    onChange={(e) => setSmsConsentAttested(e.target.checked)}
+                    style={{ marginTop: '2px', width: '16px', height: '16px', accentColor: COLORS.gold, flexShrink: 0, cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '12.5px', color: COLORS.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+                    I confirm that I have obtained this recipient&apos;s consent to receive event-related SMS messages.
+                  </span>
+                </label>
+                <p style={{
+                  margin: '8px 0 0 26px', fontSize: '11.5px', lineHeight: 1.6,
+                  color: COLORS.stone, fontFamily: 'var(--font-sans)',
+                }}>
+                  {smsConsentAttested
+                    ? 'This guest can be included in SMS invitations and reminders. Your confirmation is recorded with your name and the date.'
+                    : 'Optional. Without it the phone number is still saved to your guest list, but this guest won’t receive any text messages until they opt in themselves on their RSVP form.'}
+                </p>
+              </div>
+            )}
 
             {/* Party Size & Response row */}
             <div className="ag-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

@@ -4,24 +4,38 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.fancyrsvp.checkin.data.repo.CheckInRepository
+import com.fancyrsvp.checkin.ui.theme.FoilLight
 import com.fancyrsvp.checkin.ui.theme.GroundAlready
+import com.fancyrsvp.checkin.ui.theme.GroundAlreadyDeep
+import com.fancyrsvp.checkin.ui.theme.GroundForeign
+import com.fancyrsvp.checkin.ui.theme.GroundForeignDeep
 import com.fancyrsvp.checkin.ui.theme.GroundNotFound
+import com.fancyrsvp.checkin.ui.theme.GroundNotFoundDeep
 import com.fancyrsvp.checkin.ui.theme.GroundVip
+import com.fancyrsvp.checkin.ui.theme.GroundVipDeep
 import com.fancyrsvp.checkin.ui.theme.GroundWelcome
+import com.fancyrsvp.checkin.ui.theme.GroundWelcomeDeep
 import com.fancyrsvp.checkin.ui.theme.Ink
 import com.fancyrsvp.checkin.ui.theme.OnAlready
+import com.fancyrsvp.checkin.ui.theme.OnForeign
 import com.fancyrsvp.checkin.ui.theme.OnVip
 import com.fancyrsvp.checkin.ui.theme.OnWelcome
 
 /**
- * Four states. Not six.
+ * Five states, from six outcomes.
  *
- * ── Why the reduction is the design ──
+ * ── Why the reduction is the design, and where it went too far ──
  *
  * The repository reports six outcomes because six things can genuinely happen.
- * The SCREEN may only ever show four, because an usher glancing at it for under
- * two seconds cannot rank six colours, and three of the six ask for exactly the
- * same thing from them: search for this guest by name.
+ * The SCREEN shows fewer, because an usher glancing at it for under two seconds
+ * cannot rank six colours.
+ *
+ * It was four. Three outcomes collapsed into one not-found state on the grounds
+ * that all three asked the same thing — search by name. That was right for two
+ * of them and wrong for the third: an unrecognised code is not a guest the
+ * tablet failed to place, it is an object that was never a ticket, and there is
+ * no name to search for. Merging it saved a colour and cost the usher the one
+ * fact that would have told them what to do. It is [Foreign] now.
  *
  * `Expired` folding into a welcome is not a behaviour change. §5.3 already
  * admits those guests normally — the door is never blocked by uncertainty — so
@@ -44,16 +58,49 @@ enum class ResultVisual {
 
     /** Nothing found, nothing wrong. Light, deliberately colourless. */
     NotFound,
+
+    /** Not one of our codes at all. Dark oxblood — see [GroundForeign]. */
+    Foreign,
     ;
 
-    /** The full-screen ground. */
+    /**
+     * The lit stop of the ground — also the flat colour anything that needs ONE
+     * value should use (an inverted button label, for instance).
+     */
     val ground: Color
         get() = when (this) {
             Welcome -> GroundWelcome
             Vip -> GroundVip
             Already -> GroundAlready
             NotFound -> GroundNotFound
+            Foreign -> GroundForeign
         }
+
+    /**
+     * The shaded stop, toward the lower right.
+     *
+     * Every state is a gradient rather than a fill — see the note in Palette.kt.
+     * A flat colour across a backlit tablet has no light in it, and that is most
+     * of why these screens read as a coloured rectangle instead of a surface.
+     */
+    val groundDeep: Color
+        get() = when (this) {
+            Welcome -> GroundWelcomeDeep
+            Vip -> GroundVipDeep
+            Already -> GroundAlreadyDeep
+            NotFound -> GroundNotFoundDeep
+            Foreign -> GroundForeignDeep
+        }
+
+    /**
+     * The colour for DISPLAY-size type — the guest name and the table number.
+     *
+     * Differs from [onGround] only on VIP, where the pale gold is what makes the
+     * state read as foil rather than as mustard. Restricted to display sizes
+     * because it clears 3:1 (the AA bar for large text) but not 4.5:1.
+     */
+    val onGroundDisplay: Color
+        get() = if (this == Vip) FoilLight else onGround
 
     /** Text and rules on [ground]. Every pair clears 4.5:1 — see Palette.kt. */
     val onGround: Color
@@ -62,11 +109,12 @@ enum class ResultVisual {
             Vip -> OnVip
             Already -> OnAlready
             NotFound -> Ink
+            Foreign -> OnForeign
         }
 
     /** True when the ground is dark, so overlays must lighten rather than darken. */
     val isDarkGround: Boolean
-        get() = this == Welcome || this == Vip
+        get() = this == Welcome || this == Vip || this == Foreign
 
     /**
      * How long before the screen returns to the camera on its own.
@@ -84,11 +132,17 @@ enum class ResultVisual {
             Welcome, Vip -> null
             Already -> 6_000L
             NotFound -> 8_000L
+            // Longest of the lot, and it is a safety net rather than the way out:
+            // this state offers an explicit DONE button because the operator has a
+            // decision to make — wave the next guest forward, or look this one up
+            // by name. The timeout only exists so a red screen cannot be left
+            // glowing at a door if they walk away mid-thought.
+            Foreign -> 12_000L
         }
 }
 
 /**
- * The single place six outcomes become four.
+ * The single place six outcomes become five.
  *
  * An `Expired` scan that resolved to a party is a welcome; one that resolved to
  * nothing is a not-found. Nothing else in the app needs to know that `Expired`
@@ -107,11 +161,25 @@ fun CheckInRepository.ScanOutcome.visual(): ResultVisual = when (this) {
             else -> ResultVisual.Welcome
         }
 
-    // All three mean the same thing to the person holding the tablet: this code
-    // told us nothing, search by name instead.
+    /*
+     * These two are about a PERSON the tablet cannot place: a ticket for another
+     * event, or a real ticket whose party is not in this bundle. Somebody is
+     * standing there holding it. They stay on the calm, colourless ground — see
+     * GroundNotFound.
+     */
     is CheckInRepository.ScanOutcome.WrongEvent -> ResultVisual.NotFound
     CheckInRepository.ScanOutcome.NotFound -> ResultVisual.NotFound
-    CheckInRepository.ScanOutcome.Unrecognised -> ResultVisual.NotFound
+
+    /*
+     * This one is not about a person at all.
+     *
+     * It fires when the decoded value was never a Fancy ticket — a loyalty card,
+     * a delivery label, a QR on a poster behind the queue. It used to render
+     * identically to "we cannot find you", which was wrong twice over: it told an
+     * usher to search by name for something that has no name attached, and it
+     * made the two commonest scan failures indistinguishable at a glance.
+     */
+    CheckInRepository.ScanOutcome.Unrecognised -> ResultVisual.Foreign
 }
 
 /** The party behind an outcome, when there is one. */

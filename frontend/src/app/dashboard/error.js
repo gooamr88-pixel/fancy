@@ -44,7 +44,7 @@ export default function DashboardError({ error, reset }) {
         .dberr-message { font-size: 15px; line-height: 1.6; color: #77736A; margin: 0 0 32px; }
         .dberr-actions { display: flex; flex-direction: column; align-items: center; gap: 16px; }
         .dberr-retry-button { background: var(--gold-cta, #8A6D34); color: #FFFFFF; border: none; border-radius: 8px; padding: 12px 32px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background-color 0.2s ease; width: 100%; max-width: 220px; min-height: 44px; box-sizing: border-box; }
-        .dberr-home-link { color: var(--gold-cta, #8A6D34); font-size: 14px; font-weight: 500; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
+        :global(.dberr-home-link) { color: var(--gold-cta, #8A6D34); font-size: 14px; font-weight: 500; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center; }
 
         @media (prefers-color-scheme: dark) {
           .dberr-overlay { background: #17181A; }
@@ -52,7 +52,7 @@ export default function DashboardError({ error, reset }) {
           .dberr-heading { color: #F8F4EC; }
           .dberr-message { color: #A8A397; }
           .dberr-retry-button { background: #D7BE80; color: #191B1E; }
-          .dberr-home-link { color: #D7BE80; }
+          :global(.dberr-home-link) { color: #D7BE80; }
         }
       `}</style>
     </div>

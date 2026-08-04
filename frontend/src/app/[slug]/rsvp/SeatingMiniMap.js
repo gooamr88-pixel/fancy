@@ -2,36 +2,14 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import Icon from '../../components/icons/Icon';
-
-// Maps a zone's SHAPES key to an Icon.js glyph name.
-const ZONE_ICON = { stage: 'mic', dance_floor: 'discoBall', bar: 'cocktail', dj_booth: 'headphones', entrance: 'door', custom: 'star' };
-
-/* Mirrors the world/element model used by the organizer seating map
-   (dashboard/seating-map). Read-only: it never shows who is seated where — only
-   the room layout, with the current guest's own table highlighted. */
-const WORLD_W = 2600;
-const WORLD_H = 1700;
-
-const SHAPES = {
-  round:       { cat: 'table', w: 96,  h: 96,  round: true },
-  oval:        { cat: 'table', w: 132, h: 86,  round: true },
-  square:      { cat: 'table', w: 96,  h: 96,  round: false },
-  rectangle:   { cat: 'table', w: 168, h: 84,  round: false },
-  banquet:     { cat: 'table', w: 230, h: 80,  round: false },
-  head:        { cat: 'table', w: 250, h: 76,  round: false },
-  stage:       { cat: 'zone',  w: 360, h: 150, color: '#3B3A55' },
-  dance_floor: { cat: 'zone',  w: 280, h: 280, color: '#6B5FA8' },
-  bar:         { cat: 'zone',  w: 240, h: 92,  color: '#9C5A3C' },
-  dj_booth:    { cat: 'zone',  w: 132, h: 112, color: '#2F5E8C' },
-  entrance:    { cat: 'zone',  w: 150, h: 70,  color: '#4A7C59' },
-  custom:      { cat: 'zone',  w: 190, h: 130, color: '#B8944F' },
-};
-
-const shapeMeta = (shape) => SHAPES[shape === 'rectangular' ? 'rectangle' : shape] || SHAPES.round;
-const isZone = (el) => (el.element_type === 'zone') || (shapeMeta(el.shape).cat === 'zone');
-const elWidth = (el) => (isZone(el) ? Number(el.width) || shapeMeta(el.shape).w : shapeMeta(el.shape).w);
-const elHeight = (el) => (isZone(el) ? Number(el.height) || shapeMeta(el.shape).h : shapeMeta(el.shape).h);
-const pctToPx = (pct, total) => (Number(pct) || 0) / 100 * total;
+/* The world/element model is shared verbatim with the organizer seating map
+   (dashboard/seating-map) — imported, never re-declared, because a local copy
+   that fell behind drew the organizer's zones as round tables here without
+   erroring. Read-only: this never shows who is seated where, only the room
+   layout, with the current guest's own table highlighted. */
+import {
+  WORLD_W, WORLD_H, shapeMeta, isZone, elWidth, elHeight, pctToPx,
+} from '../../utils/seatingGeometry';
 
 const GOLD = '#B8944F';
 
@@ -109,7 +87,7 @@ export default function SeatingMiniMap({ tables, myTableId, youLabel = "You're h
                 lineHeight: 1.1, padding: '0 2px', overflow: 'hidden', maxWidth: '100%',
                 fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2,
               }}>
-                {zone && ZONE_ICON[el.shape] && <Icon name={ZONE_ICON[el.shape]} size={Math.max(8, Math.min(11, h / 3))} strokeWidth={1.6} style={{ flexShrink: 0 }} />}
+                {zone && meta.icon && <Icon name={meta.icon} size={Math.max(8, Math.min(11, h / 3))} strokeWidth={1.6} style={{ flexShrink: 0 }} />}
                 {el.table_name}
               </span>
               {mine && (

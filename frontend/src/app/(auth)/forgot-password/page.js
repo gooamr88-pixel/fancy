@@ -446,7 +446,7 @@ export default function ForgotPasswordPage() {
         .auth-field-error { display: block; font-size: 11.5px; color: #DC2626; margin: 6px 0 0; line-height: 1.4; }
 
         /* ── Button ── */
-        .auth-submit-btn {
+        :global(.auth-submit-btn) {
           width: 100%; padding: 16px;
           background: linear-gradient(135deg, var(--gold-cta) 0%, var(--gold-cta-hover) 100%);
           color: #FFFFFF; border: none; border-radius: 10px;
@@ -455,16 +455,16 @@ export default function ForgotPasswordPage() {
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin-top: 4px;
           display: block; text-align: center; text-decoration: none;
         }
-        .auth-submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(184,148,79,0.3); }
-        .auth-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        :global(.auth-submit-btn):hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(184,148,79,0.3); }
+        :global(.auth-submit-btn):disabled { opacity: 0.55; cursor: not-allowed; }
         .auth-spinner-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
         .auth-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #FFFFFF; border-radius: 50%; animation: authSpin 0.6s linear infinite; }
 
         /* ── Footer ── */
         .auth-footer-divider { width: 40px; height: 1px; background: #E8E2D6; margin: 28px auto 20px; }
         .auth-footer-text { text-align: center; font-size: 13px; color: #77736A; margin: 0; }
-        .auth-gold-link { color: var(--gold-cta); font-weight: 700; text-decoration: none; transition: color 0.2s; }
-        .auth-gold-link:hover { color: var(--gold-cta-hover); }
+        :global(.auth-gold-link) { color: var(--gold-cta); font-weight: 700; text-decoration: none; transition: color 0.2s; }
+        :global(.auth-gold-link):hover { color: var(--gold-cta-hover); }
         .auth-footer-row { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid #E8E2D6; font-size: 13px; }
         .auth-back-btn { background: none; border: none; color: #77736A; font-weight: 600; cursor: pointer; font-family: var(--font-sans); font-size: 13px; transition: color 0.2s; padding: 0; }
         .auth-back-btn:hover { color: #191B1E; }
@@ -481,7 +481,7 @@ export default function ForgotPasswordPage() {
           margin: 0 auto 28px;
           animation: successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
         }
-        .success-link { display: block; }
+        :global(.success-link) { display: block; }
 
         /* ── Animations ── */
         @keyframes authFadeIn { from { opacity: 0; } to { opacity: 1; } }

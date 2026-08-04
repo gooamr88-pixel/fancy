@@ -24,7 +24,7 @@ injectModule('../../utils/realtime', { broadcast: async () => {} });
 const mock = createMockSupabase();
 injectModule('../../config/supabase', { supabase: mock.supabase });
 
-const { submitPublicRSVP } = require('../controllers/rsvpController');
+const { submitPublicRSVP, claimRsvpByEmail } = require('../controllers/rsvpController');
 
 t.beforeEach(() => { mock.reset(); confirmCalls = []; emailCalls = []; });
 
@@ -277,6 +277,62 @@ test('an unknown/missing lang falls back to English rather than reaching the tem
   assert.equal(confirmCalls[0][2], 'en');
 });
 
+// ── Companions are names ────────────────────────────────────────────────────
+// The form asks the person who opened the invitation for everything and records
+// anyone they bring as a name. Requiring an email per companion is what pushed
+// households sharing one inbox into idx_guests_event_email_unique, where
+// submit_rsvp_v2 silently discarded the address.
+
+const okRpc = (over = {}) => rpcResult({
+  success: true, rsvp_id: 'r1', party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
+  response: 'yes', party_size: 2, guest_email: 'a@x.com', notification_preferences: { email: false },
+  ...over,
+});
+
+/** The additionalGuests array as it reached the RPC. */
+const sentCompanions = () =>
+  mock.calls.find(c => c.op === 'rpc' && c.fn === 'submit_rsvp_v2').params.p_additional_guests;
+
+test('a companion needs only a name — no email, no phone', async () => {
+  okRpc();
+  const { res } = await invoke(submitPublicRSVP, req({
+    guestName: 'Alice', response: 'yes', partySize: 2,
+    additionalGuests: [{ fullName: 'Bob' }],
+  }));
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(sentCompanions(), [{ fullName: 'Bob' }]);
+});
+
+test('contact details sent for a companion are dropped, not rejected', async () => {
+  okRpc();
+  const { res } = await invoke(submitPublicRSVP, req({
+    guestName: 'Alice', response: 'yes', partySize: 2,
+    // An older client, or a hand-rolled request, still posting the old shape.
+    additionalGuests: [{ fullName: 'Bob', email: 'bob@x.com', phone: '+15551234567', mealSelection: 'Beef' }],
+  }));
+  assert.equal(res.statusCode, 201, 'a good RSVP is not failed over extra keys');
+  assert.deepEqual(sentCompanions(), [{ fullName: 'Bob' }], 'only the name is forwarded');
+});
+
+test('a companion still must be named', async () => {
+  mock.setResolver(() => ({}));
+  const { res } = await invoke(submitPublicRSVP, req({
+    guestName: 'Alice', response: 'yes', partySize: 2, additionalGuests: [{ fullName: '  ' }],
+  }));
+  assert.equal(res.statusCode, 400);
+  assert.equal(mock.calls.some(c => c.op === 'rpc'), false);
+});
+
+test('no companion is ever emailed — they have no address of their own', async () => {
+  okRpc();
+  await invoke(submitPublicRSVP, req({
+    guestName: 'Alice', email: 'a@x.com', response: 'yes', partySize: 2,
+    additionalGuests: [{ fullName: 'Bob', email: 'bob@x.com' }],
+  }));
+  assert.equal(emailCalls.some(a => a[0] === 'bob@x.com'), false);
+  assert.equal(confirmCalls.length, 1, 'one confirmation, to the person who filled the form in');
+});
+
 test('a "maybe" never registers companions (only an actual yes does)', async () => {
   rpcResult({
     success: true, rsvp_id: 'r1', party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W',
@@ -284,9 +340,147 @@ test('a "maybe" never registers companions (only an actual yes does)', async () 
   });
   await invoke(submitPublicRSVP, req({
     guestName: 'Alice', email: 'a@x.com', response: 'maybe',
-    additionalGuests: [{ fullName: 'Bob', email: 'bob@x.com', phone: '+15551234567' }],
+    additionalGuests: [{ fullName: 'Bob' }],
   }));
   assert.equal(emailCalls.some(a => a[0] === 'bob@x.com'), false, 'no companion email on a tentative response');
+});
+
+// ── An already-registered contact is announced, not overwritten ─────────────
+// Both auto-merge lookups used to silently UPDATE a party that had already
+// answered whenever the host allowed guest edits, so anyone who knew a guest's
+// address could replace their response without either of them being told.
+
+test('an email on an already-answered party is a 409 that offers the update', async () => {
+  rpcResult({
+    success: false, code: 'EMAIL_ALREADY_REGISTERED', canUpdate: true,
+    message: 'This email is already registered for this event.',
+  });
+  const { res } = await invoke(submitPublicRSVP, req({ guestName: 'Alice', response: 'yes', partySize: 1 }));
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error, 'EMAIL_ALREADY_REGISTERED');
+  assert.equal(res.body.meta.canUpdate, true, 'the form needs this to decide whether to offer the claim action');
+  assert.ok(!/alice|guest@example/i.test(res.body.message), 'names nobody — the reply must not leak who responded');
+});
+
+test('the same reply carries canUpdate:false when the host disallows edits', async () => {
+  rpcResult({
+    success: false, code: 'EMAIL_ALREADY_REGISTERED', canUpdate: false,
+    message: 'This email is already registered for this event.',
+  });
+  const { res } = await invoke(submitPublicRSVP, req({ guestName: 'Alice', response: 'yes', partySize: 1 }));
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.meta.canUpdate, false);
+});
+
+test('a phone match gets its own code so the form can flag the right field', async () => {
+  rpcResult({
+    success: false, code: 'PHONE_ALREADY_REGISTERED', canUpdate: true,
+    message: 'This phone number is already registered for this event.',
+  });
+  const { res } = await invoke(submitPublicRSVP, req({ guestName: 'Alice', response: 'yes', partySize: 1 }));
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error, 'PHONE_ALREADY_REGISTERED');
+});
+
+// There is no "confirm" flag any more. An answered party can only be changed by
+// arriving with a partyId — the guest's own link, or the one emailed by the
+// claim endpoint below. An unverified click was never proof of anything.
+
+test('the submit path has no way to claim an answered party', async () => {
+  okRpc({ party_size: 1 });
+  await invoke(submitPublicRSVP, req({
+    guestName: 'Alice', response: 'yes', partySize: 1,
+    // A stale client still posting the retired flag must not resurrect it.
+    confirmUpdate: true,
+  }));
+  const params = mock.calls.find(c => c.op === 'rpc').params;
+  assert.equal(params.p_confirm_update, undefined);
+});
+
+// ── Companion meals are a tally for the group ─────────────────────────
+
+test('the companion meal tally is forwarded to the RPC', async () => {
+  okRpc();
+  await invoke(submitPublicRSVP, req({
+    guestName: 'Alice', response: 'yes', partySize: 3,
+    additionalGuests: [{ fullName: 'Bob' }, { fullName: 'Cara' }],
+    companionMealCounts: { Fish: 2 },
+  }));
+  assert.deepEqual(mock.calls.find(c => c.op === 'rpc').params.p_companion_meal_counts, { Fish: 2 });
+});
+
+test('no tally sends null rather than an empty object — the RPC treats them differently', async () => {
+  okRpc({ party_size: 1 });
+  await invoke(submitPublicRSVP, req({ guestName: 'Alice', response: 'yes', partySize: 1 }));
+  assert.equal(mock.calls.find(c => c.op === 'rpc').params.p_companion_meal_counts, null);
+});
+
+// ── Claim by email ────────────────────────────────────────
+// The reply must be byte-identical whether or not the address matched. Anything
+// that varied would turn this into an oracle for "is this person on the guest
+// list", which is the leak the 409's name-nobody wording exists to prevent.
+
+const claimReq = (body) => mockReq({ params: { slug: 'wedding' }, body });
+const LIVE_EVENT = {
+  id: 'evt-1', slug: 'wedding', title: 'W', is_paid: true, status: 'active',
+  allow_guest_edits: true, rsvp_deadline: null,
+};
+
+/** Scripts the event lookup, then the primary-contact lookup. */
+const claimScene = ({ event = LIVE_EVENT, match = null } = {}) => mock.setResolver((sc) => {
+  if (sc.table === 'events') return { data: event };
+  if (sc.table === 'guests') return { data: match };
+  return {};
+});
+
+test('a matching address is emailed a link', async () => {
+  claimScene({ match: { full_name: 'Alice', party_id: 'p1', rsvp_parties: { id: 'p1', label: 'Alice', response: 'yes', event_id: 'evt-1' } } });
+  const { res } = await invoke(claimRsvpByEmail, claimReq({ email: 'alice@example.com' }));
+  assert.equal(res.statusCode, 200);
+  assert.equal(emailCalls.length, 1);
+  assert.equal(emailCalls[0][0], 'alice@example.com');
+  // The link must carry a token, not a bare party id.
+  assert.match(emailCalls[0][2], /\/rsvp\?token=/);
+});
+
+test('a non-matching address gets the SAME reply and no email', async () => {
+  claimScene({ match: { full_name: 'Alice', party_id: 'p1', rsvp_parties: { id: 'p1', label: 'Alice', response: 'yes', event_id: 'evt-1' } } });
+  const { res: hit } = await invoke(claimRsvpByEmail, claimReq({ email: 'alice@example.com' }));
+
+  mock.reset(); emailCalls = [];
+  claimScene({ match: null });
+  const { res: miss } = await invoke(claimRsvpByEmail, claimReq({ email: 'nobody@example.com' }));
+
+  assert.equal(miss.statusCode, hit.statusCode);
+  assert.deepEqual(miss.body, hit.body, 'a different reply would leak who is on the guest list');
+  assert.equal(emailCalls.length, 0, 'and nothing is sent to an address that is not registered');
+});
+
+test('nothing is sent when the host has turned off guest edits', async () => {
+  claimScene({
+    event: { ...LIVE_EVENT, allow_guest_edits: false },
+    match: { full_name: 'Alice', party_id: 'p1', rsvp_parties: { id: 'p1', label: 'Alice', response: 'yes', event_id: 'evt-1' } },
+  });
+  const { res } = await invoke(claimRsvpByEmail, claimReq({ email: 'alice@example.com' }));
+  assert.equal(res.statusCode, 200, 'still the same reply');
+  assert.equal(emailCalls.length, 0, 'but no link to a response that cannot be changed');
+});
+
+test('nothing is sent once the RSVP deadline has passed', async () => {
+  claimScene({
+    event: { ...LIVE_EVENT, rsvp_deadline: '2000-01-01T00:00:00Z' },
+    match: { full_name: 'Alice', party_id: 'p1', rsvp_parties: { id: 'p1', label: 'Alice', response: 'yes', event_id: 'evt-1' } },
+  });
+  const { res } = await invoke(claimRsvpByEmail, claimReq({ email: 'alice@example.com' }));
+  assert.equal(res.statusCode, 200);
+  assert.equal(emailCalls.length, 0);
+});
+
+test('a malformed address is a plain 400, before any lookup', async () => {
+  mock.setResolver(() => ({}));
+  const { res } = await invoke(claimRsvpByEmail, claimReq({ email: 'not-an-email' }));
+  assert.equal(res.statusCode, 400);
+  assert.equal(mock.calls.length, 0);
 });
 
 test('a DB-level RPC error is forwarded to the Express error handler', async () => {

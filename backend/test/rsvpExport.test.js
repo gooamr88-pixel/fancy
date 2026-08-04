@@ -110,3 +110,49 @@ test('CSV export of an empty event still succeeds with a header-only CSV', async
   assert.equal(res.statusCode, 200);
   assert.ok(res.body.includes('guest_name'), 'CSV should still contain the header row');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Companions are names only, so their meals live as a per-party tally
+// (rsvp_parties.companion_meal_counts) rather than one dish per guest row. An
+// export that read guest rows alone would report a party of four as one meal
+// and three blanks — and the caterer orders from this column.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('the meal column carries the companion tally alongside the named meal', async () => {
+  mock.setResolver((s) => {
+    if (s.table === 'rsvp_parties' && s.op === 'select') {
+      return { data: [
+        { id: 'r1', label: 'Jane Doe', response: 'yes', notes: '',
+          companion_meal_counts: { Fish: 2, Beef: 1 },
+          guests: [
+            { full_name: 'Jane Doe', email: 'jane@example.com', is_primary_contact: true, meal_selection: 'Chicken' },
+            { full_name: 'Guest 2', is_primary_contact: false, meal_selection: null },
+            { full_name: 'Guest 3', is_primary_contact: false, meal_selection: null },
+            { full_name: 'Guest 4', is_primary_contact: false, meal_selection: null },
+          ],
+          seating_assignments: [], check_ins: [] },
+      ] };
+    }
+    return {};
+  });
+  const { res } = await invoke(exportGuestsCSV, exportReq());
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /Jane Doe: Chicken/, "the named meal is still attributed");
+  assert.match(res.body, /Guests: 2 x Fish, 1 x Beef/, 'and the companions are counted, largest first');
+});
+
+test('a party with no companion tally is unchanged', async () => {
+  mock.setResolver((s) => {
+    if (s.table === 'rsvp_parties' && s.op === 'select') {
+      return { data: [
+        { id: 'r1', label: 'Solo', response: 'yes', notes: '', companion_meal_counts: null,
+          guests: [{ full_name: 'Solo', is_primary_contact: true, meal_selection: 'Chicken' }],
+          seating_assignments: [], check_ins: [] },
+      ] };
+    }
+    return {};
+  });
+  const { res } = await invoke(exportGuestsCSV, exportReq());
+  assert.match(res.body, /Solo: Chicken/);
+  assert.ok(!/Guests:/.test(res.body), 'no empty "Guests:" label when there is nothing to count');
+});

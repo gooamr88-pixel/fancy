@@ -55,7 +55,24 @@ const buildMapsUrl = (event) => {
 };
 
 // Shared bulletproof resolver (splits commas, repairs typos, first valid https origin).
-const { getPublicBaseUrl } = require('./publicUrl');
+const { getPublicBaseUrl, getBackendBaseUrl } = require('./publicUrl');
+
+/**
+ * The three URLs a signed QR ticket resolves to. Built here rather than at each
+ * call site so the inline image, the "save it" download and the web ticket can
+ * never drift onto different tokens or different origins.
+ *
+ *  • qrImageUrl    — hot-linked <img> src. A real URL, not a data: URI: Gmail,
+ *                    Outlook and Yahoo all strip data: images.
+ *  • qrDownloadUrl — same code, served with Content-Disposition: attachment at
+ *                    print resolution, so the guest can keep it offline.
+ *  • ticketUrl     — the web pass (QR + table + venue), no login required.
+ */
+const buildTicketLinks = (token) => {
+  const t = encodeURIComponent(token);
+  const png = `${getBackendBaseUrl()}/api/v1/public/qr/${t}.png`;
+  return { qrImageUrl: png, qrDownloadUrl: `${png}?download=1`, ticketUrl: `${getPublicBaseUrl()}/ticket/${t}` };
+};
 
 /**
  * Builds a guest's personal event link. When a partyId is supplied it is appended as
@@ -271,6 +288,96 @@ const statGrid = (items) => {
     </table>
   </td>`).join('');
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;"><tr>${cells}</tr></table>`;
+};
+
+/**
+ * THE ENTRY PASS — the physical-feeling ticket object at the heart of every
+ * check-in email. A foil-edged charcoal card carrying the guest's name, what
+ * the pass admits, their table, and a tear-off stub holding the QR the door
+ * scanner reads.
+ *
+ * Three constraints shape the markup, all of them Outlook:
+ *  • Every dark surface is a <td> carrying BOTH a bgcolor attribute and an
+ *    inline background-color. A <div> with a background loses it in Outlook,
+ *    which would leave white text on white — an unreadable pass, not a plain
+ *    one.
+ *  • The pill and the QR frame are nested <table>s, never padded <span>s:
+ *    Outlook drops padding and border-radius on inline elements.
+ *  • The perforation is a `border-top` on a zero-height cell. A 1px <td> with
+ *    a background renders as a thick bar there (same reason as ornament()).
+ *
+ * Rounded corners simply don't render in Outlook; the card degrades to a
+ * square-cornered ticket, which is fine. What must never degrade is contrast,
+ * hence the hard hexes (#3A3D42 for the perforation, #8E8A82 for labels)
+ * instead of rgba() — Outlook ignores rgba borders entirely.
+ */
+const entryPass = ({ guestName, eventTitle, qrImageUrl, ticketUrl, tableValue, tableIsAssigned, admitsLabel, reference, lang }) => {
+  const rtl = isRtl(lang);
+  const start = rtl ? 'right' : 'left';
+  const end = rtl ? 'left' : 'right';
+  // Latin small-caps labels get tracking; Arabic loses its cursive joins under
+  // letter-spacing and has no case, so it gets neither.
+  const label = rtl
+    ? `font-size:11px; font-weight:bold; color:#8E8A82;`
+    : `font-size:10px; font-weight:bold; letter-spacing:2.4px; text-transform:uppercase; color:#8E8A82;`;
+  const pillType = rtl
+    ? 'font-size:11px; font-weight:bold;'
+    : 'font-size:10px; font-weight:bold; letter-spacing:1.6px; text-transform:uppercase;';
+
+  const qrImg = `<img src="${qrImageUrl}" width="200" height="200" alt="${pick(lang, { en: 'Your check-in QR code', ar: 'رمز تسجيل دخولك' })}" style="display:block; width:200px; height:200px; border:0;">`;
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0 20px;">
+  <tr><td>
+    <!-- Foil edge -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr><td bgcolor="${BRAND.gold}" style="height:5px; line-height:5px; font-size:0; background-color:${BRAND.gold}; border-radius:18px 18px 0 0;">&nbsp;</td></tr>
+    </table>
+    <!-- Card body -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${BRAND.charcoal}" style="background-color:${BRAND.charcoal}; border-radius:0 0 18px 18px;">
+      <tr><td style="padding:26px 26px 20px;" dir="${rtl ? 'rtl' : 'ltr'}">
+
+        <!-- Eyebrow + admits pill -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="${start}" style="font-family:${SANS}; ${label} vertical-align:middle;">${pick(lang, { en: 'Entry pass', ar: 'بطاقة الدخول' })}</td>
+            <td align="${end}" style="vertical-align:middle;">
+              <table role="presentation" cellpadding="0" cellspacing="0" align="${end}">
+                <tr><td bgcolor="${BRAND.gold}" style="background-color:${BRAND.gold}; border-radius:999px; padding:6px 14px; font-family:${SANS}; ${pillType} color:${BRAND.charcoal};">${admitsLabel}</td></tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Guest -->
+        <div style="font-family:${SERIF}; font-size:27px; font-weight:bold; line-height:1.25; color:#FFFFFF; margin:16px 0 6px;" dir="auto">${escapeHtml(guestName)}</div>
+        <div style="font-family:${SANS}; font-size:13px; line-height:1.5; color:${BRAND.champagne};" dir="auto">${escapeHtml(eventTitle)}</div>
+
+        <!-- Table strip -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0 0;">
+          <tr><td bgcolor="#212429" style="background-color:#212429; border-radius:12px; padding:14px 18px;">
+            <div style="font-family:${SANS}; ${label} margin-bottom:5px;">${pick(lang, { en: 'Your table', ar: 'طاولتك' })}</div>
+            <div style="font-family:${SERIF}; font-size:${tableIsAssigned ? '22' : '16'}px; font-weight:bold; color:${tableIsAssigned ? BRAND.goldLight : '#8E8A82'};" dir="auto">${escapeHtml(tableValue)}</div>
+          </td></tr>
+        </table>
+
+        <!-- Perforation -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:22px 0 20px;">
+          <tr><td style="border-top:2px dashed #3A3D42; font-size:0; line-height:0;">&nbsp;</td></tr>
+        </table>
+
+        <!-- QR stub -->
+        <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto;">
+          <tr><td bgcolor="${BRAND.white}" align="center" style="background-color:${BRAND.white}; border-radius:16px; padding:16px;">
+            ${ticketUrl ? `<a href="${ticketUrl}" target="_blank" rel="noopener" style="display:block; text-decoration:none;">${qrImg}</a>` : qrImg}
+          </td></tr>
+        </table>
+        <div align="center" style="font-family:${SANS}; ${label} text-align:center; margin-top:14px;">${pick(lang, { en: 'Scan at the entrance', ar: 'يُمسح عند المدخل' })}</div>
+        ${reference ? `<div align="center" style="font-family:'Courier New', Courier, monospace; font-size:11px; letter-spacing:2px; color:#5C5F66; text-align:center; margin-top:6px;">${escapeHtml(reference)}</div>` : ''}
+
+      </td></tr>
+    </table>
+  </td></tr>
+</table>`;
 };
 
 /**
@@ -534,12 +641,16 @@ const getInvitationTemplate = (rsvp, event, links, lang = 'en') => {
 
 /**
  * RSVP confirmation (response recorded). Also used for a 'maybe' — the copy
- * adapts rather than promising a seat to someone who hasn't committed yet.
+ * adapts rather than promising a table to someone who hasn't committed yet.
  */
-const getRSVPConfirmationTemplate = (rsvp, event, lang = 'en') => {
+const getRSVPConfirmationTemplate = (rsvp, event, lang = 'en', links = null) => {
   const formattedDate = formatEventDateLang(event.event_date, lang);
   const r = responseMeta(rsvp.response, lang);
   const isMaybe = rsvp.response === 'maybe';
+  // A confirmed guest gets their check-in pass HERE, in the one email they
+  // reliably keep, instead of the old promise of "a separate email once seating
+  // is finalized" — which never arrived for an event the organizer never seated.
+  const showPass = !isMaybe && !!links?.qrImageUrl;
   const rows = [
     [pick(lang, { en: 'Response', ar: 'الرد' }), `<span style="color:${r.color};">${r.label}</span>`, r.color],
     [pick(lang, { en: 'Party Size', ar: 'عدد الأفراد' }), guestCount(rsvp.party_size, lang)],
@@ -572,10 +683,33 @@ const getRSVPConfirmationTemplate = (rsvp, event, lang = 'en') => {
             en: "We'll hold your place for now. As soon as you know either way, just reopen your invitation and update your response — the host would love a final answer before the deadline.",
             ar: 'سنحتفظ لك بمكانك مبدئيًا. وبمجرد أن يتأكد لك الأمر، افتح دعوتك وحدّث ردّك — يسعد المضيف بمعرفة إجابتك النهائية قبل انتهاء الموعد.',
           }), 'warn')
-        : noticeBox(pick(lang, {
-            en: "Your table placement is being coordinated. You'll receive a separate email with your QR check-in pass once seating is finalized.",
-            ar: 'يجري الآن ترتيب طاولتك. وستصلك رسالة منفصلة تحتوي على رمز الدخول QR فور اعتماد توزيع الجلوس.',
-          }), 'neutral')}
+        : showPass
+          ? `
+      ${para(pick(lang, {
+        en: 'Your entry pass is below. The QR code is what our team scans at the door — keep this email, or download the code so you have it on the night even without a signal.',
+        ar: 'بطاقة دخولك بالأسفل. رمز QR هو ما يمسحه فريقنا عند البوابة — احتفظ بهذه الرسالة، أو حمّل الرمز ليكون معك ليلة الحفل حتى بدون إنترنت.',
+      }))}
+      ${entryPass({
+        guestName: rsvp.guest_name,
+        eventTitle: event.title,
+        qrImageUrl: links.qrImageUrl,
+        ticketUrl: links.ticketUrl,
+        tableIsAssigned: false,
+        tableValue: pick(lang, { en: 'Assigned when you arrive', ar: 'يُحدَّد عند وصولك' }),
+        admitsLabel: isRtl(lang) ? guestCount(rsvp.party_size, lang) : `Admits ${Number(rsvp.party_size) || 1}`,
+        reference: `#${String(rsvp.id || '').replace(/-/g, '').slice(-6).toUpperCase()}`,
+        lang,
+      })}
+      ${links.qrDownloadUrl ? button(links.qrDownloadUrl, pick(lang, { en: '&#11015; Download my QR code', ar: '&#11015; تحميل رمز الدخول' })) : ''}
+      ${links.ticketUrl ? button(links.ticketUrl, pick(lang, { en: 'Open my pass online', ar: 'فتح بطاقتي أونلاين' }), { bg: BRAND.white, color: BRAND.goldDark, border: BRAND.gold }) : ''}
+      ${para(pick(lang, {
+        en: 'If the host assigns you a table, your online pass updates on its own — the same QR code keeps working.',
+        ar: 'إذا خصّص لك المضيف طاولة، ستتحدّث بطاقتك أونلاين تلقائيًا — ويظل رمز QR نفسه صالحًا.',
+      }), { size: 13, color: BRAND.stone, align: 'center', mb: 6 })}`
+          : noticeBox(pick(lang, {
+              en: "Your table placement is being coordinated. You'll receive a separate email with your QR check-in pass once seating is finalized.",
+              ar: 'يجري الآن ترتيب طاولتك. وستصلك رسالة منفصلة تحتوي على رمز الدخول QR فور اعتماد توزيع الجلوس.',
+            }), 'neutral')}
       ${para(isMaybe
         ? pick(lang, { en: 'We hope you can make it.', ar: 'نتمنى أن تتمكن من الحضور.' })
         : pick(lang, { en: 'We look forward to celebrating with you.', ar: 'نتطلع للاحتفال معك.' }), { mb: 0 })}
@@ -654,83 +788,132 @@ const getCompanionRSVPConfirmationTemplate = (companionName, mainGuestName, even
   });
 };
 
-/** Entry pass: QR ticket + table assignment. */
-const getQRTicketTemplate = (rsvp, event, tableName, qrImageUrl, zoneName, ticketUrl, lang = 'en') => {
+/**
+ * "Update your RSVP" — the link that proves someone typing this address can
+ * actually read its mail.
+ *
+ * Sent when a submission matches an address whose party has already answered.
+ * The old flow let a single click merge into that party, so anyone who knew a
+ * guest's address could overwrite their response. Now the only way through is a
+ * link that lands in the owner's inbox.
+ *
+ * Deliberately terse and unexcited. Whoever receives it may not have asked for
+ * it, so it has to read as something safe to ignore — no celebration, nothing
+ * about the event beyond its title, and an explicit "if this wasn't you" line.
+ */
+const getRsvpClaimTemplate = (guestName, event, claimUrl, lang = 'en') => emailShell({
+  lang,
+  preheader: pick(lang, {
+    en: `Your link to update your RSVP for ${event.title}`,
+    ar: `رابط تعديل ردّك على ${event.title}`,
+  }),
+  eyebrow: pick(lang, { en: 'Update your RSVP', ar: 'تعديل ردّك' }),
+  heading: escapeHtml(event.title),
+  contentHtml: `
+    ${greeting(guestName, lang)}
+    ${para(pick(lang, {
+      en: 'Someone asked to update the RSVP registered to this email address. If that was you, use the link below — it works for the next 30 minutes.',
+      ar: 'وصلنا طلب لتعديل الرد المسجّل على هذا البريد. إذا كان هذا أنت، استخدم الرابط بالأسفل — صالح لمدة ٣٠ دقيقة.',
+    }))}
+    ${button(claimUrl, pick(lang, { en: 'Update my response', ar: 'تعديل ردّي' }))}
+    ${noticeBox(pick(lang, {
+      en: "If this wasn't you, ignore this email — nothing has changed, and your response stays exactly as it is.",
+      ar: 'إذا لم تكن أنت، تجاهل هذه الرسالة — لم يتغيّر شيء، وردّك كما هو.',
+    }), 'neutral')}
+    ${para(pick(lang, CHROME.linkFallback), { size: 12, color: BRAND.stone, mb: 4 })}
+    <p style="margin:0; font-family:${SANS}; font-size:11px; line-height:1.6; color:${BRAND.muted}; word-break:break-all;" dir="ltr">${escapeHtml(claimUrl)}</p>
+  `,
+});
+
+/**
+ * The venue block reused by every guest-facing pass: name, street address and a
+ * tappable directions link.
+ *
+ * dir="auto" on the name/address: these are operator-entered free text that may
+ * be Latin inside an RTL mail. Without it the client applies the mail's RTL
+ * direction and a street number jumps to the wrong end of the line ("1089
+ * Corniche El Nil" renders as "Corniche El Nil, Cairo 1089"). "auto" resolves
+ * direction per value from its first strong character, so Latin and Arabic
+ * addresses both read correctly.
+ */
+const venueValueHtml = (event, lang) => {
+  const mapsUrl = buildMapsUrl(event);
+  const name = event.location_name ? `<span dir="auto">${escapeHtml(event.location_name)}</span>` : '';
+  const address = event.location_address
+    ? `<br><span dir="auto" style="font-weight:400; font-size:13px; color:${BRAND.stone};">${escapeHtml(event.location_address)}</span>`
+    : '';
+  const directions = mapsUrl
+    ? `<br><a href="${mapsUrl}" target="_blank" rel="noopener" style="font-size:12px; font-weight:bold; color:${BRAND.gold}; text-decoration:underline;">${pick(lang, { en: 'Get directions &rarr;', ar: 'الاتجاهات &larr;' })}</a>`
+    : '';
+  return `${name}${address}${directions}`;
+};
+
+/**
+ * Entry pass — the QR the door scanner reads, plus the table and venue details
+ * around it.
+ *
+ * Seating is OPTIONAL by design. The pass used to be gated on a table
+ * assignment existing, which meant an organizer running an unseated event (a
+ * reception, a standing party, anything not a plated dinner) could never send
+ * their guests a check-in code at all. checkinController re-reads the live
+ * table at scan time rather than trusting the token, so an unseated pass is
+ * fully valid at the door — the table line just says so.
+ */
+const getQRTicketTemplate = (rsvp, event, { tableName = null, zoneName = null, links = {}, lang = 'en' } = {}) => {
+  const { qrImageUrl, qrDownloadUrl, ticketUrl } = links;
   const formattedTable = formatTableLabel(tableName, lang);
   const formattedDate = formatEventDateLang(event.event_date, lang);
-  const hasLocation = event.location_name || event.location_address;
+  const partySize = Number(rsvp.party_size) || 1;
   const rtl = isRtl(lang);
-  // The seat-card labels sit centered inside a panel, so they follow the mail's
-  // direction rather than the panel's own alignment.
-  const capType = rtl ? 'font-size:11px;' : 'font-size:10px; letter-spacing:2px; text-transform:uppercase;';
 
-  const dateHtml = formattedDate ? `
-    <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:12px;">
-      <strong>${pick(lang, { en: 'Date:', ar: 'التاريخ:' })}</strong> ${escapeHtml(formattedDate)}
-    </div>
-  ` : '';
-
-  const mapsUrl = buildMapsUrl(event);
-  // dir="auto" on venue name/address: these are operator-entered free text that
-  // may be Latin inside an RTL mail. Without it the client applies the mail's
-  // RTL direction and a street number jumps to the wrong end of the line
-  // ("1089 Corniche El Nil" renders as "Corniche El Nil, Cairo 1089").
-  // "auto" resolves direction per value from its first strong character, so
-  // Latin and Arabic addresses both read correctly.
-  const locationHtml = hasLocation ? `
-    <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">
-      <strong>${pick(lang, { en: 'Venue:', ar: 'المكان:' })}</strong> <span dir="auto">${escapeHtml(event.location_name || '')}</span>
-      ${event.location_address ? `<br/><span dir="auto" style="font-size:12px; color:${BRAND.stone}; opacity:0.85;">${escapeHtml(event.location_address)}</span>` : ''}
-      ${mapsUrl ? `<br/><a href="${mapsUrl}" style="font-size:12px; font-weight:700; color:${BRAND.gold}; text-decoration:underline;">${pick(lang, { en: 'Get Directions &rarr;', ar: 'الاتجاهات &larr;' })}</a>` : ''}
-    </div>
-  ` : '';
-
-  const seatSentence = rtl
-    ? `مقعدك المخصّص على <strong class="fr-ink" style="color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</strong>. يُرجى إبراز هذه البطاقة عند مكتب الاستقبال.`
-    : `Your assigned seating will be on <strong class="fr-ink" style="color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</strong>. Please present this pass at the entrance check-in desk.`;
+  const rows = [];
+  if (formattedDate) rows.push([pick(lang, { en: 'Date', ar: 'التاريخ' }), escapeHtml(formattedDate)]);
+  if (event.location_name || event.location_address) {
+    rows.push([pick(lang, { en: 'Venue', ar: 'المكان' }), venueValueHtml(event, lang)]);
+  }
+  if (zoneName) rows.push([pick(lang, { en: 'Zone', ar: 'المنطقة' }), escapeHtml(zoneName)]);
+  rows.push([pick(lang, { en: 'Admits', ar: 'عدد الأفراد' }), guestCount(partySize, lang)]);
 
   return emailShell({
     lang,
     preheader: pick(lang, {
-      en: `Your entry pass & table for ${event.title}`,
-      ar: `بطاقة دخولك وطاولتك في ${event.title}`,
+      en: `Your check-in QR code for ${event.title} — save this email`,
+      ar: `رمز دخولك إلى ${event.title} — احتفظ بهذه الرسالة`,
     }),
-    eyebrow: pick(lang, { en: 'Entry pass & seating', ar: 'بطاقة الدخول والجلوس' }),
+    eyebrow: pick(lang, { en: 'Your entry pass', ar: 'بطاقة دخولك' }),
     heading: escapeHtml(event.title),
     contentHtml: `
       ${greeting(rsvp.guest_name, lang)}
-      ${para(seatSentence)}
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
-        <tr><td align="center" class="fr-panel" style="background-color:${BRAND.ivory}; border:1px solid ${BRAND.border}; border-radius:16px; padding:26px 20px; text-align:center;">
-          <div style="font-family:${SANS}; ${capType} font-weight:bold; color:${BRAND.stone}; margin-bottom:8px;">${pick(lang, { en: 'Your Seat Is At', ar: 'مكان جلوسك' })}</div>
-          ${zoneName ? `<div style="font-family:${SANS}; font-size:11px; font-weight:600; ${rtl ? '' : 'letter-spacing:1px; text-transform:uppercase;'} color:${BRAND.gold}; margin-bottom:4px;">${pick(lang, { en: 'Zone', ar: 'المنطقة' })}: ${escapeHtml(zoneName)}</div>` : ''}
-          <div class="fr-ink" style="font-family:${SERIF}; font-size:34px; font-weight:bold; color:${BRAND.charcoal};">${escapeHtml(formattedTable)}</div>
-          <div style="font-family:${SANS}; font-size:13px; color:${BRAND.stone}; margin-top:8px;">${rtl ? guestCount(rsvp.party_size, lang) : `Party of ${rsvp.party_size || 1}`}</div>
-
-          ${dateHtml}
-          ${locationHtml}
-
-          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:22px auto 0;">
-            <tr><td style="background-color:${BRAND.white}; border:1px solid ${BRAND.border}; border-radius:14px; padding:14px;">
-              ${ticketUrl ? `<a href="${ticketUrl}" style="display:block;">` : ''}
-              <img src="${qrImageUrl}" alt="${pick(lang, { en: 'Your ticket QR code', ar: 'رمز دخولك QR' })}" width="200" height="200" style="display:block; width:200px; height:200px;" />
-              ${ticketUrl ? '</a>' : ''}
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-      ${ticketUrl ? badge(pick(lang, { en: '&#128205; Your Seat on the Venue Map', ar: '&#128205; موقع مقعدك على خريطة القاعة' })) : ''}
-      ${ticketUrl ? button(ticketUrl, pick(lang, { en: 'View My Seat on the Map', ar: 'عرض مقعدي على الخريطة' })) : ''}
-      ${ticketUrl
-        ? para(pick(lang, {
-            en: 'Opens the venue map with your own table highlighted, plus your party details — no app or login needed.',
-            ar: 'يفتح خريطة القاعة مع تمييز طاولتك وتفاصيل مرافقيك — بدون تطبيق أو تسجيل دخول.',
-          }), { size: 13, color: BRAND.stone, align: 'center', mb: 14 })
-        : ''}
       ${para(pick(lang, {
-        en: 'Show the QR code above at the entrance for our team to check you in.',
-        ar: 'اعرض رمز QR بالأعلى عند المدخل ليقوم فريقنا بتسجيل دخولك.',
-      }), { size: 13, color: BRAND.stone, align: 'center', mb: 0 })}
+        en: 'Here is your personal entry pass. The QR code below is what our team scans at the door — keep this email, or download the code so you have it even without a signal on the night.',
+        ar: 'هذه بطاقة دخولك الشخصية. رمز QR بالأسفل هو ما يمسحه فريقنا عند البوابة — احتفظ بهذه الرسالة، أو حمّل الرمز ليكون معك حتى بدون إنترنت ليلة الحفل.',
+      }))}
+
+      ${entryPass({
+        guestName: rsvp.guest_name,
+        eventTitle: event.title,
+        qrImageUrl,
+        ticketUrl,
+        tableIsAssigned: !!formattedTable,
+        tableValue: formattedTable || pick(lang, { en: 'Assigned when you arrive', ar: 'يُحدَّد عند وصولك' }),
+        admitsLabel: rtl ? guestCount(partySize, lang) : `Admits ${partySize}`,
+        reference: `#${String(rsvp.id || '').replace(/-/g, '').slice(-6).toUpperCase()}`,
+        lang,
+      })}
+
+      ${qrDownloadUrl ? button(qrDownloadUrl, pick(lang, { en: '&#11015; Download my QR code', ar: '&#11015; تحميل رمز الدخول' })) : ''}
+      ${ticketUrl ? button(ticketUrl, pick(lang, { en: 'Open my pass online', ar: 'فتح بطاقتي أونلاين' }), { bg: BRAND.white, color: BRAND.goldDark, border: BRAND.gold }) : ''}
+      ${para(pick(lang, {
+        en: "Saving the code puts it in your photos, so you can show it at the entrance without opening your email. The online pass always shows your latest table.",
+        ar: 'تحميل الرمز يحفظه في صورك، فتعرضه عند المدخل دون فتح بريدك. أما البطاقة أونلاين فتعرض دائمًا آخر تحديث لطاولتك.',
+      }), { size: 13, color: BRAND.stone, align: 'center', mb: 6 })}
+
+      ${dataTable(rows, lang)}
+
+      ${noticeBox(pick(lang, {
+        en: 'This pass is personal and admits your party only. Please have it ready when you reach the entrance.',
+        ar: 'هذه البطاقة شخصية وتخصّ مرافقيك وحدهم. برجاء تجهيزها عند وصولك إلى المدخل.',
+      }), 'warn')}
     `,
   });
 };
@@ -902,7 +1085,7 @@ const getEventReminderTemplate = (rsvp, event, opts = {}, lang = 'en') => {
   const rows = [];
   if (formattedDate) rows.push([pick(lang, { en: 'When', ar: 'الموعد' }), escapeHtml(formattedDate)]);
   if (where) rows.push([pick(lang, { en: 'Where', ar: 'المكان' }), escapeHtml(where)]);
-  if (opts.tableName) rows.push([pick(lang, { en: 'Your assigned seating', ar: 'مكان جلوسك' }), escapeHtml(formatTableLabel(opts.tableName, lang)), BRAND.gold]);
+  if (opts.tableName) rows.push([pick(lang, { en: 'Your table', ar: 'طاولتك' }), escapeHtml(formatTableLabel(opts.tableName, lang)), BRAND.gold]);
   return emailShell({
     lang,
     preheader: pick(lang, { en: `See you soon at ${event.title}`, ar: `نراك قريبًا في ${event.title}` }),
@@ -1136,12 +1319,14 @@ module.exports = {
   getPublicBaseUrl,
   buildGuestEventUrl,
   buildGuestRsvpUrl,
+  buildTicketLinks,
   formatEventDate,
   // RSVP lifecycle
   getInvitationTemplate,
   getRSVPConfirmationTemplate,
   getCompanionRSVPConfirmationTemplate,
   getDeclineConfirmationTemplate,
+  getRsvpClaimTemplate,
   getQRTicketTemplate,
   getRsvpReminderTemplate,
   getEventReminderTemplate,

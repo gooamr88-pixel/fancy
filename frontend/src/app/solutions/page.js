@@ -59,6 +59,12 @@ function AudienceCard({ audience }) {
       href={audience.href}
       className="aud-card"
       style={{
+        // The hover border colour differs per audience, so it cannot live in a
+        // :global() rule — one global rule would paint every card the last
+        // card's colour. Passed as a custom property instead: `style` is
+        // forwarded to the underlying <a>, so this arrives even though the
+        // styled-jsx hash class does not.
+        "--aud-color": audience.color,
         display: "block",
         background: "#FFFFFF",
         border: "1px solid #E8E2D6",
@@ -96,12 +102,16 @@ function AudienceCard({ audience }) {
       </span>
 
       <style jsx>{`
-        .aud-card { transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94); box-shadow: 0 2px 12px rgba(0,0,0,0.03); }
-        .aud-card:hover, .aud-card:focus-visible { transform: translateY(-6px); box-shadow: 0 20px 60px rgba(0,0,0,0.08); border-color: ${audience.color}; }
+        /* :global() because .aud-card sits on a next/link <Link>, which never
+           receives styled-jsx's hash class — the rules below matched nothing at
+           all before this. .aud-accent stays scoped: it is on a plain <div>,
+           which does get the hash. */
+        :global(.aud-card) { transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94); box-shadow: 0 2px 12px rgba(0,0,0,0.03); }
+        :global(.aud-card):hover, :global(.aud-card):focus-visible { transform: translateY(-6px); box-shadow: 0 20px 60px rgba(0,0,0,0.08); border-color: var(--aud-color); }
         .aud-accent { opacity: 0; transition: opacity 0.3s ease; }
-        .aud-card:hover .aud-accent, .aud-card:focus-visible .aud-accent { opacity: 1; }
+        :global(.aud-card):hover .aud-accent, :global(.aud-card):focus-visible .aud-accent { opacity: 1; }
         @media (max-width: 639.98px) {
-          .aud-card { padding: 28px 22px !important; }
+          :global(.aud-card) { padding: 28px 22px !important; }
         }
       `}</style>
     </Link>

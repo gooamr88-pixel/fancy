@@ -681,7 +681,7 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
             rsvpId={rsvp.id}
             resending={resending}
             onResend={onResend}
-            title="Resend QR ticket email (requires table assignment)"
+            title="Send check-in QR pass to this guest"
           />
           <DeleteButton rsvpId={rsvp.id} deletingId={deletingId} onDelete={onDelete} />
         </div>
@@ -729,7 +729,7 @@ const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, rese
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: `1px solid ${COLORS.border}`, paddingTop: 10 }}>
         <IconActionButton title="Edit guest" onClick={() => onEdit(rsvp)} icon={PencilIcon} />
         <ResendButton type="confirmation" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Resend confirmation email" />
-        <ResendButton type="qr" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Resend QR ticket email (requires table assignment)" />
+        <ResendButton type="qr" rsvpId={rsvp.id} resending={resending} onResend={onResend} title="Send check-in QR pass to this guest" />
         <DeleteButton rsvpId={rsvp.id} deletingId={deletingId} onDelete={onDelete} />
       </div>
     </div>

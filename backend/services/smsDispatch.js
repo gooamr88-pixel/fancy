@@ -66,34 +66,35 @@ function resolveResponses(audiences) {
  * are the party id and label (the historical "rsvp"/"guest" naming downstream
  * in this file is kept as-is; only the underlying query changed).
  *
- * REFUSED-CONSENT EXCLUSION (TCPA / Twilio TFV). Since 2026-08-01 the SMS
- * consent checkbox is optional on every RSVP surface — a guest can submit a
- * phone number with the box left unticked, which is the only way SMS consent is
- * genuinely independent of attending. That refusal has to bite somewhere, and
- * this is the somewhere: the `.or()` below keeps a party only when it opted in,
- * or when it was never asked.
+ * EXPRESS-CONSENT GATE (TCPA / Twilio TFV rejection 30475). A party is a valid
+ * SMS recipient only when `sms_consent = true` — i.e. the guest personally
+ * ticked the optional, unbundled consent checkbox on an RSVP form or on
+ * /sms-opt-in. Nothing else qualifies:
  *
- *   sms_consent = true                       → guest ticked the box. Send.
- *   sms_consent = false, sms_consent_at NULL → never asked. Host-supplied
- *       number (CSV import / manual add), covered by the organizer's per-launch
- *       consent attestation, the CTIA host-consent model in Terms §5. Send.
- *       (add_guest_to_party takes no consent argument, so these rows keep the
- *       column default and a NULL timestamp — that NULL is the discriminator.)
+ *   sms_consent = true                       → guest opted in. Send.
  *   sms_consent = false, sms_consent_at SET  → asked and DECLINED. Never send.
- *       submit_rsvp_v2 stamps sms_consent_at on every write, including a
- *       `false`, precisely so a refusal is a dated record rather than an
- *       absence.
+ *   sms_consent = false, sms_consent_at NULL → never asked (CSV import, manual
+ *       add, or any pre-2026-08-04 row). Never send. Absence of a consent
+ *       record is not consent, and historical rows are deliberately NOT
+ *       migrated into consent.
  *
- * Hard-filtering on `sms_consent = true` alone would be wrong here: it would
- * silently break the import → SMS-invitation flow the product is built around.
- * This is the narrower rule that honours an actual refusal without doing that.
+ * Until 2026-08-04 the NULL-timestamp case was treated as sendable under an
+ * organizer "host consent" attestation (Terms §5), so imported numbers could be
+ * texted without the guest ever opting in. That is withdrawn: it made the
+ * platform the party relying on someone else's unverifiable consent, and it
+ * contradicted the public /sms-opt-in page, which tells reviewers that only
+ * guests who ticked the box are ever messaged. Organizers who import numbers
+ * must now invite those guests by email and let them opt in themselves.
+ *
+ * Do NOT loosen this back to an `.or()`. The organizer attestation is retained
+ * as an additional gate on campaign launch, never as a substitute for consent.
  */
 async function fetchRecipients(eventId, { audiences = ['pending'], guestIds = null, limit = 100000 } = {}) {
   let query = supabase
     .from('rsvp_parties')
     .select('id, label, response, guests!inner(is_primary_contact, phone)')
     .eq('event_id', eventId)
-    .or('sms_consent.eq.true,sms_consent_at.is.null')
+    .eq('sms_consent', true)
     .eq('guests.is_primary_contact', true)
     .not('guests.phone', 'is', null);
 
@@ -195,6 +196,64 @@ async function isOptedOut(phone) {
   return set.has(canonical);
 }
 
+/* ─── Express-consent verification (Twilio TFV 30475 / TCPA) ─── */
+
+/**
+ * Every phone number on this event whose owner personally opted in
+ * (rsvp_parties.sms_consent = true). Returned canonicalized to +E.164 so it can
+ * be compared against numbers stored in any format.
+ *
+ * The whole event's consented set is fetched rather than filtering by the
+ * candidate numbers: stored numbers are not guaranteed canonical, so an `.in()`
+ * on raw values would miss legitimate matches. The set is bounded by event size.
+ *
+ * Unlike the opt-out lookup — which fails OPEN so a missing suppression table
+ * cannot silently block all sending — this fails CLOSED. Absence of proof of
+ * consent is not consent, so any error here must stop the send, not permit it.
+ *
+ * That fail-closed direction is exactly why the row cap is explicit and loud: a
+ * silently truncated set does not over-send, it under-sends, dropping consenting
+ * guests with a per-message "NO_SMS_CONSENT" that looks indistinguishable from a
+ * genuine refusal. Matches the ceiling fetchRecipients uses, so any audience it
+ * can produce fits.
+ */
+const CONSENT_SET_MAX = 100000;
+
+async function getConsentedPhoneSet(eventId) {
+  const out = new Set();
+  const { data, error } = await supabase
+    .from('rsvp_parties')
+    .select('guests!inner(phone, is_primary_contact)')
+    .eq('event_id', eventId)
+    .eq('sms_consent', true)
+    .eq('guests.is_primary_contact', true)
+    .not('guests.phone', 'is', null)
+    .limit(CONSENT_SET_MAX);
+  if (error) throw error;
+  const rows = data || [];
+  if (rows.length >= CONSENT_SET_MAX) {
+    // Never degrade quietly: throwing routes into sendRecipient's fail-closed
+    // branch, which stops the send instead of mislabelling consenting guests as
+    // non-consenting.
+    logger.error({ eventId, cap: CONSENT_SET_MAX }, 'SMS consent set hit its row cap — refusing to send on a possibly truncated set.');
+    throw new Error('CONSENT_SET_TRUNCATED');
+  }
+  for (const row of rows) {
+    const primary = Array.isArray(row.guests) ? row.guests[0] : row.guests;
+    const canonical = canonicalPhone(primary?.phone);
+    if (canonical) out.add(canonical);
+  }
+  return out;
+}
+
+/** True only when this number has an affirmative consent record on this event. */
+async function hasSmsConsent(eventId, phone) {
+  const canonical = canonicalPhone(phone);
+  if (!canonical) return false;
+  const set = await getConsentedPhoneSet(eventId);
+  return set.has(canonical);
+}
+
 /* ─── Atomic credit billing (segment-accurate, with single-credit fallback) ─── */
 let multiCreditUnavailable = false;
 
@@ -250,9 +309,30 @@ async function refundCredits(walletId, eventId, ledgerId, count) {
  * Pure & reusable; callers aggregate the returned result.
  * @returns {{kind:'sent'|'failed'|'skipped', credits?:number, ledgerId?:string, sid?:string, error?:string}}
  */
-async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, fromNumber, optedOut = null }) {
+async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, fromNumber, optedOut = null, consented = null }) {
   const norm = normalizePhone(phone);
   if (!isValidPhone(norm)) return { kind: 'failed', error: 'INVALID_PHONE' };
+
+  const canonicalTarget = canonicalPhone(norm);
+
+  // TCPA / Twilio TFV 30475: no message is created without an affirmative,
+  // guest-given consent record. Re-verified HERE, per message, rather than
+  // trusting the audience query that produced this recipient — a campaign
+  // queued days ago must not send to someone who has since had their consent
+  // record removed, and any future caller of sendRecipient inherits the gate
+  // automatically. Callers that dispatch in batches pass a preloaded
+  // `consented` Set (one query per batch); the per-message lookup is the
+  // fallback. Fails CLOSED: a lookup error skips the send rather than
+  // permitting it, and the number is never billed.
+  try {
+    const permitted = consented instanceof Set
+      ? (canonicalTarget != null && consented.has(canonicalTarget))
+      : await hasSmsConsent(eventId, norm);
+    if (!permitted) return { kind: 'skipped', error: 'NO_SMS_CONSENT' };
+  } catch (e) {
+    logger.error({ err: e, eventId }, 'SMS consent verification failed — send blocked (failing closed).');
+    return { kind: 'skipped', error: 'CONSENT_CHECK_FAILED' };
+  }
 
   // TCPA/CTIA: an opted-out number is never messaged, from any path (sync
   // controller, async worker, or any future caller), and never billed. Checked
@@ -260,9 +340,8 @@ async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, 
   // queued still suppresses the queued send. Callers that dispatch in batches
   // pass a preloaded `optedOut` Set (one query per batch instead of one per
   // message); the per-message lookup remains the fallback.
-  const canonical = canonicalPhone(norm);
   const suppressed = optedOut instanceof Set
-    ? (canonical != null && optedOut.has(canonical))
+    ? (canonicalTarget != null && optedOut.has(canonicalTarget))
     : await isOptedOut(norm);
   if (suppressed) return { kind: 'skipped', error: 'OPTED_OUT' };
 
@@ -298,6 +377,8 @@ module.exports = {
   canonicalPhone,
   getOptedOutSet,
   isOptedOut,
+  getConsentedPhoneSet,
+  hasSmsConsent,
   VALID_AUDIENCES,
   AUDIENCE_RESPONSES,
   sleep,

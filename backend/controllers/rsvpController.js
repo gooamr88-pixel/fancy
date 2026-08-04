@@ -5,11 +5,12 @@ const guestService = require('../services/guestService');
 const tokenService = require('../services/tokenService');
 const invitationService = require('../services/invitationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
-const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate } = require('../utils/emailTemplates');
+const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate, getRsvpClaimTemplate } = require('../utils/emailTemplates');
+const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isEventLiveForGuests } = require('../utils/eventAccess');
 const { normalizeToE164 } = require('../utils/phone');
 const { normalizeEmail, escapeLikePattern } = require('../utils/normalize');
-const { SMS_CONSENT_TEXT_VERSION, normalizeConsentSource } = require('../utils/smsConsent');
+const { SMS_CONSENT_TEXT_VERSION, normalizeConsentSource, logSmsConsentDecision } = require('../utils/smsConsent');
 const { broadcast } = require('../utils/realtime');
 const { sendOk, sendFail, sendRpcFailure } = require('../utils/responseEnvelope');
 
@@ -80,9 +81,11 @@ const submitPublicRSVP = async (req, res, next) => {
   //
   // The submission is now accepted either way and `smsConsent` is persisted as
   // given (submit_rsvp_v2 stamps sms_consent_at on every write, so an explicit
-  // `false` is itself a dated record of refusal). Consent is enforced where it
-  // actually matters — at send time, in smsDispatch.fetchRecipients, which
-  // excludes any party that was asked and declined.
+  // `false` is itself a dated record of refusal). A phone number submitted
+  // without consent is stored for the host's guest list and nothing more — it is
+  // never treated as consent. Consent is enforced where it actually matters, at
+  // send time: smsDispatch.fetchRecipients requires sms_consent = true, and
+  // sendRecipient re-verifies it per message.
 
   // Email is required for attendees (confirmation + logistics), optional for a
   // decline; when present it must be valid either way.
@@ -147,31 +150,30 @@ const submitPublicRSVP = async (req, res, next) => {
       if (!Array.isArray(additionalGuests) || additionalGuests.length < size - 1) {
         return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Please provide details for all ${size - 1} additional guests.` });
       }
+      // A companion is a NAME. Contact details, meal and dietary notes belong to
+      // the person who opened the invitation and is filling this in; anyone they
+      // bring is recorded so the organizer can seat, count and check them in.
+      // Requiring an email per companion is what forced households sharing one
+      // inbox into idx_guests_event_email_unique, which submit_rsvp_v2 used to
+      // "resolve" by silently discarding the address.
       for (let idx = 0; idx < size - 1; idx++) {
         const g = additionalGuests[idx];
         if (!g || !g.fullName || !g.fullName.trim()) {
           return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Guest #${idx + 2} must have a valid full name.` });
         }
-        if (!g.email || !String(g.email).trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email)) {
-          return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Guest #${idx + 2} must have a valid email address.` });
-        }
-        if (!g.phone || !normalizeToE164(g.phone)) {
-          return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: `Guest #${idx + 2} must have a valid phone number.` });
-        }
       }
     }
   }
 
-  // Soft-normalise each companion's phone to E.164 if it parses; if not, drop
-  // the raw value rather than persist mixed formats that break the organizer's
-  // search/dedup later.
+  // Reduced to the one field a companion has. Anything else a caller sends —
+  // an old client still posting email/phone/meal, or a hand-rolled request — is
+  // dropped here rather than rejected: the submission is valid, the extra keys
+  // simply have nowhere to go now, and failing an otherwise-good RSVP over them
+  // would be hostile.
   const sanitizedAdditional = Array.isArray(additionalGuests)
-    ? additionalGuests.map((g) => {
-        if (!g) return g;
-        const raw = typeof g.phone === 'string' ? g.phone.trim() : '';
-        const normalised = raw ? normalizeToE164(raw) : null;
-        return { ...g, phone: normalised || null };
-      })
+    ? additionalGuests
+        .filter((g) => g && typeof g.fullName === 'string' && g.fullName.trim())
+        .map((g) => ({ fullName: g.fullName.trim() }))
     : [];
 
   try {
@@ -184,6 +186,10 @@ const submitPublicRSVP = async (req, res, next) => {
       declineReason: decline_reason, maybeConfirmBy: maybe_confirm_by,
       side: side || null,
       smsConsent: !!smsConsent,
+      // Companion meals arrive as a tally for the group, not a choice per
+      // person — see the migration's header. Validated inside the RPC against
+      // the event's own meal options.
+      companionMealCounts: req.body?.companionMealCounts || null,
     });
 
     if (!result || result.success === false) {
@@ -206,11 +212,12 @@ const submitPublicRSVP = async (req, res, next) => {
     // condition stays keyed on `normalizedPhone` because a guest who gave no
     // number was never shown the checkbox at all.
     if (normalizedPhone && result.party_id) {
+      const consentSource = normalizeConsentSource(req.body?.consentSource);
       supabase
         .from('rsvp_parties')
         .update({
           sms_consent_text_version: SMS_CONSENT_TEXT_VERSION,
-          sms_consent_source: normalizeConsentSource(req.body?.consentSource),
+          sms_consent_source: consentSource,
         })
         .eq('id', result.party_id)
         .then(
@@ -221,6 +228,21 @@ const submitPublicRSVP = async (req, res, next) => {
           // become an unhandled rejection in the hot RSVP path.
           (err) => logger.warn({ err, partyId: result.party_id }, 'sms consent provenance write rejected'),
         );
+
+      // Append-only consent log (Twilio TFV 30475). The columns above are
+      // current state on a mutable row; this is the dated, immutable record of
+      // the decision itself, with the phone number as it stood at capture time.
+      // Logged for a REFUSAL as well as an opt-in — a dated decline is evidence
+      // that consent was asked separately and freely declined. Fire-and-forget:
+      // consent has already been persisted atomically by the RPC, so this must
+      // never block or fail the guest's RSVP.
+      logSmsConsentDecision({
+        eventId,
+        partyId: result.party_id,
+        phone: normalizedPhone,
+        consent: !!smsConsent,
+        source: consentSource,
+      });
     }
 
     broadcast(eventId, 'rsvp_submitted', {
@@ -238,22 +260,12 @@ const submitPublicRSVP = async (req, res, next) => {
         logger.warn({ partyId: result.party_id, eventId, response: result.response },
           'RSVP recorded without a guest email — confirmation email skipped');
       }
-      // Companions are only registered (and mailed) on an actual 'yes'.
-      if (result.response === 'yes' && Array.isArray(sanitizedAdditional)) {
-        sanitizedAdditional.forEach((companion) => {
-          if (companion && companion.email && companion.email.trim()) {
-            notificationService.sendCompanionConfirmationEmail({
-              companionName: companion.fullName,
-              mainGuestName: guestName,
-              eventTitle: result.event_title,
-              eventDate: result.event_date,
-              eventSlug: result.event_slug,
-              companionEmail: companion.email.trim(),
-              lang: guestLang,
-            }).catch((err) => logger.error({ err, companionEmail: companion.email }, 'Companion confirmation email error'));
-          }
-        });
-      }
+      // Companions are no longer mailed: they have no address of their own any
+      // more. The one confirmation above goes to the person who filled the form
+      // in, and it carries the entry pass for the whole party — the QR reads
+      // "Admits N" and the door scanner checks in every member on one scan
+      // (checkinController.scanCheckIn). notificationService still exports
+      // sendCompanionConfirmationEmail; nothing calls it.
     } else if (result.response === 'no' && !result.guest_email) {
       logger.warn({ partyId: result.party_id, eventId }, 'Decline recorded without a guest email — thank-you email skipped');
     } else if (result.response === 'no') {
@@ -508,29 +520,36 @@ const importGuestsCSV = async (req, res, next) => {
       });
     }
 
-    // TCPA/CTIA + Terms §5 ("Host Consent Obligations"): importing phone numbers
-    // requires the organizer's affirmative attestation that every guest already
-    // gave prior express consent to receive texts about this event. Enforced
-    // here (not just in the modal) so a direct API call can't skip it. Files
-    // without phone numbers import freely. The attestation itself is recorded
-    // per-send on each campaign launch (sms_campaigns.consent_attested_*).
+    // TCPA/CTIA + Terms §5 ("Host Consent Obligations"). The attestation is what
+    // makes imported numbers textable: with it, each phone-bearing row is stamped
+    // as host_attested consent; without it, the numbers still import (the
+    // organizer may simply want them on their guest list) but are never sent an
+    // SMS. Deliberately NOT a hard 400 — blocking the import would force an
+    // organizer to claim consent they may not have just to store a number, which
+    // is exactly the coerced-consent pattern this whole model avoids.
     const rowsWithPhone = dedupedRows.filter((r) => r.phone).length;
     const attested = consentAttested === true || consentAttested === 'true';
-    if (rowsWithPhone > 0 && !attested) {
-      return sendFail(res, {
-        status: 400, error: 'CONSENT_ATTESTATION_REQUIRED',
-        message: `${rowsWithPhone} row(s) include a phone number. Confirm that every guest on this list has already agreed to receive text messages about your event before importing (consentAttested: true).`,
-      });
-    }
 
-    const { imported, skippedExisting, errors } = await guestService.importGuests(eventId, req.user?.id || null, dedupedRows);
+    const { imported, skippedExisting, errors } = await guestService.importGuests(
+      eventId, req.user?.id || null, dedupedRows, { smsConsentAttested: attested },
+    );
     const skippedCount = skippedInFile + skippedExisting;
+
+    // Tell the organizer plainly what the import did to SMS eligibility, so the
+    // consequence of the checkbox is visible at the moment it took effect.
+    const smsNote = rowsWithPhone === 0
+      ? null
+      : attested
+        ? `${rowsWithPhone} guest(s) with a phone number were recorded as consenting to event texts, based on your confirmation.`
+        : `${rowsWithPhone} guest(s) have a phone number but were not marked as consenting to texts, so they can't be sent an SMS. They can opt in themselves on their RSVP form.`;
 
     return sendOk(res, {
       message: `Imported ${imported.length} guest record(s) in pending state`
         + (skippedCount ? `; skipped ${skippedCount} duplicate(s)` : '')
-        + (errors.length ? `; ${errors.length} failed` : '') + '.',
+        + (errors.length ? `; ${errors.length} failed` : '') + '.'
+        + (smsNote ? ` ${smsNote}` : ''),
       importedCount: imported.length, skippedCount, errorCount: errors.length, errors, guests: imported,
+      smsConsentAttested: attested, phoneRowCount: rowsWithPhone,
     }, { status: 201 });
   } catch (err) {
     next(err);
@@ -631,7 +650,7 @@ const deleteRSVP = async (req, res, next) => {
  */
 const updateRSVP = async (req, res, next) => {
   const { eventId, partyId } = req.params;
-  const { guestName, email, phone, response, partySize, notes, primaryGuestMeal, additionalGuests, side, category } = req.body;
+  const { guestName, email, phone, response, partySize, notes, primaryGuestMeal, additionalGuests, side, category, companionMealCounts } = req.body;
 
   try {
     if (response !== undefined && !['yes', 'no', 'maybe', 'pending', 'waitlist'].includes(response)) {
@@ -664,8 +683,34 @@ const updateRSVP = async (req, res, next) => {
       }
     }
 
+    // Two members of the SAME party given one address. guestService's conflict
+    // check only looks at OTHER parties, so this would otherwise reach the
+    // unique index and come back as a 500 with nothing naming the two rows
+    // that collided.
+    const seenEmails = new Map();
+    const emailEntries = [
+      ['the main guest', email],
+      ...(Array.isArray(additionalGuests) ? additionalGuests.map((g, idx) => [`Guest #${idx + 2}`, g?.email]) : []),
+    ];
+    for (const [who, raw] of emailEntries) {
+      const normalized = normalizeEmail(raw);
+      if (!normalized) continue;
+      if (seenEmails.has(normalized)) {
+        return sendFail(res, {
+          status: 400, error: 'VALIDATION_ERROR',
+          message: `${seenEmails.get(normalized)} and ${who} were both given ${normalized}. Each guest needs their own email address, or leave one blank.`,
+        });
+      }
+      seenEmails.set(normalized, who);
+    }
+
     const party = await guestService.updateParty(eventId, partyId, {
       guestName, email, phone, response, partySize, notes, primaryMeal: primaryGuestMeal, additionalGuests, side, category,
+      companionMealCounts,
+      // Lets an organizer confirm consent for a guest they added or imported
+      // before ticking it. Still cannot override a guest's own decision.
+      smsConsentAttested: req.body?.smsConsentAttested === true || req.body?.smsConsentAttested === 'true',
+      actorUserId: req.user?.id || null,
     });
     if (!party) return sendFail(res, { status: 404, error: 'RSVP_NOT_FOUND' });
     // A-16 item 6: the category is a fixed enum, so an unrecognised value is a
@@ -675,6 +720,20 @@ const updateRSVP = async (req, res, next) => {
       return sendFail(res, {
         status: 400, error: 'VALIDATION_ERROR',
         message: `category must be one of: ${guestService.GUEST_CATEGORIES.join(', ')}.`,
+      });
+    }
+    // Contact details are unique per event at the DB level. Without this the
+    // unique-index violation reached the organizer as a bare 500 ("An
+    // unexpected error occurred on the server") with nothing naming the field,
+    // let alone the guest already holding it.
+    if (party.error === 'DUPLICATE_EMAIL' || party.error === 'DUPLICATE_PHONE') {
+      const isEmail = party.error === 'DUPLICATE_EMAIL';
+      const what = isEmail ? 'email address' : 'phone number';
+      const who = party.conflictWith ? `${party.conflictWith} already uses` : 'Another guest on this event already uses';
+      return sendFail(res, {
+        status: 409,
+        error: party.error,
+        message: `${who} this ${what}. Each guest needs their own${isEmail ? '' : ' — companions can share a number, but the main contact cannot'}.`,
       });
     }
 
@@ -691,7 +750,7 @@ const updateRSVP = async (req, res, next) => {
  */
 const addGuestManually = async (req, res, next) => {
   const { eventId } = req.params;
-  const { guestName, email, phone, response, partyId, partySize, notes, side, primaryGuestMeal } = req.body;
+  const { guestName, email, phone, response, partyId, partySize, notes, side, primaryGuestMeal, smsConsentAttested } = req.body;
 
   if (!guestName || !guestName.trim()) {
     return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'guestName is required.' });
@@ -708,11 +767,18 @@ const addGuestManually = async (req, res, next) => {
   const resolvedPartySize = partySize ? parseInt(partySize, 10) : 1;
 
   try {
+    // TCPA/CTIA + Terms §5: an organizer adding someone else's number may attest
+    // that they already hold that guest's consent to be texted about the event.
+    // Optional — an unattested number is stored for the guest list and simply
+    // never messaged. Only meaningful alongside a phone number.
+    const attested = smsConsentAttested === true || smsConsentAttested === 'true';
+
     const result = await guestService.addGuest({
       eventId, actorUserId: req.user?.id, fullName: guestName.trim(),
       phone: phone ? normalizeToE164(phone) : null, email: normalizedEmail, partyId, response: guestResponse,
       partySize: resolvedPartySize, notes: notes ? String(notes).trim() : null, side: guestSide,
       primaryMeal: primaryGuestMeal ? String(primaryGuestMeal).trim() : null,
+      smsConsentAttested: attested, consentSource: 'host_manual_add',
     });
 
     if (!result || result.success === false) return sendRpcFailure(res, result);
@@ -909,10 +975,94 @@ const getTicketSeatingView = async (req, res, next) => {
 };
 
 /**
+ * Emails a short-lived link that lets the owner of an address edit the RSVP
+ * registered to it.
+ * POST /api/v1/public/events/:slug/rsvp/claim  { email }
+ *
+ * Reached from the "This email is already registered" card, after a submission
+ * matched a party that has already answered. It replaces the old "That's me —
+ * update my response" button, which merged into that party on a click alone —
+ * explicit, but proof of nothing.
+ *
+ * THE RESPONSE IS IDENTICAL WHETHER OR NOT ANYTHING MATCHED, and deliberately
+ * so. Anything that varied — a different code, a different message, even a
+ * measurably different latency class — would turn this into an oracle for "is
+ * this person on the guest list", which is exactly the leak the 409's
+ * name-nobody wording exists to prevent. The only observable difference is
+ * whether an email arrives, and only its owner can observe that.
+ */
+const claimRsvpByEmail = async (req, res, next) => {
+  const { slug } = req.params;
+  const normalizedEmail = normalizeEmail(req.body?.email);
+
+  // One body for every outcome: matched, not matched, not editable, no event.
+  const sameAnswer = () => sendOk(res, {
+    message: 'If that email is registered for this event, we have sent a link to update the response.',
+  });
+
+  if (!normalizedEmail || !EMAIL_RE.test(normalizedEmail)) {
+    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid email address.' });
+  }
+
+  try {
+    const { data: event } = await supabase
+      .from('events')
+      .select('id, slug, title, is_paid, status, allow_guest_edits, rsvp_deadline')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (!event || !isEventLiveForGuests(event)) return sameAnswer();
+    // Nothing to claim if the host doesn't allow changes, or the window closed.
+    if (!event.allow_guest_edits) return sameAnswer();
+    if (event.rsvp_deadline && new Date() > new Date(event.rsvp_deadline)) return sameAnswer();
+
+    // Primary contacts only: the address has to be the one that owns the party,
+    // not a companion's. Companions have no email at all any more, so this is
+    // belt-and-braces for parties that predate that change.
+    const { data: match } = await supabase
+      .from('guests')
+      .select('full_name, party_id, rsvp_parties!inner(id, label, response, event_id)')
+      .eq('event_id', event.id)
+      .eq('is_primary_contact', true)
+      .ilike('email', escapeLikePattern(normalizedEmail))
+      .limit(1)
+      .maybeSingle();
+
+    const party = match?.rsvp_parties;
+    if (!party) return sameAnswer();
+
+    const claimToken = tokenService.signRsvpClaim({ partyId: party.id, eventId: event.id });
+    const claimUrl = `${getPublicBaseUrl()}/rsvp?token=${encodeURIComponent(claimToken)}`;
+    const lang = String(req.body?.lang || '').toLowerCase().startsWith('ar') ? 'ar' : 'en';
+    const html = getRsvpClaimTemplate(party.label || match.full_name, event, claimUrl, lang);
+    const subject = lang === 'ar' ? `تعديل ردّك على ${event.title}` : `Update your RSVP for ${event.title}`;
+
+    // NOT awaited, and that is the point. Awaiting it made the matched path
+    // measurably slower than the unmatched one — a Brevo round trip is hundreds
+    // of milliseconds — which is a timing oracle for "is this address on the
+    // guest list", the exact leak the identical body is here to prevent.
+    // Firing it off keeps both paths the same shape; a delivery failure is
+    // logged and never reaches the caller, who could do nothing with it anyway.
+    notificationService.sendEmailViaBrevo(normalizedEmail, subject, html)
+      .catch((mailErr) => logger.error({ err: mailErr, eventId: event.id, partyId: party.id }, 'RSVP claim email failed'));
+    return sameAnswer();
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Resolves a signed invitation token into the guest + event context that
  * powers the public RSVP confirmation page. Read-only — does not record a
  * response, so email-link pre-fetching by security scanners is harmless.
  * GET /api/v1/public/rsvp/invite?token=...
+ *
+ * Accepts an rsvp_claim token as well as an rsvp_invite one. Both grant exactly
+ * the same capability — resolve THIS party so its own guest can fill the form
+ * in — so the claim link reuses the entry point the invitation emails already
+ * use (`/rsvp?token=…`) rather than needing a second resolver on the client.
+ * They stay separate purposes because they are minted for different reasons and
+ * live for very different lengths of time (30 days vs 30 minutes).
  */
 const getRsvpInvite = async (req, res, next) => {
   const { token } = req.query;
@@ -922,7 +1072,11 @@ const getRsvpInvite = async (req, res, next) => {
   try {
     payload = tokenService.verifyRsvpInvite(token);
   } catch {
-    return sendFail(res, { status: 401, error: 'INVALID_TOKEN', message: 'This invitation link is invalid or has expired.' });
+    try {
+      payload = tokenService.verifyRsvpClaim(token);
+    } catch {
+      return sendFail(res, { status: 401, error: 'INVALID_TOKEN', message: 'This invitation link is invalid or has expired.' });
+    }
   }
 
   try {
@@ -1143,6 +1297,7 @@ module.exports = {
   getRSVPs,
   importGuestsCSV,
   getRsvpInvite,
+  claimRsvpByEmail,
   respondViaToken,
   getRsvpStats,
   exportGuestsCSV,

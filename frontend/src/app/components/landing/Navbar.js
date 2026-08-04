@@ -35,6 +35,7 @@ import { useModalA11y } from "../../hooks/useModalA11y";
 const NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "Features", href: "/features" },
+  { label: "Door App", href: "/checkin-app" },
   { label: "Pricing", href: "/pricing" },
   { label: "Solutions", href: "/solutions" },
   { label: "Blog", href: "/blog" },
@@ -463,13 +464,13 @@ export default function Navbar() {
       <div style={{ height: "78px" }} />
 
       <style jsx>{`
-        .desktop-nav-link {
+        :global(.desktop-nav-link) {
           color: #191B1E;
           transition: color 0.25s ease;
         }
         .desktop-nav-link:hover,
         .desktop-nav-link:focus-visible,
-        .desktop-nav-link-active {
+        :global(.desktop-nav-link-active) {
           color: #B8944F;
         }
 

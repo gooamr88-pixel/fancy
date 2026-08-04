@@ -182,7 +182,7 @@ export default function StepSuccess({
                 </div>
               ) : (
                 <PremiumButton variant="outline" onClick={() => fetchSeatingMap(partyId)} loading={seatingLoading} icon={<MapPinIcon size={15} />}>
-                  {isRTL ? 'اعرض مكان جلوسي على الخريطة' : 'View where I sit on the map'}
+                  {isRTL ? 'اعرض طاولتي على الخريطة' : 'Find my table on the map'}
                 </PremiumButton>
               )}
             </FadeInUp>

@@ -17,11 +17,7 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const tokenService = require('./tokenService');
 const notificationService = require('../utils/notificationService');
-const { getInvitationTemplate, getQRTicketTemplate, buildGuestEventUrl } = require('../utils/emailTemplates');
-const { getPublicBaseUrl } = require('../utils/publicUrl');
-
-const BACKEND_BASE = () =>
-  process.env.BACKEND_URL ? process.env.BACKEND_URL.replace(/\/$/, '') : `http://localhost:${process.env.PORT || 5000}`;
+const { getInvitationTemplate, getQRTicketTemplate, buildGuestEventUrl, buildTicketLinks } = require('../utils/emailTemplates');
 
 /** Records one delivery attempt in the unified ledger. */
 async function logInvitation({ partyId, eventId, channel, token = null, status, metadata = {} }) {
@@ -151,26 +147,43 @@ async function sendEmailBulk(eventId, { partyIds, resend = false } = {}) {
   return { queued: candidates.length, sent, skipped, failed, failures };
 }
 
-/** Sends the QR check-in ticket + table assignment email for one seated party. */
+/**
+ * Sends the QR check-in pass for one party.
+ *
+ * Seating is OPTIONAL. This used to query `seating_assignments` as the ROOT
+ * table with `.single()`, so a party the organizer hadn't seated yet threw
+ * NO_SEATING_ASSIGNMENT and the organizer's "resend QR ticket" action failed
+ * with a 400 — meaning an event with no seating chart at all (a reception, a
+ * standing party) could never issue a check-in code to anyone. The door
+ * scanner never trusted the token's tableName in the first place
+ * (checkinController.scanCheckIn re-reads the live assignment and falls back to
+ * "Unassigned"), so an unseated pass has always been valid at the gate; only
+ * this send path disagreed. The party row is now the root and the assignment is
+ * an optional embed.
+ */
 async function sendQrTicketEmail(eventId, partyId) {
-  const { data: assignment, error } = await supabase
-    .from('seating_assignments')
+  const { data: party, error } = await supabase
+    .from('rsvp_parties')
     .select(`
-      id, table_id,
-      tables(table_name),
-      rsvp_parties(id, label, guests(is_primary_contact, email)),
+      id, label, response,
+      guests(is_primary_contact, email),
+      seating_assignments(tables(table_name)),
       events(id, title, event_date, location_name, location_address, location_lat, location_lng)
     `)
-    .eq('party_id', partyId)
+    .eq('id', partyId)
     .eq('event_id', eventId)
     .single();
 
-  if (error || !assignment) throw new Error('NO_SEATING_ASSIGNMENT');
+  if (error || !party) throw new Error('PARTY_NOT_FOUND');
+  // An entry pass for someone who declined is a mistake, not a courtesy — and
+  // the QR would still open the door if they showed up with it.
+  if (party.response === 'no') throw new Error('NOT_ATTENDING');
 
-  const party = assignment.rsvp_parties;
   const primaryEmail = (party.guests || []).find((g) => g.is_primary_contact)?.email || null;
   const partySize = (party.guests || []).length || 1;
-  const event = assignment.events;
+  const event = party.events;
+  const tableName = (Array.isArray(party.seating_assignments) ? party.seating_assignments[0] : party.seating_assignments)
+    ?.tables?.table_name || null;
 
   if (!primaryEmail) {
     logger.info(`[InvitationService] Party ${party.label} has no email configured. Skipping QR ticket email.`);
@@ -180,23 +193,25 @@ async function sendQrTicketEmail(eventId, partyId) {
   const token = tokenService.signQrTicket({
     partyId,
     eventId,
-    tableName: assignment.tables.table_name,
+    tableName,
     partySize,
     eventDate: event.event_date,
   });
 
-  const qrImageUrl = `${BACKEND_BASE()}/api/v1/public/qr/${encodeURIComponent(token)}.png`;
-  const ticketUrl = `${getPublicBaseUrl()}/ticket/${encodeURIComponent(token)}`;
+  const links = buildTicketLinks(token);
   const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize };
   // The data model has no table→zone relationship (zones are standalone venue
   // elements in the same `tables` table, not a parent of seatable tables), so a
   // ticket carries no zone label.
-  const html = getQRTicketTemplate(shimParty, event, assignment.tables.table_name, qrImageUrl, null, ticketUrl);
+  const html = getQRTicketTemplate(shimParty, event, { tableName, zoneName: null, links });
 
-  const success = await notificationService.sendEmailViaBrevo(primaryEmail, `Your Ticket & Table Assignment: ${event.title}`, html);
+  const subject = tableName
+    ? `Your Entry Pass & Table: ${event.title}`
+    : `Your Entry Pass: ${event.title}`;
+  const success = await notificationService.sendEmailViaBrevo(primaryEmail, subject, html);
   await logInvitation({
     partyId, eventId, channel: 'qr', token, status: success ? 'sent' : 'failed',
-    metadata: { tableName: assignment.tables.table_name },
+    metadata: { tableName },
   });
   if (success) {
     await supabase.from('activity_logs').insert({

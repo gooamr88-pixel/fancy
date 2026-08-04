@@ -8,6 +8,7 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -33,6 +34,31 @@ import java.util.concurrent.atomic.AtomicBoolean
  * repeat of the same code waits.
  */
 class QrAnalyzer(
+    /**
+     * Where ML Kit's completion callbacks run.
+     *
+     * ── The throughput bug this parameter exists to fix ──
+     *
+     * `Task.addOnSuccessListener(listener)` with no executor posts to the MAIN
+     * THREAD. That is the Play-services default and it is the wrong one here.
+     *
+     * Two costs, both invisible until you look for them. Every analysed frame
+     * posts a runnable onto the main queue, where it lines up behind Compose's
+     * recomposition and animation work — 30 of them a second, competing with the
+     * UI they are trying to update. Worse, `imageProxy.close()` lives in that
+     * callback, and closing the proxy is what RELEASES THE BUFFER the camera
+     * needs to hand us the next frame. So the scan pipeline's frame rate was
+     * gated by main-thread latency: exactly when the UI is busiest — a result
+     * screen animating in — the scanner slowed down.
+     *
+     * Running the callbacks on the analysis executor removes both. Nothing in
+     * this class touches a View, and `onDecoded` lands on a StateFlow, which is
+     * thread-safe.
+     *
+     * Callers MUST pass the same executor CameraX delivers frames on, so the
+     * close happens on the thread that owns the buffer.
+     */
+    private val callbackExecutor: Executor,
     private val onDecoded: (String) -> Unit,
 ) : ImageAnalysis.Analyzer {
 
@@ -86,20 +112,25 @@ class QrAnalyzer(
             val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
 
             scanner.process(input)
-                .addOnSuccessListener { barcodes ->
-                    // The listener runs on the main thread and calls into the view
-                    // model. Guarded for the same reason as everything else here —
-                    // an uncaught throw from a decode is not worth a process kill.
+                .addOnSuccessListener(callbackExecutor) { barcodes ->
+                    // Runs on the analysis thread — see callbackExecutor. Guarded
+                    // for the same reason as everything else here: an uncaught
+                    // throw on this thread is a process kill, not an exception.
                     runCatching {
                         barcodes.firstNotNullOfOrNull { it.rawValue }?.let { value -> accept(value) }
                     }
                 }
-                .addOnCompleteListener {
-                    inFlight.set(false)
-                    // Closing in onComplete rather than onSuccess: a failed decode must
-                    // also release the frame, or the pipeline stalls after the first
-                    // unreadable card and the scanner silently dies mid-event.
+                .addOnCompleteListener(callbackExecutor) {
+                    // Release the buffer FIRST, then reopen the gate. The camera
+                    // cannot produce another frame until this proxy is closed, so
+                    // closing before clearing `inFlight` means the next frame is
+                    // already being captured while this one finishes bookkeeping.
+                    //
+                    // In onComplete rather than onSuccess: a failed decode must
+                    // also release the frame, or the pipeline stalls after the
+                    // first unreadable card and the scanner silently dies.
                     imageProxy.close()
+                    inFlight.set(false)
                 }
         } catch (_: Throwable) {
             // Release the slot and the frame, then wait for the next one. A camera

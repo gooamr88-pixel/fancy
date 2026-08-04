@@ -27,8 +27,9 @@ const sendConfirmationEmail = async (req, res, next) => {
 };
 
 /**
- * Sends/resends a single party's QR check-in ticket email (requires an
- * existing seating assignment).
+ * Sends/resends a single party's QR check-in pass. No seating assignment
+ * required — see invitationService.sendQrTicketEmail for why the old
+ * NO_SEATING_ASSIGNMENT gate was wrong.
  * POST /api/v1/events/:eventId/notifications/send-qr-ticket
  */
 const sendQRTicketEmail = async (req, res, next) => {
@@ -43,11 +44,14 @@ const sendQRTicketEmail = async (req, res, next) => {
     const result = await invitationService.sendQrTicketEmail(eventId, partyId);
     return res.json({ success: result.sent, message: result.sent ? 'QR ticket email sent.' : 'This party has no email on file.' });
   } catch (err) {
-    if (err.message === 'NO_SEATING_ASSIGNMENT') {
+    if (err.message === 'PARTY_NOT_FOUND') {
+      return res.status(404).json({ success: false, error: 'RSVP_NOT_FOUND', message: 'RSVP not found.' });
+    }
+    if (err.message === 'NOT_ATTENDING') {
       return res.status(400).json({
         success: false,
-        error: 'NO_SEATING_ASSIGNMENT',
-        message: 'QR tickets cannot be generated until the organizer assigns a seat/table.'
+        error: 'NOT_ATTENDING',
+        message: 'This guest declined — an entry pass would let them through the door. Change their response to attending first.',
       });
     }
     next(err);

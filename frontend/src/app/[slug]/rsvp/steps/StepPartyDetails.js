@@ -10,6 +10,8 @@ import { darken } from '../../../utils/color';
 import { TITLE_OPTIONS, splitName, joinName } from '../../../utils/nameFields';
 import CountryCodePhoneInput from '../../../components/CountryCodePhoneInput';
 import SmsConsentText, { SmsConsentIndependence } from '../../../components/guest/SmsConsentText';
+import ContactRegisteredNotice from '../../../components/guest/rsvp/ContactRegisteredNotice';
+import CompanionMealCounter from '../../../components/guest/rsvp/CompanionMealCounter';
 import { BoltIcon, CalendarIcon, PlaneIcon, ClipboardIcon, HeartPulseIcon, DotsIcon, ClockIcon, EnvelopeIcon, PeopleIcon } from '../../../components/guest/RsvpIcons';
 
 const MAYBE_OPTIONS = [
@@ -35,6 +37,8 @@ export default function StepPartyDetails({
   maybeFollowUp, setMaybeFollowUp, declineReason, setDeclineReason,
   guestName, setGuestName,
   side, setSide, showSidePicker, isWedding, showDietary = true,
+  contactRegistered, onConfirmContactUpdate, confirmingContact = false,
+  companionMealCounts = {}, setCompanionMealCount,
   smsConsent, setSmsConsent,
   themeColor = '#B8944F', secondaryColor = '#D7BE80',
 }) {
@@ -152,6 +156,21 @@ export default function StepPartyDetails({
                 <CountryCodePhoneInput value={phone} onChange={setPhone} hasError={!!validationErrors.phone} />
               </FormField>
             </div>
+
+            {/* Sits directly under the two fields it can be about, so the guest
+                reads it next to the value that caused it rather than as a toast
+                somewhere else on a long single-page form. */}
+            {contactRegistered && (
+              <ContactRegisteredNotice
+                field={contactRegistered.field}
+                canUpdate={contactRegistered.canUpdate}
+                sent={!!contactRegistered.sent}
+                onConfirm={onConfirmContactUpdate}
+                busy={confirmingContact}
+                isRTL={isRTL}
+                accentColor={themeColor}
+              />
+            )}
 
             {/* SMS opt-in consent — shown only when a phone number is actually
                 being collected (TCPA / Twilio TFV): always for attendees (phone
@@ -522,58 +541,32 @@ export default function StepPartyDetails({
                 </FormField>
               </div>
 
-              {/* Email + Phone row */}
-              <div className="email-phone-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <FormField label={t.email_label} error={validationErrors[`additionalGuest_email_${index}`]}>
-                  <input
-                    type="email" value={g.email || ''}
-                    onChange={e => updateCompanion(index, { email: e.target.value })}
-                    placeholder="name@email.com"
-                    style={{ ...S.inputBase, ...(validationErrors[`additionalGuest_email_${index}`] ? { borderColor: '#ef4444' } : {}) }}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_email_${index}`])}
-                  />
-                </FormField>
-                <FormField label={t.companion_phone_label} error={validationErrors[`additionalGuest_phone_${index}`]}>
-                  <CountryCodePhoneInput value={g.phone || ''} onChange={(val) => updateCompanion(index, { phone: val })}
-                    hasError={!!validationErrors[`additionalGuest_phone_${index}`]} />
-                </FormField>
-              </div>
-
-              {mealField && (
-                <FormField label={t.guest_meal_label} error={validationErrors[`additionalGuest_meal_${index}`]}>
-                  <select
-                    value={g.mealSelection}
-                    onChange={e => {
-                      updateCompanion(index, { mealSelection: e.target.value });
-                      if (validationErrors[`additionalGuest_meal_${index}`]) {
-                        setValidationErrors(prev => { const n = { ...prev }; delete n[`additionalGuest_meal_${index}`]; return n; });
-                      }
-                    }}
-                    style={{ ...S.inputBase, cursor: 'pointer', ...(validationErrors[`additionalGuest_meal_${index}`] ? { borderColor: '#ef4444' } : {}) }}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors[`additionalGuest_meal_${index}`])}
-                  >
-                    <option value="">{t.meal_select_placeholder}</option>
-                    {mealOptions?.map((opt, i) => (<option key={i} value={opt}>{opt}</option>))}
-                  </select>
-                </FormField>
-              )}
-
-              {showDietary && (
-                <FormField label={isRTL ? 'متطلبات غذائية أو حساسية (اختياري)' : 'Dietary Restrictions & Allergies (Optional)'}>
-                  <input
-                    type="text" value={g.dietaryNotes || ''}
-                    onChange={e => updateCompanion(index, { dietaryNotes: e.target.value })}
-                    placeholder={isRTL ? 'مثال: نباتي، حساسية من المكسرات...' : 'e.g. Vegetarian, Peanut allergy...'}
-                    style={S.inputBase}
-                    onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e)}
-                  />
-                </FormField>
-              )}
-
+              {/* A companion's name is the whole card. Email, phone, meal and
+                  dietary notes used to sit here and are deliberately gone: the
+                  person filling this in gives their own contact details, and
+                  everyone they bring is recorded so the host can seat, count and
+                  check them in. Asking for a companion's email is what pushed
+                  households sharing one inbox into the per-event unique index,
+                  where the address was silently thrown away. */}
             </motion.div>
           );
         })}
       </AnimatePresence>
+
+      {isAttending && additionalGuests.length > 0 && mealOptions?.length > 0 && (
+        <FadeInUp delay={0.28} y={10}>
+          <CompanionMealCounter
+            options={mealOptions}
+            counts={companionMealCounts}
+            onChange={setCompanionMealCount}
+            companionCount={additionalGuests.length}
+            required={!!mealField?.is_required}
+            invalid={!!validationErrors.companionMealCounts}
+            isRTL={isRTL}
+            accentColor={themeColor}
+          />
+        </FadeInUp>
+      )}
 
       {(onBack || onContinue) && (
         <>

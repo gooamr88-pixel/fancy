@@ -806,7 +806,7 @@ const getEventStats = async (req, res, next) => {
     //    stats and the meal breakdown — party_size is derived from the guest count.
     const { data: parties, error: partyError } = await supabase
       .from('rsvp_parties')
-      .select('id, response, guests(id, meal_selection)')
+      .select('id, response, companion_meal_counts, guests(id, meal_selection)')
       .eq('event_id', eventId);
 
     if (partyError) throw partyError;
@@ -833,10 +833,26 @@ const getEventStats = async (req, res, next) => {
       if (isAcceptedResponse(party.response)) {
         stats.attendingParties++;
         stats.attendingGuests += size;
+        // This total is what the caterer cooks to, so it has to count BOTH
+        // sources. A named meal_selection is in practice the primary contact's;
+        // companions are names only and their meals arrive as a per-party tally
+        // (companion_meal_counts). Counting guest rows alone would report every
+        // companion as "No Selection" and under-order every real dish.
+        let counted = 0;
         (party.guests || []).forEach(g => {
-          const meal = g.meal_selection || 'No Selection';
-          mealSummary[meal] = (mealSummary[meal] || 0) + 1;
+          if (!g.meal_selection) return;
+          mealSummary[g.meal_selection] = (mealSummary[g.meal_selection] || 0) + 1;
+          counted++;
         });
+        Object.entries(party.companion_meal_counts || {}).forEach(([meal, n]) => {
+          const qty = Number(n);
+          if (!Number.isFinite(qty) || qty <= 0) return;
+          mealSummary[meal] = (mealSummary[meal] || 0) + qty;
+          counted += qty;
+        });
+        // Whoever is left is genuinely unaccounted for — a guest the organizer
+        // still has to chase, and the number they need to see.
+        if (counted < size) mealSummary['No Selection'] = (mealSummary['No Selection'] || 0) + (size - counted);
       } else if (isDeclinedResponse(party.response)) {
         stats.declinedParties++;
         stats.declinedGuests += size;
