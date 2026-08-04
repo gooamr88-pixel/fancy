@@ -23,6 +23,8 @@ const { getEventStats } = require('../utils/emailContext');
 const tokenService = require('./tokenService');
 const T = require('../utils/emailTemplates');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
+const { sendTransactionalSms } = require('./smsDispatch');
+const { getSmsType } = require('../config/smsMessageTypes');
 
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
@@ -79,12 +81,48 @@ const rsvpLinks = (partyId, eventId) => {
 const orgEmailOk = (ev) => !(ev.notification_preferences && ev.notification_preferences.email === false);
 const primaryEmailOf = (party) => (party.guests || []).find((g) => g.is_primary_contact)?.email || null;
 
+/**
+ * Try to deliver a lifecycle message by SMS, and report whether the email should
+ * be skipped.
+ *
+ * Returns TRUE only when a text was actually sent AND that type is defined as
+ * replacing its email. Every other outcome — the add-on was never bought, the
+ * organizer switched the type off, the guest never consented, they replied STOP,
+ * the allowance ran dry, Twilio failed — returns false, and the caller sends the
+ * email exactly as it always did.
+ *
+ * That asymmetry is the whole design: SMS is an upgrade to the delivery of a
+ * message, never a precondition for it. A guest is always told; the channel is a
+ * billing and preference question.
+ *
+ * Types with replacesEmail = false (RSVP confirmation, entry pass, organizer
+ * report) always return false, because their email carries something the text
+ * cannot — a scannable pass, a formatted report — so both must go.
+ */
+async function trySms(ev, { type, partyId = null, ref, context }) {
+  if (!ev?.sms_addon_purchased_at) return false;   // cheap pre-check; the gate re-verifies
+  const typeDef = getSmsType(type);
+  if (!typeDef) return false;
+
+  try {
+    const result = await sendTransactionalSms({
+      type, eventId: ev.id, partyId, ref, event: ev, lang: 'en', context,
+    });
+    return !!result.sent && typeDef.replacesEmail === true;
+  } catch (err) {
+    logger.warn({ err, type, eventId: ev.id }, '[email-scheduler] SMS attempt failed; falling back to email');
+    return false;
+  }
+}
+
 /* ─── 1. RSVP reminders — invited, still-pending guests as the deadline nears ─── */
 async function jobRsvpReminders() {
   const soon = new Date(Date.now() + 3 * DAY).toISOString();
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, slug, event_date, rsvp_deadline')
+    // sms_* are selected once per EVENT and passed down to every party, so adding
+    // the SMS channel costs one column set per event rather than a query per guest.
+    .select('id, title, slug, event_date, rsvp_deadline, sms_addon_purchased_at, sms_settings')
     .eq('status', 'active').eq('is_paid', true)
     .not('rsvp_deadline', 'is', null).gte('rsvp_deadline', nowISO()).lte('rsvp_deadline', soon)
     .limit(100);
@@ -94,6 +132,21 @@ async function jobRsvpReminders() {
       .from('rsvp_parties').select('id, label, response, guests(is_primary_contact, email)')
       .eq('event_id', ev.id).eq('response', 'pending').limit(LIMIT);
     for (const party of (parties || [])) {
+      // SMS first — a reminder is short, and a text is far likelier to be seen
+      // than mail. `replacesEmail` is true for this type, so a delivered SMS
+      // suppresses the email: one nudge per guest, charged once.
+      const viaSms = await trySms(ev, {
+        type: 'rsvp_reminder',
+        partyId: party.id,
+        ref: `rsvp:${party.id}`,
+        context: {
+          guestName: party.label,
+          eventTitle: ev.title,
+          rsvpUrl: rsvpLinks(party.id, ev.id).manage,
+        },
+      });
+      if (viaSms) { sent++; continue; }
+
       const email = primaryEmailOf(party);
       if (!email) continue;
       const r = { id: party.id, guest_name: party.label, email, response: party.response };
@@ -110,7 +163,7 @@ async function jobEventReminders() {
   const soon = new Date(Date.now() + 3 * DAY).toISOString();
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, slug, event_date, location_name, location_address')
+    .select('id, title, slug, event_date, location_name, location_address, sms_addon_purchased_at, sms_settings')
     .eq('status', 'active').eq('is_paid', true)
     .gte('event_date', nowISO()).lte('event_date', soon)
     .limit(100);
@@ -121,10 +174,26 @@ async function jobEventReminders() {
       .from('rsvp_parties').select('id, label, guests(is_primary_contact, email), seating_assignments(tables(table_name))')
       .eq('event_id', ev.id).eq('response', 'yes').limit(LIMIT);
     for (const party of (parties || [])) {
+      const tableName = revealed ? (party.seating_assignments?.[0]?.tables?.table_name || null) : null;
+
+      // A day-before reminder with a table number is the single most useful text
+      // in the whole lifecycle — it is read standing outside the venue.
+      const viaSms = await trySms(ev, {
+        type: 'event_reminder',
+        partyId: party.id,
+        ref: `rsvp:${party.id}`,
+        context: {
+          guestName: party.label,
+          eventTitle: ev.title,
+          dateLabel: T.formatEventDate ? T.formatEventDate(ev.event_date) : 'soon',
+          tableName,
+        },
+      });
+      if (viaSms) { sent++; continue; }
+
       const email = primaryEmailOf(party);
       if (!email) continue;
       const r = { id: party.id, guest_name: party.label, email, party_size: (party.guests || []).length || 1 };
-      const tableName = revealed ? (party.seating_assignments?.[0]?.tables?.table_name || null) : null;
       const html = T.getEventReminderTemplate(r, ev, { tableName });
       const res = await dispatchWithRetry({ kind: 'event_reminder', ref: `rsvp:${party.id}`, to: email, subject: `See you soon at ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;
@@ -138,15 +207,31 @@ async function jobFinalReports() {
   const soon = new Date(Date.now() + 30 * HOUR).toISOString();
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, slug, event_date, notification_preferences, organizations(name, email)')
+    .select('id, title, slug, event_date, notification_preferences, sms_addon_purchased_at, sms_settings, organizations(name, email)')
     .eq('status', 'active').eq('is_paid', true)
     .gte('event_date', nowISO()).lte('event_date', soon)
     .is('final_report_sent_at', null).limit(100);
   let sent = 0;
   for (const ev of (events || [])) {
     const org = ev.organizations;
+
+    // The organizer gets BOTH: the email carries the actual headcount table, the
+    // text is the heads-up that it has landed. This is the one type addressed to
+    // the customer rather than a guest, so it reads organizations.sms_consent —
+    // their own opt-in — not any guest consent record (see resolveRecipient).
+    const stats = (org && org.email && orgEmailOk(ev)) ? await getEventStats(ev.id) : null;
+    await trySms(ev, {
+      type: 'organizer_report',
+      ref: `event:${ev.id}`,
+      context: {
+        eventTitle: ev.title,
+        attending: stats?.attending ?? 0,
+        pending: stats?.pending ?? 0,
+        dashboardUrl: `${frontendBase()}/dashboard`,
+      },
+    });
+
     if (org && org.email && orgEmailOk(ev)) {
-      const stats = await getEventStats(ev.id);
       const html = T.getFinalHeadcountReportTemplate({ orgName: org.name, event: ev, stats });
       const res = await dispatchWithRetry({ kind: 'final_report', ref: `event:${ev.id}`, to: org.email, subject: `Final headcount: ${ev.title}`, html, eventId: ev.id });
       if (res.sent) sent++;

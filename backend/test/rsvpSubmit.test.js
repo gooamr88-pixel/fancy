@@ -28,13 +28,13 @@ const { submitPublicRSVP, claimRsvpByEmail } = require('../controllers/rsvpContr
 
 t.beforeEach(() => { mock.reset(); confirmCalls = []; emailCalls = []; });
 
-// submitPublicRSVP requires a valid phone + an email for ATTENDING guests, and
-// treats both as optional for a decline. SMS consent is NEVER required — it is
-// recorded as given (true or false) and enforced only at send time — see
-// rsvpController.submitPublicRSVP. Most payloads here RSVP "yes", so inject the
-// attending requirements as defaults to clear that gate; tests exercising a
-// specific branch override the relevant field (or build a bare request via
-// mockReq directly).
+// submitPublicRSVP requires an email for ATTENDING guests. The PHONE is optional
+// for everyone (Twilio TFV 30475) and is only format-checked when supplied, and
+// SMS consent is never required — it is recorded as given (true or false) and
+// enforced only at send time. See rsvpController.submitPublicRSVP. Most payloads
+// here RSVP "yes", so inject the attending requirements as defaults to clear
+// that gate; tests exercising a specific branch override the relevant field (or
+// build a bare request via mockReq directly).
 const REQUIRED_DEFAULTS = { phone: '+15551234567', smsConsent: true, email: 'guest@example.com' };
 const req = (body) => mockReq({ params: { slug: 'wedding' }, body: { ...REQUIRED_DEFAULTS, ...body } });
 const rpcResult = (data) => mock.setResolver((s) => (s.op === 'rpc' && s.fn === 'submit_rsvp_v2' ? { data } : {}));
@@ -66,9 +66,24 @@ test('an additional guest without a name is rejected (400, no RPC)', async () =>
 
 // ── Conditional phone / SMS consent / email (attending vs decline) ──
 
-test('an attending RSVP still requires a phone (400, no RPC)', async () => {
+// Twilio TFV 30475 ("agreeing to receive messages must be optional"). A phone
+// number is the identifier the SMS program runs on, so requiring one to RSVP
+// made the program a condition of registering — a guest had no way to attend
+// while staying out of it entirely. Attending with NO phone must succeed. Do not
+// "restore" a required-phone 400 here.
+test('an attending RSVP with NO phone is accepted (the number is optional)', async () => {
+  rpcResult({ success: true, party_id: 'r1', is_update: false, event_id: 'evt-1', event_title: 'W', response: 'yes', party_size: 1, guest_email: 'a@x.com', notification_preferences: { email: false } });
+  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'yes', partySize: 1, email: 'a@x.com' } }));
+  assert.equal(res.statusCode, 201);
+  const rpc = mock.calls.find(c => c.op === 'rpc' && c.fn === 'submit_rsvp_v2');
+  assert.ok(rpc, 'the RSVP must be written');
+  assert.equal(rpc.params.p_phone, null, 'no number was given, so none is stored');
+  assert.equal(rpc.params.p_sms_consent, false, 'and no consent is implied by attending');
+});
+
+test('a malformed phone is still rejected when one IS supplied (400, no RPC)', async () => {
   mock.setResolver(() => ({}));
-  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'yes', partySize: 1, email: 'a@x.com', smsConsent: true } }));
+  const { res } = await invoke(submitPublicRSVP, mockReq({ params: { slug: 'wedding' }, body: { guestName: 'Alice', response: 'yes', partySize: 1, email: 'a@x.com', phone: 'not-a-number' } }));
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error, 'VALIDATION_ERROR');
   assert.equal(mock.calls.some(c => c.op === 'rpc'), false);

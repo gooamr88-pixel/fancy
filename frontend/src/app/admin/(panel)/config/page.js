@@ -164,6 +164,430 @@ function FeatureSelector({ tierFeatures, registry, onChange }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SMS PRICING
+ *
+ * Every number that decides what an organizer pays for text messaging, and what
+ * Fancy keeps, edited here rather than in source.
+ *
+ * The design principle throughout: NEVER show a knob without showing its
+ * consequence. Each card sits above a server-computed preview, because the
+ * failure this screen has to prevent is not a typo — it is an admin confidently
+ * setting a markup that sells messages below carrier cost, on every event, until
+ * someone reads a P&L. Cost, charge and margin are therefore always on screen
+ * together, and always computed by the same backend function that bills.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+const money = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
+
+const smsCardHeader = (title, subtitle) => (
+  <div style={{ borderBottom: `1px solid ${T.border}`, paddingBottom: 12, marginBottom: 18 }}>
+    <h3 style={{ fontSize: 15, fontWeight: 800, color: T.text900, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>{title}</h3>
+    <p style={{ fontSize: 12, color: T.text500, margin: '4px 0 0', lineHeight: 1.55 }}>{subtitle}</p>
+  </div>
+);
+
+const smsInput = {
+  width: '100%', padding: '9px 11px', borderRadius: 8,
+  border: `1px solid ${T.border}`, background: T.surface,
+  color: T.text900, fontSize: 13, outline: 'none', boxSizing: 'border-box',
+};
+
+const smsHint = { fontSize: 11, color: T.text400, marginTop: 4, display: 'block', lineHeight: 1.5 };
+
+/** The headline: what we charge, what it costs us, what we keep. */
+function SmsMarginSummary({ preview, loading, rate, markup }) {
+  // Use the mid-volume row so the figure is representative rather than the
+  // cheapest or the most discounted.
+  const rows = preview?.rows || [];
+  const sample = rows.length ? rows[Math.floor(rows.length / 2)] : null;
+  const belowCost = Number(markup) < 0;
+
+  const stat = (label, value, color) => (
+    <div style={{ flex: '1 1 140px' }}>
+      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.07em', color: T.text400, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: color || T.text900, marginTop: 3 }}>{value}</div>
+    </div>
+  );
+
+  return (
+    <div style={{
+      ...card, padding: 22,
+      borderColor: belowCost ? '#C45E5E' : T.border,
+      background: belowCost ? 'rgba(196,94,94,0.06)' : card.background,
+    }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'flex-start' }}>
+        {stat('Carrier cost', `${Number(rate) || 0}¢ / msg`)}
+        {stat('Markup', `${Number(markup) || 0}%`, belowCost ? '#C45E5E' : T.text900)}
+        {stat('Sell price', sample ? `${sample.effectiveCentsPerSegment}¢ / msg` : (loading ? '…' : '—'))}
+        {stat('Gross margin', sample ? `${sample.marginPct}%` : (loading ? '…' : '—'),
+          sample && sample.marginPct < 0 ? '#C45E5E' : '#3B9B6D')}
+      </div>
+
+      {belowCost && (
+        <p style={{ fontSize: 12, color: '#C45E5E', margin: '14px 0 0', lineHeight: 1.6, fontWeight: 600 }}>
+          A negative markup sells messages below what the carrier charges us. Every message sent
+          on every event will lose money.
+        </p>
+      )}
+      {sample && sample.marginPct < 0 && !belowCost && (
+        <p style={{ fontSize: 12, color: '#C45E5E', margin: '14px 0 0', lineHeight: 1.6, fontWeight: 600 }}>
+          Volume discounts have pushed the sell price below cost at this volume. Reduce a discount
+          tier or raise the markup.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The two headline numbers. */
+function SmsRateCard({ rate, onRate, markup, onMarkup }) {
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader('Rate & Margin', 'What one message costs us, and what we add on top. These two drive every price below.')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
+        <Field label="Carrier cost per message (cents)">
+          <input type="number" step="0.1" min="0" value={rate} onChange={(e) => onRate(e.target.value)} style={smsInput} />
+          <span style={smsHint}>What Twilio bills us per segment. Not shown to customers.</span>
+        </Field>
+        <Field label="Fancy markup (%)">
+          <input type="number" step="0.1" value={markup} onChange={(e) => onMarkup(e.target.value)} style={smsInput} />
+          <span style={smsHint}>Added to the carrier cost. 40% on an 8¢ message sells it at 11.2¢.</span>
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/** Tiered volume discounts — add, edit and remove thresholds. */
+function SmsDiscountTiers({ tiers, onChange }) {
+  const rows = Array.isArray(tiers) ? tiers : [];
+
+  const update = (idx, key, value) => {
+    const next = rows.map((t, i) => (i === idx ? { ...t, [key]: Number(value) } : t));
+    onChange(next);
+  };
+  const remove = (idx) => onChange(rows.filter((_, i) => i !== idx));
+  const add = () => {
+    const highest = rows.reduce((m, t) => Math.max(m, Number(t.min_segments) || 0), 0);
+    onChange([...rows, { min_segments: highest ? highest * 2 : 500, discount_pct: 5 }]);
+  };
+
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader('Volume Discounts', 'Bulk pricing. Tiers are not cumulative — a customer gets the single best tier they qualify for.')}
+
+      {rows.length === 0 && (
+        <p style={{ fontSize: 12.5, color: T.text500, margin: '0 0 14px' }}>
+          No volume discounts. Every purchase is charged at full price.
+        </p>
+      )}
+
+      {rows.map((tier, idx) => (
+        <div key={idx} style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 160px' }}>
+            <label style={{ fontSize: 11, color: T.text500, fontWeight: 600, display: 'block', marginBottom: 4 }}>From (messages)</label>
+            <input type="number" min="1" value={tier.min_segments} onChange={(e) => update(idx, 'min_segments', e.target.value)} style={smsInput} />
+          </div>
+          <div style={{ flex: '1 1 160px' }}>
+            <label style={{ fontSize: 11, color: T.text500, fontWeight: 600, display: 'block', marginBottom: 4 }}>Discount (%)</label>
+            <input type="number" step="0.5" min="0" max="90" value={tier.discount_pct} onChange={(e) => update(idx, 'discount_pct', e.target.value)} style={smsInput} />
+          </div>
+          <button
+            type="button"
+            onClick={() => remove(idx)}
+            style={{ padding: '9px 14px', borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: '#C45E5E', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={add}
+        style={{ marginTop: 6, padding: '9px 16px', borderRadius: 8, border: `1px dashed ${T.border}`, background: 'transparent', color: T.primary, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+      >
+        + Add a discount tier
+      </button>
+
+      <p style={{ ...smsHint, marginTop: 12 }}>
+        A tier with a 0% discount, or one reusing a threshold another tier already claims, is
+        dropped on save — the applicable tier has to be unambiguous. Discounts are capped at 90%.
+      </p>
+    </div>
+  );
+}
+
+/** Purchase floor, ceiling and slider step. */
+function SmsBoundsCard({ bounds, onChange }) {
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader('Purchase Limits', 'The smallest and largest bundle an organizer can buy, and the increment the slider moves in.')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 20 }}>
+        <Field label="Minimum purchase">
+          <input type="number" min="1" value={bounds.min} onChange={(e) => onChange('min', Number(e.target.value))} style={smsInput} />
+          <span style={smsHint}>Below this, the transaction fee outweighs the sale.</span>
+        </Field>
+        <Field label="Maximum purchase">
+          <input type="number" min="1" value={bounds.max} onChange={(e) => onChange('max', Number(e.target.value))} style={smsInput} />
+          <span style={smsHint}>A ceiling on a single order.</span>
+        </Field>
+        <Field label="Slider step">
+          <input type="number" min="1" value={bounds.step} onChange={(e) => onChange('step', Number(e.target.value))} style={smsInput} />
+          <span style={smsHint}>Recommendations round up to this, so customers buy round numbers.</span>
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/** The assumptions behind the bundle we recommend at checkout. */
+function SmsEstimatorCard({ estimator, onChange }) {
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader(
+        'Recommendation Model',
+        'How the suggested bundle size is calculated on the customer\'s payment screen. Tune these against real usage — they change what customers are advised to buy, not what a message costs.',
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
+        <Field label="Guests per invitation">
+          <input type="number" step="0.1" min="1" max="20" value={estimator.guests_per_party} onChange={(e) => onChange('guests_per_party', Number(e.target.value))} style={smsInput} />
+          <span style={smsHint}>
+            Texts go to one contact per invitation, not per head. A 200-guest plan at 2.2 is ~91 recipients.
+          </span>
+        </Field>
+        <Field label="Segments per message — Latin">
+          <input type="number" step="0.1" min="1" max="10" value={estimator.segments_per_message_latin} onChange={(e) => onChange('segments_per_message_latin', Number(e.target.value))} style={smsInput} />
+          <span style={smsHint}>160 characters per segment. A typical body plus the compliance footer is ~1.4.</span>
+        </Field>
+        <Field label="Segments per message — Arabic">
+          <input type="number" step="0.1" min="1" max="10" value={estimator.segments_per_message_arabic} onChange={(e) => onChange('segments_per_message_arabic', Number(e.target.value))} style={smsInput} />
+          <span style={smsHint}>Arabic forces UCS-2 at only 70 characters per segment, so the same message costs 2–3×.</span>
+        </Field>
+        <Field label="Assumed guests — unlimited plans">
+          <input type="number" min="1" value={estimator.unlimited_tier_assumed_guests} onChange={(e) => onChange('unlimited_tier_assumed_guests', Number(e.target.value))} style={smsInput} />
+          <span style={smsHint}>Plans with no guest cap still need a finite number to size a bundle from.</span>
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/** How many of each message type an average invitation receives. */
+function SmsFrequencyCard({ frequencies, messageTypes, onChange }) {
+  const types = messageTypes.length ? messageTypes : Object.keys(frequencies).map((key) => ({ key, label: key, audience: 'guest' }));
+
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader(
+        'Messages Per Invitation',
+        'How many of each type an average invitation receives over an event\'s life. This is what the recommended bundle is actually built from.',
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+        {types.map((t) => (
+          <div key={t.key}>
+            <label style={{ fontSize: 11.5, color: T.text900, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+              {t.label}
+              {t.audience === 'organizer' && (
+                <span style={{ marginLeft: 6, fontSize: 10, color: T.text400, fontWeight: 500 }}>per event</span>
+              )}
+            </label>
+            <input
+              type="number" step="0.1" min="0"
+              value={frequencies[t.key] ?? 0}
+              onChange={(e) => onChange(t.key, Number(e.target.value))}
+              style={smsInput}
+            />
+          </div>
+        ))}
+      </div>
+      <p style={{ ...smsHint, marginTop: 12 }}>
+        Fractions are meaningful: 0.6 means roughly 6 in 10 invitations receive that message —
+        not every guest is sent a reminder, and only attendees get an entry pass. Organizer alerts
+        are counted once per event rather than per invitation.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Anti-abuse ramp-up and the low-balance warning.
+ *
+ * The ramp-up is the one control on this screen that can stop a paying customer
+ * from sending, so it is presented as what it is — a cap per send that lifts
+ * itself — rather than as a security setting. An admin needs to see immediately
+ * that the top band is unlimited, because the fear this control creates is
+ * "am I permanently throttling my own customers?".
+ */
+function SmsLimitsCard({ limits, alerts, onChangeRampUp, onChangeAlert }) {
+  const bands = Array.isArray(limits?.ramp_up) ? limits.ramp_up : [];
+
+  const update = (idx, key, value) => {
+    onChangeRampUp(bands.map((b, i) => (i === idx ? { ...b, [key]: Number(value) } : b)));
+  };
+  const remove = (idx) => onChangeRampUp(bands.filter((_, i) => i !== idx));
+  const add = () => {
+    const highest = bands.reduce((m, b) => Math.max(m, Number(b.delivered_min) || 0), 0);
+    onChangeRampUp([...bands, { delivered_min: highest ? highest * 5 : 200, max_per_send: 500 }]);
+  };
+
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader(
+        'Sending Limits & Warnings',
+        'How many messages a new account may send at once, and when an organizer is warned that they are running low.',
+      )}
+
+      <p style={{ fontSize: 12.5, color: T.text500, lineHeight: 1.6, margin: '0 0 14px' }}>
+        A brand-new account can otherwise spend its whole balance in one request — which is
+        exactly what a fraudulent signup would do, and the carrier damage lands on the shared
+        number every customer sends from. The cap rises automatically as an organization
+        delivers real messages, so a genuine customer lifts their own limit. Set{' '}
+        <strong>0</strong> for unlimited.
+      </p>
+
+      {bands.map((band, idx) => (
+        <div key={idx} style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 170px' }}>
+            <label style={{ fontSize: 11, color: T.text500, fontWeight: 600, display: 'block', marginBottom: 4 }}>After delivering</label>
+            <input type="number" min="0" value={band.delivered_min} onChange={(e) => update(idx, 'delivered_min', e.target.value)} style={smsInput} />
+          </div>
+          <div style={{ flex: '1 1 170px' }}>
+            <label style={{ fontSize: 11, color: T.text500, fontWeight: 600, display: 'block', marginBottom: 4 }}>
+              Max per send {Number(band.max_per_send) === 0 && <span style={{ color: T.success, fontWeight: 700 }}>(unlimited)</span>}
+            </label>
+            <input type="number" min="0" value={band.max_per_send} onChange={(e) => update(idx, 'max_per_send', e.target.value)} style={smsInput} />
+          </div>
+          <button
+            type="button"
+            onClick={() => remove(idx)}
+            style={{ padding: '9px 14px', borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', color: '#C45E5E', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Remove
+          </button>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={add}
+        style={{ marginTop: 4, padding: '9px 16px', borderRadius: 8, border: `1px dashed ${T.border}`, background: 'transparent', color: T.primary, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+      >
+        + Add a band
+      </button>
+
+      {bands.length === 0 && (
+        <p style={{ fontSize: 12, color: '#C45E5E', marginTop: 12, fontWeight: 600, lineHeight: 1.6 }}>
+          No bands configured — every account can send without limit. Fine for a private
+          deployment; risky anywhere with open signups.
+        </p>
+      )}
+
+      <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${T.border}`, maxWidth: 260 }}>
+        <Field label="Warn when messages left fall below (%)">
+          <input
+            type="number" min="1" max="90"
+            value={alerts?.low_balance_pct ?? 20}
+            onChange={(e) => onChangeAlert('low_balance_pct', Number(e.target.value))}
+            style={smsInput}
+          />
+          <span style={smsHint}>
+            One email while there is still time to top up. A second is sent when they reach
+            zero. Warning only at zero — the old behaviour — arrives after guests have already
+            stopped receiving texts.
+          </span>
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+/** What a customer pays at each volume, and what we keep. */
+function SmsPriceTable({ preview, loading }) {
+  const rows = preview?.rows || [];
+
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader('Price Table', 'What an organizer pays at each volume, and what Fancy keeps after carrier cost. Rows sit either side of each discount threshold so the step is visible.')}
+
+      {loading && rows.length === 0 && <p style={{ fontSize: 12.5, color: T.text500 }}>Calculating…</p>}
+      {!loading && rows.length === 0 && <p style={{ fontSize: 12.5, color: T.text500 }}>No preview available.</p>}
+
+      {rows.length > 0 && (
+        <div className="fx-scroll-x">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 560 }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                {['Messages', 'Customer pays', 'Per msg', 'Discount', 'Our cost', 'We keep', 'Margin'].map((h, i) => (
+                  <th key={h} style={{ textAlign: i === 0 ? 'left' : 'right', padding: '8px 10px', color: T.text400, fontWeight: 700, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.segments} style={{ borderBottom: `1px solid ${T.border}` }}>
+                  <td style={{ padding: '8px 10px', color: T.text900, fontWeight: 700 }}>{r.segments.toLocaleString()}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text900, fontWeight: 700 }}>{money(r.chargeCents)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text500 }}>{r.effectiveCentsPerSegment}¢</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: r.discountPct > 0 ? '#3B9B6D' : T.text400 }}>
+                    {r.discountPct > 0 ? `−${r.discountPct}%` : '—'}
+                  </td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text500 }}>{money(r.baseCostCents)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: r.profitCents < 0 ? '#C45E5E' : '#3B9B6D', fontWeight: 700 }}>{money(r.profitCents)}</td>
+                  <td style={{ padding: '8px 10px', textAlign: 'right', color: r.marginPct < 0 ? '#C45E5E' : T.text500 }}>{r.marginPct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What a real customer on each plan is quoted — the number they actually see. */
+function SmsTierPreview({ preview }) {
+  const tiers = preview?.tierPreviews || [];
+  if (tiers.length === 0) return null;
+
+  return (
+    <div style={{ ...card, padding: 28 }}>
+      {smsCardHeader('What Each Plan Is Quoted', 'The bundle we recommend on the payment screen for each plan, and what it earns. Arabic events are shown separately because they cost roughly twice as much to serve.')}
+
+      <div className="fx-scroll-x">
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 620 }}>
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+              {['Plan', 'Recipients', 'Latin — size', 'Latin — price', 'Latin — margin', 'Arabic — size', 'Arabic — price'].map((h, i) => (
+                <th key={h} style={{ textAlign: i === 0 ? 'left' : 'right', padding: '8px 10px', color: T.text400, fontWeight: 700, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tiers.map((t) => (
+              <tr key={t.tierName} style={{ borderBottom: `1px solid ${T.border}` }}>
+                <td style={{ padding: '8px 10px', color: T.text900, fontWeight: 700 }}>
+                  {t.tierName}
+                  <span style={{ display: 'block', fontSize: 10.5, color: T.text400, fontWeight: 500 }}>
+                    {t.maxGuests ? `${t.maxGuests} guests` : 'unlimited'}
+                  </span>
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text500 }}>{t.latin.estimatedParties}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text500 }}>{t.latin.recommendedSegments.toLocaleString()}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text900, fontWeight: 700 }}>{money(t.latin.chargeCents)}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: t.latin.marginPct < 0 ? '#C45E5E' : '#3B9B6D' }}>{t.latin.marginPct}%</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text500 }}>{t.arabic.recommendedSegments.toLocaleString()}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: T.text900, fontWeight: 700 }}>{money(t.arabic.chargeCents)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ──
 export default function ConfigPage() {
   const { showAlert, showConfirm } = useAlert();
@@ -180,8 +604,21 @@ export default function ConfigPage() {
   const [landingStats, setLandingStats] = useState([]);
   const [featureRegistry, setFeatureRegistry] = useState(null);
 
+  /* ── SMS pricing model ──
+     Everything that decides what an organizer is quoted for text messaging and
+     what Fancy earns on it. `smsPricing` is the NORMALIZED model as returned by
+     the server, so the form always renders the values that will actually be
+     applied rather than whatever was typed. */
+  const [smsPricing, setSmsPricing] = useState(null);
+  const [smsMessageTypes, setSmsMessageTypes] = useState([]);
+  // Server-computed margin preview. Deliberately not calculated in the browser:
+  // a client-side copy of pricing maths is how an admin ends up tuning a margin
+  // against numbers that quietly stopped matching what customers are charged.
+  const [smsPreview, setSmsPreview] = useState(null);
+  const [smsPreviewLoading, setSmsPreviewLoading] = useState(false);
+
   // UI state
-  const [activeTab, setActiveTab] = useState('pricing'); // 'pricing' | 'tiers' | 'payments' | 'stats'
+  const [activeTab, setActiveTab] = useState('pricing'); // 'pricing' | 'sms' | 'tiers' | 'payments' | 'stats'
   const [selectedTierIdx, setSelectedTierIdx] = useState(0);
   const [retryTick, setRetryTick] = useState(0);
 
@@ -203,6 +640,10 @@ export default function ConfigPage() {
           setManualMethods(pricingRes.config.manual_payment_methods || []);
           setLandingStats(pricingRes.config.landing_stats || []);
         }
+        // The normalized SMS model + the message-type catalogue the frequency
+        // table is built from.
+        if (pricingRes.smsPricing) setSmsPricing(pricingRes.smsPricing);
+        if (Array.isArray(pricingRes.smsMessageTypes)) setSmsMessageTypes(pricingRes.smsMessageTypes);
         if (registryRes) setFeatureRegistry(registryRes);
         setError(null);
       } catch (err) {
@@ -213,19 +654,67 @@ export default function ConfigPage() {
     })();
   }, [retryTick]);
 
+  /* ── Live margin preview ──
+     Re-priced by the SERVER on every change, debounced. This is the screen where
+     someone can accidentally set a markup below carrier cost and sell messages at
+     a loss on every event; showing cost, charge and margin side by side — computed
+     by the same function that charges the customer — is what makes that visible
+     before it is saved rather than after. */
+  useEffect(() => {
+    if (activeTab !== 'sms' || !smsPricing) return;
+    let cancelled = false;
+    setSmsPreviewLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await adminApi.post('/pricing/sms-preview', {
+          smsRateCentsPerCredit: parseFloat(smsRate),
+          smsMarkupPercentage: parseFloat(smsMarkupPercentage),
+          smsPricingConfig: smsPricing,
+        });
+        if (!cancelled) setSmsPreview(res);
+      } catch {
+        if (!cancelled) setSmsPreview(null);
+      } finally {
+        if (!cancelled) setSmsPreviewLoading(false);
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [activeTab, smsPricing, smsRate, smsMarkupPercentage]);
+
+  /* Immutable-update helpers for the nested pricing model. */
+  const patchSmsPricing = useCallback((patch) => {
+    setSmsPricing((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+  const patchSmsSection = useCallback((section, key, value) => {
+    setSmsPricing((prev) => (prev ? { ...prev, [section]: { ...prev[section], [key]: value } } : prev));
+  }, []);
+
   const handleSaveConfig = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await adminApi.patch('/pricing', {
+      const res = await adminApi.patch('/pricing', {
         smsRateCentsPerCredit: parseFloat(smsRate),
         smsMarkupPercentage: parseFloat(smsMarkupPercentage),
         platformCommissionPct: parseFloat(platformCommissionPct),
         pricingTiers,
         manualPaymentMethods: manualMethods,
         landingStats,
+        ...(smsPricing ? { smsPricingConfig: smsPricing } : {}),
       });
-      await showAlert('Configuration saved successfully.', 'Success', 'success');
+
+      // Re-render from what was STORED, not what was typed. The server clamps
+      // out-of-range values rather than rejecting the save, so the form must show
+      // the applied model — otherwise the admin walks away believing a number that
+      // was silently adjusted.
+      if (res?.smsPricing) setSmsPricing(res.smsPricing);
+
+      const notes = Array.isArray(res?.smsPricingNotes) ? res.smsPricingNotes : [];
+      if (notes.length > 0) {
+        await showAlert(`Saved, with adjustments:\n\n• ${notes.join('\n• ')}`, 'Saved', 'warning');
+      } else {
+        await showAlert('Configuration saved successfully.', 'Success', 'success');
+      }
     } catch (err) {
       await showAlert(err.message || 'Failed to save configuration', 'Error', 'error');
     } finally {
@@ -341,6 +830,10 @@ export default function ConfigPage() {
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><line x1="12" y1="4" x2="12" y2="20" /><line x1="2" y1="12" x2="22" y2="12" /></svg>
           Global Pricing
         </button>
+        <button type="button" onClick={() => setActiveTab('sms')} style={tabStyle('sms')}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+          SMS Pricing
+        </button>
         <button type="button" onClick={() => setActiveTab('tiers')} style={tabStyle('tiers')}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
           Subscription Tiers
@@ -373,23 +866,101 @@ export default function ConfigPage() {
                   <p style={{ fontSize: 12, color: T.text500, margin: '4px 0 0' }}>Configure default rates and platform-wide commission structures.</p>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
-                  <Field label="SMS Base Rate (cents)">
-                    <input type="number" value={smsRate} onChange={e => setSmsRate(e.target.value)} style={inputStyle} />
-                    <span style={{ fontSize: 11, color: T.text400, marginTop: 4, display: 'block' }}>Base cost in cents per outgoing SMS message.</span>
-                  </Field>
-                  <Field label="SMS Markup (%)">
-                    <input type="number" step="0.1" value={smsMarkupPercentage} onChange={e => setSmsMarkupPercentage(e.target.value)} style={inputStyle} />
-                    <span style={{ fontSize: 11, color: T.text400, marginTop: 4, display: 'block' }}>Percent markup added to customer sms campaigns.</span>
-                  </Field>
                   <Field label="Platform Commission (%)">
                     <input type="number" step="0.1" value={platformCommissionPct} onChange={e => setPlatformCommissionPct(e.target.value)} style={inputStyle} />
                     <span style={{ fontSize: 11, color: T.text400, marginTop: 4, display: 'block' }}>Fee rate percentage taken from ticketing/sales.</span>
                   </Field>
                 </div>
+
+                {/* The SMS rate and markup used to live here as two bare inputs. They
+                    moved to their own tab — not to tidy up, but because editing a
+                    price without seeing its margin is how messages end up sold below
+                    carrier cost. They are the same two values; duplicating the inputs
+                    across tabs would just make it unclear which one "counts". */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('sms')}
+                  style={{
+                    marginTop: 22, width: '100%', textAlign: 'left', cursor: 'pointer',
+                    padding: '14px 16px', borderRadius: 10,
+                    border: `1px solid ${T.border}`, background: T.surfaceAlt,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                  }}
+                >
+                  <span>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: T.text900 }}>
+                      SMS rate, markup &amp; volume discounts
+                    </span>
+                    <span style={{ display: 'block', fontSize: 11.5, color: T.text500, marginTop: 2 }}>
+                      Currently {Number(smsRate) || 0}¢ per message with a {Number(smsMarkupPercentage) || 0}% markup.
+                    </span>
+                  </span>
+                  <span style={{ color: T.primary, fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap' }}>Open →</span>
+                </button>
               </motion.div>
             )}
 
-            {/* TAB 2: Subscription Tiers */}
+            {/* TAB 2: SMS Pricing — the full commercial model for text messaging */}
+            {activeTab === 'sms' && (
+              <motion.div
+                key="sms"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 20 }}
+              >
+                {!smsPricing ? (
+                  <div style={{ ...card, padding: 28, color: T.text500, fontSize: 13 }}>
+                    SMS pricing configuration is unavailable. Apply migration
+                    <code style={{ margin: '0 4px' }}>20260819000000_sms_pricing_config.sql</code>
+                    and reload.
+                  </div>
+                ) : (
+                  <>
+                    <SmsMarginSummary preview={smsPreview} loading={smsPreviewLoading} rate={smsRate} markup={smsMarkupPercentage} />
+
+                    <SmsRateCard
+                      rate={smsRate} onRate={setSmsRate}
+                      markup={smsMarkupPercentage} onMarkup={setSmsMarkupPercentage}
+                    />
+
+                    <SmsDiscountTiers
+                      tiers={smsPricing.volume_discounts}
+                      onChange={(next) => patchSmsPricing({ volume_discounts: next })}
+                    />
+
+                    <SmsBoundsCard
+                      bounds={smsPricing.bounds}
+                      onChange={(key, value) => patchSmsSection('bounds', key, value)}
+                    />
+
+                    <SmsEstimatorCard
+                      estimator={smsPricing.estimator}
+                      onChange={(key, value) => patchSmsSection('estimator', key, value)}
+                    />
+
+                    <SmsFrequencyCard
+                      frequencies={smsPricing.type_frequencies}
+                      messageTypes={smsMessageTypes}
+                      onChange={(key, value) => patchSmsSection('type_frequencies', key, value)}
+                    />
+
+                    <SmsLimitsCard
+                      limits={smsPricing.limits}
+                      alerts={smsPricing.alerts}
+                      onChangeRampUp={(next) => patchSmsPricing({ limits: { ...smsPricing.limits, ramp_up: next } })}
+                      onChangeAlert={(key, value) => patchSmsSection('alerts', key, value)}
+                    />
+
+                    <SmsPriceTable preview={smsPreview} loading={smsPreviewLoading} />
+                    <SmsTierPreview preview={smsPreview} />
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            {/* TAB 3: Subscription Tiers */}
             {activeTab === 'tiers' && (
               <motion.div
                 key="tiers"

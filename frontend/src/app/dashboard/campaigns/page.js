@@ -13,12 +13,190 @@ import Icon from '../../components/icons/Icon';
 
 const C = { gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC', champagne: '#D7BE80', stone: '#77736A', border: '#E8E2D6', white: '#FFFFFF', softBg: '#FAFAF8', error: '#C45E5E', success: '#3B9B6D' };
 
+/**
+ * "1,350 messages left" — the one number the organizer came here for.
+ *
+ * Replaces a three-column grid reading Purchased / Consumed / Remaining Balance,
+ * which made the reader subtract two numbers to answer the only question they
+ * actually had. Here the answer is the headline, the bar makes it instantly
+ * legible without reading any digits at all, and "last message sent 2 hours ago"
+ * confirms the thing is alive — which is the second question, and the one a
+ * status page usually forgets.
+ *
+ * The bar turns amber then red as the balance falls, so the state is obvious at a
+ * glance rather than requiring the percentage to be read and interpreted.
+ */
+function MessagesRemainingCard({ balance, coverage, onTopUp, canTopUp }) {
+  if (!balance) return null;
+
+  const { remaining, purchased, percentRemaining, isLow, isEmpty, lastUsedLabel } = balance;
+  const barColor = isEmpty ? C.error : (isLow ? '#D08C3C' : C.gold);
+  const neverBought = purchased === 0;
+
+  return (
+    <div style={{
+      background: C.white, borderRadius: 14, padding: '22px 24px',
+      border: `1px solid ${isEmpty ? C.error : (isLow ? '#D08C3C' : C.border)}`,
+    }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14 }}>
+        <div>
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.stone, fontWeight: 700 }}>
+            Your messages
+          </div>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 34, fontWeight: 700, color: C.charcoal, lineHeight: 1.1, marginTop: 4 }}>
+            {remaining.toLocaleString()}
+            <span style={{ fontSize: 15, fontWeight: 400, color: C.stone, marginLeft: 8 }}>
+              {neverBought ? 'messages' : `left of ${purchased.toLocaleString()}`}
+            </span>
+          </div>
+        </div>
+        {canTopUp && (
+          <button
+            type="button"
+            onClick={onTopUp}
+            style={{
+              padding: '11px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
+              background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+              color: C.white, fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-sans)',
+            }}
+          >
+            Add more messages
+          </button>
+        )}
+      </div>
+
+      {!neverBought && (
+        <>
+          <div style={{ marginTop: 16, height: 10, borderRadius: 999, background: C.ivory, overflow: 'hidden' }}>
+            <div style={{
+              width: `${Math.max(2, percentRemaining)}%`, height: '100%',
+              background: barColor, borderRadius: 999, transition: 'width 0.4s ease',
+            }} />
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 8 }}>
+            <span style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+              {percentRemaining}% left
+            </span>
+            {lastUsedLabel && (
+              <span style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)' }}>
+                Last message sent {lastUsedLabel}
+              </span>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Requirement 9/10: the guest list has outgrown the balance. Stated as a
+          fact with a suggested action — never as a block. */}
+      {coverage && !coverage.enough && coverage.guests > 0 && (
+        <p style={{
+          margin: '16px 0 0', padding: '11px 13px', borderRadius: 9,
+          background: 'rgba(184,148,79,0.10)', border: `1px solid ${C.border}`,
+          fontSize: 12.5, lineHeight: 1.65, color: '#8A6D34', fontFamily: 'var(--font-sans)',
+        }}>
+          You now have <strong>{coverage.guests} guests</strong>, but only enough messages for
+          about <strong>{coverage.coversInvitations}</strong> of them. Add around{' '}
+          <strong>{coverage.shortfall.toLocaleString()}</strong> more so everyone hears from you.
+        </p>
+      )}
+
+      {isEmpty && (
+        <p style={{ margin: '14px 0 0', fontSize: 12.5, lineHeight: 1.65, color: C.error, fontFamily: 'var(--font-sans)' }}>
+          You&apos;ve used all your messages. Your guests are still hearing from you by email,
+          so nothing has been missed.
+        </p>
+      )}
+
+      <p style={{ margin: '14px 0 0', fontSize: 11.5, color: C.stone, lineHeight: 1.5, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+        <Icon name="lock" size={12} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 2 }} />
+        These messages belong to this event only — they aren&apos;t shared with your other events.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Message history — the support tool.
+ *
+ * When a guest says "I never got the text", whoever picks up the ticket has to be
+ * able to answer in one second. So every row states an outcome in a sentence, by
+ * name, and never shows a code: nobody recognises +1555… as their aunt, and
+ * "NO_SMS_CONSENT" teaches a customer nothing except that we are hard to deal
+ * with. The wording is produced server-side (utils/smsUsage.explainSkip) so the
+ * dashboard and any future support tooling say exactly the same thing.
+ *
+ * Resend appears only on failures the organizer can actually fix. Offering it on
+ * a guest who replied STOP would imply the button might override their choice.
+ */
+function MessageHistory({ entries, loading, onResend, resendingId }) {
+  if (loading) {
+    return <p style={{ fontSize: 13, color: C.stone, fontFamily: 'var(--font-sans)' }}>Loading…</p>;
+  }
+  if (!entries || entries.length === 0) {
+    return (
+      <p style={{ fontSize: 13, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+        No messages yet. Once your guests start receiving texts, every one will be listed here —
+        including any that couldn&apos;t be delivered, and why.
+      </p>
+    );
+  }
+
+  const when = (iso) => {
+    try { return new Date(iso).toLocaleString(); } catch { return ''; }
+  };
+
+  return (
+    <div className="fx-stack" style={{ gap: 0 }}>
+      {entries.map((e) => {
+        const delivered = e.status === 'sent';
+        return (
+          <div key={e.id} style={{
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+            gap: 12, padding: '11px 0', borderBottom: `1px solid ${C.border}`, flexWrap: 'wrap',
+          }}>
+            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.charcoal, fontFamily: 'var(--font-sans)' }}>
+                {e.guestName || e.recipient || 'Guest'}
+              </div>
+              <div style={{ fontSize: 12, color: delivered ? C.success : C.error, marginTop: 2, fontFamily: 'var(--font-sans)' }}>
+                {delivered ? 'Delivered' : 'Not sent'}
+                {!delivered && e.reason && (
+                  <span style={{ color: C.stone }}> — {e.reason}</span>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+              <span style={{ fontSize: 11.5, color: C.stone, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>
+                {when(e.created_at)}
+              </span>
+              {e.canResend && (
+                <button
+                  type="button"
+                  disabled={resendingId === e.id}
+                  onClick={() => onResend(e.id)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 7, border: `1px solid ${C.gold}`,
+                    background: 'transparent', color: C.gold, fontSize: 11.5, fontWeight: 700,
+                    cursor: resendingId === e.id ? 'wait' : 'pointer', fontFamily: 'var(--font-sans)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {resendingId === e.id ? 'Sending…' : 'Try again'}
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [creditsPurchased, setCreditsPurchased] = useState(0);
   const [creditsUsed, setCreditsUsed] = useState(0);
-  const creditsRemaining = creditsPurchased - creditsUsed;
 
   const [ledger, setLedger] = useState([]);
 
@@ -36,6 +214,10 @@ export default function CampaignsPage() {
   const [smsCreditsToBuy, setSmsCreditsToBuy] = useState(100);
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [smsRate, setSmsRate] = useState(8);
+  // Mirrors smsDispatch.COMPLIANCE_FOOTER, fetched rather than duplicated. The
+  // default matches the server's current value so the estimate is right on the
+  // first render, before /campaigns/history resolves.
+  const [complianceFooter, setComplianceFooter] = useState(' - Fancy RSVP. Msg&data rates may apply. Reply STOP to opt out, HELP for help.');
   // Whether SMS credit top-ups (Stripe Checkout) are live. Default OFF until the
   // server reports it — keeps the buy entry hidden in pre-live / manual mode.
   const [smsEnabled, setSmsEnabled] = useState(false);
@@ -51,6 +233,42 @@ export default function CampaignsPage() {
   const returnedId = isClient ? new URLSearchParams(window.location.search).get('event') : null;
   const storedEventId = isClient ? localStorage.getItem('active_event_id') : null;
   const eventId = (isClient && orgId) ? (returnedId || storedEventId || '') : '';
+  // Per-message-type switches + the catalogue describing them, and the tally of
+  // why messages were skipped — all served by /campaigns/settings.
+  const [smsSettings, setSmsSettings] = useState({});
+  const [smsTypes, setSmsTypes] = useState([]);
+  const [skipSummary, setSkipSummary] = useState({});
+  const [skipLabels, setSkipLabels] = useState({});
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // Everything already expressed in the customer's terms by the server
+  // (utils/smsUsage.summarizeBalance) — messages left, a percentage, when one
+  // last went out — so this page never re-derives a number the emails and the
+  // dashboard banner could then disagree with.
+  const [balance, setBalance] = useState(null);
+  const [coverage, setCoverage] = useState(null);
+  const [sendLimit, setSendLimit] = useState(null);
+
+  const [messageLog, setMessageLog] = useState([]);
+  const [logLoading, setLogLoading] = useState(false);
+  const [resendingId, setResendingId] = useState(null);
+
+  // Live top-up quote, so the price is known BEFORE Stripe rather than on it.
+  const [topUpQuote, setTopUpQuote] = useState(null);
+
+  // ONE source of truth for "how many messages are left".
+  //
+  // The server already computes this (utils/smsUsage.summarizeBalance) and serves
+  // it to the balance card, the low-balance emails and the top-up modal. Letting
+  // the composer subtract two other numbers from a DIFFERENT endpoint means the
+  // same page can show two different balances depending on which request landed
+  // last — which reads to a customer as the platform not knowing its own state.
+  // The local subtraction survives only as the first-render fallback, before
+  // /campaigns/settings resolves.
+  //
+  // Declared HERE, after `balance` — reading it above its useState would be a
+  // temporal-dead-zone ReferenceError that crashes the page on every render.
+  const creditsRemaining = balance ? balance.remaining : Math.max(0, creditsPurchased - creditsUsed);
   // null = loading, true/false once known. sms_campaigns is a gated feature
   // key (see UpgradeModal.FEATURE_TITLES) but this page never actually
   // checked it — any organizer could open the composer regardless of plan.
@@ -104,12 +322,13 @@ export default function CampaignsPage() {
       name: 'Alexander', url: sampleUrl, rsvp_link: sampleUrl,
       table_number: '12', table: '12', event: 'Your Event', event_name: 'Your Event',
     });
-    // GSM-7-safe compliance footer — matches smsDispatch.js COMPLIANCE_FOOTER exactly
-    // so the credit estimate reflects what the server actually sends.
-    const compliance = ' - Fancy RSVP. Msg&data rates may apply. Reply STOP to opt out, HELP for help.';
-    if (!body.endsWith(compliance)) body += compliance;
+    // The server appends this to EVERY body and bills the result, so the estimate
+    // has to measure the same string. It is served by /campaigns/history from the
+    // backend's single definition rather than copied here — a local copy silently
+    // made every price wrong the moment either side was edited.
+    if (complianceFooter && !body.endsWith(complianceFooter)) body += complianceFooter;
     return computeSmsSegments(body);
-  }, [messageTemplate]);
+  }, [messageTemplate, complianceFooter]);
   const segmentsPerMsg = segmentInfo.segments;
   const estimatedCredits = recipientCount * segmentsPerMsg;
 
@@ -118,11 +337,11 @@ export default function CampaignsPage() {
   const handleBuySMSCredits = async (e) => {
     e.preventDefault();
     if (!smsEnabled) {
-      toast.error('SMS credit top-ups are temporarily unavailable.');
+      toast.error('Adding messages is temporarily unavailable.');
       return;
     }
     if (smsCreditsToBuy < 50) {
-      toast.error('Minimum credit purchase count is 50.');
+      toast.error('The smallest amount you can add is 50 messages.');
       return;
     }
     setBuyingCredits(true);
@@ -170,7 +389,10 @@ export default function CampaignsPage() {
       if (historyData.success) {
         setCreditsPurchased(historyData.wallet.credits_purchased || 0);
         setCreditsUsed(historyData.wallet.credits_used || 0);
-        
+        // Served by the backend from its single COMPLIANCE_FOOTER definition, so
+        // the cost estimate below can never drift from what is actually appended.
+        if (historyData.complianceFooter) setComplianceFooter(historyData.complianceFooter);
+
         // Format ledger timestamps
         const formattedLedger = (historyData.history || []).map(item => ({
           id: item.id,
@@ -178,7 +400,7 @@ export default function CampaignsPage() {
           credits: item.credits,
           timestamp: new Date(item.created_at).toLocaleString(),
           description: item.transaction_type === 'purchase' 
-            ? 'Credit bundle purchase via Stripe' 
+            ? 'Messages added' 
             : `Bulk SMS sent to ${item.sms_recipient || 'guest'}`
         }));
         setLedger(formattedLedger);
@@ -213,20 +435,32 @@ export default function CampaignsPage() {
     (async () => { await loadCampaignData(); })();
   }, [loadCampaignData, eventId]);
 
-  // Feature-gate check: fetch the event's resolved tier once we know eventId.
+  // Access check. SMS is no longer a tier feature — it is a per-event add-on, so
+  // the question is "has this event bought it?", not "which plan is it on?".
+  // /campaigns/settings is deliberately ungated: an event WITHOUT the add-on is
+  // exactly the one that needs this screen, to be told what it does and offered it.
   useEffect(() => {
     if (!eventId) return;
-    fetch(`${apiUrl}/events/${eventId}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        if (data?.event) {
-          const features = Array.isArray(data.event.tier_features) ? data.event.tier_features : [];
-          setHasCampaignFeature(!!data.event.manual_override || features.includes('sms_campaigns'));
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/settings`, { credentials: 'include' });
+        const data = await res.json();
+        if (data?.success) {
+          setHasCampaignFeature(!!data.addonActive);
+          setSmsSettings(data.settings || {});
+          setSmsTypes(Array.isArray(data.messageTypes) ? data.messageTypes : []);
+          setSkipSummary(data.skipSummary || {});
+          setSkipLabels(data.skipLabels || {});
+          setBalance(data.balance || null);
+          setCoverage(data.coverage || null);
+          setSendLimit(data.sendLimit || null);
         } else {
           setHasCampaignFeature(false);
         }
-      })
-      .catch(() => setHasCampaignFeature(false));
+      } catch {
+        setHasCampaignFeature(false);
+      }
+    })();
   }, [apiUrl, eventId]);
 
   // Keep the wallet live when the user returns from the checkout tab we opened
@@ -256,7 +490,7 @@ export default function CampaignsPage() {
     window.history.replaceState({}, '', url.pathname + url.search);
 
     if (purchase === 'cancelled') {
-      (async () => { setPurchaseNotice('Credit purchase was cancelled — no charge was made.'); })();
+      (async () => { setPurchaseNotice('That was cancelled — you have not been charged.'); })();
       return;
     }
 
@@ -269,13 +503,13 @@ export default function CampaignsPage() {
             setPurchaseSuccess(true);
             setPurchaseNotice(`Payment received — ${data.creditCount ? `${data.creditCount} ` : ''}SMS credits added to your wallet.`);
           } else {
-            setPurchaseNotice('Payment is processing. Your credits will appear here shortly.');
+            setPurchaseNotice('Payment is going through. Your messages will appear here shortly.');
           }
         } else {
-          setPurchaseNotice('Returned from checkout. Your credits will appear once the payment clears.');
+          setPurchaseNotice('Thanks — your messages will appear once the payment clears.');
         }
       } catch {
-        setPurchaseNotice('Could not confirm the purchase yet. Your credits will appear shortly.');
+        setPurchaseNotice('We could not confirm the payment just yet. Your messages will appear shortly.');
       } finally {
         loadCampaignData();
       }
@@ -297,9 +531,9 @@ export default function CampaignsPage() {
         if (terminal.includes(data.campaign.status)) {
           clearInterval(timer);
           if ((data.campaign.failedCount || 0) > 0) {
-            toast.error(`Campaign finished — ${data.campaign.sentCount} sent, ${data.campaign.failedCount} failed (refunded).`);
+            toast.error(`Sent ${data.campaign.sentCount}. ${data.campaign.failedCount} couldn't be delivered — you weren't charged for those.`);
           } else {
-            toast.success(`Campaign complete — ${data.campaign.sentCount} sent · ${data.campaign.creditsUsed} credits used.`);
+            toast.success(`Sent ${data.campaign.sentCount} message${data.campaign.sentCount !== 1 ? 's' : ''}.`);
           }
           clientTokenRef.current = null; // fresh token for the next campaign
           loadCampaignData();
@@ -321,7 +555,7 @@ export default function CampaignsPage() {
       return;
     }
     if (estimatedCredits > creditsRemaining) {
-      toast.error(`Insufficient credits. This send needs about ${estimatedCredits} credits (${recipientCount} × ${segmentsPerMsg} segment${segmentsPerMsg !== 1 ? 's' : ''}), but you have ${creditsRemaining}.`);
+      toast.error(`You need about ${estimatedCredits} messages to reach these ${recipientCount} guests, but you have ${creditsRemaining} left. Add more messages to send this.`);
       return;
     }
     // Mint a launch token now; reused on retry so a timeout can't double-charge.
@@ -335,13 +569,22 @@ export default function CampaignsPage() {
   };
 
   const executeLaunchCampaign = async () => {
+    // Send the attestation the organizer ACTUALLY made, never a literal `true`.
+    // What lands in sms_campaigns.consent_attested_at is a legal record under
+    // Terms §5; hardcoding it would make that record a statement by this code
+    // rather than by a person, and would silently assert consent for any future
+    // caller that reaches this function without the confirmation modal.
+    if (!consentAttested) {
+      setError('Confirm the consent statement before launching this campaign.');
+      return;
+    }
     setSending(true);
     try {
       const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/send-sms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ messageTemplate, audiences, clientToken: clientTokenRef.current, consentAttested: true })
+        body: JSON.stringify({ messageTemplate, audiences, clientToken: clientTokenRef.current, consentAttested })
       });
 
       const data = await res.json();
@@ -375,9 +618,9 @@ export default function CampaignsPage() {
           message: data.message
         });
         if (data.failedCount > 0) {
-          toast.error(`${data.failedCount} message${data.failedCount !== 1 ? 's' : ''} couldn't be delivered — ${data.sentCount} sent. Failed sends were not charged.${suppressedNote}`);
+          toast.error(`Sent ${data.sentCount}. ${data.failedCount} couldn't be delivered — you weren't charged for those.${suppressedNote}`);
         } else {
-          toast.success(`${data.sentCount} message${data.sentCount !== 1 ? 's' : ''} sent · ${data.creditsUsed} credit${data.creditsUsed !== 1 ? 's' : ''} used.${suppressedNote}`);
+          toast.success(`Sent ${data.sentCount} message${data.sentCount !== 1 ? 's' : ''}.${suppressedNote}`);
         }
         // Clean success → next distinct campaign gets a fresh idempotency token.
         clientTokenRef.current = null;
@@ -422,6 +665,236 @@ export default function CampaignsPage() {
     );
   }
 
+  /* Message history. Loaded once the add-on is known to be active — an event
+     without it has no history worth fetching. */
+  const loadMessageLog = useCallback(async () => {
+    if (!eventId) return;
+    setLogLoading(true);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/log?limit=100`, { credentials: 'include' });
+      const data = await res.json();
+      if (data?.success) setMessageLog(data.entries || []);
+    } catch { /* the history is diagnostic — its absence must not break the page */ }
+    finally { setLogLoading(false); }
+  }, [apiUrl, eventId]);
+
+  useEffect(() => {
+    if (hasCampaignFeature) loadMessageLog();
+  }, [hasCampaignFeature, loadMessageLog]);
+
+  /* Retry ONE failed message.
+     Building a whole campaign to reach a single guest is both absurd and
+     dangerous — the audience filters would sweep in everyone else who matches. */
+  const handleResend = useCallback(async (logId) => {
+    setResendingId(logId);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/resend/${logId}`, {
+        method: 'POST', credentials: 'include',
+      });
+      const data = await res.json();
+      if (data?.success) toast.success(data.message || 'Message sent.');
+      else toast.error(data?.message || 'It still could not be sent.');
+      await loadMessageLog();
+      await loadCampaignData();
+    } catch (err) {
+      toast.error(err.message || 'Could not resend that message.');
+    } finally {
+      setResendingId(null);
+    }
+  }, [apiUrl, eventId, loadMessageLog, loadCampaignData]);
+
+  /* What a top-up would cost, fetched BEFORE the organizer commits. Requirement:
+     never let someone meet the price for the first time on Stripe's page. */
+  useEffect(() => {
+    if (!showSMSModal || !eventId) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `${apiUrl}/events/${eventId}/campaigns/topup-quote?messages=${encodeURIComponent(smsCreditsToBuy)}`,
+          { credentials: 'include' },
+        );
+        const data = await res.json();
+        if (!cancelled && data?.success) setTopUpQuote(data);
+      } catch { if (!cancelled) setTopUpQuote(null); }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [showSMSModal, smsCreditsToBuy, apiUrl, eventId]);
+
+  /* Per-message-type switches. Saved immediately on toggle rather than behind a
+     Save button: each switch is independent and instantly reversible, and a
+     forgotten Save here means the organizer's allowance keeps being spent on a
+     message type they believed they had turned off. Optimistic, with a rollback
+     on failure so the UI never claims a change the server rejected. */
+  const toggleSmsType = async (key, next) => {
+    const previous = smsSettings;
+    const updated = { ...smsSettings, [key]: next };
+    setSmsSettings(updated);
+    setSavingSettings(true);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settings: updated }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Could not save.');
+      setSmsSettings(data.settings || updated);
+    } catch (err) {
+      setSmsSettings(previous);
+      toast.error(err.message || 'Could not save that change.');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const smsTypePanel = hasCampaignFeature && smsTypes.length > 0 && (
+    <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, marginBottom: 24 }}>
+      <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 700, color: C.charcoal, margin: '0 0 4px' }}>
+        What gets sent by text
+      </h3>
+      <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.6, margin: '0 0 16px', fontFamily: 'var(--font-sans)' }}>
+        Switch any of these off to save your message balance. Anything switched off still
+        reaches guests by email, so nothing is ever missed.
+      </p>
+
+      <div className="fx-stack" style={{ gap: 2 }}>
+        {smsTypes.map((t) => {
+          const on = smsSettings[t.key] !== undefined ? !!smsSettings[t.key] : !!t.defaultEnabled;
+          return (
+            <label key={t.key} style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0',
+              borderBottom: `1px solid ${C.border}`, cursor: savingSettings ? 'wait' : 'pointer',
+            }}>
+              <input
+                type="checkbox"
+                checked={on}
+                disabled={savingSettings}
+                onChange={(e) => toggleSmsType(t.key, e.target.checked)}
+                style={{ marginTop: 2, width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
+              />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.charcoal, fontFamily: 'var(--font-sans)' }}>
+                  {t.label}
+                  {t.audience === 'organizer' && (
+                    <span style={{ marginLeft: 6, fontSize: 10, color: C.stone, fontWeight: 400 }}>(to you)</span>
+                  )}
+                </span>
+                <span style={{ display: 'block', fontSize: 11.5, color: C.stone, lineHeight: 1.5, fontFamily: 'var(--font-sans)' }}>
+                  {t.description}
+                </span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      {Object.keys(skipSummary).length > 0 && (
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
+          <p style={{ fontSize: 11.5, fontWeight: 600, color: C.charcoal, margin: '0 0 6px', fontFamily: 'var(--font-sans)' }}>
+            Messages not sent
+          </p>
+          {/* Wording comes from the server so this page, the message history and
+              any support tooling describe the same reason identically. */}
+          {Object.entries(skipSummary).map(([reason, count]) => (
+            <div key={reason} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 11.5, color: C.stone, padding: '2px 0', fontFamily: 'var(--font-sans)' }}>
+              <span>{skipLabels[reason] || 'Could not be delivered'}</span>
+              <span style={{ fontWeight: 600, color: C.charcoal }}>{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  /* The top-up modal, hoisted out of the main return so the ADD-ON-INACTIVE screen
+     can render it too. That screen's entire purpose is to sell text messaging, and
+     a button there opening a modal that lived only in the unlocked view would do
+     nothing at all. Buying from either place hits the same endpoint, whose
+     fulfilment unlocks the add-on as well as crediting the wallet. */
+  const purchaseModal = showSMSModal && (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: C.white, border: `1px solid ${C.border}`, width: '100%', maxWidth: 440, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <h3 style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-serif)' }}>
+          {hasCampaignFeature ? 'Add more SMS messages' : 'Add text messaging'}
+        </h3>
+        <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>
+          Messages are used for RSVP confirmations, reminders, entry-pass links and your own
+          campaigns. A 12.5% volume discount applies automatically from 500 messages up.
+        </p>
+        <p style={{ fontSize: 11, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)', background: C.softBg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', margin: 0, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <Icon name="lock" size={12} strokeWidth={1.7} style={{ flexShrink: 0, marginTop: 2 }} /> These messages are added to <strong>this event&apos;s balance only</strong> — each event keeps its own, so they can&apos;t be moved to or shared with another event.
+        </p>
+        <form onSubmit={handleBuySMSCredits} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={{ fontSize: 11, color: C.stone, fontWeight: 600, display: 'block', marginBottom: 4 }}>Number of messages</label>
+            <input
+              type="number"
+              min="50"
+              required
+              value={smsCreditsToBuy}
+              onChange={e => setSmsCreditsToBuy(e.target.value)}
+              placeholder="e.g. 100"
+              style={{ width: '100%', background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, color: C.charcoal, outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }}
+              onFocus={e => { e.currentTarget.style.borderColor = C.gold; }}
+              onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
+            />
+            <span style={{ fontSize: 10, color: C.stone, display: 'block', marginTop: 4 }}>Minimum purchase of 50 messages.</span>
+          </div>
+
+          {/* The price comes from the SERVER, priced by the same function the
+              checkout charges with, so the number here and the number on the
+              invoice cannot drift apart. The old block recomputed it in the
+              browser with its own copy of the discount rules — which silently
+              became wrong the moment an admin edited a discount tier. */}
+          <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {topUpQuote?.discountPct > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: C.success }}>
+                <span>Bulk saving:</span>
+                <span>{topUpQuote.discountPct}% off</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, fontWeight: 700, color: C.gold }}>
+              <span>You&apos;ll pay:</span>
+              <span style={{ fontFamily: 'var(--font-serif)', fontSize: 22 }}>
+                {topUpQuote ? `$${(topUpQuote.priceCents / 100).toFixed(2)}` : '…'}
+              </span>
+            </div>
+            {topUpQuote?.coverage?.guests > 0 && (
+              <div style={{ fontSize: 11.5, color: C.stone, lineHeight: 1.55, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+                {topUpQuote.coverage.enough
+                  ? `Enough for all ${topUpQuote.coverage.guests} of your guests.`
+                  : `Covers about ${topUpQuote.coverage.coversInvitations} of your ${topUpQuote.coverage.guests} guests.`}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8 }}>
+            <button
+              type="button"
+              onClick={() => setShowSMSModal(false)}
+              style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${C.border}`, color: C.stone, fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = C.softBg; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={buyingCredits}
+              style={{ padding: '8px 16px', background: C.gold, color: C.white, fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'all 0.2s', opacity: buyingCredits ? 0.5 : 1, fontFamily: 'var(--font-sans)' }}
+              onMouseEnter={e => { if (!buyingCredits) e.currentTarget.style.background = C.goldHover; }}
+              onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
+            >
+              {buyingCredits ? 'Connecting to Stripe...' : 'Proceed to checkout'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
   if (hasCampaignFeature === false) {
     return (
       <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-sans)' }}>
@@ -429,20 +902,35 @@ export default function CampaignsPage() {
           <div style={{ width: 72, height: 72, borderRadius: '50%', margin: '0 auto 24px', background: 'linear-gradient(135deg, rgba(215,190,128,0.15) 0%, rgba(184,148,79,0.15) 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
           </div>
-          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: C.charcoal, margin: 0 }}>SMS Campaigns</h2>
-          <p style={{ fontSize: '14px', color: C.stone, maxWidth: 340, margin: '12px auto 0', lineHeight: 1.7 }}>
-            Send bulk SMS invitations and reminders to your guests. This feature isn&apos;t included in your current plan.
+          <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '24px', fontWeight: 600, color: C.charcoal, margin: 0 }}>Text messaging</h2>
+          {/* Not an upsell to a bigger PLAN — SMS is sold per event on every plan.
+              Sending someone to "View Plans" would have been a dead end: no tier
+              they could buy would unlock this. The action is to buy the messages. */}
+          <p style={{ fontSize: '14px', color: C.stone, maxWidth: 380, margin: '12px auto 0', lineHeight: 1.7 }}>
+            Reach guests on their phones: RSVP confirmations, reminders, entry-pass links
+            and your own campaigns. Available on any plan — add it to this event whenever
+            you like.
           </p>
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => setShowSMSModal(true)}
             style={{
               marginTop: 32, padding: '14px 36px', background: 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
               color: C.white, border: 'none', borderRadius: '30px', fontSize: '14px', fontWeight: 700, cursor: 'pointer',
             }}
           >
-            View Plans &amp; Upgrade →
+            Add text messaging →
+          </button>
+          <button
+            onClick={() => router.push('/dashboard')}
+            style={{
+              display: 'block', margin: '14px auto 0', padding: '8px 16px', background: 'transparent',
+              color: C.stone, border: 'none', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline',
+            }}
+          >
+            Back to dashboard
           </button>
         </div>
+        {purchaseModal}
       </div>
     );
   }
@@ -476,9 +964,9 @@ export default function CampaignsPage() {
               onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
             >← Back to List</Link>
             <span style={{ color: C.border }}>/</span>
-            <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, letterSpacing: '0.1em' }}>SMS Engine</span>
+            <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, letterSpacing: '0.1em' }}>Text messages</span>
           </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 4, fontFamily: 'var(--font-serif)', color: C.charcoal }}>SMS Campaign Manager</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', marginTop: 4, fontFamily: 'var(--font-serif)', color: C.charcoal }}>Text messages</h1>
         </div>
 
         <div style={{ display: 'flex', gap: 12 }}>
@@ -490,7 +978,7 @@ export default function CampaignsPage() {
               onMouseEnter={e => { e.currentTarget.style.background = C.softBg; e.currentTarget.style.borderColor = C.gold; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = C.border; }}
             >
-              Buy SMS Credits
+              Add messages
             </button>
           )}
           <button
@@ -509,38 +997,62 @@ export default function CampaignsPage() {
         </div>
       </div>
 
+      {/* Which lifecycle messages go by text, plus why any were skipped. Sits above
+          the composer because it governs the automated majority of what this event
+          sends — campaigns are the manual exception, not the main channel. */}
+      <div className="fx-container fx-container--4xl">
+        {smsTypePanel}
+      </div>
+
+      {/* Message history — every text, delivered or not, with the reason. This is
+          the screen support opens when a guest says "I never got it". */}
+      {hasCampaignFeature && (
+        <div className="fx-container fx-container--4xl" style={{ marginBottom: 24 }}>
+          <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
+              <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 700, color: C.charcoal, margin: 0 }}>
+                Message history
+              </h3>
+              <button
+                type="button"
+                onClick={loadMessageLog}
+                style={{ background: 'transparent', border: 'none', padding: 0, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}
+              >
+                Refresh
+              </button>
+            </div>
+            <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.6, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+              Every text we tried to send, and what happened to it.
+            </p>
+            <MessageHistory
+              entries={messageLog}
+              loading={logLoading}
+              onResend={handleResend}
+              resendingId={resendingId}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="fx-container fx-container--4xl" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 32 }}>
-        
+
         {/* Left/Middle Column: Template Composer & Campaign launcher */}
         <div className="camp-main-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 32 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-          {/* 1. Wallet Status Widget */}
-          <div className="camp-wallet-grid" style={{ background: C.white, border: `1px solid ${C.border}`, padding: 24, borderRadius: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, textAlign: 'center' }}>
-            <div>
-              <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.1em' }}>Purchased</span>
-              <span style={{ fontSize: 20, fontWeight: 900, display: 'block', marginTop: 8, color: C.charcoal }}>{creditsPurchased}</span>
-            </div>
-            <div>
-              <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.1em' }}>Consumed</span>
-              <span style={{ fontSize: 20, fontWeight: 900, display: 'block', marginTop: 8, color: C.stone }}>{creditsUsed}</span>
-            </div>
-            <div style={{ borderLeft: `1px solid ${C.border}` }}>
-              <span style={{ fontSize: 10, textTransform: 'uppercase', color: C.stone, fontWeight: 700, display: 'block', letterSpacing: '0.1em' }}>Remaining Balance</span>
-              <span style={{ fontSize: 22, fontWeight: 900, display: 'block', marginTop: 6, color: C.gold }}>{creditsRemaining} Credits</span>
-            </div>
-            {/* Wallets are scoped per-event: credits bought here only spend on THIS event. */}
-            <div style={{ gridColumn: '1 / -1', borderTop: `1px solid ${C.border}`, paddingTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <Icon name="lock" size={13} strokeWidth={1.6} />
-              <span style={{ fontSize: 11, color: C.stone, fontWeight: 600, lineHeight: 1.5 }}>
-                This balance belongs to this event only — credits aren&apos;t shared across your other events.
-              </span>
-            </div>
-          </div>
+          {/* 1. Your messages — the headline. Replaces a three-column grid of
+                 "Purchased / Consumed / Remaining Balance", which asked the reader
+                 to subtract two numbers to answer the only question they had. */}
+          <MessagesRemainingCard
+            balance={balance}
+            coverage={coverage}
+            onTopUp={() => setShowSMSModal(true)}
+            canTopUp={smsEnabled}
+          />
 
           {/* 2. Composer */}
           <div style={{ background: C.white, border: `1px solid ${C.border}`, padding: 24, borderRadius: 12 }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, borderBottom: `1px solid ${C.border}`, paddingBottom: 12, fontFamily: 'var(--font-serif)', color: C.charcoal }}>Campaign Composer & Live Mobile Preview</h3>
+            <h3 style={{ fontSize: 17, fontWeight: 700, borderBottom: `1px solid ${C.border}`, paddingBottom: 12, fontFamily: 'var(--font-serif)', color: C.charcoal }}>Send an announcement</h3>
             
             <div className="camp-composer-grid" style={{ display: 'grid', gridTemplateColumns: '7fr 5fr', gap: 32, alignItems: 'start', marginTop: 24 }}>
               
@@ -597,7 +1109,7 @@ export default function CampaignsPage() {
                       );
                     })}
                   </div>
-                  <span style={{ fontSize: 10, color: C.stone }}>Combine segments freely (e.g. Pending + Maybe). Only guests with a phone number count; each gets their own unique RSVP link.</span>
+                  <span style={{ fontSize: 10, color: C.stone }}>Pick more than one if you like (e.g. Not replied + Maybe). Only guests with a phone number are counted, and each gets their own personal link.</span>
                 </div>
 
                 {recipientCount > 0 ? (
@@ -606,49 +1118,53 @@ export default function CampaignsPage() {
                       <span style={{ color: C.stone, fontWeight: 600 }}>Recipients:</span>
                       <span style={{ fontWeight: 700, color: C.charcoal }}>{recipientCount} · {audienceLabel}</span>
                     </div>
+                    {/* Everything here is stated in messages and guests. The old
+                        version reported character counts, an encoding name and a
+                        per-segment rate — four technical facts the organizer has
+                        to combine themselves to answer "can I afford this?". */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                      <span style={{ color: C.stone, fontWeight: 600 }}>Message size:</span>
-                      <span style={{ fontWeight: 700, color: segmentsPerMsg > 1 ? C.error : C.charcoal }}>
-                        {segmentInfo.length} chars · {segmentInfo.encoding} · {segmentsPerMsg} SMS{segmentsPerMsg !== 1 ? ' segments' : ' segment'}
-                      </span>
+                      <span style={{ color: C.stone, fontWeight: 600 }}>Guests you&apos;ll reach:</span>
+                      <span style={{ fontWeight: 700, color: C.charcoal }}>{recipientCount}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                      <span style={{ color: C.stone, fontWeight: 600 }}>Cost Per SMS Segment:</span>
-                      <span style={{ fontWeight: 700, color: C.charcoal }}>${(smsRate / 100).toFixed(2)} ({smsRate}¢)</span>
-                    </div>
+                    {segmentsPerMsg > 1 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                        <span style={{ color: C.stone, fontWeight: 600 }}>Long message — counts as:</span>
+                        <span style={{ fontWeight: 700, color: '#8A6D34' }}>{segmentsPerMsg} messages each</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10, fontWeight: 700 }}>
-                      <span style={{ color: C.stone }}>Credits Required:</span>
-                      <span style={{ color: C.gold }}>~{estimatedCredits} Credits</span>
+                      <span style={{ color: C.stone }}>This will use:</span>
+                      <span style={{ color: C.gold }}>about {estimatedCredits} messages</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 700 }}>
-                      <span style={{ color: C.stone }}>Estimated Cost:</span>
-                      <span style={{ color: C.gold }}>${((estimatedCredits * smsRate) / 100).toFixed(2)} USD</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
-                      <span style={{ color: C.stone }}>Wallet Balance:</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                      <span style={{ color: C.stone }}>You have:</span>
                       <span style={{ fontWeight: 700, color: creditsRemaining >= estimatedCredits ? C.success : C.error }}>
-                        {creditsRemaining} Credits available
+                        {creditsRemaining} left
                       </span>
                     </div>
                     {segmentsPerMsg > 1 && (
-                      <span style={{ fontSize: 10, color: C.stone, lineHeight: 1.6 }}>
-                        This message spans {segmentsPerMsg} segments, so each guest costs {segmentsPerMsg} credits. Shorten it (or switch off special characters) to drop to a single segment.
+                      <span style={{ fontSize: 10.5, color: C.stone, lineHeight: 1.6 }}>
+                        Your message is long, so it counts as {segmentsPerMsg} messages per guest.
+                        Shortening it would make it count as one.
                       </span>
                     )}
-                    {/* UCS-2 (Arabic, accents, emoji) caps a segment at 70 chars vs 160 — so the
-                        same length costs far more credits. Surface this explicitly. */}
+                    {/* Arabic and emoji halve what fits in a message. Said as a cost,
+                        not as an encoding — the reader does not need to know the
+                        word UCS-2 to act on this. */}
                     {segmentInfo.encoding === 'UCS-2' && (
                       <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', background: 'rgba(196,94,94,0.06)', border: `1px solid rgba(196,94,94,0.25)`, borderRadius: 8, padding: '8px 10px' }}>
                         <Icon name="warning" size={13} strokeWidth={1.6} style={{ flexShrink: 0, marginTop: 1 }} />
-                        <span style={{ fontSize: 10, color: C.charcoal, lineHeight: 1.6 }}>
-                          <strong>Arabic / special characters detected.</strong> This switches the message to Unicode, where each SMS segment holds only <strong>70 characters</strong> (vs 160 for Latin text) — so it can cost up to <strong>3× the credits</strong> per guest. Use plain Latin text to keep messages to a single segment.
+                        <span style={{ fontSize: 10.5, color: C.charcoal, lineHeight: 1.6 }}>
+                          <strong>Arabic or special characters detected.</strong> Phone networks fit
+                          less of this kind of text into one message, so it can use up to{' '}
+                          <strong>3× as many</strong> per guest. Writing in plain English keeps it to one.
                         </span>
                       </div>
                     )}
                   </div>
                 ) : (
                   <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, textAlign: 'center' }}>
-                    <p style={{ fontSize: 12, color: C.stone }}>No guests with a phone number in the <strong>{audienceLabel}</strong> segment.</p>
+                    <p style={{ fontSize: 12, color: C.stone }}>No guests with a phone number in <strong>{audienceLabel}</strong>.</p>
                   </div>
                 )}
 
@@ -667,7 +1183,7 @@ export default function CampaignsPage() {
 
               {/* Smartphone Mockup Preview Block */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.stone, fontWeight: 700, marginBottom: 12 }}>Live SMS Preview</span>
+                <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.stone, fontWeight: 700, marginBottom: 12 }}>How it will look</span>
                 
                 {/* Smartphone Shell */}
                 <div style={{ width: 220, aspectRatio: '9/18', borderRadius: '2.2rem', border: '8px solid #3a3a3c', background: C.softBg, boxShadow: '0 8px 32px rgba(0,0,0,0.12)', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: 8, userSelect: 'none' }}>
@@ -753,7 +1269,7 @@ export default function CampaignsPage() {
                     <span style={{ fontSize: 12, color: C.stone }}>Sent: <strong style={{ color: C.success }}>{activeCampaign.sentCount || 0}</strong></span>
                     <span style={{ fontSize: 12, color: C.stone }}>Failed: <strong style={{ color: (activeCampaign.failedCount || 0) > 0 ? C.error : C.charcoal }}>{activeCampaign.failedCount || 0}</strong></span>
                     {(activeCampaign.skippedCount || 0) > 0 && <span style={{ fontSize: 12, color: C.stone }}>Skipped: <strong style={{ color: C.charcoal }}>{activeCampaign.skippedCount}</strong></span>}
-                    <span style={{ fontSize: 12, color: C.stone, marginLeft: 'auto' }}>Credits used: <strong style={{ color: C.gold }}>{activeCampaign.creditsUsed || 0}</strong></span>
+                    <span style={{ fontSize: 12, color: C.stone, marginLeft: 'auto' }}>Messages used: <strong style={{ color: C.gold }}>{activeCampaign.creditsUsed || 0}</strong></span>
                   </div>
                   {activeCampaign.lastError && <p style={{ fontSize: 11, color: C.error, marginTop: 8 }}>{activeCampaign.lastError}</p>}
                 </div>
@@ -803,7 +1319,7 @@ export default function CampaignsPage() {
                     <span style={{ fontWeight: 700, fontSize: 13, display: 'block', color: isPurchase ? C.success : C.stone }}>
                       {isPurchase ? `+${row.credits}` : row.credits}
                     </span>
-                    <span style={{ fontSize: 9, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginTop: 2 }}>Credits</span>
+                    <span style={{ fontSize: 9, color: C.stone, textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginTop: 2 }}>Messages</span>
                   </div>
                 </div>
               );
@@ -825,20 +1341,20 @@ export default function CampaignsPage() {
             </p>
             <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: C.stone }}>Est. credits to use:</span>
-                <strong style={{ color: C.charcoal }}>~{estimatedCredits} Credits</strong>
+                <span style={{ color: C.stone }}>This will use:</span>
+                <strong style={{ color: C.charcoal }}>about {estimatedCredits} messages</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: C.stone }}>Remaining balance:</span>
-                <strong style={{ color: C.gold }}>{creditsRemaining} Credits</strong>
+                <span style={{ color: C.stone }}>You have:</span>
+                <strong style={{ color: C.gold }}>{creditsRemaining} messages</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${C.border}`, paddingTop: 8, marginTop: 4 }}>
-                <span style={{ color: C.stone }}>Est. balance after:</span>
-                <strong style={{ color: C.charcoal }}>{creditsRemaining - estimatedCredits} Credits</strong>
+                <span style={{ color: C.stone }}>Left afterwards:</span>
+                <strong style={{ color: C.charcoal }}>about {creditsRemaining - estimatedCredits} messages</strong>
               </div>
             </div>
             <p style={{ fontSize: 12, color: C.stone, fontFamily: 'var(--font-sans)', fontStyle: 'italic' }}>
-              Credits are charged per delivered segment — failed sends are automatically refunded. Final usage may vary slightly with each guest&apos;s name length.
+              You&apos;re only charged for messages that are delivered — anything that fails is refunded automatically. The exact number can vary slightly with the length of each guest&apos;s name.
             </p>
             {/* Terms §5 consent attestation — required for every launch; recorded with the campaign. */}
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '12px 14px', borderRadius: 10, background: 'rgba(184,148,79,0.06)', border: `1px solid ${C.border}`, cursor: 'pointer' }}>
@@ -893,85 +1409,7 @@ export default function CampaignsPage() {
       )}
 
       {/* Purchase SMS Credits Modal Overlay */}
-      {showSMSModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(25,27,30,0.6)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: C.white, border: `1px solid ${C.border}`, width: '100%', maxWidth: 440, borderRadius: 16, padding: 24, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: C.charcoal, fontFamily: 'var(--font-serif)' }}>Purchase SMS Credits</h3>
-            <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>
-              SMS credits are used to send bulk mobile invitations to your guests. Volume discount of 12.5% is automatically applied on packages of 500 credits or more.
-            </p>
-            <p style={{ fontSize: 11, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)', background: C.softBg, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 10px', margin: 0, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-              <Icon name="lock" size={12} strokeWidth={1.7} style={{ flexShrink: 0, marginTop: 2 }} /> These credits are added to <strong>this event&apos;s wallet only</strong> — each event keeps its own balance, so they can&apos;t be moved to or shared with another event.
-            </p>
-            <form onSubmit={handleBuySMSCredits} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={{ fontSize: 11, color: C.stone, fontWeight: 600, display: 'block', marginBottom: 4 }}>Number of Credits</label>
-                <input
-                  type="number"
-                  min="50"
-                  required
-                  value={smsCreditsToBuy}
-                  onChange={e => setSmsCreditsToBuy(e.target.value)}
-                  placeholder="e.g. 100"
-                  style={{ width: '100%', background: C.white, border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, color: C.charcoal, outline: 'none', fontFamily: 'var(--font-sans)', boxSizing: 'border-box' }}
-                  onFocus={e => { e.currentTarget.style.borderColor = C.gold; }}
-                  onBlur={e => { e.currentTarget.style.borderColor = C.border; }}
-                />
-                <span style={{ fontSize: 10, color: C.stone, display: 'block', marginTop: 4 }}>Minimum purchase of 50 credits.</span>
-              </div>
-              
-              <div style={{ background: C.softBg, padding: 16, border: `1px solid ${C.border}`, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                  <span style={{ color: C.stone }}>Price Per Credit:</span>
-                  <span style={{ fontWeight: 600, color: C.charcoal }}>{smsRate}¢</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
-                  <span style={{ color: C.stone }}>Subtotal:</span>
-                  <span style={{ fontWeight: 600, color: C.charcoal }}>${((smsCreditsToBuy * smsRate) / 100).toFixed(2)} USD</span>
-                </div>
-                {smsCreditsToBuy >= 500 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: C.success }}>
-                    <span>Volume Discount (12.5%):</span>
-                    <span>-${(((smsCreditsToBuy * smsRate) / 100) * 0.125).toFixed(2)} USD</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, borderTop: `1px solid ${C.border}`, paddingTop: 8, fontWeight: 700, color: C.gold }}>
-                  <span>Total Amount:</span>
-                  <span>
-                    ${(
-                      smsCreditsToBuy >= 500
-                        ? ((smsCreditsToBuy * smsRate) / 100) * 0.875
-                        : (smsCreditsToBuy * smsRate) / 100
-                    ).toFixed(2)}{' '}
-                    USD
-                  </span>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSMSModal(false)}
-                  style={{ padding: '8px 16px', background: 'transparent', border: `1px solid ${C.border}`, color: C.stone, fontSize: 12, fontWeight: 700, borderRadius: 8, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = C.softBg; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={buyingCredits}
-                  style={{ padding: '8px 16px', background: C.gold, color: C.white, fontSize: 12, fontWeight: 700, borderRadius: 8, border: 'none', cursor: 'pointer', transition: 'all 0.2s', opacity: buyingCredits ? 0.5 : 1, fontFamily: 'var(--font-sans)' }}
-                  onMouseEnter={e => { if (!buyingCredits) e.currentTarget.style.background = C.goldHover; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = C.gold; }}
-                >
-                  {buyingCredits ? 'Connecting to Stripe...' : 'Proceed to Checkout'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {purchaseModal}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

@@ -207,6 +207,18 @@ export default function CreateEventWizard() {
   const [referralCreditCents, setReferralCreditCents] = useState(0);
   const [smsRateCentsPerCredit, setSmsRateCentsPerCredit] = useState(null);
   const [smsMarkupPercentage, setSmsMarkupPercentage] = useState(0);
+
+  /* ═══ SMS add-on, chosen on the payment step ═══
+     Sizing comes from the server (payments/pricing-config → smsEstimates), keyed
+     by tier and script, so the recommendation the organizer sees and the price
+     Stripe charges are derived from ONE definition. Off by default: SMS is an
+     opt-in purchase, and defaulting it on would charge people who never asked. */
+  const [smsAddonEnabled, setSmsAddonEnabled] = useState(false);
+  const [smsAddonSegments, setSmsAddonSegments] = useState(null);
+  const [smsEstimates, setSmsEstimates] = useState({});
+  // The admin's live discount tiers, so the purchase screen's price preview
+  // matches what checkout will actually charge.
+  const [smsVolumeDiscounts, setSmsVolumeDiscounts] = useState(null);
   // Which paid integrations are live right now (server-driven). Default OFF so the
   // UI is manual-first until the backend reports card/SMS are enabled.
   const [features, setFeatures] = useState({ stripeEnabled: false, smsEnabled: false });
@@ -533,11 +545,31 @@ export default function CreateEventWizard() {
           // shown at all, unlike every other paid action in this wizard.
           if (Number.isFinite(data.config.sms_rate_cents_per_credit)) setSmsRateCentsPerCredit(data.config.sms_rate_cents_per_credit);
           if (Number.isFinite(data.config.sms_markup_percentage)) setSmsMarkupPercentage(data.config.sms_markup_percentage);
+          // Per-tier allowance recommendations + the message-type catalogue, both
+          // computed server-side so the estimate can never drift from the charge.
+          if (data.smsEstimates) setSmsEstimates(data.smsEstimates);
+          if (data.smsPricing?.volume_discounts) setSmsVolumeDiscounts(data.smsPricing.volume_discounts);
         }
       } catch { /* non-fatal — payment step shows a skip option */ }
     })();
     return () => { cancelled = true; };
   }, [apiUrl]);
+
+  /* ═══ Seed the SMS allowance from the chosen plan ═══
+     A bigger plan means more guests means more messages, so the recommendation
+     has to follow the tier rather than sit at whatever the first one suggested.
+     Re-seeds on every tier change — including back to a smaller plan, where
+     leaving a larger number in place would quietly overcharge.
+
+     Estimates are keyed by script; 'latin' is used because the event's language is
+     a guest-facing choice made elsewhere. Arabic messages cost roughly double
+     (UCS-2 caps a segment at 70 characters), which the card says plainly and the
+     slider lets the organizer act on. */
+  useEffect(() => {
+    if (!selectedTierName) return;
+    const recommended = smsEstimates?.[selectedTierName]?.latin?.recommendedSegments;
+    if (Number.isFinite(recommended)) setSmsAddonSegments(recommended);
+  }, [selectedTierName, smsEstimates]);
 
   /* ═══ Referral credit balance (preview-only — the backend is always the
      source of truth for what's actually charged; see StagePayment) ═══ */
@@ -1186,14 +1218,22 @@ export default function CreateEventWizard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ eventId, tierName: selectedTierName }),
+        // The SMS add-on rides on the SAME checkout as the licence — one payment,
+        // two line items. null when the organizer left it switched off.
+        body: JSON.stringify({
+          eventId,
+          tierName: selectedTierName,
+          smsAddonSegments: smsAddonEnabled ? smsAddonSegments : null,
+        }),
       });
       const data = await res.json();
       if (!res.ok || (!data.checkoutUrl && !data.activated)) throw new Error(data.message || 'Could not start checkout.');
 
       // A free ($0) tier is activated synchronously server-side — no Stripe
-      // round-trip needed, so just show the success state directly.
-      if (data.activated) {
+      // round-trip needed, so just show the success state directly. It can still
+      // return a checkoutUrl when the SMS add-on was requested: the plan is free,
+      // the messaging is not, so that purchase still has to be completed.
+      if (data.activated && !data.checkoutUrl) {
         setPaymentConfirmed(true);
         setPaymentNotice(data.message || 'Your plan is now active.');
         setPayProcessing(false);
@@ -1211,7 +1251,7 @@ export default function CreateEventWizard() {
       setPayError(err.message || 'Payment could not be started.');
       setPayProcessing(false);
     }
-  }, [apiUrl, eventId, selectedTierName, slug, payProcessing]);
+  }, [apiUrl, eventId, selectedTierName, slug, payProcessing, smsAddonEnabled, smsAddonSegments]);
 
   const handlePayManual = useCallback(async (methodLabel = '', payerReference = '') => {
     // Same re-entrancy guard as handlePayStripe above.
@@ -1519,6 +1559,16 @@ export default function CreateEventWizard() {
               onPayStripe={handlePayStripe}
               onPayManual={handlePayManual}
               manualRef={manualRef}
+              /* SMS add-on — bought here, on the screen where the plan is chosen
+                 and the payment happens. */
+              smsAddonEnabled={smsAddonEnabled}
+              onToggleSmsAddon={setSmsAddonEnabled}
+              smsAddonSegments={smsAddonSegments}
+              onChangeSmsAddonSegments={setSmsAddonSegments}
+              smsEstimate={smsEstimates?.[selectedTierName]?.latin || null}
+              smsVolumeDiscounts={smsVolumeDiscounts}
+              smsRateCentsPerCredit={smsRateCentsPerCredit}
+              smsMarkupPercentage={smsMarkupPercentage}
               processing={payProcessing}
               error={payError}
               paymentConfirmed={paymentConfirmed}

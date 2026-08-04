@@ -207,15 +207,24 @@ export default function SmsOptInPage() {
             <SectionTitle>How a Guest Opts In</SectionTitle>
             <ol style={{ fontFamily: SANS, fontSize: "15px", color: BODY, lineHeight: 2, margin: "0 0 14px", paddingLeft: "20px" }}>
               <li>A guest opens their event’s public RSVP form (no account or login required).</li>
-              <li>When responding, the guest enters their own phone number.</li>
               <li>
-                An <strong style={{ color: INK }}>unchecked</strong> consent checkbox appears with the exact
-                language shown below. It is never pre-checked, and never checked on the guest’s behalf.
+                The phone-number field is <strong style={{ color: INK }}>optional</strong> and is labelled as
+                such. A guest can complete their RSVP, be counted as attending, and come to the event without
+                ever entering a number — no part of the form requires one, and nothing is withheld from a guest
+                who leaves it blank.
+              </li>
+              <li>
+                Only if a guest chooses to enter a number does an{" "}
+                <strong style={{ color: INK }}>unchecked</strong> consent checkbox appear, with the exact
+                language shown below. It is never pre-checked, and never checked on the guest’s behalf. A guest
+                who gives no number is never shown it and is never asked about text messages at all.
               </li>
               <li>
                 Ticking the box is <strong style={{ color: INK }}>entirely optional</strong>. A guest can leave
                 it unticked, submit the RSVP, and attend the event exactly as before — the form is accepted
                 either way. SMS opt-in is never a condition of responding, of attending, or of any purchase.
+                Because the number itself is optional too, a guest can stay outside the messaging programme
+                completely and still use every part of the service.
               </li>
               <li>
                 The guest’s choice is stored as a timestamped record tied to their response, alongside an

@@ -23,8 +23,111 @@ const ICONS = {
   forecast: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /><path d="M3 20h18" /></svg>,
 };
 
+/**
+ * SMS profit and loss.
+ *
+ * The question this exists to answer is blunt: does text messaging make money?
+ * Before carrier costs were recorded per send it could not be answered at all —
+ * only estimated by multiplying today's rate by historic volume, which is wrong
+ * whenever the rate has changed, and wrong in the flattering direction.
+ *
+ * Revenue and cost are shown side by side rather than as a single "profit"
+ * figure, because the interesting failure is not "profit is low" — it is
+ * "revenue looks healthy and cost is eating all of it". A margin below zero is
+ * called out in red rather than left as a number to notice.
+ */
+function SmsProfitPanel({ sms, loading, error }) {
+  if (loading) {
+    return <div style={{ ...card, padding: 24, color: T.text500, fontSize: 13 }}>Loading SMS financials…</div>;
+  }
+  if (error) {
+    return <div style={{ ...card, padding: 24, color: T.text500, fontSize: 13 }}>{error}</div>;
+  }
+  if (!sms) return null;
+
+  const revenue = Number(sms.revenueCents) || 0;
+  const cost = Number(sms.costCents) || 0;
+  const profit = Number(sms.profitCents) || 0;
+  const losing = profit < 0;
+
+  const stat = (label, value, sub, color) => (
+    <div style={{ ...card, padding: 18 }}>
+      <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.07em', color: T.text400, fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, color: color || T.text900, marginTop: 4, fontFamily: 'var(--font-serif)' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11.5, color: T.text500, marginTop: 3 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <section style={{ marginTop: 34 }}>
+      <header style={{ marginBottom: 14 }}>
+        <h2 style={{ fontSize: 17, fontWeight: 800, color: T.text900, margin: 0, fontFamily: 'var(--font-serif)' }}>
+          Text messaging
+        </h2>
+        <p style={{ fontSize: 12.5, color: T.text500, margin: '4px 0 0' }}>
+          What organizers paid us, what the phone networks charged us, and what is left.
+        </p>
+      </header>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+        {stat('SMS revenue', fmt(revenue), `${(sms.messagesBought || 0).toLocaleString()} messages sold`)}
+        {stat('Twilio cost', fmt(cost), `${(sms.messagesSent || 0).toLocaleString()} messages sent`)}
+        {stat('Net profit', fmt(profit), `${sms.marginPct}% margin`, losing ? T.danger || '#C45E5E' : T.success)}
+        {stat('Per event', fmt(sms.avgRevenuePerEventCents), `${sms.avgMessagesPerEvent} messages on average`)}
+      </div>
+
+      {losing && (
+        <p style={{ marginTop: 14, padding: '11px 13px', borderRadius: 9, background: 'rgba(196,94,94,0.08)', border: '1px solid rgba(196,94,94,0.3)', fontSize: 12.5, color: '#C45E5E', fontWeight: 600, lineHeight: 1.6 }}>
+          Text messaging is running at a loss over this period. Raise the markup or reduce a
+          volume discount in System Configuration → SMS Pricing.
+        </p>
+      )}
+
+      {/* Honesty about the data rather than a confident wrong number: sends that
+          predate cost capture have no cost recorded, so profit is an upper bound
+          until the window clears them. */}
+      {sms.costCaveat && (
+        <p style={{ marginTop: 12, fontSize: 11.5, color: T.text500, lineHeight: 1.6 }}>
+          {sms.costCaveat}
+        </p>
+      )}
+
+      {Array.isArray(sms.topEvents) && sms.topEvents.length > 0 && (
+        <div style={{ ...card, padding: 20, marginTop: 16 }}>
+          <h3 style={{ fontSize: 13, fontWeight: 800, color: T.text900, margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Heaviest events
+          </h3>
+          <div className="fx-scroll-x">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, minWidth: 360 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                  {['Event', 'Messages sent', 'Cost to us'].map((h, i) => (
+                    <th key={h} style={{ textAlign: i === 0 ? 'left' : 'right', padding: '7px 10px', color: T.text400, fontWeight: 700, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sms.topEvents.map((e) => (
+                  <tr key={e.event_id || e.title} style={{ borderBottom: `1px solid ${T.border}` }}>
+                    <td style={{ padding: '7px 10px', color: T.text900, fontWeight: 600 }}>{e.title}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: T.text900, fontWeight: 700 }}>{Number(e.messages_sent).toLocaleString()}</td>
+                    <td style={{ padding: '7px 10px', textAlign: 'right', color: T.text500 }}>{fmt(e.cost_cents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function FinancePage() {
   const [fin, setFin] = useState(null);
+  const [sms, setSms] = useState(null);
+  const [smsLoading, setSmsLoading] = useState(true);
+  const [smsError, setSmsError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // MOB-15: the native `title` attribute was the ONLY way to read a bar's
@@ -46,6 +149,24 @@ export default function FinancePage() {
         if (!ignore) setError(err.message || 'Failed to load financials');
       } finally {
         if (!ignore) setLoading(false);
+      }
+    })();
+    return () => { ignore = true; };
+  }, [retryTick]);
+
+  // Loaded separately from the main summary so a missing analytics migration
+  // degrades one panel rather than blanking the whole Financial Command Center.
+  useEffect(() => {
+    let ignore = false;
+    setSmsLoading(true);
+    (async () => {
+      try {
+        const res = await adminApi.get('/finance/sms');
+        if (!ignore) { setSms(res || null); setSmsError(null); }
+      } catch (err) {
+        if (!ignore) setSmsError(err.message || 'SMS financials are unavailable.');
+      } finally {
+        if (!ignore) setSmsLoading(false);
       }
     })();
     return () => { ignore = true; };
@@ -123,6 +244,8 @@ export default function FinancePage() {
           </div>
         )}
       </div>
+
+      <SmsProfitPanel sms={sms} loading={smsLoading} error={smsError} />
     </div>
   );
 }

@@ -424,12 +424,15 @@ export default function RsvpWizard({ event, guest, context, submit: doSubmit, re
       errors.email = 'Invalid email format';
     }
 
-    // Phone required for attendees; optional for a decline. Valid E.164 if supplied.
+    // Phone is OPTIONAL for everyone (Twilio TFV 30475) — only its format is
+    // checked, and only when the guest chose to supply one. Requiring it from
+    // attendees made the SMS program's identifier a precondition of registering,
+    // so "agreeing to receive messages" was not genuinely optional: there was no
+    // way to RSVP while staying out of the program entirely. Do not reintroduce
+    // a required-phone error here (see rsvpController's matching comment).
     const normalizedPhone = phone.trim() ? normalizeToE164(phone) : '';
     if (phone.trim() && !normalizedPhone) {
       errors.phone = t.phone_invalid || 'Enter a valid phone number';
-    } else if (attending === 'yes' && !normalizedPhone) {
-      errors.phone = t.phone_required || 'Phone number is required';
     }
     // TCPA / Twilio Toll-Free Verification: SMS consent is INDEPENDENT and
     // OPTIONAL. It is deliberately NOT validated here. Blocking submission on

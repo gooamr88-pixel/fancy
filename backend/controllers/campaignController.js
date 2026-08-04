@@ -1,12 +1,46 @@
 const crypto = require('crypto');
 const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
+const { SMS_MESSAGE_TYPES, sanitizeSmsSettings } = require('../config/smsMessageTypes');
+const { normalizeSmsPricing, maxPerSendFor } = require('../config/smsPricing');
+const { getPlatformConfig } = require('../utils/configCache');
+const { summarizeBalance, coverageForGuests, explainSkip, isResendable } = require('../utils/smsUsage');
+const { describeSmsCharge, volumeDiscountsFromConfig } = require('../utils/pricing');
+const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const {
   chunk, sleep, normalizePhone, isValidPhone,
   normalizeAudiences, fetchRecipients, getTableMap, personalize, sendRecipient,
-  getOptedOutSet, canonicalPhone, getConsentedPhoneSet,
+  getOptedOutSet, canonicalPhone, getConsentedPhoneSet, COMPLIANCE_FOOTER,
 } = require('../services/smsDispatch');
+
+/**
+ * The per-send cap for this event's organization. `{ maxPerSend: 0 }` = unlimited.
+ *
+ * Shared by the middleware (explicit recipient lists) and the audience path
+ * below, so both answer the ramp-up question identically. Fails OPEN for the same
+ * reason the middleware does: this is abuse friction, not an entitlement check,
+ * and every gate that protects consent or billing has already run and fails closed.
+ */
+async function resolveSendLimit(eventId, user) {
+  if (user?.isSuperAdmin) return { maxPerSend: 0, delivered: 0 };
+  try {
+    const { data: event } = await supabase.from('events').select('org_id').eq('id', eventId).single();
+    if (!event?.org_id) return { maxPerSend: 0, delivered: 0 };
+
+    const [{ data: org }, config] = await Promise.all([
+      supabase.from('organizations').select('sms_delivered_total').eq('id', event.org_id).maybeSingle(),
+      getPlatformConfig().catch(() => null),
+    ]);
+
+    const pricing = normalizeSmsPricing(config?.sms_pricing_config);
+    const delivered = Number(org?.sms_delivered_total) || 0;
+    return { maxPerSend: maxPerSendFor(delivered, pricing.limits.ramp_up), delivered };
+  } catch (err) {
+    logger.warn({ err, eventId }, 'send-limit lookup failed — allowing the send');
+    return { maxPerSend: 0, delivered: 0 };
+  }
+}
 
 /* ─── Tunables ─────────────────────────────────────────────────────────── */
 const SYNC_MAX = 50;        // ≤ this many recipients → send inline; else enqueue async
@@ -89,6 +123,19 @@ const sendBulkSMSCampaign = async (req, res, next) => {
         success: false, error: 'TOO_MANY_RECIPIENTS',
         message: `This audience has ${recipients.length} recipients, above the ${MAX_TOTAL} per-campaign limit.`,
         recipientCount: recipients.length, maxRecipients: MAX_TOTAL,
+      });
+    }
+
+    // Anti-abuse ramp-up, enforced HERE for audience-based sends. The middleware
+    // can only check an explicit recipient list; an audience ("everyone who
+    // hasn't replied") has no knowable size until it is resolved, which is now.
+    // Same limit, same message, applied at the first point the number exists.
+    const sendLimit = await resolveSendLimit(eventId, req.user);
+    if (sendLimit.maxPerSend > 0 && recipients.length > sendLimit.maxPerSend) {
+      return res.status(429).json({
+        success: false, error: 'SEND_LIMIT_EXCEEDED',
+        maxPerSend: sendLimit.maxPerSend, requested: recipients.length,
+        message: `You can send up to ${sendLimit.maxPerSend} messages at a time while your account is new. This group has ${recipients.length} — send it in smaller batches, or pick a narrower audience. The limit lifts automatically as you send more.`,
       });
     }
 
@@ -329,6 +376,11 @@ const getCampaignHistory = async (req, res, next) => {
       campaigns: campaigns || [],
       history: ledger || [],
       smsRateCents: config?.sms_rate_cents_per_credit || 8,
+      // The composer needs the EXACT footer the server appends in order to
+      // estimate segments — and therefore cost — correctly. It used to keep its
+      // own copy of the string, so editing one side silently made every price
+      // shown to the organizer wrong. Served from the one definition instead.
+      complianceFooter: COMPLIANCE_FOOTER,
       pagination: { page, limit, count: (ledger || []).length, total: totalCount },
     });
   } catch (err) {
@@ -483,10 +535,347 @@ const handleInboundSms = async (req, res) => {
   }
 };
 
+/* ─── SMS settings: the add-on's status and the per-type switches ─────────── */
+
+/**
+ * Everything the organizer's SMS panel needs, in one call.
+ * GET /api/v1/events/:eventId/campaigns/settings
+ *
+ * Deliberately NOT behind requireSmsAddon: an event that has not bought the add-on
+ * is exactly the one that needs to see this screen, so it can be told what SMS
+ * would give it and offered the purchase.
+ */
+const getSmsSettings = async (req, res, next) => {
+  const { eventId } = req.params;
+  try {
+    const { data: event, error } = await supabase
+      .from('events')
+      .select('id, sms_addon_purchased_at, sms_settings')
+      .eq('id', eventId)
+      .single();
+    if (error || !event) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
+    }
+
+    const { data: wallet } = await supabase
+      .from('sms_credit_wallets')
+      .select('credits_purchased, credits_used, credits_remaining, last_used_at')
+      .eq('event_id', eventId).maybeSingle();
+
+    const config = await getPlatformConfig().catch(() => null);
+
+    // Everything already translated into the customer's terms — messages left, a
+    // percentage, when one last went out. See utils/smsUsage.js for why that
+    // translation lives in one place.
+    const balance = summarizeBalance(wallet, config?.sms_pricing_config);
+
+    // How far the remaining balance goes against the guest list as it stands.
+    // This is what turns "1,350 messages" into something actionable.
+    let coverage = null;
+    try {
+      const { count } = await supabase
+        .from('guests').select('id', { count: 'exact', head: true }).eq('event_id', eventId);
+      coverage = coverageForGuests(balance.remaining, count || 0, config?.sms_pricing_config);
+    } catch { /* advisory only */ }
+
+    // Skip totals let the page answer "why didn't my guests get this?" without
+    // making the organizer read a log line by line.
+    const skipSummary = {};
+    try {
+      const { data: skips } = await supabase
+        .from('sms_log').select('skip_reason').eq('event_id', eventId).not('skip_reason', 'is', null).limit(5000);
+      for (const row of (skips || [])) {
+        skipSummary[row.skip_reason] = (skipSummary[row.skip_reason] || 0) + 1;
+      }
+    } catch { /* the log is diagnostic; its absence must not break the page */ }
+
+    const sendLimit = await resolveSendLimit(eventId, req.user);
+
+    return res.json({
+      success: true,
+      addonActive: !!event.sms_addon_purchased_at,
+      purchasedAt: event.sms_addon_purchased_at,
+      settings: sanitizeSmsSettings(event.sms_settings),
+      messageTypes: SMS_MESSAGE_TYPES,
+      wallet: wallet || { credits_purchased: 0, credits_used: 0, credits_remaining: 0 },
+      balance,
+      coverage,
+      sendLimit,
+      skipSummary,
+      skipLabels: Object.fromEntries(
+        Object.keys(skipSummary).map((r) => [r, explainSkip(r)]),
+      ),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Price a top-up BEFORE the organizer commits to it.
+ * GET /api/v1/events/:eventId/campaigns/topup-quote?messages=N
+ *
+ * Requirement: never let someone reach Stripe and discover the price there. The
+ * figure comes from describeSmsCharge — the same function the checkout charges
+ * with — so the quote and the invoice cannot disagree.
+ *
+ * Also returns what that quantity would COVER, because "500 messages for $44" is
+ * only meaningful next to "enough for your 180 guests".
+ */
+const getTopUpQuote = async (req, res, next) => {
+  const { eventId } = req.params;
+  try {
+    const config = await getPlatformConfig();
+    const pricing = normalizeSmsPricing(config.sms_pricing_config);
+
+    const requested = Number(req.query.messages);
+    const messages = Number.isFinite(requested)
+      ? Math.min(Math.max(Math.round(requested), pricing.bounds.min), pricing.bounds.max)
+      : pricing.bounds.min;
+
+    const charge = describeSmsCharge({
+      unitPriceCents: config.sms_rate_cents_per_credit,
+      creditCount: messages,
+      markupPct: config.sms_markup_percentage,
+      volumeDiscounts: volumeDiscountsFromConfig(config),
+    });
+
+    let coverage = null;
+    try {
+      const { count } = await supabase
+        .from('guests').select('id', { count: 'exact', head: true }).eq('event_id', eventId);
+      coverage = coverageForGuests(messages, count || 0, config.sms_pricing_config);
+    } catch { /* advisory */ }
+
+    return res.json({
+      success: true,
+      messages,
+      priceCents: charge.chargeCents,
+      discountPct: charge.discountPct,
+      bounds: pricing.bounds,
+      coverage,
+      // Never expose baseCostCents / profitCents here: this endpoint is reachable
+      // by any event owner, and what the carrier charges us is not their business.
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Re-send ONE previously-failed message.
+ * POST /api/v1/events/:eventId/campaigns/resend/:logId
+ *
+ * Requirement: a failed message should be one button, not a whole new campaign.
+ * Building a campaign to reach one guest is both absurd and dangerous — the
+ * audience filters would sweep in everyone else who matches.
+ *
+ * Only failures the organizer can actually fix are resendable (see
+ * smsUsage.isResendable). A guest who replied STOP, or who never agreed to texts,
+ * is not offered a retry: the button would imply it might override their choice,
+ * and it never will.
+ */
+const resendSmsMessage = async (req, res, next) => {
+  const { eventId, logId } = req.params;
+  try {
+    const { data: row, error } = await supabase
+      .from('sms_log')
+      .select('id, kind, ref, party_id, event_id, status, skip_reason')
+      .eq('id', logId)
+      .eq('event_id', eventId)   // scope to the authorized event — never trust the id alone
+      .maybeSingle();
+
+    if (error || !row) {
+      return res.status(404).json({ success: false, error: 'MESSAGE_NOT_FOUND', message: 'That message could not be found.' });
+    }
+    if (!isResendable(row)) {
+      return res.status(400).json({
+        success: false, error: 'NOT_RESENDABLE',
+        message: row.status === 'sent'
+          ? 'That message was already delivered.'
+          : `This one can't be resent — ${(explainSkip(row.skip_reason) || 'it could not be delivered').toLowerCase()}.`,
+      });
+    }
+
+    // Clear the old attempt first. sendTransactionalSms refuses duplicates on
+    // (kind, ref), which is exactly right for a scheduler re-run and exactly
+    // wrong for a deliberate retry — without this the resend would report
+    // "already sent" and do nothing.
+    await supabase.from('sms_log').delete().eq('id', row.id);
+
+    const { sendTransactionalSms } = require('../services/smsDispatch');
+    const result = await sendTransactionalSms({
+      type: row.kind,
+      eventId,
+      partyId: row.party_id,
+      ref: row.ref,
+      context: await buildResendContext(eventId, row),
+    });
+
+    if (result.sent) {
+      return res.json({ success: true, message: 'Message sent.' });
+    }
+    return res.status(200).json({
+      success: false,
+      error: result.reason,
+      message: `Still not sent — ${(explainSkip(result.reason) || 'it could not be delivered').toLowerCase()}.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Rebuild the template values for a resend.
+ *
+ * The original context is not stored — sms_log records what happened, not the
+ * variables that produced it. Re-deriving from current data is also more correct
+ * than replaying stale values: if the guest's name or their table changed since
+ * the failed attempt, the resend should carry the new one.
+ */
+async function buildResendContext(eventId, row) {
+  // Seeded with safe defaults for EVERY value any template interpolates. A
+  // template reads its context blindly, so a missing key renders the literal
+  // "undefined" into a message a guest receives — and an organizer report resent
+  // without stats would read "Gala: undefined attending, undefined awaiting
+  // reply." Defaults first, real values over the top.
+  const ctx = {
+    guestName: 'Guest',
+    eventTitle: '',
+    response: null,
+    tableName: null,
+    ticketUrl: null,
+    dateLabel: 'soon',
+    attending: 0,
+    pending: 0,
+    rsvpUrl: `${getPublicBaseUrl()}/dashboard`,
+    dashboardUrl: `${getPublicBaseUrl()}/dashboard`,
+  };
+
+  try {
+    const { data: event } = await supabase
+      .from('events').select('title, slug, event_date').eq('id', eventId).single();
+    ctx.eventTitle = event?.title || '';
+    if (event?.slug && row.party_id) {
+      ctx.rsvpUrl = `${getPublicBaseUrl()}/${event.slug}/rsvp?g=${row.party_id}`;
+    }
+
+    if (row.party_id) {
+      const { data: party } = await supabase
+        .from('rsvp_parties')
+        .select('label, response, seating_assignments(tables(table_name))')
+        .eq('id', row.party_id).maybeSingle();
+      if (party?.label) ctx.guestName = party.label;
+      ctx.response = party?.response ?? null;
+      ctx.tableName = party?.seating_assignments?.[0]?.tables?.table_name || null;
+    }
+
+    // Only the organizer-facing report needs live counts, and only it pays for
+    // the extra query.
+    if (row.kind === 'organizer_report') {
+      const { getEventStats } = require('../utils/emailContext');
+      const stats = await getEventStats(eventId);
+      ctx.attending = stats?.attending ?? 0;
+      ctx.pending = stats?.pending ?? 0;
+    }
+  } catch { /* the defaults above still render a correct, if plainer, message */ }
+
+  return ctx;
+}
+
+/**
+ * Update the per-type switches.
+ * PATCH /api/v1/events/:eventId/campaigns/settings   body: { settings: {...} }
+ *
+ * The payload is passed through sanitizeSmsSettings, so unknown keys and
+ * non-boolean values can never reach the jsonb column — the switches are read at
+ * send time to decide whether to spend an organizer's money, and a smuggled value
+ * there would be read as truthy.
+ */
+const updateSmsSettings = async (req, res, next) => {
+  const { eventId } = req.params;
+  try {
+    const settings = sanitizeSmsSettings(req.body?.settings);
+    const { data, error } = await supabase
+      .from('events')
+      .update({ sms_settings: settings, updated_at: new Date().toISOString() })
+      .eq('id', eventId)
+      .select('id, sms_settings')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
+    }
+
+    return res.json({ success: true, settings: sanitizeSmsSettings(data.sms_settings) });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Recent send attempts, skips included.
+ * GET /api/v1/events/:eventId/campaigns/log
+ *
+ * The skipped rows are the point. A campaign reporting "sent 52, skipped 3" is
+ * only actionable if the organizer can see WHICH three and WHY.
+ */
+const getSmsLog = async (req, res, next) => {
+  const { eventId } = req.params;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+  try {
+    const { data, error } = await supabase
+      .from('sms_log')
+      .select('id, kind, recipient, party_id, status, skip_reason, segments, credits, error, created_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+
+    const rows = data || [];
+
+    // Resolve guest names in ONE query. A log listing phone numbers is unreadable
+    // to the organizer and useless to support: nobody recognises +1555… as their
+    // aunt, which is the exact question a "why didn't they get it?" ticket asks.
+    const partyIds = [...new Set(rows.map((r) => r.party_id).filter(Boolean))];
+    const names = {};
+    if (partyIds.length > 0) {
+      const { data: parties } = await supabase
+        .from('rsvp_parties').select('id, label').in('id', partyIds);
+      for (const p of (parties || [])) names[p.id] = p.label;
+    }
+
+    // Every row is decorated server-side so the reason a message did not arrive is
+    // stated identically in the dashboard, in support tooling, and anywhere else
+    // this is read — rather than each client inventing its own wording for the
+    // same code, or worse, showing the raw code.
+    const entries = rows.map((r) => ({
+      ...r,
+      guestName: r.party_id ? (names[r.party_id] || null) : null,
+      // The whole outcome in one readable phrase.
+      outcome: r.status === 'sent' ? 'Delivered' : 'Not sent',
+      reason: r.status === 'sent' ? null : explainSkip(r.skip_reason || r.error),
+      canResend: isResendable(r),
+    }));
+
+    return res.json({ success: true, entries });
+  } catch (err) {
+    // The log is diagnostic; a missing table (migration not yet applied) must
+    // degrade to an empty list rather than break the settings screen.
+    logger.warn({ err, eventId }, 'sms log read failed — returning empty');
+    return res.status(200).json({ success: true, entries: [] });
+  }
+};
+
 module.exports = {
   sendBulkSMSCampaign,
   getCampaignStatus,
   getCampaignHistory,
+  getSmsSettings,
+  updateSmsSettings,
+  getSmsLog,
+  getTopUpQuote,
+  resendSmsMessage,
   handleSmsStatusCallback,
   handleInboundSms,
 };

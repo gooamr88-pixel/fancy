@@ -199,6 +199,38 @@ async function sendQrTicketEmail(eventId, partyId) {
   });
 
   const links = buildTicketLinks(token);
+
+  // Text the pass link alongside the email.
+  //
+  // ADDITIVE, not a replacement (smsMessageTypes.replacesEmail = false): an SMS
+  // cannot carry the scannable QR image itself, only a link to the page holding
+  // it — so the email remains the thing that actually contains the pass.
+  //
+  // This is the ONE place the qr_ticket type fires. The RSVP confirmation already
+  // includes the pass link on first submission, so sending qr_ticket there too
+  // would put two texts on the guest's phone and charge the organizer twice for
+  // one event. Here the organizer has explicitly asked to re-send the pass, which
+  // is exactly when a guest wants it on their phone rather than buried in mail.
+  //
+  // Fire-and-forget: a texting problem must never fail the email that carries the
+  // actual pass. Every gate (add-on purchased, type enabled, guest consented, not
+  // opted out, balance available) is enforced inside sendTransactionalSms.
+  try {
+    const { sendTransactionalSms } = require('./smsDispatch');
+    sendTransactionalSms({
+      type: 'qr_ticket',
+      eventId,
+      partyId,
+      // Not keyed on partyId alone: a resend is a deliberate repeat, and the
+      // (kind, ref) idempotency guard would otherwise refuse every one after the
+      // first as a duplicate.
+      ref: `qr:${partyId}:${Date.now()}`,
+      context: { guestName: party.label, eventTitle: event.title, ticketUrl: links.ticketUrl },
+    }).catch((err) => logger.warn({ err, partyId }, 'entry-pass SMS failed (email still sent)'));
+  } catch (err) {
+    logger.warn({ err, partyId }, 'entry-pass SMS dispatch threw (email still sent)');
+  }
+
   const shimParty = { id: party.id, guest_name: party.label, email: primaryEmail, party_size: partySize };
   // The data model has no table→zone relationship (zones are standalone venue
   // elements in the same `tables` table, not a parent of seatable tables), so a

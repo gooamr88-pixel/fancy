@@ -27,9 +27,35 @@ function stripeEnabled() {
 /**
  * Real outbound SMS via Twilio. When false, every send path falls back to the
  * existing mock mode (logged, never dispatched) — no code is bypassed or removed.
+ *
+ * Requires the flag AND every credential needed to actually dispatch, mirroring
+ * stripeEnabled(). A half-configured environment used to satisfy this check and
+ * then silently degrade to mock mode inside getTwilioClient() — which, before the
+ * transport gate in smsDispatch.sendRecipient, meant organizers were billed for
+ * messages that were never sent. Reporting "not enabled" for a configuration that
+ * cannot send is the honest answer, and it surfaces at boot via systemHealth
+ * rather than at the first campaign.
  */
 function smsEnabled() {
-  return truthy(process.env.SMS_ENABLED);
+  return truthy(process.env.SMS_ENABLED)
+    && !!process.env.TWILIO_ACCOUNT_SID
+    && !!process.env.TWILIO_AUTH_TOKEN
+    && !!(process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_NUMBER);
 }
 
-module.exports = { stripeEnabled, smsEnabled };
+/**
+ * Allow the credit ledger to be exercised against a MOCK transport (no Twilio
+ * client). OFF by default, and deliberately so: without a transport there is no
+ * message, and charging a wallet for a message that was never created is the
+ * single most expensive failure mode this subsystem has.
+ *
+ * The unit suite sets it (backend/test/helpers/env.js) because it needs to assert
+ * the billing path end-to-end without a network. Nothing in production should
+ * ever set it — and if something does, the ledger row is still written and
+ * refundable, so the damage stays visible and reversible.
+ */
+function smsMockBillingEnabled() {
+  return truthy(process.env.SMS_MOCK_BILLING);
+}
+
+module.exports = { stripeEnabled, smsEnabled, smsMockBillingEnabled };

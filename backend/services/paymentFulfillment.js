@@ -227,6 +227,12 @@ const fulfillCheckoutSession = async (session) => {
       );
     }
 
+    // SMS add-on bought on the SAME session as the licence (a second line item).
+    // Runs after the event is activated so the add-on can never be credited to an
+    // event that failed to activate. record_sms_purchase is idempotent on the
+    // payment intent, so a Stripe retry of this webhook cannot double-credit.
+    await fulfillSmsAddon(session, event_id);
+
     // Audit log is best-effort — never fail fulfillment (and never make Stripe
     // retry an already-committed activation) because of a logging hiccup.
     try {
@@ -289,13 +295,19 @@ const fulfillCheckoutSession = async (session) => {
       throw new Error(`record_sms_purchase failed: ${purchaseResult.error}`);
     }
 
+    // A standalone purchase can be the FIRST one (the free-tier add-on path, which
+    // creates an SMS-only session) or a later top-up. Either way, credit implies
+    // entitlement: an event holding paid-for messages it is not allowed to send
+    // would be the worst of both states. unlockSmsAddon is idempotent.
+    await unlockSmsAddon(event_id);
+
     if (!purchaseResult?.already_processed) {
       try {
         await supabase.from('activity_logs').insert({
           event_id,
           action: 'sms_credits_purchased',
           entity_type: 'sms_wallet',
-          metadata: { credit_count: creditCount },
+          metadata: { credit_count: creditCount, addon_unlock: session.metadata?.sms_addon_unlock === '1' },
         });
       } catch (e) {
         logger.warn({ err: e, eventId: event_id }, '[fulfill] activity_log skipped for sms purchase');
@@ -307,6 +319,102 @@ const fulfillCheckoutSession = async (session) => {
 
   return { ok: true, type, alreadyProcessed: false, eventId: event_id, skipped: 'unknown_type' };
 };
+
+/**
+ * Mark an event as SMS-entitled. Idempotent by construction: the guard means a
+ * repeated webhook, or a top-up on an event that already bought the add-on, never
+ * moves the original purchase date — which is the field the gate and the audit
+ * trail both read.
+ */
+async function unlockSmsAddon(eventId) {
+  if (!eventId) return;
+
+  // Re-arm the balance warnings. Without this, an organizer warned once, who then
+  // tops up and later runs low again, is never warned a second time — the stamp
+  // is still set from the first occasion. Topping up is exactly the moment the
+  // previous warning stops being true.
+  //
+  // supabase-js RESOLVES with an { error } object rather than throwing, so the
+  // error is checked rather than caught; the try/catch is only for a transport
+  // failure. Either way this is best-effort: a missing function (pre-migration)
+  // costs a future warning, never the purchase.
+  try {
+    const { error } = await supabase.rpc('reset_sms_balance_alerts', { p_event_id: eventId });
+    if (error) logger.warn({ err: error, eventId }, '[fulfill] could not re-arm SMS balance warnings');
+  } catch (e) {
+    logger.warn({ err: e, eventId }, '[fulfill] re-arming SMS balance warnings threw');
+  }
+
+  try {
+    const { error } = await supabase
+      .from('events')
+      .update({ sms_addon_purchased_at: new Date().toISOString() })
+      .eq('id', eventId)
+      .is('sms_addon_purchased_at', null);
+    if (error) {
+      // Loud: the money is taken and the wallet credited, but the event cannot
+      // send. That is a support ticket waiting to happen, so it must be findable.
+      logger.error({ err: error, eventId },
+        '[fulfill] SMS add-on paid and credited but the unlock flag FAILED to set — the event cannot send until this is repaired.');
+    }
+  } catch (e) {
+    logger.error({ err: e, eventId }, '[fulfill] SMS add-on unlock threw');
+  }
+}
+
+/**
+ * Credit the SMS add-on that was bought as a second line item on an event-fee
+ * session, then unlock it.
+ *
+ * Deliberately best-effort and non-throwing: the licence payment has already been
+ * committed by the time this runs, and throwing here would make Stripe retry the
+ * whole webhook — re-running an event activation that already succeeded — to fix a
+ * wallet credit that `record_sms_purchase` can safely apply on its own schedule.
+ * A failure is logged loudly instead, leaving a paid-but-uncredited state that is
+ * visible and repairable rather than a retry storm.
+ */
+async function fulfillSmsAddon(session, eventId) {
+  const raw = session?.metadata?.sms_addon_segments;
+  if (!raw) return;
+
+  const segments = parseInt(raw, 10);
+  if (!Number.isInteger(segments) || segments <= 0) {
+    logger.warn({ eventId, raw }, '[fulfill] ignoring malformed sms_addon_segments');
+    return;
+  }
+
+  try {
+    const amountCents = parseInt(session.metadata.sms_addon_amount_cents, 10);
+    const { data, error } = await supabase.rpc('record_sms_purchase', {
+      p_event_id: eventId,
+      p_credits: segments,
+      // Shares the licence's payment intent, which is exactly what makes this
+      // idempotent: the ledger's partial unique index on
+      // (stripe_payment_intent_id) WHERE transaction_type = 'purchase' rejects a
+      // second credit for the same payment.
+      p_payment_intent: session.payment_intent,
+      p_amount_cents: Number.isInteger(amountCents) ? amountCents : null,
+    });
+    if (error) throw error;
+    if (data && data.success === false) throw new Error(data.error || 'RECORD_SMS_PURCHASE_FAILED');
+
+    await unlockSmsAddon(eventId);
+
+    if (!data?.already_processed) {
+      try {
+        await supabase.from('activity_logs').insert({
+          event_id: eventId,
+          action: 'sms_addon_purchased',
+          entity_type: 'sms_wallet',
+          metadata: { credit_count: segments, amount_cents: Number.isInteger(amountCents) ? amountCents : null, bought_with: 'event_fee' },
+        });
+      } catch { /* best-effort breadcrumb */ }
+    }
+  } catch (e) {
+    logger.error({ err: e, eventId, segments },
+      '[fulfill] SMS add-on was PAID FOR but could not be credited — needs manual reconciliation.');
+  }
+}
 
 /**
  * Reverts a payment when Stripe reports a refund (charge.refunded). Idempotent:

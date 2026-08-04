@@ -13,6 +13,214 @@ const C = {
 
 const METHOD_ICON = { bank: 'bank', wallet: 'mobile', instapay: 'lightning', cash: 'cash', paypal: 'wallet', other: 'creditCard' };
 
+/* ── SMS price preview ─────────────────────────────────────────────────────
+   Mirrors backend/utils/pricing.js computeSmsChargeCents so the slider can show a
+   live price without a request per tick. The server recomputes it at checkout and
+   ITS number is the one charged.
+
+   The discount TIERS are passed in, never hardcoded. They used to be a literal
+   500 / 12.5% pair here — which silently became a lie the moment volume discounts
+   became admin-editable, quoting every customer a price the checkout would not
+   honour. The algorithm is stable; only the data changes, so only the data is
+   fetched. */
+function previewSmsCents(unitPriceCents, segments, markupPct = 0, volumeDiscounts = null) {
+  if (!Number.isFinite(unitPriceCents) || !Number.isFinite(segments) || segments <= 0) return null;
+
+  let total = unitPriceCents * segments * (1 + (Number(markupPct) || 0) / 100);
+
+  // Tiers arrive sorted descending, so the first match is the best one earned.
+  // Never cumulative — stacking them is how a discount table reaches 100% off.
+  const tiers = Array.isArray(volumeDiscounts) ? volumeDiscounts : [];
+  for (const tier of tiers) {
+    if (segments >= Number(tier.min_segments)) {
+      total *= (1 - (Number(tier.discount_pct) || 0) / 100);
+      break;
+    }
+  }
+  return Math.max(0, Math.round(total));
+}
+
+/**
+ * Text messaging, offered on the plan screen and paid for in the same checkout.
+ *
+ * ── Why this reads the way it does ──
+ *
+ * The person on this screen is planning a wedding. They have never heard of a
+ * segment, they do not know how many texts an event needs, and asking them to
+ * pick a number is asking a question they have no way to answer. The previous
+ * version led with a slider and explained encodings; this one leads with the
+ * answer and keeps the slider as an afterthought.
+ *
+ * Four rules hold throughout:
+ *
+ *  • THE SYSTEM DECIDES FIRST. A recommended number and its price are stated
+ *    plainly. Adjusting is available but secondary — most people should be able
+ *    to tick the box, glance at the price, and move on.
+ *  • NO JARGON. Not "segments", "credits", "allowance", "UCS-2" or "add-on".
+ *    Just messages, guests, and money.
+ *  • OFF BY DEFAULT. It is an extra charge; pre-ticking it takes money from
+ *    someone who never decided to spend it.
+ *  • WARN, NEVER BLOCK. Choosing less than we suggest produces a sentence, not a
+ *    locked button. An organizer may know only forty of their guests use SMS.
+ */
+function SmsAddonCard({
+  enabled, onToggle, segments, onChangeSegments,
+  estimate, rateCents, markupPct, volumeDiscounts, fmt,
+}) {
+  const [showAdjust, setShowAdjust] = useState(false);
+
+  const bounds = estimate?.bounds || { min: 50, max: 50000, step: 50 };
+  const recommended = estimate?.recommendedSegments || null;
+  const value = Number.isFinite(segments) ? segments : (recommended || bounds.min);
+  const priceCents = previewSmsCents(rateCents, value, markupPct, volumeDiscounts);
+
+  const invitations = estimate?.estimatedParties || 0;
+  const shortOfSuggestion = recommended != null && value < recommended;
+
+  // What the money buys, in the customer's words. Built from the same per-type
+  // figures the recommendation is calculated from, so the list and the number
+  // cannot disagree.
+  const included = (estimate?.breakdown || [])
+    .filter((b) => b.audience === 'guest' && b.enabled && b.messages > 0)
+    .map((b) => b.label.toLowerCase());
+
+  const step = bounds.step || 50;
+  const nudge = (delta) => {
+    const next = Math.min(bounds.max, Math.max(bounds.min, value + delta));
+    onChangeSegments && onChangeSegments(next);
+  };
+
+  return (
+    <div style={{
+      border: `1px solid ${enabled ? C.gold : C.border}`,
+      background: enabled ? 'rgba(184,148,79,0.05)' : C.softBg,
+      borderRadius: 12, padding: '18px 20px', marginTop: 18, transition: 'all 0.2s',
+    }}>
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 12, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onToggle && onToggle(e.target.checked)}
+          style={{ marginTop: 3, width: 17, height: 17, accentColor: C.gold, flexShrink: 0, cursor: 'pointer' }}
+        />
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontFamily: 'var(--font-serif)', fontSize: 17, fontWeight: 700, color: C.charcoal }}>
+            Send text messages to your guests
+          </span>
+          <span style={{ display: 'block', fontSize: 13, color: C.stone, lineHeight: 1.65, marginTop: 5, fontFamily: 'var(--font-sans)' }}>
+            Most people read a text within minutes and an email much later — if at all.
+            Reach your guests on their phones with invitations, reminders and their
+            entry pass. Works with any plan.
+          </span>
+        </span>
+      </label>
+
+      {enabled && (
+        <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${C.border}` }}>
+
+          {/* THE ANSWER, stated before anything is asked. */}
+          {estimate && (
+            <p style={{ fontSize: 13, color: C.stone, lineHeight: 1.65, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
+              Your plan covers up to <strong style={{ color: C.charcoal }}>{estimate.maxGuests || 'your'}</strong> guests.
+              {' '}Since one text goes to each invitation rather than each person, that is about{' '}
+              <strong style={{ color: C.charcoal }}>{invitations} people</strong> to reach.
+            </p>
+          )}
+
+          <div style={{
+            background: C.white, border: `1px solid ${C.border}`, borderRadius: 10,
+            padding: '16px 18px', display: 'flex', flexWrap: 'wrap',
+            alignItems: 'center', justifyContent: 'space-between', gap: 12,
+          }}>
+            <div>
+              <div style={{ fontSize: 11.5, color: C.stone, fontFamily: 'var(--font-sans)', marginBottom: 2 }}>
+                {shortOfSuggestion ? 'You chose' : 'We suggest'}
+              </div>
+              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 700, color: C.charcoal, lineHeight: 1.1 }}>
+                {value.toLocaleString()}
+                <span style={{ fontSize: 14, fontWeight: 400, color: C.stone, marginLeft: 6 }}>messages</span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11.5, color: C.stone, fontFamily: 'var(--font-sans)', marginBottom: 2 }}>Added to your total</div>
+              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, fontWeight: 700, color: C.gold, lineHeight: 1.1 }}>
+                {priceCents == null ? '—' : fmt(priceCents)}
+              </div>
+            </div>
+          </div>
+
+          {included.length > 0 && (
+            <p style={{ fontSize: 12, color: C.stone, lineHeight: 1.65, margin: '12px 0 0', fontFamily: 'var(--font-sans)' }}>
+              <strong style={{ color: C.charcoal }}>Covers:</strong> {included.join(' · ')}
+            </p>
+          )}
+
+          {/* Adjusting is deliberately quiet — a link, not a control competing
+              with the number above it. */}
+          {!showAdjust ? (
+            <button
+              type="button"
+              onClick={() => setShowAdjust(true)}
+              style={{
+                marginTop: 14, background: 'transparent', border: 'none', padding: 0,
+                color: C.gold, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                textDecoration: 'underline', fontFamily: 'var(--font-sans)',
+              }}
+            >
+              Change this amount
+            </button>
+          ) : (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => nudge(-step)} aria-label="Fewer messages"
+                  style={{ width: 38, height: 38, borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.charcoal, fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>−</button>
+                <input
+                  type="range"
+                  min={bounds.min}
+                  max={Math.max(bounds.min, Math.min(bounds.max, (recommended || bounds.min) * 3))}
+                  step={step}
+                  value={value}
+                  onChange={(e) => onChangeSegments && onChangeSegments(Number(e.target.value))}
+                  style={{ flex: '1 1 140px', accentColor: C.gold, cursor: 'pointer' }}
+                />
+                <button type="button" onClick={() => nudge(step)} aria-label="More messages"
+                  style={{ width: 38, height: 38, borderRadius: 8, border: `1px solid ${C.border}`, background: C.white, color: C.charcoal, fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>+</button>
+              </div>
+              {recommended != null && value !== recommended && (
+                <button
+                  type="button"
+                  onClick={() => onChangeSegments && onChangeSegments(recommended)}
+                  style={{ marginTop: 10, background: 'transparent', border: 'none', padding: 0, color: C.gold, fontSize: 12, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-sans)' }}
+                >
+                  Back to our suggestion ({recommended.toLocaleString()})
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Warning, never a block (requirement 10). */}
+          {shortOfSuggestion && (
+            <p style={{
+              fontSize: 12.5, color: '#8A6D34', lineHeight: 1.65, margin: '14px 0 0',
+              background: 'rgba(184,148,79,0.10)', border: `1px solid ${C.border}`,
+              borderRadius: 8, padding: '10px 12px', fontFamily: 'var(--font-sans)',
+            }}>
+              This may not be enough for {invitations} people. You can still choose it — if you
+              run out, your guests simply keep getting everything by email, and you can add
+              more messages at any time.
+            </p>
+          )}
+
+          <p style={{ fontSize: 11.5, color: C.stone, fontFamily: 'var(--font-sans)', margin: '12px 0 0', lineHeight: 1.65 }}>
+            Guests only receive texts if they agree to them. Messages written in Arabic use
+            about twice as many. You can turn any kind of message on or off later.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Collapsed "Have a promo code?" link that expands into a redeem box. A
    valid code publishes the event immediately — free, no Stripe/manual
    payment, no admin review wait — via the onRedeem callback the wizard
@@ -170,6 +378,11 @@ export default function StagePayment({
   paymentConfirmed = false, paymentNotice = '', verifying = false, onRecheckPayment,
   isPaid = false, currentTierName = '', currentTierMaxGuests = null,
   stripeEnabled = true, referralCreditCents = 0, onRedeemPromoCode,
+  // ── SMS add-on ──
+  smsAddonEnabled = false, onToggleSmsAddon,
+  smsAddonSegments = null, onChangeSmsAddonSegments,
+  smsEstimate = null, smsVolumeDiscounts = null,
+  smsRateCentsPerCredit = null, smsMarkupPercentage = 0,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
   // When card payments are off (pre-live), the manual-transfer panel IS the flow —
@@ -581,6 +794,30 @@ export default function StagePayment({
             Make sure you have sent the transfer using this reference as the note. A Super Admin will confirm the money arrived and your event will go live automatically. You can continue setting up tables now.
           </p>
         </div>
+      )}
+
+      {/* SMS add-on — offered on the same screen as the plan, and paid for in the
+          same Stripe checkout.
+
+          Scoped to the CARD path deliberately. A manual/cash transfer is verified
+          by an admin against a single agreed amount, so there is nowhere for a
+          second line item to go — showing the toggle there would take a choice and
+          silently drop it. Manual payers add SMS afterwards from the Campaigns
+          page, where it is an ordinary top-up. Same reason it is hidden once the
+          event is already paid. */}
+      {!showManual && stripeEnabled &&
+       ((!manualRef && !paymentConfirmed && !showCurrentPlan) || (upgrading && selectedTierName && selectedTierName !== lockedPlanName)) && (
+        <SmsAddonCard
+          enabled={smsAddonEnabled}
+          onToggle={onToggleSmsAddon}
+          segments={smsAddonSegments}
+          onChangeSegments={onChangeSmsAddonSegments}
+          estimate={smsEstimate}
+          rateCents={smsRateCentsPerCredit}
+          markupPct={smsMarkupPercentage}
+          volumeDiscounts={smsVolumeDiscounts}
+          fmt={fmt}
+        />
       )}
 
       {/* Payment method selection — show when: no prior ref OR actively upgrading with a higher tier selected */}

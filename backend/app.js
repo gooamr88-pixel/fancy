@@ -140,6 +140,22 @@ const storeFor = (prefix) => {
 const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const skipInternal = (req) => LOOPBACK_IPS.has(req.ip);
 
+// Twilio's two webhooks. Every message in a campaign produces 2-3 status callbacks,
+// so a 20,000-recipient send generates tens of thousands of POSTs from Twilio's
+// narrow IP range — far past the general 1,000/15min budget. Worse, Twilio does NOT
+// retry the INBOUND-message webhook: a 429 on /sms/inbound means a guest's STOP is
+// lost permanently, which is a TCPA violation, not a dropped request.
+//
+// Exempting them is safe because neither is authenticated by IP or volume: both
+// verify an HMAC-SHA1 X-Twilio-Signature over the full URL + body before touching
+// the database (campaignController.validateTwilioSignature), and an unsigned request
+// is rejected with 403. A dedicated wide limiter below still bounds total volume.
+const TWILIO_WEBHOOK_PATHS = new Set([
+  '/api/v1/public/sms/status',
+  '/api/v1/public/sms/inbound',
+]);
+const isTwilioWebhook = (req) => TWILIO_WEBHOOK_PATHS.has((req.originalUrl || '').split('?')[0]);
+
 if (RATE_LIMIT_DISABLED) {
   logger.warn('⚠️  Rate limiting is DISABLED (DISABLE_RATE_LIMIT=true). Do NOT run production like this.');
 } else {
@@ -150,10 +166,25 @@ if (RATE_LIMIT_DISABLED) {
     message: { success: false, error: 'TOO_MANY_REQUESTS', message: 'Too many requests. Please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: skipInternal,
+    skip: (req) => skipInternal(req) || isTwilioWebhook(req),
     store: storeFor('api'),
   });
   app.use('/api', apiLimiter);
+
+  // Signature-verified Twilio callbacks get their own, far wider ceiling: high
+  // enough that a maximum-size campaign's delivery receipts never touch it, low
+  // enough to bound an unsigned flood (which is rejected at 403 anyway).
+  const twilioWebhookLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100000,
+    message: { success: false, error: 'TOO_MANY_REQUESTS' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: skipInternal,
+    store: storeFor('twilio-webhook'),
+  });
+  app.use('/api/v1/public/sms/status', twilioWebhookLimiter);
+  app.use('/api/v1/public/sms/inbound', twilioWebhookLimiter);
 
   // Strict limiter for authentication endpoints (brute-force protection)
   const authLimiter = rateLimit({

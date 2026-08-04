@@ -5,12 +5,13 @@ const guestService = require('../services/guestService');
 const tokenService = require('../services/tokenService');
 const invitationService = require('../services/invitationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
-const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate, getRsvpClaimTemplate } = require('../utils/emailTemplates');
+const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate, getRsvpClaimTemplate, buildTicketLinks } = require('../utils/emailTemplates');
+const { sendTransactionalSms } = require('../services/smsDispatch');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isEventLiveForGuests } = require('../utils/eventAccess');
 const { normalizeToE164 } = require('../utils/phone');
 const { normalizeEmail, escapeLikePattern } = require('../utils/normalize');
-const { SMS_CONSENT_TEXT_VERSION, normalizeConsentSource, logSmsConsentDecision } = require('../utils/smsConsent');
+const { SMS_CONSENT_TEXT_VERSION, CONSENT_METHOD_GUEST, normalizeConsentSource, logSmsConsentDecision } = require('../utils/smsConsent');
 const { broadcast } = require('../utils/realtime');
 const { sendOk, sendFail, sendRpcFailure } = require('../utils/responseEnvelope');
 
@@ -58,9 +59,20 @@ const submitPublicRSVP = async (req, res, next) => {
 
   const isAttending = response === 'yes';
 
-  // Phone is required for attendees (they need event-day logistics), but optional
-  // for a decline — there's no reason to force a contact number from someone who
-  // isn't coming. Whenever a number IS supplied it must be valid E.164.
+  // Phone is OPTIONAL for everyone, attending or not (Twilio TFV 30475).
+  //
+  // It used to be mandatory for attendees. That made the mobile number — the
+  // identifier the SMS program runs on — a precondition of registering for the
+  // event, with the SMS consent checkbox rendered in the same block. Even with
+  // the checkbox itself optional, a guest had no way to complete an RSVP while
+  // staying entirely outside the messaging program, which entangles consent with
+  // event registration. Twilio's requirement is that agreeing to receive
+  // messages be optional, and that is only true if declining to participate at
+  // all — by withholding the number — still lets the guest attend.
+  //
+  // Nothing operational depended on it: email is required for attendees and is
+  // the channel that actually carries confirmations, tickets, and logistics.
+  // Whenever a number IS volunteered it must still be valid E.164.
   const hasPhone = phone && String(phone).trim();
   let normalizedPhone = null;
   if (hasPhone) {
@@ -68,9 +80,6 @@ const submitPublicRSVP = async (req, res, next) => {
     if (!normalizedPhone) {
       return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).' });
     }
-  }
-  if (isAttending && !normalizedPhone) {
-    return sendFail(res, { status: 400, error: 'VALIDATION_ERROR', message: 'A phone number is required.' });
   }
 
   // TCPA / Twilio Toll-Free Verification: SMS consent is INDEPENDENT of the
@@ -218,6 +227,17 @@ const submitPublicRSVP = async (req, res, next) => {
         .update({
           sms_consent_text_version: SMS_CONSENT_TEXT_VERSION,
           sms_consent_source: consentSource,
+          // The guest has now decided for themselves, so the provenance must say
+          // so. submit_rsvp_v2 writes sms_consent/sms_consent_at but has no
+          // knowledge of the method columns (they arrived in a later migration),
+          // which left a party that was previously host-attested still labelled
+          // `host_attested` — with a stale attester and date — even after its
+          // guest personally ticked or untucked the box. The dashboard badge read
+          // "you confirmed" for a decision the guest made, and the party row
+          // contradicted the append-only log written just below.
+          sms_consent_method: CONSENT_METHOD_GUEST,
+          sms_consent_attested_by: null,
+          sms_consent_attested_at: null,
         })
         .eq('id', result.party_id)
         .then(
@@ -269,17 +289,33 @@ const submitPublicRSVP = async (req, res, next) => {
     } else if (result.response === 'no' && !result.guest_email) {
       logger.warn({ partyId: result.party_id, eventId }, 'Decline recorded without a guest email — thank-you email skipped');
     } else if (result.response === 'no') {
-      const declineHtml = getDeclineConfirmationTemplate(
-        { guest_name: guestName },
-        { title: result.event_title, event_date: result.event_date, slug: result.event_slug },
-        guestLang,
-      );
-      const declineSubject = guestLang === 'ar'
-        ? `شكرًا لإخبارنا – ${escapeHtml(result.event_title)}`
-        : `Thank You – ${escapeHtml(result.event_title)}`;
-      notificationService.sendEmailViaBrevo(result.guest_email, declineSubject, declineHtml)
-        .catch((err) => logger.error({ err }, 'Decline email error'));
+      // The decline acknowledgement is the one type whose SMS REPLACES its email
+      // (smsMessageTypes.replacesEmail), so the text is attempted first and the
+      // mail only goes if it did not. Two messages telling someone "thanks for
+      // not coming" is the definition of noise.
+      const declineSms = await sendTransactionalSms({
+        type: 'decline_ack',
+        eventId,
+        partyId: result.party_id,
+        ref: `rsvp:${result.party_id}`,
+        lang: guestLang,
+        context: { guestName, eventTitle: result.event_title },
+      });
+
+      if (!declineSms.sent) {
+        const declineHtml = getDeclineConfirmationTemplate(
+          { guest_name: guestName },
+          { title: result.event_title, event_date: result.event_date, slug: result.event_slug },
+          guestLang,
+        );
+        const declineSubject = guestLang === 'ar'
+          ? `شكرًا لإخبارنا – ${escapeHtml(result.event_title)}`
+          : `Thank You – ${escapeHtml(result.event_title)}`;
+        notificationService.sendEmailViaBrevo(result.guest_email, declineSubject, declineHtml)
+          .catch((err) => logger.error({ err }, 'Decline email error'));
+      }
     }
+
 
     // Notify organizer of the new RSVP (best-effort).
     try {
@@ -324,12 +360,18 @@ const submitPublicRSVP = async (req, res, next) => {
       }
 
       if (isWhatsappPref && result.org_phone) {
-        const { getTwilioClient } = require('../utils/twilioClient');
+        const { getTwilioClient, getTwilioWhatsAppFrom } = require('../utils/twilioClient');
         const twilio = getTwilioClient();
+        const whatsappFrom = getTwilioWhatsAppFrom();
         const messageText = `New RSVP Received for ${result.event_title}: ${guestName} has replied ${result.response === 'yes' ? 'Attending (Party of ' + computedPartySize + ')' : respLabel}. — Fancy RSVP`;
-        if (twilio) {
-          twilio.messages.create({ body: messageText, from: 'whatsapp:+14155238886', to: `whatsapp:${result.org_phone}` })
+        if (twilio && whatsappFrom) {
+          twilio.messages.create({ body: messageText, from: whatsappFrom, to: `whatsapp:${result.org_phone}` })
             .catch((err) => logger.error({ err }, 'Failed to notify organizer via WhatsApp'));
+        } else if (twilio && !whatsappFrom) {
+          // Previously this fell back to Twilio's public sandbox number, which only
+          // delivers to handsets that manually joined it — so in production the
+          // organizer simply never heard about their own RSVPs. Say so instead.
+          logger.warn({ eventId }, 'WhatsApp notification skipped — TWILIO_WHATSAPP_FROM is not configured.');
         } else {
           logger.info(`[MOCK WHATSAPP NOTIFICATION] To: ${result.org_phone} | Content: ${messageText}`);
         }
@@ -346,6 +388,35 @@ const submitPublicRSVP = async (req, res, next) => {
       response: result.response, partyId: result.party_id, eventId,
       tableName: null, partySize: computedPartySize, eventDate: result.event_date,
     });
+
+    // RSVP confirmation by text — sent HERE, after the pass exists, so the one
+    // message can carry the entry-pass link rather than promising it separately.
+    // Sending a `rsvp_confirmation` and a `qr_ticket` on the same submission would
+    // put two texts on the guest's phone and charge the organizer twice for one
+    // event; `qr_ticket` is reserved for an explicit resend.
+    //
+    // ADDITIVE to the confirmation email, not a replacement (see
+    // smsMessageTypes.replacesEmail): the email carries the scannable QR image and
+    // full logistics, which SMS structurally cannot.
+    //
+    // Fire-and-forget: the RSVP is already committed and the guest is waiting on
+    // this response — a texting problem must never delay or fail it.
+    if (result.response === 'yes' || result.response === 'maybe') {
+      sendTransactionalSms({
+        type: 'rsvp_confirmation',
+        eventId,
+        partyId: result.party_id,
+        ref: `rsvp:${result.party_id}`,
+        lang: guestLang,
+        context: {
+          guestName,
+          eventTitle: result.event_title,
+          response: result.response,
+          // A 'maybe' has no pass to link to; the template omits it.
+          ticketUrl: (result.response === 'yes' && qrToken) ? buildTicketLinks(qrToken).ticketUrl : null,
+        },
+      }).catch((err) => logger.warn({ err, partyId: result.party_id }, 'RSVP confirmation SMS failed'));
+    }
 
     return sendOk(res, {
       partyId: result.party_id,

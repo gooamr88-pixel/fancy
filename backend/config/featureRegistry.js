@@ -41,7 +41,16 @@ const PLATFORM_FEATURES = [
   { key: 'checkin_app',          label: 'Fancy Check-in app (offline door scanner)', description: 'Dedicated Android app for the door: scans tickets and checks guests in with no internet at the venue.', category: 'Check-in', freeDefault: false },
 
   // ── Campaigns & SMS ──
-  { key: 'sms_campaigns',        label: 'SMS campaign tools',            description: 'Send bulk SMS campaigns to guest segments with credit-based billing.',               category: 'Campaigns & SMS',   freeDefault: false },
+  // SMS is NOT gated by tier. It is a paid add-on bought per event at checkout and
+  // enforced by middleware/smsAddonGate.js against events.sms_addon_purchased_at —
+  // any plan can buy it, and buying it unlocks all seven message types.
+  //
+  // The key is retained ONLY so pricing tiers that already list it keep rendering
+  // their bullet without an unknown-key warning, and so removing it from admin
+  // config is not a required deploy step. `builtIn: false` marks it as decorative:
+  // no route mounts requireFeature('sms_campaigns') any more, so toggling it grants
+  // and revokes nothing. Delete the key once it is cleared from every tier.
+  { key: 'sms_campaigns',        label: 'SMS messaging (add-on)',        description: 'Purchased per event at checkout, on any plan — not granted by tier. See middleware/smsAddonGate.js.', category: 'Campaigns & SMS',   freeDefault: false, builtIn: false },
 
   // ── Branding ──
   { key: 'custom_branding',      label: 'Custom themes & branding',     description: 'Apply custom colors, logos, and themes to your RSVP pages.',                         category: 'Branding',          freeDefault: false, builtIn: false },

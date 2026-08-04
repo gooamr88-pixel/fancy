@@ -20,14 +20,17 @@ const SMS_CONSENT_TEXT_VERSION = '2026-08-04';
 // request must never be able to label itself as an organizer attestation.
 const SMS_CONSENT_SOURCES = ['guest_form_wizard', 'guest_form_template', 'sms_opt_in_page'];
 
-// Sources set server-side only, from an authenticated organizer's action.
-const HOST_CONSENT_SOURCES = ['host_manual_add', 'host_csv_import'];
-
 // How consent was obtained. The distinction matters at audit time: a
 // host_attested row is consent we were TOLD about, a guest_optin row is consent
 // we WITNESSED. Never collapse the two.
 const CONSENT_METHOD_GUEST = 'guest_optin';
 const CONSENT_METHOD_HOST = 'host_attested';
+// Neither a grant nor a claim: consent the PLATFORM withdrew because the fact it
+// rested on stopped being true — today only "the party's phone number changed", so
+// the recorded consent no longer belongs to the number we would now be texting.
+// Distinct from the two above so an audit can tell a withdrawal apart from a
+// refusal: the guest never changed their mind, we changed the destination.
+const CONSENT_METHOD_REVOKED = 'system_revoked';
 
 function normalizeConsentSource(source) {
   return SMS_CONSENT_SOURCES.includes(source) ? source : 'guest_form';
@@ -36,7 +39,7 @@ function normalizeConsentSource(source) {
 /**
  * Append one row to sms_consent_log — the immutable, server-side record of a
  * single SMS consent decision (Twilio TFV 30475, migration
- * 20260811000000_sms_consent_log.sql). Captures all five required fields at the
+ * 20260811010000_sms_consent_log.sql). Captures all five required fields at the
  * moment of the decision: phone, consent status, timestamp, event id, guest id.
  *
  * Called for REFUSALS as well as opt-ins: a dated decline is the evidence that
@@ -66,9 +69,12 @@ function logSmsConsentDecision({
     guest_id: guestId,
     phone,
     consent: !!consent,
-    // A host attestation is a claim about consent obtained elsewhere, so no
-    // wording of ours was shown — recording a version would misrepresent it.
-    consent_text_version: method === CONSENT_METHOD_HOST ? null : (textVersion || SMS_CONSENT_TEXT_VERSION),
+    // A host attestation is a claim about consent obtained elsewhere, and a
+    // system revocation shows nobody anything — in neither case was wording of
+    // ours displayed, so recording a version would misrepresent the record.
+    consent_text_version: (method === CONSENT_METHOD_HOST || method === CONSENT_METHOD_REVOKED)
+      ? null
+      : (textVersion || SMS_CONSENT_TEXT_VERSION),
     source: source || 'guest_form',
     method,
     attested_by: attestedBy,
@@ -77,7 +83,7 @@ function logSmsConsentDecision({
   try {
     supabase.from('sms_consent_log').insert(row).then(
       ({ error }) => {
-        if (error) logger.warn({ err: error, partyId }, 'sms consent log write failed (apply 20260811000000_sms_consent_log.sql)');
+        if (error) logger.warn({ err: error, partyId }, 'sms consent log write failed (apply 20260811010000_sms_consent_log.sql)');
       },
       (err) => logger.warn({ err, partyId }, 'sms consent log write rejected'),
     );
@@ -89,9 +95,9 @@ function logSmsConsentDecision({
 module.exports = {
   SMS_CONSENT_TEXT_VERSION,
   SMS_CONSENT_SOURCES,
-  HOST_CONSENT_SOURCES,
   CONSENT_METHOD_GUEST,
   CONSENT_METHOD_HOST,
+  CONSENT_METHOD_REVOKED,
   normalizeConsentSource,
   logSmsConsentDecision,
 };

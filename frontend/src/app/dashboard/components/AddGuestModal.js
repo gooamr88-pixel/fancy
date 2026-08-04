@@ -68,14 +68,18 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
     if (!formData.email.trim()) { setError('Email address is required.'); return; }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email.trim())) { setError('Please enter a valid email address.'); return; }
-    // Phone is required so the guest can receive SMS invitations; normalize to
-    // E.164 (US default) before sending.
-    const normalizedPhone = normalizeToE164(formData.phone);
-    if (!normalizedPhone) {
-      setError(formData.phone.trim()
-        ? 'Enter a valid phone number (e.g. +1 555 123 4567).'
-        : 'A phone number is required so this guest can receive SMS invitations.');
-      return;
+    // Phone is OPTIONAL — only its format is checked. It used to be required
+    // "so this guest can receive SMS invitations", which stated the bundling
+    // outright: a number could not be omitted, and its purpose was given as
+    // messaging. Organizers keep guests who have no number, and the guest's own
+    // consent (or the organizer's attestation) decides messaging separately.
+    let normalizedPhone = '';
+    if (formData.phone.trim()) {
+      normalizedPhone = normalizeToE164(formData.phone);
+      if (!normalizedPhone) {
+        setError('Enter a valid phone number (e.g. +1 555 123 4567), or leave it blank.');
+        return;
+      }
     }
     // Every guest added here must carry a real RSVP response — an organizer
     // adding someone by hand already knows whether they're coming, so there's
@@ -211,8 +215,8 @@ export default function AddGuestModal({ isOpen, onClose, eventId, event, customF
                 />
               </div>
               <div>
-                <label style={labelStyle}>Phone *</label>
-                <PhoneNumberInput value={formData.phone} required
+                <label style={labelStyle}>Phone</label>
+                <PhoneNumberInput value={formData.phone}
                   onChange={(val) => handleChange('phone')({ target: { value: val } })} />
               </div>
             </div>

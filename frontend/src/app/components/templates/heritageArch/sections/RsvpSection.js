@@ -527,12 +527,12 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     invalid: !!errors[`field_${field.id}`],
   });
 
-  // Consent is about *collecting a phone number*, not about attendance — so it's
-  // only asked when a phone is actually present: always for attendees (phone is
-  // required), and for a decliner only once they choose to leave a number. A
-  // guest who declines without a phone is never asked to opt into SMS at all.
+  // Consent is about *collecting a phone number*, not about attendance. The
+  // number is optional for everyone (Twilio TFV 30475), so the checkbox is asked
+  // only once a guest volunteers one. A guest who leaves the field blank is
+  // never asked about SMS at all, and can still RSVP and attend.
   const hasPhone = !!phone.trim();
-  const showSmsConsent = attending === 'yes' || hasPhone;
+  const showSmsConsent = hasPhone;
 
   const validate = () => {
     const e = {};
@@ -540,10 +540,11 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
     if (!attending) e.attending = true;
     if (!guestName.trim()) e.guestName = isRTL ? 'مطلوب' : 'Required';
 
-    // Phone: required for attendees, optional for decliners; validate format if present.
+    // Phone: OPTIONAL for everyone — format-checked only when supplied. Do not
+    // reintroduce a required-phone error: it made the SMS program's identifier a
+    // precondition of registering (see rsvpController's matching comment).
     const normalizedPhone = hasPhone ? normalizeToE164(phone) : '';
     if (hasPhone && !normalizedPhone) e.phone = isRTL ? 'رقم هاتف غير صالح' : 'Invalid phone number';
-    else if (isAttending && !normalizedPhone) e.phone = isRTL ? 'مطلوب' : 'Required';
 
     // Email: required for attendees (confirmation + logistics), optional for declines.
     if (isAttending) {
@@ -905,7 +906,10 @@ export default function RsvpSection({ event, slug, guestRsvp, hasResponded, resp
 
                     <div>
                       <label style={labelStyle}>
-                        {isRTL ? 'رقم الهاتف' : 'Phone number'}{attending === 'yes' && <span style={{ color: ERR }}> *</span>}
+                        {/* Never marked required (Twilio TFV 30475) — a mandatory
+                            number would make the SMS program a condition of
+                            registering. */}
+                        {isRTL ? 'رقم الهاتف (اختياري)' : 'Phone number (optional)'}
                         {attending === 'no' && <span style={{ opacity: 0.5, fontWeight: 500 }}> {isRTL ? '(اختياري)' : '(optional)'}</span>}
                       </label>
                       <CountryCodePhoneInput value={phone} onChange={(v) => { setPhone(v); clearError('phone'); setContactRegistered(null); }} hasError={!!errors.phone} />

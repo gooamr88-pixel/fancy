@@ -27,7 +27,10 @@ const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { getCashPaymentApprovedTemplate } = require('../utils/emailTemplates');
-const { computeSmsChargeCents } = require('../utils/pricing');
+const { computeSmsChargeCents, describeSmsCharge, volumeDiscountsFromConfig } = require('../utils/pricing');
+const { sanitizeAllowanceRequest, estimateAllowance } = require('../utils/smsEstimator');
+const { normalizeSmsPricing, describeSmsPricingAdjustments, DEFAULT_SMS_PRICING, LIMITS: SMS_PRICING_LIMITS } = require('../config/smsPricing');
+const { SMS_MESSAGE_TYPES } = require('../config/smsMessageTypes');
 const { fulfillCheckoutSession, handleChargeRefunded, handleDisputeEvent } = require('../services/paymentFulfillment');
 const { getPlatformConfig, invalidate: invalidateConfigCache } = require('../utils/configCache');
 const {
@@ -93,6 +96,74 @@ const setOptionalColumns = async (table, match, fields) => {
  * Creates a Stripe Checkout Session for event payment fees.
  * POST /api/v1/payments/create-checkout
  */
+/**
+ * Build a Stripe Checkout session containing ONLY the SMS add-on.
+ *
+ * Used on the free-tier path, where the licence itself costs nothing and so no
+ * session would otherwise be created. Carries `type: 'sms_credits'` so it lands in
+ * fulfillCheckoutSession's existing, already-idempotent SMS branch — which credits
+ * the wallet through record_sms_purchase and flips events.sms_addon_purchased_at.
+ *
+ * Returns { url } or { error: true, status, body } for the caller to forward.
+ */
+async function createSmsAddonOnlyCheckout({
+  req, stripe, eventId, orgId, organization, adminConfig, segments, returnPath,
+}) {
+  const amountCents = computeSmsChargeCents({
+    unitPriceCents: adminConfig.sms_rate_cents_per_credit,
+    creditCount: segments,
+    markupPct: adminConfig.sms_markup_percentage,
+    volumeDiscounts: volumeDiscountsFromConfig(adminConfig),
+  });
+
+  if (amountCents <= 0) {
+    return {
+      error: true,
+      status: 500,
+      body: { success: false, error: 'CONFIG_ERROR', message: 'SMS pricing is not configured.' },
+    };
+  }
+
+  let customerId = organization?.stripe_customer_id;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: organization?.email || 'customer@example.com',
+      name: organization?.name || 'Event Organizer',
+      metadata: { org_id: orgId },
+    });
+    customerId = customer.id;
+    await supabase.from('organizations').update({ stripe_customer_id: customerId }).eq('id', orgId);
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    customer: customerId,
+    line_items: [{
+      price_data: {
+        currency: 'usd',
+        unit_amount: amountCents,
+        product_data: {
+          name: `Fancy RSVP - SMS Messaging Add-on (${segments} messages)`,
+          description: 'Unlocks text messaging for this event: RSVP confirmations, reminders, entry-pass links and custom campaigns.',
+        },
+      },
+      quantity: 1,
+    }],
+    metadata: {
+      event_id: eventId,
+      type: 'sms_credits',
+      credit_count: String(segments),
+      // Distinguishes the first purchase (which unlocks the add-on) from a later
+      // top-up, so fulfilment knows whether to stamp sms_addon_purchased_at.
+      sms_addon_unlock: '1',
+    },
+    success_url: `${resolveReturnBase(req)}${returnPath}?payment=success&event=${eventId}&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${resolveReturnBase(req)}${returnPath}?payment=cancelled&event=${eventId}`,
+  });
+
+  return { url: session.url };
+}
+
 const createCheckoutSession = async (req, res, next) => {
   // Card payments off (pre-live / no live keys) → tell the client to use manual.
   if (!stripeEnabled()) return stripeDisabledResponse(res);
@@ -110,6 +181,18 @@ const createCheckoutSession = async (req, res, next) => {
   // an already-created event returns there instead of the wizard.
   const rawReturn = (req.body.returnPath || '').toString();
   const returnPath = /^\/dashboard(?:\/[A-Za-z0-9_-]+)*$/.test(rawReturn) ? rawReturn : '/dashboard/create-event';
+
+  // Optional SMS add-on, bought in the SAME checkout as the licence. Two line
+  // items, one payment: the organizer decided about text messaging on the screen
+  // where they chose their plan, so making them return later for a second
+  // checkout — the old flow — dropped most of them before they ever arrived.
+  // null means "no add-on requested"; a malformed or out-of-range value is
+  // clamped rather than trusted (sanitizeAllowanceRequest). Re-clamped against
+  // the admin's configured bounds once the platform config is loaded below —
+  // this first pass only establishes whether an add-on was asked for at all.
+  let smsAddonSegments = sanitizeAllowanceRequest(req.body.smsAddonSegments);
+  // Re-clamped against the admin's configured bounds inside the try block below,
+  // once getPlatformConfig has resolved.
 
   if (!eventId || !tierName) {
     return res.status(400).json({
@@ -130,6 +213,13 @@ const createCheckoutSession = async (req, res, next) => {
         error: 'CONFIG_ERROR',
         message: 'Could not retrieve pricing configuration.'
       });
+    }
+
+    // Re-clamp the requested allowance against the admin's ACTUAL bounds, now
+    // that they are known. The first pass used the shipped defaults, which would
+    // let a request slip past a floor or ceiling the admin has since changed.
+    if (smsAddonSegments) {
+      smsAddonSegments = sanitizeAllowanceRequest(smsAddonSegments, adminConfig.sms_pricing_config);
     }
 
     const tier = adminConfig.pricing_tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase());
@@ -246,6 +336,26 @@ const createCheckoutSession = async (req, res, next) => {
           action: 'event_payment_completed',
           entity_type: 'event_payment',
           metadata: { amount_cents: 0, tier_name: tier.name, free_tier: true },
+        });
+      }
+
+      // A free plan does not mean no SMS. The add-on is sold per event on ANY
+      // tier, so a free-tier organizer who asked for messaging still needs a
+      // checkout — just one containing only the add-on. Without this branch the
+      // request would return "activated" here and their SMS choice would vanish
+      // silently, which is the one outcome worse than charging them.
+      if (smsAddonSegments) {
+        const checkout = await createSmsAddonOnlyCheckout({
+          req, stripe, eventId, orgId: eventData.org_id,
+          organization: eventData.organizations, adminConfig,
+          segments: smsAddonSegments, returnPath,
+        });
+        if (checkout.error) return res.status(checkout.status).json(checkout.body);
+        return res.status(200).json({
+          success: true,
+          activated: true,
+          checkoutUrl: checkout.url,
+          message: `'${tier.name}' is a free plan — activated without payment. Complete checkout to add SMS messaging.`,
         });
       }
 
@@ -394,23 +504,54 @@ const createCheckoutSession = async (req, res, next) => {
         .eq('id', eventData.org_id);
     }
 
+    // The SMS add-on rides along as a SEPARATE line item rather than being folded
+    // into the licence price. Stripe shows it on its own line, the receipt itemizes
+    // it, and a refund of the licence does not silently claw back messages the
+    // organizer already sent. Priced through the same computeSmsChargeCents used by
+    // top-ups, so the admin's markup and volume discount apply identically whether
+    // the segments are bought here or later.
+    const smsAddonCents = smsAddonSegments
+      ? computeSmsChargeCents({
+          unitPriceCents: adminConfig.sms_rate_cents_per_credit,
+          creditCount: smsAddonSegments,
+          markupPct: adminConfig.sms_markup_percentage,
+          volumeDiscounts: volumeDiscountsFromConfig(adminConfig),
+        })
+      : 0;
+
+    const lineItems = [{
+      price_data: {
+        currency: 'usd',
+        unit_amount: finalChargeCents,
+        product_data: {
+          name: isUpgrade ? `Fancy RSVP - Upgrade to ${tier.name} License` : `Fancy RSVP - ${tier.name} License`,
+          description: isUpgrade
+            ? `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests. Full price $${(tier.price_cents / 100).toFixed(2)}, credited $${(previousTier.price_cents / 100).toFixed(2)} already paid for ${previousTier.name}.`
+            : `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests`
+        }
+      },
+      quantity: 1
+    }];
+
+    if (smsAddonSegments && smsAddonCents > 0) {
+      lineItems.push({
+        price_data: {
+          currency: 'usd',
+          unit_amount: smsAddonCents,
+          product_data: {
+            name: `Fancy RSVP - SMS Messaging Add-on (${smsAddonSegments} messages)`,
+            description: 'Unlocks text messaging for this event: RSVP confirmations, reminders, entry-pass links and custom campaigns.',
+          }
+        },
+        quantity: 1
+      });
+    }
+
     // 3. Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer: customerId,
-      line_items: [{
-        price_data: {
-          currency: 'usd',
-          unit_amount: finalChargeCents,
-          product_data: {
-            name: isUpgrade ? `Fancy RSVP - Upgrade to ${tier.name} License` : `Fancy RSVP - ${tier.name} License`,
-            description: isUpgrade
-              ? `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests. Full price $${(tier.price_cents / 100).toFixed(2)}, credited $${(previousTier.price_cents / 100).toFixed(2)} already paid for ${previousTier.name}.`
-              : `License for ${tier.max_guests ? `up to ${tier.max_guests}` : 'unlimited'} guests`
-          }
-        },
-        quantity: 1
-      }],
+      line_items: lineItems,
       metadata: {
         event_id: eventId,
         tier_name: tier.name,
@@ -422,6 +563,10 @@ const createCheckoutSession = async (req, res, next) => {
         previous_amount_cents: isUpgrade ? String(previousTier.price_cents) : '',
         referral_credit_applied_cents: String(referralCreditAppliedCents),
         referral_hold_id: referralHoldId || '',
+        // Read by fulfillCheckoutSession to credit the wallet and flip
+        // events.sms_addon_purchased_at. Empty string = no add-on on this session.
+        sms_addon_segments: smsAddonSegments ? String(smsAddonSegments) : '',
+        sms_addon_amount_cents: smsAddonSegments ? String(smsAddonCents) : '',
       },
       // Return the user to the WIZARD (not the dashboard) at the payment step, and
       // carry session_id so the frontend can synchronously verify + show success
@@ -457,11 +602,16 @@ const purchaseSMSCredits = async (req, res, next) => {
   // number in range BEFORE any pricing/Stripe work.
   const creditCount = Number(req.body.creditCount);
 
-  if (!eventId || !Number.isInteger(creditCount) || creditCount < 50 || creditCount > 50000) {
+  // Cheap sanity gate, BEFORE any I/O. A non-numeric body value ("abc", null →
+  // NaN/0) used to slip past a bare `< 50 || > 50000` comparison — NaN comparisons
+  // are always false — and flow into computeSmsChargeCents → NaN → a Stripe 500.
+  // The exact purchase floor and ceiling are admin-configurable and enforced below
+  // once the config is loaded; this only rejects what is not a purchase at all.
+  if (!eventId || !Number.isInteger(creditCount) || creditCount <= 0) {
     return res.status(400).json({
       success: false,
       error: 'VALIDATION_ERROR',
-      message: 'eventId and creditCount (a whole number, minimum 50, maximum 50000) are required.'
+      message: 'eventId and a positive whole-number creditCount are required.'
     });
   }
 
@@ -478,11 +628,24 @@ const purchaseSMSCredits = async (req, res, next) => {
       });
     }
 
+    // The purchase floor and ceiling are admin-configurable, so they are read from
+    // the config rather than compared against literals here — a dashboard change
+    // to the minimum order must take effect without a deploy.
+    const { bounds } = normalizeSmsPricing(config.sms_pricing_config);
+    if (creditCount < bounds.min || creditCount > bounds.max) {
+      return res.status(400).json({
+        success: false,
+        error: 'VALIDATION_ERROR',
+        message: `creditCount must be between ${bounds.min} and ${bounds.max}.`,
+      });
+    }
+
     // Base carrier cost → admin markup → volume discount, rounded once at the end.
     const totalCents = computeSmsChargeCents({
       unitPriceCents: config.sms_rate_cents_per_credit,
       creditCount,
       markupPct: config.sms_markup_percentage,
+      volumeDiscounts: volumeDiscountsFromConfig(config),
     });
 
     // 2. Fetch customer details
@@ -901,9 +1064,13 @@ const manualCashApproval = async (req, res, next) => {
  * PATCH /api/v1/admin/pricing
  */
 const updatePricingConfig = async (req, res, next) => {
-  const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct, manualPaymentMethods, landingStats } = req.body;
+  const { pricingTiers, smsRateCentsPerCredit, smsMarkupPercentage, platformCommissionPct, manualPaymentMethods, landingStats, smsPricingConfig } = req.body;
 
   const updates = {};
+  // Notes about anything the normalizer had to adjust, surfaced back to the admin
+  // so a silently-clamped value is visible rather than a mystery next time they
+  // open the form.
+  let smsPricingNotes = [];
   if (pricingTiers !== undefined) {
     if (!Array.isArray(pricingTiers)) {
       return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'pricingTiers must be an array.' });
@@ -951,6 +1118,24 @@ const updatePricingConfig = async (req, res, next) => {
     }
     updates.sms_markup_percentage = markup;
   }
+  // The rest of the SMS pricing model: volume-discount tiers, purchase bounds,
+  // estimator assumptions and per-message-type frequencies.
+  //
+  // Normalized rather than rejected. Every field is clamped to a range outside
+  // which the platform misbehaves rather than merely prices differently (a 100%
+  // discount makes messages free; zero guests-per-party divides by nothing), so a
+  // fat-fingered entry degrades to the nearest sane value instead of failing the
+  // save — or worse, being stored and taking checkout down for every organizer at
+  // once. What was adjusted comes back in the response.
+  if (smsPricingConfig !== undefined) {
+    if (!smsPricingConfig || typeof smsPricingConfig !== 'object' || Array.isArray(smsPricingConfig)) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'smsPricingConfig must be an object.' });
+    }
+    const normalized = normalizeSmsPricing(smsPricingConfig);
+    smsPricingNotes = describeSmsPricingAdjustments(smsPricingConfig, normalized);
+    updates.sms_pricing_config = normalized;
+  }
+
   if (platformCommissionPct !== undefined) {
     const commission = Number(platformCommissionPct);
     if (!Number.isFinite(commission) || commission < 0 || commission > 100) {
@@ -1003,10 +1188,16 @@ const updatePricingConfig = async (req, res, next) => {
     // Pricing changed — drop the cached config so reads reflect it immediately.
     invalidateConfigCache();
 
+    const saved = data?.[0] || data;
+
     return res.status(200).json({
       success: true,
       message: 'Platform configuration updated successfully.',
-      config: data?.[0] || data
+      config: saved,
+      // The normalized model as STORED, so the form can re-render the values that
+      // will actually be charged rather than the ones that were typed.
+      smsPricing: normalizeSmsPricing(saved?.sms_pricing_config),
+      smsPricingNotes,
     });
   } catch (err) {
     next(err);
@@ -1027,12 +1218,150 @@ const getPricingConfig = async (req, res, next) => {
 
     if (error) throw error;
 
+    // Per-tier SMS allowance recommendations, so the payment step can answer
+    // "how many messages will I actually need?" the moment a plan is picked —
+    // with the arithmetic shown, not a bare number.
+    //
+    // Computed here rather than mirrored into the client because the estimate and
+    // the price the organizer is ultimately charged must come from one definition;
+    // a drifting client copy would quote a number checkout then contradicts. Both
+    // scripts are returned because the same guest count costs ~2x in Arabic (UCS-2
+    // caps a segment at 70 characters), and the event's language is chosen on a
+    // different step from this one.
+    const smsPricing = normalizeSmsPricing(config.sms_pricing_config);
+
+    const smsEstimates = {};
+    for (const tier of (config.pricing_tiers || [])) {
+      if (!tier || !tier.name || tier.is_custom === true) continue;
+      const maxGuests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
+      smsEstimates[tier.name] = {
+        latin: estimateAllowance({ maxGuests, script: 'latin', pricingConfig: config.sms_pricing_config }),
+        arabic: estimateAllowance({ maxGuests, script: 'arabic', pricingConfig: config.sms_pricing_config }),
+      };
+    }
+
     return res.json({
       success: true,
       config,
+      smsEstimates,
+      // The normalized model, so the admin dashboard renders exactly the values
+      // that will be applied — not the raw column, which may be partial.
+      smsPricing,
+      smsMessageTypes: SMS_MESSAGE_TYPES,
       // Tells the dashboard which paid integrations are live right now, so the
       // payment step can render manual-first and hide card / SMS-purchase CTAs.
       features: { stripeEnabled: stripeEnabled(), smsEnabled: smsEnabled() },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Price a hypothetical SMS pricing model, without saving it.
+ * POST /api/v1/payments/admin/sms-pricing-preview
+ * body: { smsRateCentsPerCredit?, smsMarkupPercentage?, smsPricingConfig? }
+ *
+ * Exists so the super admin can see what a change DOES before committing it:
+ * what an organizer pays at each volume, what the carrier costs us, and what
+ * Fancy actually keeps.
+ *
+ * Computed on the SERVER, by the same describeSmsCharge the checkout uses, rather
+ * than mirrored into the dashboard's JavaScript. A client-side copy of pricing
+ * maths is the classic way an admin tunes a margin against numbers that quietly
+ * stopped matching what customers are charged — and pricing is precisely where
+ * that must not happen. Read-only and side-effect free; nothing is persisted.
+ */
+const previewSmsPricing = async (req, res, next) => {
+  try {
+    let config;
+    try {
+      config = await getPlatformConfig();
+    } catch {
+      return res.status(500).json({ success: false, error: 'CONFIG_ERROR', message: 'Could not retrieve pricing configuration.' });
+    }
+
+    // Unspecified fields fall back to what is currently live, so the admin can
+    // preview one changed knob against the real model rather than against defaults.
+    const rate = req.body.smsRateCentsPerCredit !== undefined
+      ? Number(req.body.smsRateCentsPerCredit)
+      : Number(config.sms_rate_cents_per_credit);
+    const markup = req.body.smsMarkupPercentage !== undefined
+      ? Number(req.body.smsMarkupPercentage)
+      : Number(config.sms_markup_percentage);
+
+    if (!Number.isFinite(rate) || rate < 0 || !Number.isFinite(markup) || markup <= -100) {
+      return res.status(400).json({ success: false, error: 'VALIDATION_ERROR', message: 'Invalid rate or markup.' });
+    }
+
+    const pricing = normalizeSmsPricing(
+      req.body.smsPricingConfig !== undefined ? req.body.smsPricingConfig : config.sms_pricing_config,
+    );
+
+    // Sample volumes: the floor, each discount threshold (and one segment below it,
+    // so the cliff is visible), the recommended sizes for the real pricing tiers,
+    // and the ceiling. Showing the point where a discount kicks in is the whole
+    // reason to look at this table.
+    const points = new Set([pricing.bounds.min, pricing.bounds.max]);
+    for (const tier of pricing.volume_discounts) {
+      points.add(tier.min_segments);
+      if (tier.min_segments > pricing.bounds.min) points.add(tier.min_segments - 1);
+    }
+    for (const tier of (config.pricing_tiers || [])) {
+      if (!tier || tier.is_custom === true) continue;
+      const maxGuests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
+      const est = estimateAllowance({ maxGuests, script: 'latin', pricingConfig: pricing });
+      points.add(est.recommendedSegments);
+    }
+
+    const rows = [...points]
+      .filter((n) => Number.isFinite(n) && n >= pricing.bounds.min && n <= pricing.bounds.max)
+      .sort((a, b) => a - b)
+      .map((segments) => describeSmsCharge({
+        unitPriceCents: rate,
+        creditCount: segments,
+        markupPct: markup,
+        volumeDiscounts: pricing.volume_discounts,
+      }));
+
+    // Per-tier recommendations in both scripts — the number a real customer sees
+    // on the payment screen, and what it earns.
+    const tierPreviews = (config.pricing_tiers || [])
+      .filter((t) => t && t.name && t.is_custom !== true)
+      .map((tier) => {
+        const maxGuests = Number.isFinite(tier.max_guests) ? tier.max_guests : null;
+        const build = (script) => {
+          const est = estimateAllowance({ maxGuests, script, pricingConfig: pricing });
+          return {
+            recommendedSegments: est.recommendedSegments,
+            estimatedParties: est.estimatedParties,
+            ...describeSmsCharge({
+              unitPriceCents: rate,
+              creditCount: est.recommendedSegments,
+              markupPct: markup,
+              volumeDiscounts: pricing.volume_discounts,
+            }),
+          };
+        };
+        return {
+          tierName: tier.name,
+          maxGuests,
+          tierPriceCents: tier.price_cents,
+          latin: build('latin'),
+          arabic: build('arabic'),
+        };
+      });
+
+    return res.json({
+      success: true,
+      pricing,
+      rate,
+      markup,
+      rows,
+      tierPreviews,
+      notes: describeSmsPricingAdjustments(req.body.smsPricingConfig, pricing),
+      limits: SMS_PRICING_LIMITS,
+      defaults: DEFAULT_SMS_PRICING,
     });
   } catch (err) {
     next(err);
@@ -1501,6 +1830,7 @@ module.exports = {
   manualCashApproval,
   updatePricingConfig,
   getPricingConfig,
+  previewSmsPricing,
   getPublicPricing,
   initiateManualPayment,
   getPendingPayments,

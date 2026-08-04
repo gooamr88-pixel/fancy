@@ -47,11 +47,14 @@ export default function StepPartyDetails({
   // options exactly as the organizer typed them, regardless of guest language.
   const mealOptions = mealField?.options;
 
-  // Consent is about collecting a phone number, not attendance — show it only when
-  // a phone is actually in play: always for attendees (phone required), and for a
-  // decline only once a number is entered. Mirrors RsvpSection + the backend.
+  // Consent is about the phone number, not attendance. Now that the number is
+  // optional for everyone (Twilio TFV 30475), the checkbox appears only once a
+  // guest has actually volunteered one — asking a guest who gave no number
+  // whether they consent to texts is meaningless, and showing it to every
+  // attendee is what previously made the SMS program look like part of
+  // registering. Mirrors RsvpSection + the backend.
   const isAttending = attending === 'yes';
-  const showSmsConsent = isAttending || !!(phone && phone.trim());
+  const showSmsConsent = !!(phone && phone.trim());
 
   const renderHostDetailsCard = (includeMeal = false) => {
     return (
@@ -152,7 +155,10 @@ export default function StepPartyDetails({
                   style={{ ...S.inputBase, ...(validationErrors.email ? { borderColor: '#ef4444' } : {}) }}
                   onFocus={e => inputFocus(e)} onBlur={e => inputBlur(e, !!validationErrors.email)} />
               </FormField>
-              <FormField label={isAttending ? t.phone_label : `${t.phone_label}${isRTL ? ' (اختياري)' : ' (optional)'}`} error={validationErrors.phone}>
+              {/* Always labelled optional (Twilio TFV 30475). A mandatory phone
+                  number made the SMS program's identifier a condition of
+                  registering; the label must say plainly that it is not. */}
+              <FormField label={`${t.phone_label}${isRTL ? ' (اختياري)' : ' (optional)'}`} error={validationErrors.phone}>
                 <CountryCodePhoneInput value={phone} onChange={setPhone} hasError={!!validationErrors.phone} />
               </FormField>
             </div>

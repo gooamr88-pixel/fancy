@@ -14,3 +14,11 @@ process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_dummy'
 // feature flags on here. Production defaults remain OFF (see config/features.js).
 process.env.PAYMENTS_STRIPE_ENABLED = process.env.PAYMENTS_STRIPE_ENABLED || 'true';
 process.env.SMS_ENABLED = process.env.SMS_ENABLED || 'true';
+// TWILIO_* is deliberately NOT set: with credentials present getTwilioClient()
+// builds a real client and every send attempts a network call. Leaving them unset
+// keeps the mock transport (client === null) the suite is built around.
+//
+// That mock transport no longer bills on its own — production must never charge a
+// wallet for a message it had no way to send (smsDispatch's transport gate). The
+// campaign/billing tests DO need the ledger exercised, so they opt in explicitly.
+process.env.SMS_MOCK_BILLING = process.env.SMS_MOCK_BILLING || 'true';

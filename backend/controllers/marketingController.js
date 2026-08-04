@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 const { sendEmailViaBrevo } = require('../utils/notificationService');
 const { escapeHtml } = require('../utils/emailTemplates');
 const { normalizeToE164 } = require('../utils/phone');
-const { SMS_CONSENT_TEXT_VERSION, logSmsConsentDecision } = require('../utils/smsConsent');
+const { SMS_CONSENT_TEXT_VERSION, CONSENT_METHOD_GUEST, logSmsConsentDecision } = require('../utils/smsConsent');
 
 /**
  * Public marketing forms (footer newsletter signup, Contact page). Both were
@@ -46,6 +46,87 @@ const subscribeNewsletter = async (req, res, next) => {
 };
 
 /**
+ * Give a standalone /sms-opt-in submission real effect on deliverability.
+ *
+ * Two writes, both deliberately narrow:
+ *
+ *  1. LIFT SUPPRESSION. Someone who once replied STOP and has now returned to the
+ *     public page and affirmatively opted in has plainly changed their mind — the
+ *     same thing START would express over SMS. Without this the row in
+ *     sms_opt_outs silences them forever and no UI anywhere can undo it. The row
+ *     is kept and stamped (never deleted) so the history stays auditable.
+ *
+ *  2. GRANT CONSENT ON PARTIES THAT NEVER DECIDED. A party whose primary contact
+ *     holds this number, and which has NO recorded decision (sms_consent_at IS
+ *     NULL), becomes messageable. The IS-NULL guard is the same precedence rule
+ *     the host attestation obeys: a guest who was shown our checkbox and declined
+ *     has a stamped timestamp, and nothing here may write over their refusal.
+ *
+ * Best-effort: the consent record is already durably stored by the caller, so a
+ * failure here degrades to "recorded but not yet applied" rather than losing the
+ * opt-in or failing the request.
+ */
+async function applyStandaloneOptIn(phone) {
+  try {
+    const nowISO = new Date().toISOString();
+
+    // 1. Lift any active suppression for this number.
+    const { error: unsuppressErr } = await supabase
+      .from('sms_opt_outs')
+      .update({ opted_back_in_at: nowISO })
+      .eq('phone', phone)
+      .is('opted_back_in_at', null);
+    if (unsuppressErr) logger.warn({ err: unsuppressErr }, 'sms opt-in: lifting suppression failed');
+
+    // 2. Find undecided parties whose PRIMARY contact is this number. Only the
+    //    primary matters: SMS is addressed to the party's primary contact, so a
+    //    companion sharing the number would attach consent to the wrong person.
+    const { data: matches, error: matchErr } = await supabase
+      .from('guests')
+      .select('party_id, event_id')
+      .eq('phone', phone)
+      .eq('is_primary_contact', true)
+      .not('party_id', 'is', null);
+    if (matchErr) {
+      logger.warn({ err: matchErr }, 'sms opt-in: party lookup failed');
+      return;
+    }
+
+    const partyIds = [...new Set((matches || []).map((m) => m.party_id).filter(Boolean))];
+    if (partyIds.length === 0) return;
+
+    const { data: updated, error: consentErr } = await supabase
+      .from('rsvp_parties')
+      .update({
+        sms_consent: true,
+        sms_consent_at: nowISO,
+        sms_consent_source: 'sms_opt_in_page',
+        sms_consent_method: CONSENT_METHOD_GUEST,
+        sms_consent_text_version: SMS_CONSENT_TEXT_VERSION,
+      })
+      .in('id', partyIds)
+      .is('sms_consent_at', null)   // never overwrite a decision already made
+      .select('id, event_id');
+    if (consentErr) {
+      logger.warn({ err: consentErr }, 'sms opt-in: consent propagation failed');
+      return;
+    }
+
+    for (const row of (updated || [])) {
+      logSmsConsentDecision({
+        eventId: row.event_id, partyId: row.id, phone,
+        consent: true, source: 'sms_opt_in_page',
+      });
+    }
+    if ((updated || []).length > 0) {
+      logger.info({ phone, parties: updated.length }, 'sms opt-in applied to existing guest parties');
+    }
+  } catch (err) {
+    logger.warn({ err }, 'sms opt-in: applying the opt-in threw (record is still stored)');
+  }
+}
+
+/**
  * POST /api/v1/public/sms-opt-in  body: { fullName?, phone, consent }
  *
  * The live opt-in form on /sms-opt-in — the URL submitted with the Twilio
@@ -75,9 +156,16 @@ const submitSmsOptIn = async (req, res, next) => {
 
     // Mirror the opt-in into the unified append-only consent log so every
     // consent decision — RSVP form or standalone opt-in page — is auditable
-    // from one place (Twilio TFV 30475). No event/party context here: this is a
-    // standalone web-form opt-in, not tied to a specific event's guest list.
+    // from one place (Twilio TFV 30475).
     logSmsConsentDecision({ phone, consent: true, source: 'sms_opt_in_page' });
+
+    // ── Make the opt-in actually MEAN something ────────────────────────────────
+    // Until now this endpoint wrote two audit rows and stopped. Every send path
+    // reads rsvp_parties.sms_consent and sms_opt_outs — neither of which this
+    // touched — so the page told visitors "you are opted in" while changing
+    // nothing at all about whether they could be messaged. On the page Twilio
+    // reviews as our opt-in URL, that gap is the whole point of the page.
+    await applyStandaloneOptIn(phone);
 
     return res.json({ success: true, message: 'You are opted in. You will only receive texts about Fancy RSVP events you are invited to. Reply STOP to any message to opt out.' });
   } catch (err) {

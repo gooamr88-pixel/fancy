@@ -153,13 +153,48 @@ test('createCheckout rejects an unknown pricing tier (400)', async () => {
 // purchaseSMSCredits — input bounds
 // ─────────────────────────────────────────────────────────────────────────────
 
-test('purchaseSMSCredits enforces the 50–50000 credit bounds', async () => {
-  mock.setResolver(() => ({}));
+test('purchaseSMSCredits enforces the ADMIN-CONFIGURED purchase bounds', async () => {
+  // The floor and ceiling are no longer literals in the controller — they live in
+  // super_admin_config.sms_pricing_config so they can be changed without a deploy.
+  // The config therefore has to be scripted for the bounds to be enforced at all.
+  mock.setResolver((s) => {
+    if (s.table === 'super_admin_config') {
+      return { data: { sms_rate_cents_per_credit: 8, sms_markup_percentage: 40, pricing_tiers: [] } };
+    }
+    return {};
+  });
+
+  // 49 / 50001 straddle the SHIPPED defaults (50 … 50000), which an unconfigured
+  // platform still uses.
   for (const creditCount of [49, 50001]) {
     const { res } = await invoke(purchaseSMSCredits, mockReq({ params: { eventId: 'evt-1' }, body: { creditCount }, user: { id: 'owner-1' } }));
     assert.equal(res.statusCode, 400, `creditCount=${creditCount} should be rejected`);
     assert.equal(res.body.error, 'VALIDATION_ERROR');
   }
+});
+
+test('a widened admin minimum takes effect without a deploy', async () => {
+  mock.setResolver((s) => {
+    if (s.table === 'super_admin_config') {
+      return { data: {
+        sms_rate_cents_per_credit: 8,
+        sms_markup_percentage: 40,
+        pricing_tiers: [],
+        // Admin lowered the floor to 10.
+        sms_pricing_config: { bounds: { min: 10, max: 50000, step: 50 } },
+      } };
+    }
+    return {};
+  });
+
+  const { res } = await invoke(purchaseSMSCredits, mockReq({
+    params: { eventId: 'evt-1' }, body: { creditCount: 20 }, user: { id: 'owner-1' },
+  }));
+
+  // 20 is below the shipped default of 50 but inside the admin's configured range,
+  // so it must NOT be rejected as a validation error.
+  assert.notEqual(res.body?.error, 'VALIDATION_ERROR',
+    'a hardcoded floor would reject this — the point of the config is that it does not');
 });
 
 test('purchaseSMSCredits rejects a non-numeric / non-integer creditCount (400, no NaN→Stripe 500)', async () => {

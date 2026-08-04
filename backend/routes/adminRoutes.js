@@ -1,7 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { requirePermission, requireAdmin } = require('../middleware/permissions');
-const { manualCashApproval, updatePricingConfig, getPricingConfig, getPendingPayments } = require('../controllers/paymentController');
+const { manualCashApproval, updatePricingConfig, getPricingConfig, getPendingPayments, previewSmsPricing } = require('../controllers/paymentController');
 const { getAdminEvents, deleteEvent } = require('../controllers/eventController');
 const { PLATFORM_FEATURES, FEATURE_CATEGORIES, getFeaturesByCategory } = require('../config/featureRegistry');
 const rbacRoutes = require('./admin/rbacRoutes');
@@ -127,6 +127,10 @@ router.get('/feature-registry', requirePermission('subscriptions.view'), (req, r
 // ── Pricing configuration ──
 router.get('/pricing', requirePermission('subscriptions.view'), getPricingConfig);
 router.patch('/pricing', requirePermission('subscriptions.manage'), updatePricingConfig);
+// Price an unsaved SMS pricing model — what customers would pay, what it costs
+// us, and what Fancy keeps. Read-only; persists nothing. Same permission as the
+// save it previews, since it exposes cost and margin figures.
+router.post('/pricing/sms-preview', requirePermission('subscriptions.manage'), previewSmsPricing);
 
 // ── Users & legacy role flag ──
 router.get('/users', requirePermission('users.view'), listPlatformUsers);

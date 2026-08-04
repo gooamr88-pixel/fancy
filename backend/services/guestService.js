@@ -14,7 +14,7 @@ const logger = require('../utils/logger');
 const { normalizeEmail, escapeLikePattern, normalizeNameForSearch } = require('../utils/normalize');
 const { normalizeToE164 } = require('../utils/phone');
 const { sideLabelForEvent } = require('../utils/sideLabel');
-const { CONSENT_METHOD_HOST, logSmsConsentDecision } = require('../utils/smsConsent');
+const { CONSENT_METHOD_HOST, CONSENT_METHOD_REVOKED, logSmsConsentDecision } = require('../utils/smsConsent');
 
 const MAX_ADDITIONAL_GUESTS = 100;
 const MAX_CUSTOM_ANSWERS = 200;
@@ -224,7 +224,7 @@ async function recordHostConsentAttestation({ eventId, partyId, guestId = null, 
       .is('sms_consent_at', null)   // never overwrite a decision the guest made
       .select('id');
     if (error) {
-      logger.warn({ err: error, partyId }, '[addGuest] host SMS consent attestation write failed (apply 20260812000000_host_sms_consent_attestation.sql)');
+      logger.warn({ err: error, partyId }, '[addGuest] host SMS consent attestation write failed (apply 20260812010000_host_sms_consent_attestation.sql)');
       return;
     }
     // No rows matched → the guest had already decided for themselves. Correct
@@ -669,6 +669,12 @@ async function updateParty(eventId, partyId, {
     || normalizedCategory !== undefined || companionMealCounts !== undefined;
   const partySizeProvided = partySize !== undefined;
 
+  // Set when this edit moves the party's primary contact to a DIFFERENT number.
+  // SMS consent is recorded on the party but addressed to whatever number the
+  // primary contact currently holds, so a number swap would otherwise let the new
+  // number inherit a consent its owner never gave. Acted on after reconciliation.
+  let revokedFromPhone = null;
+
   if (guestDetailProvided || partySizeProvided) {
     const existing = party.guests || [];
     const existingPrimary = existing.find((g) => g.is_primary_contact);
@@ -713,6 +719,15 @@ async function updateParty(eventId, partyId, {
     // If the primary already exists, update in place; otherwise insert.
     if (existingPrimary?.id) {
       primaryRow.id = existingPrimary.id;
+    }
+
+    // Compared in canonical E.164 so a pure reformat ("(555) 111-2222" →
+    // "+15551112222") is correctly seen as the SAME number and does not revoke a
+    // valid consent. Only a genuine change of destination does.
+    const oldPrimaryPhone = normalizeToE164(existingPrimary?.phone || '') || null;
+    const newPrimaryPhone = primaryRow.phone || null;
+    if (oldPrimaryPhone !== newPrimaryPhone && party.sms_consent_at) {
+      revokedFromPhone = oldPrimaryPhone;
     }
 
     const companionRows = [];
@@ -794,6 +809,49 @@ async function updateParty(eventId, partyId, {
   }
 
   // Seating cleanup on response leaving 'yes' is handled by trg_party_response_change.
+
+  /* ── SMS consent follows the NUMBER, not the party ──────────────────────────
+   * Consent lives on rsvp_parties.sms_consent, but every send resolves the actual
+   * destination from guests.phone at send time. Editing the primary contact's
+   * number therefore used to hand a stranger's handset a consent record its owner
+   * had never seen: the party still said "consented", and the send gate — which
+   * only ever compares the CURRENT phone against that flag — agreed.
+   *
+   * Clearing it here is the conservative direction. The organizer can immediately
+   * re-attest for the new number (the block below runs after this one, and the
+   * guarded attestation update requires sms_consent_at IS NULL — which this write
+   * has just restored), so the legitimate "I corrected a typo and I do hold their
+   * consent" flow is one checkbox, not a dead end.
+   *
+   * The old number's consent history is untouched: sms_consent_log is append-only
+   * and stores the phone as captured, so this adds a dated revocation rather than
+   * rewriting what came before.
+   */
+  if (revokedFromPhone) {
+    const { error: revokeErr } = await supabase
+      .from('rsvp_parties')
+      .update({
+        sms_consent: false,
+        sms_consent_at: null,
+        sms_consent_method: null,
+        sms_consent_attested_by: null,
+        sms_consent_attested_at: null,
+      })
+      .eq('id', partyId)
+      .eq('event_id', eventId);
+
+    if (revokeErr) {
+      // Never fail the edit over this — but do not let it pass unnoticed either,
+      // because the un-revoked state is the one that can text a stranger.
+      logger.error({ err: revokeErr, partyId, eventId },
+        '[updateParty] SMS consent revocation on phone change FAILED — the new number may inherit stale consent.');
+    } else {
+      logSmsConsentDecision({
+        eventId, partyId, phone: revokedFromPhone, consent: false,
+        source: 'phone_changed', method: CONSENT_METHOD_REVOKED, attestedBy: actorUserId || null,
+      });
+    }
+  }
 
   // Host SMS consent attestation from the edit surface — the way an organizer
   // fixes a guest they imported or added before confirming consent. Runs last so

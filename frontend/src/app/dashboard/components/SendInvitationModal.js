@@ -234,9 +234,12 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
     try {
       // One unified endpoint for every channel — the backend normalizes email's
       // sync counts and SMS's possibly-async dispatch into the same response shape.
+      // `consentAttested` carries the organizer's real answer, not a literal true:
+      // it is recorded as their Terms §5 attestation, so it must reflect the
+      // checkbox rather than assert consent on their behalf.
       const body = channel === 'email'
         ? { channel: 'email', partyIds: Array.from(selectedIds) }
-        : { channel: 'sms', messageTemplate: 'Hello {name}, you are invited to our event! RSVP now: {url}', guestIds: Array.from(selectedIds), consentAttested: true };
+        : { channel: 'sms', messageTemplate: 'Hello {name}, you are invited to our event! RSVP now: {url}', guestIds: Array.from(selectedIds), consentAttested: smsConsentAttested };
 
       const res = await fetch(`${apiUrl}/events/${eventId}/invitations/send`, {
         method: 'POST',

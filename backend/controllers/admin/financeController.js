@@ -79,4 +79,87 @@ const getFinancialSummary = async (req, res, next) => {
   }
 };
 
-module.exports = { getFinancialSummary };
+/**
+ * SMS profit and loss.
+ * GET /api/v1/admin/finance/sms?from=YYYY-MM-DD&to=YYYY-MM-DD
+ *
+ * Answers the one question nobody could answer before: is text messaging
+ * actually making money?
+ *
+ * Revenue has always been recorded (sms_credit_ledger.amount_cents on purchase
+ * rows). The carrier cost was not — it could only ever be estimated by
+ * multiplying today's rate by historic volume, which is wrong the moment an
+ * admin changes the rate, and wrong in the direction that flatters the result.
+ * Cost is now captured per send (cost_cents), so this is measured rather than
+ * inferred.
+ *
+ * A caveat is returned rather than hidden: sends that predate cost capture have
+ * no cost recorded, so profit over a window spanning that point overstates. The
+ * dashboard shows the caveat instead of quietly presenting an inflated number.
+ */
+const getSmsFinancials = async (req, res, next) => {
+  try {
+    const parseDate = (raw, fallback) => {
+      if (!raw) return fallback;
+      const d = new Date(raw);
+      return Number.isNaN(d.getTime()) ? fallback : d;
+    };
+    const to = parseDate(req.query.to, new Date());
+    const from = parseDate(req.query.from, new Date(Date.now() - 89 * 24 * 60 * 60 * 1000));
+
+    const { data, error } = await supabase.rpc('sms_admin_analytics', {
+      p_from: from.toISOString(),
+      p_to: to.toISOString(),
+    });
+
+    if (error) {
+      const undef = error.code === '42883' || error.code === 'PGRST202' ||
+        /Could not find the function|does not exist/i.test(error.message || '');
+      if (undef) {
+        return res.status(503).json({
+          success: false,
+          error: 'ANALYTICS_UNAVAILABLE',
+          message: 'SMS analytics are not available yet. Apply 20260820000000_sms_usage_and_limits.sql.',
+        });
+      }
+      throw error;
+    }
+
+    const result = data || {};
+
+    // How much of this window's volume has a real cost attached. Below 100% the
+    // profit figure is an upper bound, and saying so is the difference between a
+    // report and a guess.
+    let costCoveragePct = 100;
+    try {
+      const { count: total } = await supabase
+        .from('sms_credit_ledger').select('id', { count: 'exact', head: true })
+        .eq('transaction_type', 'consumption')
+        .gte('created_at', from.toISOString()).lte('created_at', to.toISOString());
+      const { count: priced } = await supabase
+        .from('sms_credit_ledger').select('id', { count: 'exact', head: true })
+        .eq('transaction_type', 'consumption').not('cost_cents', 'is', null)
+        .gte('created_at', from.toISOString()).lte('created_at', to.toISOString());
+      if (total > 0) costCoveragePct = Math.round((priced / total) * 100);
+    } catch { /* advisory */ }
+
+    const revenue = Number(result.revenueCents) || 0;
+    const cost = Number(result.costCents) || 0;
+
+    return res.json({
+      success: true,
+      ...result,
+      // Margin on revenue — the figure a finance reader expects. Markup-on-cost
+      // for the same numbers reads far higher and flatters the result.
+      marginPct: revenue > 0 ? Math.round(((revenue - cost) / revenue) * 1000) / 10 : 0,
+      costCoveragePct,
+      costCaveat: costCoveragePct < 100
+        ? `${100 - costCoveragePct}% of messages in this period were sent before carrier costs were recorded, so profit is an upper bound.`
+        : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { getFinancialSummary, getSmsFinancials };
