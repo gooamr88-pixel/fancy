@@ -262,15 +262,35 @@ export default function DashboardPage() {
   // of the organizer discovering it from a 402/429 at the end.
   const [smsAddon, setSmsAddon] = useState({ active: false, maxPerSend: 0, remaining: 0 });
   const [showQRModal, setShowQRModal] = useState(false);
+  const [qrModalTab, setQrModalTab] = useState('qr');
+  const [copyTooltip, setCopyTooltip] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [forcePasswordReset, setForcePasswordReset] = useState(false);
 
-  // Ungated endpoint by design: an event WITHOUT the add-on is exactly the one
-  // that needs to be told so. Failure leaves the defaults, which simply routes
-  // the organizer to the purchase page rather than blocking anything.
+
+  const [events, setEvents] = useState([]);
+  const [eventId, setEventId] = useState('');
+  const router = useRouter();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  /* Whether this event can send texts at all, and its current per-send cap and
+     balance — needed BEFORE the send modal opens so the RSVPs action bar can say
+     so up front instead of the organizer meeting a 402 or 429 at the end.
+
+     Placed HERE, below `eventId` and `apiUrl`, and not with the other useState
+     calls above. A dependency array is evaluated during render, so `[apiUrl,
+     eventId]` sitting above those two `const` declarations is a temporal-dead-zone
+     ReferenceError — which does not merely warn, it fails the production build at
+     prerender ("Cannot access 'X' before initialization"). Hooks may move freely
+     among themselves; they may not move above the values they close over. */
   useEffect(() => {
     if (!eventId) return;
     let cancelled = false;
     (async () => {
       try {
+        // Ungated endpoint by design: an event WITHOUT the add-on is exactly the
+        // one that needs to be told so. A failure leaves the defaults, which
+        // simply routes the organizer to the purchase page rather than blocking.
         const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/settings`, { credentials: 'include' });
         const data = await res.json();
         if (!cancelled && data?.success) {
@@ -284,16 +304,6 @@ export default function DashboardPage() {
     })();
     return () => { cancelled = true; };
   }, [apiUrl, eventId]);
-  const [qrModalTab, setQrModalTab] = useState('qr');
-  const [copyTooltip, setCopyTooltip] = useState(false);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [forcePasswordReset, setForcePasswordReset] = useState(false);
-
-
-  const [events, setEvents] = useState([]);
-  const [eventId, setEventId] = useState('');
-  const router = useRouter();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   // The redirect is a genuine imperative side effect (navigation); it no
   // longer also carries the authChecked state update, which is now a plain
