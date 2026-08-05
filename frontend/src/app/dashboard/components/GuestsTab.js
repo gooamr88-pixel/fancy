@@ -70,7 +70,14 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
     }))
     .filter((a) => a.value !== null && a.value !== undefined && String(a.value).trim() !== '');
 
-  const hasDetails = party.length > 0 || (guest.notes && guest.notes.trim()) || customAnswers.length > 0;
+  // Everyone in the party EXCEPT the person the card is already named after.
+  // `party` includes the primary contact, so counting it gave every solo guest a
+  // "1 party member" expander that opened to reveal the same name as the card
+  // title — an affordance promising information it did not have.
+  const companions = party.filter((p) => !p.is_primary_contact);
+
+  const hasNotes = !!(guest.notes && guest.notes.trim());
+  const hasDetails = companions.length > 0 || hasNotes || customAnswers.length > 0;
 
   return (
     <div style={{
@@ -223,7 +230,21 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
           )}
         </div>
 
-        {/* Row 4: Party member details (expandable) */}
+        {/* Row 4: who else is coming, and the rest of the detail.
+
+            The names are shown INLINE rather than only behind the toggle. "Who is
+            actually in this party" is the question this card exists to answer, and
+            hiding it behind a click meant an organizer scanning a list of
+            households could not see any of them without opening every card. The
+            expander now carries what genuinely needs room: meals, dietary notes,
+            answers and free-text notes. */}
+        {companions.length > 0 && (
+          <div style={{ marginTop: '8px', fontSize: '11.5px', color: COLORS.stone, fontFamily: 'var(--font-sans)', lineHeight: 1.6 }}>
+            <span style={{ fontWeight: 700, color: COLORS.charcoal }}>With: </span>
+            {companions.map((p) => p.full_name || 'Unnamed guest').join(' · ')}
+          </div>
+        )}
+
         {hasDetails && (
           <div style={{ marginTop: '10px', borderTop: `1px dashed ${COLORS.border}`, paddingTop: '8px' }}>
             <button onClick={() => setExpanded(v => !v)} style={{
@@ -231,7 +252,7 @@ const GuestCard = memo(function GuestCard({ guest, tables, onAssignTable, custom
               fontSize: '11px', fontWeight: 700, color: COLORS.gold, fontFamily: 'var(--font-sans)',
               display: 'flex', alignItems: 'center', gap: '4px',
             }}>
-              {expanded ? '▾' : '▸'} {party.length > 0 ? `${party.length} party member${party.length === 1 ? '' : 's'}` : 'Details'}
+              {expanded ? '▾' : '▸'} {expanded ? 'Hide details' : 'Show details'}
             </button>
 
             {expanded && (
