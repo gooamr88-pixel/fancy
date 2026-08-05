@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param } = require('express-validator');
 const validate = require('../middleware/validate');
-const { sendBulkSMSCampaign, getCampaignStatus, getCampaignHistory, getSmsSettings, updateSmsSettings, getSmsLog, getTopUpQuote, resendSmsMessage } = require('../controllers/campaignController');
+const { sendBulkSMSCampaign, getCampaignStatus, getCampaignHistory, getSmsSettings, updateSmsSettings, getSmsLog, getTopUpQuote, resendSmsMessage, updateOrganizerSmsConsent } = require('../controllers/campaignController');
 const { requireSmsAddon, requireSendLimit } = require('../middleware/smsAddonGate');
 
 const router = express.Router({ mergeParams: true });
@@ -51,6 +51,15 @@ router.patch('/settings', [
 
 // Per-message send log, including skips and their reasons in plain language.
 router.get('/log', getSmsLog);
+
+// The ORGANIZER's own opt-in to text alerts about their events. Ungated on the
+// add-on: they may reasonably set their number before buying, and a consent
+// record is never something to gate behind a purchase.
+router.patch('/organizer-sms', [
+  body('consent').isBoolean().withMessage('consent must be a boolean.'),
+  body('phone').optional({ values: 'falsy' }).isString().isLength({ max: 30 }).withMessage('phone is too long.'),
+  validate,
+], updateOrganizerSmsConsent);
 
 // Price a top-up before the organizer commits — never let them meet the price
 // for the first time on Stripe's page.

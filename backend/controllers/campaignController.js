@@ -4,6 +4,8 @@ const { SMS_MESSAGE_TYPES, sanitizeSmsSettings } = require('../config/smsMessage
 const { normalizeSmsPricing, maxPerSendFor } = require('../config/smsPricing');
 const { getPlatformConfig } = require('../utils/configCache');
 const { summarizeBalance, coverageForGuests, explainSkip, isResendable } = require('../utils/smsUsage');
+const { normalizeToE164 } = require('../utils/phone');
+const { SMS_CONSENT_TEXT_VERSION, logSmsConsentDecision } = require('../utils/smsConsent');
 const { describeSmsCharge, volumeDiscountsFromConfig } = require('../utils/pricing');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { supabase } = require('../config/supabase');
@@ -22,15 +24,18 @@ const {
  * reason the middleware does: this is abuse friction, not an entitlement check,
  * and every gate that protects consent or billing has already run and fails closed.
  */
-async function resolveSendLimit(eventId, user) {
+async function resolveSendLimit(eventId, user, preloadedConfig = null) {
   if (user?.isSuperAdmin) return { maxPerSend: 0, delivered: 0 };
   try {
     const { data: event } = await supabase.from('events').select('org_id').eq('id', eventId).single();
     if (!event?.org_id) return { maxPerSend: 0, delivered: 0 };
 
+    // Callers that already hold the platform config pass it in — the settings
+    // endpoint fetches it for the balance summary and would otherwise pay for the
+    // identical row twice on one request.
     const [{ data: org }, config] = await Promise.all([
       supabase.from('organizations').select('sms_delivered_total').eq('id', event.org_id).maybeSingle(),
-      getPlatformConfig().catch(() => null),
+      preloadedConfig ? Promise.resolve(preloadedConfig) : getPlatformConfig().catch(() => null),
     ]);
 
     const pricing = normalizeSmsPricing(config?.sms_pricing_config);
@@ -557,12 +562,32 @@ const getSmsSettings = async (req, res, next) => {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
     }
 
-    const { data: wallet } = await supabase
-      .from('sms_credit_wallets')
-      .select('credits_purchased, credits_used, credits_remaining, last_used_at')
-      .eq('event_id', eventId).maybeSingle();
-
-    const config = await getPlatformConfig().catch(() => null);
+    // Issued together rather than awaited one after another: none of them depends
+    // on another's result, and run sequentially they made the Messages page wait
+    // on five separate round trips before rendering a single number.
+    const [
+      { data: wallet },
+      config,
+      { count: guestCount },
+      { data: skipRows },
+      organization,
+    ] = await Promise.all([
+      supabase.from('sms_credit_wallets')
+        .select('credits_purchased, credits_used, credits_remaining, last_used_at')
+        .eq('event_id', eventId).maybeSingle(),
+      getPlatformConfig().catch(() => null),
+      supabase.from('guests').select('id', { count: 'exact', head: true })
+        .eq('event_id', eventId).then((r) => r, () => ({ count: 0 })),
+      // GROUP BY in the database. This previously pulled up to 5,000 skipped rows
+      // and tallied them in JavaScript on every page load, to render six numbers.
+      supabase.rpc('sms_skip_summary', { p_event_id: eventId }).then((r) => r, () => ({ data: null })),
+      supabase.from('events').select('organizations(sms_consent, sms_phone)')
+        .eq('id', eventId).single()
+        .then((r) => {
+          const o = r.data?.organizations;
+          return Array.isArray(o) ? o[0] : o;
+        }, () => null),
+    ]);
 
     // Everything already translated into the customer's terms — messages left, a
     // percentage, when one last went out. See utils/smsUsage.js for why that
@@ -571,25 +596,16 @@ const getSmsSettings = async (req, res, next) => {
 
     // How far the remaining balance goes against the guest list as it stands.
     // This is what turns "1,350 messages" into something actionable.
-    let coverage = null;
-    try {
-      const { count } = await supabase
-        .from('guests').select('id', { count: 'exact', head: true }).eq('event_id', eventId);
-      coverage = coverageForGuests(balance.remaining, count || 0, config?.sms_pricing_config);
-    } catch { /* advisory only */ }
+    const coverage = coverageForGuests(balance.remaining, guestCount || 0, config?.sms_pricing_config);
 
     // Skip totals let the page answer "why didn't my guests get this?" without
-    // making the organizer read a log line by line.
-    const skipSummary = {};
-    try {
-      const { data: skips } = await supabase
-        .from('sms_log').select('skip_reason').eq('event_id', eventId).not('skip_reason', 'is', null).limit(5000);
-      for (const row of (skips || [])) {
-        skipSummary[row.skip_reason] = (skipSummary[row.skip_reason] || 0) + 1;
-      }
-    } catch { /* the log is diagnostic; its absence must not break the page */ }
+    // making the organizer read a log line by line. A null result means the RPC
+    // is not applied yet — diagnostic data, so it degrades to empty.
+    const skipSummary = (skipRows && typeof skipRows === 'object') ? skipRows : {};
 
-    const sendLimit = await resolveSendLimit(eventId, req.user);
+    // The config is already in hand; passing it through saves resolveSendLimit
+    // re-fetching the very same row.
+    const sendLimit = await resolveSendLimit(eventId, req.user, config);
 
     return res.json({
       success: true,
@@ -601,10 +617,129 @@ const getSmsSettings = async (req, res, next) => {
       balance,
       coverage,
       sendLimit,
+      // The organizer's own opt-in. Without this the settings panel cannot show
+      // the state of the one message type addressed to them — which is how it
+      // came to ship as a toggle over a flag nothing could set.
+      organizerSms: {
+        consent: !!organization?.sms_consent,
+        phone: organization?.sms_phone || null,
+      },
       skipSummary,
       skipLabels: Object.fromEntries(
         Object.keys(skipSummary).map((r) => [r, explainSkip(r)]),
       ),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Record (or withdraw) the ORGANIZER's own opt-in to operational texts.
+ * PATCH /api/v1/events/:eventId/campaigns/organizer-sms   body: { phone, consent }
+ *
+ * This is the missing half of the organizer_report message type. Its consent flag
+ * and phone number existed on `organizations` from the day the type shipped, but
+ * nothing ever wrote them — so the flag stayed false, every report skipped with
+ * NO_CONSENT, and the estimate charged three messages an event for something that
+ * could not fire.
+ *
+ * The organizer is our customer rather than a third party, but that is not a
+ * licence to text them unasked. They get the same treatment a guest gets:
+ *
+ *   • an explicit opt-in, never implied by having an account or buying the add-on
+ *   • the canonical consent wording, version-stamped on the record
+ *   • an append-only entry in sms_consent_log, refusals included
+ *   • the same global STOP suppression — and, as on /sms-opt-in, a deliberate
+ *     opt-in here lifts an earlier STOP, because that is plainly a change of mind
+ *
+ * Scoped to an event route because that is where the settings panel lives, but it
+ * writes the ORGANIZATION: one number, one decision, across all their events.
+ * verifyEventOwner has already established they own this event, hence the org.
+ */
+const updateOrganizerSmsConsent = async (req, res, next) => {
+  const { eventId } = req.params;
+  const consent = req.body?.consent === true || req.body?.consent === 'true';
+  const rawPhone = req.body?.phone;
+
+  try {
+    const { data: event, error: eventErr } = await supabase
+      .from('events').select('org_id').eq('id', eventId).single();
+    if (eventErr || !event?.org_id) {
+      return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND', message: 'Event not found.' });
+    }
+
+    // A consent with nowhere to send is not a consent. Rejected rather than
+    // stored, so the organizer is told now instead of wondering later why no
+    // alert ever arrived.
+    let phone = null;
+    if (rawPhone !== undefined && rawPhone !== null && String(rawPhone).trim() !== '') {
+      phone = normalizeToE164(rawPhone);
+      if (!phone) {
+        return res.status(400).json({
+          success: false, error: 'VALIDATION_ERROR',
+          message: 'Enter a valid phone number in international format (e.g. +1 555 123 4567).',
+        });
+      }
+    }
+    if (consent && !phone) {
+      return res.status(400).json({
+        success: false, error: 'VALIDATION_ERROR',
+        message: 'Add a mobile number to receive text alerts.',
+      });
+    }
+
+    const nowISO = new Date().toISOString();
+    const patch = {
+      sms_consent: consent,
+      sms_consent_at: nowISO,
+      sms_phone: phone,
+      sms_consent_text_version: consent ? SMS_CONSENT_TEXT_VERSION : null,
+      sms_consent_ip: consent ? (req.ip || null) : null,
+    };
+
+    const { error: updErr } = await supabase
+      .from('organizations').update(patch).eq('id', event.org_id);
+    if (updErr) {
+      // The provenance columns arrive in 20260821000000; on a database without
+      // them the consent itself must still be recordable.
+      if (/sms_consent_text_version|sms_consent_ip/i.test(updErr.message || '')) {
+        logger.warn('organizations.sms_consent_text_version missing — apply 20260821000000_sms_organizer_optin_and_perf.sql');
+        const { error: retryErr } = await supabase
+          .from('organizations')
+          .update({ sms_consent: consent, sms_consent_at: nowISO, sms_phone: phone })
+          .eq('id', event.org_id);
+        if (retryErr) throw retryErr;
+      } else {
+        throw updErr;
+      }
+    }
+
+    if (phone) {
+      // Opting in after a STOP is a change of mind, and the only way to act on it
+      // — nothing else can clear a suppression. Matches /sms-opt-in exactly.
+      if (consent) {
+        const { error: liftErr } = await supabase
+          .from('sms_opt_outs')
+          .update({ opted_back_in_at: nowISO })
+          .eq('phone', phone)
+          .is('opted_back_in_at', null);
+        if (liftErr) logger.warn({ err: liftErr }, 'organizer opt-in: lifting suppression failed');
+      }
+
+      // Logged either way. A dated refusal is evidence the question was asked
+      // separately and freely answered — the same reason guest refusals are kept.
+      logSmsConsentDecision({
+        eventId, phone, consent, source: 'organizer_settings',
+      });
+    }
+
+    return res.json({
+      success: true,
+      organizerSms: { consent, phone },
+      message: consent
+        ? 'You will now get text alerts about your events.'
+        : 'Text alerts turned off.',
     });
   } catch (err) {
     next(err);
@@ -876,6 +1011,7 @@ module.exports = {
   getSmsLog,
   getTopUpQuote,
   resendSmsMessage,
+  updateOrganizerSmsConsent,
   handleSmsStatusCallback,
   handleInboundSms,
 };

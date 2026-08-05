@@ -50,7 +50,7 @@ const PLATFORM_FEATURES = [
   // config is not a required deploy step. `builtIn: false` marks it as decorative:
   // no route mounts requireFeature('sms_campaigns') any more, so toggling it grants
   // and revokes nothing. Delete the key once it is cleared from every tier.
-  { key: 'sms_campaigns',        label: 'SMS messaging (add-on)',        description: 'Purchased per event at checkout, on any plan — not granted by tier. See middleware/smsAddonGate.js.', category: 'Campaigns & SMS',   freeDefault: false, builtIn: false },
+  { key: 'sms_campaigns',        label: 'SMS messaging (add-on)',        description: 'Purchased per event at checkout, on any plan — not granted by tier. See middleware/smsAddonGate.js.', category: 'Campaigns & SMS',   freeDefault: false, builtIn: false, supersededBy: 'sms_addon' },
 
   // ── Branding ──
   { key: 'custom_branding',      label: 'Custom themes & branding',     description: 'Apply custom colors, logos, and themes to your RSVP pages.',                         category: 'Branding',          freeDefault: false, builtIn: false },

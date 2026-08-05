@@ -118,12 +118,25 @@ function SmsAddonCard({
       {enabled && (
         <div style={{ marginTop: 18, paddingTop: 18, borderTop: `1px solid ${C.border}` }}>
 
-          {/* THE ANSWER, stated before anything is asked. */}
+          {/* THE ANSWER, stated before anything is asked.
+              Two sentences, because an unlimited plan has no cap to quote — the
+              earlier single-sentence version fell back to the word "your" and
+              rendered "Your plan covers up to your guests." */}
           {estimate && (
             <p style={{ fontSize: 13, color: C.stone, lineHeight: 1.65, margin: '0 0 14px', fontFamily: 'var(--font-sans)' }}>
-              Your plan covers up to <strong style={{ color: C.charcoal }}>{estimate.maxGuests || 'your'}</strong> guests.
-              {' '}Since one text goes to each invitation rather than each person, that is about{' '}
-              <strong style={{ color: C.charcoal }}>{invitations} people</strong> to reach.
+              {estimate.maxGuests ? (
+                <>
+                  Your plan covers up to <strong style={{ color: C.charcoal }}>{estimate.maxGuests} guests</strong>.
+                  {' '}Since one text goes to each invitation rather than each person, that is about{' '}
+                  <strong style={{ color: C.charcoal }}>{invitations} people</strong> to reach.
+                </>
+              ) : (
+                <>
+                  Your plan has no guest limit, so we have started you off at about{' '}
+                  <strong style={{ color: C.charcoal }}>{invitations} people</strong> — one text goes to each
+                  invitation rather than each person. Change the amount below if you expect more.
+                </>
+              )}
             </p>
           )}
 
@@ -382,9 +395,20 @@ export default function StagePayment({
   smsAddonEnabled = false, onToggleSmsAddon,
   smsAddonSegments = null, onChangeSmsAddonSegments,
   smsEstimate = null, smsVolumeDiscounts = null,
+  featureLabels = {}, hiddenTierFeatures = [],
   smsRateCentsPerCredit = null, smsMarkupPercentage = 0,
 }) {
   const fmt = (cents) => `$${((cents || 0) / 100).toFixed(2)}`;
+  // What the SMS choice adds to whatever the plan costs. Zero when it is off, so
+  // both the card button and the transfer amount can add it unconditionally.
+  const smsAddonCents = (smsAddonEnabled && Number.isFinite(smsAddonSegments))
+    ? (previewSmsCents(smsRateCentsPerCredit, smsAddonSegments, smsMarkupPercentage, smsVolumeDiscounts) || 0)
+    : 0;
+
+  // Tier bullets: hide keys that no longer grant anything, and never print a raw
+  // key to a customer.
+  const visibleFeatures = (list) =>
+    (list || []).filter((f) => f && !hiddenTierFeatures.includes(f));
   // When card payments are off (pre-live), the manual-transfer panel IS the flow —
   // open it straight away and don't offer a card path. All card UI stays in the
   // code, gated behind stripeEnabled, ready to switch back on with live keys.
@@ -567,12 +591,14 @@ export default function StagePayment({
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: '4px 0 0' }}>
             {currentMaxGuests > 0 ? `Up to ${currentMaxGuests} guests` : 'Unlimited guests'}
           </p>
-          {currentFeatures.length > 0 && (
+          {/* Same key -> label mapping as the tier cards: the current-plan panel
+              was printing raw registry keys too. */}
+          {visibleFeatures(currentFeatures).length > 0 && (
             <ul style={{ listStyle: 'none', margin: '16px 0 0', padding: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-              {currentFeatures.map((f, i) => (
+              {visibleFeatures(currentFeatures).map((f, i) => (
                 <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 13, color: C.charcoal }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M5 13l4 4L19 7" /></svg>
-                  <span>{f}</span>
+                  <span>{featureLabels[f] || f}</span>
                 </li>
               ))}
             </ul>
@@ -749,12 +775,16 @@ export default function StagePayment({
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: C.stone, margin: 0 }}>
                 {tier.max_guests > 0 ? `Up to ${tier.max_guests} guests` : 'Unlimited guests'}
               </p>
-              {features.length > 0 && (
+              {/* Raw registry KEYS are what pricing_tiers stores; the customer must
+                  see the human label. `sms_campaigns` is dropped entirely — SMS is a
+                  per-event add-on now, so listing it here would say a plan includes
+                  the very thing the card below charges for. */}
+              {visibleFeatures(features).length > 0 && (
                 <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {features.map((f, i) => (
+                  {visibleFeatures(features).map((f, i) => (
                     <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: 'var(--font-sans)', fontSize: 12, color: C.charcoal }}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.gold} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 2 }}><path d="M5 13l4 4L19 7" /></svg>
-                      <span>{f}</span>
+                      <span>{featureLabels[f] || f}</span>
                     </li>
                   ))}
                 </ul>
@@ -796,17 +826,17 @@ export default function StagePayment({
         </div>
       )}
 
-      {/* SMS add-on — offered on the same screen as the plan, and paid for in the
-          same Stripe checkout.
+      {/* SMS add-on — offered on the same screen as the plan, and paid for with it.
+          Shown on BOTH payment paths.
 
-          Scoped to the CARD path deliberately. A manual/cash transfer is verified
-          by an admin against a single agreed amount, so there is nowhere for a
-          second line item to go — showing the toggle there would take a choice and
-          silently drop it. Manual payers add SMS afterwards from the Campaigns
-          page, where it is an ordinary top-up. Same reason it is hidden once the
-          event is already paid. */}
-      {!showManual && stripeEnabled &&
-       ((!manualRef && !paymentConfirmed && !showCurrentPlan) || (upgrading && selectedTierName && selectedTierName !== lockedPlanName)) && (
+          It was card-only, on the reasoning that a bank transfer is verified
+          against a single agreed amount with nowhere to put a second line item.
+          That was wrong in the one case that matters most: while card payments are
+          switched off, manual IS the only path, so the toggle was invisible to
+          every customer and nobody could buy messaging at all. The amount now
+          includes it and the approving admin verifies one figure — the count rides
+          on the payment row so approval knows what the money bought. */}
+      {((!manualRef && !paymentConfirmed && !showCurrentPlan) || (upgrading && selectedTierName && selectedTierName !== lockedPlanName)) && (
         <SmsAddonCard
           enabled={smsAddonEnabled}
           onToggle={onToggleSmsAddon}
@@ -838,7 +868,7 @@ export default function StagePayment({
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
-                <Icon name="creditCard" size={16} strokeWidth={1.6} /> Pay with Card{selectedTier ? ` · ${fmt(dueNowCents(selectedTier.price_cents))}` : ''}
+                <Icon name="creditCard" size={16} strokeWidth={1.6} /> Pay with Card{selectedTier ? ` · ${fmt(dueNowCents(selectedTier.price_cents) + smsAddonCents)}` : ''}
               </button>
               <button
                 onClick={() => setShowManual(true)}
@@ -887,8 +917,16 @@ export default function StagePayment({
                         🎁 −{fmt(referralDeductionFor(selectedTier.price_cents))} referral credit applied
                       </span>
                     )}
+                    {smsAddonCents > 0 && (
+                      <span style={{ display: 'block', fontWeight: 600, color: C.stone, fontSize: 12, marginTop: 2 }}>
+                        + {fmt(smsAddonCents)} for {smsAddonSegments.toLocaleString()} text messages
+                      </span>
+                    )}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.gold }}>{fmt(dueNowCents(selectedTier.price_cents))}</span>
+                  {/* Includes the messages. Transferring the licence price alone
+                      would leave the admin approving an amount that does not match
+                      what was bought. */}
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 700, color: C.gold }}>{fmt(dueNowCents(selectedTier.price_cents) + smsAddonCents)}</span>
                 </div>
               )}
 

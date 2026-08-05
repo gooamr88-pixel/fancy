@@ -141,8 +141,15 @@ function MessageHistory({ entries, loading, onResend, resendingId }) {
     );
   }
 
+  // Date + hh:mm, no seconds. The default toLocaleString() adds seconds and a
+  // locale-dependent amount of width, for precision nobody reading a message
+  // history needs.
   const when = (iso) => {
-    try { return new Date(iso).toLocaleString(); } catch { return ''; }
+    try {
+      return new Date(iso).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    } catch { return ''; }
   };
 
   return (
@@ -165,8 +172,13 @@ function MessageHistory({ entries, loading, onResend, resendingId }) {
                 )}
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-              <span style={{ fontSize: 11.5, color: C.stone, fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap' }}>
+            {/* Allowed to shrink and wrap. With flexShrink:0 and two nowrap
+                children this group was a ~219px hard floor against 248px of space
+                at 320px — it fitted, but only just, and toLocaleString() output
+                length varies by locale, so a longer format would have overflowed
+                the card on a phone. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11.5, color: C.stone, fontFamily: 'var(--font-sans)' }}>
                 {when(e.created_at)}
               </span>
               {e.canResend && (
@@ -240,6 +252,11 @@ export default function CampaignsPage() {
   const [skipSummary, setSkipSummary] = useState({});
   const [skipLabels, setSkipLabels] = useState({});
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // The organizer's own opt-in — the missing half of the organizer_report type.
+  const [organizerPhone, setOrganizerPhone] = useState('');
+  const [organizerConsent, setOrganizerConsent] = useState(false);
+  const [savingOrganizerSms, setSavingOrganizerSms] = useState(false);
 
   // Everything already expressed in the customer's terms by the server
   // (utils/smsUsage.summarizeBalance) — messages left, a percentage, when one
@@ -454,6 +471,10 @@ export default function CampaignsPage() {
           setBalance(data.balance || null);
           setCoverage(data.coverage || null);
           setSendLimit(data.sendLimit || null);
+          if (data.organizerSms) {
+            setOrganizerPhone(data.organizerSms.phone || '');
+            setOrganizerConsent(!!data.organizerSms.consent);
+          }
         } else {
           setHasCampaignFeature(false);
         }
@@ -634,6 +655,30 @@ export default function CampaignsPage() {
     }
   };
 
+  /* Save the organizer's own number + consent.
+     Deliberately explicit rather than auto-saved on keystroke: this writes a
+     dated consent record, and a half-typed phone number is not a decision. */
+  const saveOrganizerSms = useCallback(async () => {
+    setSavingOrganizerSms(true);
+    try {
+      const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/organizer-sms`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ phone: organizerPhone, consent: organizerConsent }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Could not save.');
+      setOrganizerPhone(data.organizerSms?.phone || '');
+      setOrganizerConsent(!!data.organizerSms?.consent);
+      toast.success(data.message || 'Saved.');
+    } catch (err) {
+      toast.error(err.message || 'Could not save that.');
+    } finally {
+      setSavingOrganizerSms(false);
+    }
+  }, [apiUrl, eventId, organizerPhone, organizerConsent]);
+
   /* ── Hooks must live ABOVE the early returns ───────────────────────
      React calls hooks in order and requires the same COUNT on every render.
      These four sat after `if (loading) return` and `if (error) return`, so the
@@ -757,6 +802,10 @@ export default function CampaignsPage() {
     }
   };
 
+  const organizerTypeEnabled = smsSettings.organizer_report !== undefined
+    ? !!smsSettings.organizer_report
+    : true;
+
   const smsTypePanel = hasCampaignFeature && smsTypes.length > 0 && (
     <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 16, padding: 20, marginBottom: 24 }}>
       <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 16, fontWeight: 700, color: C.charcoal, margin: '0 0 4px' }}>
@@ -797,6 +846,64 @@ export default function CampaignsPage() {
           );
         })}
       </div>
+
+      {/* The organizer's OWN number and opt-in.
+          Sits directly under the type switches because one of those switches —
+          "Organizer alerts & reports" — is the only one addressed to them, and
+          without a number and a consent on file it can never fire. It shipped as
+          a toggle over a flag nothing in the product could set; this is the half
+          that was missing. */}
+      {organizerTypeEnabled && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.border}` }}>
+          <p style={{ fontSize: 12.5, fontWeight: 700, color: C.charcoal, margin: '0 0 4px', fontFamily: 'var(--font-sans)' }}>
+            Where your own alerts go
+          </p>
+          <p style={{ fontSize: 11.5, color: C.stone, lineHeight: 1.6, margin: '0 0 10px', fontFamily: 'var(--font-sans)' }}>
+            Add your mobile number to get event-day alerts by text. This is separate from
+            your guests — it only affects messages to you.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <input
+              type="tel"
+              value={organizerPhone}
+              onChange={(e) => setOrganizerPhone(e.target.value)}
+              placeholder="+1 555 123 4567"
+              style={{
+                flex: '1 1 180px', minWidth: 0, background: C.white,
+                border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px',
+                fontSize: 13, color: C.charcoal, outline: 'none',
+                fontFamily: 'var(--font-sans)', boxSizing: 'border-box',
+              }}
+            />
+            <button
+              type="button"
+              onClick={saveOrganizerSms}
+              disabled={savingOrganizerSms}
+              style={{
+                padding: '8px 16px', borderRadius: 8, border: `1px solid ${C.gold}`,
+                background: 'transparent', color: C.gold, fontSize: 12.5, fontWeight: 700,
+                cursor: savingOrganizerSms ? 'wait' : 'pointer', fontFamily: 'var(--font-sans)',
+              }}
+            >
+              {savingOrganizerSms ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 10, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={organizerConsent}
+              onChange={(e) => setOrganizerConsent(e.target.checked)}
+              style={{ marginTop: 2, width: 16, height: 16, accentColor: C.gold, flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 11.5, color: C.stone, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
+              I agree to receive text messages from FancyRSVP about my own events. Message
+              frequency varies. Message &amp; data rates may apply. Reply STOP to opt out at
+              any time or HELP for assistance.
+            </span>
+          </label>
+        </div>
+      )}
 
       {Object.keys(skipSummary).length > 0 && (
         <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.border}` }}>
@@ -1429,7 +1536,6 @@ export default function CampaignsPage() {
           .camp-composer-grid { grid-template-columns: 1fr !important; }
         }
         @media (max-width: 639.98px) {
-          .camp-wallet-grid { grid-template-columns: 1fr !important; }
           .camp-page { padding: 16px !important; }
         }
       `}</style>

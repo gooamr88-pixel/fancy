@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { isAccepted, isDeclined, isMaybe } from '../../utils/responseHelpers';
 import { useModalA11y } from '../../hooks/useModalA11y';
 import Icon from '../../components/icons/Icon';
+import { smsReachability, countReachable } from '../../utils/smsReachability';
 
 const COLORS = {
   gold: '#B8944F', goldHover: '#a6833f', charcoal: '#191B1E', ivory: '#F8F4EC',
@@ -67,9 +68,14 @@ function FilterChip({ label, count, active, onClick }) {
 
 /* ── Guest Row (selectable) ── */
 function GuestRow({ guest, selected, onToggle, channel }) {
+  // On SMS, having a number is NOT the same as being reachable — consent and
+  // STOP decide that. This row previously showed only the RSVP response ("YES"),
+  // which reads as "yes, can be texted" and let an organizer select seven guests
+  // when two would actually receive anything.
+  const reach = channel === 'sms' ? smsReachability(guest) : null;
   const hasContact = channel === 'email'
     ? (guest.email && guest.email !== '-')
-    : (guest.phone && guest.phone !== '-');
+    : !!reach?.reachable;
   const yes = isAccepted(guest.response);
   const no = isDeclined(guest.response);
   const maybe = isMaybe(guest.response);
@@ -82,8 +88,9 @@ function GuestRow({ guest, selected, onToggle, channel }) {
   return (
     <div
       onClick={() => hasContact && onToggle(guest.id)}
+      className="siv-guest-row"
       style={{
-        display: 'flex', alignItems: 'center', gap: '12px',
+        display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap',
         padding: '10px 14px', borderRadius: '10px',
         border: `1px solid ${selected ? COLORS.gold : COLORS.border}`,
         background: !hasContact ? 'rgba(119,115,106,0.04)' : selected ? 'rgba(184,148,79,0.04)' : COLORS.white,
@@ -115,7 +122,7 @@ function GuestRow({ guest, selected, onToggle, channel }) {
       }}>{initials}</div>
 
       {/* Info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: '1 1 90px', minWidth: 0 }}>
         <div style={{
           fontWeight: 700, fontSize: '12px', color: COLORS.charcoal, fontFamily: 'var(--font-sans)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -123,17 +130,29 @@ function GuestRow({ guest, selected, onToggle, channel }) {
         <div style={{ fontSize: '10px', color: COLORS.stone, fontFamily: 'var(--font-sans)', marginTop: '2px' }}>
           {channel === 'email'
             ? (guest.email && guest.email !== '-' ? guest.email : 'No email')
-            : (guest.phone && guest.phone !== '-' ? guest.phone : 'No phone')
+            : (reach && !reach.reachable
+                ? reach.title
+                : (guest.phone && guest.phone !== '-' ? guest.phone : 'No phone'))
           }
         </div>
       </div>
 
-      {/* Status badge */}
-      <span style={{
-        padding: '2px 8px', borderRadius: '6px', fontSize: '8px', fontWeight: 700,
-        background: `${accentColor}14`, color: accentColor,
-        fontFamily: 'var(--font-sans)', textTransform: 'uppercase', flexShrink: 0,
-      }}>{(guest.response || 'pending').toUpperCase()}</span>
+      {/* Status badge. On SMS this answers "will they get it?", which is the only
+          question that matters here; the RSVP response is already visible on the
+          list the organizer came from. */}
+      {reach ? (
+        <span title={reach.title} style={{
+          padding: '2px 8px', borderRadius: '6px', fontSize: '9px', fontWeight: 700,
+          background: reach.bg, color: reach.color,
+          fontFamily: 'var(--font-sans)',
+        }}>{reach.label}</span>
+      ) : (
+        <span style={{
+          padding: '2px 8px', borderRadius: '6px', fontSize: '8px', fontWeight: 700,
+          background: `${accentColor}14`, color: accentColor,
+          fontFamily: 'var(--font-sans)', textTransform: 'uppercase', flexShrink: 0,
+        }}>{(guest.response || 'pending').toUpperCase()}</span>
+      )}
 
       {/* Already-sent indicator — channel-specific (a guest emailed but never
           texted must still show as unsent on the SMS tab, and vice versa). */}
@@ -147,9 +166,9 @@ function GuestRow({ guest, selected, onToggle, channel }) {
 }
 
 
-export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, apiUrl, onSuccess }) {
-  const [channel, setChannel] = useState('email'); // 'email' | 'sms'
-  const [selectedIds, setSelectedIds] = useState(new Set());
+export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, apiUrl, onSuccess, initialSelectedIds = null, initialChannel = null, smsRemaining = null, smsAddonActive = true }) {
+  const [channel, setChannel] = useState(initialChannel || 'email'); // 'email' | 'sms'
+  const [selectedIds, setSelectedIds] = useState(() => new Set(initialSelectedIds || []));
   const [audienceFilter, setAudienceFilter] = useState('uninvited'); // 'all', 'uninvited', 'attending', 'pending', 'maybe', 'declined'
   const [searchQuery, setSearchQuery] = useState('');
   const [sending, setSending] = useState(false);
@@ -165,9 +184,12 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
   // Filter guests based on channel availability, audience filter, and search query
   const filteredGuests = useMemo(() => {
     return rsvps.filter(r => {
+      // Reachability, not merely "has a number". Unreachable guests still appear
+      // in the list — greyed, with the reason — because hiding them makes an
+      // organizer wonder where their guest went; they simply cannot be selected.
       const hasContact = channel === 'email'
         ? (r.email && r.email !== '-')
-        : (r.phone && r.phone !== '-');
+        : smsReachability(r).reachable;
 
       // Search match
       const q = searchQuery.toLowerCase();
@@ -193,7 +215,11 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
 
   // Counts for filter chips
   const counts = useMemo(() => {
-    const hasContact = (r) => channel === 'email' ? (r.email && r.email !== '-') : (r.phone && r.phone !== '-');
+    // Matches GuestRow exactly. Counting by "has a phone" while the rows gate on
+    // consent would let the chips promise seven recipients and the send deliver two.
+    const hasContact = (r) => channel === 'email'
+      ? (r.email && r.email !== '-')
+      : smsReachability(r).reachable;
     return {
       all: rsvps.length,
       uninvited: rsvps.filter(r => hasContact(r) && !wasInvitedOnChannel(r)).length,
@@ -207,7 +233,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
 
   // Email/SMS counts
   const emailCount = useMemo(() => rsvps.filter(r => r.email && r.email !== '-').length, [rsvps]);
-  const smsCount = useMemo(() => rsvps.filter(r => r.phone && r.phone !== '-').length, [rsvps]);
+  const smsCount = useMemo(() => countReachable(rsvps).reachable, [rsvps]);
 
   const toggleGuest = useCallback((id) => {
     setSelectedIds(prev => {
@@ -219,9 +245,13 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
   }, []);
 
   const selectAll = useCallback(() => {
-    const hasContact = (r) => channel === 'email' ? (r.email && r.email !== '-') : (r.phone && r.phone !== '-');
-    const eligible = filteredGuests.filter(r => hasContact(r));
-    setSelectedIds(new Set(eligible.map(r => r.id)));
+    // Same eligibility rule as the rows and the counts. Selecting by "has a
+    // phone" here would tick guests the row itself refuses to select — and the
+    // server would then skip them at send time.
+    const eligible = filteredGuests.filter((r) => (channel === 'email'
+      ? (r.email && r.email !== '-')
+      : smsReachability(r).reachable));
+    setSelectedIds(new Set(eligible.map((r) => r.id)));
   }, [filteredGuests, channel]);
 
   const deselectAll = useCallback(() => setSelectedIds(new Set()), []);
@@ -265,6 +295,32 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
     }
   }, [channel, selectedIds, eventId, apiUrl, onSuccess, smsConsentAttested]);
 
+  // Re-seed every time the modal opens.
+  //
+  // The organizer arrives here having already filtered and ticked rows on the
+  // RSVPs list; that decision has to travel. Without this the modal would keep
+  // whatever the LAST open left in state, so a second send would silently target
+  // the previous selection — the worst possible failure for a send button.
+  //
+  // Keyed on `isOpen` rather than on the ids themselves: re-running mid-session
+  // would fight the user every time they ticked a box inside the modal.
+  const [wasOpen, setWasOpen] = useState(isOpen);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setSelectedIds(new Set(initialSelectedIds || []));
+      if (initialChannel) setChannel(initialChannel);
+      // Show the whole list when arriving with a selection. The default
+      // "Not invited yet" filter would hide the very guests just ticked on the
+      // RSVPs page — they would still be selected, but invisible, which reads as
+      // the selection having been lost.
+      if (initialSelectedIds && initialSelectedIds.length > 0) setAudienceFilter('all');
+      // A fresh send is a fresh attestation — never inherited from a previous one.
+      setSmsConsentAttested(false);
+      setResult(null);
+    }
+  }
+
   // A11Y-9: shared focus-trap/initial-focus/focus-restore/scroll-lock/Escape hook.
   const dialogRef = useModalA11y(isOpen, { onClose });
 
@@ -277,7 +333,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
       WebkitBackdropFilter: 'blur(12px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '20px', animation: 'fadeIn 0.2s ease-out',
-    }} onClick={onClose}>
+    }} className="siv-overlay" onClick={onClose}>
       <div
         ref={dialogRef}
         role="dialog"
@@ -324,7 +380,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         </div>
 
         {/* ═══ Channel Tabs ═══ */}
-        <div style={{ padding: '16px 28px 0', display: 'flex', gap: '10px' }}>
+        <div className="siv-tabs siv-pad" style={{ padding: '16px 28px 0', display: 'flex', gap: '10px' }}>
           <TabPill
             active={channel === 'email'}
             onClick={() => { setChannel('email'); setSelectedIds(new Set()); setResult(null); }}
@@ -342,7 +398,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         </div>
 
         {/* ═══ Channel Info Banner ═══ */}
-        <div style={{ padding: '12px 28px 0' }}>
+        <div className="siv-pad" style={{ padding: '12px 28px 0' }}>
           <div style={{
             padding: '10px 14px', borderRadius: '10px', fontSize: '11px', lineHeight: 1.6,
             fontFamily: 'var(--font-sans)',
@@ -356,21 +412,37 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
               </>
             ) : (
               <>
-                <strong style={{ color: COLORS.indigo, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="chat" size={13} strokeWidth={1.7} /> SMS Invitations</strong> — Sends a text message with a unique RSVP link to each selected guest who has a phone number. Uses <strong>this event&apos;s</strong> SMS credit balance (each event has its own wallet). Arabic or emoji messages cost more credits per guest. <em>For advanced options, use the <Link href="/dashboard/campaigns" style={{ color: COLORS.indigo, fontWeight: 700 }}>Campaign Manager</Link>.</em>
+                <strong style={{ color: COLORS.indigo, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="chat" size={13} strokeWidth={1.7} /> Text invitations</strong> — sends each guest below a text with their own personal RSVP link. Only guests who agreed to receive texts are listed; the rest are shown with the reason. Uses this event&apos;s messages, and Arabic text uses about twice as many. <em>To write your own message, go to <Link href="/dashboard/campaigns" style={{ color: COLORS.indigo, fontWeight: 700 }}>Text messages</Link>.</em>
               </>
             )}
           </div>
         </div>
 
         {/* ═══ Audience Filters ═══ */}
-        <div style={{ padding: '14px 28px 0' }}>
+        <div className="siv-pad" style={{ padding: '14px 28px 0' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            <FilterChip label="Not Invited" count={counts.uninvited} active={audienceFilter === 'uninvited'} onClick={() => { setAudienceFilter('uninvited'); setSelectedIds(new Set()); }} />
-            <FilterChip label="All" count={counts.all} active={audienceFilter === 'all'} onClick={() => { setAudienceFilter('all'); setSelectedIds(new Set()); }} />
-            <FilterChip label="Pending" count={counts.pending} active={audienceFilter === 'pending'} onClick={() => { setAudienceFilter('pending'); setSelectedIds(new Set()); }} />
-            <FilterChip label="Attending" count={counts.attending} active={audienceFilter === 'attending'} onClick={() => { setAudienceFilter('attending'); setSelectedIds(new Set()); }} />
-            <FilterChip label="Maybe" count={counts.maybe} active={audienceFilter === 'maybe'} onClick={() => { setAudienceFilter('maybe'); setSelectedIds(new Set()); }} />
-            <FilterChip label="No Contact" count={counts.no_contact} active={audienceFilter === 'no_contact'} onClick={() => { setAudienceFilter('no_contact'); setSelectedIds(new Set()); }} />
+            {/* A chip reading "Maybe 0" is a filter that leads to an empty list —
+                noise the organizer has to read past. Empty ones are hidden unless
+                they are the active filter, so the current view never disappears
+                from under them. */}
+            {[
+              { key: 'uninvited', label: 'Not invited yet', count: counts.uninvited },
+              { key: 'all', label: 'Everyone', count: counts.all },
+              { key: 'pending', label: 'No reply yet', count: counts.pending },
+              { key: 'attending', label: 'Attending', count: counts.attending },
+              { key: 'maybe', label: 'Maybe', count: counts.maybe },
+              { key: 'no_contact', label: channel === 'email' ? 'No email' : "Can't be texted", count: counts.no_contact },
+            ]
+              .filter((f) => f.count > 0 || audienceFilter === f.key)
+              .map((f) => (
+                <FilterChip
+                  key={f.key}
+                  label={f.label}
+                  count={f.count}
+                  active={audienceFilter === f.key}
+                  onClick={() => { setAudienceFilter(f.key); setSelectedIds(new Set()); }}
+                />
+              ))}
           </div>
         </div>
 
@@ -396,7 +468,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
             />
           </div>
 
-          <button onClick={selectedIds.size === filteredGuests.filter(r => channel === 'email' ? (r.email && r.email !== '-') : (r.phone && r.phone !== '-')).length && selectedIds.size > 0 ? deselectAll : selectAll}
+          <button onClick={selectedIds.size === filteredGuests.filter(r => channel === 'email' ? (r.email && r.email !== '-') : smsReachability(r).reachable).length && selectedIds.size > 0 ? deselectAll : selectAll}
             style={{
               padding: '7px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: 700,
               border: `1px solid ${COLORS.border}`, background: COLORS.white, color: COLORS.gold,
@@ -405,12 +477,12 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
             onMouseEnter={e => { e.currentTarget.style.borderColor = COLORS.gold; e.currentTarget.style.background = 'rgba(184,148,79,0.04)'; }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = COLORS.border; e.currentTarget.style.background = COLORS.white; }}
           >
-            {selectedIds.size === filteredGuests.filter(r => channel === 'email' ? (r.email && r.email !== '-') : (r.phone && r.phone !== '-')).length && selectedIds.size > 0 ? 'Deselect All' : 'Select All'}
+            {selectedIds.size === filteredGuests.filter(r => channel === 'email' ? (r.email && r.email !== '-') : smsReachability(r).reachable).length && selectedIds.size > 0 ? 'Deselect all' : 'Select all'}
           </button>
         </div>
 
         {/* ═══ Guest List ═══ */}
-        <div style={{
+        <div className="siv-pad" style={{
           flex: 1, overflowY: 'auto', padding: '0 28px 16px',
           display: 'flex', flexDirection: 'column', gap: '6px',
           minHeight: 0,
@@ -466,7 +538,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
                     {' — '}{result.sent} sent
                     {result.failed > 0 && `, ${result.failed} failed`}
                     {result.skipped > 0 && `, ${result.skipped} skipped`}
-                    {result.creditsUsed ? ` · ${result.creditsUsed} credits used` : ''}
+                    {result.creditsUsed ? ` · ${result.creditsUsed} message${result.creditsUsed !== 1 ? 's' : ''} used` : ''}
                   </>
                 )
               ) : isNotLive ? (
@@ -495,7 +567,7 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         })()}
 
         {/* ═══ Footer / Action ═══ */}
-        <div style={{
+        <div className="siv-pad" style={{
           padding: '16px 28px 20px', borderTop: `1px solid ${COLORS.border}`,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
         }}>
@@ -512,9 +584,16 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
                 onChange={e => setSmsConsentAttested(e.target.checked)}
                 style={{ marginTop: '2px', width: '15px', height: '15px', accentColor: '#6366F1', flexShrink: 0, cursor: 'pointer' }}
               />
+              {/* The substance is unchanged — this is a Terms §5 attestation and
+                  weakening it is not an option. What changed is the shape: one
+                  short sentence to agree to, with the qualification beneath it,
+                  instead of a single 40-word line most people would tick without
+                  reading. An attestation nobody reads is worth nothing. */}
               <span style={{ fontSize: '11px', color: COLORS.charcoal, lineHeight: 1.6, fontFamily: 'var(--font-sans)' }}>
-                I confirm every selected guest has given prior consent to receive text messages about this event —
-                for any numbers I added or imported myself, I obtained their express consent, as required by the{' '}
+                <strong style={{ display: 'block', fontSize: '11.5px', marginBottom: 2 }}>
+                  These guests agreed to receive texts about this event.
+                </strong>
+                For any numbers I added or imported myself, I obtained that permission directly — as required by the{' '}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" style={{ color: '#6366F1', fontWeight: 700, textDecoration: 'underline' }}>Terms of Service</a>.
               </span>
             </label>
@@ -535,6 +614,19 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
           )}
           <span style={{ fontSize: '12px', color: COLORS.stone, fontFamily: 'var(--font-sans)' }}>
             <strong style={{ color: COLORS.charcoal }}>{selectedIds.size}</strong> guest{selectedIds.size !== 1 ? 's' : ''} selected
+            {/* What this will cost, before committing to it. The organizer was
+                otherwise spending messages with no idea how many they had. */}
+            {channel === 'sms' && smsRemaining != null && (
+              <span style={{
+                display: 'block', marginTop: 2,
+                color: selectedIds.size > smsRemaining ? COLORS.error : COLORS.stone,
+                fontWeight: selectedIds.size > smsRemaining ? 700 : 400,
+              }}>
+                {selectedIds.size > smsRemaining
+                  ? `You only have ${smsRemaining} messages left — add more to reach everyone.`
+                  : `You have ${smsRemaining} messages left.`}
+              </span>
+            )}
           </span>
 
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -602,6 +694,24 @@ export default function SendInvitationModal({ isOpen, onClose, rsvps, eventId, a
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+
+        /* ── Phones ───────────────────────────────────────────────────────
+           This modal shipped with NO breakpoints at all. At 320px the sums are
+           brutal: 40px of overlay padding plus 56px of content padding leaves
+           224px for a guest row whose min-content width was 284px — every row
+           overflowed, and the whole dialog scrolled sideways.
+
+           !important because these are inline styles and a class cannot beat
+           one (see frontend/AGENTS.md). Same pattern as .camp-page. */
+        @media (max-width: 639.98px) {
+          .siv-overlay { padding: 10px !important; }
+          .siv-pad { padding-left: 14px !important; padding-right: 14px !important; }
+          /* Two pills of "icon + label + count" need ~91px of content each and
+             had 72px. Stacking is the only thing that actually fits. */
+          .siv-tabs { flex-wrap: wrap !important; }
+          .siv-tabs > button { flex: 1 1 100% !important; }
+          .siv-guest-row { gap: 8px !important; }
         }
       `}</style>
     </div>

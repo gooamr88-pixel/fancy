@@ -1,6 +1,7 @@
 'use client';
 import { toast } from '../../utils/toast';
 import React, { useState, useMemo, useCallback } from 'react';
+import { smsReachability, countReachable } from '../../utils/smsReachability';
 import { isAccepted, isDeclined } from '../../utils/responseHelpers';
 import EditGuestModal from './EditGuestModal';
 
@@ -151,7 +152,7 @@ const SummaryCard = React.memo(function SummaryCard({ count, label, accent }) {
 });
 
 /* ── main component ──────────────────────────────────────────── */
-export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onRefresh }) {
+export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onRefresh, onSendToSelection, smsAddonActive = false, smsMaxPerSend = 0, onBuySms }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('newest');
@@ -162,6 +163,10 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
   const [exportSort, setExportSort] = useState('name'); // 'name' (A–Z) | 'table'
   const [resending, setResending] = useState(null); // `${rsvpId}:${type}` while a resend is in flight
   const [editingGuest, setEditingGuest] = useState(null);
+
+  // Party ids the organizer has ticked. A Set because every operation here is a
+  // membership test, and the list can run to thousands of guests.
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
 
   /* counts */
   const counts = useMemo(() => {
@@ -210,6 +215,47 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
 
   const totalPages = Math.max(1, Math.ceil(processed.length / PAGE_SIZE));
   const paginated = processed.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  /* ── Selection ──────────────────────────────────────────────────────────
+     Everything below is derived from the CURRENT filter, not the whole list.
+     Acting on what you are looking at is the entire point of selecting here —
+     a "select all" that silently included rows a filter had hidden would send
+     messages the organizer never saw. */
+  const toggleOne = useCallback((id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const visibleIds = useMemo(() => processed.map((r) => r.id), [processed]);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+
+  const toggleAllVisible = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const everySelected = visibleIds.length > 0 && visibleIds.every((id) => next.has(id));
+      // Only the rows the filter is currently showing are affected — a selection
+      // made under a different filter is left alone rather than wiped.
+      if (everySelected) visibleIds.forEach((id) => next.delete(id));
+      else visibleIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [visibleIds]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  // Resolved against the FULL list, so a selection survives changing the filter.
+  const selectedGuests = useMemo(
+    () => rsvps.filter((r) => selectedIds.has(r.id)),
+    [rsvps, selectedIds],
+  );
+  const reach = useMemo(() => countReachable(selectedGuests), [selectedGuests]);
+
+  // Warn before opening rather than after sending: the ramp-up cap is enforced
+  // server-side and would otherwise surface as a 429 at the end of the flow.
+  const overSendLimit = smsMaxPerSend > 0 && reach.reachable > smsMaxPerSend;
 
   /* export CSV */
   const handleExport = useCallback(async () => {
@@ -446,6 +492,86 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
           </p>
         </div>
       ) : (
+        <>
+        {/* Action bar — appears on first selection.
+            Wraps rather than scrolls: at 320px a nowrap row of a sentence plus
+            three buttons would push the whole page sideways. */}
+        {selectedIds.size > 0 && (
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
+            justifyContent: 'space-between',
+            background: COLORS.white, border: `1px solid ${COLORS.gold}`,
+            borderRadius: 12, padding: '12px 16px', marginBottom: 14,
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)' }}>
+                {selectedIds.size} selected
+              </span>
+              {/* The honest number. Selecting someone unreachable is allowed, so
+                  the count has to say how many will actually get a text rather
+                  than letting the selection imply they all will. */}
+              <span style={{ display: 'block', fontSize: 11.5, color: COLORS.stone, marginTop: 2, fontFamily: 'var(--font-sans)' }}>
+                {reach.reachable === reach.total
+                  ? 'All of them can be texted.'
+                  : `${reach.reachable} can be texted · ${reach.unreachable} cannot`}
+              </span>
+              {overSendLimit && (
+                <span style={{ display: 'block', fontSize: 11.5, color: '#8A6D34', marginTop: 4, fontWeight: 600, fontFamily: 'var(--font-sans)' }}>
+                  You can text up to {smsMaxPerSend} at a time for now — send this group in smaller batches.
+                </span>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => (smsAddonActive
+                  ? onSendToSelection?.([...selectedIds], 'sms')
+                  : onBuySms?.())}
+                disabled={reach.reachable === 0}
+                title={smsAddonActive
+                  ? undefined
+                  : 'Text messaging is not switched on for this event yet.'}
+                style={{
+                  padding: '9px 18px', borderRadius: 9, border: 'none',
+                  background: reach.reachable === 0
+                    ? '#C9C4BA'
+                    : 'linear-gradient(135deg, #D7BE80 0%, #B8944F 100%)',
+                  color: COLORS.white, fontSize: 12.5, fontWeight: 700,
+                  cursor: reach.reachable === 0 ? 'not-allowed' : 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                }}
+              >
+                {smsAddonActive ? 'Text them' : 'Add texting'}
+              </button>
+              <button
+                type="button"
+                onClick={() => onSendToSelection?.([...selectedIds], 'email')}
+                style={{
+                  padding: '9px 18px', borderRadius: 9,
+                  border: `1px solid ${COLORS.border}`, background: 'transparent',
+                  color: COLORS.charcoal, fontSize: 12.5, fontWeight: 700,
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                }}
+              >
+                Email them
+              </button>
+              <button
+                type="button"
+                onClick={clearSelection}
+                style={{
+                  padding: '9px 14px', borderRadius: 9, border: 'none',
+                  background: 'transparent', color: COLORS.stone,
+                  fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
+                }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         <div style={{
           background: COLORS.white,
           border: `1px solid ${COLORS.border}`,
@@ -457,14 +583,31 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
               row needs two-directional scrolling to reach Actions). Both are
               rendered and toggled via CSS so there's no JS viewport check /
               hydration risk; RSVPRow and RSVPCard share the same row data. */}
+          {/* minWidth grew from 720 to 880 with the select and Texting columns:
+              left at 720 the columns squeeze instead of scrolling, and "Hasn't
+              agreed to texts" wraps to three lines in a 60px cell. Below 640px
+              this whole table is hidden and the cards below replace it. */}
           <div className="rsvps-table-wrap" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 880 }}>
               <thead>
                 <tr style={{ background: COLORS.softBg }}>
-                  {['Guest', 'Party Size', 'Response', 'Meal', 'Time', ''].map((h, i) => (
+                  {/* Selects only what the current filter shows — see toggleAllVisible. */}
+                  <th style={{
+                    padding: '14px 8px 14px 20px', width: 40,
+                    borderBottom: `1px solid ${COLORS.border}`,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      aria-label="Select all shown"
+                      style={{ width: 15, height: 15, accentColor: COLORS.gold, cursor: 'pointer' }}
+                    />
+                  </th>
+                  {['Guest', 'Party Size', 'Response', 'Meal', 'Time', 'Texting', ''].map((h, i) => (
                     <th key={i} style={{
                       padding: '14px 20px',
-                      textAlign: i === 5 ? 'center' : 'left',
+                      textAlign: i === 6 ? 'center' : 'left',
                       fontSize: 10,
                       fontWeight: 700,
                       color: COLORS.stone,
@@ -490,6 +633,8 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
                     resending={resending}
                     onResend={handleResend}
                     onEdit={setEditingGuest}
+                    selected={selectedIds.has(rsvp.id)}
+                    onToggleSelect={toggleOne}
                   />
                 ))}
               </tbody>
@@ -506,6 +651,8 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
                 resending={resending}
                 onResend={handleResend}
                 onEdit={setEditingGuest}
+                selected={selectedIds.has(rsvp.id)}
+                onToggleSelect={toggleOne}
               />
             ))}
           </div>
@@ -555,6 +702,7 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
             )}
           </div>
         </div>
+        </>
       )}
 
       <EditGuestModal
@@ -571,9 +719,10 @@ export default function RSVPsTab({ rsvps = [], eventId, event, customFields, onR
 }
 
 /* ── Table Row ───────────────────────────────────────────────── */
-const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onResend, onEdit }) {
+const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete, resending, onResend, onEdit, selected, onToggleSelect }) {
   const [hovered, setHovered] = useState(false);
   const badge = responseBadge(rsvp.response);
+  const reach = smsReachability(rsvp);
 
   return (
     <tr
@@ -584,6 +733,19 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
         transition: 'background 0.2s ease',
       }}
     >
+      {/* Select. Never disabled, even when this guest cannot be texted: they may
+          still be emailed from the same action bar, and hiding them would also
+          hide how many of a selection are unreachable. */}
+      <td style={{ padding: '14px 8px 14px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
+        <input
+          type="checkbox"
+          checked={!!selected}
+          onChange={() => onToggleSelect(rsvp.id)}
+          aria-label={`Select ${rsvp.guest_name || 'guest'}`}
+          style={{ width: 15, height: 15, accentColor: COLORS.gold, cursor: 'pointer' }}
+        />
+      </td>
+
       {/* Guest */}
       <td style={{ padding: '14px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
         <span style={{
@@ -661,6 +823,22 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
         {formatTime(rsvp.timestamp)}
       </td>
 
+      {/* Texting — states WHY, not just yes/no. The same sentence appears in the
+          message history afterwards, so the list and the log never disagree. */}
+      <td style={{ padding: '14px 20px', borderBottom: `1px solid ${COLORS.border}` }}>
+        <span
+          title={reach.title}
+          style={{
+            display: 'inline-block', padding: '3px 9px', borderRadius: 100,
+            background: reach.bg, color: reach.color,
+            fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--font-sans)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {reach.label}
+        </span>
+      </td>
+
       {/* Actions */}
       <td style={{
         padding: '14px 20px',
@@ -691,18 +869,34 @@ const RSVPRow = React.memo(function RSVPRow({ rsvp, isEven, deletingId, onDelete
 });
 
 /* ── Mobile Card (same data/actions as RSVPRow, stacked instead of tabular) ── */
-const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onResend, onEdit }) {
+const RSVPCard = React.memo(function RSVPCard({ rsvp, deletingId, onDelete, resending, onResend, onEdit, selected, onToggleSelect }) {
   const badge = responseBadge(rsvp.response);
+  const reach = smsReachability(rsvp);
   return (
     <div style={{
       background: COLORS.white, border: `1px solid ${COLORS.border}`, borderRadius: 12,
       padding: 16, display: 'flex', flexDirection: 'column', gap: 10,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-        <div style={{ minWidth: 0 }}>
+        {/* Selection is not a desktop-only feature — the table is hidden below
+            640px and these cards replace it, so without this the whole workflow
+            would vanish on a phone. */}
+        <input
+          type="checkbox"
+          checked={!!selected}
+          onChange={() => onToggleSelect(rsvp.id)}
+          aria-label={`Select ${rsvp.guest_name || 'guest'}`}
+          style={{ width: 16, height: 16, accentColor: COLORS.gold, flexShrink: 0, marginTop: 3, cursor: 'pointer' }}
+        />
+        <div style={{ minWidth: 0, flex: 1 }}>
           <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: COLORS.charcoal, fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {rsvp.guest_name || '—'}
           </span>
+          <span style={{
+            display: 'inline-block', marginTop: 4, padding: '2px 8px', borderRadius: 100,
+            background: reach.bg, color: reach.color,
+            fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-sans)',
+          }}>{reach.label}</span>
           {rsvp.email && (
             <span style={{ display: 'block', fontSize: 12, color: COLORS.stone, marginTop: 2, fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {rsvp.email}

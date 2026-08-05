@@ -27,7 +27,7 @@
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STEP 1 of 7  ·  20260809000000_sms_compliance.sql
+-- STEP 1 of 9  ·  20260809000000_sms_compliance.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── SMS COMPLIANCE: opt-out suppression, send attestation, consent provenance ───
@@ -88,7 +88,7 @@ COMMENT ON COLUMN rsvp_parties.sms_consent_source IS
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STEP 2 of 7  ·  20260810000000_sms_optin_submissions.sql
+-- STEP 2 of 9  ·  20260810000000_sms_optin_submissions.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── SMS OPT-IN PAGE SUBMISSIONS ─────────────────────────────────────────────
@@ -122,7 +122,7 @@ ALTER TABLE sms_optin_submissions ENABLE ROW LEVEL SECURITY;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STEP 3 of 7  ·  20260811010000_sms_consent_log.sql
+-- STEP 3 of 9  ·  20260811010000_sms_consent_log.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── SMS CONSENT LOG (append-only) ───────────────────────────────────────────
@@ -183,7 +183,7 @@ ALTER TABLE sms_consent_log ENABLE ROW LEVEL SECURITY;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STEP 4 of 7  ·  20260812010000_host_sms_consent_attestation.sql
+-- STEP 4 of 9  ·  20260812010000_host_sms_consent_attestation.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── HOST-ATTESTED SMS CONSENT ───────────────────────────────────────────────
@@ -238,7 +238,7 @@ CREATE INDEX IF NOT EXISTS idx_rsvp_parties_sms_consent_method
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STEP 5 of 7  ·  20260818000000_sms_addon.sql
+-- STEP 5 of 9  ·  20260818000000_sms_addon.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── SMS AS A PAID ADD-ON, AND A LIFECYCLE CHANNEL ───────────────────────────
@@ -387,7 +387,7 @@ END $outer$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STEP 6 of 7  ·  20260819000000_sms_pricing_config.sql
+-- STEP 6 of 9  ·  20260819000000_sms_pricing_config.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── SUPER-ADMIN CONTROL OVER SMS PRICING ────────────────────────────────────
@@ -474,7 +474,7 @@ WHERE sms_pricing_config IS NULL
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STEP 7 of 7  ·  20260820000000_sms_usage_and_limits.sql
+-- STEP 7 of 9  ·  20260820000000_sms_usage_and_limits.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- ─── SMS USAGE VISIBILITY, EARLY WARNINGS, AND ABUSE LIMITS ──────────────────
@@ -675,7 +675,92 @@ $$;
 REVOKE ALL ON FUNCTION public.sms_admin_analytics(TIMESTAMPTZ, TIMESTAMPTZ) FROM anon, authenticated;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STEP 8 of 8  ·  Backfill any pricing keys added after a previous apply
+-- STEP 8 of 9  ·  20260821000000_sms_organizer_optin_and_perf.sql
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- ─── ORGANIZER OPT-IN, GUEST LANGUAGE, AND A GROUPED SKIP COUNT ──────────────
+--
+-- Three fixes found reviewing the finished SMS subsystem.
+--
+-- 1. organizer_report COULD NEVER SEND. resolveRecipient gates organizer-audience
+--    messages on organizations.sms_consent and reads the number from
+--    organizations.sms_phone. Both columns existed (20260818000000) and both were
+--    only ever READ — nothing in the codebase wrote either one. So the flag was
+--    permanently false and every organizer report skipped with NO_CONSENT, while
+--    the type was switched ON by default, shown as a toggle, and billed at three
+--    messages per event in the purchase estimate. Customers were being charged
+--    for capacity that could not be used.
+--
+--    The columns are fine; what was missing was a way to set them. That arrives
+--    with this migration's endpoint (controllers/campaignController.js). Added
+--    here: the provenance columns that make an organizer's opt-in as auditable as
+--    a guest's, since a text to an organizer is subject to the same rules.
+--
+-- 2. SCHEDULED REMINDERS WERE ALWAYS ENGLISH. A guest picks their language on the
+--    RSVP page and it was never stored, so the lifecycle scheduler had nothing to
+--    read and hardcoded 'en'. An Arabic guest received their confirmation in
+--    Arabic (the controller has the value in hand) and then their reminder in
+--    English. preferred_lang closes that gap.
+--
+-- 3. THE MESSAGES PAGE READ UP TO 5,000 ROWS TO SHOW SIX NUMBERS. The skip
+--    summary pulled every skipped sms_log row and tallied it in JavaScript on
+--    every page load. That is a GROUP BY, and it belongs in the database.
+
+/* ── 1. Make the organizer's own opt-in auditable ─────────────────────────── */
+
+ALTER TABLE public.organizations
+  ADD COLUMN IF NOT EXISTS sms_consent_text_version TEXT,
+  ADD COLUMN IF NOT EXISTS sms_consent_ip           TEXT;
+
+COMMENT ON COLUMN public.organizations.sms_consent_text_version IS
+  'Which version of the canonical consent wording the organizer was shown when they opted in (frontend SmsConsentText.js). Same record-keeping standard as a guest opt-in: being our customer is not a reason to hold weaker evidence.';
+COMMENT ON COLUMN public.organizations.sms_consent_ip IS
+  'Capture context for the organizer opt-in, matching the convention used by sms_optin_submissions.';
+
+/* ── 2. Remember the language a guest actually chose ──────────────────────── */
+
+ALTER TABLE public.rsvp_parties
+  ADD COLUMN IF NOT EXISTS preferred_lang TEXT;
+
+COMMENT ON COLUMN public.rsvp_parties.preferred_lang IS
+  'The language the guest used on the RSVP form (''en'' | ''ar''). Captured so SCHEDULED messages — reminders sent days later, by a job with no request context — reach them in the same language their confirmation did. NULL means never recorded; callers fall back to English.';
+
+/* ── 3. Count skips in the database, not in Node ──────────────────────────── */
+
+-- Returns { "<skip_reason>": <count>, ... } for one event.
+--
+-- STABLE and SECURITY DEFINER to match the other read RPCs. Event scoping is the
+-- caller's responsibility exactly as it is for get_event_parties: the route is
+-- already behind requireAuth + verifyEventOwner.
+CREATE OR REPLACE FUNCTION public.sms_skip_summary(p_event_id UUID)
+RETURNS JSONB
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT COALESCE(
+    jsonb_object_agg(reason, n),
+    '{}'::jsonb
+  )
+  FROM (
+    SELECT skip_reason AS reason, COUNT(*)::int AS n
+    FROM sms_log
+    WHERE event_id = p_event_id
+      AND skip_reason IS NOT NULL
+    GROUP BY skip_reason
+  ) s;
+$$;
+
+REVOKE ALL ON FUNCTION public.sms_skip_summary(UUID) FROM anon, authenticated;
+
+-- The index the aggregate above rides on already exists from 20260820000000
+-- (idx_sms_log_skipped on (event_id, skip_reason) WHERE skip_reason IS NOT NULL),
+-- which turns this from a scan into an index-only aggregate.
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- STEP 9 of 9  ·  Backfill any pricing keys added after a previous apply
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- Step 6 only sets sms_pricing_config when it is NULL or {}, so a database that

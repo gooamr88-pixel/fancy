@@ -31,6 +31,7 @@ const { computeSmsChargeCents, describeSmsCharge, volumeDiscountsFromConfig } = 
 const { sanitizeAllowanceRequest, estimateAllowance } = require('../utils/smsEstimator');
 const { normalizeSmsPricing, describeSmsPricingAdjustments, DEFAULT_SMS_PRICING, LIMITS: SMS_PRICING_LIMITS } = require('../config/smsPricing');
 const { SMS_MESSAGE_TYPES } = require('../config/smsMessageTypes');
+const { PLATFORM_FEATURES } = require('../config/featureRegistry');
 const { fulfillCheckoutSession, handleChargeRefunded, handleDisputeEvent } = require('../services/paymentFulfillment');
 const { getPlatformConfig, invalidate: invalidateConfigCache } = require('../utils/configCache');
 const {
@@ -860,6 +861,54 @@ const verifyCheckoutSession = async (req, res, next) => {
  * Super Admin manual approval of event payments bypass.
  * POST /api/v1/admin/manual-approve
  */
+/**
+ * Credit messages bought on an approved bank transfer.
+ *
+ * The card path gets this from the Stripe webhook; a manual payment has no
+ * webhook, so approval is the moment the money is confirmed and the moment the
+ * messages become owed. Reuses record_sms_purchase — the same atomic, idempotent
+ * RPC the card path uses — keyed on the payment id so a double-approval cannot
+ * double-credit.
+ *
+ * Best-effort and non-throwing: the licence has already been activated by the
+ * time this runs, and throwing here would fail an approval that genuinely
+ * succeeded. A failure is logged loudly, leaving a paid-but-uncredited state that
+ * is visible and repairable rather than an approval the admin has to retry.
+ */
+async function creditManualSmsAddon(eventId, payment) {
+  const segments = parseInt(payment?.sms_addon_segments, 10);
+  if (!Number.isInteger(segments) || segments <= 0) return;
+
+  try {
+    const { data, error } = await supabase.rpc('record_sms_purchase', {
+      p_event_id: eventId,
+      p_credits: segments,
+      // A manual payment has no payment intent; the payment row's own id is the
+      // stable, unique key that makes this idempotent.
+      p_payment_intent: `manual:${payment.id}`,
+      p_amount_cents: null,
+    });
+    if (error) throw error;
+    if (data && data.success === false) throw new Error(data.error || 'RECORD_SMS_PURCHASE_FAILED');
+
+    const { error: unlockErr } = await supabase
+      .from('events')
+      .update({ sms_addon_purchased_at: new Date().toISOString() })
+      .eq('id', eventId)
+      .is('sms_addon_purchased_at', null);
+    if (unlockErr) throw unlockErr;
+
+    try {
+      await supabase.rpc('reset_sms_balance_alerts', { p_event_id: eventId });
+    } catch { /* the alert simply stays quiet until the migration lands */ }
+
+    logger.info({ eventId, segments }, '[payments] SMS messages credited from approved manual payment');
+  } catch (err) {
+    logger.error({ err, eventId, segments },
+      '[payments] manual payment approved but its SMS messages could NOT be credited — needs manual reconciliation.');
+  }
+}
+
 const manualCashApproval = async (req, res, next) => {
   const { eventId } = req.body;
   // amountCents is persisted and charged against — guard it instead of only
@@ -886,7 +935,7 @@ const manualCashApproval = async (req, res, next) => {
     // 1. Check if there is an existing pending cash_manual payment record
     const { data: pendingPayment, error: findError } = await supabase
       .from('event_payments')
-      .select('id, amount_cents, stripe_checkout_session_id, reference_number, tier_name, tier_max_guests, tier_remove_watermark, referral_credit_applied_cents, referral_hold_id')
+      .select('id, amount_cents, stripe_checkout_session_id, reference_number, tier_name, tier_max_guests, tier_remove_watermark, referral_credit_applied_cents, referral_hold_id, sms_addon_segments')
       .eq('event_id', eventId)
       .eq('payment_method', 'cash_manual')
       .eq('status', 'pending')
@@ -1002,6 +1051,11 @@ const manualCashApproval = async (req, res, next) => {
           logger.warn({ err: e, eventId }, '[payments] referral reward grant skipped')
         );
       }
+
+      // Messages bought on this transfer. The organizer already paid for them —
+      // amount_cents included their price — so approving the payment has to
+      // deliver them, exactly as the Stripe webhook does for a card purchase.
+      await creditManualSmsAddon(eventId, pendingPayment[0]);
     } else {
       // Fallback: Use approve_event_cash RPC function
       const { data, error } = await supabase.rpc('approve_event_cash', {
@@ -1248,6 +1302,19 @@ const getPricingConfig = async (req, res, next) => {
       // that will be applied — not the raw column, which may be partial.
       smsPricing,
       smsMessageTypes: SMS_MESSAGE_TYPES,
+      // Human labels for the tier feature bullets.
+      //
+      // pricing_tiers stores raw registry KEYS (`add_guest_manual`,
+      // `guest_export_excel`), and the payment step printed them verbatim — so a
+      // customer choosing which plan to buy read a list of identifiers instead of
+      // a list of features. The registry already holds the labels; this hands them
+      // over rather than making the client keep its own copy.
+      featureLabels: Object.fromEntries(PLATFORM_FEATURES.map((f) => [f.key, f.label])),
+      // Keys that must NOT appear as a tier bullet. `sms_campaigns` is granted by
+      // nothing now — SMS is a per-event add-on available on every plan — so
+      // listing it under Enterprise tells a customer they already have the thing
+      // the card directly below is asking them to pay for.
+      hiddenTierFeatures: PLATFORM_FEATURES.filter((f) => f.supersededBy).map((f) => f.key),
       // Tells the dashboard which paid integrations are live right now, so the
       // payment step can render manual-first and hide card / SMS-purchase CTAs.
       features: { stripeEnabled: stripeEnabled(), smsEnabled: smsEnabled() },
@@ -1376,6 +1443,12 @@ const initiateManualPayment = async (req, res, next) => {
   const { eventId } = req.params;
   const { tierName, methodLabel, payerReference } = req.body;
 
+  // Text messaging can be bought on a bank transfer too. It was card-only, which
+  // meant that while card payments are switched off — leaving manual as the ONLY
+  // path — nobody could buy it at all, and the amount an organizer was told to
+  // transfer covered the licence alone.
+  const smsAddonSegments = sanitizeAllowanceRequest(req.body.smsAddonSegments);
+
   if (!tierName) {
     return res.status(400).json({
       success: false,
@@ -1455,7 +1528,23 @@ const initiateManualPayment = async (req, res, next) => {
       }
     }
 
-    const chargeAmountCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
+    const licenceCents = isUpgrade ? (tier.price_cents - previousTier.price_cents) : tier.price_cents;
+
+    // Priced with the SAME function the card path and every top-up use, so the
+    // figure on the transfer instructions is the figure the customer would have
+    // paid by card.
+    const smsAddonCents = smsAddonSegments
+      ? computeSmsChargeCents({
+          unitPriceCents: adminConfig.sms_rate_cents_per_credit,
+          creditCount: smsAddonSegments,
+          markupPct: adminConfig.sms_markup_percentage,
+          volumeDiscounts: volumeDiscountsFromConfig(adminConfig),
+        })
+      : 0;
+
+    // Referral credit stays applied to the LICENCE only, matching the card path,
+    // where the add-on is a separate line item the credit never touches.
+    const chargeAmountCents = licenceCents + smsAddonCents;
 
     // REFERRAL-1: same ATOMIC reservation as createCheckoutSession. The hold
     // earmarks the credit now (so it can't also be applied to a concurrent
@@ -1595,6 +1684,7 @@ const initiateManualPayment = async (req, res, next) => {
         amount_cents: dueCents,
         referral_credit_applied_cents: referralCreditAppliedCents,
         referral_hold_id: referralHoldId,
+        sms_addon_segments: smsAddonSegments,
         tier_name: tier.name,
         tier_max_guests: tierMaxGuests,
         tier_remove_watermark: !!tier.remove_watermark,
@@ -1632,6 +1722,9 @@ const initiateManualPayment = async (req, res, next) => {
         amount_cents: dueCents,
         referral_credit_applied_cents: referralCreditAppliedCents,
         referral_hold_id: referralHoldId,
+        // amount_cents above already includes these messages' price; the count is
+        // kept so approval knows what the transfer actually bought.
+        sms_addon_segments: smsAddonSegments,
         status: 'pending',
         payment_method: 'cash_manual',
         currency: 'usd',

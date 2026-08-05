@@ -254,7 +254,36 @@ export default function DashboardPage() {
   const [showAddGuestModal, setShowAddGuestModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showSendInvitationModal, setShowSendInvitationModal] = useState(false);
+  // What the RSVPs list asked us to send to, and on which channel. Seeds the
+  // modal so the organizer's filtering and ticking travels with them.
+  const [sendSeed, setSendSeed] = useState({ ids: null, channel: null });
+  // Whether this event can text at all, and the current per-send cap — both
+  // needed BEFORE the modal opens so the action bar can say so up front instead
+  // of the organizer discovering it from a 402/429 at the end.
+  const [smsAddon, setSmsAddon] = useState({ active: false, maxPerSend: 0, remaining: 0 });
   const [showQRModal, setShowQRModal] = useState(false);
+
+  // Ungated endpoint by design: an event WITHOUT the add-on is exactly the one
+  // that needs to be told so. Failure leaves the defaults, which simply routes
+  // the organizer to the purchase page rather than blocking anything.
+  useEffect(() => {
+    if (!eventId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiUrl}/events/${eventId}/campaigns/settings`, { credentials: 'include' });
+        const data = await res.json();
+        if (!cancelled && data?.success) {
+          setSmsAddon({
+            active: !!data.addonActive,
+            maxPerSend: Number(data.sendLimit?.maxPerSend) || 0,
+            remaining: Number(data.balance?.remaining) || 0,
+          });
+        }
+      } catch { /* defaults stand */ }
+    })();
+    return () => { cancelled = true; };
+  }, [apiUrl, eventId]);
   const [qrModalTab, setQrModalTab] = useState('qr');
   const [copyTooltip, setCopyTooltip] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -488,6 +517,10 @@ export default function DashboardPage() {
             sms_consent: r.sms_consent === true,
             sms_consent_at: r.sms_consent_at || null,
             sms_consent_method: r.sms_consent_method || null,
+            // Whether this number replied STOP. Served by the rsvps endpoint from
+            // the global sms_opt_outs table; without it the list would show
+            // "can text" for a suppressed number.
+            sms_opted_out: r.sms_opted_out === true,
             // Full per-companion details so the organizer sees everyone in the party.
             guests: party,
             // Custom-question answers (e.g. song requests, dietary preferences) the
@@ -1254,7 +1287,20 @@ export default function DashboardPage() {
           ) : activeTab === 'share' ? (
             <ShareTab event={activeEvent} />
           ) : activeTab === 'rsvps' ? (
-            <RSVPsTab rsvps={rsvps} eventId={eventId} event={activeEvent} customFields={customFields} onRefresh={loadDashboardData} />
+            <RSVPsTab
+              rsvps={rsvps}
+              eventId={eventId}
+              event={activeEvent}
+              customFields={customFields}
+              onRefresh={loadDashboardData}
+              smsAddonActive={smsAddon.active}
+              smsMaxPerSend={smsAddon.maxPerSend}
+              onBuySms={() => router.push('/dashboard/campaigns')}
+              onSendToSelection={(ids, channel) => {
+                setSendSeed({ ids, channel });
+                setShowSendInvitationModal(true);
+              }}
+            />
           ) : activeTab === 'guests' ? (
             <GuestsTab
               rsvps={rsvps}
@@ -1333,11 +1379,15 @@ export default function DashboardPage() {
       />
       <SendInvitationModal
         isOpen={showSendInvitationModal}
-        onClose={() => setShowSendInvitationModal(false)}
+        onClose={() => { setShowSendInvitationModal(false); setSendSeed({ ids: null, channel: null }); }}
         rsvps={rsvps}
         eventId={eventId}
         apiUrl={apiUrl}
         onSuccess={loadDashboardData}
+        initialSelectedIds={sendSeed.ids}
+        initialChannel={sendSeed.channel}
+        smsRemaining={smsAddon.remaining}
+        smsAddonActive={smsAddon.active}
       />
 
       {/* ═══ QR CODE MODAL ═══ */}

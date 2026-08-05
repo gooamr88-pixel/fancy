@@ -219,6 +219,9 @@ export default function CreateEventWizard() {
   // The admin's live discount tiers, so the purchase screen's price preview
   // matches what checkout will actually charge.
   const [smsVolumeDiscounts, setSmsVolumeDiscounts] = useState(null);
+  // Registry key -> human label, so tier bullets never print `add_guest_manual`.
+  const [featureLabels, setFeatureLabels] = useState({});
+  const [hiddenTierFeatures, setHiddenTierFeatures] = useState([]);
   // Which paid integrations are live right now (server-driven). Default OFF so the
   // UI is manual-first until the backend reports card/SMS are enabled.
   const [features, setFeatures] = useState({ stripeEnabled: false, smsEnabled: false });
@@ -549,6 +552,8 @@ export default function CreateEventWizard() {
           // computed server-side so the estimate can never drift from the charge.
           if (data.smsEstimates) setSmsEstimates(data.smsEstimates);
           if (data.smsPricing?.volume_discounts) setSmsVolumeDiscounts(data.smsPricing.volume_discounts);
+          if (data.featureLabels) setFeatureLabels(data.featureLabels);
+          if (Array.isArray(data.hiddenTierFeatures)) setHiddenTierFeatures(data.hiddenTierFeatures);
         }
       } catch { /* non-fatal — payment step shows a skip option */ }
     })();
@@ -1263,7 +1268,14 @@ export default function CreateEventWizard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ tierName: selectedTierName, methodLabel, payerReference }),
+        // The add-on rides on the bank transfer too — the amount the organizer is
+        // told to send must cover everything they chose, not the licence alone.
+        body: JSON.stringify({
+          tierName: selectedTierName,
+          methodLabel,
+          payerReference,
+          smsAddonSegments: smsAddonEnabled ? smsAddonSegments : null,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.message || 'Could not record manual payment.');
@@ -1283,7 +1295,7 @@ export default function CreateEventWizard() {
     } finally {
       setPayProcessing(false);
     }
-  }, [apiUrl, eventId, selectedTierName, payProcessing]);
+  }, [apiUrl, eventId, selectedTierName, payProcessing, smsAddonEnabled, smsAddonSegments]);
 
   // Self-service alternative to both payment paths above: a valid super-admin
   // -issued promo code publishes the event immediately, free — same end
@@ -1567,6 +1579,8 @@ export default function CreateEventWizard() {
               onChangeSmsAddonSegments={setSmsAddonSegments}
               smsEstimate={smsEstimates?.[selectedTierName]?.latin || null}
               smsVolumeDiscounts={smsVolumeDiscounts}
+              featureLabels={featureLabels}
+              hiddenTierFeatures={hiddenTierFeatures}
               smsRateCentsPerCredit={smsRateCentsPerCredit}
               smsMarkupPercentage={smsMarkupPercentage}
               processing={payProcessing}

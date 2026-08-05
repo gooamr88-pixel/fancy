@@ -6,7 +6,7 @@ const tokenService = require('../services/tokenService');
 const invitationService = require('../services/invitationService');
 const { parseCSV, generateCSV } = require('../utils/csvHelper');
 const { escapeHtml, getDeclineConfirmationTemplate, getNewRsvpOrganizerTemplate, getRsvpClaimTemplate, buildTicketLinks } = require('../utils/emailTemplates');
-const { sendTransactionalSms } = require('../services/smsDispatch');
+const { sendTransactionalSms, getOptedOutSet, canonicalPhone } = require('../services/smsDispatch');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
 const { isEventLiveForGuests } = require('../utils/eventAccess');
 const { normalizeToE164 } = require('../utils/phone');
@@ -238,6 +238,12 @@ const submitPublicRSVP = async (req, res, next) => {
           sms_consent_method: CONSENT_METHOD_GUEST,
           sms_consent_attested_by: null,
           sms_consent_attested_at: null,
+          // The language the guest actually used. Recorded because SCHEDULED
+          // messages — reminders sent days later by a job with no request
+          // context — otherwise have nothing to read and default to English. A
+          // guest who RSVP'd in Arabic and got an Arabic confirmation would then
+          // receive their reminder in English.
+          preferred_lang: guestLang,
         })
         .eq('id', result.party_id)
         .then(
@@ -502,6 +508,34 @@ const getRSVPs = async (req, res, next) => {
     const { parties, pagination } = await guestService.listParties(eventId, {
       response, search, seated, sort, meal, customFieldId, customFieldValue, page, limit,
     });
+
+    // Whether each party's number has replied STOP.
+    //
+    // Every other reachability signal (sms_consent, its timestamp, the method)
+    // rides along on the party row already, but suppression lives in the GLOBAL
+    // sms_opt_outs table and so was invisible to the dashboard. Without it the
+    // guest list would show "can be texted" for someone who opted out, and the
+    // organizer would discover the truth only from the message log afterwards —
+    // the exact confusion that log exists to prevent.
+    //
+    // One batched query for the page (getOptedOutSet chunks at 500), and it is
+    // advisory: a failure leaves the flag off rather than blocking the list.
+    try {
+      const phones = parties
+        .map((p) => (p.guests || []).find((g) => g.is_primary_contact)?.phone)
+        .filter(Boolean);
+
+      if (phones.length > 0) {
+        const optedOut = await getOptedOutSet(phones);
+        for (const party of parties) {
+          const phone = (party.guests || []).find((g) => g.is_primary_contact)?.phone;
+          party.sms_opted_out = !!(phone && optedOut.has(canonicalPhone(phone)));
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, eventId }, 'opt-out lookup for the guest list failed — STOP status omitted');
+    }
+
     return sendOk(res, { rsvps: parties }, { meta: { pagination } });
   } catch (err) {
     next(err);

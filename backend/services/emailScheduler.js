@@ -99,14 +99,14 @@ const primaryEmailOf = (party) => (party.guests || []).find((g) => g.is_primary_
  * report) always return false, because their email carries something the text
  * cannot — a scannable pass, a formatted report — so both must go.
  */
-async function trySms(ev, { type, partyId = null, ref, context }) {
+async function trySms(ev, { type, partyId = null, ref, context, lang = 'en' }) {
   if (!ev?.sms_addon_purchased_at) return false;   // cheap pre-check; the gate re-verifies
   const typeDef = getSmsType(type);
   if (!typeDef) return false;
 
   try {
     const result = await sendTransactionalSms({
-      type, eventId: ev.id, partyId, ref, event: ev, lang: 'en', context,
+      type, eventId: ev.id, partyId, ref, event: ev, lang, context,
     });
     return !!result.sent && typeDef.replacesEmail === true;
   } catch (err) {
@@ -129,7 +129,7 @@ async function jobRsvpReminders() {
   let sent = 0;
   for (const ev of (events || [])) {
     const { data: parties } = await supabase
-      .from('rsvp_parties').select('id, label, response, guests(is_primary_contact, email)')
+      .from('rsvp_parties').select('id, label, response, preferred_lang, guests(is_primary_contact, email)')
       .eq('event_id', ev.id).eq('response', 'pending').limit(LIMIT);
     for (const party of (parties || [])) {
       // SMS first — a reminder is short, and a text is far likelier to be seen
@@ -139,6 +139,9 @@ async function jobRsvpReminders() {
         type: 'rsvp_reminder',
         partyId: party.id,
         ref: `rsvp:${party.id}`,
+        // The language this guest actually used when they RSVP'd. Without it a
+        // guest who replied in Arabic gets an English reminder days later.
+        lang: party.preferred_lang || 'en',
         context: {
           guestName: party.label,
           eventTitle: ev.title,
@@ -171,7 +174,7 @@ async function jobEventReminders() {
   for (const ev of (events || [])) {
     const revealed = (new Date(ev.event_date).getTime() - Date.now()) <= DAY; // 24h seating reveal
     const { data: parties } = await supabase
-      .from('rsvp_parties').select('id, label, guests(is_primary_contact, email), seating_assignments(tables(table_name))')
+      .from('rsvp_parties').select('id, label, preferred_lang, guests(is_primary_contact, email), seating_assignments(tables(table_name))')
       .eq('event_id', ev.id).eq('response', 'yes').limit(LIMIT);
     for (const party of (parties || [])) {
       const tableName = revealed ? (party.seating_assignments?.[0]?.tables?.table_name || null) : null;
@@ -182,6 +185,7 @@ async function jobEventReminders() {
         type: 'event_reminder',
         partyId: party.id,
         ref: `rsvp:${party.id}`,
+        lang: party.preferred_lang || 'en',
         context: {
           guestName: party.label,
           eventTitle: ev.title,
