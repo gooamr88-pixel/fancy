@@ -58,6 +58,16 @@ ALTER TABLE public.super_admin_config
       "decline_ack": 0.2,
       "organizer_report": 3,
       "campaign": 2
+    },
+    "limits": {
+      "ramp_up": [
+        { "delivered_min": 0,    "max_per_send": 50 },
+        { "delivered_min": 200,  "max_per_send": 500 },
+        { "delivered_min": 1000, "max_per_send": 0 }
+      ]
+    },
+    "alerts": {
+      "low_balance_pct": 20
     }
   }'::jsonb;
 

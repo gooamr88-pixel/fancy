@@ -116,5 +116,28 @@ COMMENT ON COLUMN organizations.sms_phone IS
 /* ── 4. Consent-log vocabulary ────────────────────────────────────────────── */
 
 -- sms_consent_log.method gained a third value alongside guest_optin/host_attested.
-COMMENT ON COLUMN sms_consent_log.method IS
-  'guest_optin (the guest ticked our box) | host_attested (an organizer attested on their behalf) | system_revoked (the platform withdrew consent because what it rested on changed — today: the party''s phone number was edited, so the recorded consent no longer belongs to the number we would now text).';
+--
+-- Guarded, because this is DOCUMENTATION and documentation must never be able to
+-- fail a migration. sms_consent_log is created by 20260811010000 and gains
+-- `method` in 20260812010000; on a database where those have not been applied,
+-- an unguarded COMMENT aborts this entire migration — taking the add-on columns,
+-- sms_log and the organizer-consent columns down with it, none of which depend on
+-- that table at all. A comment is worth exactly zero of that.
+--
+-- The apply order remains 20260811010000 → 20260812010000 → this file. The guard
+-- only means running them out of order costs a comment, not the migration.
+DO $outer$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'sms_consent_log' AND column_name = 'method'
+  ) THEN
+    -- Nested dollar-quoting rather than doubled apostrophes: the text contains
+    -- "party's", and an escaping slip in a statement whose only job is to carry a
+    -- comment would fail the migration for the very reason this guard exists.
+    COMMENT ON COLUMN public.sms_consent_log.method IS
+      $c$guest_optin (the guest ticked our box) | host_attested (an organizer attested on their behalf) | system_revoked (the platform withdrew consent because what it rested on changed — today: the party's phone number was edited, so the recorded consent no longer belongs to the number we would now text).$c$;
+  ELSE
+    RAISE NOTICE 'sms_consent_log.method not present — skipping its comment. Apply 20260811010000_sms_consent_log.sql then 20260812010000_host_sms_consent_attestation.sql to create the SMS consent audit trail.';
+  END IF;
+END $outer$;

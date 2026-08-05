@@ -634,36 +634,12 @@ export default function CampaignsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 64, height: 64, border: `4px solid ${C.border}`, borderTop: `4px solid ${C.gold}`, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}></div>
-          <p style={{ color: C.stone, fontWeight: 500, fontFamily: 'var(--font-sans)', fontSize: 14 }}>Loading campaign dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
-        <div style={{ maxWidth: 440, width: '100%', textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: 32, borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
-          <Icon name="plug" size={36} color={C.error} strokeWidth={1.3} />
-          <h2 style={{ fontSize: 20, fontWeight: 700, marginTop: 16, color: C.error, fontFamily: 'var(--font-serif)' }}>Backend Connection Error</h2>
-          <p style={{ color: C.stone, marginTop: 8, fontSize: 13, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>{error}</p>
-          <button 
-            onClick={() => { setLoading(true); loadCampaignData(); }} 
-            style={{ marginTop: 24, padding: '8px 20px', background: 'transparent', border: `1px solid ${C.border}`, color: C.gold, fontSize: 12, borderRadius: 8, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
-            onMouseEnter={e => { e.currentTarget.style.background = C.softBg; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-          >
-            Retry Connection
-          </button>
-        </div>
-      </div>
-    );
-  }
+  /* ── Hooks must live ABOVE the early returns ───────────────────────
+     React calls hooks in order and requires the same COUNT on every render.
+     These four sat after `if (loading) return` and `if (error) return`, so the
+     first render ran four fewer hooks than the second — React error #310, which
+     took the entire dashboard down rather than degrading. Any hook added to this
+     component belongs above those returns. ─────────────────────────── */
 
   /* Message history. Loaded once the add-on is known to be active — an event
      without it has no history worth fetching. */
@@ -720,6 +696,38 @@ export default function CampaignsPage() {
     }, 300);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [showSMSModal, smsCreditsToBuy, apiUrl, eventId]);
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, border: `4px solid ${C.border}`, borderTop: `4px solid ${C.gold}`, borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }}></div>
+          <p style={{ color: C.stone, fontWeight: 500, fontFamily: 'var(--font-sans)', fontSize: 14 }}>Loading campaign dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ minHeight: '100vh', background: C.ivory, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
+        <div style={{ maxWidth: 440, width: '100%', textAlign: 'center', background: C.white, border: `1px solid ${C.border}`, padding: 32, borderRadius: 16, boxShadow: '0 4px 24px rgba(0,0,0,0.06)' }}>
+          <Icon name="plug" size={36} color={C.error} strokeWidth={1.3} />
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginTop: 16, color: C.error, fontFamily: 'var(--font-serif)' }}>Backend Connection Error</h2>
+          <p style={{ color: C.stone, marginTop: 8, fontSize: 13, lineHeight: 1.7, fontFamily: 'var(--font-sans)' }}>{error}</p>
+          <button 
+            onClick={() => { setLoading(true); loadCampaignData(); }} 
+            style={{ marginTop: 24, padding: '8px 20px', background: 'transparent', border: `1px solid ${C.border}`, color: C.gold, fontSize: 12, borderRadius: 8, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = C.softBg; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            Retry Connection
+          </button>
+        </div>
+      </div>
+    );
+  }
+
 
   /* Per-message-type switches. Saved immediately on toggle rather than behind a
      Save button: each switch is independent and instantly reversible, and a
