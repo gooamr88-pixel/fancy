@@ -409,6 +409,20 @@ async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, 
     return { kind: 'sent', credits: deduct.credits, ledgerId: deduct.ledgerId, sid: sent.id };
   } catch (smsErr) {
     await refundCredits(deduct.walletId, eventId, deduct.ledgerId, deduct.credits);
+    // Say WHY, in the log, in the carrier's own words.
+    //
+    // This used to swallow the reason entirely: the row was marked failed, the
+    // credits came back, and the only trace of the cause was a column nobody
+    // reads. Diagnosing a carrier rejection then meant logging into the carrier's
+    // dashboard and correlating by timestamp. The refund is the safe part; the
+    // silence was the expensive part.
+    logger.error({
+      eventId,
+      phone: norm,
+      provider: provider.name,
+      err: smsErr.message,
+      from: fromNumber || process.env.VONAGE_FROM || process.env.TWILIO_PHONE_NUMBER || null,
+    }, `SMS send REJECTED by ${provider.name} — credits refunded. Carrier said: ${smsErr.message}`);
     return { kind: 'failed', error: smsErr.message || 'SMS_SEND_FAILED' };
   }
 }
