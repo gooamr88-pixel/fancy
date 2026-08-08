@@ -149,10 +149,23 @@ module.exports = {
     // The SAME classification that decides what we bill decides what we send.
     const { encoding } = computeSmsSegments(body);
 
+    // Refuse to send without a sender number.
+    //
+    // Vonage does not reject an empty `from` — it SUBSTITUTES the account's default
+    // alphanumeric sender ("Vonage APIs"). Alphanumeric senders are prohibited in
+    // the US, so the message is then rejected by the platform with status 15,
+    // "Illegal Sender Address". The carrier error blames the sender address while
+    // the actual fault is a missing environment variable, which is a genuinely
+    // hard trail to follow — so name it here instead.
+    const from = stripPlus(process.env.VONAGE_FROM);
+    if (!from) {
+      throw new Error('VONAGE_FROM_MISSING: no sender number is configured, so Vonage would substitute its default alphanumeric sender and US carriers would reject the message. Set VONAGE_FROM to your toll-free number in +E.164.');
+    }
+
     const payload = {
       api_key: process.env.VONAGE_API_KEY,
       api_secret: process.env.VONAGE_API_SECRET,
-      from: stripPlus(process.env.VONAGE_FROM),
+      from,
       to: stripPlus(to),
       text: body,
       type: encoding === 'UCS-2' ? 'unicode' : 'text',

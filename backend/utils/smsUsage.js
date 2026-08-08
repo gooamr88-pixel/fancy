@@ -180,9 +180,37 @@ const SKIP_EXPLANATIONS = {
   SEND_FAILED: 'The phone company could not deliver it',
 };
 
+/**
+ * Carrier refusals, in our own words.
+ *
+ * These arrive as raw thrown messages (`VONAGE_15: Illegal Sender Address`), which
+ * the generic fallback below used to flatten into "It could not be delivered" — a
+ * sentence that sent us to the carrier's dashboard to learn something we had
+ * already stored. Each of these means something specific and actionable, and the
+ * difference between them is the difference between a five-minute fix and a day.
+ */
+const CARRIER_EXPLANATIONS = [
+  [/VONAGE_FROM_MISSING/i, 'No sender number is configured for texting — set it in the server settings'],
+  [/VONAGE_15\b|Illegal Sender Address/i, 'The carrier rejected our sender number. It may not be registered for texting yet, or the account is still in trial mode'],
+  [/VONAGE_9\b|blacklist/i, 'This number is blocked by the phone network because they replied STOP'],
+  [/VONAGE_(4|HTTP_401)\b/i, 'The texting account credentials were rejected — check the API key and secret'],
+  [/VONAGE_6\b/i, 'The phone network would not accept that number'],
+  [/VONAGE_(5|HTTP_5\d\d)\b/i, 'The texting service had a temporary fault — try again shortly'],
+  [/VONAGE_11\b/i, 'Texting is not enabled on this account for that destination'],
+  [/VONAGE_29\b/i, 'That destination country is not enabled on the texting account'],
+  [/\b21610\b|unsubscribed recipient/i, 'This number is blocked by the phone network because they replied STOP'],
+  [/\b21408\b|\b21606\b/i, 'The carrier will not send to that destination from this number'],
+];
+
 function explainSkip(reason) {
   if (!reason) return null;
-  return SKIP_EXPLANATIONS[reason] || 'It could not be delivered';
+  if (SKIP_EXPLANATIONS[reason]) return SKIP_EXPLANATIONS[reason];
+
+  const text = String(reason);
+  for (const [pattern, sentence] of CARRIER_EXPLANATIONS) {
+    if (pattern.test(text)) return sentence;
+  }
+  return 'It could not be delivered';
 }
 
 /**
