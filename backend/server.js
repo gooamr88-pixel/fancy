@@ -31,6 +31,19 @@ const server = app.listen(PORT, () => {
     logger.error('BACKEND_URL is not set in production — emailed QR code images and other absolute links will point at localhost and fail to load for guests.');
   }
 
+  // Which SMS carrier is live, said once, at boot. Without this the only way to
+  // answer "are we on Twilio or Vonage right now?" is to read .env on the server —
+  // and the answer decides whether messages are going out at all. Each provider
+  // also warns here about its own half-configured states (missing credentials, or
+  // a missing Vonage signature secret, which silently disables refunds).
+  try {
+    const smsProvider = require('./services/smsProviders').resolveProvider();
+    logger.info(`📱 SMS carrier: ${smsProvider.name} (${smsProvider.isConfigured() ? 'configured' : 'NOT configured — sending disabled'})`);
+    smsProvider.logConfigWarnings();
+  } catch (err) {
+    logger.warn({ err }, 'Could not report the active SMS carrier at boot');
+  }
+
   // Lifecycle email automation (reminders, reports, post-event). No-ops unless
   // EMAIL_AUTOMATION_ENABLED=true; single-leader + idempotent (see emailScheduler).
   try {

@@ -37,10 +37,13 @@ function stripeEnabled() {
  * rather than at the first campaign.
  */
 function smsEnabled() {
-  return truthy(process.env.SMS_ENABLED)
-    && !!process.env.TWILIO_ACCOUNT_SID
-    && !!process.env.TWILIO_AUTH_TOKEN
-    && !!(process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_NUMBER);
+  if (!truthy(process.env.SMS_ENABLED)) return false;
+  // Asks the ACTIVE carrier whether it can actually send, rather than checking
+  // TWILIO_* specifically — otherwise a fully-configured Vonage account would
+  // report SMS as disabled, and a leftover Twilio key would report it as enabled
+  // while Vonage was the one selected.
+  const { resolveProvider } = require('../services/smsProviders');
+  return resolveProvider().isConfigured();
 }
 
 /**

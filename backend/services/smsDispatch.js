@@ -11,6 +11,7 @@ const { buildGuestRsvpUrl } = require('../utils/emailTemplates');
 const { computeSmsSegments, renderTemplate } = require('../utils/smsSegments');
 const { normalizeToE164 } = require('../utils/phone');
 const { smsMockBillingEnabled } = require('../config/features');
+const { resolveProvider } = require('./smsProviders');
 
 // GSM-7-safe separator (an em-dash forces UCS-2 → 70-char segments → triple cost).
 const BRANDING = ' - Fancy RSVP';
@@ -19,6 +20,12 @@ const BRANDING = ' - Fancy RSVP';
 // (frontend/src/app/dashboard/campaigns/page.js mirrors this string exactly for
 // its segment-cost estimate — keep the two in sync). All-ASCII → stays GSM-7.
 const COMPLIANCE_FOOTER = `${BRANDING}. Msg&data rates may apply. Reply STOP to opt out, HELP for help.`;
+
+// CTIA requires HELP to be answered with support information. Twilio answers it on
+// the number itself; where the carrier does NOT (see smsProviders/vonage.js
+// `handlesHelpKeyword`) we send this instead. Kept all-ASCII and under 160 chars so
+// it is a single GSM-7 segment, which is what carriers require of a HELP response.
+const HELP_REPLY = 'Fancy RSVP: help with event texts? Email info@fancyrsvp.com. Msg&data rates may apply. Reply STOP to opt out.';
 
 // Stored response values are yes/no/maybe/pending; aliases tolerated defensively.
 const AUDIENCE_RESPONSES = {
@@ -351,19 +358,24 @@ async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, 
     : await isOptedOut(norm);
   if (suppressed) return { kind: 'skipped', error: 'OPTED_OUT' };
 
-  // TRANSPORT GATE — must precede the debit. Without a Twilio client there is no
+  // TRANSPORT GATE — must precede the debit. Without a working carrier there is no
   // message, so charging here bills the organizer for silence: the wallet was
   // debited, the ledger stamped with a fabricated `mock-sid-…`, and the dashboard
   // reported "sent" while no handset ever rang. That is exactly what happens in
-  // production whenever SMS_ENABLED is false or a TWILIO_* credential is missing,
-  // and the failure is invisible precisely because it looks like success.
+  // production whenever SMS_ENABLED is false or a credential is missing, and the
+  // failure is invisible precisely because it looks like success.
   //
   // Billing without a transport is now opt-in (SMS_MOCK_BILLING) and used only by
   // the unit suite, which needs to assert the ledger path offline. Everywhere else
   // a missing transport is a skip: nothing sent, nothing charged, reason recorded.
+  //
+  // `twilio` is the caller-supplied transport — historically a Twilio client, now
+  // whatever the active provider hands back. The parameter name is kept so the
+  // dozens of existing call sites and tests are untouched by the provider work.
+  const provider = resolveProvider();
   if (!twilio && !smsMockBillingEnabled()) {
-    logger.error({ eventId, phone: norm },
-      'SMS transport unavailable — send skipped and NOT billed. Set SMS_ENABLED=true with valid TWILIO_* credentials.');
+    logger.error({ eventId, phone: norm, provider: provider.name },
+      `SMS transport unavailable — send skipped and NOT billed. Set SMS_ENABLED=true with valid ${provider.name.toUpperCase()} credentials.`);
     return { kind: 'skipped', error: 'SMS_TRANSPORT_DISABLED' };
   }
 
@@ -380,14 +392,21 @@ async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, 
   }
 
   try {
-    const createParams = { body, from: fromNumber, to: norm };
-    // Ask Twilio to POST delivery receipts so undelivered/failed messages can be
-    // reconciled and auto-refunded (see reconcile_sms_delivery / the status webhook).
-    const callbackUrl = process.env.SMS_STATUS_CALLBACK_URL;
-    if (callbackUrl) createParams.statusCallback = callbackUrl;
-    const msg = await twilio.messages.create(createParams);
-    await stampSendOutcome({ ledgerId: deduct.ledgerId, sid: msg.sid, eventId, segments });
-    return { kind: 'sent', credits: deduct.credits, ledgerId: deduct.ledgerId, sid: msg.sid };
+    // The carrier-specific part — the request shape, the encoding flag, what
+    // counts as failure — lives in services/smsProviders/<name>.js. Everything
+    // here is identical on either: debit, send, stamp, refund on throw.
+    //
+    // `idemKey` doubles as the provider's client reference: Vonage echoes it on
+    // every delivery receipt, which is how a receipt finds its ledger row when a
+    // long message was split into several carrier-side ids.
+    const sent = await provider.send({ to: norm, body, clientRef: idemKey, transport: twilio, fromNumber });
+    await stampSendOutcome({
+      ledgerId: deduct.ledgerId, sid: sent.id, eventId, segments,
+      // Some carriers report what they actually charged; when they do, it beats
+      // our config-based estimate and the admin P&L becomes measured.
+      costCents: sent.costCents,
+    });
+    return { kind: 'sent', credits: deduct.credits, ledgerId: deduct.ledgerId, sid: sent.id };
   } catch (smsErr) {
     await refundCredits(deduct.walletId, eventId, deduct.ledgerId, deduct.credits);
     return { kind: 'failed', error: smsErr.message || 'SMS_SEND_FAILED' };
@@ -417,17 +436,24 @@ async function sendRecipient({ eventId, phone, body, segments, idemKey, twilio, 
  * organizer already charged. Losing a reporting field must not turn a delivered
  * message into a failed one — that would refund a message the guest received.
  */
-async function stampSendOutcome({ ledgerId, sid, eventId, segments }) {
+async function stampSendOutcome({ ledgerId, sid, eventId, segments, costCents: reportedCostCents = null }) {
   try {
-    let costCents = null;
-    try {
-      const { getPlatformConfig } = require('../utils/configCache');
-      const config = await getPlatformConfig();
-      const rate = Number(config?.sms_rate_cents_per_credit);
-      if (Number.isFinite(rate)) costCents = rate * (Number(segments) || 0);
-    } catch {
-      // A config read failure leaves cost unrecorded rather than blocking the
-      // send. The row is still identifiable for backfill by its timestamp.
+    // The carrier's own figure wins when it gives one (Vonage returns
+    // `message-price` on every send). Falling back to rate x segments is an
+    // estimate that goes stale the moment an admin edits the rate, so a measured
+    // number is always preferred.
+    let costCents = Number.isFinite(reportedCostCents) ? reportedCostCents : null;
+
+    if (costCents == null) {
+      try {
+        const { getPlatformConfig } = require('../utils/configCache');
+        const config = await getPlatformConfig();
+        const rate = Number(config?.sms_rate_cents_per_credit);
+        if (Number.isFinite(rate)) costCents = rate * (Number(segments) || 0);
+      } catch {
+        // A config read failure leaves cost unrecorded rather than blocking the
+        // send. The row is still identifiable for backfill by its timestamp.
+      }
     }
 
     // The ONE write that must happen per message: the SID has to land on this
@@ -547,7 +573,7 @@ async function flushUsage() {
 
 const { isTypeEnabled, getSmsType } = require('../config/smsMessageTypes');
 const { renderSmsBody, normalizeLang } = require('../utils/smsTemplates');
-const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
+
 
 /** Append one attempt (sent, failed OR skipped) to sms_log. Never throws. */
 async function logSmsAttempt(row) {
@@ -847,8 +873,10 @@ async function sendTransactionalSms({ type, eventId, partyId = null, ref, event 
       body,
       segments,
       idemKey: `smstx:${type}:${ref || partyId || eventId}`,
-      twilio: getTwilioClient(),
-      fromNumber: getTwilioFromNumber(),
+      // Whatever the active carrier hands back. Null when unconfigured, which
+      // sendRecipient's transport gate turns into a skip rather than a charge.
+      twilio: resolveProvider().getTransport(),
+      fromNumber: null,
       consented: verified,
     });
 
@@ -896,6 +924,7 @@ module.exports = {
   __flushUsageForTests: flushUsage,
   BRANDING,
   COMPLIANCE_FOOTER,
+  HELP_REPLY,
   canonicalPhone,
   getOptedOutSet,
   isOptedOut,

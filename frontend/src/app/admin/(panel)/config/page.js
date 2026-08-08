@@ -248,7 +248,7 @@ function SmsRateCard({ rate, onRate, markup, onMarkup }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20 }}>
         <Field label="Carrier cost per message (cents)">
           <input type="number" step="0.1" min="0" value={rate} onChange={(e) => onRate(e.target.value)} style={smsInput} />
-          <span style={smsHint}>What Twilio bills us per segment. Not shown to customers.</span>
+          <span style={smsHint}>What the carrier bills us per segment. Not shown to customers.</span>
         </Field>
         <Field label="Fancy markup (%)">
           <input type="number" step="0.1" value={markup} onChange={(e) => onMarkup(e.target.value)} style={smsInput} />

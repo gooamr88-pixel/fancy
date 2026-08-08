@@ -725,7 +725,27 @@ ALTER TABLE public.rsvp_parties
 COMMENT ON COLUMN public.rsvp_parties.preferred_lang IS
   'The language the guest used on the RSVP form (''en'' | ''ar''). Captured so SCHEDULED messages — reminders sent days later, by a job with no request context — reach them in the same language their confirmation did. NULL means never recorded; callers fall back to English.';
 
-/* ── 3. Count skips in the database, not in Node ──────────────────────────── */
+/* ── 3. Let a bank transfer buy messages too ──────────────────────────────── */
+
+-- The SMS add-on was card-only. On the manual path the card was hidden, so an
+-- organizer paying by bank transfer — the ONLY path available while card payments
+-- are switched off — simply could not buy text messaging at all, and the amount
+-- they were told to transfer covered the licence alone.
+--
+-- Recorded on the payment itself rather than on the event: a manual payment is
+-- approved by a human later, and the approval has to know what the transfer was
+-- actually FOR. Without it the messages would either never be credited or be
+-- credited from a number nobody verified.
+--
+-- NOT OPTIONAL: paymentController writes this column on EVERY manual payment, so
+-- an install missing it fails bank-transfer checkout outright, not just SMS.
+ALTER TABLE public.event_payments
+  ADD COLUMN IF NOT EXISTS sms_addon_segments INTEGER;
+
+COMMENT ON COLUMN public.event_payments.sms_addon_segments IS
+  'Messages bought alongside the licence on this payment, credited when a Super Admin approves it. NULL = licence only. amount_cents already includes their price, so the approver verifies one figure.';
+
+/* ── 4. Count skips in the database, not in Node ──────────────────────────── */
 
 -- Returns { "<skip_reason>": <count>, ... } for one event.
 --
@@ -819,7 +839,12 @@ WITH expected(sort_key, object_name, kind, supplied_by) AS (VALUES
   (17, 'organizations.sms_delivered_total',     'column',   'STEP 7'),
   (18, 'increment_sms_delivered',               'function', 'STEP 7'),
   (19, 'reset_sms_balance_alerts',              'function', 'STEP 7'),
-  (20, 'sms_admin_analytics',                   'function', 'STEP 7')
+  (20, 'sms_admin_analytics',                   'function', 'STEP 7'),
+  (21, 'organizations.sms_consent_text_version', 'column',  'STEP 8'),
+  (22, 'organizations.sms_consent_ip',          'column',   'STEP 8'),
+  (23, 'rsvp_parties.preferred_lang',           'column',   'STEP 8'),
+  (24, 'event_payments.sms_addon_segments',     'column',   'STEP 8'),
+  (25, 'sms_skip_summary',                      'function', 'STEP 8')
 )
 SELECT
   e.object_name,

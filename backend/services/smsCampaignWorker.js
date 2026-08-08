@@ -16,7 +16,7 @@
  */
 const { supabase } = require('../config/supabase');
 const logger = require('../utils/logger');
-const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
+const { resolveProvider } = require('./smsProviders');
 const { personalize, getTableMap, sendRecipient, sleep, getOptedOutSet, getConsentedPhoneSet } = require('./smsDispatch');
 
 const INTERVAL_SEC = Math.max(5, parseInt(process.env.SMS_WORKER_INTERVAL_SEC, 10) || 15);
@@ -90,8 +90,10 @@ async function processCampaign(campaign) {
   }
 
   const tableMap = await getTableMap(eventId);
-  const twilio = getTwilioClient();
-  const fromNumber = getTwilioFromNumber();
+  // Whatever the active carrier hands back; null when unconfigured, which
+  // sendRecipient's transport gate turns into a skip rather than a charge.
+  const twilio = resolveProvider().getTransport();
+  const fromNumber = null;
 
   let processedThisTick = 0;
   while (processedThisTick < SLICE) {

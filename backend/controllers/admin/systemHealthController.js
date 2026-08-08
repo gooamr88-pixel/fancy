@@ -1,4 +1,5 @@
 const { supabase } = require('../../config/supabase');
+const { resolveProvider } = require('../../services/smsProviders');
 
 /**
  * System Health Center (Master Plan §20). Probes the dependencies the platform
@@ -37,7 +38,17 @@ const getSystemHealth = async (req, res, next) => {
     // Outbound providers — config-presence readiness (no traffic sent).
     const configured = (keys) => keys.every((k) => !!process.env[k]);
     services.push({ name: 'email', status: configured(['BREVO_API_KEY']) || configured(['SMTP_HOST']) ? 'configured' : 'unconfigured' });
-    services.push({ name: 'sms', status: configured(['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN']) ? 'configured' : 'unconfigured' });
+    // Ask the ACTIVE carrier whether it is ready, rather than checking Twilio's
+    // variables: hardcoding those reported SMS as unconfigured on a perfectly
+    // working Vonage install, which is exactly when someone reads this screen.
+    // The carrier name is reported too, so "which one is live?" is answerable here
+    // instead of by reading .env on the server.
+    const smsProvider = resolveProvider();
+    services.push({
+      name: 'sms',
+      status: smsProvider.isConfigured() ? 'configured' : 'unconfigured',
+      detail: smsProvider.name,
+    });
     services.push({ name: 'payments', status: configured(['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET']) ? 'configured' : 'unconfigured' });
 
     const overall = services.some((s) => s.status === 'degraded') ? 'degraded' : 'healthy';

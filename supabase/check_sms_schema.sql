@@ -28,7 +28,12 @@ WITH expected(sort_key, object_name, kind, supplied_by) AS (VALUES
   (17, 'organizations.sms_delivered_total',       'column', '20260820000000_sms_usage_and_limits'),
   (18, 'increment_sms_delivered',                 'function', '20260820000000_sms_usage_and_limits'),
   (19, 'reset_sms_balance_alerts',                'function', '20260820000000_sms_usage_and_limits'),
-  (20, 'sms_admin_analytics',                     'function', '20260820000000_sms_usage_and_limits')
+  (20, 'sms_admin_analytics',                     'function', '20260820000000_sms_usage_and_limits'),
+  (21, 'organizations.sms_consent_text_version',  'column', '20260821000000_sms_organizer_optin_and_perf'),
+  (22, 'organizations.sms_consent_ip',            'column', '20260821000000_sms_organizer_optin_and_perf'),
+  (23, 'rsvp_parties.preferred_lang',             'column', '20260821000000_sms_organizer_optin_and_perf'),
+  (24, 'event_payments.sms_addon_segments',       'column', '20260821000000_sms_organizer_optin_and_perf'),
+  (25, 'sms_skip_summary',                        'function', '20260821000000_sms_organizer_optin_and_perf')
 )
 SELECT
   e.object_name,

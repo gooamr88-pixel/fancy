@@ -32,7 +32,7 @@ The product never shows a customer any of the left-hand column. This table is fo
 | **GSM-7** | — | The encoding that fits 160 characters per segment. |
 | **UCS-2** | "Arabic messages use about twice as many" | Any Arabic, emoji or accent drops a segment to **70** characters. This is the single biggest surprise in SMS costs. |
 | **Credit / allowance / wallet** | "messages", "messages left" | Same thing. The database still says `credits`; the UI never does. |
-| **E.164** | — | `+15551234567`. Twilio rejects anything else; we normalize on input. |
+| **E.164** | — | `+15551234567`. Carriers reject anything else; we normalize on input. |
 | **Add-on** | "text messaging" | The paid extra. |
 | **Toll-free number** | — | The `+1 8XX…` number we send from, *verified* with the carriers — which is why the compliance rules in §9 are not optional. |
 | **STOP** | "They replied STOP" | The universal opt-out word. Legally binding, immediate, permanent. |
@@ -44,11 +44,31 @@ The product never shows a customer any of the left-hand column. This table is fo
 
 ---
 
+## 2a. Which carrier is sending
+
+Fancy supports **Twilio** and **Vonage**, chosen by one environment variable
+(`SMS_PROVIDER`). Everything in this document applies to both: consent, STOP,
+the seven message types, balances, refunds — all of it sits *above* the carrier
+and does not know which one is live.
+
+Only three things actually differ, and the code already handles each:
+
+- **Arabic** — Twilio detects it; Vonage must be told, so the flag is derived from
+  the same check that bills the message.
+- **A refused message** — Twilio raises an error; Vonage returns a success-looking
+  HTTP 200 with the refusal inside, so every entry is inspected before we call it sent.
+- **Cost** — Vonage reports what it actually charged, so on Vonage the admin
+  profit screen is measured rather than estimated.
+
+Setup for either: [`SMS-Provider-Setup.md`](./SMS-Provider-Setup.md).
+
+---
+
 ## 3. Who is involved
 
 ```
 ┌──────────┐  real money   ┌────────┐   balance    ┌────────┐   text    ┌───────┐
-│ ORGANIZER│ ────────────► │ STRIPE │ ───────────► │ TWILIO │ ────────► │ GUEST │
+│ ORGANIZER│ ────────────► │ STRIPE │ ───────────► │CARRIER │ ────────► │ GUEST │
 │(customer)│               │        │              │        │           │       │
 └──────────┘               └────────┘              └────────┘           └───────┘
       ▲                                                  │                   │
@@ -57,9 +77,9 @@ The product never shows a customer any of the left-hand column. This table is fo
                   the GUEST's consent
 ```
 
-**Stripe and Twilio never talk to each other.** The bridge is an internal currency — the
-**message balance** in `sms_credit_wallets`. Stripe turns money into balance; Twilio turns
-balance into delivered texts.
+**Stripe and the carrier never talk to each other.** The bridge is an internal currency —
+the **message balance** in `sms_credit_wallets`. Stripe turns money into balance; the
+carrier (Twilio or Vonage) turns balance into delivered texts.
 
 There is a second currency money cannot buy: **consent**. The organizer owns the balance;
 the guest owns the permission. Both are required for a single message.
@@ -110,7 +130,7 @@ A guest is texted only when **all** of these hold:
 5. The primary contact has a phone number
 6. That number hasn't replied STOP
 7. The balance has enough left
-8. Twilio is configured and reachable
+8. The carrier is configured and reachable
 
 Any failure and **the guest still hears from us by email**. Nothing is silently dropped,
 and the reason is recorded.
@@ -317,9 +337,10 @@ STOP and missing consent: the button would imply it might override the guest's c
 
 ### "Nothing is sending at all"
 
-Check `SMS_ENABLED=true` **and** all of `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
-`TWILIO_PHONE_NUMBER`. Any one missing disables SMS entirely — deliberately, and loudly.
-The system will **not** pretend to send, and will **not** charge anyone.
+Check `SMS_ENABLED=true` **and** every credential for the carrier `SMS_PROVIDER` selects
+(see [`SMS-Provider-Setup.md`](./SMS-Provider-Setup.md)). Any one missing disables SMS
+entirely — deliberately, and loudly. The system will **not** pretend to send, and will
+**not** charge anyone.
 
 ### "An organizer was charged but nothing arrived"
 
@@ -345,6 +366,7 @@ billing is idempotent per message. Check `sms_log` for two rows with the same pa
 | Allowance estimator | `backend/utils/smsEstimator.js` |
 | Price maths | `backend/utils/pricing.js` |
 | Access + send limits | `backend/middleware/smsAddonGate.js` |
+| Carrier adapters (Twilio / Vonage) | `backend/services/smsProviders/` |
 | Campaigns, settings, log, resend, webhooks | `backend/controllers/campaignController.js` |
 | Purchase | `backend/controllers/paymentController.js` |
 | Crediting the balance | `backend/services/paymentFulfillment.js` |

@@ -1,6 +1,6 @@
 const crypto = require('crypto');
-const { getTwilioClient, getTwilioFromNumber } = require('../utils/twilioClient');
 const { SMS_MESSAGE_TYPES, sanitizeSmsSettings } = require('../config/smsMessageTypes');
+const { resolveProvider, resolveWebhookProvider } = require('../services/smsProviders');
 const { normalizeSmsPricing, maxPerSendFor } = require('../config/smsPricing');
 const { getPlatformConfig } = require('../utils/configCache');
 const { summarizeBalance, coverageForGuests, explainSkip, isResendable } = require('../utils/smsUsage');
@@ -13,7 +13,7 @@ const logger = require('../utils/logger');
 const {
   chunk, sleep, normalizePhone, isValidPhone,
   normalizeAudiences, fetchRecipients, getTableMap, personalize, sendRecipient,
-  getOptedOutSet, canonicalPhone, getConsentedPhoneSet, COMPLIANCE_FOOTER,
+  getOptedOutSet, canonicalPhone, getConsentedPhoneSet, COMPLIANCE_FOOTER, HELP_REPLY,
 } = require('../services/smsDispatch');
 
 /**
@@ -190,8 +190,10 @@ async function dispatchInline(res, { eventId, event, recipients, messageTemplate
     return { guest: g, body, segments };
   });
 
-  const twilio = getTwilioClient();
-  const fromNumber = getTwilioFromNumber();
+  // Whatever the active carrier hands back; null when unconfigured, which
+  // sendRecipient's transport gate turns into a skip rather than a charge.
+  const twilio = resolveProvider().getTransport();
+  const fromNumber = null;
   const sent = [], failed = [], skipped = [];
   let creditsUsed = 0;
 
@@ -394,24 +396,6 @@ const getCampaignHistory = async (req, res, next) => {
 };
 
 /**
- * Validate Twilio's X-Twilio-Signature without the Twilio SDK.
- * Algorithm: HMAC-SHA1( authToken, url + each POST param appended as key+value in
- * lexical key order ), base64-encoded, compared in constant time.
- */
-function validateTwilioSignature(authToken, signature, url, params) {
-  if (!authToken || !signature) return false;
-  let data = String(url);
-  for (const k of Object.keys(params || {}).sort()) {
-    data += k + (params[k] == null ? '' : params[k]);
-  }
-  const expected = crypto.createHmac('sha1', authToken).update(Buffer.from(data, 'utf-8')).digest('base64');
-  const a = Buffer.from(expected);
-  const b = Buffer.from(String(signature));
-  if (a.length !== b.length) return false;
-  try { return crypto.timingSafeEqual(a, b); } catch { return false; }
-}
-
-/**
  * Twilio delivery-status webhook → reconcile + auto-refund undelivered/failed SMS.
  * Public + signature-verified. Idempotent: the refund deletes the consumption row,
  * so repeated callbacks for the same SID are no-ops.
@@ -419,25 +403,77 @@ function validateTwilioSignature(authToken, signature, url, params) {
  * POST /api/v1/public/sms/status   (Twilio statusCallback target)
  */
 const handleSmsStatusCallback = async (req, res) => {
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  // No Twilio configured (mock/dev) → nothing real to reconcile.
-  if (!authToken) return res.status(200).send('ok');
+  // Routed by PAYLOAD SHAPE, not by SMS_PROVIDER: a receipt for a message sent
+  // before a carrier switch must still be understood, or its failure never
+  // refunds. See resolveWebhookProvider.
+  const provider = resolveWebhookProvider(req);
 
-  const signature = req.headers['x-twilio-signature'];
-  const url = process.env.SMS_STATUS_CALLBACK_URL || `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-  if (!validateTwilioSignature(authToken, signature, url, req.body || {})) {
-    logger.warn('Rejected SMS status callback: invalid Twilio signature');
+  // Resembles neither carrier (mock/dev, a probe, a misconfigured URL) → nothing
+  // to reconcile. 200 stops the sender retrying into an endpoint that can never
+  // do anything with it.
+  if (!provider) return res.status(200).send('ok');
+
+  // Shaped like a carrier we cannot verify. REFUSE rather than trust it: this
+  // endpoint issues refunds, so accepting an unverifiable receipt would let anyone
+  // who knows the URL mint credit by forging a failure.
+  if (!provider.isConfigured()) {
+    logger.warn({ provider: provider.name }, 'Rejected SMS status callback: payload is for a carrier that is not configured, so it cannot be verified');
+    return res.status(403).send('unverifiable');
+  }
+
+  // Both carriers fail closed here, for the same reason: this endpoint triggers
+  // automatic refunds, so an unverified request is a request that can move money.
+  if (!provider.verifyStatusWebhook(req)) {
+    logger.warn({ provider: provider.name }, 'Rejected SMS status callback: signature verification failed');
     return res.status(403).send('invalid signature');
   }
 
-  const sid = req.body.MessageSid || req.body.SmsSid;
-  const status = String(req.body.MessageStatus || req.body.SmsStatus || '').toLowerCase();
-  const errorCode = req.body.ErrorCode != null && req.body.ErrorCode !== '' ? String(req.body.ErrorCode) : null;
-  if (!sid || !status) return res.status(200).send('ok');
+  // Carrier vocabulary in, ours out — reconcile_sms_delivery keeps receiving the
+  // `failed`/`delivered` values it already understands, whichever carrier sent.
+  const parsed = provider.parseStatusWebhook(req.body || {});
+  if (!parsed) return res.status(200).send('ok');
+
+  const { id: sid, status, errorCode } = parsed;
+  if (!sid) return res.status(200).send('ok');
+
+  // The carrier knows about an opt-out we may not. On toll-free, STOP is enforced
+  // network-side, so a guest can be blocked without our inbound webhook ever seeing
+  // the keyword — this receipt is then the ONLY signal. Recording it keeps our
+  // suppression list in step with the network instead of paying to retry a number
+  // that can never receive. Best-effort: it must never block the refund below.
+  if (parsed.to && parsed.errorCode && typeof provider.isBlacklistError === 'function'
+      && provider.isBlacklistError(parsed.errorCode)) {
+    supabase.from('sms_opt_outs').upsert(
+      {
+        phone: parsed.to,
+        opted_out_at: new Date().toISOString(),
+        keyword: 'carrier-blocked',
+        message_sid: parsed.id,
+        opted_back_in_at: null,
+      },
+      { onConflict: 'phone' },
+    ).then(
+      ({ error }) => {
+        if (error) logger.warn({ err: error, phone: parsed.to }, 'carrier-reported opt-out not recorded');
+        else logger.info({ phone: parsed.to, provider: provider.name, code: parsed.errorCode }, 'Opt-out recorded from carrier delivery receipt');
+      },
+      (err) => logger.warn({ err, phone: parsed.to }, 'carrier-reported opt-out rejected'),
+    );
+  }
+
+  // When the carrier reports what it actually charged, record it — that is what
+  // turns the admin P&L from an estimate into a measurement.
+  if (parsed.costCents != null) {
+    supabase.from('sms_credit_ledger').update({ cost_cents: parsed.costCents }).eq('sms_sid', sid)
+      .then(({ error }) => { if (error) logger.warn({ err: error, sid }, 'carrier cost stamp failed'); },
+            (err) => logger.warn({ err, sid }, 'carrier cost stamp rejected'));
+  }
 
   try {
     const { data, error } = await supabase.rpc('reconcile_sms_delivery', {
-      p_sms_sid: sid, p_status: status, p_error_code: errorCode,
+      // The RPC decides failure from the status word, so hand it a value it
+      // recognises rather than the carrier's own dialect.
+      p_sms_sid: sid, p_status: parsed.failed ? 'failed' : (status || 'delivered'), p_error_code: errorCode,
     });
     if (error) {
       const undef = error.code === '42883' || error.code === 'PGRST202' ||
@@ -483,25 +519,42 @@ const HELP_KEYWORDS = new Set(['help', 'info']);
  * POST /api/v1/public/sms/inbound   (Twilio "A message comes in" target)
  */
 const handleInboundSms = async (req, res) => {
+  // Twilio expects TwiML; Vonage only needs a 200. An empty TwiML document is a
+  // valid 200 to both, so one response satisfies either carrier.
   const twiml = () => res.type('text/xml').status(200).send('<Response/>');
 
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  // No Twilio configured (mock/dev) → nothing real can arrive here.
-  if (!authToken) return twiml();
+  // Routed by PAYLOAD SHAPE (see resolveWebhookProvider): a STOP sent to the
+  // previous carrier's number after a switch must still register. Dropping it
+  // because the payload is the "wrong" shape is a TCPA violation.
+  const provider = resolveWebhookProvider(req);
+  // Resembles neither carrier (mock/dev, a probe) → nothing real can arrive here.
+  if (!provider) return twiml();
+  // Shaped like a carrier we cannot verify: refuse rather than act on it.
+  if (!provider.isConfigured()) {
+    logger.warn({ provider: provider.name }, 'Rejected inbound SMS webhook: payload is for a carrier that is not configured');
+    return res.status(403).send('unverifiable');
+  }
 
-  const signature = req.headers['x-twilio-signature'];
-  const url = process.env.SMS_INBOUND_WEBHOOK_URL || `${req.protocol}://${req.get('host')}${req.originalUrl}`;
-  if (!validateTwilioSignature(authToken, signature, url, req.body || {})) {
-    logger.warn('Rejected inbound SMS webhook: invalid Twilio signature');
+  // Note the asymmetry with the status webhook above, which fails CLOSED: a
+  // forged inbound can only SUPPRESS a number, and dropping a genuine STOP is a
+  // TCPA violation while recording a spurious one is a nuisance. So each provider
+  // decides — Twilio always verifies, Vonage accepts unsigned with a warning.
+  if (!provider.verifyInboundWebhook(req)) {
+    logger.warn({ provider: provider.name }, 'Rejected inbound SMS webhook: signature verification failed');
     return res.status(403).send('invalid signature');
   }
 
-  const from = String(req.body.From || '').trim();
-  const sid = req.body.MessageSid || req.body.SmsSid || null;
+  const parsed = provider.parseInboundWebhook(req.body || {});
+  if (!parsed || !parsed.from) return twiml();
+
+  const from = parsed.from;
+  const sid = parsed.messageId;
   // Keyword matching per CTIA: single-word commands, case-insensitive, tolerant
-  // of trailing punctuation ("STOP.", "Stop!").
-  const keyword = String(req.body.Body || '').trim().toLowerCase().replace(/[.!,]+$/, '');
-  if (!from) return twiml();
+  // of trailing punctuation ("STOP.", "Stop!"). Vonage already extracts and
+  // uppercases the first word, so its value is preferred when present; Twilio
+  // sends the whole body and it is derived here.
+  const keyword = String(parsed.keyword || parsed.text || '')
+    .trim().toLowerCase().replace(/[.!,]+$/, '');
 
   try {
     if (OPT_OUT_KEYWORDS.has(keyword)) {
@@ -523,9 +576,24 @@ const handleInboundSms = async (req, res) => {
       return twiml();
     }
     if (HELP_KEYWORDS.has(keyword)) {
-      // Recorded for support visibility; the reply itself comes from Twilio's
-      // configured HELP response (see comment above).
-      logger.info({ from }, 'SMS HELP received');
+      logger.info({ from, provider: provider.name }, 'SMS HELP received');
+      // Answer it ourselves only where the carrier does not. Twilio replies from
+      // the number's own configured HELP response, so replying here too would
+      // double-message; Vonage's keyword service does not cover toll-free, so
+      // staying silent there would leave a mandatory CTIA keyword unanswered.
+      if (!provider.handlesHelpKeyword) {
+        // Deliberately NOT routed through sendTransactionalSms. A legally mandated
+        // reply is not a billable message: it must not deduct credits, must not
+        // require the paid add-on, and must not be withheld on a zero balance.
+        // A failure here is logged, never surfaced — the carrier must still get
+        // its 200 or it will retry the opt-out/HELP record indefinitely.
+        try {
+          await provider.send({ to: from, body: HELP_REPLY, transport: provider.getTransport() });
+          logger.info({ from }, 'HELP reply sent (this carrier does not answer HELP itself)');
+        } catch (helpErr) {
+          logger.error({ err: helpErr, from }, 'HELP reply failed to send');
+        }
+      }
       return twiml();
     }
     // Any other inbound content: acknowledged, never auto-replied.

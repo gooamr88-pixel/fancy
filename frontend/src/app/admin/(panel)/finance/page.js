@@ -71,7 +71,10 @@ function SmsProfitPanel({ sms, loading, error }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
         {stat('SMS revenue', fmt(revenue), `${(sms.messagesBought || 0).toLocaleString()} messages sold`)}
-        {stat('Twilio cost', fmt(cost), `${(sms.messagesSent || 0).toLocaleString()} messages sent`)}
+        {/* "Carrier", not "Twilio": the sending carrier is switchable (Twilio or
+            Vonage), and on Vonage this figure is the price the carrier actually
+            reported rather than an estimate from config. */}
+        {stat('Carrier cost', fmt(cost), `${(sms.messagesSent || 0).toLocaleString()} messages sent`)}
         {stat('Net profit', fmt(profit), `${sms.marginPct}% margin`, losing ? T.danger || '#C45E5E' : T.success)}
         {stat('Per event', fmt(sms.avgRevenuePerEventCents), `${sms.avgMessagesPerEvent} messages on average`)}
       </div>
