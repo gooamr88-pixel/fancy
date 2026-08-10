@@ -19,10 +19,18 @@ const API_URL = process.env.INTERNAL_API_URL
 // PERF-1: the public landing payload is guest-agnostic (the personalized guestRsvp
 // is fetched client-side in EventPageClient), so a short revalidate window puts the
 // most-shared URL behind a cache instead of hitting the backend+DB on every view.
+// The tag lets the backend drop this entry the instant the event changes, via
+// src/app/api/internal/revalidate/route.js. Without it the 60s window applies
+// to MISSES too — Next caches a 404 exactly like a hit — so a newly created
+// event read "not found" for a minute after going live, and a deleted one kept
+// answering. The format is duplicated in backend/utils/revalidateFrontend.js;
+// the two must stay identical or invalidation silently stops working.
+const eventCacheTag = (slug) => `event:${slug}`;
+
 const fetchEvent = cache(async (slug) => {
   try {
     const res = await fetch(`${API_URL}/public/events/${slug}`, {
-      next: { revalidate: 60 },
+      next: { revalidate: 60, tags: [eventCacheTag(slug)] },
     });
     if (!res.ok) return null;
     const data = await res.json();

@@ -47,6 +47,13 @@ module.exports = {
         // Not NEXT_PUBLIC_*: this must never be inlined into the client bundle, and
         // it's read at runtime by `next start`, so no rebuild is needed to change it.
         INTERNAL_API_URL: 'http://127.0.0.1:5000/api/v1'
+        // REVALIDATE_SECRET is deliberately NOT set here — this file is committed.
+        // Put it in frontend/.env (Next reads it at runtime, no rebuild needed) and
+        // set the SAME value as backend/.env. The backend posts to
+        // /api/internal/revalidate on this process to drop a cached event page the
+        // moment the event changes; on a mismatch the purge is refused and pages
+        // stay stale for up to 60s. Unset on both sides is a supported degraded
+        // mode — the backend logs a warning per change instead of failing.
       },
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       error_file: '../logs/frontend-error.log',

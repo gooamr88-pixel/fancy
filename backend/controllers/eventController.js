@@ -2,6 +2,7 @@ const { supabase } = require('../config/supabase');
 const { deriveBaseSlug, generateUniqueSlug } = require('../utils/slugHelper');
 const { generateQRCodeDataURL } = require('../utils/qrHelper');
 const { getPublicBaseUrl } = require('../utils/publicUrl');
+const { revalidateEventSlugs } = require('../utils/revalidateFrontend');
 const { isAcceptedResponse, isDeclinedResponse, isMaybeResponse } = require('../utils/responseHelpers');
 const { getPlatformConfig } = require('../utils/configCache');
 const { hashEventPassword, verifyEventPassword, isHashedEventPassword } = require('../utils/eventPassword');
@@ -301,6 +302,30 @@ const createEvent = async (req, res, next) => {
       // SEC H5: If the insert failed due to a unique constraint violation on slug,
       // append a random suffix and retry instead of failing.
       if (error && (error.code === '23505' || (error.message || '').includes('duplicate key')) && attempt < MAX_SLUG_RETRIES) {
+        /**
+         * NEVER SILENTLY REWRITE A URL THE ORGANIZER CHOSE.
+         *
+         * The check above catches a taken slug and answers 409 with a
+         * suggestion, but it is a check-then-insert, so a slug taken in the
+         * gap lands here instead. Suffixing in that case handed the organizer
+         * a different address from the one they typed, told them nothing, and
+         * left them printing the wrong link on an invitation — the failure
+         * that sent someone hunting through the database for an event that
+         * was never missing.
+         *
+         * The suffix is only correct when nobody chose the URL: an
+         * auto-generated slug is ours to adjust, and losing an event over a
+         * race on a name the organizer never saw would be the worse outcome.
+         */
+        if (slug) {
+          return res.status(409).json({
+            success: false,
+            error: 'SLUG_TAKEN',
+            message: 'This event URL is already taken.',
+            suggestedSlug: await generateUniqueSlug(supabase, slug, { year: eventYear })
+          });
+        }
+
         const suffix = require('crypto').randomBytes(2).toString('hex'); // 4 hex chars
         insertPayload.slug = `${finalSlug}-${suffix}`;
         logger.info({ attempt: attempt + 1, newSlug: insertPayload.slug }, 'createEvent: slug collision, retrying with random suffix');
@@ -352,9 +377,31 @@ const createEvent = async (req, res, next) => {
       logger.warn({ err: qrErr, eventId: event.id }, 'createEvent: QR generation failed (non-fatal)');
     }
 
+    /**
+     * The organizer's link is part of the result, not a detail to be discovered.
+     *
+     * A slug is derived from the title when none was supplied, so it routinely
+     * differs from what the organizer expects to type — a title carrying a
+     * typo produces a URL that does not, and the two are then one character
+     * apart forever. Returning the resolved URL means the client can show the
+     * real address at the one moment the organizer is looking, instead of
+     * leaving them to reconstruct it from the title and land on a 404.
+     */
+    const eventUrl = `${getPublicBaseUrl()}/${event.slug}`;
+
+    // Purge the cached 404 for this slug. Next caches a miss exactly like a
+    // hit, so without this the brand-new page reads "not found" for 60s —
+    // precisely when the organizer opens it to check their work.
+    await revalidateEventSlugs(event.slug);
+
     return res.status(201).json({
       success: true,
       message: 'Event created in draft state. Complete payment to activate.',
+      eventUrl,
+      // True only when a concurrent insert took the auto-generated slug and we
+      // fell back to a suffixed one. An organizer-chosen slug never reaches
+      // here — that path answers 409 above rather than rewriting the URL.
+      slugAdjusted: event.slug !== finalSlug,
       event
     });
   } catch (err) {
@@ -776,6 +823,17 @@ const updateEvent = async (req, res, next) => {
       if (before) { priorWhen = before.event_date; priorWhere = before.location_name || before.location_address || null; }
     }
 
+    // The OLD slug has to be captured before the write, because renaming an
+    // event leaves a cache entry under the previous URL that nothing else will
+    // ever invalidate — it would keep serving the event from its former address
+    // until the window expired.
+    let priorSlug = null;
+    if (filteredUpdates.slug) {
+      const { data: beforeSlug } = await supabase
+        .from('events').select('slug').eq('id', eventId).maybeSingle();
+      priorSlug = beforeSlug?.slug || null;
+    }
+
     const { data: event, error } = await supabase
       .from('events')
       .update({ ...filteredUpdates, updated_at: new Date().toISOString() })
@@ -796,6 +854,14 @@ const updateEvent = async (req, res, next) => {
         });
       }
       throw error;
+    }
+
+    // Every field this endpoint writes — title, date, venue, cover, colours —
+    // is rendered on the public page, so any successful update invalidates it,
+    // not just a rename. On a rename both addresses are purged: the new one so
+    // it stops answering 404, the old one so it stops answering with the event.
+    if (event) {
+      await revalidateEventSlugs([event.slug, priorSlug]);
     }
 
     /**
@@ -957,7 +1023,7 @@ const cancelEvent = async (req, res, next) => {
 
   try {
     const { data: event, error } = await supabase
-      .from('events').select('id, title, status, is_paid').eq('id', eventId).single();
+      .from('events').select('id, slug, title, status, is_paid').eq('id', eventId).single();
     if (error || !event) {
       return res.status(404).json({ success: false, error: 'EVENT_NOT_FOUND' });
     }
@@ -984,6 +1050,12 @@ const cancelEvent = async (req, res, next) => {
       })
       .eq('id', eventId);
     if (updateErr) throw updateErr;
+
+    // Cancelling is the one status change guests are actively checking on — they
+    // arrive at the link precisely because they heard something. Serving them a
+    // cached page that still reads as scheduled is the failure the cancellation
+    // notice exists to prevent, so the page is purged before anyone is told.
+    await revalidateEventSlugs(event.slug);
 
     // Everything else follows from the status: isEventLiveForGuests returns false
     // so the RSVP form closes, and every scheduler job filters on 'active' so
@@ -1232,9 +1304,17 @@ const deleteEvent = async (req, res, next) => {
      * was designed for — clearing out something nobody was ever invited to — and
      * `?force=true` remains for an organizer who genuinely means it.
      */
+    // Read the slug before the row goes: once it is deleted there is no way to
+    // learn which cached page to drop, and the stale entry would keep serving a
+    // deleted event for up to 60s. Fetched unconditionally — the guard below is
+    // skipped entirely when ?force=true, which is exactly the path most likely
+    // to remove a live, already-cached page.
+    const { data: doomed } = await supabase
+      .from('events').select('slug, status, is_paid').eq('id', eventId).maybeSingle();
+    const deletedSlug = doomed?.slug || null;
+
     if (!force) {
-      const { data: event } = await supabase
-        .from('events').select('status, is_paid').eq('id', eventId).maybeSingle();
+      const event = doomed;
 
       if (event && event.is_paid && (event.status === 'active' || event.status === 'paused')) {
         const { count } = await supabase
@@ -1259,6 +1339,8 @@ const deleteEvent = async (req, res, next) => {
       .eq('id', eventId);
 
     if (error) throw error;
+
+    await revalidateEventSlugs(deletedSlug);
 
     res.json({ success: true, message: 'Event and all related data deleted successfully' });
   } catch (err) {

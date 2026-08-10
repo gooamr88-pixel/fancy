@@ -8,18 +8,11 @@
 -- Usage:  psql -f clean_database.sql
 --    or:  paste into Supabase SQL Editor
 --
--- Last updated: 2026-07-19 — synced with the full table set in
--- supabase/schema.sql (through supabase/migrations/20260719000000_
--- marketing_forms.sql + backend/migrations/006_guest_cap_response_update_
--- trigger.sql). Every entry below is IF-EXISTS guarded, so this is safe to
--- run against any database regardless of exactly which migrations it has.
---
--- Removed from the truncate list (tables that no longer exist, dropped by
--- later migrations — kept here as a note so nobody re-adds them by mistake):
---   'guest_reminders'  — dropped by 20260705000000_guest_experience_rebuild
---                        (absorbed into `invitations`).
---   'plans', 'subscriptions' — dropped by 20260712000000_tier_watermark_and_
---                        limits (superseded by super_admin_config.pricing_tiers).
+-- Last updated: 2026-08-10 — the truncate step no longer needs updating. It
+-- discovers every table in the `public` schema at runtime, so it stays correct
+-- across any set of migrations without being edited. The only hand-maintained
+-- parts left are the reseed blocks below (super_admin_config + RBAC), which
+-- still have to track their own schemas.
 -- ═══════════════════════════════════════════════════════════
 
 BEGIN;
@@ -30,66 +23,48 @@ SET session_replication_role = 'replica';
 -- ─── Drop materialized view (must be dropped before truncating source tables) ───
 DROP MATERIALIZED VIEW IF EXISTS mv_daily_revenue CASCADE;
 
--- ─── Truncate all tables conditionally ───
+-- ─── Truncate every table in `public`, discovered at runtime ───
+-- This used to be a hand-maintained ARRAY of table names, and it drifted badly:
+-- it was last synced at 20260719_marketing_forms, so ~30 migrations' worth of
+-- newer tables were never truncated. Most of them survived only partially
+-- (TRUNCATE ... CASCADE reaches anything with an FK to events/organizations),
+-- but four had no FK path to a truncated table at all and came through a
+-- "clean" completely intact — `testimonials`, `press_mentions`, `blog_posts`
+-- and `promo_codes` (its only FK, created_by -> auth.users, was dropped by
+-- 20260808). Those are landing-page and blog content, so the symptom was old
+-- marketing copy reappearing on a supposedly empty database.
+--
+-- Enumerating pg_class instead of listing names means the script can never
+-- drift again: a table added by a future migration is cleaned the day it
+-- exists, with no edit here.
 DO $$
 DECLARE
-    tbl text;
-    tbls text[] := ARRAY[
-        'sms_campaign_recipients',
-        'sms_campaigns',
-        -- The compliance-era SMS tables. Every one of these was missing until the
-        -- four-type rebuild, so a "clean" database still carried live STOP records
-        -- and consent history from the previous tenant — which is both a privacy
-        -- problem and a very confusing one to debug, because sends would silently
-        -- skip for guests who had never existed in the new data.
-        'seating_notify_queue',
-        'sms_log',
-        'sms_opt_outs',
-        'sms_optin_submissions',
-        'sms_consent_log',
-        'email_log',
-        'guest_analytics',
-        'admin_audit_logs',
-        'security_events',
-        'login_history',
-        'devices',
-        'sessions',
-        'admin_user_roles',
-        'admin_users',
-        'role_permissions',
-        'permissions',
-        'roles',
-        'user_roles',
-        'payment_disputes',
-        'event_payments',
-        'credit_packages',
-        'sms_credit_ledger',
-        'sms_credit_wallets',
-        'seating_assignments',
-        'tables',
-        'check_ins',
-        'custom_answers',
-        'custom_form_fields',
-        'rsvp_response_history',
-        'invitations',
-        'guests',
-        'rsvp_parties',
-        'activity_logs',
-        'events',
-        'organizations',
-        'newsletter_subscribers',
-        'contact_submissions',
-        'super_admin_config'
-    ];
+    tbl_list text;
 BEGIN
-    FOREACH tbl IN ARRAY tbls LOOP
-        IF EXISTS (
-            SELECT 1 FROM information_schema.tables 
-            WHERE table_schema = 'public' AND table_name = tbl
-        ) THEN
-            EXECUTE 'TRUNCATE TABLE ' || quote_ident(tbl) || ' CASCADE';
-        END IF;
-    END LOOP;
+    SELECT string_agg(format('%I.%I', n.nspname, c.relname), ', ')
+      INTO tbl_list
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = 'public'
+       AND c.relkind IN ('r', 'p')      -- ordinary + partitioned; excludes views and matviews
+       AND NOT c.relispartition          -- partitions are emptied via their parent
+       -- Skip anything an extension owns (PostGIS drops spatial_ref_sys into
+       -- public, for example). We usually lack the ownership to truncate those,
+       -- and the resulting error would abort the whole transaction and leave
+       -- the database untouched — a silent no-op clean.
+       AND NOT EXISTS (
+           SELECT 1 FROM pg_depend d
+            WHERE d.objid = c.oid
+              AND d.classid = 'pg_class'::regclass
+              AND d.deptype = 'e'
+       );
+
+    IF tbl_list IS NOT NULL THEN
+        -- One statement for all tables: TRUNCATE requires that every table in a
+        -- CASCADE group be truncated together anyway, and it sidesteps the
+        -- ordering problem the old per-table loop had.
+        EXECUTE 'TRUNCATE TABLE ' || tbl_list || ' RESTART IDENTITY CASCADE';
+    END IF;
 END $$;
 
 -- Re-enable triggers
